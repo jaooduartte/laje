@@ -7,12 +7,31 @@ export function useTeams() {
   const [loading, setLoading] = useState(true);
 
   const fetchTeams = async () => {
-    const { data } = await supabase.from('teams').select('*').order('name');
-    if (data) setTeams(data as Team[]);
-    setLoading(false);
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase.from("teams").select("*").order("name");
+
+      if (error) {
+        console.error("Erro ao carregar atléticas:", error.message);
+        setTeams([]);
+        return;
+      }
+
+      if (data) {
+        setTeams(data as Team[]);
+      }
+    } catch (error) {
+      console.error("Erro inesperado ao carregar atléticas:", error);
+      setTeams([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { fetchTeams(); }, []);
+  useEffect(() => {
+    fetchTeams();
+  }, []);
 
   return { teams, loading, refetch: fetchTeams };
 }

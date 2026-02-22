@@ -7,6 +7,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { MATCH_NAIPE_BADGE_CLASS_NAMES, MATCH_NAIPE_LABELS } from '@/lib/championship';
 
 interface Props {
   standings: Standing[];
@@ -24,6 +26,7 @@ export function StandingsTable({ standings }: Props) {
           <TableRow className="bg-secondary/50">
             <TableHead className="w-8 text-center">#</TableHead>
             <TableHead>Time</TableHead>
+            <TableHead className="w-28 text-center">Naipe</TableHead>
             <TableHead className="text-center w-10">J</TableHead>
             <TableHead className="text-center w-10">V</TableHead>
             <TableHead className="text-center w-10">E</TableHead>
@@ -39,6 +42,9 @@ export function StandingsTable({ standings }: Props) {
             <TableRow key={s.id} className="hover:bg-secondary/30">
               <TableCell className="text-center font-display font-bold text-muted-foreground">{i + 1}</TableCell>
               <TableCell className="font-display font-semibold">{s.teams?.name}</TableCell>
+              <TableCell className="text-center">
+                <Badge className={MATCH_NAIPE_BADGE_CLASS_NAMES[s.naipe]}>{MATCH_NAIPE_LABELS[s.naipe]}</Badge>
+              </TableCell>
               <TableCell className="text-center score-text">{s.played}</TableCell>
               <TableCell className="text-center score-text">{s.wins}</TableCell>
               <TableCell className="text-center score-text">{s.draws}</TableCell>

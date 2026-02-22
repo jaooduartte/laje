@@ -14,16 +14,97 @@ export type Database = {
   }
   public: {
     Tables: {
+      championships: {
+        Row: {
+          code: Database["public"]["Enums"]["championship_code"]
+          created_at: string
+          default_location: string | null
+          id: string
+          name: string
+          status: Database["public"]["Enums"]["championship_status"]
+          uses_divisions: boolean
+        }
+        Insert: {
+          code: Database["public"]["Enums"]["championship_code"]
+          created_at?: string
+          default_location?: string | null
+          id?: string
+          name: string
+          status?: Database["public"]["Enums"]["championship_status"]
+          uses_divisions?: boolean
+        }
+        Update: {
+          code?: Database["public"]["Enums"]["championship_code"]
+          created_at?: string
+          default_location?: string | null
+          id?: string
+          name?: string
+          status?: Database["public"]["Enums"]["championship_status"]
+          uses_divisions?: boolean
+        }
+        Relationships: []
+      }
+      championship_sports: {
+        Row: {
+          championship_id: string
+          created_at: string
+          id: string
+          naipe_mode: Database["public"]["Enums"]["championship_sport_naipe_mode"]
+          points_draw: number
+          points_loss: number
+          points_win: number
+          sport_id: string
+        }
+        Insert: {
+          championship_id: string
+          created_at?: string
+          id?: string
+          naipe_mode?: Database["public"]["Enums"]["championship_sport_naipe_mode"]
+          points_draw?: number
+          points_loss?: number
+          points_win?: number
+          sport_id: string
+        }
+        Update: {
+          championship_id?: string
+          created_at?: string
+          id?: string
+          naipe_mode?: Database["public"]["Enums"]["championship_sport_naipe_mode"]
+          points_draw?: number
+          points_loss?: number
+          points_win?: number
+          sport_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "championship_sports_championship_id_fkey"
+            columns: ["championship_id"]
+            isOneToOne: false
+            referencedRelation: "championships"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "championship_sports_sport_id_fkey"
+            columns: ["sport_id"]
+            isOneToOne: false
+            referencedRelation: "sports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       matches: {
         Row: {
           away_score: number
           away_team_id: string
+          championship_id: string
           created_at: string
+          division: Database["public"]["Enums"]["team_division"] | null
           end_time: string
           home_score: number
           home_team_id: string
           id: string
           location: string
+          naipe: Database["public"]["Enums"]["match_naipe"]
           sport_id: string
           start_time: string
           status: Database["public"]["Enums"]["match_status"]
@@ -31,12 +112,15 @@ export type Database = {
         Insert: {
           away_score?: number
           away_team_id: string
+          championship_id: string
           created_at?: string
+          division?: Database["public"]["Enums"]["team_division"] | null
           end_time: string
           home_score?: number
           home_team_id: string
           id?: string
           location: string
+          naipe?: Database["public"]["Enums"]["match_naipe"]
           sport_id: string
           start_time: string
           status?: Database["public"]["Enums"]["match_status"]
@@ -44,12 +128,15 @@ export type Database = {
         Update: {
           away_score?: number
           away_team_id?: string
+          championship_id?: string
           created_at?: string
+          division?: Database["public"]["Enums"]["team_division"] | null
           end_time?: string
           home_score?: number
           home_team_id?: string
           id?: string
           location?: string
+          naipe?: Database["public"]["Enums"]["match_naipe"]
           sport_id?: string
           start_time?: string
           status?: Database["public"]["Enums"]["match_status"]
@@ -60,6 +147,13 @@ export type Database = {
             columns: ["away_team_id"]
             isOneToOne: false
             referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matches_championship_id_fkey"
+            columns: ["championship_id"]
+            isOneToOne: false
+            referencedRelation: "championships"
             referencedColumns: ["id"]
           },
           {
@@ -98,12 +192,15 @@ export type Database = {
       }
       standings: {
         Row: {
+          championship_id: string
+          division: Database["public"]["Enums"]["team_division"] | null
           draws: number
           goal_diff: number
           goals_against: number
           goals_for: number
           id: string
           losses: number
+          naipe: Database["public"]["Enums"]["match_naipe"]
           played: number
           points: number
           sport_id: string
@@ -112,12 +209,15 @@ export type Database = {
           wins: number
         }
         Insert: {
+          championship_id: string
+          division?: Database["public"]["Enums"]["team_division"] | null
           draws?: number
           goal_diff?: number
           goals_against?: number
           goals_for?: number
           id?: string
           losses?: number
+          naipe?: Database["public"]["Enums"]["match_naipe"]
           played?: number
           points?: number
           sport_id: string
@@ -126,12 +226,15 @@ export type Database = {
           wins?: number
         }
         Update: {
+          championship_id?: string
+          division?: Database["public"]["Enums"]["team_division"] | null
           draws?: number
           goal_diff?: number
           goals_against?: number
           goals_for?: number
           id?: string
           losses?: number
+          naipe?: Database["public"]["Enums"]["match_naipe"]
           played?: number
           points?: number
           sport_id?: string
@@ -140,6 +243,13 @@ export type Database = {
           wins?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "standings_championship_id_fkey"
+            columns: ["championship_id"]
+            isOneToOne: false
+            referencedRelation: "championships"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "standings_sport_id_fkey"
             columns: ["sport_id"]
@@ -160,18 +270,21 @@ export type Database = {
         Row: {
           city: string
           created_at: string
+          division: Database["public"]["Enums"]["team_division"]
           id: string
           name: string
         }
         Insert: {
           city?: string
           created_at?: string
+          division?: Database["public"]["Enums"]["team_division"]
           id?: string
           name: string
         }
         Update: {
           city?: string
           created_at?: string
+          division?: Database["public"]["Enums"]["team_division"]
           id?: string
           name?: string
         }
@@ -211,7 +324,12 @@ export type Database = {
     }
     Enums: {
       app_role: "admin"
+      championship_code: "CLV" | "SOCIETY" | "INTERLAJE"
+      championship_sport_naipe_mode: "MISTO" | "MASCULINO_FEMININO"
+      championship_status: "PLANNING" | "UPCOMING" | "IN_PROGRESS" | "FINISHED"
+      match_naipe: "MASCULINO" | "FEMININO" | "MISTO"
       match_status: "SCHEDULED" | "LIVE" | "FINISHED"
+      team_division: "DIVISAO_PRINCIPAL" | "DIVISAO_ACESSO"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -340,7 +458,12 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin"],
+      championship_code: ["CLV", "SOCIETY", "INTERLAJE"],
+      championship_sport_naipe_mode: ["MISTO", "MASCULINO_FEMININO"],
+      championship_status: ["PLANNING", "UPCOMING", "IN_PROGRESS", "FINISHED"],
+      match_naipe: ["MASCULINO", "FEMININO", "MISTO"],
       match_status: ["SCHEDULED", "LIVE", "FINISHED"],
+      team_division: ["DIVISAO_PRINCIPAL", "DIVISAO_ACESSO"],
     },
   },
 } as const

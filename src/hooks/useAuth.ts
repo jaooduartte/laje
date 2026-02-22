@@ -8,39 +8,83 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const resolveAdminRole = async (currentUser: User | null) => {
+      if (!currentUser) {
+        setIsAdmin(false);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase.rpc('is_admin');
+
+        if (error) {
+          console.error('Erro ao verificar permissão de admin:', error.message);
+          setIsAdmin(false);
+          return;
+        }
+
+        setIsAdmin(!!data);
+      } catch (error) {
+        console.error('Erro inesperado ao verificar permissão de admin:', error);
+        setIsAdmin(false);
+      }
+    };
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
+      await resolveAdminRole(currentUser);
+      setLoading(false);
+    });
 
-      if (currentUser) {
-        const { data } = await supabase.rpc('is_admin');
-        setIsAdmin(!!data);
-      } else {
+    supabase.auth
+      .getSession()
+      .then(async ({ data: { session }, error }) => {
+        if (error) {
+          console.error('Erro ao carregar sessão:', error.message);
+          setUser(null);
+          setIsAdmin(false);
+          return;
+        }
+
+        const currentUser = session?.user ?? null;
+        setUser(currentUser);
+        await resolveAdminRole(currentUser);
+      })
+      .catch((error) => {
+        console.error('Erro inesperado ao carregar sessão:', error);
+        setUser(null);
         setIsAdmin(false);
-      }
-      setLoading(false);
-    });
+      })
+      .finally(() => {
+        setLoading(false);
+      });
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-      if (currentUser) {
-        const { data } = await supabase.rpc('is_admin');
-        setIsAdmin(!!data);
-      }
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error };
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      return { error };
+    } catch (error) {
+      console.error('Erro inesperado no login:', error);
+      return {
+        error: {
+          message: 'Erro de conexão ao tentar autenticar.',
+        },
+      };
+    }
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('Erro inesperado no logout:', error);
+    }
   };
 
   return { user, isAdmin, loading, signIn, signOut };
