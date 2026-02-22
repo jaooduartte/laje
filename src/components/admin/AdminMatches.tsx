@@ -48,6 +48,15 @@ const MATCH_STATUS_LABELS: Record<MatchStatus, string> = {
 };
 
 const NAIPE_OPTIONS: MatchNaipe[] = [MatchNaipe.MASCULINO, MatchNaipe.FEMININO, MatchNaipe.MISTO];
+const ALL_MATCHES_SPORT_FILTER = "ALL_MATCHES_SPORTS";
+const ALL_MATCHES_TEAM_FILTER = "ALL_MATCHES_TEAMS";
+const ALL_MATCHES_NAIPE_FILTER = "ALL_MATCHES_NAIPES";
+
+const MATCH_STATUS_SORT_ORDER: Record<MatchStatus, number> = {
+  [MatchStatus.LIVE]: 0,
+  [MatchStatus.SCHEDULED]: 1,
+  [MatchStatus.FINISHED]: 2,
+};
 
 function resolveSportsByNaipe(championshipSports: ChampionshipSport[], naipe: MatchNaipe): Sport[] {
   const sportsById = new Map<string, Sport>();
@@ -86,6 +95,9 @@ export function AdminMatches({
   const [replicateClvDefaultLocation, setReplicateClvDefaultLocation] = useState(true);
   const [editingMatchId, setEditingMatchId] = useState<string | null>(null);
   const [editingMatchDraft, setEditingMatchDraft] = useState<MatchEditDraft | null>(null);
+  const [matchesSportFilter, setMatchesSportFilter] = useState<string>(ALL_MATCHES_SPORT_FILTER);
+  const [matchesTeamFilter, setMatchesTeamFilter] = useState<string>(ALL_MATCHES_TEAM_FILTER);
+  const [matchesNaipeFilter, setMatchesNaipeFilter] = useState<string>(ALL_MATCHES_NAIPE_FILTER);
 
   const championshipUsesDivisions = selectedChampionship.uses_divisions;
   const isClvChampionship = selectedChampionship.code === ChampionshipCode.CLV;
@@ -131,6 +143,9 @@ export function AdminMatches({
     setDivision(TeamDivision.DIVISAO_PRINCIPAL);
     setEditingMatchId(null);
     setEditingMatchDraft(null);
+    setMatchesSportFilter(ALL_MATCHES_SPORT_FILTER);
+    setMatchesTeamFilter(ALL_MATCHES_TEAM_FILTER);
+    setMatchesNaipeFilter(ALL_MATCHES_NAIPE_FILTER);
   }, [isClvChampionship, replicateClvDefaultLocation, selectedChampionship.default_location, selectedChampionship.id]);
 
   useEffect(() => {
@@ -144,6 +159,64 @@ export function AdminMatches({
       setLocation(clvDefaultLocation);
     }
   }, [clvDefaultLocation, isClvChampionship, replicateClvDefaultLocation]);
+
+  const sportsForMatchesFilter = useMemo(() => {
+    const sportsById = new Map<string, Sport>();
+
+    matches.forEach((match) => {
+      if (match.sports && !sportsById.has(match.sports.id)) {
+        sportsById.set(match.sports.id, match.sports);
+      }
+    });
+
+    return [...sportsById.values()].sort((firstSport, secondSport) => firstSport.name.localeCompare(secondSport.name));
+  }, [matches]);
+
+  const teamsForMatchesFilter = useMemo(() => {
+    const teamIds = new Set<string>();
+
+    matches.forEach((match) => {
+      teamIds.add(match.home_team_id);
+      teamIds.add(match.away_team_id);
+    });
+
+    return teams
+      .filter((team) => teamIds.has(team.id))
+      .sort((firstTeam, secondTeam) => firstTeam.name.localeCompare(secondTeam.name));
+  }, [matches, teams]);
+
+  const filteredAndSortedMatches = useMemo(() => {
+    return [...matches]
+      .filter((match) => {
+        if (matchesSportFilter !== ALL_MATCHES_SPORT_FILTER && match.sport_id != matchesSportFilter) {
+          return false;
+        }
+
+        if (matchesTeamFilter !== ALL_MATCHES_TEAM_FILTER) {
+          const isHomeTeamMatch = match.home_team_id == matchesTeamFilter;
+          const isAwayTeamMatch = match.away_team_id == matchesTeamFilter;
+
+          if (!isHomeTeamMatch && !isAwayTeamMatch) {
+            return false;
+          }
+        }
+
+        if (matchesNaipeFilter !== ALL_MATCHES_NAIPE_FILTER && match.naipe != matchesNaipeFilter) {
+          return false;
+        }
+
+        return true;
+      })
+      .sort((firstMatch, secondMatch) => {
+        const statusOrderDifference = MATCH_STATUS_SORT_ORDER[firstMatch.status] - MATCH_STATUS_SORT_ORDER[secondMatch.status];
+
+        if (statusOrderDifference != 0) {
+          return statusOrderDifference;
+        }
+
+        return new Date(firstMatch.start_time).getTime() - new Date(secondMatch.start_time).getTime();
+      });
+  }, [matches, matchesNaipeFilter, matchesSportFilter, matchesTeamFilter]);
 
   const handleSaveClvDefaultLocation = async () => {
     if (!isClvChampionship) {
@@ -435,8 +508,56 @@ export function AdminMatches({
         ) : null}
       </div>
 
-      <div className="space-y-2">
-        {matches.map((match) => (
+      <div className="space-y-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Select value={matchesTeamFilter} onValueChange={setMatchesTeamFilter}>
+            <SelectTrigger className="bg-secondary border-border">
+              <SelectValue placeholder="Filtrar por atlética" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_MATCHES_TEAM_FILTER}>Todas as atléticas</SelectItem>
+              {teamsForMatchesFilter.map((team) => (
+                <SelectItem key={team.id} value={team.id}>
+                  {team.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={matchesSportFilter} onValueChange={setMatchesSportFilter}>
+            <SelectTrigger className="bg-secondary border-border">
+              <SelectValue placeholder="Filtrar por modalidade" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_MATCHES_SPORT_FILTER}>Todas as modalidades</SelectItem>
+              {sportsForMatchesFilter.map((sport) => (
+                <SelectItem key={sport.id} value={sport.id}>
+                  {sport.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={matchesNaipeFilter} onValueChange={setMatchesNaipeFilter}>
+            <SelectTrigger className="bg-secondary border-border">
+              <SelectValue placeholder="Filtrar por naipe" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_MATCHES_NAIPE_FILTER}>Todos os naipes</SelectItem>
+              {NAIPE_OPTIONS.map((naipeOption) => (
+                <SelectItem key={naipeOption} value={naipeOption}>
+                  {MATCH_NAIPE_LABELS[naipeOption]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {filteredAndSortedMatches.length == 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhum jogo encontrado para os filtros selecionados.</p>
+        ) : null}
+
+        {filteredAndSortedMatches.map((match) => (
           <div key={match.id} className="space-y-3 rounded-lg border border-border bg-card px-4 py-3">
             <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div className="space-y-1">
@@ -450,7 +571,7 @@ export function AdminMatches({
                       match.status === MatchStatus.LIVE
                         ? "bg-live/10 text-live"
                         : match.status === MatchStatus.FINISHED
-                          ? "bg-secondary text-finished"
+                          ? "bg-primary/10 text-primary"
                           : "bg-secondary text-scheduled"
                     }`}
                   >

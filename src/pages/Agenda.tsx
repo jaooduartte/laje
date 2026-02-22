@@ -185,7 +185,7 @@ const Agenda = () => {
               </h3>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {groupedMatches[date].map((match) => (
-                  <MatchCard key={match.id} match={match} />
+                  <MatchCard key={match.id} match={match} showChampionshipBadge={false} />
                 ))}
               </div>
             </section>

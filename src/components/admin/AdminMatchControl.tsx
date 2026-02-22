@@ -284,8 +284,8 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
               </div>
             </div>
 
-            <div className="flex items-center justify-center gap-6">
-              <div className="flex-1 text-right">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-6">
+              <div className="min-w-0 text-right">
                 <p className="font-display font-bold">{match.home_team?.name}</p>
               </div>
 
@@ -305,7 +305,7 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
                     type="number"
                     value={score.home}
                     onChange={(event) => updateManualInputScore(match, "home", event.target.value)}
-                    className="score-text h-12 w-14 border-border bg-secondary text-center font-display text-2xl font-bold"
+                    className="score-text h-12 w-14 border-border bg-secondary text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                     disabled={match.status !== MatchStatus.LIVE}
                   />
 
@@ -337,7 +337,7 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
                     type="number"
                     value={score.away}
                     onChange={(event) => updateManualInputScore(match, "away", event.target.value)}
-                    className="score-text h-12 w-14 border-border bg-secondary text-center font-display text-2xl font-bold"
+                    className="score-text h-12 w-14 border-border bg-secondary text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                     disabled={match.status !== MatchStatus.LIVE}
                   />
 
@@ -353,7 +353,7 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
                 </div>
               </div>
 
-              <div className="flex-1">
+              <div className="min-w-0">
                 <p className="font-display font-bold">{match.away_team?.name}</p>
               </div>
             </div>

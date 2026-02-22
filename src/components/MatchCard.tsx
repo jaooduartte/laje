@@ -7,12 +7,13 @@ import { MATCH_NAIPE_BADGE_CLASS_NAMES, MATCH_NAIPE_LABELS, TEAM_DIVISION_LABELS
 
 interface Props {
   match: Match;
+  showChampionshipBadge?: boolean;
 }
 
 const statusStyles: Record<MatchStatus, string> = {
   [MatchStatus.SCHEDULED]: "bg-secondary text-scheduled",
   [MatchStatus.LIVE]: "bg-live/10 text-live",
-  [MatchStatus.FINISHED]: "bg-secondary text-finished",
+  [MatchStatus.FINISHED]: "bg-primary/10 text-primary",
 };
 
 const statusLabels: Record<MatchStatus, string> = {
@@ -21,7 +22,7 @@ const statusLabels: Record<MatchStatus, string> = {
   [MatchStatus.FINISHED]: "Encerrado",
 };
 
-export function MatchCard({ match }: Props) {
+export function MatchCard({ match, showChampionshipBadge = true }: Props) {
   return (
     <div className="rounded-lg bg-card border border-border p-4 hover:border-primary/30 transition-colors">
       <div className="mb-3 flex items-start justify-between gap-2">
@@ -30,7 +31,7 @@ export function MatchCard({ match }: Props) {
             {match.sports?.name}
           </span>
           <div className="flex flex-wrap items-center gap-1.5">
-            {match.championships?.name ? (
+            {showChampionshipBadge && match.championships?.name ? (
               <Badge variant="secondary" className="border-transparent bg-primary/10 text-primary">
                 {match.championships.name}
               </Badge>

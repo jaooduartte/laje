@@ -15,15 +15,10 @@ import { AdminSports } from "@/components/admin/AdminSports";
 import { AdminMatches } from "@/components/admin/AdminMatches";
 import { AdminMatchControl } from "@/components/admin/AdminMatchControl";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChampionshipCode, ChampionshipStatus, MatchStatus } from "@/lib/enums";
-import {
-  CHAMPIONSHIP_STATUS_BADGE_CLASS_NAMES,
-  CHAMPIONSHIP_STATUS_LABELS,
-  isChampionshipStatus,
-} from "@/lib/championship";
+import { CHAMPIONSHIP_STATUS_LABELS, isChampionshipStatus } from "@/lib/championship";
 
 const Admin = () => {
   const { user, isAdmin, loading, signOut } = useAuth();
@@ -151,10 +146,6 @@ const Admin = () => {
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
           <span className="text-sm font-medium">Status do campeonato</span>
 
-          <Badge className={CHAMPIONSHIP_STATUS_BADGE_CLASS_NAMES[selectedChampionship.status]}>
-            {CHAMPIONSHIP_STATUS_LABELS[selectedChampionship.status]}
-          </Badge>
-
           <Select
             value={selectedChampionship.status}
             onValueChange={handleChampionshipStatusChange}
@@ -210,6 +201,7 @@ const Admin = () => {
           <TabsContent value="sports">
             <AdminSports
               sports={sports}
+              championships={championships}
               championshipSports={championshipSports}
               selectedChampionship={selectedChampionship}
               onRefetchSports={refetchSports}

@@ -3,7 +3,7 @@ import { Loader2 } from "lucide-react";
 import { Header } from "@/components/Header";
 import { LiveMatchBanner } from "@/components/LiveMatchBanner";
 import { MatchCard } from "@/components/MatchCard";
-import { StandingsTable } from "@/components/StandingsTable";
+import { TeamStandingsTable } from "@/components/TeamStandingsTable";
 import { SportFilter } from "@/components/SportFilter";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,12 +13,9 @@ import { useSports } from "@/hooks/useSports";
 import { useTeams } from "@/hooks/useTeams";
 import { useChampionships } from "@/hooks/useChampionships";
 import { useSelectedChampionship } from "@/hooks/useSelectedChampionship";
-import { ChampionshipCode, ChampionshipStatus, TeamDivision } from "@/lib/enums";
-import {
-  CHAMPIONSHIP_STATUS_BADGE_CLASS_NAMES,
-  CHAMPIONSHIP_STATUS_LABELS,
-  TEAM_DIVISION_LABELS,
-} from "@/lib/championship";
+import { ChampionshipCode, ChampionshipStatus, MatchNaipe } from "@/lib/enums";
+import { MATCH_NAIPE_LABELS } from "@/lib/championship";
+import { aggregateStandingsByTeam } from "@/lib/standings";
 
 const CHAMPIONSHIP_CARD_IMAGE_BY_CODE: Record<ChampionshipCode, string> = {
   [ChampionshipCode.CLV]: "/championships/clv.svg",
@@ -28,6 +25,8 @@ const CHAMPIONSHIP_CARD_IMAGE_BY_CODE: Record<ChampionshipCode, string> = {
 
 const ALL_TEAM_FILTER = "ALL_TEAMS";
 const ALL_YEAR_FILTER = "ALL_YEARS";
+const ALL_STANDINGS_SPORT_FILTER = "ALL_STANDINGS_SPORTS";
+const ALL_STANDINGS_NAIPE_FILTER = "ALL_STANDINGS_NAIPES";
 
 const Championships = () => {
   const { championships, loading: championshipsLoading } = useChampionships();
@@ -69,11 +68,15 @@ const Championships = () => {
   const [sportFilter, setSportFilter] = useState<string | null>(null);
   const [teamFilter, setTeamFilter] = useState<string>(ALL_TEAM_FILTER);
   const [yearFilter, setYearFilter] = useState<string>(ALL_YEAR_FILTER);
+  const [standingsSportFilter, setStandingsSportFilter] = useState<string>(ALL_STANDINGS_SPORT_FILTER);
+  const [standingsNaipeFilter, setStandingsNaipeFilter] = useState<string>(ALL_STANDINGS_NAIPE_FILTER);
 
   useEffect(() => {
     setSportFilter(null);
     setTeamFilter(ALL_TEAM_FILTER);
     setYearFilter(ALL_YEAR_FILTER);
+    setStandingsSportFilter(ALL_STANDINGS_SPORT_FILTER);
+    setStandingsNaipeFilter(ALL_STANDINGS_NAIPE_FILTER);
   }, [selectedChampionshipCode]);
 
   const filteredLiveMatches = sportFilter
@@ -82,10 +85,6 @@ const Championships = () => {
   const filteredUpcomingMatches = sportFilter
     ? upcomingMatches.filter((match) => match.sport_id === sportFilter)
     : upcomingMatches;
-  const filteredStandings = sportFilter
-    ? standings.filter((standing) => standing.sport_id === sportFilter)
-    : standings;
-
   const sortedFinishedMatches = useMemo(() => {
     const sportFilteredMatches = sportFilter
       ? finishedMatches.filter((match) => match.sport_id === sportFilter)
@@ -137,12 +136,23 @@ const Championships = () => {
 
   const nextMatch = filteredUpcomingMatches.length > 0 ? filteredUpcomingMatches[0] : null;
 
-  const principalDivisionStandings = filteredStandings.filter(
-    (standing) => standing.division === TeamDivision.DIVISAO_PRINCIPAL,
-  );
-  const accessDivisionStandings = filteredStandings.filter(
-    (standing) => standing.division === TeamDivision.DIVISAO_ACESSO,
-  );
+  const standingsWithFilters = useMemo(() => {
+    return standings.filter((standing) => {
+      if (standingsSportFilter !== ALL_STANDINGS_SPORT_FILTER && standing.sport_id !== standingsSportFilter) {
+        return false;
+      }
+
+      if (standingsNaipeFilter !== ALL_STANDINGS_NAIPE_FILTER && standing.naipe !== standingsNaipeFilter) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [standings, standingsNaipeFilter, standingsSportFilter]);
+
+  const filteredStandings = useMemo(() => {
+    return aggregateStandingsByTeam(standingsWithFilters);
+  }, [standingsWithFilters]);
 
   if (championshipsLoading || matchesLoading || standingsLoading) {
     return (
@@ -196,11 +206,8 @@ const Championships = () => {
 
                   {isSelected ? <div className="pointer-events-none absolute inset-0 bg-primary/12" /> : null}
 
-                  <div className="absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-2 bg-gradient-to-b from-background/95 via-background/70 to-transparent p-3">
+                  <div className="absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-background/95 via-background/70 to-transparent p-3">
                     <p className="font-display text-base font-bold leading-tight">{championship.name}</p>
-                    <Badge className={CHAMPIONSHIP_STATUS_BADGE_CLASS_NAMES[championship.status]}>
-                      {CHAMPIONSHIP_STATUS_LABELS[championship.status]}
-                    </Badge>
                   </div>
                 </button>
               );
@@ -242,25 +249,35 @@ const Championships = () => {
         <section className="space-y-4">
           <h2 className="text-xl font-display font-bold">Classificação</h2>
 
-          {selectedChampionshipHasDivisions ? (
-            <div className="space-y-8">
-              <div className="space-y-3">
-                <h3 className="text-sm font-display font-semibold uppercase tracking-wider text-muted-foreground">
-                  {TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_PRINCIPAL]}
-                </h3>
-                <StandingsTable standings={principalDivisionStandings} />
-              </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Select value={standingsSportFilter} onValueChange={setStandingsSportFilter}>
+              <SelectTrigger className="w-full bg-secondary border-border">
+                <SelectValue placeholder="Filtrar modalidade" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_STANDINGS_SPORT_FILTER}>Todas as modalidades</SelectItem>
+                {sports.map((sport) => (
+                  <SelectItem key={sport.id} value={sport.id}>
+                    {sport.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-              <div className="space-y-3">
-                <h3 className="text-sm font-display font-semibold uppercase tracking-wider text-muted-foreground">
-                  {TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_ACESSO]}
-                </h3>
-                <StandingsTable standings={accessDivisionStandings} />
-              </div>
-            </div>
-          ) : (
-            <StandingsTable standings={filteredStandings} />
-          )}
+            <Select value={standingsNaipeFilter} onValueChange={setStandingsNaipeFilter}>
+              <SelectTrigger className="w-full bg-secondary border-border">
+                <SelectValue placeholder="Filtrar naipe" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_STANDINGS_NAIPE_FILTER}>Todos os naipes</SelectItem>
+                <SelectItem value={MatchNaipe.MASCULINO}>{MATCH_NAIPE_LABELS[MatchNaipe.MASCULINO]}</SelectItem>
+                <SelectItem value={MatchNaipe.FEMININO}>{MATCH_NAIPE_LABELS[MatchNaipe.FEMININO]}</SelectItem>
+                <SelectItem value={MatchNaipe.MISTO}>{MATCH_NAIPE_LABELS[MatchNaipe.MISTO]}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <TeamStandingsTable standings={filteredStandings} />
         </section>
 
         <section className="space-y-4">
