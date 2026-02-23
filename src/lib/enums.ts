@@ -20,6 +20,13 @@ export enum ChampionshipSportNaipeMode {
   MASCULINO_FEMININO = "MASCULINO_FEMININO",
 }
 
+export enum ChampionshipSportTieBreakerRule {
+  STANDARD = "STANDARD",
+  POINTS_AVERAGE = "POINTS_AVERAGE",
+  BEACH_SOCCER = "BEACH_SOCCER",
+  BEACH_TENNIS = "BEACH_TENNIS",
+}
+
 export enum ChampionshipCode {
   CLV = "CLV",
   SOCIETY = "SOCIETY",

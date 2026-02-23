@@ -50,6 +50,8 @@ export type Database = {
           created_at: string
           id: string
           naipe_mode: Database["public"]["Enums"]["championship_sport_naipe_mode"]
+          supports_cards: boolean
+          tie_breaker_rule: Database["public"]["Enums"]["championship_sport_tie_breaker_rule"]
           points_draw: number
           points_loss: number
           points_win: number
@@ -60,6 +62,8 @@ export type Database = {
           created_at?: string
           id?: string
           naipe_mode?: Database["public"]["Enums"]["championship_sport_naipe_mode"]
+          supports_cards?: boolean
+          tie_breaker_rule?: Database["public"]["Enums"]["championship_sport_tie_breaker_rule"]
           points_draw?: number
           points_loss?: number
           points_win?: number
@@ -70,6 +74,8 @@ export type Database = {
           created_at?: string
           id?: string
           naipe_mode?: Database["public"]["Enums"]["championship_sport_naipe_mode"]
+          supports_cards?: boolean
+          tie_breaker_rule?: Database["public"]["Enums"]["championship_sport_tie_breaker_rule"]
           points_draw?: number
           points_loss?: number
           points_win?: number
@@ -94,13 +100,17 @@ export type Database = {
       }
       matches: {
         Row: {
+          away_red_cards: number
           away_score: number
+          away_yellow_cards: number
           away_team_id: string
           championship_id: string
           created_at: string
           division: Database["public"]["Enums"]["team_division"] | null
           end_time: string
+          home_red_cards: number
           home_score: number
+          home_yellow_cards: number
           home_team_id: string
           id: string
           location: string
@@ -108,15 +118,20 @@ export type Database = {
           sport_id: string
           start_time: string
           status: Database["public"]["Enums"]["match_status"]
+          supports_cards: boolean
         }
         Insert: {
+          away_red_cards?: number
           away_score?: number
+          away_yellow_cards?: number
           away_team_id: string
           championship_id: string
           created_at?: string
           division?: Database["public"]["Enums"]["team_division"] | null
           end_time: string
+          home_red_cards?: number
           home_score?: number
+          home_yellow_cards?: number
           home_team_id: string
           id?: string
           location: string
@@ -124,15 +139,20 @@ export type Database = {
           sport_id: string
           start_time: string
           status?: Database["public"]["Enums"]["match_status"]
+          supports_cards?: boolean
         }
         Update: {
+          away_red_cards?: number
           away_score?: number
+          away_yellow_cards?: number
           away_team_id?: string
           championship_id?: string
           created_at?: string
           division?: Database["public"]["Enums"]["team_division"] | null
           end_time?: string
+          home_red_cards?: number
           home_score?: number
+          home_yellow_cards?: number
           home_team_id?: string
           id?: string
           location?: string
@@ -140,6 +160,7 @@ export type Database = {
           sport_id?: string
           start_time?: string
           status?: Database["public"]["Enums"]["match_status"]
+          supports_cards?: boolean
         }
         Relationships: [
           {
@@ -203,10 +224,12 @@ export type Database = {
           naipe: Database["public"]["Enums"]["match_naipe"]
           played: number
           points: number
+          red_cards: number
           sport_id: string
           team_id: string
           updated_at: string
           wins: number
+          yellow_cards: number
         }
         Insert: {
           championship_id: string
@@ -220,10 +243,12 @@ export type Database = {
           naipe?: Database["public"]["Enums"]["match_naipe"]
           played?: number
           points?: number
+          red_cards?: number
           sport_id: string
           team_id: string
           updated_at?: string
           wins?: number
+          yellow_cards?: number
         }
         Update: {
           championship_id?: string
@@ -237,10 +262,12 @@ export type Database = {
           naipe?: Database["public"]["Enums"]["match_naipe"]
           played?: number
           points?: number
+          red_cards?: number
           sport_id?: string
           team_id?: string
           updated_at?: string
           wins?: number
+          yellow_cards?: number
         }
         Relationships: [
           {
@@ -326,6 +353,7 @@ export type Database = {
       app_role: "admin"
       championship_code: "CLV" | "SOCIETY" | "INTERLAJE"
       championship_sport_naipe_mode: "MISTO" | "MASCULINO_FEMININO"
+      championship_sport_tie_breaker_rule: "STANDARD" | "POINTS_AVERAGE" | "BEACH_SOCCER" | "BEACH_TENNIS"
       championship_status: "PLANNING" | "UPCOMING" | "IN_PROGRESS" | "FINISHED"
       match_naipe: "MASCULINO" | "FEMININO" | "MISTO"
       match_status: "SCHEDULED" | "LIVE" | "FINISHED"
@@ -460,6 +488,7 @@ export const Constants = {
       app_role: ["admin"],
       championship_code: ["CLV", "SOCIETY", "INTERLAJE"],
       championship_sport_naipe_mode: ["MISTO", "MASCULINO_FEMININO"],
+      championship_sport_tie_breaker_rule: ["STANDARD", "POINTS_AVERAGE", "BEACH_SOCCER", "BEACH_TENNIS"],
       championship_status: ["PLANNING", "UPCOMING", "IN_PROGRESS", "FINISHED"],
       match_naipe: ["MASCULINO", "FEMININO", "MISTO"],
       match_status: ["SCHEDULED", "LIVE", "FINISHED"],

@@ -1,10 +1,23 @@
 import type { Match } from '@/lib/types';
-import { Radio } from 'lucide-react';
+import { Radio, Square } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { MATCH_NAIPE_BADGE_CLASS_NAMES, MATCH_NAIPE_LABELS, TEAM_DIVISION_LABELS } from '@/lib/championship';
 
 interface Props {
   matches: Match[];
+}
+
+function RedCardIndicator({ quantity }: { quantity: number }) {
+  if (quantity <= 0) {
+    return null;
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-700">
+      <Square className="h-2.5 w-2.5 fill-rose-600 text-rose-600" />
+      {quantity}
+    </span>
+  );
 }
 
 export function LiveMatchBanner({ matches }: Props) {
@@ -32,7 +45,10 @@ export function LiveMatchBanner({ matches }: Props) {
             </div>
             <div className="flex items-center justify-between">
               <div className="flex-1 text-right">
-                <p className="text-lg font-display font-bold">{match.home_team?.name}</p>
+                <p className="inline-flex items-center gap-1 text-lg font-display font-bold">
+                  {match.home_team?.name}
+                  <RedCardIndicator quantity={match.home_red_cards} />
+                </p>
                 <p className="text-xs text-muted-foreground">{match.home_team?.city}</p>
               </div>
               <div className="mx-6 flex items-center gap-3">
@@ -41,7 +57,10 @@ export function LiveMatchBanner({ matches }: Props) {
                 <span className="text-4xl font-display font-bold text-live score-text">{match.away_score}</span>
               </div>
               <div className="flex-1">
-                <p className="text-lg font-display font-bold">{match.away_team?.name}</p>
+                <p className="inline-flex items-center gap-1 text-lg font-display font-bold">
+                  {match.away_team?.name}
+                  <RedCardIndicator quantity={match.away_red_cards} />
+                </p>
                 <p className="text-xs text-muted-foreground">{match.away_team?.city}</p>
               </div>
             </div>

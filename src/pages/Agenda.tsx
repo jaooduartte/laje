@@ -10,9 +10,15 @@ import { useSports } from "@/hooks/useSports";
 import { useTeams } from "@/hooks/useTeams";
 import { useChampionships } from "@/hooks/useChampionships";
 import { useSelectedChampionship } from "@/hooks/useSelectedChampionship";
-import { ChampionshipCode, TeamDivision } from "@/lib/enums";
+import { ChampionshipCode, MatchStatus, TeamDivision } from "@/lib/enums";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TEAM_DIVISION_LABELS, isTeamDivision } from "@/lib/championship";
+
+const MATCH_STATUS_SORT_ORDER: Record<MatchStatus, number> = {
+  [MatchStatus.LIVE]: 0,
+  [MatchStatus.SCHEDULED]: 1,
+  [MatchStatus.FINISHED]: 2,
+};
 
 const Agenda = () => {
   const { championships, loading: championshipsLoading } = useChampionships();
@@ -63,34 +69,60 @@ const Agenda = () => {
     setDivisionFilter(TeamDivision.DIVISAO_PRINCIPAL);
   }, [selectedChampionshipCode]);
 
-  const filteredMatches = matches.filter((match) => {
-    if (sportFilter && match.sport_id !== sportFilter) {
-      return false;
-    }
+  const filteredMatches = useMemo(() => {
+    return matches.filter((match) => {
+      if (sportFilter && match.sport_id !== sportFilter) {
+        return false;
+      }
 
-    if (teamFilter && match.home_team_id !== teamFilter && match.away_team_id !== teamFilter) {
-      return false;
-    }
+      if (teamFilter && match.home_team_id !== teamFilter && match.away_team_id !== teamFilter) {
+        return false;
+      }
 
-    if (selectedChampionshipHasDivisions && match.division !== divisionFilter) {
-      return false;
-    }
+      if (selectedChampionshipHasDivisions && match.division !== divisionFilter) {
+        return false;
+      }
 
-    return true;
-  });
+      return true;
+    });
+  }, [divisionFilter, matches, selectedChampionshipHasDivisions, sportFilter, teamFilter]);
 
-  const groupedMatches = filteredMatches.reduce<Record<string, typeof filteredMatches>>((groupedResult, match) => {
-    const dateKey = format(new Date(match.start_time), "yyyy-MM-dd");
+  const sortedMatches = useMemo(() => {
+    return [...filteredMatches].sort((firstMatch, secondMatch) => {
+      const statusOrderDifference = MATCH_STATUS_SORT_ORDER[firstMatch.status] - MATCH_STATUS_SORT_ORDER[secondMatch.status];
 
-    if (!groupedResult[dateKey]) {
-      groupedResult[dateKey] = [];
-    }
+      if (statusOrderDifference != 0) {
+        return statusOrderDifference;
+      }
 
-    groupedResult[dateKey].push(match);
-    return groupedResult;
-  }, {});
+      if (firstMatch.status == MatchStatus.FINISHED && secondMatch.status == MatchStatus.FINISHED) {
+        return new Date(secondMatch.start_time).getTime() - new Date(firstMatch.start_time).getTime();
+      }
 
-  const sortedDates = Object.keys(groupedMatches).sort();
+      return new Date(firstMatch.start_time).getTime() - new Date(secondMatch.start_time).getTime();
+    });
+  }, [filteredMatches]);
+
+  const { groupedMatches, orderedDates } = useMemo(() => {
+    const groupedMatchesResult: Record<string, typeof sortedMatches> = {};
+    const orderedDatesResult: string[] = [];
+
+    sortedMatches.forEach((match) => {
+      const dateKey = format(new Date(match.start_time), "yyyy-MM-dd");
+
+      if (!groupedMatchesResult[dateKey]) {
+        groupedMatchesResult[dateKey] = [];
+        orderedDatesResult.push(dateKey);
+      }
+
+      groupedMatchesResult[dateKey].push(match);
+    });
+
+    return {
+      groupedMatches: groupedMatchesResult,
+      orderedDates: orderedDatesResult,
+    };
+  }, [sortedMatches]);
 
   const handleDivisionChange = (value: string) => {
     if (isTeamDivision(value)) {
@@ -157,9 +189,7 @@ const Agenda = () => {
           ) : null}
         </div>
 
-        <div className="flex flex-wrap items-center gap-4">
-          <SportFilter sports={sports} selected={sportFilter} onSelect={setSportFilter} />
-
+        <div className="space-y-3">
           <Select value={teamFilter ?? "all"} onValueChange={(value) => setTeamFilter(value === "all" ? null : value)}>
             <SelectTrigger className="w-48 bg-secondary border-border">
               <SelectValue placeholder="Filtrar por time" />
@@ -173,12 +203,14 @@ const Agenda = () => {
               ))}
             </SelectContent>
           </Select>
+
+          <SportFilter sports={sports} selected={sportFilter} onSelect={setSportFilter} />
         </div>
 
-        {sortedDates.length === 0 ? (
+        {orderedDates.length === 0 ? (
           <p className="text-muted-foreground">Nenhum jogo encontrado.</p>
         ) : (
-          sortedDates.map((date) => (
+          orderedDates.map((date) => (
             <section key={date}>
               <h3 className="mb-3 text-sm font-display font-semibold uppercase tracking-wider text-muted-foreground">
                 {format(new Date(`${date}T12:00:00`), "EEEE, dd 'de' MMMM", { locale: ptBR })}

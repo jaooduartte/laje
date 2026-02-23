@@ -1,4 +1,10 @@
-import { ChampionshipSportNaipeMode, ChampionshipStatus, MatchNaipe, TeamDivision } from "@/lib/enums";
+import {
+  ChampionshipSportNaipeMode,
+  ChampionshipSportTieBreakerRule,
+  ChampionshipStatus,
+  MatchNaipe,
+  TeamDivision,
+} from "@/lib/enums";
 
 export const TEAM_DIVISION_LABELS: Record<TeamDivision, string> = {
   [TeamDivision.DIVISAO_PRINCIPAL]: "Divisão Principal",
@@ -34,6 +40,13 @@ export const MATCH_NAIPE_BADGE_CLASS_NAMES: Record<MatchNaipe, string> = {
 export const CHAMPIONSHIP_SPORT_NAIPE_MODE_LABELS: Record<ChampionshipSportNaipeMode, string> = {
   [ChampionshipSportNaipeMode.MISTO]: "Mista",
   [ChampionshipSportNaipeMode.MASCULINO_FEMININO]: "Masculino e Feminino",
+};
+
+export const CHAMPIONSHIP_SPORT_TIE_BREAKER_RULE_LABELS: Record<ChampionshipSportTieBreakerRule, string> = {
+  [ChampionshipSportTieBreakerRule.STANDARD]: "Padrão",
+  [ChampionshipSportTieBreakerRule.POINTS_AVERAGE]: "Pontos Average",
+  [ChampionshipSportTieBreakerRule.BEACH_SOCCER]: "Beach Soccer",
+  [ChampionshipSportTieBreakerRule.BEACH_TENNIS]: "Beach Tennis",
 };
 
 export function isTeamDivision(value: string): value is TeamDivision {

@@ -81,8 +81,8 @@ const Admin = () => {
 
   const { matches, refetch: refetchMatches } = useMatches({ championshipId: selectedChampionshipId });
   const { teams, refetch: refetchTeams } = useTeams();
-  const { sports, refetch: refetchSports } = useSports();
-  const { championshipSports, refetch: refetchChampionshipSports } = useSports({
+  const { sports } = useSports();
+  const { championshipSports } = useSports({
     championshipId: selectedChampionshipId,
   });
 
@@ -201,11 +201,8 @@ const Admin = () => {
           <TabsContent value="sports">
             <AdminSports
               sports={sports}
-              championships={championships}
               championshipSports={championshipSports}
               selectedChampionship={selectedChampionship}
-              onRefetchSports={refetchSports}
-              onRefetchChampionshipSports={refetchChampionshipSports}
             />
           </TabsContent>
         </Tabs>

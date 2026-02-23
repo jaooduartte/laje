@@ -13,7 +13,7 @@ import { useSports } from "@/hooks/useSports";
 import { useTeams } from "@/hooks/useTeams";
 import { useChampionships } from "@/hooks/useChampionships";
 import { useSelectedChampionship } from "@/hooks/useSelectedChampionship";
-import { ChampionshipCode, ChampionshipStatus, MatchNaipe } from "@/lib/enums";
+import { ChampionshipCode, ChampionshipSportTieBreakerRule, ChampionshipStatus, MatchNaipe } from "@/lib/enums";
 import { MATCH_NAIPE_LABELS } from "@/lib/championship";
 import { aggregateStandingsByTeam } from "@/lib/standings";
 
@@ -62,7 +62,7 @@ const Championships = () => {
     championshipId: selectedChampionshipId,
     division: standingsDivisionFilter,
   });
-  const { sports } = useSports({ championshipId: selectedChampionshipId });
+  const { sports, championshipSports } = useSports({ championshipId: selectedChampionshipId });
   const { teams } = useTeams();
 
   const [sportFilter, setSportFilter] = useState<string | null>(null);
@@ -150,9 +150,50 @@ const Championships = () => {
     });
   }, [standings, standingsNaipeFilter, standingsSportFilter]);
 
+  const standingsTieBreakerRule = useMemo(() => {
+    if (standingsSportFilter == ALL_STANDINGS_SPORT_FILTER) {
+      return ChampionshipSportTieBreakerRule.STANDARD;
+    }
+
+    const selectedChampionshipSport = championshipSports.find(
+      (championshipSport) => championshipSport.sport_id == standingsSportFilter,
+    );
+
+    return selectedChampionshipSport?.tie_breaker_rule ?? ChampionshipSportTieBreakerRule.STANDARD;
+  }, [championshipSports, standingsSportFilter]);
+
+  const standingsShowCardColumns = useMemo(() => {
+    if (standingsSportFilter == ALL_STANDINGS_SPORT_FILTER) {
+      return false;
+    }
+
+    const selectedChampionshipSport = championshipSports.find(
+      (championshipSport) => championshipSport.sport_id == standingsSportFilter,
+    );
+
+    return selectedChampionshipSport?.supports_cards == true;
+  }, [championshipSports, standingsSportFilter]);
+
+  const standingsHeadToHeadMatches = useMemo(() => {
+    return finishedMatches.filter((match) => {
+      if (standingsSportFilter != ALL_STANDINGS_SPORT_FILTER && match.sport_id != standingsSportFilter) {
+        return false;
+      }
+
+      if (standingsNaipeFilter != ALL_STANDINGS_NAIPE_FILTER && match.naipe != standingsNaipeFilter) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [finishedMatches, standingsNaipeFilter, standingsSportFilter]);
+
   const filteredStandings = useMemo(() => {
-    return aggregateStandingsByTeam(standingsWithFilters);
-  }, [standingsWithFilters]);
+    return aggregateStandingsByTeam(standingsWithFilters, {
+      tieBreakerRule: standingsTieBreakerRule,
+      headToHeadMatches: standingsHeadToHeadMatches,
+    });
+  }, [standingsHeadToHeadMatches, standingsTieBreakerRule, standingsWithFilters]);
 
   if (championshipsLoading || matchesLoading || standingsLoading) {
     return (
@@ -238,7 +279,7 @@ const Championships = () => {
             <h2 className="mb-4 text-xl font-display font-bold">Próximo jogo</h2>
             {nextMatch ? (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <MatchCard match={nextMatch} />
+                <MatchCard match={nextMatch} showChampionshipBadge={false} />
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">Nenhum jogo agendado.</p>
@@ -277,7 +318,7 @@ const Championships = () => {
             </Select>
           </div>
 
-          <TeamStandingsTable standings={filteredStandings} />
+          <TeamStandingsTable standings={filteredStandings} showCardColumns={standingsShowCardColumns} />
         </section>
 
         <section className="space-y-4">
@@ -318,7 +359,7 @@ const Championships = () => {
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {filteredHistoryMatches.map((match) => (
-                <MatchCard key={match.id} match={match} />
+                <MatchCard key={match.id} match={match} showChampionshipBadge={false} />
               ))}
             </div>
           )}

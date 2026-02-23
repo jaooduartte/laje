@@ -1,6 +1,7 @@
 import type {
   ChampionshipCode,
   ChampionshipSportNaipeMode,
+  ChampionshipSportTieBreakerRule,
   ChampionshipStatus,
   MatchNaipe,
   MatchStatus,
@@ -36,6 +37,8 @@ export interface ChampionshipSport {
   championship_id: string;
   sport_id: string;
   naipe_mode: ChampionshipSportNaipeMode;
+  supports_cards: boolean;
+  tie_breaker_rule: ChampionshipSportTieBreakerRule;
   points_win: number;
   points_draw: number;
   points_loss: number;
@@ -50,6 +53,7 @@ export interface Match {
   championship_id: string;
   division: TeamDivision | null;
   naipe: MatchNaipe;
+  supports_cards: boolean;
   sport_id: string;
   home_team_id: string;
   away_team_id: string;
@@ -58,7 +62,11 @@ export interface Match {
   end_time: string;
   status: MatchStatus;
   home_score: number;
+  home_yellow_cards: number;
+  home_red_cards: number;
   away_score: number;
+  away_yellow_cards: number;
+  away_red_cards: number;
   created_at: string;
   // Joined
   championships?: Championship;
@@ -82,6 +90,8 @@ export interface Standing {
   goals_against: number;
   goal_diff: number;
   points: number;
+  yellow_cards: number;
+  red_cards: number;
   updated_at: string;
   // Joined
   championships?: Championship;

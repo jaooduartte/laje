@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   doesChampionshipSportSupportNaipe,
   MATCH_NAIPE_BADGE_CLASS_NAMES,
@@ -101,6 +103,7 @@ export function AdminMatches({
 
   const championshipUsesDivisions = selectedChampionship.uses_divisions;
   const isClvChampionship = selectedChampionship.code === ChampionshipCode.CLV;
+  const locationIsLockedForClv = isClvChampionship && replicateClvDefaultLocation;
 
   const availableSportsForCreate = useMemo(() => {
     return resolveSportsByNaipe(championshipSports, naipe);
@@ -400,103 +403,119 @@ export function AdminMatches({
         ) : null}
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <Select
-            value={naipe}
-            onValueChange={(value) => {
-              if (isMatchNaipe(value)) {
-                setNaipe(value);
-              }
-            }}
-          >
-            <SelectTrigger className="bg-secondary border-border">
-              <SelectValue placeholder="Naipe" />
-            </SelectTrigger>
-            <SelectContent>
-              {NAIPE_OPTIONS.map((naipeOption) => (
-                <SelectItem key={naipeOption} value={naipeOption}>
-                  {MATCH_NAIPE_LABELS[naipeOption]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={sportId} onValueChange={setSportId}>
-            <SelectTrigger className="bg-secondary border-border">
-              <SelectValue placeholder="Modalidade" />
-            </SelectTrigger>
-            <SelectContent>
-              {availableSportsForCreate.map((sport) => (
-                <SelectItem key={sport.id} value={sport.id}>
-                  {sport.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {championshipUsesDivisions ? (
-            <Select
-              value={division}
+          <div className="space-y-2 sm:col-span-2 lg:col-span-3">
+            <p className="text-xs font-medium text-muted-foreground">Naipe</p>
+            <RadioGroup
+              value={naipe}
               onValueChange={(value) => {
-                if (isTeamDivision(value)) {
-                  setDivision(value);
-                  setHomeTeamId("");
-                  setAwayTeamId("");
+                if (isMatchNaipe(value)) {
+                  setNaipe(value);
                 }
               }}
+              className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-5"
             >
+              {NAIPE_OPTIONS.map((naipeOption) => {
+                return (
+                  <Label
+                    key={naipeOption}
+                    htmlFor={`create-match-naipe-${naipeOption}`}
+                    className="flex cursor-pointer items-center gap-2 p-0 text-sm font-medium text-foreground"
+                  >
+                    <RadioGroupItem id={`create-match-naipe-${naipeOption}`} value={naipeOption} />
+                    <span>{MATCH_NAIPE_LABELS[naipeOption]}</span>
+                  </Label>
+                );
+              })}
+            </RadioGroup>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 sm:col-span-2 lg:col-span-2">
+            <Select value={sportId} onValueChange={setSportId}>
               <SelectTrigger className="bg-secondary border-border">
-                <SelectValue placeholder="Divisão" />
+                <SelectValue placeholder="Modalidade" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={TeamDivision.DIVISAO_PRINCIPAL}>
-                  {TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_PRINCIPAL]}
-                </SelectItem>
-                <SelectItem value={TeamDivision.DIVISAO_ACESSO}>{TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_ACESSO]}</SelectItem>
+                {availableSportsForCreate.map((sport) => (
+                  <SelectItem key={sport.id} value={sport.id}>
+                    {sport.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
-          ) : (
+
+            {championshipUsesDivisions ? (
+              <Select
+                value={division}
+                onValueChange={(value) => {
+                  if (isTeamDivision(value)) {
+                    setDivision(value);
+                    setHomeTeamId("");
+                    setAwayTeamId("");
+                  }
+                }}
+              >
+                <SelectTrigger className="bg-secondary border-border">
+                  <SelectValue placeholder="Divisão" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={TeamDivision.DIVISAO_PRINCIPAL}>
+                    {TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_PRINCIPAL]}
+                  </SelectItem>
+                  <SelectItem value={TeamDivision.DIVISAO_ACESSO}>{TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_ACESSO]}</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="rounded-md border border-border bg-secondary px-3 py-2 text-sm text-muted-foreground">
+                Divisão unificada
+              </div>
+            )}
+          </div>
+
+          {locationIsLockedForClv ? (
             <div className="rounded-md border border-border bg-secondary px-3 py-2 text-sm text-muted-foreground">
-              Divisão unificada (Principal e Acesso juntas)
+              {clvDefaultLocation || "Local replicado do padrão CLV"}
             </div>
+          ) : (
+            <Input
+              placeholder="Local"
+              value={location}
+              onChange={(event) => setLocation(event.target.value)}
+              className="bg-secondary border-border"
+            />
           )}
 
-          <Input
-            placeholder={isClvChampionship && replicateClvDefaultLocation ? "Local replicado do padrão CLV" : "Local"}
-            value={isClvChampionship && replicateClvDefaultLocation ? clvDefaultLocation : location}
-            onChange={(event) => setLocation(event.target.value)}
-            disabled={isClvChampionship && replicateClvDefaultLocation}
-            className="bg-secondary border-border"
-          />
+          <div className="grid grid-cols-2 gap-3 sm:col-span-2 lg:col-span-2">
+            <Select value={homeTeamId} onValueChange={setHomeTeamId}>
+              <SelectTrigger className="bg-secondary border-border">
+                <SelectValue placeholder="Time Casa" />
+              </SelectTrigger>
+              <SelectContent>
+                {eligibleTeams.map((team) => (
+                  <SelectItem key={team.id} value={team.id}>
+                    {team.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-          <Select value={homeTeamId} onValueChange={setHomeTeamId}>
-            <SelectTrigger className="bg-secondary border-border">
-              <SelectValue placeholder="Time Casa" />
-            </SelectTrigger>
-            <SelectContent>
-              {eligibleTeams.map((team) => (
-                <SelectItem key={team.id} value={team.id}>
-                  {team.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <Select value={awayTeamId} onValueChange={setAwayTeamId}>
+              <SelectTrigger className="bg-secondary border-border">
+                <SelectValue placeholder="Time Visitante" />
+              </SelectTrigger>
+              <SelectContent>
+                {eligibleTeams.map((team) => (
+                  <SelectItem key={team.id} value={team.id}>
+                    {team.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          <Select value={awayTeamId} onValueChange={setAwayTeamId}>
-            <SelectTrigger className="bg-secondary border-border">
-              <SelectValue placeholder="Time Visitante" />
-            </SelectTrigger>
-            <SelectContent>
-              {eligibleTeams.map((team) => (
-                <SelectItem key={team.id} value={team.id}>
-                  {team.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <DateTimePicker value={startTime} onChange={setStartTime} placeholder="Início da partida" />
-
-          <DateTimePicker value={endTime} onChange={setEndTime} placeholder="Fim da partida" />
+          <div className="grid grid-cols-2 gap-3 sm:col-span-2 lg:col-span-2">
+            <DateTimePicker value={startTime} onChange={setStartTime} placeholder="Início da partida" />
+            <DateTimePicker value={endTime} onChange={setEndTime} placeholder="Fim da partida" />
+          </div>
         </div>
 
         <Button onClick={handleAdd}>

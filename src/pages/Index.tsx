@@ -11,7 +11,7 @@ import { useStandings } from "@/hooks/useStandings";
 import { useSports } from "@/hooks/useSports";
 import { useChampionships } from "@/hooks/useChampionships";
 import { MATCH_NAIPE_LABELS } from "@/lib/championship";
-import { ChampionshipStatus, MatchNaipe } from "@/lib/enums";
+import { ChampionshipSportTieBreakerRule, ChampionshipStatus, MatchNaipe } from "@/lib/enums";
 import { aggregateStandingsByTeam } from "@/lib/standings";
 
 const ALL_STANDINGS_SPORT_FILTER = "ALL_STANDINGS_SPORTS";
@@ -46,7 +46,7 @@ const Index = () => {
   const selectedChampionshipId = featuredChampionship?.id ?? null;
   const selectedChampionshipHasDivisions = featuredChampionship?.uses_divisions ?? false;
 
-  const { liveMatches, upcomingMatches, loading: matchesLoading } = useMatches({
+  const { liveMatches, upcomingMatches, finishedMatches, loading: matchesLoading } = useMatches({
     championshipId: selectedChampionshipId,
   });
 
@@ -66,7 +66,7 @@ const Index = () => {
     division: standingsDivisionFilter,
   });
 
-  const { sports } = useSports({ championshipId: selectedChampionshipId });
+  const { sports, championshipSports } = useSports({ championshipId: selectedChampionshipId });
 
   const filteredUpcoming = sportFilter
     ? upcomingMatches.filter((match) => match.sport_id === sportFilter)
@@ -88,9 +88,50 @@ const Index = () => {
     });
   }, [standings, standingsNaipeFilter, standingsSportFilter]);
 
+  const standingsTieBreakerRule = useMemo(() => {
+    if (standingsSportFilter == ALL_STANDINGS_SPORT_FILTER) {
+      return ChampionshipSportTieBreakerRule.STANDARD;
+    }
+
+    const selectedChampionshipSport = championshipSports.find(
+      (championshipSport) => championshipSport.sport_id == standingsSportFilter,
+    );
+
+    return selectedChampionshipSport?.tie_breaker_rule ?? ChampionshipSportTieBreakerRule.STANDARD;
+  }, [championshipSports, standingsSportFilter]);
+
+  const standingsShowCardColumns = useMemo(() => {
+    if (standingsSportFilter == ALL_STANDINGS_SPORT_FILTER) {
+      return false;
+    }
+
+    const selectedChampionshipSport = championshipSports.find(
+      (championshipSport) => championshipSport.sport_id == standingsSportFilter,
+    );
+
+    return selectedChampionshipSport?.supports_cards == true;
+  }, [championshipSports, standingsSportFilter]);
+
+  const standingsHeadToHeadMatches = useMemo(() => {
+    return finishedMatches.filter((match) => {
+      if (standingsSportFilter != ALL_STANDINGS_SPORT_FILTER && match.sport_id != standingsSportFilter) {
+        return false;
+      }
+
+      if (standingsNaipeFilter != ALL_STANDINGS_NAIPE_FILTER && match.naipe != standingsNaipeFilter) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [finishedMatches, standingsNaipeFilter, standingsSportFilter]);
+
   const filteredStandings = useMemo(() => {
-    return aggregateStandingsByTeam(standingsWithFilters);
-  }, [standingsWithFilters]);
+    return aggregateStandingsByTeam(standingsWithFilters, {
+      tieBreakerRule: standingsTieBreakerRule,
+      headToHeadMatches: standingsHeadToHeadMatches,
+    });
+  }, [standingsHeadToHeadMatches, standingsTieBreakerRule, standingsWithFilters]);
 
   if (championshipsLoading || matchesLoading || standingsLoading) {
     return (
@@ -170,7 +211,7 @@ const Index = () => {
             </Select>
           </div>
 
-          <TeamStandingsTable standings={filteredStandings} />
+          <TeamStandingsTable standings={filteredStandings} showCardColumns={standingsShowCardColumns} />
         </section>
 
       </main>

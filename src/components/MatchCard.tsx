@@ -1,6 +1,7 @@
 import type { Match } from "@/lib/types";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { Square } from "lucide-react";
 import { MatchStatus } from "@/lib/enums";
 import { Badge } from "@/components/ui/badge";
 import { MATCH_NAIPE_BADGE_CLASS_NAMES, MATCH_NAIPE_LABELS, TEAM_DIVISION_LABELS } from "@/lib/championship";
@@ -21,6 +22,19 @@ const statusLabels: Record<MatchStatus, string> = {
   [MatchStatus.LIVE]: "Ao Vivo",
   [MatchStatus.FINISHED]: "Encerrado",
 };
+
+function RedCardIndicator({ quantity }: { quantity: number }) {
+  if (quantity <= 0) {
+    return null;
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-700">
+      <Square className="h-2.5 w-2.5 fill-rose-600 text-rose-600" />
+      {quantity}
+    </span>
+  );
+}
 
 export function MatchCard({ match, showChampionshipBadge = true }: Props) {
   return (
@@ -50,7 +64,10 @@ export function MatchCard({ match, showChampionshipBadge = true }: Props) {
       </div>
       <div className="flex items-center justify-between">
         <div className="flex-1 text-right">
-          <p className="font-display font-semibold text-sm">{match.home_team?.name}</p>
+          <p className="inline-flex items-center gap-1 font-display text-sm font-semibold">
+            {match.home_team?.name}
+            {match.status != MatchStatus.SCHEDULED ? <RedCardIndicator quantity={match.home_red_cards} /> : null}
+          </p>
         </div>
         <div className="mx-4 text-center">
           {match.status === MatchStatus.SCHEDULED ? (
@@ -64,7 +81,10 @@ export function MatchCard({ match, showChampionshipBadge = true }: Props) {
           )}
         </div>
         <div className="flex-1">
-          <p className="font-display font-semibold text-sm">{match.away_team?.name}</p>
+          <p className="inline-flex items-center gap-1 font-display text-sm font-semibold">
+            {match.away_team?.name}
+            {match.status != MatchStatus.SCHEDULED ? <RedCardIndicator quantity={match.away_red_cards} /> : null}
+          </p>
         </div>
       </div>
       <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
