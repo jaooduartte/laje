@@ -402,7 +402,7 @@ export function AdminMatches({
           </div>
         ) : null}
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3">
           <div className="space-y-2 sm:col-span-2 lg:col-span-3">
             <p className="text-xs font-medium text-muted-foreground">Naipe</p>
             <RadioGroup
@@ -484,7 +484,7 @@ export function AdminMatches({
             />
           )}
 
-          <div className="grid grid-cols-2 gap-3 sm:col-span-2 lg:col-span-2">
+          <div className="grid grid-cols-2 gap-3 sm:col-span-2 md:col-span-3 md:grid-cols-2 lg:col-span-3 lg:grid-cols-4">
             <Select value={homeTeamId} onValueChange={setHomeTeamId}>
               <SelectTrigger className="bg-secondary border-border">
                 <SelectValue placeholder="Time Casa" />
@@ -510,9 +510,6 @@ export function AdminMatches({
                 ))}
               </SelectContent>
             </Select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 sm:col-span-2 lg:col-span-2">
             <DateTimePicker value={startTime} onChange={setStartTime} placeholder="Início da partida" />
             <DateTimePicker value={endTime} onChange={setEndTime} placeholder="Fim da partida" />
           </div>

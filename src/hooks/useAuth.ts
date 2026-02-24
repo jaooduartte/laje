@@ -1,60 +1,107 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { User } from '@supabase/supabase-js';
+import { AdminPanelRole } from '@/lib/enums';
+
+const ROLE_REQUEST_TIMEOUT_IN_MILLISECONDS = 10000;
+
+function isAdminPanelRole(value: string | null): value is AdminPanelRole {
+  return value == AdminPanelRole.ADMIN || value == AdminPanelRole.MESA;
+}
+
+async function resolveWithTimeout<ResultType>(
+  promise: Promise<ResultType>,
+  timeoutInMilliseconds: number,
+): Promise<{ hasTimedOut: boolean; result: ResultType | null }> {
+  let timeoutReference: number | null = null;
+
+  try {
+    return await Promise.race([
+      promise.then((result) => ({ hasTimedOut: false, result })),
+      new Promise<{ hasTimedOut: true; result: null }>((resolve) => {
+        timeoutReference = window.setTimeout(() => {
+          resolve({ hasTimedOut: true, result: null });
+        }, timeoutInMilliseconds);
+      }),
+    ]);
+  } finally {
+    if (timeoutReference != null) {
+      window.clearTimeout(timeoutReference);
+    }
+  }
+}
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [role, setRole] = useState<AdminPanelRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const [roleLoading, setRoleLoading] = useState(false);
 
   useEffect(() => {
-    const resolveAdminRole = async (currentUser: User | null) => {
+    const resolveUserRole = async (currentUser: User | null) => {
       if (!currentUser) {
-        setIsAdmin(false);
+        setRole(null);
+        setRoleLoading(false);
         return;
       }
 
-      try {
-        const { data, error } = await supabase.rpc('is_admin');
+      setRoleLoading(true);
 
-        if (error) {
-          console.error('Erro ao verificar permissão de admin:', error.message);
-          setIsAdmin(false);
+      try {
+        const { hasTimedOut, result } = await resolveWithTimeout(
+          supabase.rpc('get_current_user_role'),
+          ROLE_REQUEST_TIMEOUT_IN_MILLISECONDS,
+        );
+
+        if (hasTimedOut || !result) {
+          setRole(null);
           return;
         }
 
-        setIsAdmin(!!data);
+        const { data, error } = result;
+
+        if (error) {
+          console.error('Erro ao verificar perfil de acesso:', error.message);
+          setRole(null);
+          return;
+        }
+
+        setRole(isAdminPanelRole(data) ? data : null);
       } catch (error) {
-        console.error('Erro inesperado ao verificar permissão de admin:', error);
-        setIsAdmin(false);
+        console.error('Erro inesperado ao verificar perfil de acesso:', error);
+        setRole(null);
+      } finally {
+        setRoleLoading(false);
       }
     };
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
-      await resolveAdminRole(currentUser);
+      void resolveUserRole(currentUser);
       setLoading(false);
     });
 
     supabase.auth
       .getSession()
-      .then(async ({ data: { session }, error }) => {
+      .then(({ data: { session }, error }) => {
         if (error) {
           console.error('Erro ao carregar sessão:', error.message);
           setUser(null);
-          setIsAdmin(false);
+          setRole(null);
+          setRoleLoading(false);
           return;
         }
 
         const currentUser = session?.user ?? null;
         setUser(currentUser);
-        await resolveAdminRole(currentUser);
+        void resolveUserRole(currentUser);
       })
       .catch((error) => {
         console.error('Erro inesperado ao carregar sessão:', error);
         setUser(null);
-        setIsAdmin(false);
+        setRole(null);
+        setRoleLoading(false);
       })
       .finally(() => {
         setLoading(false);
@@ -87,5 +134,21 @@ export function useAuth() {
     }
   };
 
-  return { user, isAdmin, loading, signIn, signOut };
+  const isAdmin = role == AdminPanelRole.ADMIN;
+  const isMesa = role == AdminPanelRole.MESA;
+  const canAccessAdminPanel = isAdmin || isMesa;
+  const canManageScoreboard = isAdmin || isMesa;
+
+  return {
+    user,
+    role,
+    isAdmin,
+    isMesa,
+    canAccessAdminPanel,
+    canManageScoreboard,
+    loading,
+    roleLoading,
+    signIn,
+    signOut,
+  };
 }

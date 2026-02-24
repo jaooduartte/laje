@@ -171,6 +171,19 @@ const Agenda = () => {
               ))}
             </SelectContent>
           </Select>
+          <Select value={teamFilter ?? "all"} onValueChange={(value) => setTeamFilter(value === "all" ? null : value)}>
+            <SelectTrigger className="w-48 bg-secondary border-border">
+              <SelectValue placeholder="Filtrar por time" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os times</SelectItem>
+              {teams.map((team) => (
+                <SelectItem key={team.id} value={team.id}>
+                  {team.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           {selectedChampionshipHasDivisions ? (
             <Select value={divisionFilter} onValueChange={handleDivisionChange}>
@@ -190,20 +203,6 @@ const Agenda = () => {
         </div>
 
         <div className="space-y-3">
-          <Select value={teamFilter ?? "all"} onValueChange={(value) => setTeamFilter(value === "all" ? null : value)}>
-            <SelectTrigger className="w-48 bg-secondary border-border">
-              <SelectValue placeholder="Filtrar por time" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os times</SelectItem>
-              {teams.map((team) => (
-                <SelectItem key={team.id} value={team.id}>
-                  {team.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
           <SportFilter sports={sports} selected={sportFilter} onSelect={setSportFilter} />
         </div>
 

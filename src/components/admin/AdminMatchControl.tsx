@@ -12,6 +12,7 @@ import { MATCH_NAIPE_BADGE_CLASS_NAMES, MATCH_NAIPE_LABELS } from "@/lib/champio
 interface Props {
   matches: Match[];
   onRefetch: () => void;
+  canManageScoreboard: boolean;
 }
 
 interface MatchControlDraft {
@@ -71,7 +72,7 @@ function resolveMatchUpdatePayload(match: Match, draft: MatchControlDraft) {
   };
 }
 
-export function AdminMatchControl({ matches, onRefetch }: Props) {
+export function AdminMatchControl({ matches, onRefetch, canManageScoreboard }: Props) {
   const [matchDraftById, setMatchDraftById] = useState<Record<string, MatchControlDraft>>({});
   const [saveStatusByMatchId, setSaveStatusByMatchId] = useState<Record<string, SaveStatus | undefined>>({});
 
@@ -137,6 +138,10 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
   };
 
   const persistMatchDraft = async (match: Match, matchDraft: MatchControlDraft) => {
+    if (!canManageScoreboard) {
+      return false;
+    }
+
     setMatchSaveStatus(match.id, "saving");
 
     const { error } = await supabase
@@ -155,6 +160,10 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
   };
 
   const scheduleAutosave = (match: Match, matchDraft: MatchControlDraft) => {
+    if (!canManageScoreboard) {
+      return;
+    }
+
     const saveTimeoutReference = saveTimeoutByMatchIdRef.current[match.id];
 
     if (saveTimeoutReference) {
@@ -273,6 +282,10 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
   };
 
   const handleSetLive = async (matchId: string) => {
+    if (!canManageScoreboard) {
+      return;
+    }
+
     const { error } = await supabase.from("matches").update({ status: MatchStatus.LIVE }).eq("id", matchId);
 
     if (error) {
@@ -296,6 +309,10 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
   };
 
   const handleFinish = async (match: Match) => {
+    if (!canManageScoreboard) {
+      return;
+    }
+
     const currentMatchDraft = getMatchDraft(match);
     const matchSaved = await flushPendingAutosave(match, currentMatchDraft);
 
@@ -354,7 +371,7 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
               </div>
 
               <div className="flex items-center gap-2">
-                {match.status == MatchStatus.LIVE && matchSaveStatus ? (
+                {canManageScoreboard && match.status == MatchStatus.LIVE && matchSaveStatus ? (
                   <span className={`text-xs font-semibold ${SAVE_STATUS_CLASS_NAMES[matchSaveStatus]}`}>
                     {SAVE_STATUS_LABELS[matchSaveStatus]}
                   </span>
@@ -365,13 +382,14 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
                     size="sm"
                     onClick={() => handleSetLive(match.id)}
                     className="bg-live text-primary-foreground hover:bg-live-glow"
+                    disabled={!canManageScoreboard}
                   >
                     <Play className="mr-1 h-3 w-3" /> Iniciar
                   </Button>
                 ) : null}
 
                 {match.status == MatchStatus.LIVE ? (
-                  <Button size="sm" variant="destructive" onClick={() => handleFinish(match)}>
+                  <Button size="sm" variant="destructive" onClick={() => handleFinish(match)} disabled={!canManageScoreboard}>
                     <Square className="mr-1 h-3 w-3" /> Finalizar
                   </Button>
                 ) : null}
@@ -391,7 +409,7 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
                     variant="outline"
                     className="h-8 w-8"
                     onClick={() => updateScore(match, "home", -1)}
-                    disabled={match.status != MatchStatus.LIVE}
+                    disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                   >
                     <Minus className="h-3 w-3" />
                   </Button>
@@ -401,7 +419,7 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
                     value={matchDraft.homeScore}
                     onChange={(event) => updateManualInputScore(match, "home", event.target.value)}
                     className="score-text h-12 w-14 border-border bg-secondary text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                    disabled={match.status != MatchStatus.LIVE}
+                    disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                   />
 
                   <Button
@@ -409,7 +427,7 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
                     variant="outline"
                     className="h-8 w-8"
                     onClick={() => updateScore(match, "home", 1)}
-                    disabled={match.status != MatchStatus.LIVE}
+                    disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                   >
                     <Plus className="h-3 w-3" />
                   </Button>
@@ -423,7 +441,7 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
                     variant="outline"
                     className="h-8 w-8"
                     onClick={() => updateScore(match, "away", -1)}
-                    disabled={match.status != MatchStatus.LIVE}
+                    disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                   >
                     <Minus className="h-3 w-3" />
                   </Button>
@@ -433,7 +451,7 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
                     value={matchDraft.awayScore}
                     onChange={(event) => updateManualInputScore(match, "away", event.target.value)}
                     className="score-text h-12 w-14 border-border bg-secondary text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                    disabled={match.status != MatchStatus.LIVE}
+                    disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                   />
 
                   <Button
@@ -441,7 +459,7 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
                     variant="outline"
                     className="h-8 w-8"
                     onClick={() => updateScore(match, "away", 1)}
-                    disabled={match.status != MatchStatus.LIVE}
+                    disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                   >
                     <Plus className="h-3 w-3" />
                   </Button>
@@ -461,7 +479,7 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
                     variant="outline"
                     className="h-8 w-8"
                     onClick={() => updateScore(match, "home", -1)}
-                    disabled={match.status != MatchStatus.LIVE}
+                    disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                   >
                     <Minus className="h-3 w-3" />
                   </Button>
@@ -471,7 +489,7 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
                     value={matchDraft.homeScore}
                     onChange={(event) => updateManualInputScore(match, "home", event.target.value)}
                     className="score-text h-12 w-14 border-border bg-secondary text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                    disabled={match.status != MatchStatus.LIVE}
+                    disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                   />
 
                   <Button
@@ -479,7 +497,7 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
                     variant="outline"
                     className="h-8 w-8"
                     onClick={() => updateScore(match, "home", 1)}
-                    disabled={match.status != MatchStatus.LIVE}
+                    disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                   >
                     <Plus className="h-3 w-3" />
                   </Button>
@@ -493,7 +511,7 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
                     variant="outline"
                     className="h-8 w-8"
                     onClick={() => updateScore(match, "away", -1)}
-                    disabled={match.status != MatchStatus.LIVE}
+                    disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                   >
                     <Minus className="h-3 w-3" />
                   </Button>
@@ -503,7 +521,7 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
                     value={matchDraft.awayScore}
                     onChange={(event) => updateManualInputScore(match, "away", event.target.value)}
                     className="score-text h-12 w-14 border-border bg-secondary text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                    disabled={match.status != MatchStatus.LIVE}
+                    disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                   />
 
                   <Button
@@ -511,7 +529,7 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
                     variant="outline"
                     className="h-8 w-8"
                     onClick={() => updateScore(match, "away", 1)}
-                    disabled={match.status != MatchStatus.LIVE}
+                    disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                   >
                     <Plus className="h-3 w-3" />
                   </Button>
@@ -536,7 +554,7 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
                           variant="outline"
                           className="h-8 w-8"
                           onClick={() => updateCards(match, "home", "yellow", -1)}
-                          disabled={match.status != MatchStatus.LIVE}
+                          disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                         >
                           <Minus className="h-3 w-3" />
                         </Button>
@@ -545,14 +563,14 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
                           value={matchDraft.homeYellowCards}
                           onChange={(event) => updateManualInputCards(match, "home", "yellow", event.target.value)}
                           className="h-9 border-border bg-secondary text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                          disabled={match.status != MatchStatus.LIVE}
+                          disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                         />
                         <Button
                           size="icon"
                           variant="outline"
                           className="h-8 w-8"
                           onClick={() => updateCards(match, "home", "yellow", 1)}
-                          disabled={match.status != MatchStatus.LIVE}
+                          disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                         >
                           <Plus className="h-3 w-3" />
                         </Button>
@@ -567,7 +585,7 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
                           variant="outline"
                           className="h-8 w-8"
                           onClick={() => updateCards(match, "home", "red", -1)}
-                          disabled={match.status != MatchStatus.LIVE}
+                          disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                         >
                           <Minus className="h-3 w-3" />
                         </Button>
@@ -576,14 +594,14 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
                           value={matchDraft.homeRedCards}
                           onChange={(event) => updateManualInputCards(match, "home", "red", event.target.value)}
                           className="h-9 border-border bg-secondary text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                          disabled={match.status != MatchStatus.LIVE}
+                          disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                         />
                         <Button
                           size="icon"
                           variant="outline"
                           className="h-8 w-8"
                           onClick={() => updateCards(match, "home", "red", 1)}
-                          disabled={match.status != MatchStatus.LIVE}
+                          disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                         >
                           <Plus className="h-3 w-3" />
                         </Button>
@@ -603,7 +621,7 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
                           variant="outline"
                           className="h-8 w-8"
                           onClick={() => updateCards(match, "away", "yellow", -1)}
-                          disabled={match.status != MatchStatus.LIVE}
+                          disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                         >
                           <Minus className="h-3 w-3" />
                         </Button>
@@ -612,14 +630,14 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
                           value={matchDraft.awayYellowCards}
                           onChange={(event) => updateManualInputCards(match, "away", "yellow", event.target.value)}
                           className="h-9 border-border bg-secondary text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                          disabled={match.status != MatchStatus.LIVE}
+                          disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                         />
                         <Button
                           size="icon"
                           variant="outline"
                           className="h-8 w-8"
                           onClick={() => updateCards(match, "away", "yellow", 1)}
-                          disabled={match.status != MatchStatus.LIVE}
+                          disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                         >
                           <Plus className="h-3 w-3" />
                         </Button>
@@ -634,7 +652,7 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
                           variant="outline"
                           className="h-8 w-8"
                           onClick={() => updateCards(match, "away", "red", -1)}
-                          disabled={match.status != MatchStatus.LIVE}
+                          disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                         >
                           <Minus className="h-3 w-3" />
                         </Button>
@@ -643,14 +661,14 @@ export function AdminMatchControl({ matches, onRefetch }: Props) {
                           value={matchDraft.awayRedCards}
                           onChange={(event) => updateManualInputCards(match, "away", "red", event.target.value)}
                           className="h-9 border-border bg-secondary text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                          disabled={match.status != MatchStatus.LIVE}
+                          disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                         />
                         <Button
                           size="icon"
                           variant="outline"
                           className="h-8 w-8"
                           onClick={() => updateCards(match, "away", "red", 1)}
-                          disabled={match.status != MatchStatus.LIVE}
+                          disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                         >
                           <Plus className="h-3 w-3" />
                         </Button>

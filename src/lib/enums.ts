@@ -39,3 +39,8 @@ export enum ChampionshipStatus {
   IN_PROGRESS = "IN_PROGRESS",
   FINISHED = "FINISHED",
 }
+
+export enum AdminPanelRole {
+  ADMIN = "admin",
+  MESA = "mesa",
+}

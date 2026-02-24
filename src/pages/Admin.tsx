@@ -21,7 +21,7 @@ import { ChampionshipCode, ChampionshipStatus, MatchStatus } from "@/lib/enums";
 import { CHAMPIONSHIP_STATUS_LABELS, isChampionshipStatus } from "@/lib/championship";
 
 const Admin = () => {
-  const { user, isAdmin, loading, signOut } = useAuth();
+  const { user, isAdmin, isMesa, canAccessAdminPanel, canManageScoreboard, loading, roleLoading, signOut } = useAuth();
   const { championships, loading: championshipsLoading, refetch: refetchChampionships } = useChampionships();
   const { selectedChampionshipCode, setSelectedChampionshipCode } = useSelectedChampionship();
   const [updatingChampionshipStatus, setUpdatingChampionshipStatus] = useState(false);
@@ -86,7 +86,7 @@ const Admin = () => {
     championshipId: selectedChampionshipId,
   });
 
-  if (loading || championshipsLoading) {
+  if (loading || roleLoading) {
     return (
       <div className="min-h-screen">
         <Header />
@@ -97,8 +97,22 @@ const Admin = () => {
     );
   }
 
-  if (!user || !isAdmin) {
+  if (!user || !canAccessAdminPanel) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (championshipsLoading && championships.length == 0) {
+    return (
+      <div className="min-h-screen">
+        <Header />
+        <main className="container py-8">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            <span>Carregando campeonatos...</span>
+          </div>
+        </main>
+      </div>
+    );
   }
 
   if (!selectedChampionship) {
@@ -115,6 +129,7 @@ const Admin = () => {
   const liveAndScheduledMatches = matches.filter(
     (match) => match.status === MatchStatus.LIVE || match.status === MatchStatus.SCHEDULED,
   );
+  const defaultTabValue = isAdmin ? "matches" : "control";
 
   return (
     <div className="min-h-screen">
@@ -143,68 +158,82 @@ const Admin = () => {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
-          <span className="text-sm font-medium">Status do campeonato</span>
+        {isAdmin ? (
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
+            <span className="text-sm font-medium">Status do campeonato</span>
 
-          <Select
-            value={selectedChampionship.status}
-            onValueChange={handleChampionshipStatusChange}
-            disabled={updatingChampionshipStatus}
-          >
-            <SelectTrigger className="w-52 bg-secondary border-border">
-              <SelectValue placeholder="Alterar status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ChampionshipStatus.PLANNING}>
-                {CHAMPIONSHIP_STATUS_LABELS[ChampionshipStatus.PLANNING]}
-              </SelectItem>
-              <SelectItem value={ChampionshipStatus.UPCOMING}>
-                {CHAMPIONSHIP_STATUS_LABELS[ChampionshipStatus.UPCOMING]}
-              </SelectItem>
-              <SelectItem value={ChampionshipStatus.IN_PROGRESS}>
-                {CHAMPIONSHIP_STATUS_LABELS[ChampionshipStatus.IN_PROGRESS]}
-              </SelectItem>
-              <SelectItem value={ChampionshipStatus.FINISHED}>
-                {CHAMPIONSHIP_STATUS_LABELS[ChampionshipStatus.FINISHED]}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+            <Select
+              value={selectedChampionship.status}
+              onValueChange={handleChampionshipStatusChange}
+              disabled={updatingChampionshipStatus}
+            >
+              <SelectTrigger className="w-52 bg-secondary border-border">
+                <SelectValue placeholder="Alterar status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ChampionshipStatus.PLANNING}>
+                  {CHAMPIONSHIP_STATUS_LABELS[ChampionshipStatus.PLANNING]}
+                </SelectItem>
+                <SelectItem value={ChampionshipStatus.UPCOMING}>
+                  {CHAMPIONSHIP_STATUS_LABELS[ChampionshipStatus.UPCOMING]}
+                </SelectItem>
+                <SelectItem value={ChampionshipStatus.IN_PROGRESS}>
+                  {CHAMPIONSHIP_STATUS_LABELS[ChampionshipStatus.IN_PROGRESS]}
+                </SelectItem>
+                <SelectItem value={ChampionshipStatus.FINISHED}>
+                  {CHAMPIONSHIP_STATUS_LABELS[ChampionshipStatus.FINISHED]}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
 
-        <Tabs defaultValue="matches" className="space-y-6">
+        {isMesa ? <p className="text-sm text-muted-foreground">Perfil mesa: acesso apenas ao controle de placar.</p> : null}
+
+        <Tabs defaultValue={defaultTabValue} className="space-y-6">
           <TabsList className="bg-secondary">
-            <TabsTrigger value="matches">Jogos</TabsTrigger>
+            {isAdmin ? <TabsTrigger value="matches">Jogos</TabsTrigger> : null}
             <TabsTrigger value="control">Controle ao Vivo</TabsTrigger>
-            <TabsTrigger value="teams">Atléticas</TabsTrigger>
-            <TabsTrigger value="sports">Modalidades</TabsTrigger>
+            {isAdmin ? <TabsTrigger value="teams">Atléticas</TabsTrigger> : null}
+            {isAdmin ? <TabsTrigger value="sports">Modalidades</TabsTrigger> : null}
           </TabsList>
 
-          <TabsContent value="matches">
-            <AdminMatches
-              matches={matches}
-              teams={teams}
-              championshipSports={championshipSports}
-              selectedChampionship={selectedChampionship}
-              onRefetch={refetchMatches}
-              onRefetchChampionships={refetchChampionships}
-            />
-          </TabsContent>
+          {isAdmin ? (
+            <TabsContent value="matches">
+              <AdminMatches
+                matches={matches}
+                teams={teams}
+                championshipSports={championshipSports}
+                selectedChampionship={selectedChampionship}
+                onRefetch={refetchMatches}
+                onRefetchChampionships={refetchChampionships}
+              />
+            </TabsContent>
+          ) : null}
 
           <TabsContent value="control">
-            <AdminMatchControl matches={liveAndScheduledMatches} onRefetch={refetchMatches} />
-          </TabsContent>
-
-          <TabsContent value="teams">
-            <AdminTeams teams={teams} onRefetch={refetchTeams} />
-          </TabsContent>
-
-          <TabsContent value="sports">
-            <AdminSports
-              sports={sports}
-              championshipSports={championshipSports}
-              selectedChampionship={selectedChampionship}
+            <AdminMatchControl
+              matches={liveAndScheduledMatches}
+              onRefetch={refetchMatches}
+              canManageScoreboard={canManageScoreboard}
             />
           </TabsContent>
+
+          {isAdmin ? (
+            <TabsContent value="teams">
+              <AdminTeams teams={teams} onRefetch={refetchTeams} />
+            </TabsContent>
+          ) : null}
+
+          {isAdmin ? (
+            <TabsContent value="sports">
+              <AdminSports
+                sports={sports}
+                championshipSports={championshipSports}
+                selectedChampionship={selectedChampionship}
+              />
+            </TabsContent>
+          ) : null}
         </Tabs>
       </main>
     </div>

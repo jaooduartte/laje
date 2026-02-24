@@ -15,7 +15,7 @@ export function Header() {
     <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-xl">
       <div className="container flex h-16 items-center justify-between">
         <Link to="/" className="flex items-center gap-2">
-          <img src="/logo.png" alt="Logo LAJE" className="h-9 w-9 rounded-md object-cover" />
+          <img src="/logo.png" alt="Logo LAJE" className="h-16 w-16 rounded-md object-cover" />
         </Link>
         <nav className="flex items-center gap-1">
           {links.map(({ to, label, icon: Icon }) => (

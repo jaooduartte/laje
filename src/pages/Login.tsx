@@ -7,13 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 const Login = () => {
-  const { user, isAdmin, loading, signIn } = useAuth();
+  const { user, canAccessAdminPanel, loading, roleLoading, signIn, signOut } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  if (loading) {
+  if (loading || roleLoading) {
     return (
       <div className="min-h-screen">
         <Header />
@@ -24,8 +24,28 @@ const Login = () => {
     );
   }
 
-  if (user && isAdmin) {
+  if (user && canAccessAdminPanel) {
     return <Navigate to="/admin" replace />;
+  }
+
+  if (user && !canAccessAdminPanel) {
+    return (
+      <div className="min-h-screen">
+        <Header />
+
+        <main className="container flex items-center justify-center py-10">
+          <div className="w-full max-w-sm space-y-4 p-8 text-center">
+            <h1 className="text-2xl font-display font-bold">Acesso não autorizado</h1>
+            <p className="text-sm text-muted-foreground">
+              Seu usuário não possui perfil para acessar o painel.
+            </p>
+            <Button type="button" className="w-full" onClick={signOut}>
+              Voltar
+            </Button>
+          </div>
+        </main>
+      </div>
+    );
   }
 
   const handleSubmit = async (event: React.FormEvent) => {

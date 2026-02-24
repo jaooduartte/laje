@@ -340,6 +340,11 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_access_admin_panel: { Args: never; Returns: boolean }
+      get_current_user_role: {
+        Args: never
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -348,9 +353,10 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: never; Returns: boolean }
+      is_mesa: { Args: never; Returns: boolean }
     }
     Enums: {
-      app_role: "admin"
+      app_role: "admin" | "mesa"
       championship_code: "CLV" | "SOCIETY" | "INTERLAJE"
       championship_sport_naipe_mode: "MISTO" | "MASCULINO_FEMININO"
       championship_sport_tie_breaker_rule: "STANDARD" | "POINTS_AVERAGE" | "BEACH_SOCCER" | "BEACH_TENNIS"
@@ -485,7 +491,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin"],
+      app_role: ["admin", "mesa"],
       championship_code: ["CLV", "SOCIETY", "INTERLAJE"],
       championship_sport_naipe_mode: ["MISTO", "MASCULINO_FEMININO"],
       championship_sport_tie_breaker_rule: ["STANDARD", "POINTS_AVERAGE", "BEACH_SOCCER", "BEACH_TENNIS"],
