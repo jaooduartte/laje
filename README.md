@@ -25,14 +25,20 @@ Regras funcionais principais já implementadas:
 ## Telas da aplicação
 
 - `/` -> **Ao Vivo** (campeonato em destaque por status).
-- `/campeonatos` -> visão detalhada por campeonato:
+- `/championships` -> visão detalhada por campeonato:
   - jogos em andamento;
   - próximo jogo;
   - classificação;
   - jogos anteriores (com filtro por atlética e ano).
-- `/agenda` -> agenda de jogos por campeonato/modalidade/time (e divisão quando aplicável).
+- `/schedule` -> agenda de jogos por campeonato/modalidade/time (e divisão quando aplicável).
+- `/league-calendar` -> calendário público mensal de eventos da liga.
 - `/login` -> autenticação administrativa.
-- `/admin` -> gestão de jogos, controle ao vivo, atléticas e modalidades.
+- `/admin` -> gestão de jogos, controle ao vivo, atléticas, modalidades e eventos da liga.
+
+Rotas legadas:
+
+- `/campeonatos` redireciona para `/championships`.
+- `/agenda` redireciona para `/schedule`.
 
 ## Stack
 
@@ -92,6 +98,7 @@ Principais entidades:
 - `championship_sports` (vínculo campeonato/modalidade + naipe_mode + pontuação)
 - `matches` (jogos com campeonato, modalidade, naipe, divisão, status e placar)
 - `standings` (classificação consolidada)
+- `league_events` (eventos públicos da liga)
 - `user_roles` (papéis administrativos)
 
 Funções/trigger relevantes:

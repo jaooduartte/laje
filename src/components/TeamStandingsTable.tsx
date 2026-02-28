@@ -19,7 +19,7 @@ function resolveTopPlacementRowClass(position: number): string {
     return "bg-orange-100/40 hover:bg-orange-100/60";
   }
 
-  return "hover:bg-secondary/30";
+  return "hover:bg-secondary/25";
 }
 
 export function TeamStandingsTable({ standings, showCardColumns = false }: Props) {
@@ -28,10 +28,10 @@ export function TeamStandingsTable({ standings, showCardColumns = false }: Props
   }
 
   return (
-    <div className="rounded-lg border border-border overflow-hidden">
+    <div className="glass-panel enter-section overflow-hidden">
       <Table>
         <TableHeader>
-          <TableRow className="bg-secondary/50">
+          <TableRow className="bg-white/45">
             <TableHead className="w-8 text-center">#</TableHead>
             <TableHead>Atlética</TableHead>
             <TableHead className="text-center w-10">J</TableHead>

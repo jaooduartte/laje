@@ -1,0 +1,262 @@
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { LogOut } from "lucide-react";
+import { Header } from "@/components/Header";
+import { AdminTeams } from "@/components/admin/AdminTeams";
+import { AdminSports } from "@/components/admin/AdminSports";
+import { AdminMatches } from "@/components/admin/AdminMatches";
+import { AdminMatchControl } from "@/components/admin/AdminMatchControl";
+import { AdminLeagueEvents } from "@/components/admin/AdminLeagueEvents";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AdminPanelTab, ChampionshipCode, ChampionshipStatus } from "@/lib/enums";
+import { CHAMPIONSHIP_STATUS_LABELS } from "@/lib/championship";
+import type { Championship, ChampionshipSport, Match, Sport, Team } from "@/lib/types";
+
+interface AdminPageViewProps {
+  championships: Championship[];
+  selectedChampionship: Championship;
+  selectedChampionshipCode: ChampionshipCode;
+  matches: Match[];
+  teams: Team[];
+  sports: Sport[];
+  championshipSports: ChampionshipSport[];
+  liveAndScheduledMatches: Match[];
+  isAdmin: boolean;
+  isMesa: boolean;
+  canManageScoreboard: boolean;
+  defaultTabValue: AdminPanelTab;
+  updatingChampionshipStatus: boolean;
+  onChampionshipCodeChange: (value: string) => void;
+  onChampionshipStatusChange: (value: string) => void;
+  onSignOut: () => void;
+  onRefetchMatches: () => void;
+  onRefetchTeams: () => void;
+  onRefetchChampionships: () => void;
+}
+
+interface AdminTabItem {
+  value: AdminPanelTab;
+  label: string;
+}
+
+export function AdminPageView({
+  championships,
+  selectedChampionship,
+  selectedChampionshipCode,
+  matches,
+  teams,
+  sports,
+  championshipSports,
+  liveAndScheduledMatches,
+  isAdmin,
+  isMesa,
+  canManageScoreboard,
+  defaultTabValue,
+  updatingChampionshipStatus,
+  onChampionshipCodeChange,
+  onChampionshipStatusChange,
+  onSignOut,
+  onRefetchMatches,
+  onRefetchTeams,
+  onRefetchChampionships,
+}: AdminPageViewProps) {
+  const adminTabItems = useMemo(() => {
+    const nextAdminTabItems: AdminTabItem[] = [];
+
+    if (isAdmin) {
+      nextAdminTabItems.push({ value: AdminPanelTab.MATCHES, label: "Jogos" });
+    }
+
+    nextAdminTabItems.push({ value: AdminPanelTab.CONTROL, label: "Controle ao Vivo" });
+
+    if (isAdmin) {
+      nextAdminTabItems.push({ value: AdminPanelTab.TEAMS, label: "Atléticas" });
+      nextAdminTabItems.push({ value: AdminPanelTab.SPORTS, label: "Modalidades" });
+      nextAdminTabItems.push({ value: AdminPanelTab.EVENTS, label: "Eventos da Liga" });
+    }
+
+    return nextAdminTabItems;
+  }, [isAdmin]);
+
+  const tabsListRef = useRef<HTMLDivElement | null>(null);
+  const tabTriggerByValueRef = useRef<Partial<Record<AdminPanelTab, HTMLButtonElement | null>>>({});
+  const [activeTab, setActiveTab] = useState<AdminPanelTab>(defaultTabValue);
+  const [activeIndicatorLeft, setActiveIndicatorLeft] = useState(0);
+  const [activeIndicatorWidth, setActiveIndicatorWidth] = useState(0);
+  const [showActiveIndicator, setShowActiveIndicator] = useState(false);
+
+  useEffect(() => {
+    const hasActiveTab = adminTabItems.some((adminTabItem) => adminTabItem.value == activeTab);
+
+    if (!hasActiveTab) {
+      setActiveTab(defaultTabValue);
+    }
+  }, [activeTab, adminTabItems, defaultTabValue]);
+
+  const updateActiveIndicator = useCallback(() => {
+    if (!tabsListRef.current) {
+      setShowActiveIndicator(false);
+      return;
+    }
+
+    const activeTabTriggerElement = tabTriggerByValueRef.current[activeTab];
+
+    if (!activeTabTriggerElement) {
+      setShowActiveIndicator(false);
+      return;
+    }
+
+    const tabsListRect = tabsListRef.current.getBoundingClientRect();
+    const activeTabTriggerRect = activeTabTriggerElement.getBoundingClientRect();
+
+    setActiveIndicatorLeft(activeTabTriggerRect.left - tabsListRect.left);
+    setActiveIndicatorWidth(activeTabTriggerRect.width);
+    setShowActiveIndicator(true);
+  }, [activeTab]);
+
+  useLayoutEffect(() => {
+    const animationFrameId = requestAnimationFrame(updateActiveIndicator);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [updateActiveIndicator]);
+
+  useEffect(() => {
+    window.addEventListener("resize", updateActiveIndicator);
+    return () => window.removeEventListener("resize", updateActiveIndicator);
+  }, [updateActiveIndicator]);
+
+  return (
+    <div className="app-page">
+      <Header />
+      <main className="container py-8 space-y-5">
+        <div className="glass-panel enter-section flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
+          <h1 className="text-2xl font-display font-bold">Painel Admin</h1>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={selectedChampionshipCode} onValueChange={onChampionshipCodeChange}>
+              <SelectTrigger className="glass-input w-[280px]">
+                <SelectValue placeholder="Selecione o campeonato" />
+              </SelectTrigger>
+              <SelectContent>
+                {championships.map((championship) => (
+                  <SelectItem key={championship.id} value={championship.code}>
+                    {championship.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Button variant="outline" className="h-10 px-4" onClick={onSignOut}>
+              <LogOut className="h-4 w-4 mr-1" /> Sair
+            </Button>
+          </div>
+        </div>
+
+        {isAdmin ? (
+          <div className="glass-panel enter-section flex flex-wrap items-center gap-3 px-4 py-3">
+            <span className="text-sm font-medium">Status do campeonato</span>
+
+            <Select
+              value={selectedChampionship.status}
+              onValueChange={onChampionshipStatusChange}
+              disabled={updatingChampionshipStatus}
+            >
+              <SelectTrigger className="glass-input w-52">
+                <SelectValue placeholder="Alterar status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ChampionshipStatus.PLANNING}>
+                  {CHAMPIONSHIP_STATUS_LABELS[ChampionshipStatus.PLANNING]}
+                </SelectItem>
+                <SelectItem value={ChampionshipStatus.UPCOMING}>
+                  {CHAMPIONSHIP_STATUS_LABELS[ChampionshipStatus.UPCOMING]}
+                </SelectItem>
+                <SelectItem value={ChampionshipStatus.IN_PROGRESS}>
+                  {CHAMPIONSHIP_STATUS_LABELS[ChampionshipStatus.IN_PROGRESS]}
+                </SelectItem>
+                <SelectItem value={ChampionshipStatus.FINISHED}>
+                  {CHAMPIONSHIP_STATUS_LABELS[ChampionshipStatus.FINISHED]}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
+
+        {isMesa ? <p className="text-sm text-muted-foreground">Perfil mesa: acesso apenas ao controle de placar.</p> : null}
+
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as AdminPanelTab)} className="enter-section space-y-6">
+          <TabsList
+            ref={tabsListRef}
+            className="relative flex h-auto items-center gap-0 overflow-x-auto rounded-xl bg-white/72 p-0 shadow-[0_8px_18px_rgba(15,23,42,0.08)] backdrop-blur-xl"
+          >
+            <span
+              className="pointer-events-none absolute inset-y-0 left-0 rounded-xl bg-primary/22 backdrop-blur-2xl transition-[transform,width,opacity] duration-500"
+              style={{
+                width: `${activeIndicatorWidth}px`,
+                transform: `translateX(${activeIndicatorLeft}px)`,
+                opacity: showActiveIndicator ? 1 : 0,
+                transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)",
+              }}
+            />
+
+            {adminTabItems.map((adminTabItem) => (
+              <TabsTrigger
+                key={adminTabItem.value}
+                value={adminTabItem.value}
+                ref={(triggerElement) => {
+                  tabTriggerByValueRef.current[adminTabItem.value] = triggerElement;
+                }}
+                className="relative z-10 whitespace-nowrap rounded-none px-4 py-2.5 text-sm font-medium transition-colors first:rounded-l-xl last:rounded-r-xl data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none"
+              >
+                {adminTabItem.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+
+          {isAdmin ? (
+            <TabsContent value={AdminPanelTab.MATCHES}>
+              <AdminMatches
+                matches={matches}
+                teams={teams}
+                championshipSports={championshipSports}
+                selectedChampionship={selectedChampionship}
+                onRefetch={onRefetchMatches}
+                onRefetchChampionships={onRefetchChampionships}
+              />
+            </TabsContent>
+          ) : null}
+
+          <TabsContent value={AdminPanelTab.CONTROL}>
+            <AdminMatchControl
+              matches={liveAndScheduledMatches}
+              onRefetch={onRefetchMatches}
+              canManageScoreboard={canManageScoreboard}
+            />
+          </TabsContent>
+
+          {isAdmin ? (
+            <TabsContent value={AdminPanelTab.TEAMS}>
+              <AdminTeams teams={teams} onRefetch={onRefetchTeams} />
+            </TabsContent>
+          ) : null}
+
+          {isAdmin ? (
+            <TabsContent value={AdminPanelTab.SPORTS}>
+              <AdminSports
+                sports={sports}
+                championshipSports={championshipSports}
+                selectedChampionship={selectedChampionship}
+              />
+            </TabsContent>
+          ) : null}
+
+          {isAdmin ? (
+            <TabsContent value={AdminPanelTab.EVENTS}>
+              <AdminLeagueEvents teams={teams} />
+            </TabsContent>
+          ) : null}
+        </Tabs>
+      </main>
+    </div>
+  );
+}

@@ -376,11 +376,11 @@ export function AdminMatches({
 
   return (
     <div className="space-y-6">
-      <div className="space-y-3 rounded-lg border border-border bg-card p-4">
+      <div className="enter-section space-y-3 glass-card p-4">
         <h3 className="font-display font-semibold">Novo Jogo - {selectedChampionship.name}</h3>
 
         {isClvChampionship ? (
-          <div className="space-y-3 rounded-md border border-border bg-secondary/40 p-3">
+          <div className="space-y-3 glass-panel-muted p-3">
             <p className="text-sm font-medium">Local padrão da Copa Laje de Verão (CLV)</p>
 
             <div className="flex flex-col gap-2 sm:flex-row">
@@ -388,9 +388,15 @@ export function AdminMatches({
                 placeholder="Ex.: Arena oficial do CLV"
                 value={clvDefaultLocation}
                 onChange={(event) => setClvDefaultLocation(event.target.value)}
-                className="bg-secondary border-border"
+                className="glass-input"
               />
-              <Button type="button" variant="secondary" onClick={handleSaveClvDefaultLocation} disabled={savingClvDefaultLocation}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleSaveClvDefaultLocation}
+                disabled={savingClvDefaultLocation}
+                className="bg-white/85 hover:bg-white"
+              >
                 Salvar local padrão
               </Button>
             </div>
@@ -431,7 +437,7 @@ export function AdminMatches({
 
           <div className="grid grid-cols-2 gap-3 sm:col-span-2 lg:col-span-2">
             <Select value={sportId} onValueChange={setSportId}>
-              <SelectTrigger className="bg-secondary border-border">
+              <SelectTrigger className="glass-input">
                 <SelectValue placeholder="Modalidade" />
               </SelectTrigger>
               <SelectContent>
@@ -454,7 +460,7 @@ export function AdminMatches({
                   }
                 }}
               >
-                <SelectTrigger className="bg-secondary border-border">
+                <SelectTrigger className="glass-input">
                   <SelectValue placeholder="Divisão" />
                 </SelectTrigger>
                 <SelectContent>
@@ -465,14 +471,14 @@ export function AdminMatches({
                 </SelectContent>
               </Select>
             ) : (
-              <div className="rounded-md border border-border bg-secondary px-3 py-2 text-sm text-muted-foreground">
+              <div className="glass-panel-muted px-3 py-2 text-sm text-muted-foreground">
                 Divisão unificada
               </div>
             )}
           </div>
 
           {locationIsLockedForClv ? (
-            <div className="rounded-md border border-border bg-secondary px-3 py-2 text-sm text-muted-foreground">
+            <div className="glass-panel-muted px-3 py-2 text-sm text-muted-foreground">
               {clvDefaultLocation || "Local replicado do padrão CLV"}
             </div>
           ) : (
@@ -480,13 +486,13 @@ export function AdminMatches({
               placeholder="Local"
               value={location}
               onChange={(event) => setLocation(event.target.value)}
-              className="bg-secondary border-border"
+              className="glass-input"
             />
           )}
 
           <div className="grid grid-cols-2 gap-3 sm:col-span-2 md:col-span-3 md:grid-cols-2 lg:col-span-3 lg:grid-cols-4">
             <Select value={homeTeamId} onValueChange={setHomeTeamId}>
-              <SelectTrigger className="bg-secondary border-border">
+              <SelectTrigger className="glass-input">
                 <SelectValue placeholder="Time Casa" />
               </SelectTrigger>
               <SelectContent>
@@ -499,7 +505,7 @@ export function AdminMatches({
             </Select>
 
             <Select value={awayTeamId} onValueChange={setAwayTeamId}>
-              <SelectTrigger className="bg-secondary border-border">
+              <SelectTrigger className="glass-input">
                 <SelectValue placeholder="Time Visitante" />
               </SelectTrigger>
               <SelectContent>
@@ -515,7 +521,7 @@ export function AdminMatches({
           </div>
         </div>
 
-        <Button onClick={handleAdd}>
+        <Button onClick={handleAdd} className="shadow-[0_4px_10px_rgba(15,23,42,0.06)] hover:shadow-[0_6px_14px_rgba(15,23,42,0.08)]">
           <Plus className="mr-1 h-4 w-4" /> Criar Jogo
         </Button>
 
@@ -524,10 +530,10 @@ export function AdminMatches({
         ) : null}
       </div>
 
-      <div className="space-y-3">
+      <div className="enter-section space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Select value={matchesTeamFilter} onValueChange={setMatchesTeamFilter}>
-            <SelectTrigger className="bg-secondary border-border">
+            <SelectTrigger className="glass-input">
               <SelectValue placeholder="Filtrar por atlética" />
             </SelectTrigger>
             <SelectContent>
@@ -541,7 +547,7 @@ export function AdminMatches({
           </Select>
 
           <Select value={matchesSportFilter} onValueChange={setMatchesSportFilter}>
-            <SelectTrigger className="bg-secondary border-border">
+            <SelectTrigger className="glass-input">
               <SelectValue placeholder="Filtrar por modalidade" />
             </SelectTrigger>
             <SelectContent>
@@ -555,7 +561,7 @@ export function AdminMatches({
           </Select>
 
           <Select value={matchesNaipeFilter} onValueChange={setMatchesNaipeFilter}>
-            <SelectTrigger className="bg-secondary border-border">
+            <SelectTrigger className="glass-input">
               <SelectValue placeholder="Filtrar por naipe" />
             </SelectTrigger>
             <SelectContent>
@@ -574,7 +580,7 @@ export function AdminMatches({
         ) : null}
 
         {filteredAndSortedMatches.map((match) => (
-          <div key={match.id} className="space-y-3 rounded-lg border border-border bg-card px-4 py-3">
+          <div key={match.id} className="enter-item space-y-3 glass-card px-4 py-3">
             <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div className="space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
@@ -633,7 +639,7 @@ export function AdminMatches({
             </div>
 
             {editingMatchId === match.id && editingMatchDraft ? (
-              <div className="grid grid-cols-1 gap-3 rounded-md border border-border bg-secondary/30 p-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 glass-panel-muted p-3 sm:grid-cols-2 lg:grid-cols-3">
                 <Select
                   value={editingMatchDraft.naipe}
                   onValueChange={(value) => {
@@ -652,7 +658,7 @@ export function AdminMatches({
                     );
                   }}
                 >
-                  <SelectTrigger className="bg-secondary border-border">
+                  <SelectTrigger className="glass-input">
                     <SelectValue placeholder="Naipe" />
                   </SelectTrigger>
                   <SelectContent>
@@ -677,7 +683,7 @@ export function AdminMatches({
                     )
                   }
                 >
-                  <SelectTrigger className="bg-secondary border-border">
+                  <SelectTrigger className="glass-input">
                     <SelectValue placeholder="Modalidade" />
                   </SelectTrigger>
                   <SelectContent>
@@ -709,7 +715,7 @@ export function AdminMatches({
                       );
                     }}
                   >
-                    <SelectTrigger className="bg-secondary border-border">
+                    <SelectTrigger className="glass-input">
                       <SelectValue placeholder="Divisão" />
                     </SelectTrigger>
                     <SelectContent>
@@ -720,7 +726,7 @@ export function AdminMatches({
                     </SelectContent>
                   </Select>
                 ) : (
-                  <div className="rounded-md border border-border bg-secondary px-3 py-2 text-sm text-muted-foreground">
+                  <div className="glass-panel-muted px-3 py-2 text-sm text-muted-foreground">
                     Divisão unificada (Principal e Acesso juntas)
                   </div>
                 )}
@@ -737,7 +743,7 @@ export function AdminMatches({
                         : currentDraft,
                     )
                   }
-                  className="bg-secondary border-border"
+                  className="glass-input"
                   placeholder="Local"
                 />
 
@@ -754,7 +760,7 @@ export function AdminMatches({
                     )
                   }
                 >
-                  <SelectTrigger className="bg-secondary border-border">
+                  <SelectTrigger className="glass-input">
                     <SelectValue placeholder="Time Casa" />
                   </SelectTrigger>
                   <SelectContent>
@@ -779,7 +785,7 @@ export function AdminMatches({
                     )
                   }
                 >
-                  <SelectTrigger className="bg-secondary border-border">
+                  <SelectTrigger className="glass-input">
                     <SelectValue placeholder="Time Visitante" />
                   </SelectTrigger>
                   <SelectContent>

@@ -12,6 +12,7 @@ interface DateTimePickerProps {
   value: Date | null;
   onChange: (value: Date | null) => void;
   placeholder: string;
+  showTime?: boolean;
   className?: string;
 }
 
@@ -28,7 +29,7 @@ function getBaseDate(value: Date | null): Date {
   return currentDate;
 }
 
-export function DateTimePicker({ value, onChange, placeholder, className }: DateTimePickerProps) {
+export function DateTimePicker({ value, onChange, placeholder, showTime = true, className }: DateTimePickerProps) {
   const selectedDate = value ? new Date(value) : undefined;
 
   const selectedHour = useMemo(() => {
@@ -46,6 +47,13 @@ export function DateTimePicker({ value, onChange, placeholder, className }: Date
 
   const handleDateSelect = (nextDate: Date | undefined) => {
     if (!nextDate) {
+      return;
+    }
+
+    if (!showTime) {
+      const normalizedDate = new Date(nextDate);
+      normalizedDate.setHours(12, 0, 0, 0);
+      onChange(normalizedDate);
       return;
     }
 
@@ -74,48 +82,50 @@ export function DateTimePicker({ value, onChange, placeholder, className }: Date
           type="button"
           variant="outline"
           className={cn(
-            "w-full justify-start bg-secondary border-border text-left font-normal hover:bg-secondary/90",
+            "glass-input w-full justify-start text-left font-normal hover:bg-white/70",
             !value ? "text-muted-foreground" : "text-foreground",
             className,
           )}
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
-          {value ? format(value, "dd/MM/yyyy HH:mm", { locale: ptBR }) : placeholder}
+          {value ? format(value, showTime ? "dd/MM/yyyy HH:mm" : "dd/MM/yyyy", { locale: ptBR }) : placeholder}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto space-y-3 p-3" align="start">
         <Calendar mode="single" selected={selectedDate} onSelect={handleDateSelect} locale={ptBR} initialFocus />
-        <div className="flex items-center gap-2">
-          <Clock3 className="h-4 w-4 text-muted-foreground" />
+        {showTime ? (
+          <div className="flex items-center gap-2">
+            <Clock3 className="h-4 w-4 text-muted-foreground" />
 
-          <Select value={selectedHour} onValueChange={handleHourChange}>
-            <SelectTrigger className="w-[86px] bg-secondary border-border">
-              <SelectValue placeholder="Hora" />
-            </SelectTrigger>
-            <SelectContent>
-              {HOUR_OPTIONS.map((hourOption) => (
-                <SelectItem key={hourOption} value={hourOption}>
-                  {hourOption}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <Select value={selectedHour} onValueChange={handleHourChange}>
+              <SelectTrigger className="glass-input w-[86px]">
+                <SelectValue placeholder="Hora" />
+              </SelectTrigger>
+              <SelectContent>
+                {HOUR_OPTIONS.map((hourOption) => (
+                  <SelectItem key={hourOption} value={hourOption}>
+                    {hourOption}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-          <span className="text-sm text-muted-foreground">:</span>
+            <span className="text-sm text-muted-foreground">:</span>
 
-          <Select value={selectedMinute} onValueChange={handleMinuteChange}>
-            <SelectTrigger className="w-[86px] bg-secondary border-border">
-              <SelectValue placeholder="Min" />
-            </SelectTrigger>
-            <SelectContent>
-              {MINUTE_OPTIONS.map((minuteOption) => (
-                <SelectItem key={minuteOption} value={minuteOption}>
-                  {minuteOption}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+            <Select value={selectedMinute} onValueChange={handleMinuteChange}>
+              <SelectTrigger className="glass-input w-[86px]">
+                <SelectValue placeholder="Min" />
+              </SelectTrigger>
+              <SelectContent>
+                {MINUTE_OPTIONS.map((minuteOption) => (
+                  <SelectItem key={minuteOption} value={minuteOption}>
+                    {minuteOption}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
       </PopoverContent>
     </Popover>
   );

@@ -1,6 +1,7 @@
 import {
   ChampionshipSportNaipeMode,
   ChampionshipSportTieBreakerRule,
+  ChampionshipCode,
   ChampionshipStatus,
   MatchNaipe,
   TeamDivision,
@@ -78,5 +79,13 @@ export function isChampionshipStatus(value: string): value is ChampionshipStatus
     value === ChampionshipStatus.UPCOMING ||
     value === ChampionshipStatus.IN_PROGRESS ||
     value === ChampionshipStatus.FINISHED
+  );
+}
+
+export function isChampionshipCode(value: string): value is ChampionshipCode {
+  return (
+    value === ChampionshipCode.CLV ||
+    value === ChampionshipCode.SOCIETY ||
+    value === ChampionshipCode.INTERLAJE
   );
 }

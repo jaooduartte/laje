@@ -1,38 +1,60 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AdminRouteGuard } from "@/components/guards/AdminRouteGuard";
+import { AuthProvider } from "@/hooks/useAuth";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
-import Championships from "./pages/Championships";
-import Agenda from "./pages/Agenda";
-import Login from "./pages/Login";
-import Admin from "./pages/Admin";
-import NotFound from "./pages/NotFound";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { AppRoutePath } from "@/lib/enums";
+import { LivePage } from "@/pages/live/LivePage";
+import { ChampionshipsPage } from "@/pages/championships/ChampionshipsPage";
+import { SchedulePage } from "@/pages/schedule/SchedulePage";
+import { LeagueCalendarPage } from "@/pages/league-calendar/LeagueCalendarPage";
+import { LoginPage } from "@/pages/login/LoginPage";
+import { AdminPage } from "@/pages/admin/AdminPage";
+import { NotFoundPage } from "@/pages/not-found/NotFoundPage";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter
-        future={{
-          v7_relativeSplatPath: true,
-          v7_startTransition: true,
-        }}
-      >
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/campeonatos" element={<Championships />} />
-          <Route path="/agenda" element={<Agenda />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/admin" element={<Admin />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+    <AuthProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter
+          future={{
+            v7_relativeSplatPath: true,
+            v7_startTransition: true,
+          }}
+        >
+          <Routes>
+            <Route path={AppRoutePath.LIVE} element={<LivePage />} />
+            <Route path={AppRoutePath.CHAMPIONSHIPS} element={<ChampionshipsPage />} />
+            <Route path={AppRoutePath.SCHEDULE} element={<SchedulePage />} />
+            <Route path={AppRoutePath.LEAGUE_CALENDAR} element={<LeagueCalendarPage />} />
+            <Route path={AppRoutePath.LOGIN} element={<LoginPage />} />
+            <Route
+              path={AppRoutePath.ADMIN}
+              element={
+                <AdminRouteGuard>
+                  <AdminPage />
+                </AdminRouteGuard>
+              }
+            />
+            <Route
+              path={AppRoutePath.LEGACY_CHAMPIONSHIPS}
+              element={<Navigate to={AppRoutePath.CHAMPIONSHIPS} replace />}
+            />
+            <Route
+              path={AppRoutePath.LEGACY_SCHEDULE}
+              element={<Navigate to={AppRoutePath.SCHEDULE} replace />}
+            />
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </AuthProvider>
   </QueryClientProvider>
 );
 

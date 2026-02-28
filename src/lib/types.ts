@@ -1,4 +1,6 @@
 import type {
+  LeagueEventOrganizerType,
+  LeagueEventType,
   ChampionshipCode,
   ChampionshipSportNaipeMode,
   ChampionshipSportTieBreakerRule,
@@ -97,4 +99,17 @@ export interface Standing {
   championships?: Championship;
   teams?: Team;
   sports?: Sport;
+}
+
+export interface LeagueEvent {
+  id: string;
+  name: string;
+  event_type: LeagueEventType;
+  organizer_type: LeagueEventOrganizerType;
+  organizer_team_id: string | null;
+  location: string;
+  event_date: string;
+  created_at: string;
+  updated_at: string;
+  organizer_team?: Team | null;
 }

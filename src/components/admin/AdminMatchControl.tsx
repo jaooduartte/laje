@@ -343,7 +343,7 @@ export function AdminMatchControl({ matches, onRefetch, canManageScoreboard }: P
   }
 
   return (
-    <div className="space-y-4">
+    <div className="enter-section space-y-4">
       {matches.map((match) => {
         const matchDraft = getMatchDraft(match);
         const matchSaveStatus = saveStatusByMatchId[match.id];
@@ -351,7 +351,7 @@ export function AdminMatchControl({ matches, onRefetch, canManageScoreboard }: P
         return (
           <div
             key={match.id}
-            className={`space-y-4 rounded-lg border bg-card p-5 ${
+            className={`space-y-4 glass-card enter-item p-5 ${
               match.status == MatchStatus.LIVE ? "border-live/50 live-glow" : "border-border"
             }`}
           >
@@ -418,7 +418,7 @@ export function AdminMatchControl({ matches, onRefetch, canManageScoreboard }: P
                     type="number"
                     value={matchDraft.homeScore}
                     onChange={(event) => updateManualInputScore(match, "home", event.target.value)}
-                    className="score-text h-12 w-14 border-border bg-secondary text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                    className="score-text h-12 w-14 glass-input text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                     disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                   />
 
@@ -450,7 +450,7 @@ export function AdminMatchControl({ matches, onRefetch, canManageScoreboard }: P
                     type="number"
                     value={matchDraft.awayScore}
                     onChange={(event) => updateManualInputScore(match, "away", event.target.value)}
-                    className="score-text h-12 w-14 border-border bg-secondary text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                    className="score-text h-12 w-14 glass-input text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                     disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                   />
 
@@ -488,7 +488,7 @@ export function AdminMatchControl({ matches, onRefetch, canManageScoreboard }: P
                     type="number"
                     value={matchDraft.homeScore}
                     onChange={(event) => updateManualInputScore(match, "home", event.target.value)}
-                    className="score-text h-12 w-14 border-border bg-secondary text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                    className="score-text h-12 w-14 glass-input text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                     disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                   />
 
@@ -520,7 +520,7 @@ export function AdminMatchControl({ matches, onRefetch, canManageScoreboard }: P
                     type="number"
                     value={matchDraft.awayScore}
                     onChange={(event) => updateManualInputScore(match, "away", event.target.value)}
-                    className="score-text h-12 w-14 border-border bg-secondary text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                    className="score-text h-12 w-14 glass-input text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                     disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                   />
 
@@ -542,7 +542,7 @@ export function AdminMatchControl({ matches, onRefetch, canManageScoreboard }: P
             </div>
 
             {match.supports_cards ? (
-              <div className="grid gap-3 rounded-md border border-border/70 bg-secondary/20 p-3 sm:grid-cols-2">
+              <div className="grid gap-3 glass-panel-muted p-3 sm:grid-cols-2">
                 <div className="space-y-2">
                   <p className="truncate text-xs font-semibold uppercase text-muted-foreground">{match.home_team?.name}</p>
                   <div className="grid grid-cols-2 gap-2">
@@ -562,7 +562,7 @@ export function AdminMatchControl({ matches, onRefetch, canManageScoreboard }: P
                           type="number"
                           value={matchDraft.homeYellowCards}
                           onChange={(event) => updateManualInputCards(match, "home", "yellow", event.target.value)}
-                          className="h-9 border-border bg-secondary text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          className="h-9 glass-input text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                           disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                         />
                         <Button
@@ -593,7 +593,7 @@ export function AdminMatchControl({ matches, onRefetch, canManageScoreboard }: P
                           type="number"
                           value={matchDraft.homeRedCards}
                           onChange={(event) => updateManualInputCards(match, "home", "red", event.target.value)}
-                          className="h-9 border-border bg-secondary text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          className="h-9 glass-input text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                           disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                         />
                         <Button
@@ -629,7 +629,7 @@ export function AdminMatchControl({ matches, onRefetch, canManageScoreboard }: P
                           type="number"
                           value={matchDraft.awayYellowCards}
                           onChange={(event) => updateManualInputCards(match, "away", "yellow", event.target.value)}
-                          className="h-9 border-border bg-secondary text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          className="h-9 glass-input text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                           disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                         />
                         <Button
@@ -660,7 +660,7 @@ export function AdminMatchControl({ matches, onRefetch, canManageScoreboard }: P
                           type="number"
                           value={matchDraft.awayRedCards}
                           onChange={(event) => updateManualInputCards(match, "away", "red", event.target.value)}
-                          className="h-9 border-border bg-secondary text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          className="h-9 glass-input text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                           disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                         />
                         <Button

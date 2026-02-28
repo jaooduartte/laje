@@ -113,16 +113,16 @@ export function AdminTeams({ teams, onRefetch }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-2 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
+      <div className="glass-card enter-section grid gap-2 p-3 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
         <Input
           placeholder="Nome da atlética"
           value={name}
           onChange={(event) => setName(event.target.value)}
-          className="bg-secondary border-border"
+          className="glass-input"
         />
 
         <Select value={city} onValueChange={setCity}>
-          <SelectTrigger className="bg-secondary border-border">
+          <SelectTrigger className="glass-input">
             <SelectValue placeholder="Cidade" />
           </SelectTrigger>
           <SelectContent>
@@ -142,7 +142,7 @@ export function AdminTeams({ teams, onRefetch }: Props) {
             }
           }}
         >
-          <SelectTrigger className="bg-secondary border-border">
+          <SelectTrigger className="glass-input">
             <SelectValue placeholder="Divisão" />
           </SelectTrigger>
           <SelectContent>
@@ -162,14 +162,14 @@ export function AdminTeams({ teams, onRefetch }: Props) {
 
       <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
         {teams.map((team) => (
-          <div key={team.id} className="space-y-3 rounded-lg border border-border bg-card p-3">
+          <div key={team.id} className="enter-item space-y-3 glass-card p-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 {editingTeamId === team.id ? (
                   <Input
                     value={editingTeamName}
                     onChange={(event) => setEditingTeamName(event.target.value)}
-                    className="h-8 bg-secondary border-border"
+                    className="h-8 glass-input"
                   />
                 ) : (
                   <p className="font-display font-semibold leading-tight">{team.name}</p>
@@ -179,7 +179,7 @@ export function AdminTeams({ teams, onRefetch }: Props) {
               <div className="shrink-0">
                 {editingTeamId === team.id ? (
                   <Select value={editingTeamCity} onValueChange={setEditingTeamCity}>
-                    <SelectTrigger className="h-8 w-40 bg-secondary border-border">
+                    <SelectTrigger className="h-8 w-40 glass-input">
                       <SelectValue placeholder="Cidade" />
                     </SelectTrigger>
                     <SelectContent>
@@ -208,7 +208,7 @@ export function AdminTeams({ teams, onRefetch }: Props) {
                     }
                   }}
                 >
-                  <SelectTrigger className="h-8 w-full bg-secondary border-border">
+                  <SelectTrigger className="h-8 w-full glass-input">
                     <SelectValue placeholder={TEAM_DIVISION_LABELS[editingTeamDivision]} />
                   </SelectTrigger>
                   <SelectContent>

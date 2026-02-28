@@ -98,6 +98,50 @@ export type Database = {
           },
         ]
       }
+      league_events: {
+        Row: {
+          created_at: string
+          event_date: string
+          event_type: Database["public"]["Enums"]["league_event_type"]
+          id: string
+          location: string
+          name: string
+          organizer_team_id: string | null
+          organizer_type: Database["public"]["Enums"]["league_event_organizer_type"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          event_date: string
+          event_type: Database["public"]["Enums"]["league_event_type"]
+          id?: string
+          location: string
+          name: string
+          organizer_team_id?: string | null
+          organizer_type: Database["public"]["Enums"]["league_event_organizer_type"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          event_date?: string
+          event_type?: Database["public"]["Enums"]["league_event_type"]
+          id?: string
+          location?: string
+          name?: string
+          organizer_team_id?: string | null
+          organizer_type?: Database["public"]["Enums"]["league_event_organizer_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "league_events_organizer_team_id_fkey"
+            columns: ["organizer_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       matches: {
         Row: {
           away_red_cards: number
@@ -361,6 +405,8 @@ export type Database = {
       championship_sport_naipe_mode: "MISTO" | "MASCULINO_FEMININO"
       championship_sport_tie_breaker_rule: "STANDARD" | "POINTS_AVERAGE" | "BEACH_SOCCER" | "BEACH_TENNIS"
       championship_status: "PLANNING" | "UPCOMING" | "IN_PROGRESS" | "FINISHED"
+      league_event_organizer_type: "ATHLETIC" | "LAJE"
+      league_event_type: "HH" | "OPEN_BAR" | "CHAMPIONSHIP" | "LAJE_EVENT"
       match_naipe: "MASCULINO" | "FEMININO" | "MISTO"
       match_status: "SCHEDULED" | "LIVE" | "FINISHED"
       team_division: "DIVISAO_PRINCIPAL" | "DIVISAO_ACESSO"
@@ -496,6 +542,8 @@ export const Constants = {
       championship_sport_naipe_mode: ["MISTO", "MASCULINO_FEMININO"],
       championship_sport_tie_breaker_rule: ["STANDARD", "POINTS_AVERAGE", "BEACH_SOCCER", "BEACH_TENNIS"],
       championship_status: ["PLANNING", "UPCOMING", "IN_PROGRESS", "FINISHED"],
+      league_event_organizer_type: ["ATHLETIC", "LAJE"],
+      league_event_type: ["HH", "OPEN_BAR", "CHAMPIONSHIP", "LAJE_EVENT"],
       match_naipe: ["MASCULINO", "FEMININO", "MISTO"],
       match_status: ["SCHEDULED", "LIVE", "FINISHED"],
       team_division: ["DIVISAO_PRINCIPAL", "DIVISAO_ACESSO"],

@@ -110,7 +110,7 @@ export function AdminSports({ sports, championshipSports, selectedChampionship }
   if (selectedChampionship.code != ChampionshipCode.CLV) {
     return (
       <div className="space-y-6">
-        <div className="space-y-3 rounded-lg border border-border bg-card p-4">
+        <div className="enter-section space-y-3 glass-card p-4">
           <h2 className="text-2xl font-display font-bold">Modalidades oficiais</h2>
           <p className="text-sm text-muted-foreground">
             As regras padronizadas foram definidas para a Copa Laje de Verão (CLV). Selecione o campeonato CLV para visualizar.
@@ -122,7 +122,7 @@ export function AdminSports({ sports, championshipSports, selectedChampionship }
 
   return (
     <div className="space-y-6">
-      <div className="space-y-5 rounded-lg border border-border bg-card p-4">
+      <div className="enter-section space-y-5 glass-card p-4">
         <h2 className="text-2xl font-display font-bold">Modalidades oficiais da Copa Laje de Verão</h2>
         <p className="text-sm text-muted-foreground">
           Configuração fixa conforme regulamento: naipe, pontuação e critérios de desempate.
@@ -141,7 +141,7 @@ export function AdminSports({ sports, championshipSports, selectedChampionship }
             const resolvedSupportsCards = championshipSport?.supports_cards ?? platformSportRule.supportsCards;
 
             return (
-              <div key={platformSportRule.sportName} className="space-y-3 rounded-lg border border-border bg-background p-4">
+              <div key={platformSportRule.sportName} className="enter-item space-y-3 glass-card p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="font-display font-semibold">{platformSportRule.sportName}</p>
                 </div>
@@ -151,23 +151,23 @@ export function AdminSports({ sports, championshipSports, selectedChampionship }
                 </p>
 
                 <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
-                  <div className="rounded-md border border-border bg-secondary/40 px-3 py-2">
+                  <div className="glass-panel-muted px-3 py-2">
                     <p className="text-xs font-medium text-muted-foreground">Tipo de naipe</p>
                     <p className="font-medium">{CHAMPIONSHIP_SPORT_NAIPE_MODE_LABELS[resolvedNaipeMode]}</p>
                   </div>
 
-                  <div className="rounded-md border border-border bg-secondary/40 px-3 py-2">
+                  <div className="glass-panel-muted px-3 py-2">
                     <p className="text-xs font-medium text-muted-foreground">Pontuação</p>
                     <p className="font-medium">V {resolvedPointsWin} • E {resolvedPointsDraw} • D {resolvedPointsLoss}</p>
                   </div>
 
-                  <div className="rounded-md border border-border bg-secondary/40 px-3 py-2">
+                  <div className="glass-panel-muted px-3 py-2">
                     <p className="text-xs font-medium text-muted-foreground">Cartões</p>
                     <p className="font-medium">{resolvedSupportsCards ? "Sim" : "Não"}</p>
                   </div>
                 </div>
 
-                <div className="rounded-md border border-border bg-secondary/40 px-3 py-2">
+                <div className="glass-panel-muted px-3 py-2">
                   <p className="text-xs font-medium text-muted-foreground">Critérios de desempate (ordem de prioridade)</p>
                   <ol className="mt-1 space-y-1 text-sm font-medium">
                     {platformSportRule.tieBreakerPriority.map((tieBreakerPriorityItem, tieBreakerPriorityIndex) => (

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { User } from '@supabase/supabase-js';
 import { AdminPanelRole } from '@/lib/enums';
@@ -10,7 +10,7 @@ function isAdminPanelRole(value: string | null): value is AdminPanelRole {
 }
 
 async function resolveWithTimeout<ResultType>(
-  promise: Promise<ResultType>,
+  promise: PromiseLike<ResultType>,
   timeoutInMilliseconds: number,
 ): Promise<{ hasTimedOut: boolean; result: ResultType | null }> {
   let timeoutReference: number | null = null;
@@ -31,20 +31,51 @@ async function resolveWithTimeout<ResultType>(
   }
 }
 
-export function useAuth() {
+interface AuthContextValue {
+  user: User | null;
+  role: AdminPanelRole | null;
+  isAdmin: boolean;
+  isMesa: boolean;
+  canAccessAdminPanel: boolean;
+  canManageScoreboard: boolean;
+  loading: boolean;
+  roleLoading: boolean;
+  signIn: (email: string, password: string) => Promise<{ error: { message: string } | null }>;
+  signOut: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
+export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<AdminPanelRole | null>(null);
   const [loading, setLoading] = useState(true);
   const [roleLoading, setRoleLoading] = useState(false);
+  const lastResolvedRoleUserIdRef = useRef<string | null>(null);
+  const resolvingRoleUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const resolveUserRole = async (currentUser: User | null) => {
       if (!currentUser) {
+        lastResolvedRoleUserIdRef.current = null;
+        resolvingRoleUserIdRef.current = null;
         setRole(null);
         setRoleLoading(false);
         return;
       }
 
+      if (
+        lastResolvedRoleUserIdRef.current == currentUser.id ||
+        resolvingRoleUserIdRef.current == currentUser.id
+      ) {
+        return;
+      }
+
+      resolvingRoleUserIdRef.current = currentUser.id;
       setRoleLoading(true);
 
       try {
@@ -55,6 +86,7 @@ export function useAuth() {
 
         if (hasTimedOut || !result) {
           setRole(null);
+          lastResolvedRoleUserIdRef.current = currentUser.id;
           return;
         }
 
@@ -63,21 +95,39 @@ export function useAuth() {
         if (error) {
           console.error('Erro ao verificar perfil de acesso:', error.message);
           setRole(null);
+          lastResolvedRoleUserIdRef.current = currentUser.id;
           return;
         }
 
         setRole(isAdminPanelRole(data) ? data : null);
+        lastResolvedRoleUserIdRef.current = currentUser.id;
       } catch (error) {
         console.error('Erro inesperado ao verificar perfil de acesso:', error);
         setRole(null);
+        lastResolvedRoleUserIdRef.current = currentUser.id;
       } finally {
+        resolvingRoleUserIdRef.current = null;
         setRoleLoading(false);
       }
     };
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
+
+      if (!currentUser) {
+        setRole(null);
+        setRoleLoading(false);
+        setLoading(false);
+        return;
+      }
+
+      // TOKEN_REFRESHED não altera papel do usuário; evita RPC em loop.
+      if (event == 'TOKEN_REFRESHED' && lastResolvedRoleUserIdRef.current == currentUser.id) {
+        setLoading(false);
+        return;
+      }
+
       void resolveUserRole(currentUser);
       setLoading(false);
     });
@@ -139,16 +189,31 @@ export function useAuth() {
   const canAccessAdminPanel = isAdmin || isMesa;
   const canManageScoreboard = isAdmin || isMesa;
 
-  return {
-    user,
-    role,
-    isAdmin,
-    isMesa,
-    canAccessAdminPanel,
-    canManageScoreboard,
-    loading,
-    roleLoading,
-    signIn,
-    signOut,
-  };
+  const value = useMemo(
+    () => ({
+      user,
+      role,
+      isAdmin,
+      isMesa,
+      canAccessAdminPanel,
+      canManageScoreboard,
+      loading,
+      roleLoading,
+      signIn,
+      signOut,
+    }),
+    [canAccessAdminPanel, canManageScoreboard, isAdmin, isMesa, loading, role, roleLoading, user],
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+
+  if (!context) {
+    throw new Error('useAuth deve ser usado dentro de AuthProvider.');
+  }
+
+  return context;
 }

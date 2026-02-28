@@ -37,8 +37,13 @@ function RedCardIndicator({ quantity }: { quantity: number }) {
 }
 
 export function MatchCard({ match, showChampionshipBadge = true }: Props) {
+  const matchCardClassName =
+    match.status == MatchStatus.LIVE
+      ? "glass-card glass-card-hover enter-item border-live/45 p-4 live-glow"
+      : "glass-card glass-card-hover enter-item p-4";
+
   return (
-    <div className="rounded-lg bg-card border border-border p-4 hover:border-primary/30 transition-colors">
+    <div className={matchCardClassName}>
       <div className="mb-3 flex items-start justify-between gap-2">
         <div className="space-y-1">
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
