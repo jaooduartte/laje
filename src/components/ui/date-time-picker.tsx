@@ -82,13 +82,15 @@ export function DateTimePicker({ value, onChange, placeholder, showTime = true, 
           type="button"
           variant="outline"
           className={cn(
-            "glass-input w-full justify-start text-left font-normal hover:bg-white/70",
+            "glass-input w-full justify-start overflow-hidden text-left font-normal hover:bg-white/70",
             !value ? "text-muted-foreground" : "text-foreground",
             className,
           )}
         >
-          <CalendarIcon className="mr-2 h-4 w-4" />
-          {value ? format(value, showTime ? "dd/MM/yyyy HH:mm" : "dd/MM/yyyy", { locale: ptBR }) : placeholder}
+          <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+          <span className="truncate">
+            {value ? format(value, showTime ? "dd/MM/yyyy HH:mm" : "dd/MM/yyyy", { locale: ptBR }) : placeholder}
+          </span>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto space-y-3 p-3" align="start">

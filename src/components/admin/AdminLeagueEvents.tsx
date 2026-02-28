@@ -166,13 +166,13 @@ export function AdminLeagueEvents({ teams }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="enter-section flex flex-wrap items-center justify-between gap-2 glass-card px-4 py-3">
-        <div>
+      <div className="enter-section flex flex-col items-center gap-3 glass-card px-4 py-3 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
+        <div className="space-y-0.5">
           <p className="text-sm font-medium">Eventos da Liga</p>
           <p className="text-xs text-muted-foreground">Gestão mensal dos eventos públicos da liga.</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex w-full items-center justify-center gap-2 sm:w-auto sm:justify-end">
           <Button
             variant="outline"
             size="icon"
@@ -282,112 +282,116 @@ export function AdminLeagueEvents({ teams }: Props) {
               : (leagueEvent.organizer_team?.name ?? "Atlética");
 
           return (
-            <div key={leagueEvent.id} className="enter-item space-y-3 glass-card p-4">
-              <div className="flex items-start justify-between gap-2">
-                <div className="space-y-1">
-                  {isEditing ? (
-                    <Input
-                      value={formValues.name}
-                      onChange={(event) => handleChangeEditField("name", event.target.value)}
-                      className="h-8 glass-input"
-                    />
-                  ) : (
-                    <p className="font-display font-semibold">{leagueEvent.name}</p>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    {format(new Date(`${leagueEvent.event_date}T12:00:00`), "dd/MM/yyyy")}
-                  </p>
+            <div key={leagueEvent.id} className="enter-item glass-card p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-1">
+                      {isEditing ? (
+                        <Input
+                          value={formValues.name}
+                          onChange={(event) => handleChangeEditField("name", event.target.value)}
+                          className="h-8 glass-input"
+                        />
+                      ) : (
+                        <p className="font-display font-semibold">{leagueEvent.name}</p>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        {format(new Date(`${leagueEvent.event_date}T12:00:00`), "dd/MM/yyyy")}
+                      </p>
+                    </div>
+
+                    <Badge className={LEAGUE_EVENT_TYPE_BADGE_CLASS_NAMES[leagueEvent.event_type]}>
+                      {LEAGUE_EVENT_TYPE_LABELS[leagueEvent.event_type]}
+                    </Badge>
+                  </div>
+
+                  <div className="space-y-2">
+                    {isEditing ? (
+                      <>
+                        <Select
+                          value={formValues.eventType}
+                          onValueChange={(value) => {
+                            if (isLeagueEventType(value)) {
+                              handleChangeEditField("eventType", value);
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="h-8 glass-input">
+                            <SelectValue placeholder="Tipo" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={LeagueEventType.HH}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.HH]}</SelectItem>
+                            <SelectItem value={LeagueEventType.OPEN_BAR}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.OPEN_BAR]}</SelectItem>
+                            <SelectItem value={LeagueEventType.CHAMPIONSHIP}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.CHAMPIONSHIP]}</SelectItem>
+                            <SelectItem value={LeagueEventType.LAJE_EVENT}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.LAJE_EVENT]}</SelectItem>
+                          </SelectContent>
+                        </Select>
+
+                        {formValues.eventType == LeagueEventType.LAJE_EVENT ? (
+                          <Input value="LAJE" readOnly disabled className="h-8 glass-input" />
+                        ) : (
+                          <Select
+                            value={formValues.organizerTeamId ?? ""}
+                            onValueChange={(value) => handleChangeEditField("organizerTeamId", value)}
+                          >
+                            <SelectTrigger className="h-8 glass-input">
+                              <SelectValue placeholder="Selecione a atlética" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {orderedTeams.map((team) => (
+                                <SelectItem key={team.id} value={team.id}>
+                                  {team.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+
+                        <Input
+                          value={formValues.location}
+                          onChange={(event) => handleChangeEditField("location", event.target.value)}
+                          className="h-8 glass-input"
+                          placeholder="Local do evento"
+                        />
+
+                        <DateTimePicker
+                          value={formValues.eventDate}
+                          onChange={(value) => handleChangeEditField("eventDate", value)}
+                          placeholder="Data do evento"
+                          showTime={false}
+                          className="h-8"
+                        />
+                      </>
+                    ) : (
+                      <div className="mt-2 space-y-0.5 border-t border-white/35 pt-2">
+                        <p className="text-sm text-muted-foreground">Organizado por: {organizerName}</p>
+                        <p className="text-sm text-muted-foreground">Local: {leagueEvent.location}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                <Badge className={LEAGUE_EVENT_TYPE_BADGE_CLASS_NAMES[leagueEvent.event_type]}>
-                  {LEAGUE_EVENT_TYPE_LABELS[leagueEvent.event_type]}
-                </Badge>
-              </div>
-
-              <div className="space-y-2">
-                {isEditing ? (
-                  <>
-                    <Select
-                      value={formValues.eventType}
-                      onValueChange={(value) => {
-                        if (isLeagueEventType(value)) {
-                          handleChangeEditField("eventType", value);
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="h-8 glass-input">
-                        <SelectValue placeholder="Tipo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={LeagueEventType.HH}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.HH]}</SelectItem>
-                        <SelectItem value={LeagueEventType.OPEN_BAR}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.OPEN_BAR]}</SelectItem>
-                        <SelectItem value={LeagueEventType.CHAMPIONSHIP}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.CHAMPIONSHIP]}</SelectItem>
-                        <SelectItem value={LeagueEventType.LAJE_EVENT}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.LAJE_EVENT]}</SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    {formValues.eventType == LeagueEventType.LAJE_EVENT ? (
-                      <Input value="LAJE" readOnly disabled className="h-8 glass-input" />
-                    ) : (
-                      <Select
-                        value={formValues.organizerTeamId ?? ""}
-                        onValueChange={(value) => handleChangeEditField("organizerTeamId", value)}
-                      >
-                        <SelectTrigger className="h-8 glass-input">
-                          <SelectValue placeholder="Selecione a atlética" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {orderedTeams.map((team) => (
-                            <SelectItem key={team.id} value={team.id}>
-                              {team.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-
-                    <Input
-                      value={formValues.location}
-                      onChange={(event) => handleChangeEditField("location", event.target.value)}
-                      className="h-8 glass-input"
-                      placeholder="Local do evento"
-                    />
-
-                    <DateTimePicker
-                      value={formValues.eventDate}
-                      onChange={(value) => handleChangeEditField("eventDate", value)}
-                      placeholder="Data do evento"
-                      showTime={false}
-                      className="h-8"
-                    />
-                  </>
-                ) : (
-                  <>
-                    <p className="text-sm text-muted-foreground">Organizado por: {organizerName}</p>
-                    <p className="text-sm text-muted-foreground">Local: {leagueEvent.location}</p>
-                  </>
-                )}
-              </div>
-
-              <div className="flex items-center justify-end gap-1">
-                {isEditing ? (
-                  <>
-                    <Button variant="ghost" size="icon" onClick={() => handleSaveEditEvent(leagueEvent.id)}>
-                      <Save className="h-4 w-4 text-primary" />
+                <div className="flex shrink-0 flex-col items-center gap-1 self-start">
+                  {isEditing ? (
+                    <>
+                      <Button variant="ghost" size="icon" onClick={() => handleSaveEditEvent(leagueEvent.id)}>
+                        <Save className="h-4 w-4 text-primary" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={handleCancelEditEvent}>
+                        <X className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </>
+                  ) : (
+                    <Button variant="ghost" size="icon" onClick={() => handleStartEditEvent(leagueEvent)}>
+                      <Pencil className="h-4 w-4 text-muted-foreground" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={handleCancelEditEvent}>
-                      <X className="h-4 w-4 text-muted-foreground" />
-                    </Button>
-                  </>
-                ) : (
-                  <Button variant="ghost" size="icon" onClick={() => handleStartEditEvent(leagueEvent)}>
-                    <Pencil className="h-4 w-4 text-muted-foreground" />
+                  )}
+
+                  <Button variant="ghost" size="icon" onClick={() => handleDeleteEvent(leagueEvent.id)}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
-                )}
-
-                <Button variant="ghost" size="icon" onClick={() => handleDeleteEvent(leagueEvent.id)}>
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
+                </div>
               </div>
             </div>
           );

@@ -84,11 +84,11 @@ export function LivePageView({
         <SportFilter sports={sports} selected={sportFilter} onSelect={onSportFilterChange} />
 
         <section className="glass-panel enter-section space-y-4 p-5">
-          <h2 className="mb-4 text-xl font-display font-bold">Próximos Jogos</h2>
+          <h2 className="mb-4 text-center text-xl font-display font-bold sm:text-left">Próximos Jogos</h2>
           {filteredUpcomingMatches.length == 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum jogo agendado.</p>
+            <p className="text-center text-sm text-muted-foreground sm:text-left">Nenhum jogo agendado.</p>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid place-items-center gap-3 sm:grid-cols-2 sm:place-items-stretch lg:grid-cols-3">
               {filteredUpcomingMatches.map((match) => (
                 <MatchCard key={match.id} match={match} showChampionshipBadge={false} />
               ))}
@@ -97,9 +97,9 @@ export function LivePageView({
         </section>
 
         <section className="glass-panel enter-section space-y-4 p-5">
-          <h2 className="text-xl font-display font-bold">Classificação</h2>
+          <h2 className="text-center text-xl font-display font-bold sm:text-left">Classificação</h2>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Select value={standingsSportFilter} onValueChange={onStandingsSportFilterChange}>
               <SelectTrigger className="glass-input w-full">
                 <SelectValue placeholder="Filtrar modalidade" />

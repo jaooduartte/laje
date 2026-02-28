@@ -61,43 +61,45 @@ export function Header() {
   }, [updateActiveIndicator]);
 
   return (
-    <header className="sticky top-0 z-50 bg-transparent">
-      <div className="container flex h-16 items-center justify-between">
-        <Link to="/" className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-md">
-          <img src="/logo.png" alt="Logo LAJE" className="h-14 w-14 object-contain shadow-none" />
-        </Link>
-        <nav
-          ref={navRef}
-          className="relative flex items-center gap-0 overflow-hidden rounded-xl bg-white/72 p-0 shadow-[0_10px_24px_rgba(15,23,42,0.08)] backdrop-blur-xl"
-        >
-          <span
-            className="pointer-events-none absolute inset-y-0 left-0 rounded-xl bg-primary/22 backdrop-blur-2xl transition-[transform,width,opacity] duration-500"
-            style={{
-              width: `${activeIndicatorWidth}px`,
-              transform: `translateX(${activeIndicatorLeft}px)`,
-              opacity: showActiveIndicator ? 1 : 0,
-              transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)",
-            }}
-          />
-
-          {HEADER_LINKS.map(({ to, label, icon: Icon }) => (
-            <Link
-              key={to}
-              to={to}
-              ref={(linkElement) => {
-                linkByPathRef.current[to] = linkElement;
+    <header className="sticky top-0 z-50">
+      <div className="container py-2">
+        <div className="glass-card flex h-14 items-center gap-2 px-2 sm:h-16 sm:px-3">
+          <Link to="/" className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg sm:h-14 sm:w-14">
+            <img src="/logo.png" alt="Logo LAJE" className="h-10 w-10 object-contain shadow-none sm:h-12 sm:w-12" />
+          </Link>
+          <nav
+            ref={navRef}
+            className="relative ml-auto flex max-w-[calc(100%-3.5rem)] min-w-0 items-center gap-0 overflow-x-auto rounded-xl"
+          >
+            <span
+              className="pointer-events-none absolute inset-y-0 left-0 rounded-xl bg-primary/22 backdrop-blur-2xl transition-[transform,width,opacity] duration-500"
+              style={{
+                width: `${activeIndicatorWidth}px`,
+                transform: `translateX(${activeIndicatorLeft}px)`,
+                opacity: showActiveIndicator ? 1 : 0,
+                transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)",
               }}
-              className={`relative z-10 flex items-center gap-1.5 rounded-none px-3 py-2 text-sm font-medium transition-colors first:rounded-l-xl last:rounded-r-xl ${
-                location.pathname == to
-                  ? "text-primary"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <Icon className="h-4 w-4" />
-              <span className="hidden sm:inline">{label}</span>
-            </Link>
-          ))}
-        </nav>
+            />
+
+            {HEADER_LINKS.map(({ to, label, icon: Icon }) => (
+              <Link
+                key={to}
+                to={to}
+                ref={(linkElement) => {
+                  linkByPathRef.current[to] = linkElement;
+                }}
+                className={`relative z-10 flex min-h-11 shrink-0 items-center gap-1.5 rounded-none px-3 py-2.5 text-sm font-medium transition-colors first:rounded-l-xl last:rounded-r-xl sm:min-h-10 sm:py-2 ${
+                  location.pathname == to
+                    ? "text-primary"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Icon className="h-5 w-5 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">{label}</span>
+              </Link>
+            ))}
+          </nav>
+        </div>
       </div>
     </header>
   );

@@ -39,7 +39,7 @@ function RedCardIndicator({ quantity }: { quantity: number }) {
 export function MatchCard({ match, showChampionshipBadge = true }: Props) {
   const matchCardClassName =
     match.status == MatchStatus.LIVE
-      ? "glass-card glass-card-hover enter-item border-live/45 p-4 live-glow"
+      ? "glass-card enter-item border-live/45 p-4 live-glow"
       : "glass-card glass-card-hover enter-item p-4";
 
   return (

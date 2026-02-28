@@ -516,8 +516,8 @@ export function AdminMatches({
                 ))}
               </SelectContent>
             </Select>
-            <DateTimePicker value={startTime} onChange={setStartTime} placeholder="Início da partida" />
-            <DateTimePicker value={endTime} onChange={setEndTime} placeholder="Fim da partida" />
+            <DateTimePicker value={startTime} onChange={setStartTime} placeholder="Início" />
+            <DateTimePicker value={endTime} onChange={setEndTime} placeholder="Fim" />
           </div>
         </div>
 
@@ -581,8 +581,8 @@ export function AdminMatches({
 
         {filteredAndSortedMatches.map((match) => (
           <div key={match.id} className="enter-item space-y-3 glass-card px-4 py-3">
-            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-              <div className="space-y-1">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1 space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs font-medium uppercase text-muted-foreground">{match.sports?.name}</span>
 
@@ -607,16 +607,21 @@ export function AdminMatches({
                   ) : null}
                 </div>
 
-                <p className="text-sm font-display font-semibold">
-                  {match.home_team?.name} {match.home_score} × {match.away_score} {match.away_team?.name}
-                </p>
+                <div className="flex min-h-9 items-center gap-2 text-sm font-display font-semibold">
+                  <span className="truncate">{match.home_team?.name}</span>
+                  <span className="shrink-0 text-base font-bold score-text">
+                    {match.home_score} × {match.away_score}
+                  </span>
+                  <span className="truncate">{match.away_team?.name}</span>
+                </div>
 
-                <p className="text-xs text-muted-foreground">
-                  {match.location} • {format(new Date(match.start_time), "dd/MM HH:mm", { locale: ptBR })}
-                </p>
+                <div className="mt-3 space-y-0.5 border-t border-white/35 pt-3 text-xs text-muted-foreground">
+                  <p>Local: {match.location}</p>
+                  <p>Data e horário: {format(new Date(match.start_time), "dd/MM HH:mm", { locale: ptBR })}</p>
+                </div>
               </div>
 
-              <div className="flex items-center gap-1">
+              <div className="flex shrink-0 flex-col items-center gap-1 self-start">
                 {editingMatchId === match.id ? (
                   <>
                     <Button variant="ghost" size="icon" onClick={handleSaveEditingMatch}>
@@ -809,7 +814,7 @@ export function AdminMatches({
                         : currentDraft,
                     )
                   }
-                  placeholder="Início da partida"
+                  placeholder="Início"
                 />
 
                 <DateTimePicker
@@ -824,7 +829,7 @@ export function AdminMatches({
                         : currentDraft,
                     )
                   }
-                  placeholder="Fim da partida"
+                  placeholder="Fim"
                 />
               </div>
             ) : null}

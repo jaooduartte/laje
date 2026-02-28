@@ -107,6 +107,13 @@ export function LeagueCalendarPageView({
   const selectedDateKey = format(selectedDate, "yyyy-MM-dd");
   const selectedDateEvents = leagueEventsByDate[selectedDateKey] ?? [];
   const today = new Date();
+  const handleOpenLeagueEvent = (leagueEvent: LeagueEvent) => {
+    if (typeof window != "undefined" && window.matchMedia("(max-width: 767px)").matches) {
+      return;
+    }
+
+    setOpenedLeagueEvent(leagueEvent);
+  };
 
   return (
     <div className="app-page">
@@ -114,13 +121,13 @@ export function LeagueCalendarPageView({
 
       <main className="container space-y-4 py-8">
         <section className={`${glassPanelClassName} animate-in fade-in-0 slide-in-from-bottom-2 duration-500`}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
             <div>
               <h1 className="text-2xl font-display font-bold">Calendário da Liga</h1>
               <p className="text-sm text-muted-foreground">Eventos públicos cadastrados pelas atléticas parceiras e pela LAJE.</p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-center gap-2">
               <Button
                 variant="outline"
                 size="icon"
@@ -224,7 +231,7 @@ export function LeagueCalendarPageView({
                   <button
                     key={leagueEvent.id}
                     type="button"
-                    onClick={() => setOpenedLeagueEvent(leagueEvent)}
+                    onClick={() => handleOpenLeagueEvent(leagueEvent)}
                     className={`rounded-2xl border p-3 text-left backdrop-blur-md transition-all hover:scale-[1.01] ${LEAGUE_EVENT_TYPE_GLASS_CARD_CLASS_NAMES[leagueEvent.event_type]} animate-in fade-in-0 slide-in-from-bottom-2 duration-300`}
                     style={{ animationDelay: `${leagueEventIndex * 35}ms` }}
                   >
@@ -297,7 +304,7 @@ export function LeagueCalendarPageView({
                           <LeagueEventMiniCard
                             key={leagueEvent.id}
                             leagueEvent={leagueEvent}
-                            onClick={() => setOpenedLeagueEvent(leagueEvent)}
+                            onClick={() => handleOpenLeagueEvent(leagueEvent)}
                           />
                         ))}
 
@@ -312,11 +319,20 @@ export function LeagueCalendarPageView({
             </section>
 
             <section className={`${glassPanelClassName} md:hidden animate-in fade-in-0 slide-in-from-bottom-2 duration-500`}>
+              <div className="mb-2 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase text-muted-foreground">
+                {WEEK_DAYS.map((weekDay) => (
+                  <div key={weekDay} className="py-1">
+                    {weekDay}
+                  </div>
+                ))}
+              </div>
+
               <div className="grid grid-cols-7 gap-1">
                 {calendarDays.map((calendarDay) => {
                   const dayKey = format(calendarDay, "yyyy-MM-dd");
                   const dayEvents = leagueEventsByDate[dayKey] ?? [];
                   const isToday = isSameDay(calendarDay, today);
+                  const firstDayEvent = dayEvents[0] ?? null;
 
                   return (
                     <button
@@ -332,22 +348,25 @@ export function LeagueCalendarPageView({
                       }`}
                     >
                       <div className="absolute left-1.5 right-1.5 top-1 flex items-start justify-between">
-                        <span
-                          className={`text-xs font-semibold ${
-                            isSameMonth(calendarDay, monthDate) ? "text-foreground" : "text-muted-foreground"
-                          }`}
-                        >
-                          {format(calendarDay, "d")}
-                        </span>
-                        {isToday ? (
-                          <span className="rounded-full bg-secondary px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
-                            Hoje
+                        <div className="flex flex-col items-start gap-0.5">
+                          <span
+                            className={`text-xs font-semibold ${
+                              isSameMonth(calendarDay, monthDate) ? "text-foreground" : "text-muted-foreground"
+                            }`}
+                          >
+                            {format(calendarDay, "d")}
                           </span>
+                          {isToday ? (
+                            <span className="rounded-full bg-secondary px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              Hoje
+                            </span>
+                          ) : null}
+                        </div>
+                        {firstDayEvent ? (
+                          <span
+                            className={`mt-0.5 block h-2 w-2 rounded-full ${LEAGUE_EVENT_TYPE_DOT_CLASS_NAMES[firstDayEvent.event_type]}`}
+                          />
                         ) : null}
-                      </div>
-
-                      <div className="absolute bottom-1.5 left-1.5 right-1.5 flex flex-wrap items-center gap-1">
-                        {dayEvents.length > 0 ? <span className="text-[10px] text-muted-foreground">{dayEvents.length} evento(s)</span> : null}
                       </div>
                     </button>
                   );
@@ -364,11 +383,14 @@ export function LeagueCalendarPageView({
                   </div>
                 ) : (
                   selectedDateEvents.map((leagueEvent) => (
-                    <LeagueEventMiniCard
+                    <div
                       key={leagueEvent.id}
-                      leagueEvent={leagueEvent}
-                      onClick={() => setOpenedLeagueEvent(leagueEvent)}
-                    />
+                      className={`rounded-xl border px-2 py-1.5 text-left backdrop-blur-md ${LEAGUE_EVENT_TYPE_GLASS_CARD_CLASS_NAMES[leagueEvent.event_type]}`}
+                    >
+                      <p className="truncate text-[11px] font-semibold">{leagueEvent.name}</p>
+                      <p className="truncate text-[10px] text-muted-foreground">{leagueEvent.location}</p>
+                      <p className="truncate text-[10px] text-muted-foreground">{resolveEventOrganizerName(leagueEvent)}</p>
+                    </div>
                   ))
                 )}
               </div>

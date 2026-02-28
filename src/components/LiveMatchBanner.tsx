@@ -25,17 +25,17 @@ export function LiveMatchBanner({ matches }: Props) {
 
   return (
     <div className="enter-section space-y-4">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-center gap-2 sm:justify-start">
         <Radio className="h-5 w-5 text-live live-pulse" />
         <h2 className="text-xl font-display font-bold text-live">AO VIVO AGORA</h2>
       </div>
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid place-items-center gap-4 md:grid-cols-2 md:place-items-stretch">
         {matches.map((match) => (
           <div
             key={match.id}
-            className={`w-full ${matches.length == 1 ? "md:col-span-2 md:mx-auto md:max-w-3xl" : ""}`}
+            className={`w-full max-w-2xl ${matches.length == 1 ? "md:col-span-2 md:mx-auto md:max-w-3xl" : ""}`}
           >
-            <div className="glass-card glass-card-hover border-live/30 p-6 live-glow">
+            <div className="glass-card border-live/30 p-6 live-glow">
               <div className="mb-2 flex items-start justify-between gap-2">
                 <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   {match.sports?.name} • {match.location}

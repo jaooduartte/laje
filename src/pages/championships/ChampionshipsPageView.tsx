@@ -104,7 +104,7 @@ export function ChampionshipsPageView({
       <Header />
       <main className="container py-8 space-y-6">
         <section className="glass-panel enter-section space-y-4 p-5">
-          <h1 className="text-2xl font-display font-bold">Campeonatos LAJE</h1>
+          <h1 className="text-center text-2xl font-display font-bold sm:text-left">Campeonatos LAJE</h1>
           <div className="grid gap-3 md:grid-cols-3">
             {championships.map((championship) => {
               const isSelected = championship.code == selectedChampionshipCode;
@@ -142,9 +142,9 @@ export function ChampionshipsPageView({
 
         {!selectedChampionshipIsFinished ? (
           <section className="glass-panel enter-section space-y-4 p-5">
-            <h2 className="text-xl font-display font-bold">Jogos em andamento</h2>
+            <h2 className="text-center text-xl font-display font-bold sm:text-left">Jogos em andamento</h2>
             {filteredLiveMatches.length == 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhum jogo em andamento.</p>
+              <p className="text-center text-sm text-muted-foreground sm:text-left">Nenhum jogo em andamento.</p>
             ) : (
               <LiveMatchBanner matches={filteredLiveMatches} />
             )}
@@ -153,21 +153,21 @@ export function ChampionshipsPageView({
 
         {!selectedChampionshipIsFinished ? (
           <section className="glass-panel enter-section p-5">
-            <h2 className="mb-4 text-xl font-display font-bold">Próximo jogo</h2>
+            <h2 className="mb-4 text-center text-xl font-display font-bold sm:text-left">Próximo jogo</h2>
             {nextMatch ? (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid place-items-center gap-3 sm:grid-cols-2 sm:place-items-stretch lg:grid-cols-3">
                 <MatchCard match={nextMatch} showChampionshipBadge={false} />
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">Nenhum jogo agendado.</p>
+              <p className="text-center text-sm text-muted-foreground sm:text-left">Nenhum jogo agendado.</p>
             )}
           </section>
         ) : null}
 
         <section className="glass-panel enter-section space-y-4 p-5">
-          <h2 className="text-xl font-display font-bold">Classificação</h2>
+          <h2 className="text-center text-xl font-display font-bold sm:text-left">Classificação</h2>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Select value={standingsSportFilter} onValueChange={onStandingsSportFilterChange}>
               <SelectTrigger className="glass-input w-full">
                 <SelectValue placeholder="Filtrar modalidade" />
@@ -199,11 +199,11 @@ export function ChampionshipsPageView({
         </section>
 
         <section className="glass-panel enter-section space-y-4 p-5">
-          <h2 className="text-xl font-display font-bold">Jogos anteriores</h2>
+          <h2 className="text-center text-xl font-display font-bold sm:text-left">Jogos anteriores</h2>
 
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <Select value={teamFilter} onValueChange={onTeamFilterChange}>
-              <SelectTrigger className="glass-input w-56">
+              <SelectTrigger className="glass-input w-full sm:w-56">
                 <SelectValue placeholder="Filtrar por atlética" />
               </SelectTrigger>
               <SelectContent>
@@ -217,7 +217,7 @@ export function ChampionshipsPageView({
             </Select>
 
             <Select value={yearFilter} onValueChange={onYearFilterChange}>
-              <SelectTrigger className="glass-input w-40">
+              <SelectTrigger className="glass-input w-full sm:w-40">
                 <SelectValue placeholder="Filtrar por ano" />
               </SelectTrigger>
               <SelectContent>
@@ -232,9 +232,9 @@ export function ChampionshipsPageView({
           </div>
 
           {filteredHistoryMatches.length == 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum resultado registrado.</p>
+            <p className="text-center text-sm text-muted-foreground sm:text-left">Nenhum resultado registrado.</p>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {filteredHistoryMatches.map((match) => (
                 <MatchCard key={match.id} match={match} showChampionshipBadge={false} />
               ))}

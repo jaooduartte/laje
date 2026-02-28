@@ -130,11 +130,11 @@ export function AdminPageView({
       <Header />
       <main className="container py-8 space-y-5">
         <div className="glass-panel enter-section flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
-          <h1 className="text-2xl font-display font-bold">Painel Admin</h1>
+          <h1 className="text-center text-2xl font-display font-bold sm:text-left">Painel Admin</h1>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full items-center gap-2 lg:w-auto">
             <Select value={selectedChampionshipCode} onValueChange={onChampionshipCodeChange}>
-              <SelectTrigger className="glass-input w-[280px]">
+              <SelectTrigger className="glass-input h-10 min-w-0 flex-1 sm:w-[280px] sm:flex-none">
                 <SelectValue placeholder="Selecione o campeonato" />
               </SelectTrigger>
               <SelectContent>
@@ -146,14 +146,15 @@ export function AdminPageView({
               </SelectContent>
             </Select>
 
-            <Button variant="outline" className="h-10 px-4" onClick={onSignOut}>
-              <LogOut className="h-4 w-4 mr-1" /> Sair
+            <Button variant="outline" className="h-10 shrink-0 px-3 sm:px-4" onClick={onSignOut} aria-label="Sair">
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline">Sair</span>
             </Button>
           </div>
         </div>
 
         {isAdmin ? (
-          <div className="glass-panel enter-section flex flex-wrap items-center gap-3 px-4 py-3">
+          <div className="glass-panel enter-section flex flex-col gap-2 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center">
             <span className="text-sm font-medium">Status do campeonato</span>
 
             <Select
@@ -161,7 +162,7 @@ export function AdminPageView({
               onValueChange={onChampionshipStatusChange}
               disabled={updatingChampionshipStatus}
             >
-              <SelectTrigger className="glass-input w-52">
+              <SelectTrigger className="glass-input h-10 w-full sm:w-52">
                 <SelectValue placeholder="Alterar status" />
               </SelectTrigger>
               <SelectContent>
@@ -187,7 +188,7 @@ export function AdminPageView({
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as AdminPanelTab)} className="enter-section space-y-6">
           <TabsList
             ref={tabsListRef}
-            className="relative flex h-auto items-center gap-0 overflow-x-auto rounded-xl bg-white/72 p-0 shadow-[0_8px_18px_rgba(15,23,42,0.08)] backdrop-blur-xl"
+            className="relative flex h-auto w-full items-center justify-start gap-0 overflow-x-auto rounded-xl bg-white/72 p-0 shadow-[0_8px_18px_rgba(15,23,42,0.08)] backdrop-blur-xl"
           >
             <span
               className="pointer-events-none absolute inset-y-0 left-0 rounded-xl bg-primary/22 backdrop-blur-2xl transition-[transform,width,opacity] duration-500"
@@ -206,7 +207,7 @@ export function AdminPageView({
                 ref={(triggerElement) => {
                   tabTriggerByValueRef.current[adminTabItem.value] = triggerElement;
                 }}
-                className="relative z-10 whitespace-nowrap rounded-none px-4 py-2.5 text-sm font-medium transition-colors first:rounded-l-xl last:rounded-r-xl data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none"
+                className="relative z-10 whitespace-nowrap rounded-none px-3 py-2.5 text-sm font-medium transition-colors first:rounded-l-xl last:rounded-r-xl sm:px-4 data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none"
               >
                 {adminTabItem.label}
               </TabsTrigger>
