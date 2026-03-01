@@ -7,6 +7,7 @@ import { AdminMatches } from "@/components/admin/AdminMatches";
 import { AdminMatchControl } from "@/components/admin/AdminMatchControl";
 import { AdminLeagueEvents } from "@/components/admin/AdminLeagueEvents";
 import { AdminLogs } from "@/components/admin/AdminLogs";
+import { AdminPublicAccessSettings } from "@/components/admin/AdminPublicAccessSettings";
 import { AdminUsers } from "@/components/admin/AdminUsers";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -32,12 +33,14 @@ interface AdminPageViewProps {
   canViewEventsTab: boolean;
   canViewLogsTab: boolean;
   canViewUsersTab: boolean;
+  canViewSettingsTab: boolean;
   canManageMatches: boolean;
   canManageChampionshipStatus: boolean;
   canManageScoreboard: boolean;
   canManageTeams: boolean;
   canManageLeagueEvents: boolean;
   canManageUsers: boolean;
+  canManageSettings: boolean;
   defaultTabValue: AdminPanelTab;
   updatingChampionshipStatus: boolean;
   onChampionshipCodeChange: (value: string) => void;
@@ -70,12 +73,14 @@ export function AdminPageView({
   canViewEventsTab,
   canViewLogsTab,
   canViewUsersTab,
+  canViewSettingsTab,
   canManageMatches,
   canManageChampionshipStatus,
   canManageScoreboard,
   canManageTeams,
   canManageLeagueEvents,
   canManageUsers,
+  canManageSettings,
   defaultTabValue,
   updatingChampionshipStatus,
   onChampionshipCodeChange,
@@ -116,12 +121,17 @@ export function AdminPageView({
       nextAdminTabItems.push({ value: AdminPanelTab.USERS, label: "Usuários" });
     }
 
+    if (canViewSettingsTab) {
+      nextAdminTabItems.push({ value: AdminPanelTab.SETTINGS, label: "Configurações" });
+    }
+
     return nextAdminTabItems;
   }, [
     canViewControlTab,
     canViewEventsTab,
     canViewLogsTab,
     canViewMatchesTab,
+    canViewSettingsTab,
     canViewSportsTab,
     canViewTeamsTab,
     canViewUsersTab,
@@ -319,6 +329,12 @@ export function AdminPageView({
           {canViewUsersTab ? (
             <TabsContent value={AdminPanelTab.USERS}>
               <AdminUsers canManageUsers={canManageUsers} />
+            </TabsContent>
+          ) : null}
+
+          {canViewSettingsTab ? (
+            <TabsContent value={AdminPanelTab.SETTINGS}>
+              <AdminPublicAccessSettings canManageSettings={canManageSettings} />
             </TabsContent>
           ) : null}
         </Tabs>

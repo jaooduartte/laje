@@ -15,6 +15,13 @@ export enum AppRoutePath {
   LEGACY_SCHEDULE = "/agenda",
 }
 
+export enum PublicPageAccessSettingField {
+  LIVE = "is_live_page_blocked",
+  CHAMPIONSHIPS = "is_championships_page_blocked",
+  SCHEDULE = "is_schedule_page_blocked",
+  LEAGUE_CALENDAR = "is_league_calendar_page_blocked",
+}
+
 export enum TeamDivision {
   DIVISAO_PRINCIPAL = "DIVISAO_PRINCIPAL",
   DIVISAO_ACESSO = "DIVISAO_ACESSO",
@@ -77,6 +84,7 @@ export enum AdminPanelTab {
   EVENTS = "events",
   LOGS = "logs",
   USERS = "users",
+  SETTINGS = "settings",
 }
 
 export enum AdminPanelRole {
@@ -106,4 +114,5 @@ export enum AdminLogResourceTable {
   LEAGUE_EVENTS = "public.league_events",
   LEAGUE_EVENT_ORGANIZER_TEAMS = "public.league_event_organizer_teams",
   AUTH_USERS = "auth.users",
+  PUBLIC_PAGE_ACCESS_SETTINGS = "public.public_page_access_settings",
 }

@@ -121,12 +121,14 @@ export function AdminPage() {
   const canViewEventsTab = canViewAdminTab(AdminPanelTab.EVENTS);
   const canViewLogsTab = canViewAdminTab(AdminPanelTab.LOGS);
   const canViewUsersTab = canViewAdminTab(AdminPanelTab.USERS);
+  const canViewSettingsTab = canViewAdminTab(AdminPanelTab.SETTINGS);
 
   const canManageMatches = canEditAdminTab(AdminPanelTab.MATCHES);
   const canManageChampionshipStatus = canEditAdminTab(AdminPanelTab.MATCHES);
   const canManageTeams = canEditAdminTab(AdminPanelTab.TEAMS);
   const canManageLeagueEvents = canEditAdminTab(AdminPanelTab.EVENTS);
   const canManageUsers = canEditAdminTab(AdminPanelTab.USERS);
+  const canManageSettings = canEditAdminTab(AdminPanelTab.SETTINGS);
 
   const tabPriority: AdminPanelTab[] = [
     AdminPanelTab.MATCHES,
@@ -136,6 +138,7 @@ export function AdminPage() {
     AdminPanelTab.EVENTS,
     AdminPanelTab.LOGS,
     AdminPanelTab.USERS,
+    AdminPanelTab.SETTINGS,
   ];
 
   const defaultTabValue =
@@ -159,12 +162,14 @@ export function AdminPage() {
       canViewEventsTab={canViewEventsTab}
       canViewLogsTab={canViewLogsTab}
       canViewUsersTab={canViewUsersTab}
+      canViewSettingsTab={canViewSettingsTab}
       canManageMatches={canManageMatches}
       canManageChampionshipStatus={canManageChampionshipStatus}
       canManageScoreboard={canManageScoreboard}
       canManageTeams={canManageTeams}
       canManageLeagueEvents={canManageLeagueEvents}
       canManageUsers={canManageUsers}
+      canManageSettings={canManageSettings}
       defaultTabValue={defaultTabValue}
       updatingChampionshipStatus={updatingChampionshipStatus}
       onChampionshipCodeChange={handleChampionshipCodeChange}

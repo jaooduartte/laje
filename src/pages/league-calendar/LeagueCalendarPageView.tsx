@@ -97,8 +97,11 @@ export function LeagueCalendarPageView({
   const [openedDayLeagueEvents, setOpenedDayLeagueEvents] = useState<LeagueEvent[] | null>(null);
   const monthControlClassName = "h-9 rounded-xl border border-white/40 bg-white/45 text-secondary-foreground backdrop-blur-xl";
   const glassPanelClassName = "rounded-2xl border border-white/45 bg-white/35 p-4 backdrop-blur-xl shadow-[0_8px_30px_rgba(15,23,42,0.08)]";
+  const filtersFieldClassName = "h-9 rounded-xl border-white/40 bg-white/45 backdrop-blur";
   const selectedDateKey = format(selectedDate, "yyyy-MM-dd");
   const selectedDateEvents = leagueEventsByDate[selectedDateKey] ?? [];
+  const mobileShowsSelectedDateEvents = selectedDateEvents.length > 0;
+  const mobileVisibleEvents = mobileShowsSelectedDateEvents ? selectedDateEvents : leagueEvents;
   const today = new Date();
   const handleOpenLeagueEvent = (leagueEvent: LeagueEvent) => {
     if (typeof window != "undefined" && window.matchMedia("(max-width: 767px)").matches) {
@@ -167,12 +170,12 @@ export function LeagueCalendarPageView({
                 value={eventSearch}
                 onChange={(event) => onEventSearchChange(event.target.value)}
                 placeholder="Buscar evento por nome"
-                className="h-9 rounded-xl border-white/40 bg-white/45 pl-9 backdrop-blur"
+                className={`${filtersFieldClassName} pl-9`}
               />
             </div>
 
             <Select value={athleticFilter} onValueChange={onAthleticFilterChange}>
-              <SelectTrigger className="h-9 rounded-xl border-white/40 bg-white/45 backdrop-blur">
+              <SelectTrigger className={filtersFieldClassName}>
                 <SelectValue placeholder="Filtrar por atlética" />
               </SelectTrigger>
               <SelectContent>
@@ -186,7 +189,7 @@ export function LeagueCalendarPageView({
             </Select>
 
             <Select value={eventTypeFilter} onValueChange={onEventTypeFilterChange}>
-              <SelectTrigger className="h-9 rounded-xl border-white/40 bg-white/45 backdrop-blur">
+              <SelectTrigger className={filtersFieldClassName}>
                 <SelectValue placeholder="Filtrar por tipo" />
               </SelectTrigger>
               <SelectContent>
@@ -385,18 +388,25 @@ export function LeagueCalendarPageView({
 
               <div className="mt-3 space-y-2 rounded-xl border border-white/35 bg-white/25 p-3 backdrop-blur-md">
                 <p className="text-xs font-semibold text-muted-foreground">
-                  {format(selectedDate, "EEEE, dd 'de' MMMM", { locale: ptBR })}
+                  {mobileShowsSelectedDateEvents
+                    ? format(selectedDate, "EEEE, dd 'de' MMMM", { locale: ptBR })
+                    : `Eventos de ${format(monthDate, "MMMM 'de' yyyy", { locale: ptBR })}`}
                 </p>
-                {selectedDateEvents.length == 0 ? (
+                {mobileVisibleEvents.length == 0 ? (
                   <div className="flex min-h-20 items-center justify-center">
-                    <p className="text-sm text-muted-foreground">Nenhum evento neste dia.</p>
+                    <p className="text-sm text-muted-foreground">Nenhum evento neste mês.</p>
                   </div>
                 ) : (
-                  selectedDateEvents.map((leagueEvent) => (
+                  mobileVisibleEvents.map((leagueEvent) => (
                     <div
                       key={leagueEvent.id}
                       className={`rounded-xl border px-2 py-1.5 text-left backdrop-blur-md ${LEAGUE_EVENT_TYPE_GLASS_CARD_CLASS_NAMES[leagueEvent.event_type]}`}
                     >
+                      {!mobileShowsSelectedDateEvents ? (
+                        <p className="text-[10px] font-medium text-muted-foreground">
+                          {format(new Date(`${leagueEvent.event_date}T12:00:00`), "dd/MM/yyyy")}
+                        </p>
+                      ) : null}
                       <p className="truncate text-[11px] font-semibold">{leagueEvent.name}</p>
                       <p className="truncate text-[10px] text-muted-foreground">{leagueEvent.location}</p>
                       <p className="truncate text-[10px] text-muted-foreground">{resolveLeagueEventOrganizerName(leagueEvent)}</p>

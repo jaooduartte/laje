@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Calendar, CalendarDays, Radio, Shield, Trophy } from "lucide-react";
+import { usePublicAccessSettings } from "@/hooks/usePublicAccessSettings";
 import { AppRoutePath } from "@/lib/enums";
+import { resolveIsPublicRouteBlocked } from "@/lib/publicAccess";
 
 interface HeaderLinkItem {
   to: AppRoutePath;
@@ -18,6 +20,7 @@ const HEADER_LINKS: HeaderLinkItem[] = [
 ];
 
 export function Header() {
+  const { publicAccessSettings } = usePublicAccessSettings();
   const location = useLocation();
   const navRef = useRef<HTMLElement | null>(null);
   const linkByPathRef = useRef<Record<string, HTMLAnchorElement | null>>({});
@@ -82,21 +85,44 @@ export function Header() {
             />
 
             {HEADER_LINKS.map(({ to, label, icon: Icon }) => (
-              <Link
-                key={to}
-                to={to}
-                ref={(linkElement) => {
-                  linkByPathRef.current[to] = linkElement;
-                }}
-                className={`relative z-10 flex min-h-11 shrink-0 items-center gap-1.5 rounded-none px-3 py-2.5 text-sm font-medium transition-colors first:rounded-l-xl last:rounded-r-xl sm:min-h-10 sm:py-2 ${
-                  location.pathname == to
-                    ? "text-primary"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Icon className="h-5 w-5 sm:h-4 sm:w-4" />
-                <span className="hidden sm:inline">{label}</span>
-              </Link>
+              (() => {
+                const isDisabledByMaintenance = resolveIsPublicRouteBlocked(publicAccessSettings, to);
+
+                if (isDisabledByMaintenance) {
+                  linkByPathRef.current[to] = null;
+
+                  return (
+                    <button
+                      key={to}
+                      type="button"
+                      disabled
+                      title="Tela temporariamente indisponível por manutenção"
+                      className="relative z-10 flex min-h-11 shrink-0 cursor-not-allowed items-center gap-1.5 rounded-none px-3 py-2.5 text-sm font-medium text-slate-400 first:rounded-l-xl last:rounded-r-xl sm:min-h-10 sm:py-2"
+                    >
+                      <Icon className="h-5 w-5 sm:h-4 sm:w-4" />
+                      <span className="hidden sm:inline">{label}</span>
+                    </button>
+                  );
+                }
+
+                return (
+                  <Link
+                    key={to}
+                    to={to}
+                    ref={(linkElement) => {
+                      linkByPathRef.current[to] = linkElement;
+                    }}
+                    className={`relative z-10 flex min-h-11 shrink-0 items-center gap-1.5 rounded-none px-3 py-2.5 text-sm font-medium transition-colors first:rounded-l-xl last:rounded-r-xl sm:min-h-10 sm:py-2 ${
+                      location.pathname == to
+                        ? "text-primary"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <Icon className="h-5 w-5 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">{label}</span>
+                  </Link>
+                );
+              })()
             ))}
           </nav>
         </div>

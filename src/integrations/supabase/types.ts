@@ -582,6 +582,7 @@ export type Database = {
           profile_id: string | null
           profile_name: string | null
           role: Database["public"]["Enums"]["app_role"] | null
+          settings_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
           sports_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
           teams_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
           users_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
@@ -608,6 +609,19 @@ export type Database = {
       is_admin: { Args: never; Returns: boolean }
       is_eventos: { Args: never; Returns: boolean }
       is_mesa: { Args: never; Returns: boolean }
+      is_public_access_blocked: { Args: never; Returns: boolean }
+      get_public_access_settings: {
+        Args: never
+        Returns: {
+          blocked_message: string | null
+          is_championships_page_blocked: boolean
+          is_league_calendar_page_blocked: boolean
+          is_live_page_blocked: boolean
+          is_public_access_blocked: boolean
+          is_schedule_page_blocked: boolean
+          updated_at: string
+        }[]
+      }
       list_admin_profiles: {
         Args: never
         Returns: {
@@ -639,11 +653,22 @@ export type Database = {
         }
         Returns: string
       }
+      set_public_access_settings: {
+        Args: {
+          _blocked_message?: string | null
+          _is_championships_page_blocked?: boolean
+          _is_league_calendar_page_blocked?: boolean
+          _is_live_page_blocked?: boolean
+          _is_public_access_blocked: boolean
+          _is_schedule_page_blocked?: boolean
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       admin_action_type: "INSERT" | "UPDATE" | "DELETE" | "PASSWORD_CHANGED"
       admin_panel_permission_level: "NONE" | "VIEW" | "EDIT"
-      admin_panel_tab: "matches" | "control" | "teams" | "sports" | "events" | "logs" | "users"
+      admin_panel_tab: "matches" | "control" | "teams" | "sports" | "events" | "logs" | "users" | "settings"
       app_role: "admin" | "eventos" | "mesa"
       championship_code: "CLV" | "SOCIETY" | "INTERLAJE"
       championship_sport_naipe_mode: "MISTO" | "MASCULINO_FEMININO"
@@ -782,7 +807,7 @@ export const Constants = {
   public: {
     Enums: {
       admin_panel_permission_level: ["NONE", "VIEW", "EDIT"],
-      admin_panel_tab: ["matches", "control", "teams", "sports", "events", "logs", "users"],
+      admin_panel_tab: ["matches", "control", "teams", "sports", "events", "logs", "users", "settings"],
       app_role: ["admin", "eventos", "mesa"],
       championship_code: ["CLV", "SOCIETY", "INTERLAJE"],
       championship_sport_naipe_mode: ["MISTO", "MASCULINO_FEMININO"],

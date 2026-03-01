@@ -2,6 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AdminRouteGuard } from "@/components/guards/AdminRouteGuard";
+import { PublicRouteGuard } from "@/components/guards/PublicRouteGuard";
 import { AuthProvider } from "@/hooks/useAuth";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
@@ -29,10 +30,38 @@ const App = () => (
           }}
         >
           <Routes>
-            <Route path={AppRoutePath.LIVE} element={<LivePage />} />
-            <Route path={AppRoutePath.CHAMPIONSHIPS} element={<ChampionshipsPage />} />
-            <Route path={AppRoutePath.SCHEDULE} element={<SchedulePage />} />
-            <Route path={AppRoutePath.LEAGUE_CALENDAR} element={<LeagueCalendarPage />} />
+            <Route
+              path={AppRoutePath.LIVE}
+              element={
+                <PublicRouteGuard routePath={AppRoutePath.LIVE}>
+                  <LivePage />
+                </PublicRouteGuard>
+              }
+            />
+            <Route
+              path={AppRoutePath.CHAMPIONSHIPS}
+              element={
+                <PublicRouteGuard routePath={AppRoutePath.CHAMPIONSHIPS}>
+                  <ChampionshipsPage />
+                </PublicRouteGuard>
+              }
+            />
+            <Route
+              path={AppRoutePath.SCHEDULE}
+              element={
+                <PublicRouteGuard routePath={AppRoutePath.SCHEDULE}>
+                  <SchedulePage />
+                </PublicRouteGuard>
+              }
+            />
+            <Route
+              path={AppRoutePath.LEAGUE_CALENDAR}
+              element={
+                <PublicRouteGuard routePath={AppRoutePath.LEAGUE_CALENDAR}>
+                  <LeagueCalendarPage />
+                </PublicRouteGuard>
+              }
+            />
             <Route path={AppRoutePath.LOGIN} element={<LoginPage />} />
             <Route
               path={AppRoutePath.ADMIN}

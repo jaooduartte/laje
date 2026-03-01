@@ -37,6 +37,7 @@ const ADMIN_TAB_LABELS: Record<AdminPanelTab, string> = {
   [AdminPanelTab.EVENTS]: "Eventos da Liga",
   [AdminPanelTab.LOGS]: "Logs",
   [AdminPanelTab.USERS]: "Usuários",
+  [AdminPanelTab.SETTINGS]: "Configurações",
 };
 
 const ADMIN_PERMISSION_LEVEL_LABELS: Record<AdminPanelPermissionLevel, string> = {
@@ -53,6 +54,7 @@ const ADMIN_PANEL_TAB_ORDER: AdminPanelTab[] = [
   AdminPanelTab.EVENTS,
   AdminPanelTab.LOGS,
   AdminPanelTab.USERS,
+  AdminPanelTab.SETTINGS,
 ];
 
 interface Props {
@@ -90,6 +92,7 @@ function resolveDefaultPermissions(): AdminTabPermissionByTab {
     [AdminPanelTab.EVENTS]: AdminPanelPermissionLevel.NONE,
     [AdminPanelTab.LOGS]: AdminPanelPermissionLevel.NONE,
     [AdminPanelTab.USERS]: AdminPanelPermissionLevel.NONE,
+    [AdminPanelTab.SETTINGS]: AdminPanelPermissionLevel.NONE,
   };
 }
 

@@ -19,6 +19,13 @@ import { LEAGUE_EVENT_ORGANIZER_LABELS, LEAGUE_EVENT_TYPE_LABELS } from "@/domai
 import type { AdminActionLog } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -57,6 +64,7 @@ const ADMIN_LOG_RESOURCE_LABELS: Record<AdminLogResourceTable, string> = {
   [AdminLogResourceTable.LEAGUE_EVENTS]: "Eventos da Liga",
   [AdminLogResourceTable.LEAGUE_EVENT_ORGANIZER_TEAMS]: "Organização de eventos",
   [AdminLogResourceTable.AUTH_USERS]: "Usuários administrativos",
+  [AdminLogResourceTable.PUBLIC_PAGE_ACCESS_SETTINGS]: "Configurações públicas",
 };
 
 const ADMIN_LOG_RESOURCE_ENTITY_LABELS: Record<AdminLogResourceTable, string> = {
@@ -67,10 +75,20 @@ const ADMIN_LOG_RESOURCE_ENTITY_LABELS: Record<AdminLogResourceTable, string> = 
   [AdminLogResourceTable.LEAGUE_EVENTS]: "evento da liga",
   [AdminLogResourceTable.LEAGUE_EVENT_ORGANIZER_TEAMS]: "vínculo de organização do evento",
   [AdminLogResourceTable.AUTH_USERS]: "usuário administrativo",
+  [AdminLogResourceTable.PUBLIC_PAGE_ACCESS_SETTINGS]: "configuração pública",
 };
 
 const ADMIN_LOG_DEFAULT_FIELD_LABELS: Record<string, string> = {
   name: "Nome",
+  email: "E-mail",
+  role: "Perfil",
+  system_role: "Perfil de sistema",
+  profile_id: "Perfil",
+  profile_name: "Nome do perfil",
+  permissions: "Permissões",
+  target_user_email: "E-mail do usuário",
+  target_user_role: "Perfil do usuário",
+  target_user_id: "ID do usuário",
   city: "Cidade",
   status: "Status",
   location: "Local",
@@ -109,6 +127,14 @@ const ADMIN_LOG_RESOURCE_FIELD_LABELS: Partial<Record<AdminLogResourceTable, Rec
     event_id: "Evento",
     team_id: "Atlética organizadora",
   },
+  [AdminLogResourceTable.PUBLIC_PAGE_ACCESS_SETTINGS]: {
+    is_public_access_blocked: "Bloqueio público",
+    is_live_page_blocked: "Bloqueio da tela Ao Vivo",
+    is_championships_page_blocked: "Bloqueio da tela Campeonatos",
+    is_schedule_page_blocked: "Bloqueio da tela Agenda",
+    is_league_calendar_page_blocked: "Bloqueio da tela Calendário da Liga",
+    blocked_message: "Mensagem de manutenção",
+  },
   [AdminLogResourceTable.CHAMPIONSHIPS]: {
     code: "Código do campeonato",
   },
@@ -145,6 +171,7 @@ const MATCH_TEAM_FIELDS = new Set(["home_team_id", "away_team_id"]);
 
 interface AdminLogListItem {
   id: string;
+  rawLog: AdminActionLog;
   actorEmail: string;
   actorRole: AdminPanelRole | null;
   actionType: AdminActionType;
@@ -176,7 +203,8 @@ function isAdminLogResourceTable(value: string): value is AdminLogResourceTable 
     value == AdminLogResourceTable.MATCHES ||
     value == AdminLogResourceTable.LEAGUE_EVENTS ||
     value == AdminLogResourceTable.LEAGUE_EVENT_ORGANIZER_TEAMS ||
-    value == AdminLogResourceTable.AUTH_USERS
+    value == AdminLogResourceTable.AUTH_USERS ||
+    value == AdminLogResourceTable.PUBLIC_PAGE_ACCESS_SETTINGS
   );
 }
 
@@ -530,6 +558,7 @@ export function AdminLogs() {
   const [teamNameById, setTeamNameById] = useState<TeamNameById>({});
   const [availableUsers, setAvailableUsers] = useState<Array<{ id: string; email: string }>>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedLogForJson, setSelectedLogForJson] = useState<AdminActionLog | null>(null);
   const [selectedUserId, setSelectedUserId] = useState(ALL_USERS_FILTER);
   const [selectedActionType, setSelectedActionType] = useState(ALL_ACTIONS_FILTER);
   const [resourceSearch, setResourceSearch] = useState("");
@@ -652,11 +681,11 @@ export function AdminLogs() {
       const detailChanges = resolveChangedFields(log, teamNameById);
       const detailList = [...matchContextDetails, ...detailChanges].slice(0, MAXIMUM_LOG_CHANGES);
       const resolvedDetails = detailList.length > 0 ? detailList : [resolveFallbackDetail(log)];
-      const resourceLabel = resolveResourceLabel(log.resource_table);
       const headline = resolveHeadline(log);
       const actorEmail = log.actor_email ?? "Usuário desconhecido";
       return {
         id: log.id,
+        rawLog: log,
         actorEmail,
         actorRole: log.actor_role,
         actionType: log.action_type,
@@ -770,7 +799,13 @@ export function AdminLogs() {
                   </div>
 
                   <div className="space-y-1 text-center">
-                    <p className="text-sm font-medium">{logItem.headline}</p>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedLogForJson(logItem.rawLog)}
+                      className="text-sm font-medium text-primary underline-offset-2 transition-colors hover:underline"
+                    >
+                      {logItem.headline}
+                    </button>
 
                     <ul className="space-y-0.5">
                       {logItem.details.map((logDetail, logDetailIndex) => (
@@ -841,6 +876,30 @@ export function AdminLogs() {
           </div>
         </div>
       ) : null}
+
+      <Dialog
+        open={selectedLogForJson != null}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setSelectedLogForJson(null);
+          }
+        }}
+      >
+        <DialogContent className="border-white/45 !bg-white/10 backdrop-blur-md shadow-[0_18px_45px_rgba(15,23,42,0.16)] sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Detalhes técnicos do log</DialogTitle>
+            <DialogDescription>
+              Registro JSON completo da ação selecionada.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="max-h-[60vh] overflow-auto rounded-xl border border-white/35 bg-white/20 p-3">
+            <pre className="text-xs leading-relaxed text-foreground">
+              {JSON.stringify(selectedLogForJson, null, 2)}
+            </pre>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

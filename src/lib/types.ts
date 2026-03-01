@@ -147,6 +147,17 @@ export interface CurrentUserAdminContext {
   events_permission: AdminPanelPermissionLevel;
   logs_permission: AdminPanelPermissionLevel;
   users_permission: AdminPanelPermissionLevel;
+  settings_permission: AdminPanelPermissionLevel;
+}
+
+export interface PublicAccessSettings {
+  is_public_access_blocked: boolean;
+  is_live_page_blocked: boolean;
+  is_championships_page_blocked: boolean;
+  is_schedule_page_blocked: boolean;
+  is_league_calendar_page_blocked: boolean;
+  blocked_message: string | null;
+  updated_at: string | null;
 }
 
 export interface AdminProfile {
