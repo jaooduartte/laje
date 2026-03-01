@@ -6,6 +6,8 @@ import { AdminSports } from "@/components/admin/AdminSports";
 import { AdminMatches } from "@/components/admin/AdminMatches";
 import { AdminMatchControl } from "@/components/admin/AdminMatchControl";
 import { AdminLeagueEvents } from "@/components/admin/AdminLeagueEvents";
+import { AdminLogs } from "@/components/admin/AdminLogs";
+import { AdminUsers } from "@/components/admin/AdminUsers";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -22,9 +24,20 @@ interface AdminPageViewProps {
   sports: Sport[];
   championshipSports: ChampionshipSport[];
   liveAndScheduledMatches: Match[];
-  isAdmin: boolean;
-  isMesa: boolean;
+  profileName: string | null;
+  canViewMatchesTab: boolean;
+  canViewControlTab: boolean;
+  canViewTeamsTab: boolean;
+  canViewSportsTab: boolean;
+  canViewEventsTab: boolean;
+  canViewLogsTab: boolean;
+  canViewUsersTab: boolean;
+  canManageMatches: boolean;
+  canManageChampionshipStatus: boolean;
   canManageScoreboard: boolean;
+  canManageTeams: boolean;
+  canManageLeagueEvents: boolean;
+  canManageUsers: boolean;
   defaultTabValue: AdminPanelTab;
   updatingChampionshipStatus: boolean;
   onChampionshipCodeChange: (value: string) => void;
@@ -49,9 +62,20 @@ export function AdminPageView({
   sports,
   championshipSports,
   liveAndScheduledMatches,
-  isAdmin,
-  isMesa,
+  profileName,
+  canViewMatchesTab,
+  canViewControlTab,
+  canViewTeamsTab,
+  canViewSportsTab,
+  canViewEventsTab,
+  canViewLogsTab,
+  canViewUsersTab,
+  canManageMatches,
+  canManageChampionshipStatus,
   canManageScoreboard,
+  canManageTeams,
+  canManageLeagueEvents,
+  canManageUsers,
   defaultTabValue,
   updatingChampionshipStatus,
   onChampionshipCodeChange,
@@ -64,20 +88,44 @@ export function AdminPageView({
   const adminTabItems = useMemo(() => {
     const nextAdminTabItems: AdminTabItem[] = [];
 
-    if (isAdmin) {
+    if (canViewMatchesTab) {
       nextAdminTabItems.push({ value: AdminPanelTab.MATCHES, label: "Jogos" });
     }
 
-    nextAdminTabItems.push({ value: AdminPanelTab.CONTROL, label: "Controle ao Vivo" });
+    if (canViewControlTab) {
+      nextAdminTabItems.push({ value: AdminPanelTab.CONTROL, label: "Controle ao Vivo" });
+    }
 
-    if (isAdmin) {
+    if (canViewTeamsTab) {
       nextAdminTabItems.push({ value: AdminPanelTab.TEAMS, label: "Atléticas" });
+    }
+
+    if (canViewSportsTab) {
       nextAdminTabItems.push({ value: AdminPanelTab.SPORTS, label: "Modalidades" });
+    }
+
+    if (canViewEventsTab) {
       nextAdminTabItems.push({ value: AdminPanelTab.EVENTS, label: "Eventos da Liga" });
     }
 
+    if (canViewLogsTab) {
+      nextAdminTabItems.push({ value: AdminPanelTab.LOGS, label: "Logs" });
+    }
+
+    if (canViewUsersTab) {
+      nextAdminTabItems.push({ value: AdminPanelTab.USERS, label: "Usuários" });
+    }
+
     return nextAdminTabItems;
-  }, [isAdmin]);
+  }, [
+    canViewControlTab,
+    canViewEventsTab,
+    canViewLogsTab,
+    canViewMatchesTab,
+    canViewSportsTab,
+    canViewTeamsTab,
+    canViewUsersTab,
+  ]);
 
   const tabsListRef = useRef<HTMLDivElement | null>(null);
   const tabTriggerByValueRef = useRef<Partial<Record<AdminPanelTab, HTMLButtonElement | null>>>({});
@@ -153,7 +201,7 @@ export function AdminPageView({
           </div>
         </div>
 
-        {isAdmin ? (
+        {canManageChampionshipStatus ? (
           <div className="glass-panel enter-section flex flex-col gap-2 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center">
             <span className="text-sm font-medium">Status do campeonato</span>
 
@@ -183,7 +231,9 @@ export function AdminPageView({
           </div>
         ) : null}
 
-        {isMesa ? <p className="text-sm text-muted-foreground">Perfil mesa: acesso apenas ao controle de placar.</p> : null}
+        {profileName ? (
+          <p className="text-sm text-muted-foreground">Perfil atual: {profileName}.</p>
+        ) : null}
 
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as AdminPanelTab)} className="enter-section space-y-6">
           <TabsList
@@ -214,34 +264,37 @@ export function AdminPageView({
             ))}
           </TabsList>
 
-          {isAdmin ? (
+          {canViewMatchesTab ? (
             <TabsContent value={AdminPanelTab.MATCHES}>
               <AdminMatches
                 matches={matches}
                 teams={teams}
                 championshipSports={championshipSports}
                 selectedChampionship={selectedChampionship}
+                canManageMatches={canManageMatches}
                 onRefetch={onRefetchMatches}
                 onRefetchChampionships={onRefetchChampionships}
               />
             </TabsContent>
           ) : null}
 
-          <TabsContent value={AdminPanelTab.CONTROL}>
-            <AdminMatchControl
-              matches={liveAndScheduledMatches}
-              onRefetch={onRefetchMatches}
-              canManageScoreboard={canManageScoreboard}
-            />
-          </TabsContent>
-
-          {isAdmin ? (
-            <TabsContent value={AdminPanelTab.TEAMS}>
-              <AdminTeams teams={teams} onRefetch={onRefetchTeams} />
+          {canViewControlTab ? (
+            <TabsContent value={AdminPanelTab.CONTROL}>
+              <AdminMatchControl
+                matches={liveAndScheduledMatches}
+                onRefetch={onRefetchMatches}
+                canManageScoreboard={canManageScoreboard}
+              />
             </TabsContent>
           ) : null}
 
-          {isAdmin ? (
+          {canViewTeamsTab ? (
+            <TabsContent value={AdminPanelTab.TEAMS}>
+              <AdminTeams teams={teams} onRefetch={onRefetchTeams} canManageTeams={canManageTeams} />
+            </TabsContent>
+          ) : null}
+
+          {canViewSportsTab ? (
             <TabsContent value={AdminPanelTab.SPORTS}>
               <AdminSports
                 sports={sports}
@@ -251,9 +304,21 @@ export function AdminPageView({
             </TabsContent>
           ) : null}
 
-          {isAdmin ? (
+          {canViewEventsTab ? (
             <TabsContent value={AdminPanelTab.EVENTS}>
-              <AdminLeagueEvents teams={teams} />
+              <AdminLeagueEvents teams={teams} canManageLeagueEvents={canManageLeagueEvents} />
+            </TabsContent>
+          ) : null}
+
+          {canViewLogsTab ? (
+            <TabsContent value={AdminPanelTab.LOGS}>
+              <AdminLogs />
+            </TabsContent>
+          ) : null}
+
+          {canViewUsersTab ? (
+            <TabsContent value={AdminPanelTab.USERS}>
+              <AdminUsers canManageUsers={canManageUsers} />
             </TabsContent>
           ) : null}
         </Tabs>

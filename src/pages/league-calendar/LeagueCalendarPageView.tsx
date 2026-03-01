@@ -15,7 +15,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { LeagueEvent } from "@/lib/types";
-import { LeagueEventOrganizerType } from "@/lib/enums";
 import {
   LEAGUE_EVENT_LEGEND_ORDER,
   LEAGUE_EVENT_TYPE_BADGE_CLASS_NAMES,
@@ -23,6 +22,7 @@ import {
   LEAGUE_EVENT_TYPE_GLASS_CARD_CLASS_NAMES,
   LEAGUE_EVENT_TYPE_LABELS,
 } from "@/domain/league-events/leagueEvent.constants";
+import { resolveLeagueEventOrganizerName } from "@/domain/league-events/leagueEvent.helpers";
 
 interface AthleticFilterOption {
   id: string;
@@ -54,14 +54,6 @@ interface LeagueCalendarPageViewProps {
 
 const WEEK_DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
-function resolveEventOrganizerName(leagueEvent: LeagueEvent): string {
-  if (leagueEvent.organizer_type == LeagueEventOrganizerType.LAJE) {
-    return "LAJE";
-  }
-
-  return leagueEvent.organizer_team?.name ?? "Atlética";
-}
-
 function LeagueEventMiniCard({ leagueEvent, onClick }: { leagueEvent: LeagueEvent; onClick: () => void }) {
   return (
     <button
@@ -74,7 +66,7 @@ function LeagueEventMiniCard({ leagueEvent, onClick }: { leagueEvent: LeagueEven
     >
       <p className="truncate text-[11px] font-semibold">{leagueEvent.name}</p>
       <p className="truncate text-[10px] text-muted-foreground">{leagueEvent.location}</p>
-      <p className="truncate text-[10px] text-muted-foreground">{resolveEventOrganizerName(leagueEvent)}</p>
+      <p className="truncate text-[10px] text-muted-foreground">{resolveLeagueEventOrganizerName(leagueEvent)}</p>
     </button>
   );
 }
@@ -102,6 +94,7 @@ export function LeagueCalendarPageView({
   onEventSearchChange,
 }: LeagueCalendarPageViewProps) {
   const [openedLeagueEvent, setOpenedLeagueEvent] = useState<LeagueEvent | null>(null);
+  const [openedDayLeagueEvents, setOpenedDayLeagueEvents] = useState<LeagueEvent[] | null>(null);
   const monthControlClassName = "h-9 rounded-xl border border-white/40 bg-white/45 text-secondary-foreground backdrop-blur-xl";
   const glassPanelClassName = "rounded-2xl border border-white/45 bg-white/35 p-4 backdrop-blur-xl shadow-[0_8px_30px_rgba(15,23,42,0.08)]";
   const selectedDateKey = format(selectedDate, "yyyy-MM-dd");
@@ -113,6 +106,16 @@ export function LeagueCalendarPageView({
     }
 
     setOpenedLeagueEvent(leagueEvent);
+    setOpenedDayLeagueEvents(null);
+  };
+
+  const handleOpenDayLeagueEvents = (dayLeagueEvents: LeagueEvent[]) => {
+    if (dayLeagueEvents.length == 0) {
+      return;
+    }
+
+    setOpenedDayLeagueEvents(dayLeagueEvents);
+    setOpenedLeagueEvent(null);
   };
 
   return (
@@ -245,7 +248,7 @@ export function LeagueCalendarPageView({
                     </div>
                     <p className="truncate text-sm font-semibold">{leagueEvent.name}</p>
                     <p className="mt-1 truncate text-xs text-muted-foreground">{leagueEvent.location}</p>
-                    <p className="truncate text-xs text-muted-foreground">{resolveEventOrganizerName(leagueEvent)}</p>
+                    <p className="truncate text-xs text-muted-foreground">{resolveLeagueEventOrganizerName(leagueEvent)}</p>
                   </button>
                 ))}
               </div>
@@ -262,11 +265,12 @@ export function LeagueCalendarPageView({
                 ))}
               </div>
 
-              <div className="grid grid-cols-7">
+              <div className="grid grid-cols-7 gap-1 p-1">
                 {calendarDays.map((calendarDay) => {
                   const dayKey = format(calendarDay, "yyyy-MM-dd");
                   const dayEvents = leagueEventsByDate[dayKey] ?? [];
                   const isToday = isSameDay(calendarDay, today);
+                  const isSelectedDay = isSameDay(calendarDay, selectedDate);
 
                   return (
                     <div
@@ -280,23 +284,22 @@ export function LeagueCalendarPageView({
                           onSelectedDateChange(calendarDay);
                         }
                       }}
-                      className={`relative min-h-40 border-b border-r border-white/30 px-2 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
-                        isSameDay(calendarDay, selectedDate) ? "bg-white/35" : "hover:bg-white/25"
+                      className={`relative min-h-40 rounded-xl border border-white/30 px-2 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
+                        isToday
+                          ? "bg-red-100/45 hover:bg-red-100/60"
+                          : isSelectedDay
+                            ? "bg-white/35 hover:bg-white/40"
+                            : "hover:bg-white/25"
                       }`}
                     >
                       <div className="absolute left-2 right-2 top-2 flex items-start justify-between">
                         <span
                           className={`text-sm font-semibold ${
-                            isSameMonth(calendarDay, monthDate) ? "text-foreground" : "text-muted-foreground"
+                            isSameMonth(calendarDay, monthDate) ? "text-foreground" : "text-slate-300"
                           }`}
                         >
                           {format(calendarDay, "d")}
                         </span>
-                        {isToday ? (
-                          <span className="rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                            Hoje
-                          </span>
-                        ) : null}
                       </div>
 
                       <div className="mt-7 space-y-1.5 pr-1">
@@ -309,7 +312,16 @@ export function LeagueCalendarPageView({
                         ))}
 
                         {dayEvents.length > 2 ? (
-                          <p className="pl-1 text-[10px] text-muted-foreground">+{dayEvents.length - 2} eventos</p>
+                          <button
+                            type="button"
+                            className="pl-1 text-[10px] text-muted-foreground hover:underline"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleOpenDayLeagueEvents(dayEvents);
+                            }}
+                          >
+                            +{dayEvents.length - 2} eventos
+                          </button>
                         ) : null}
                       </div>
                     </div>
@@ -332,6 +344,7 @@ export function LeagueCalendarPageView({
                   const dayKey = format(calendarDay, "yyyy-MM-dd");
                   const dayEvents = leagueEventsByDate[dayKey] ?? [];
                   const isToday = isSameDay(calendarDay, today);
+                  const isSelectedDay = isSameDay(calendarDay, selectedDate);
                   const firstDayEvent = dayEvents[0] ?? null;
 
                   return (
@@ -340,27 +353,24 @@ export function LeagueCalendarPageView({
                       type="button"
                       onClick={() => onSelectedDateChange(calendarDay)}
                       className={`relative h-16 rounded-xl border border-white/35 px-1 py-1 text-left text-xs backdrop-blur ${
-                        isSameDay(calendarDay, selectedDate)
-                          ? "bg-white/45 ring-1 ring-primary/25"
-                          : isSameMonth(calendarDay, monthDate)
-                            ? "bg-white/25"
-                            : "bg-white/10"
+                        isToday
+                          ? "bg-red-100/55 ring-1 ring-red-200/70"
+                          : isSelectedDay
+                            ? "bg-white/45 ring-1 ring-primary/25"
+                            : isSameMonth(calendarDay, monthDate)
+                              ? "bg-white/25"
+                              : "bg-white/10"
                       }`}
                     >
                       <div className="absolute left-1.5 right-1.5 top-1 flex items-start justify-between">
                         <div className="flex flex-col items-start gap-0.5">
                           <span
                             className={`text-xs font-semibold ${
-                              isSameMonth(calendarDay, monthDate) ? "text-foreground" : "text-muted-foreground"
+                              isSameMonth(calendarDay, monthDate) ? "text-foreground" : "text-slate-300"
                             }`}
                           >
                             {format(calendarDay, "d")}
                           </span>
-                          {isToday ? (
-                            <span className="rounded-full bg-secondary px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
-                              Hoje
-                            </span>
-                          ) : null}
                         </div>
                         {firstDayEvent ? (
                           <span
@@ -389,7 +399,7 @@ export function LeagueCalendarPageView({
                     >
                       <p className="truncate text-[11px] font-semibold">{leagueEvent.name}</p>
                       <p className="truncate text-[10px] text-muted-foreground">{leagueEvent.location}</p>
-                      <p className="truncate text-[10px] text-muted-foreground">{resolveEventOrganizerName(leagueEvent)}</p>
+                      <p className="truncate text-[10px] text-muted-foreground">{resolveLeagueEventOrganizerName(leagueEvent)}</p>
                     </div>
                   ))
                 )}
@@ -399,7 +409,15 @@ export function LeagueCalendarPageView({
         )}
       </main>
 
-      <Dialog open={openedLeagueEvent != null} onOpenChange={(isOpen) => (!isOpen ? setOpenedLeagueEvent(null) : null)}>
+      <Dialog
+        open={openedLeagueEvent != null || openedDayLeagueEvents != null}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setOpenedLeagueEvent(null);
+            setOpenedDayLeagueEvents(null);
+          }
+        }}
+      >
         <DialogContent className="border-white/45 !bg-white/10 backdrop-blur-md shadow-[0_18px_45px_rgba(15,23,42,0.16)] sm:max-w-md">
           {openedLeagueEvent ? (
             <>
@@ -420,13 +438,43 @@ export function LeagueCalendarPageView({
 
                 <div className="space-y-1">
                   <p className="text-muted-foreground">Organização</p>
-                  <p className="font-medium">{resolveEventOrganizerName(openedLeagueEvent)}</p>
+                  <p className="font-medium">{resolveLeagueEventOrganizerName(openedLeagueEvent)}</p>
                 </div>
 
                 <div className="space-y-1">
                   <p className="text-muted-foreground">Local</p>
                   <p className="font-medium">{openedLeagueEvent.location}</p>
                 </div>
+              </div>
+            </>
+          ) : openedDayLeagueEvents ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>
+                  Eventos do dia{" "}
+                  {openedDayLeagueEvents[0]
+                    ? format(new Date(`${openedDayLeagueEvents[0].event_date}T12:00:00`), "dd/MM/yyyy")
+                    : ""}
+                </DialogTitle>
+                <DialogDescription>Lista de eventos deste dia.</DialogDescription>
+              </DialogHeader>
+
+              <div className="max-h-[60vh] space-y-2 overflow-y-auto">
+                {openedDayLeagueEvents.map((leagueEvent) => (
+                  <div
+                    key={leagueEvent.id}
+                    className={`rounded-xl border p-3 ${LEAGUE_EVENT_TYPE_GLASS_CARD_CLASS_NAMES[leagueEvent.event_type]}`}
+                  >
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <p className="truncate text-sm font-semibold">{leagueEvent.name}</p>
+                      <Badge className={LEAGUE_EVENT_TYPE_BADGE_CLASS_NAMES[leagueEvent.event_type]}>
+                        {LEAGUE_EVENT_TYPE_LABELS[leagueEvent.event_type]}
+                      </Badge>
+                    </div>
+                    <p className="truncate text-xs text-muted-foreground">Organização: {resolveLeagueEventOrganizerName(leagueEvent)}</p>
+                    <p className="truncate text-xs text-muted-foreground">Local: {leagueEvent.location}</p>
+                  </div>
+                ))}
               </div>
             </>
           ) : null}

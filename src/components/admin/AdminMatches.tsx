@@ -28,6 +28,7 @@ interface Props {
   championshipSports: ChampionshipSport[];
   teams: Team[];
   selectedChampionship: Championship;
+  canManageMatches?: boolean;
   onRefetch: () => void;
   onRefetchChampionships: () => void;
 }
@@ -81,6 +82,7 @@ export function AdminMatches({
   championshipSports,
   teams,
   selectedChampionship,
+  canManageMatches = true,
   onRefetch,
   onRefetchChampionships,
 }: Props) {
@@ -117,21 +119,25 @@ export function AdminMatches({
     return resolveSportsByNaipe(championshipSports, editingMatchDraft.naipe);
   }, [championshipSports, editingMatchDraft]);
 
+  const teamsAllowedForMatches = useMemo(() => {
+    return teams.filter((team) => team.division != null);
+  }, [teams]);
+
   const eligibleTeams = useMemo(() => {
     if (!championshipUsesDivisions) {
-      return teams;
+      return teamsAllowedForMatches;
     }
 
-    return teams.filter((team) => team.division === division);
-  }, [championshipUsesDivisions, division, teams]);
+    return teamsAllowedForMatches.filter((team) => team.division === division);
+  }, [championshipUsesDivisions, division, teamsAllowedForMatches]);
 
   const eligibleTeamsForEditingMatch = useMemo(() => {
     if (!championshipUsesDivisions || !editingMatchDraft) {
-      return teams;
+      return teamsAllowedForMatches;
     }
 
-    return teams.filter((team) => team.division === editingMatchDraft.division);
-  }, [championshipUsesDivisions, editingMatchDraft, teams]);
+    return teamsAllowedForMatches.filter((team) => team.division === editingMatchDraft.division);
+  }, [championshipUsesDivisions, editingMatchDraft, teamsAllowedForMatches]);
 
   useEffect(() => {
     setNaipe(MatchNaipe.MASCULINO);
@@ -222,6 +228,10 @@ export function AdminMatches({
   }, [matches, matchesNaipeFilter, matchesSportFilter, matchesTeamFilter]);
 
   const handleSaveClvDefaultLocation = async () => {
+    if (!canManageMatches) {
+      return;
+    }
+
     if (!isClvChampionship) {
       return;
     }
@@ -257,6 +267,10 @@ export function AdminMatches({
   };
 
   const handleAdd = async () => {
+    if (!canManageMatches) {
+      return;
+    }
+
     const resolvedLocation = isClvChampionship && replicateClvDefaultLocation ? clvDefaultLocation.trim() : location.trim();
 
     if (!sportId || !homeTeamId || !awayTeamId || !resolvedLocation || !startTime || !endTime) {
@@ -296,6 +310,10 @@ export function AdminMatches({
   };
 
   const handleDelete = async (matchId: string) => {
+    if (!canManageMatches) {
+      return;
+    }
+
     const { error } = await supabase.from("matches").delete().eq("id", matchId);
 
     if (error) {
@@ -308,6 +326,10 @@ export function AdminMatches({
   };
 
   const handleStartEditingMatch = (match: Match) => {
+    if (!canManageMatches) {
+      return;
+    }
+
     setEditingMatchId(match.id);
     setEditingMatchDraft({
       sportId: match.sport_id,
@@ -327,6 +349,10 @@ export function AdminMatches({
   };
 
   const handleSaveEditingMatch = async () => {
+    if (!canManageMatches) {
+      return;
+    }
+
     if (!editingMatchId || !editingMatchDraft) {
       return;
     }
@@ -376,39 +402,40 @@ export function AdminMatches({
 
   return (
     <div className="space-y-6">
-      <div className="enter-section space-y-3 glass-card p-4">
-        <h3 className="font-display font-semibold">Novo Jogo - {selectedChampionship.name}</h3>
+      {canManageMatches ? (
+        <div className="enter-section space-y-3 glass-card p-4">
+          <h3 className="font-display font-semibold">Novo Jogo - {selectedChampionship.name}</h3>
 
-        {isClvChampionship ? (
-          <div className="space-y-3 glass-panel-muted p-3">
-            <p className="text-sm font-medium">Local padrão da Copa Laje de Verão (CLV)</p>
+          {isClvChampionship ? (
+            <div className="space-y-3 glass-panel-muted p-3">
+              <p className="text-sm font-medium">Local padrão da Copa Laje de Verão (CLV)</p>
 
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Input
-                placeholder="Ex.: Arena oficial do CLV"
-                value={clvDefaultLocation}
-                onChange={(event) => setClvDefaultLocation(event.target.value)}
-                className="glass-input"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleSaveClvDefaultLocation}
-                disabled={savingClvDefaultLocation}
-                className="bg-white/85 hover:bg-white"
-              >
-                Salvar local padrão
-              </Button>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  placeholder="Ex.: Arena oficial do CLV"
+                  value={clvDefaultLocation}
+                  onChange={(event) => setClvDefaultLocation(event.target.value)}
+                  className="glass-input"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleSaveClvDefaultLocation}
+                  disabled={savingClvDefaultLocation}
+                  className="bg-white/85 hover:bg-white"
+                >
+                  Salvar local padrão
+                </Button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Switch checked={replicateClvDefaultLocation} onCheckedChange={setReplicateClvDefaultLocation} />
+                <p className="text-sm text-muted-foreground">Replicar local padrão para todos os novos jogos do CLV</p>
+              </div>
             </div>
+          ) : null}
 
-            <div className="flex items-center gap-2">
-              <Switch checked={replicateClvDefaultLocation} onCheckedChange={setReplicateClvDefaultLocation} />
-              <p className="text-sm text-muted-foreground">Replicar local padrão para todos os novos jogos do CLV</p>
-            </div>
-          </div>
-        ) : null}
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3">
           <div className="space-y-2 sm:col-span-2 lg:col-span-3">
             <p className="text-xs font-medium text-muted-foreground">Naipe</p>
             <RadioGroup
@@ -519,16 +546,19 @@ export function AdminMatches({
             <DateTimePicker value={startTime} onChange={setStartTime} placeholder="Início" />
             <DateTimePicker value={endTime} onChange={setEndTime} placeholder="Fim" />
           </div>
+          </div>
+
+          <Button onClick={handleAdd} className="shadow-[0_4px_10px_rgba(15,23,42,0.06)] hover:shadow-[0_6px_14px_rgba(15,23,42,0.08)]">
+            <Plus className="mr-1 h-4 w-4" /> Criar Jogo
+          </Button>
+
+          {availableSportsForCreate.length == 0 ? (
+            <p className="text-xs text-muted-foreground">Nenhuma modalidade vinculada ao campeonato para este naipe.</p>
+          ) : null}
         </div>
-
-        <Button onClick={handleAdd} className="shadow-[0_4px_10px_rgba(15,23,42,0.06)] hover:shadow-[0_6px_14px_rgba(15,23,42,0.08)]">
-          <Plus className="mr-1 h-4 w-4" /> Criar Jogo
-        </Button>
-
-        {availableSportsForCreate.length === 0 ? (
-          <p className="text-xs text-muted-foreground">Nenhuma modalidade vinculada ao campeonato para este naipe.</p>
-        ) : null}
-      </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">Perfil em visualização: sem permissão para criar, editar ou remover jogos.</p>
+      )}
 
       <div className="enter-section space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -621,29 +651,31 @@ export function AdminMatches({
                 </div>
               </div>
 
-              <div className="flex shrink-0 flex-col items-center gap-1 self-start">
-                {editingMatchId === match.id ? (
-                  <>
-                    <Button variant="ghost" size="icon" onClick={handleSaveEditingMatch}>
-                      <Save className="h-4 w-4 text-primary" />
+              {canManageMatches ? (
+                <div className="flex shrink-0 flex-col items-center gap-1 self-start">
+                  {editingMatchId == match.id ? (
+                    <>
+                      <Button variant="ghost" size="icon" onClick={handleSaveEditingMatch}>
+                        <Save className="h-4 w-4 text-primary" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={handleCancelEditingMatch}>
+                        <X className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </>
+                  ) : (
+                    <Button variant="ghost" size="icon" onClick={() => handleStartEditingMatch(match)}>
+                      <Pencil className="h-4 w-4 text-muted-foreground" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={handleCancelEditingMatch}>
-                      <X className="h-4 w-4 text-muted-foreground" />
-                    </Button>
-                  </>
-                ) : (
-                  <Button variant="ghost" size="icon" onClick={() => handleStartEditingMatch(match)}>
-                    <Pencil className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                )}
+                  )}
 
-                <Button variant="ghost" size="icon" onClick={() => handleDelete(match.id)}>
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
-              </div>
+                  <Button variant="ghost" size="icon" onClick={() => handleDelete(match.id)}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              ) : null}
             </div>
 
-            {editingMatchId === match.id && editingMatchDraft ? (
+            {canManageMatches && editingMatchId == match.id && editingMatchDraft ? (
               <div className="grid grid-cols-1 gap-3 glass-panel-muted p-3 sm:grid-cols-2 lg:grid-cols-3">
                 <Select
                   value={editingMatchDraft.naipe}

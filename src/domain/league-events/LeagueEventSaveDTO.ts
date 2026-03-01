@@ -14,6 +14,10 @@ export class LeagueEventSaveDTO {
     return new LeagueEventSaveDTO(formValues);
   }
 
+  resolveOrganizerTeamIds(): string[] {
+    return [...new Set(this.formValues.organizerTeamIds.filter((organizerTeamId) => organizerTeamId.length > 0))];
+  }
+
   bindToSave(): TablesInsert<"league_events"> {
     const normalizedName = this.formValues.name.trim();
     const normalizedLocation = this.formValues.location.trim();
@@ -35,11 +39,13 @@ export class LeagueEventSaveDTO {
         ? LeagueEventOrganizerType.LAJE
         : LeagueEventOrganizerType.ATHLETIC;
 
+    const resolvedOrganizerTeamIds =
+      resolvedOrganizerType == LeagueEventOrganizerType.ATHLETIC ? this.resolveOrganizerTeamIds() : [];
     const resolvedOrganizerTeamId =
-      resolvedOrganizerType == LeagueEventOrganizerType.ATHLETIC ? this.formValues.organizerTeamId : null;
+      resolvedOrganizerType == LeagueEventOrganizerType.ATHLETIC ? (resolvedOrganizerTeamIds[0] ?? null) : null;
 
     if (resolvedOrganizerType == LeagueEventOrganizerType.ATHLETIC && !resolvedOrganizerTeamId) {
-      throw new Error("Selecione a atlética organizadora.");
+      throw new Error("Selecione ao menos uma atlética organizadora.");
     }
 
     return {

@@ -5,30 +5,47 @@ import { ChevronLeft, ChevronRight, Loader2, Pencil, Plus, Save, Trash2, X } fro
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLeagueEvents } from "@/hooks/useLeagueEvents";
 import type { Team, LeagueEvent } from "@/lib/types";
 import { LeagueEventType } from "@/lib/enums";
+import { TEAM_DIVISION_LABELS } from "@/lib/championship";
+import { cn } from "@/lib/utils";
 import {
   LEAGUE_EVENT_TYPE_BADGE_CLASS_NAMES,
   LEAGUE_EVENT_TYPE_LABELS,
   isLeagueEventType,
 } from "@/domain/league-events/leagueEvent.constants";
+import {
+  resolveLeagueEventOrganizerName,
+  resolveLeagueEventOrganizerTeamIds,
+} from "@/domain/league-events/leagueEvent.helpers";
 import type { LeagueEventFormValues } from "@/domain/league-events/leagueEvent.types";
 import { LeagueEventSaveDTO } from "@/domain/league-events/LeagueEventSaveDTO";
 import { createLeagueEvent, deleteLeagueEvent, updateLeagueEvent } from "@/domain/league-events/leagueEvent.repository";
 
 interface Props {
   teams: Team[];
+  canManageLeagueEvents?: boolean;
+}
+
+interface OrganizerTeamsSelectorProps {
+  orderedTeams: Team[];
+  selectedOrganizerTeamIds: string[];
+  onSelectionChange: (organizerTeamIds: string[]) => void;
+  placeholder: string;
+  triggerClassName?: string;
 }
 
 function resolveDefaultFormValues(): LeagueEventFormValues {
   return {
     name: "",
     eventType: LeagueEventType.HH,
-    organizerTeamId: null,
+    organizerTeamIds: [],
     location: "",
     eventDate: null,
   };
@@ -38,13 +55,85 @@ function resolveFormValuesFromLeagueEvent(leagueEvent: LeagueEvent): LeagueEvent
   return {
     name: leagueEvent.name,
     eventType: leagueEvent.event_type,
-    organizerTeamId: leagueEvent.organizer_team_id,
+    organizerTeamIds: resolveLeagueEventOrganizerTeamIds(leagueEvent),
     location: leagueEvent.location,
     eventDate: new Date(`${leagueEvent.event_date}T12:00:00`),
   };
 }
 
-export function AdminLeagueEvents({ teams }: Props) {
+function OrganizerTeamsSelector({
+  orderedTeams,
+  selectedOrganizerTeamIds,
+  onSelectionChange,
+  placeholder,
+  triggerClassName,
+}: OrganizerTeamsSelectorProps) {
+  const teamsById = useMemo(() => {
+    return new Map(orderedTeams.map((team) => [team.id, team]));
+  }, [orderedTeams]);
+
+  const selectedTeamNames = selectedOrganizerTeamIds
+    .map((organizerTeamId) => teamsById.get(organizerTeamId)?.name)
+    .filter((teamName): teamName is string => Boolean(teamName));
+
+  const selectedOrganizerLabel = selectedTeamNames.length == 0 ? placeholder : selectedTeamNames.join(" + ");
+
+  const handleToggleTeam = (teamId: string) => {
+    const nextOrganizerTeamIds = selectedOrganizerTeamIds.includes(teamId)
+      ? selectedOrganizerTeamIds.filter((organizerTeamId) => organizerTeamId != teamId)
+      : [...selectedOrganizerTeamIds, teamId];
+
+    const orderedOrganizerTeamIds = orderedTeams
+      .map((team) => team.id)
+      .filter((organizerTeamId) => nextOrganizerTeamIds.includes(organizerTeamId));
+
+    onSelectionChange(orderedOrganizerTeamIds);
+  };
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className={cn("glass-input w-full justify-between overflow-hidden text-left text-sm font-normal", triggerClassName)}
+        >
+          <span className="truncate">{selectedOrganizerLabel}</span>
+          <span className="ml-2 shrink-0 text-xs text-muted-foreground">
+            {selectedOrganizerTeamIds.length > 0 ? `${selectedOrganizerTeamIds.length} selecionada(s)` : ""}
+          </span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[340px] border-white/45 bg-white/80 p-3 backdrop-blur-xl" align="start">
+        <div className="max-h-60 space-y-1 overflow-y-auto pr-1">
+          {orderedTeams.map((team) => (
+            <label
+              key={team.id}
+              className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-secondary/20"
+            >
+              <Checkbox
+                checked={selectedOrganizerTeamIds.includes(team.id)}
+                onCheckedChange={() => handleToggleTeam(team.id)}
+              />
+              <span className="min-w-0 flex-1 truncate">{team.name}</span>
+              <span className="text-[11px] text-muted-foreground">
+                {team.division ? TEAM_DIVISION_LABELS[team.division] : "Sem divisão"}
+              </span>
+            </label>
+          ))}
+        </div>
+
+        <div className="mt-3 flex justify-end">
+          <Button type="button" variant="ghost" size="sm" onClick={() => onSelectionChange([])}>
+            Limpar
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props) {
   const [selectedMonthDate, setSelectedMonthDate] = useState(new Date());
   const { leagueEvents, loading, upsertLeagueEvent, removeLeagueEvent } = useLeagueEvents({ monthDate: selectedMonthDate });
 
@@ -69,7 +158,7 @@ export function AdminLeagueEvents({ teams }: Props) {
       };
 
       if (fieldName == "eventType" && value == LeagueEventType.LAJE_EVENT) {
-        nextFormValues.organizerTeamId = null;
+        nextFormValues.organizerTeamIds = [];
       }
 
       return nextFormValues;
@@ -87,7 +176,7 @@ export function AdminLeagueEvents({ teams }: Props) {
       };
 
       if (fieldName == "eventType" && value == LeagueEventType.LAJE_EVENT) {
-        nextFormValues.organizerTeamId = null;
+        nextFormValues.organizerTeamIds = [];
       }
 
       return nextFormValues;
@@ -95,10 +184,15 @@ export function AdminLeagueEvents({ teams }: Props) {
   };
 
   const handleCreateLeagueEvent = async () => {
+    if (!canManageLeagueEvents) {
+      return;
+    }
+
     try {
       const leagueEventSaveDTO = LeagueEventSaveDTO.fromFormValues(createFormValues);
       const payload = leagueEventSaveDTO.bindToSave();
-      const { data, error } = await createLeagueEvent(payload);
+      const organizerTeamIds = leagueEventSaveDTO.resolveOrganizerTeamIds();
+      const { data, error } = await createLeagueEvent(payload, organizerTeamIds);
 
       if (error) {
         toast.error(error.message);
@@ -106,7 +200,7 @@ export function AdminLeagueEvents({ teams }: Props) {
       }
 
       if (data) {
-        upsertLeagueEvent(data as unknown as LeagueEvent);
+        upsertLeagueEvent(data as LeagueEvent);
       }
 
       toast.success("Evento criado com sucesso.");
@@ -119,6 +213,10 @@ export function AdminLeagueEvents({ teams }: Props) {
   };
 
   const handleStartEditEvent = (leagueEvent: LeagueEvent) => {
+    if (!canManageLeagueEvents) {
+      return;
+    }
+
     setEditingEventId(leagueEvent.id);
     setEditingFormValues(resolveFormValuesFromLeagueEvent(leagueEvent));
   };
@@ -129,10 +227,15 @@ export function AdminLeagueEvents({ teams }: Props) {
   };
 
   const handleSaveEditEvent = async (leagueEventId: string) => {
+    if (!canManageLeagueEvents) {
+      return;
+    }
+
     try {
       const leagueEventSaveDTO = LeagueEventSaveDTO.fromFormValues(editingFormValues);
       const payload = leagueEventSaveDTO.bindToSave();
-      const { data, error } = await updateLeagueEvent(leagueEventId, payload);
+      const organizerTeamIds = leagueEventSaveDTO.resolveOrganizerTeamIds();
+      const { data, error } = await updateLeagueEvent(leagueEventId, payload, organizerTeamIds);
 
       if (error) {
         toast.error(error.message);
@@ -140,7 +243,7 @@ export function AdminLeagueEvents({ teams }: Props) {
       }
 
       if (data) {
-        upsertLeagueEvent(data as unknown as LeagueEvent);
+        upsertLeagueEvent(data as LeagueEvent);
       }
 
       toast.success("Evento atualizado com sucesso.");
@@ -153,6 +256,10 @@ export function AdminLeagueEvents({ teams }: Props) {
   };
 
   const handleDeleteEvent = async (leagueEventId: string) => {
+    if (!canManageLeagueEvents) {
+      return;
+    }
+
     const { error } = await deleteLeagueEvent(leagueEventId);
 
     if (error) {
@@ -200,71 +307,66 @@ export function AdminLeagueEvents({ teams }: Props) {
         </div>
       </div>
 
-      <div className="enter-section grid gap-2 glass-card p-4 lg:grid-cols-[minmax(0,1.4fr)_170px_minmax(0,1.15fr)_minmax(0,1fr)_220px_auto]">
-        <Input
-          value={createFormValues.name}
-          onChange={(event) => handleChangeCreateField("name", event.target.value)}
-          placeholder="Nome do evento"
-          className="glass-input"
-        />
+      {canManageLeagueEvents ? (
+        <div className="enter-section grid gap-2 glass-card p-4 lg:grid-cols-[minmax(0,1.2fr)_170px_minmax(0,1.4fr)_minmax(0,1fr)_220px_auto]">
+          <Input
+            value={createFormValues.name}
+            onChange={(event) => handleChangeCreateField("name", event.target.value)}
+            placeholder="Nome do evento"
+            className="glass-input"
+          />
 
-        <Select
-          value={createFormValues.eventType}
-          onValueChange={(value) => {
-            if (isLeagueEventType(value)) {
-              handleChangeCreateField("eventType", value);
-            }
-          }}
-        >
-          <SelectTrigger className="glass-input">
-            <SelectValue placeholder="Tipo" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={LeagueEventType.HH}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.HH]}</SelectItem>
-            <SelectItem value={LeagueEventType.OPEN_BAR}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.OPEN_BAR]}</SelectItem>
-            <SelectItem value={LeagueEventType.CHAMPIONSHIP}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.CHAMPIONSHIP]}</SelectItem>
-            <SelectItem value={LeagueEventType.LAJE_EVENT}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.LAJE_EVENT]}</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {createFormValues.eventType == LeagueEventType.LAJE_EVENT ? (
-          <Input value="LAJE" readOnly disabled className="glass-input" />
-        ) : (
           <Select
-            value={createFormValues.organizerTeamId ?? ""}
-            onValueChange={(value) => handleChangeCreateField("organizerTeamId", value)}
+            value={createFormValues.eventType}
+            onValueChange={(value) => {
+              if (isLeagueEventType(value)) {
+                handleChangeCreateField("eventType", value);
+              }
+            }}
           >
             <SelectTrigger className="glass-input">
-              <SelectValue placeholder="Selecione a atlética" />
+              <SelectValue placeholder="Tipo" />
             </SelectTrigger>
             <SelectContent>
-              {orderedTeams.map((team) => (
-                <SelectItem key={team.id} value={team.id}>
-                  {team.name}
-                </SelectItem>
-              ))}
+              <SelectItem value={LeagueEventType.HH}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.HH]}</SelectItem>
+              <SelectItem value={LeagueEventType.OPEN_BAR}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.OPEN_BAR]}</SelectItem>
+              <SelectItem value={LeagueEventType.CHAMPIONSHIP}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.CHAMPIONSHIP]}</SelectItem>
+              <SelectItem value={LeagueEventType.LAJE_EVENT}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.LAJE_EVENT]}</SelectItem>
             </SelectContent>
           </Select>
-        )}
 
-        <Input
-          value={createFormValues.location}
-          onChange={(event) => handleChangeCreateField("location", event.target.value)}
-          placeholder="Local do evento"
-          className="glass-input"
-        />
+          {createFormValues.eventType == LeagueEventType.LAJE_EVENT ? (
+            <Input value="LAJE" readOnly disabled className="glass-input" />
+          ) : (
+            <OrganizerTeamsSelector
+              orderedTeams={orderedTeams}
+              selectedOrganizerTeamIds={createFormValues.organizerTeamIds}
+              onSelectionChange={(value) => handleChangeCreateField("organizerTeamIds", value)}
+              placeholder="Selecione as atléticas"
+            />
+          )}
 
-        <DateTimePicker
-          value={createFormValues.eventDate}
-          onChange={(value) => handleChangeCreateField("eventDate", value)}
-          placeholder="Data do evento"
-          showTime={false}
-        />
+          <Input
+            value={createFormValues.location}
+            onChange={(event) => handleChangeCreateField("location", event.target.value)}
+            placeholder="Local do evento"
+            className="glass-input"
+          />
 
-        <Button onClick={handleCreateLeagueEvent} className="w-full lg:w-auto">
-          <Plus className="mr-1 h-4 w-4" /> Adicionar evento
-        </Button>
-      </div>
+          <DateTimePicker
+            value={createFormValues.eventDate}
+            onChange={(value) => handleChangeCreateField("eventDate", value)}
+            placeholder="Data do evento"
+            showTime={false}
+          />
+
+          <Button onClick={handleCreateLeagueEvent} className="w-full lg:w-auto">
+            <Plus className="mr-1 h-4 w-4" /> Adicionar evento
+          </Button>
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">Perfil em visualização: sem permissão para criar ou editar eventos.</p>
+      )}
 
       {loading ? (
         <div className="enter-section flex min-h-28 items-center justify-center glass-card">
@@ -276,10 +378,7 @@ export function AdminLeagueEvents({ teams }: Props) {
         {leagueEvents.map((leagueEvent) => {
           const isEditing = editingEventId == leagueEvent.id;
           const formValues = isEditing ? editingFormValues : resolveFormValuesFromLeagueEvent(leagueEvent);
-          const organizerName =
-            leagueEvent.event_type == LeagueEventType.LAJE_EVENT
-              ? "LAJE"
-              : (leagueEvent.organizer_team?.name ?? "Atlética");
+          const organizerName = resolveLeagueEventOrganizerName(leagueEvent);
 
           return (
             <div key={leagueEvent.id} className="enter-item glass-card p-4">
@@ -331,21 +430,13 @@ export function AdminLeagueEvents({ teams }: Props) {
                         {formValues.eventType == LeagueEventType.LAJE_EVENT ? (
                           <Input value="LAJE" readOnly disabled className="h-8 glass-input" />
                         ) : (
-                          <Select
-                            value={formValues.organizerTeamId ?? ""}
-                            onValueChange={(value) => handleChangeEditField("organizerTeamId", value)}
-                          >
-                            <SelectTrigger className="h-8 glass-input">
-                              <SelectValue placeholder="Selecione a atlética" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {orderedTeams.map((team) => (
-                                <SelectItem key={team.id} value={team.id}>
-                                  {team.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <OrganizerTeamsSelector
+                            orderedTeams={orderedTeams}
+                            selectedOrganizerTeamIds={formValues.organizerTeamIds}
+                            onSelectionChange={(value) => handleChangeEditField("organizerTeamIds", value)}
+                            placeholder="Selecione as atléticas"
+                            triggerClassName="h-8 w-full"
+                          />
                         )}
 
                         <Input
@@ -373,7 +464,7 @@ export function AdminLeagueEvents({ teams }: Props) {
                 </div>
 
                 <div className="flex shrink-0 flex-col items-center gap-1 self-start">
-                  {isEditing ? (
+                  {canManageLeagueEvents && isEditing ? (
                     <>
                       <Button variant="ghost" size="icon" onClick={() => handleSaveEditEvent(leagueEvent.id)}>
                         <Save className="h-4 w-4 text-primary" />
@@ -382,15 +473,17 @@ export function AdminLeagueEvents({ teams }: Props) {
                         <X className="h-4 w-4 text-muted-foreground" />
                       </Button>
                     </>
-                  ) : (
+                  ) : canManageLeagueEvents ? (
                     <Button variant="ghost" size="icon" onClick={() => handleStartEditEvent(leagueEvent)}>
                       <Pencil className="h-4 w-4 text-muted-foreground" />
                     </Button>
-                  )}
+                  ) : null}
 
-                  <Button variant="ghost" size="icon" onClick={() => handleDeleteEvent(leagueEvent.id)}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  {canManageLeagueEvents ? (
+                    <Button variant="ghost" size="icon" onClick={() => handleDeleteEvent(leagueEvent.id)}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             </div>

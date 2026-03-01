@@ -5,11 +5,18 @@ import {
   ChampionshipStatus,
   MatchNaipe,
   TeamDivision,
+  TeamDivisionSelection,
 } from "@/lib/enums";
 
 export const TEAM_DIVISION_LABELS: Record<TeamDivision, string> = {
   [TeamDivision.DIVISAO_PRINCIPAL]: "Divisão Principal",
   [TeamDivision.DIVISAO_ACESSO]: "Divisão de Acesso",
+};
+
+export const TEAM_DIVISION_SELECTION_LABELS: Record<TeamDivisionSelection, string> = {
+  [TeamDivisionSelection.DIVISAO_PRINCIPAL]: TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_PRINCIPAL],
+  [TeamDivisionSelection.DIVISAO_ACESSO]: TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_ACESSO],
+  [TeamDivisionSelection.WITHOUT_DIVISION]: "Sem divisão (somente eventos)",
 };
 
 export const CHAMPIONSHIP_STATUS_LABELS: Record<ChampionshipStatus, string> = {
@@ -52,6 +59,14 @@ export const CHAMPIONSHIP_SPORT_TIE_BREAKER_RULE_LABELS: Record<ChampionshipSpor
 
 export function isTeamDivision(value: string): value is TeamDivision {
   return value === TeamDivision.DIVISAO_PRINCIPAL || value === TeamDivision.DIVISAO_ACESSO;
+}
+
+export function isTeamDivisionSelection(value: string): value is TeamDivisionSelection {
+  return (
+    value === TeamDivisionSelection.DIVISAO_PRINCIPAL ||
+    value === TeamDivisionSelection.DIVISAO_ACESSO ||
+    value === TeamDivisionSelection.WITHOUT_DIVISION
+  );
 }
 
 export function isMatchNaipe(value: string): value is MatchNaipe {

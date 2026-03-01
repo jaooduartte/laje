@@ -20,6 +20,12 @@ export enum TeamDivision {
   DIVISAO_ACESSO = "DIVISAO_ACESSO",
 }
 
+export enum TeamDivisionSelection {
+  DIVISAO_PRINCIPAL = "DIVISAO_PRINCIPAL",
+  DIVISAO_ACESSO = "DIVISAO_ACESSO",
+  WITHOUT_DIVISION = "WITHOUT_DIVISION",
+}
+
 export enum MatchNaipe {
   MASCULINO = "MASCULINO",
   FEMININO = "FEMININO",
@@ -69,9 +75,35 @@ export enum AdminPanelTab {
   TEAMS = "teams",
   SPORTS = "sports",
   EVENTS = "events",
+  LOGS = "logs",
+  USERS = "users",
 }
 
 export enum AdminPanelRole {
   ADMIN = "admin",
+  EVENTOS = "eventos",
   MESA = "mesa",
+}
+
+export enum AdminPanelPermissionLevel {
+  NONE = "NONE",
+  VIEW = "VIEW",
+  EDIT = "EDIT",
+}
+
+export enum AdminActionType {
+  INSERT = "INSERT",
+  UPDATE = "UPDATE",
+  DELETE = "DELETE",
+  PASSWORD_CHANGED = "PASSWORD_CHANGED",
+}
+
+export enum AdminLogResourceTable {
+  CHAMPIONSHIPS = "public.championships",
+  SPORTS = "public.sports",
+  TEAMS = "public.teams",
+  MATCHES = "public.matches",
+  LEAGUE_EVENTS = "public.league_events",
+  LEAGUE_EVENT_ORGANIZER_TEAMS = "public.league_event_organizer_teams",
+  AUTH_USERS = "auth.users",
 }

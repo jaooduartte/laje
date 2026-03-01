@@ -1,4 +1,8 @@
 import type {
+  AdminActionType,
+  AdminPanelPermissionLevel,
+  AdminPanelRole,
+  AdminPanelTab,
   LeagueEventOrganizerType,
   LeagueEventType,
   ChampionshipCode,
@@ -24,7 +28,7 @@ export interface Team {
   id: string;
   name: string;
   city: string;
-  division: TeamDivision;
+  division: TeamDivision | null;
   created_at: string;
 }
 
@@ -112,4 +116,54 @@ export interface LeagueEvent {
   created_at: string;
   updated_at: string;
   organizer_team?: Team | null;
+  organizer_teams?: Team[];
+}
+
+export interface AdminActionLog {
+  id: string;
+  actor_user_id: string | null;
+  actor_email: string | null;
+  actor_role: AdminPanelRole | null;
+  action_type: AdminActionType;
+  resource_table: string;
+  record_id: string | null;
+  description: string | null;
+  old_data: Record<string, unknown> | null;
+  new_data: Record<string, unknown> | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export type AdminTabPermissionByTab = Record<AdminPanelTab, AdminPanelPermissionLevel>;
+
+export interface CurrentUserAdminContext {
+  role: AdminPanelRole | null;
+  profile_id: string | null;
+  profile_name: string | null;
+  matches_permission: AdminPanelPermissionLevel;
+  control_permission: AdminPanelPermissionLevel;
+  teams_permission: AdminPanelPermissionLevel;
+  sports_permission: AdminPanelPermissionLevel;
+  events_permission: AdminPanelPermissionLevel;
+  logs_permission: AdminPanelPermissionLevel;
+  users_permission: AdminPanelPermissionLevel;
+}
+
+export interface AdminProfile {
+  profile_id: string;
+  profile_name: string;
+  is_system: boolean;
+  permissions: AdminTabPermissionByTab;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminUser {
+  user_id: string;
+  email: string | null;
+  role: AdminPanelRole | null;
+  profile_id: string | null;
+  profile_name: string | null;
+  created_at: string;
+  last_sign_in_at: string | null;
 }

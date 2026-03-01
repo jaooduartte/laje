@@ -98,6 +98,139 @@ export type Database = {
           },
         ]
       }
+      admin_action_logs: {
+        Row: {
+          action_type: Database["public"]["Enums"]["admin_action_type"]
+          actor_email: string | null
+          actor_role: Database["public"]["Enums"]["app_role"] | null
+          actor_user_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          metadata: Json
+          new_data: Json | null
+          old_data: Json | null
+          record_id: string | null
+          resource_table: string
+        }
+        Insert: {
+          action_type: Database["public"]["Enums"]["admin_action_type"]
+          actor_email?: string | null
+          actor_role?: Database["public"]["Enums"]["app_role"] | null
+          actor_user_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          metadata?: Json
+          new_data?: Json | null
+          old_data?: Json | null
+          record_id?: string | null
+          resource_table: string
+        }
+        Update: {
+          action_type?: Database["public"]["Enums"]["admin_action_type"]
+          actor_email?: string | null
+          actor_role?: Database["public"]["Enums"]["app_role"] | null
+          actor_user_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          metadata?: Json
+          new_data?: Json | null
+          old_data?: Json | null
+          record_id?: string | null
+          resource_table?: string
+        }
+        Relationships: []
+      }
+      admin_profile_permissions: {
+        Row: {
+          access_level: Database["public"]["Enums"]["admin_panel_permission_level"]
+          admin_tab: Database["public"]["Enums"]["admin_panel_tab"]
+          created_at: string
+          profile_id: string
+          updated_at: string
+        }
+        Insert: {
+          access_level?: Database["public"]["Enums"]["admin_panel_permission_level"]
+          admin_tab: Database["public"]["Enums"]["admin_panel_tab"]
+          created_at?: string
+          profile_id: string
+          updated_at?: string
+        }
+        Update: {
+          access_level?: Database["public"]["Enums"]["admin_panel_permission_level"]
+          admin_tab?: Database["public"]["Enums"]["admin_panel_tab"]
+          created_at?: string
+          profile_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_profile_permissions_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "admin_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      admin_profiles: {
+        Row: {
+          created_at: string
+          id: string
+          is_system: boolean
+          name: string
+          system_role: Database["public"]["Enums"]["app_role"] | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_system?: boolean
+          name: string
+          system_role?: Database["public"]["Enums"]["app_role"] | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_system?: boolean
+          name?: string
+          system_role?: Database["public"]["Enums"]["app_role"] | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      admin_user_profiles: {
+        Row: {
+          created_at: string
+          profile_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          profile_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          profile_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_user_profiles_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "admin_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       league_events: {
         Row: {
           created_at: string
@@ -136,6 +269,39 @@ export type Database = {
           {
             foreignKeyName: "league_events_organizer_team_id_fkey"
             columns: ["organizer_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      league_event_organizer_teams: {
+        Row: {
+          created_at: string
+          event_id: string
+          team_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          team_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "league_event_organizer_teams_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "league_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "league_event_organizer_teams_team_id_fkey"
+            columns: ["team_id"]
             isOneToOne: false
             referencedRelation: "teams"
             referencedColumns: ["id"]
@@ -341,21 +507,21 @@ export type Database = {
         Row: {
           city: string
           created_at: string
-          division: Database["public"]["Enums"]["team_division"]
+          division: Database["public"]["Enums"]["team_division"] | null
           id: string
           name: string
         }
         Insert: {
           city?: string
           created_at?: string
-          division?: Database["public"]["Enums"]["team_division"]
+          division?: Database["public"]["Enums"]["team_division"] | null
           id?: string
           name: string
         }
         Update: {
           city?: string
           created_at?: string
-          division?: Database["public"]["Enums"]["team_division"]
+          division?: Database["public"]["Enums"]["team_division"] | null
           id?: string
           name?: string
         }
@@ -384,10 +550,53 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_set_user_access: {
+        Args: {
+          _profile_id?: string | null
+          _role?: Database["public"]["Enums"]["app_role"] | null
+          _target_user_id: string
+        }
+        Returns: undefined
+      }
+      admin_update_user_password: {
+        Args: { _new_password: string; _target_user_id: string }
+        Returns: undefined
+      }
       can_access_admin_panel: { Args: never; Returns: boolean }
+      create_admin_user_with_access: {
+        Args: {
+          _email: string
+          _password: string
+          _profile_id?: string | null
+          _role?: Database["public"]["Enums"]["app_role"] | null
+        }
+        Returns: string
+      }
+      get_current_user_admin_context: {
+        Args: never
+        Returns: {
+          control_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
+          events_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
+          logs_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
+          matches_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
+          profile_id: string | null
+          profile_name: string | null
+          role: Database["public"]["Enums"]["app_role"] | null
+          sports_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
+          teams_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
+          users_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
+        }[]
+      }
       get_current_user_role: {
         Args: never
-        Returns: Database["public"]["Enums"]["app_role"]
+        Returns: Database["public"]["Enums"]["app_role"] | null
+      }
+      has_admin_tab_access: {
+        Args: {
+          _requires_edit?: boolean
+          _tab: Database["public"]["Enums"]["admin_panel_tab"]
+        }
+        Returns: boolean
       }
       has_role: {
         Args: {
@@ -397,10 +606,45 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: never; Returns: boolean }
+      is_eventos: { Args: never; Returns: boolean }
       is_mesa: { Args: never; Returns: boolean }
+      list_admin_profiles: {
+        Args: never
+        Returns: {
+          created_at: string
+          is_system: boolean
+          permissions: Json
+          profile_id: string
+          profile_name: string
+          updated_at: string
+        }[]
+      }
+      list_admin_users: {
+        Args: never
+        Returns: {
+          created_at: string
+          email: string | null
+          last_sign_in_at: string | null
+          profile_id: string | null
+          profile_name: string | null
+          role: Database["public"]["Enums"]["app_role"] | null
+          user_id: string
+        }[]
+      }
+      upsert_admin_profile: {
+        Args: {
+          _permissions?: Json
+          _profile_id?: string | null
+          _profile_name?: string | null
+        }
+        Returns: string
+      }
     }
     Enums: {
-      app_role: "admin" | "mesa"
+      admin_action_type: "INSERT" | "UPDATE" | "DELETE" | "PASSWORD_CHANGED"
+      admin_panel_permission_level: "NONE" | "VIEW" | "EDIT"
+      admin_panel_tab: "matches" | "control" | "teams" | "sports" | "events" | "logs" | "users"
+      app_role: "admin" | "eventos" | "mesa"
       championship_code: "CLV" | "SOCIETY" | "INTERLAJE"
       championship_sport_naipe_mode: "MISTO" | "MASCULINO_FEMININO"
       championship_sport_tie_breaker_rule: "STANDARD" | "POINTS_AVERAGE" | "BEACH_SOCCER" | "BEACH_TENNIS"
@@ -537,7 +781,9 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "mesa"],
+      admin_panel_permission_level: ["NONE", "VIEW", "EDIT"],
+      admin_panel_tab: ["matches", "control", "teams", "sports", "events", "logs", "users"],
+      app_role: ["admin", "eventos", "mesa"],
       championship_code: ["CLV", "SOCIETY", "INTERLAJE"],
       championship_sport_naipe_mode: ["MISTO", "MASCULINO_FEMININO"],
       championship_sport_tie_breaker_rule: ["STANDARD", "POINTS_AVERAGE", "BEACH_SOCCER", "BEACH_TENNIS"],

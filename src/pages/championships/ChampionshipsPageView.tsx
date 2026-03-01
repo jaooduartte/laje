@@ -141,14 +141,11 @@ export function ChampionshipsPageView({
         <SportFilter sports={sports} selected={sportFilter} onSelect={onSportFilterChange} />
 
         {!selectedChampionshipIsFinished ? (
-          <section className="glass-panel enter-section space-y-4 p-5">
-            <h2 className="text-center text-xl font-display font-bold sm:text-left">Jogos em andamento</h2>
-            {filteredLiveMatches.length == 0 ? (
-              <p className="text-center text-sm text-muted-foreground sm:text-left">Nenhum jogo em andamento.</p>
-            ) : (
-              <LiveMatchBanner matches={filteredLiveMatches} />
-            )}
-          </section>
+          filteredLiveMatches.length == 0 ? (
+            <p className="enter-section text-center text-sm text-muted-foreground sm:text-left">Nenhum jogo em andamento.</p>
+          ) : (
+            <LiveMatchBanner matches={filteredLiveMatches} />
+          )
         ) : null}
 
         {!selectedChampionshipIsFinished ? (

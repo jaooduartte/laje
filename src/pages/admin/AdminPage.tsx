@@ -16,7 +16,17 @@ import { isChampionshipStatus } from "@/lib/championship";
 import { AdminPageView } from "@/pages/admin/AdminPageView";
 
 export function AdminPage() {
-  const { user, isAdmin, isMesa, canAccessAdminPanel, canManageScoreboard, loading, roleLoading, signOut } = useAuth();
+  const {
+    user,
+    profileName,
+    canAccessAdminPanel,
+    canManageScoreboard,
+    canViewAdminTab,
+    canEditAdminTab,
+    loading,
+    roleLoading,
+    signOut,
+  } = useAuth();
   const { championships, loading: championshipsLoading, refetch: refetchChampionships } = useChampionships();
   const { selectedChampionshipCode, setSelectedChampionshipCode } = useSelectedChampionship();
   const [updatingChampionshipStatus, setUpdatingChampionshipStatus] = useState(false);
@@ -104,7 +114,32 @@ export function AdminPage() {
   const liveAndScheduledMatches = matches.filter(
     (match) => match.status == MatchStatus.LIVE || match.status == MatchStatus.SCHEDULED,
   );
-  const defaultTabValue = isAdmin ? AdminPanelTab.MATCHES : AdminPanelTab.CONTROL;
+  const canViewMatchesTab = canViewAdminTab(AdminPanelTab.MATCHES);
+  const canViewControlTab = canViewAdminTab(AdminPanelTab.CONTROL);
+  const canViewTeamsTab = canViewAdminTab(AdminPanelTab.TEAMS);
+  const canViewSportsTab = canViewAdminTab(AdminPanelTab.SPORTS);
+  const canViewEventsTab = canViewAdminTab(AdminPanelTab.EVENTS);
+  const canViewLogsTab = canViewAdminTab(AdminPanelTab.LOGS);
+  const canViewUsersTab = canViewAdminTab(AdminPanelTab.USERS);
+
+  const canManageMatches = canEditAdminTab(AdminPanelTab.MATCHES);
+  const canManageChampionshipStatus = canEditAdminTab(AdminPanelTab.MATCHES);
+  const canManageTeams = canEditAdminTab(AdminPanelTab.TEAMS);
+  const canManageLeagueEvents = canEditAdminTab(AdminPanelTab.EVENTS);
+  const canManageUsers = canEditAdminTab(AdminPanelTab.USERS);
+
+  const tabPriority: AdminPanelTab[] = [
+    AdminPanelTab.MATCHES,
+    AdminPanelTab.CONTROL,
+    AdminPanelTab.TEAMS,
+    AdminPanelTab.SPORTS,
+    AdminPanelTab.EVENTS,
+    AdminPanelTab.LOGS,
+    AdminPanelTab.USERS,
+  ];
+
+  const defaultTabValue =
+    tabPriority.find((adminPanelTab) => canViewAdminTab(adminPanelTab)) ?? AdminPanelTab.CONTROL;
 
   return (
     <AdminPageView
@@ -116,9 +151,20 @@ export function AdminPage() {
       sports={sports}
       championshipSports={championshipSports}
       liveAndScheduledMatches={liveAndScheduledMatches}
-      isAdmin={isAdmin}
-      isMesa={isMesa}
+      profileName={profileName}
+      canViewMatchesTab={canViewMatchesTab}
+      canViewControlTab={canViewControlTab}
+      canViewTeamsTab={canViewTeamsTab}
+      canViewSportsTab={canViewSportsTab}
+      canViewEventsTab={canViewEventsTab}
+      canViewLogsTab={canViewLogsTab}
+      canViewUsersTab={canViewUsersTab}
+      canManageMatches={canManageMatches}
+      canManageChampionshipStatus={canManageChampionshipStatus}
       canManageScoreboard={canManageScoreboard}
+      canManageTeams={canManageTeams}
+      canManageLeagueEvents={canManageLeagueEvents}
+      canManageUsers={canManageUsers}
       defaultTabValue={defaultTabValue}
       updatingChampionshipStatus={updatingChampionshipStatus}
       onChampionshipCodeChange={handleChampionshipCodeChange}
