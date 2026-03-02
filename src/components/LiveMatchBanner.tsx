@@ -1,7 +1,8 @@
 import type { Match } from '@/lib/types';
 import { Radio, Square } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { MATCH_NAIPE_BADGE_CLASS_NAMES, MATCH_NAIPE_LABELS, TEAM_DIVISION_LABELS } from '@/lib/championship';
+import { AppBadge } from '@/components/ui/app-badge';
+import { TEAM_DIVISION_LABELS, resolveMatchNaipeBadgeTone, resolveMatchNaipeLabel } from '@/lib/championship';
+import { AppBadgeTone } from '@/lib/enums';
 
 interface Props {
   matches: Match[];
@@ -13,8 +14,8 @@ function RedCardIndicator({ quantity }: { quantity: number }) {
   }
 
   return (
-    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-700">
-      <Square className="h-2.5 w-2.5 fill-rose-600 text-rose-600" />
+    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-700 dark:text-rose-400">
+      <Square className="h-2.5 w-2.5 fill-rose-600 text-rose-600 dark:fill-rose-500 dark:text-rose-500" />
       {quantity}
     </span>
   );
@@ -41,10 +42,10 @@ export function LiveMatchBanner({ matches }: Props) {
                   {match.sports?.name} • {match.location}
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <Badge className={MATCH_NAIPE_BADGE_CLASS_NAMES[match.naipe]}>
-                    {MATCH_NAIPE_LABELS[match.naipe]}
-                  </Badge>
-                  {match.division ? <Badge variant="secondary">{TEAM_DIVISION_LABELS[match.division]}</Badge> : null}
+                  <AppBadge tone={resolveMatchNaipeBadgeTone(String(match.naipe))}>
+                    {resolveMatchNaipeLabel(String(match.naipe))}
+                  </AppBadge>
+                  {match.division ? <AppBadge tone={AppBadgeTone.NEUTRAL}>{TEAM_DIVISION_LABELS[match.division]}</AppBadge> : null}
                 </div>
               </div>
               <div className="flex items-center justify-between">

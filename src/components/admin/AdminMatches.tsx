@@ -15,13 +15,17 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   doesChampionshipSportSupportNaipe,
-  MATCH_NAIPE_BADGE_CLASS_NAMES,
   MATCH_NAIPE_LABELS,
+  TEAM_DIVISION_BADGE_TONES,
   TEAM_DIVISION_LABELS,
   isMatchNaipe,
   isTeamDivision,
+  resolveMatchNaipeBadgeTone,
+  resolveMatchNaipeLabel,
+  resolveMatchStatusBadgeTone,
+  resolveMatchStatusLabel,
 } from "@/lib/championship";
-import { Badge } from "@/components/ui/badge";
+import { AppBadge } from "@/components/ui/app-badge";
 
 interface Props {
   matches: Match[];
@@ -43,12 +47,6 @@ interface MatchEditDraft {
   division: TeamDivision;
   naipe: MatchNaipe;
 }
-
-const MATCH_STATUS_LABELS: Record<MatchStatus, string> = {
-  [MatchStatus.SCHEDULED]: "Agendado",
-  [MatchStatus.LIVE]: "Ao Vivo",
-  [MatchStatus.FINISHED]: "Encerrado",
-};
 
 const NAIPE_OPTIONS: MatchNaipe[] = [MatchNaipe.MASCULINO, MatchNaipe.FEMININO, MatchNaipe.MISTO];
 const ALL_MATCHES_SPORT_FILTER = "ALL_MATCHES_SPORTS";
@@ -422,7 +420,7 @@ export function AdminMatches({
                   variant="outline"
                   onClick={handleSaveClvDefaultLocation}
                   disabled={savingClvDefaultLocation}
-                  className="bg-white/85 hover:bg-white"
+                  className="bg-background/80 hover:bg-background"
                 >
                   Salvar local padrão
                 </Button>
@@ -611,68 +609,64 @@ export function AdminMatches({
 
         {filteredAndSortedMatches.map((match) => (
           <div key={match.id} className="enter-item space-y-3 glass-card px-4 py-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1 space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-medium uppercase text-muted-foreground">{match.sports?.name}</span>
+            <div className="min-w-0 space-y-2">
+              <div className="flex w-full items-center gap-2 overflow-x-auto pb-1">
+                <span className="shrink-0 text-xs font-medium uppercase text-muted-foreground">{match.sports?.name}</span>
 
-                  <Badge className={MATCH_NAIPE_BADGE_CLASS_NAMES[match.naipe]}>{MATCH_NAIPE_LABELS[match.naipe]}</Badge>
+                <AppBadge tone={resolveMatchNaipeBadgeTone(String(match.naipe))} className="shrink-0 whitespace-nowrap">
+                  {resolveMatchNaipeLabel(String(match.naipe))}
+                </AppBadge>
 
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                      match.status === MatchStatus.LIVE
-                        ? "bg-live/10 text-live"
-                        : match.status === MatchStatus.FINISHED
-                          ? "bg-primary/10 text-primary"
-                          : "bg-secondary text-scheduled"
-                    }`}
-                  >
-                    {MATCH_STATUS_LABELS[match.status]}
-                  </span>
+                <AppBadge tone={resolveMatchStatusBadgeTone(match.status)} className="shrink-0 whitespace-nowrap">
+                  {resolveMatchStatusLabel(match.status)}
+                </AppBadge>
 
-                  {match.division ? (
-                    <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-muted-foreground">
-                      {TEAM_DIVISION_LABELS[match.division]}
-                    </span>
-                  ) : null}
-                </div>
-
-                <div className="flex min-h-9 items-center gap-2 text-sm font-display font-semibold">
-                  <span className="truncate">{match.home_team?.name}</span>
-                  <span className="shrink-0 text-base font-bold score-text">
-                    {match.home_score} × {match.away_score}
-                  </span>
-                  <span className="truncate">{match.away_team?.name}</span>
-                </div>
-
-                <div className="mt-3 space-y-0.5 border-t border-white/35 pt-3 text-xs text-muted-foreground">
-                  <p>Local: {match.location}</p>
-                  <p>Data e horário: {format(new Date(match.start_time), "dd/MM HH:mm", { locale: ptBR })}</p>
-                </div>
+                {match.division ? (
+                  <AppBadge tone={TEAM_DIVISION_BADGE_TONES[match.division]} className="shrink-0 whitespace-nowrap">
+                    {TEAM_DIVISION_LABELS[match.division]}
+                  </AppBadge>
+                ) : null}
               </div>
 
-              {canManageMatches ? (
-                <div className="flex shrink-0 flex-col items-center gap-1 self-start">
-                  {editingMatchId == match.id ? (
-                    <>
-                      <Button variant="ghost" size="icon" onClick={handleSaveEditingMatch}>
-                        <Save className="h-4 w-4 text-primary" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={handleCancelEditingMatch}>
-                        <X className="h-4 w-4 text-muted-foreground" />
-                      </Button>
-                    </>
-                  ) : (
-                    <Button variant="ghost" size="icon" onClick={() => handleStartEditingMatch(match)}>
-                      <Pencil className="h-4 w-4 text-muted-foreground" />
-                    </Button>
-                  )}
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="flex min-h-9 items-center gap-2 text-sm font-display font-semibold">
+                    <span className="truncate">{match.home_team?.name}</span>
+                    <span className="shrink-0 text-base font-bold score-text">
+                      {match.home_score} × {match.away_score}
+                    </span>
+                    <span className="truncate">{match.away_team?.name}</span>
+                  </div>
 
-                  <Button variant="ghost" size="icon" onClick={() => handleDelete(match.id)}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  <div className="space-y-0.5 text-xs text-muted-foreground">
+                    <p>Local: {match.location}</p>
+                    <p>Data e horário: {format(new Date(match.start_time), "dd/MM HH:mm", { locale: ptBR })}</p>
+                  </div>
                 </div>
-              ) : null}
+
+                {canManageMatches ? (
+                  <div className="flex shrink-0 flex-col items-center gap-1">
+                    {editingMatchId == match.id ? (
+                      <>
+                        <Button variant="ghost" size="icon" onClick={handleSaveEditingMatch}>
+                          <Save className="h-4 w-4 text-primary" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={handleCancelEditingMatch}>
+                          <X className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                      </>
+                    ) : (
+                      <Button variant="ghost" size="icon" onClick={() => handleStartEditingMatch(match)}>
+                        <Pencil className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    )}
+
+                    <Button variant="ghost" size="icon" onClick={() => handleDelete(match.id)}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
             </div>
 
             {canManageMatches && editingMatchId == match.id && editingMatchDraft ? (

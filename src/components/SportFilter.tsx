@@ -71,7 +71,7 @@ export function SportFilter({ sports, selected, onSelect }: Props) {
     <div className="enter-section">
       <div
         ref={containerRef}
-        className="relative flex items-center gap-0 overflow-x-auto rounded-xl bg-white/72 p-0 shadow-[0_10px_24px_rgba(15,23,42,0.08)] backdrop-blur-xl"
+        className="glass-chip relative flex items-center gap-0 overflow-x-auto rounded-xl p-0"
       >
         <span
           className="pointer-events-none absolute inset-y-0 left-0 rounded-xl bg-primary/22 backdrop-blur-2xl transition-[transform,width,opacity] duration-500"

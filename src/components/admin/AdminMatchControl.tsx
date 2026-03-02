@@ -6,8 +6,8 @@ import { MatchStatus } from "@/lib/enums";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
-import { MATCH_NAIPE_BADGE_CLASS_NAMES, MATCH_NAIPE_LABELS } from "@/lib/championship";
+import { AppBadge } from "@/components/ui/app-badge";
+import { resolveMatchNaipeBadgeTone, resolveMatchNaipeLabel } from "@/lib/championship";
 
 interface Props {
   matches: Match[];
@@ -361,9 +361,9 @@ export function AdminMatchControl({ matches, onRefetch, canManageScoreboard }: P
                   <span className="text-xs uppercase text-muted-foreground">
                     {match.sports?.name} • {match.location}
                   </span>
-                  <Badge className={`w-fit ${MATCH_NAIPE_BADGE_CLASS_NAMES[match.naipe]}`}>
-                    {MATCH_NAIPE_LABELS[match.naipe]}
-                  </Badge>
+                  <AppBadge tone={resolveMatchNaipeBadgeTone(String(match.naipe))} className="w-fit">
+                    {resolveMatchNaipeLabel(String(match.naipe))}
+                  </AppBadge>
                 </div>
                 {match.status == MatchStatus.LIVE ? (
                   <span className="text-xs font-bold text-live live-pulse">● AO VIVO</span>
@@ -578,7 +578,7 @@ export function AdminMatchControl({ matches, onRefetch, canManageScoreboard }: P
                     </div>
 
                     <div className="space-y-1">
-                      <p className="text-[11px] font-semibold uppercase text-rose-700">Cartões Vermelhos</p>
+                      <p className="text-[11px] font-semibold uppercase text-rose-700 dark:text-rose-400">Cartões Vermelhos</p>
                       <div className="flex items-center gap-1">
                         <Button
                           size="icon"
@@ -645,7 +645,7 @@ export function AdminMatchControl({ matches, onRefetch, canManageScoreboard }: P
                     </div>
 
                     <div className="space-y-1">
-                      <p className="text-[11px] font-semibold uppercase text-rose-700">Cartões Vermelhos</p>
+                      <p className="text-[11px] font-semibold uppercase text-rose-700 dark:text-rose-400">Cartões Vermelhos</p>
                       <div className="flex items-center gap-1">
                         <Button
                           size="icon"

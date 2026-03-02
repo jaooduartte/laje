@@ -89,7 +89,7 @@ export function AdminPublicAccessSettings({ canManageSettings = false }: Props) 
         </p>
       </div>
 
-      <div className="rounded-2xl border border-white/40 bg-white/30 p-3 backdrop-blur">
+      <div className="rounded-2xl border border-border/50 bg-background/35 p-3 backdrop-blur">
         <div className="flex items-center justify-between gap-3">
           <div className="space-y-1">
             <p className="text-sm font-medium">Bloquear telas públicas</p>
@@ -111,7 +111,7 @@ export function AdminPublicAccessSettings({ canManageSettings = false }: Props) 
         </div>
       </div>
 
-      <div className="rounded-2xl border border-white/40 bg-white/30 p-3 backdrop-blur space-y-3">
+      <div className="rounded-2xl border border-border/50 bg-background/35 p-3 backdrop-blur space-y-3">
         <p className="text-sm font-medium">Bloqueio por tela pública</p>
         <p className="text-xs text-muted-foreground">Você pode bloquear apenas uma, várias ou todas as telas.</p>
 
@@ -147,7 +147,7 @@ export function AdminPublicAccessSettings({ canManageSettings = false }: Props) 
             }))
           }
           placeholder="Ex.: Estamos em manutenção. Voltamos às 20h."
-          className="min-h-24 resize-none border-white/40 bg-white/45 backdrop-blur"
+          className="min-h-24 resize-none border-border/55 bg-background/50 backdrop-blur"
           disabled={!canManageSettings}
         />
       </div>

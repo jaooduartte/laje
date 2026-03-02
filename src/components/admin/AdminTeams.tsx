@@ -3,12 +3,13 @@ import { Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Team } from "@/lib/types";
-import { TeamDivision, TeamDivisionSelection } from "@/lib/enums";
+import { AppBadgeTone, TeamDivision, TeamDivisionSelection } from "@/lib/enums";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { AppBadge } from "@/components/ui/app-badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
+  TEAM_DIVISION_BADGE_TONES,
   TEAM_DIVISION_LABELS,
   TEAM_DIVISION_SELECTION_LABELS,
   isTeamDivisionSelection,
@@ -30,16 +31,12 @@ function resolveTeamDivisionLabel(division: TeamDivision | null): string {
   return TEAM_DIVISION_LABELS[division];
 }
 
-function resolveTeamDivisionBadgeClassName(division: TeamDivision | null): string {
+function resolveTeamDivisionBadgeTone(division: TeamDivision | null): AppBadgeTone {
   if (!division) {
-    return "border border-amber-300/70 bg-amber-100 text-amber-700";
+    return AppBadgeTone.AMBER;
   }
 
-  if (division == TeamDivision.DIVISAO_PRINCIPAL) {
-    return "border border-primary/30 bg-primary/10 text-primary";
-  }
-
-  return "border border-blue-300/70 bg-blue-100 text-blue-700";
+  return TEAM_DIVISION_BADGE_TONES[division];
 }
 
 function resolveTeamDivisionSelection(division: TeamDivision | null): TeamDivisionSelection {
@@ -252,9 +249,9 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <Badge className={resolveTeamDivisionBadgeClassName(team.division)}>
+                  <AppBadge tone={resolveTeamDivisionBadgeTone(team.division)}>
                     {resolveTeamDivisionLabel(team.division)}
-                  </Badge>
+                  </AppBadge>
                 )}
               </div>
             </div>

@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   AdminActionType,
   AdminLogResourceTable,
+  AppBadgeTone,
   AdminPanelRole,
   ChampionshipStatus,
   LeagueEventOrganizerType,
@@ -17,7 +18,7 @@ import {
 import { CHAMPIONSHIP_STATUS_LABELS, MATCH_NAIPE_LABELS, TEAM_DIVISION_LABELS } from "@/lib/championship";
 import { LEAGUE_EVENT_ORGANIZER_LABELS, LEAGUE_EVENT_TYPE_LABELS } from "@/domain/league-events/leagueEvent.constants";
 import type { AdminActionLog } from "@/lib/types";
-import { Badge } from "@/components/ui/badge";
+import { AppBadge } from "@/components/ui/app-badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -49,11 +50,11 @@ const ADMIN_ACTION_TYPE_LABELS: Record<AdminActionType, string> = {
   [AdminActionType.PASSWORD_CHANGED]: "Senha alterada",
 };
 
-const ADMIN_ACTION_TYPE_BADGE_CLASS_NAMES: Record<AdminActionType, string> = {
-  [AdminActionType.INSERT]: "border border-emerald-300/70 bg-emerald-100 text-emerald-700",
-  [AdminActionType.UPDATE]: "border border-amber-300/70 bg-amber-100 text-amber-700",
-  [AdminActionType.DELETE]: "border border-rose-300/70 bg-rose-100 text-rose-700",
-  [AdminActionType.PASSWORD_CHANGED]: "border border-blue-300/70 bg-blue-100 text-blue-700",
+const ADMIN_ACTION_TYPE_BADGE_TONES: Record<AdminActionType, AppBadgeTone> = {
+  [AdminActionType.INSERT]: AppBadgeTone.EMERALD,
+  [AdminActionType.UPDATE]: AppBadgeTone.AMBER,
+  [AdminActionType.DELETE]: AppBadgeTone.RED,
+  [AdminActionType.PASSWORD_CHANGED]: AppBadgeTone.BLUE,
 };
 
 const ADMIN_LOG_RESOURCE_LABELS: Record<AdminLogResourceTable, string> = {
@@ -780,13 +781,13 @@ export function AdminLogs() {
         <p className="text-sm text-muted-foreground">Nenhum log encontrado para os filtros aplicados.</p>
       ) : (
         <div className="glass-card enter-section overflow-hidden">
-          <div className={`hidden ${LOGS_GRID_TEMPLATE} gap-3 border-b border-white/35 bg-white/25 px-4 py-2 text-xs font-semibold uppercase text-muted-foreground lg:grid`}>
+          <div className={`hidden ${LOGS_GRID_TEMPLATE} gap-3 border-b border-border/45 bg-secondary/35 px-4 py-2 text-xs font-semibold uppercase text-muted-foreground lg:grid`}>
             <p>Usuário e data</p>
             <p className="text-center">Ação registrada</p>
             <p className="text-right">Tipo</p>
           </div>
 
-          <div className="divide-y divide-white/30">
+          <div className="divide-y divide-border/45">
             {listItems.map((logItem) => (
               <div key={logItem.id} className="px-4 py-3">
                 <div className={`grid gap-2 ${LOGS_GRID_TEMPLATE} lg:items-start lg:gap-3`}>
@@ -817,9 +818,9 @@ export function AdminLogs() {
                   </div>
 
                   <div className="flex justify-center lg:justify-end">
-                    <Badge className={ADMIN_ACTION_TYPE_BADGE_CLASS_NAMES[logItem.actionType]}>
+                    <AppBadge tone={ADMIN_ACTION_TYPE_BADGE_TONES[logItem.actionType]}>
                       {ADMIN_ACTION_TYPE_LABELS[logItem.actionType]}
-                    </Badge>
+                    </AppBadge>
                   </div>
                 </div>
               </div>
@@ -830,7 +831,7 @@ export function AdminLogs() {
 
       {!loading && totalCount > 0 ? (
         <div className="enter-section flex justify-center">
-          <div className="flex items-center gap-1 rounded-2xl border border-white/45 bg-white/35 px-3 py-2 shadow-[0_8px_24px_rgba(15,23,42,0.08)] backdrop-blur-xl">
+          <div className="flex items-center gap-1 rounded-2xl border border-border/55 bg-background/40 px-3 py-2 shadow-[0_8px_24px_rgba(15,23,42,0.08)] backdrop-blur-xl">
             <Button
               type="button"
               variant="ghost"
@@ -885,7 +886,7 @@ export function AdminLogs() {
           }
         }}
       >
-        <DialogContent className="border-white/45 !bg-white/10 backdrop-blur-md shadow-[0_18px_45px_rgba(15,23,42,0.16)] sm:max-w-2xl">
+        <DialogContent className="border-border/60 !bg-background/70 backdrop-blur-md shadow-[0_18px_45px_rgba(15,23,42,0.16)] sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Detalhes técnicos do log</DialogTitle>
             <DialogDescription>
@@ -893,7 +894,7 @@ export function AdminLogs() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="max-h-[60vh] overflow-auto rounded-xl border border-white/35 bg-white/20 p-3">
+          <div className="max-h-[60vh] overflow-auto rounded-xl border border-border/50 bg-background/35 p-3">
             <pre className="text-xs leading-relaxed text-foreground">
               {JSON.stringify(selectedLogForJson, null, 2)}
             </pre>

@@ -4,15 +4,38 @@ export enum MatchStatus {
   FINISHED = "FINISHED",
 }
 
+export enum ThemeMode {
+  LIGHT = "light",
+  DARK = "dark",
+}
+
+export enum ThemeTimeZone {
+  SAO_PAULO = "America/Sao_Paulo",
+}
+
+export enum AppBadgeTone {
+  NEUTRAL = "NEUTRAL",
+  PRIMARY = "PRIMARY",
+  RED = "RED",
+  AMBER = "AMBER",
+  EMERALD = "EMERALD",
+  SKY = "SKY",
+  BLUE = "BLUE",
+  GOLD = "GOLD",
+  SILVER = "SILVER",
+  BRONZE = "BRONZE",
+}
+
 export enum AppRoutePath {
   LIVE = "/",
-  CHAMPIONSHIPS = "/championships",
-  SCHEDULE = "/schedule",
-  LEAGUE_CALENDAR = "/league-calendar",
+  CHAMPIONSHIPS = "/campeonatos",
+  SCHEDULE = "/agenda",
+  LEAGUE_CALENDAR = "/calendario-da-liga",
   LOGIN = "/login",
   ADMIN = "/admin",
-  LEGACY_CHAMPIONSHIPS = "/campeonatos",
-  LEGACY_SCHEDULE = "/agenda",
+  LEGACY_CHAMPIONSHIPS = "/championships",
+  LEGACY_SCHEDULE = "/schedule",
+  LEGACY_LEAGUE_CALENDAR = "/league-calendar",
 }
 
 export enum PublicPageAccessSettingField {

@@ -88,7 +88,7 @@ export function LivePageView({
           {filteredUpcomingMatches.length == 0 ? (
             <p className="text-center text-sm text-muted-foreground sm:text-left">Nenhum jogo agendado.</p>
           ) : (
-            <div className="grid place-items-center gap-3 sm:grid-cols-2 sm:place-items-stretch lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {filteredUpcomingMatches.map((match) => (
                 <MatchCard key={match.id} match={match} showChampionshipBadge={false} />
               ))}

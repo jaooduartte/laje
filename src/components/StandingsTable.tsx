@@ -7,8 +7,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { MATCH_NAIPE_BADGE_CLASS_NAMES, MATCH_NAIPE_LABELS } from '@/lib/championship';
+import { AppBadge } from '@/components/ui/app-badge';
+import { resolveMatchNaipeBadgeTone, resolveMatchNaipeLabel } from '@/lib/championship';
 
 interface Props {
   standings: Standing[];
@@ -23,7 +23,7 @@ export function StandingsTable({ standings }: Props) {
     <div className="glass-panel enter-section overflow-hidden">
       <Table>
         <TableHeader>
-          <TableRow className="bg-white/45">
+          <TableRow className="bg-secondary/45">
             <TableHead className="w-8 text-center">#</TableHead>
             <TableHead>Time</TableHead>
             <TableHead className="w-28 text-center">Naipe</TableHead>
@@ -43,7 +43,9 @@ export function StandingsTable({ standings }: Props) {
               <TableCell className="text-center font-display font-bold text-muted-foreground">{i + 1}</TableCell>
               <TableCell className="font-display font-semibold">{s.teams?.name}</TableCell>
               <TableCell className="text-center">
-                <Badge className={MATCH_NAIPE_BADGE_CLASS_NAMES[s.naipe]}>{MATCH_NAIPE_LABELS[s.naipe]}</Badge>
+                <AppBadge tone={resolveMatchNaipeBadgeTone(String(s.naipe))}>
+                  {resolveMatchNaipeLabel(String(s.naipe))}
+                </AppBadge>
               </TableCell>
               <TableCell className="text-center score-text">{s.played}</TableCell>
               <TableCell className="text-center score-text">{s.wins}</TableCell>

@@ -3,9 +3,9 @@ import { format } from "date-fns";
 import { Loader2, Plus, Save, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { AdminPanelPermissionLevel, AdminPanelRole, AdminPanelTab } from "@/lib/enums";
+import { AdminPanelPermissionLevel, AdminPanelRole, AdminPanelTab, AppBadgeTone } from "@/lib/enums";
 import type { AdminProfile, AdminTabPermissionByTab, AdminUser } from "@/lib/types";
-import { Badge } from "@/components/ui/badge";
+import { AppBadge } from "@/components/ui/app-badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -513,7 +513,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
         </Select>
 
         {canManageUsers ? (
-          <Button type="button" variant="outline" onClick={handleOpenCreateProfile} className="bg-white/70">
+          <Button type="button" variant="outline" onClick={handleOpenCreateProfile} className="bg-background/75">
             <Shield className="mr-2 h-4 w-4" />
             Perfis
           </Button>
@@ -595,9 +595,9 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                   </p>
                 </div>
 
-                <div className="flex items-center justify-between gap-2 border-y border-white/30 py-2">
+                <div className="flex items-center justify-between gap-2 border-y border-border/45 py-2">
                   <span className="text-xs text-muted-foreground">Acesso</span>
-                  <Badge variant="outline">{resolveUserAccessLabel(user)}</Badge>
+                  <AppBadge tone={AppBadgeTone.NEUTRAL}>{resolveUserAccessLabel(user)}</AppBadge>
                 </div>
 
                 {canManageUsers ? (
@@ -626,7 +626,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                     <Button
                       type="button"
                       variant="outline"
-                      className="w-full bg-white/70"
+                      className="w-full bg-background/75"
                       disabled={isSavingAccess}
                       onClick={() => handleSaveUserAccess(user)}
                     >
@@ -637,7 +637,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                 ) : null}
 
                 {canManageUsers ? (
-                  <div className="space-y-2 border-t border-white/30 pt-2">
+                  <div className="space-y-2 border-t border-border/45 pt-2">
                     <Input
                       type="password"
                       name={`admin_user_password_${user.user_id}`}
@@ -671,15 +671,15 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       )}
 
       <Dialog open={showProfileModal} onOpenChange={setShowProfileModal}>
-        <DialogContent className="border-white/45 !bg-white/50 backdrop-blur-md shadow-[0_18px_45px_rgba(15,23,42,0.16)] sm:max-w-4xl">
+        <DialogContent className="border-border/60 !bg-background/70 backdrop-blur-md shadow-[0_18px_45px_rgba(15,23,42,0.16)] sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Perfis personalizados</DialogTitle>
             <DialogDescription>Defina nome e permissões por aba do admin (visualização ou edição).</DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-            <div className="space-y-2 rounded-2xl border border-white/35 bg-white/20 p-3 backdrop-blur-md">
-              <Button type="button" variant="outline" className="w-full bg-white/70" onClick={handleOpenCreateProfile}>
+            <div className="space-y-2 rounded-2xl border border-border/50 bg-background/35 p-3 backdrop-blur-md">
+              <Button type="button" variant="outline" className="w-full bg-background/75" onClick={handleOpenCreateProfile}>
                 <Plus className="mr-2 h-4 w-4" />
                 Novo perfil
               </Button>
@@ -695,7 +695,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                       className={`w-full rounded-xl border px-3 py-2 text-left transition ${
                         profileDraft.profileId == profile.profile_id
                           ? "border-primary/40 bg-primary/10"
-                          : "border-white/35 bg-white/20 hover:bg-white/30"
+                          : "border-border/50 bg-background/35 hover:bg-background/45"
                       }`}
                       onClick={() => handleEditProfile(profile)}
                     >
@@ -709,7 +709,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
               </div>
             </div>
 
-            <div className="space-y-3 rounded-2xl border border-white/35 bg-white/20 p-3 backdrop-blur-md">
+            <div className="space-y-3 rounded-2xl border border-border/50 bg-background/35 p-3 backdrop-blur-md">
               <div className="space-y-2">
                 <Label htmlFor="profile-name-input">Nome do perfil</Label>
                 <Input
@@ -740,7 +740,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                   {ADMIN_PANEL_TAB_ORDER.map((adminPanelTab) => (
                     <div
                       key={adminPanelTab}
-                      className="grid gap-2 rounded-xl border border-white/35 bg-white/25 p-2 sm:grid-cols-[170px_minmax(0,1fr)] sm:items-center"
+                      className="grid gap-2 rounded-xl border border-border/50 bg-background/38 p-2 sm:grid-cols-[170px_minmax(0,1fr)] sm:items-center"
                     >
                       <p className="text-sm font-medium">{ADMIN_TAB_LABELS[adminPanelTab]}</p>
 

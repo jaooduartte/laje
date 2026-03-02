@@ -152,7 +152,7 @@ export function ChampionshipsPageView({
           <section className="glass-panel enter-section p-5">
             <h2 className="mb-4 text-center text-xl font-display font-bold sm:text-left">Próximo jogo</h2>
             {nextMatch ? (
-              <div className="grid place-items-center gap-3 sm:grid-cols-2 sm:place-items-stretch lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <MatchCard match={nextMatch} showChampionshipBadge={false} />
               </div>
             ) : (

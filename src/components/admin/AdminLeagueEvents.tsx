@@ -3,6 +3,7 @@ import { addMonths, format, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
+import { AppBadge } from "@/components/ui/app-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -16,7 +17,7 @@ import { LeagueEventType } from "@/lib/enums";
 import { TEAM_DIVISION_LABELS } from "@/lib/championship";
 import { cn } from "@/lib/utils";
 import {
-  LEAGUE_EVENT_TYPE_BADGE_CLASS_NAMES,
+  LEAGUE_EVENT_TYPE_BADGE_TONES,
   LEAGUE_EVENT_TYPE_LABELS,
   isLeagueEventType,
 } from "@/domain/league-events/leagueEvent.constants";
@@ -96,7 +97,10 @@ function OrganizerTeamsSelector({
         <Button
           type="button"
           variant="outline"
-          className={cn("glass-input w-full justify-between overflow-hidden text-left text-sm font-normal", triggerClassName)}
+          className={cn(
+            "glass-input w-full justify-between overflow-hidden text-left text-sm font-normal hover:bg-background/75",
+            triggerClassName,
+          )}
         >
           <span className="truncate">{selectedOrganizerLabel}</span>
           <span className="ml-2 shrink-0 text-xs text-muted-foreground">
@@ -104,12 +108,12 @@ function OrganizerTeamsSelector({
           </span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[340px] border-white/45 bg-white/80 p-3 backdrop-blur-xl" align="start">
+      <PopoverContent className="w-[340px] border-border/55 bg-background/88 p-3 backdrop-blur-xl" align="start">
         <div className="max-h-60 space-y-1 overflow-y-auto pr-1">
           {orderedTeams.map((team) => (
             <label
               key={team.id}
-              className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-secondary/20"
+              className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors"
             >
               <Checkbox
                 checked={selectedOrganizerTeamIds.includes(team.id)}
@@ -400,9 +404,9 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
                       </p>
                     </div>
 
-                    <Badge className={LEAGUE_EVENT_TYPE_BADGE_CLASS_NAMES[leagueEvent.event_type]}>
+                    <AppBadge tone={LEAGUE_EVENT_TYPE_BADGE_TONES[leagueEvent.event_type]}>
                       {LEAGUE_EVENT_TYPE_LABELS[leagueEvent.event_type]}
-                    </Badge>
+                    </AppBadge>
                   </div>
 
                   <div className="space-y-2">
@@ -455,7 +459,7 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
                         />
                       </>
                     ) : (
-                      <div className="mt-2 space-y-0.5 border-t border-white/35 pt-2">
+                      <div className="mt-2 space-y-0.5 border-t border-border/45 pt-2">
                         <p className="text-sm text-muted-foreground">Organizado por: {organizerName}</p>
                         <p className="text-sm text-muted-foreground">Local: {leagueEvent.location}</p>
                       </div>

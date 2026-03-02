@@ -1,11 +1,13 @@
 import { Toaster as Sonner, toast } from "sonner";
+import { useAutomaticThemeContext } from "@/components/theme/AutomaticThemeProvider";
 
 type ToasterProps = React.ComponentProps<typeof Sonner>;
 
 const Toaster = ({ ...props }: ToasterProps) => {
+  const { themeMode } = useAutomaticThemeContext();
+
   return (
     <Sonner
-      theme="light"
       className="toaster group"
       toastOptions={{
         classNames: {
@@ -17,6 +19,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
         },
       }}
       {...props}
+      theme={themeMode}
     />
   );
 };

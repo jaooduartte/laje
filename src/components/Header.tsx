@@ -97,7 +97,7 @@ export function Header() {
                       type="button"
                       disabled
                       title="Tela temporariamente indisponível por manutenção"
-                      className="relative z-10 flex min-h-11 shrink-0 cursor-not-allowed items-center gap-1.5 rounded-none px-3 py-2.5 text-sm font-medium text-slate-400 first:rounded-l-xl last:rounded-r-xl sm:min-h-10 sm:py-2"
+                      className="relative z-10 flex min-h-11 shrink-0 cursor-not-allowed items-center gap-1.5 rounded-none px-3 py-2.5 text-sm font-medium text-muted-foreground/70 first:rounded-l-xl last:rounded-r-xl sm:min-h-10 sm:py-2"
                     >
                       <Icon className="h-5 w-5 sm:h-4 sm:w-4" />
                       <span className="hidden sm:inline">{label}</span>

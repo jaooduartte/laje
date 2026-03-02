@@ -248,7 +248,7 @@ export function AdminPageView({
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as AdminPanelTab)} className="enter-section space-y-6">
           <TabsList
             ref={tabsListRef}
-            className="relative flex h-auto w-full items-center justify-start gap-0 overflow-x-auto rounded-xl bg-white/72 p-0 shadow-[0_8px_18px_rgba(15,23,42,0.08)] backdrop-blur-xl"
+            className="glass-chip relative flex h-auto w-full items-center justify-start gap-0 overflow-x-auto rounded-xl p-0"
           >
             <span
               className="pointer-events-none absolute inset-y-0 left-0 rounded-xl bg-primary/22 backdrop-blur-2xl transition-[transform,width,opacity] duration-500"

@@ -47,7 +47,8 @@ function isPublicRoutePath(routePath: string): boolean {
     routePath == AppRoutePath.SCHEDULE ||
     routePath == AppRoutePath.LEAGUE_CALENDAR ||
     routePath == AppRoutePath.LEGACY_CHAMPIONSHIPS ||
-    routePath == AppRoutePath.LEGACY_SCHEDULE
+    routePath == AppRoutePath.LEGACY_SCHEDULE ||
+    routePath == AppRoutePath.LEGACY_LEAGUE_CALENDAR
   );
 }
 
@@ -75,7 +76,7 @@ export function resolveIsPublicRouteBlocked(
     return publicAccessSettings.is_schedule_page_blocked;
   }
 
-  if (routePath == AppRoutePath.LEAGUE_CALENDAR) {
+  if (routePath == AppRoutePath.LEAGUE_CALENDAR || routePath == AppRoutePath.LEGACY_LEAGUE_CALENDAR) {
     return publicAccessSettings.is_league_calendar_page_blocked;
   }
 

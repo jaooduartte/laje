@@ -1,8 +1,10 @@
 import {
+  AppBadgeTone,
   ChampionshipSportNaipeMode,
   ChampionshipSportTieBreakerRule,
   ChampionshipCode,
   ChampionshipStatus,
+  MatchStatus,
   MatchNaipe,
   TeamDivision,
   TeamDivisionSelection,
@@ -29,8 +31,10 @@ export const CHAMPIONSHIP_STATUS_LABELS: Record<ChampionshipStatus, string> = {
 export const CHAMPIONSHIP_STATUS_BADGE_CLASS_NAMES: Record<ChampionshipStatus, string> = {
   [ChampionshipStatus.PLANNING]: "border-transparent bg-secondary text-secondary-foreground",
   [ChampionshipStatus.UPCOMING]: "border-transparent bg-secondary text-secondary-foreground",
-  [ChampionshipStatus.IN_PROGRESS]: "border-transparent bg-emerald-100 text-emerald-700",
-  [ChampionshipStatus.FINISHED]: "border-transparent bg-primary/15 text-primary",
+  [ChampionshipStatus.IN_PROGRESS]:
+    "border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-500/22 dark:text-emerald-200",
+  [ChampionshipStatus.FINISHED]:
+    "border-transparent bg-primary/15 text-primary dark:bg-primary/36 dark:text-primary-foreground",
 };
 
 export const MATCH_NAIPE_LABELS: Record<MatchNaipe, string> = {
@@ -39,10 +43,27 @@ export const MATCH_NAIPE_LABELS: Record<MatchNaipe, string> = {
   [MatchNaipe.MISTO]: "Misto",
 };
 
-export const MATCH_NAIPE_BADGE_CLASS_NAMES: Record<MatchNaipe, string> = {
-  [MatchNaipe.MASCULINO]: "border-transparent bg-sky-100 text-sky-700",
-  [MatchNaipe.FEMININO]: "border-transparent bg-rose-100 text-rose-700",
-  [MatchNaipe.MISTO]: "border-transparent bg-secondary text-secondary-foreground",
+export const MATCH_STATUS_LABELS: Record<MatchStatus, string> = {
+  [MatchStatus.SCHEDULED]: "Agendado",
+  [MatchStatus.LIVE]: "Ao Vivo",
+  [MatchStatus.FINISHED]: "Encerrado",
+};
+
+export const MATCH_STATUS_BADGE_TONES: Record<MatchStatus, AppBadgeTone> = {
+  [MatchStatus.SCHEDULED]: AppBadgeTone.NEUTRAL,
+  [MatchStatus.LIVE]: AppBadgeTone.PRIMARY,
+  [MatchStatus.FINISHED]: AppBadgeTone.RED,
+};
+
+export const MATCH_NAIPE_BADGE_TONES: Record<MatchNaipe, AppBadgeTone> = {
+  [MatchNaipe.MASCULINO]: AppBadgeTone.SKY,
+  [MatchNaipe.FEMININO]: AppBadgeTone.RED,
+  [MatchNaipe.MISTO]: AppBadgeTone.NEUTRAL,
+};
+
+export const TEAM_DIVISION_BADGE_TONES: Record<TeamDivision, AppBadgeTone> = {
+  [TeamDivision.DIVISAO_PRINCIPAL]: AppBadgeTone.PRIMARY,
+  [TeamDivision.DIVISAO_ACESSO]: AppBadgeTone.BLUE,
 };
 
 export const CHAMPIONSHIP_SPORT_NAIPE_MODE_LABELS: Record<ChampionshipSportNaipeMode, string> = {
@@ -71,6 +92,30 @@ export function isTeamDivisionSelection(value: string): value is TeamDivisionSel
 
 export function isMatchNaipe(value: string): value is MatchNaipe {
   return value === MatchNaipe.MASCULINO || value === MatchNaipe.FEMININO || value === MatchNaipe.MISTO;
+}
+
+export function resolveMatchNaipeBadgeTone(naipe: string): AppBadgeTone {
+  if (isMatchNaipe(naipe)) {
+    return MATCH_NAIPE_BADGE_TONES[naipe];
+  }
+
+  return AppBadgeTone.NEUTRAL;
+}
+
+export function resolveMatchNaipeLabel(naipe: string): string {
+  if (isMatchNaipe(naipe)) {
+    return MATCH_NAIPE_LABELS[naipe];
+  }
+
+  return naipe.trim() ? naipe : "Naipe";
+}
+
+export function resolveMatchStatusBadgeTone(status: MatchStatus): AppBadgeTone {
+  return MATCH_STATUS_BADGE_TONES[status];
+}
+
+export function resolveMatchStatusLabel(status: MatchStatus): string {
+  return MATCH_STATUS_LABELS[status];
 }
 
 export function isChampionshipSportNaipeMode(value: string): value is ChampionshipSportNaipeMode {

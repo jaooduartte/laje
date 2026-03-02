@@ -82,7 +82,7 @@ export function DateTimePicker({ value, onChange, placeholder, showTime = true, 
           type="button"
           variant="outline"
           className={cn(
-            "glass-input w-full justify-start overflow-hidden text-left font-normal hover:bg-white/70",
+            "glass-input w-full justify-start overflow-hidden text-left font-normal hover:bg-background/75",
             !value ? "text-muted-foreground" : "text-foreground",
             className,
           )}

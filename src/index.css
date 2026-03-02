@@ -50,6 +50,50 @@
     --sidebar-border: 220 14% 90%;
     --sidebar-ring: 1 72% 48%;
   }
+
+  .dark {
+    --background: 224 28% 8%;
+    --foreground: 210 40% 96%;
+
+    --card: 224 28% 10%;
+    --card-foreground: 210 40% 96%;
+
+    --popover: 224 28% 10%;
+    --popover-foreground: 210 40% 96%;
+
+    --primary: 1 66% 42%;
+    --primary-foreground: 0 0% 98%;
+
+    --secondary: 224 20% 16%;
+    --secondary-foreground: 210 40% 96%;
+
+    --muted: 223 18% 18%;
+    --muted-foreground: 217 17% 72%;
+
+    --accent: 1 40% 24%;
+    --accent-foreground: 0 0% 96%;
+
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 223 17% 26%;
+    --input: 223 17% 26%;
+    --ring: 1 66% 46%;
+
+    --live: 1 68% 44%;
+    --live-glow: 1 72% 50%;
+    --scheduled: 218 16% 74%;
+    --finished: 28 94% 60%;
+
+    --sidebar-background: 224 28% 9%;
+    --sidebar-foreground: 210 40% 96%;
+    --sidebar-primary: 1 74% 56%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 224 20% 16%;
+    --sidebar-accent-foreground: 210 40% 96%;
+    --sidebar-border: 223 17% 26%;
+    --sidebar-ring: 1 74% 56%;
+  }
 }
 
 @layer base {
@@ -75,13 +119,20 @@
       linear-gradient(180deg, hsl(var(--background)), hsl(var(--secondary) / 0.35));
   }
 
+  .dark .app-page {
+    background:
+      radial-gradient(1200px 500px at 8% -10%, hsl(var(--primary) / 0.16), transparent 55%),
+      radial-gradient(900px 420px at 100% -20%, hsl(var(--accent-foreground) / 0.14), transparent 60%),
+      linear-gradient(180deg, hsl(var(--background)), hsl(var(--secondary) / 0.62));
+  }
+
   .glass-panel {
     border: 1px solid hsl(var(--border) / 0.6);
     background: hsl(var(--background) / 0.52);
     -webkit-backdrop-filter: blur(18px);
     backdrop-filter: blur(18px);
     border-radius: 1rem;
-    box-shadow: 0 10px 32px rgba(15, 23, 42, 0.08);
+    box-shadow: 0 10px 32px hsl(222 22% 16% / 0.08);
   }
 
   .glass-panel-muted {
@@ -98,13 +149,13 @@
     -webkit-backdrop-filter: blur(16px);
     backdrop-filter: blur(16px);
     border-radius: 1rem;
-    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+    box-shadow: 0 10px 28px hsl(222 22% 16% / 0.08);
     transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
   }
 
   .glass-card-hover:hover {
     transform: translateY(-2px);
-    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.12);
+    box-shadow: 0 14px 34px hsl(222 22% 16% / 0.12);
     border-color: hsl(var(--primary) / 0.28);
   }
 
@@ -113,13 +164,18 @@
     background: hsl(var(--background) / 0.62);
     -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
+    box-shadow: 0 8px 20px hsl(222 22% 16% / 0.08);
   }
 
   .glass-input {
-    border-color: hsl(var(--border) / 0.62);
+    border-color: transparent;
     background: hsl(var(--background) / 0.58);
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
+  }
+
+  .dark .glass-input {
+    border-color: hsl(var(--border) / 0.45);
   }
 
   .enter-section {

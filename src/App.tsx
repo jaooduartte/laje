@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AdminRouteGuard } from "@/components/guards/AdminRouteGuard";
 import { PublicRouteGuard } from "@/components/guards/PublicRouteGuard";
+import { AutomaticThemeProvider } from "@/components/theme/AutomaticThemeProvider";
 import { AuthProvider } from "@/hooks/useAuth";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
@@ -18,73 +19,79 @@ import { NotFoundPage } from "@/pages/not-found/NotFoundPage";
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter
-          future={{
-            v7_relativeSplatPath: true,
-            v7_startTransition: true,
-          }}
-        >
-          <Routes>
-            <Route
-              path={AppRoutePath.LIVE}
-              element={
-                <PublicRouteGuard routePath={AppRoutePath.LIVE}>
-                  <LivePage />
-                </PublicRouteGuard>
-              }
-            />
-            <Route
-              path={AppRoutePath.CHAMPIONSHIPS}
-              element={
-                <PublicRouteGuard routePath={AppRoutePath.CHAMPIONSHIPS}>
-                  <ChampionshipsPage />
-                </PublicRouteGuard>
-              }
-            />
-            <Route
-              path={AppRoutePath.SCHEDULE}
-              element={
-                <PublicRouteGuard routePath={AppRoutePath.SCHEDULE}>
-                  <SchedulePage />
-                </PublicRouteGuard>
-              }
-            />
-            <Route
-              path={AppRoutePath.LEAGUE_CALENDAR}
-              element={
-                <PublicRouteGuard routePath={AppRoutePath.LEAGUE_CALENDAR}>
-                  <LeagueCalendarPage />
-                </PublicRouteGuard>
-              }
-            />
-            <Route path={AppRoutePath.LOGIN} element={<LoginPage />} />
-            <Route
-              path={AppRoutePath.ADMIN}
-              element={
-                <AdminRouteGuard>
-                  <AdminPage />
-                </AdminRouteGuard>
-              }
-            />
-            <Route
-              path={AppRoutePath.LEGACY_CHAMPIONSHIPS}
-              element={<Navigate to={AppRoutePath.CHAMPIONSHIPS} replace />}
-            />
-            <Route
-              path={AppRoutePath.LEGACY_SCHEDULE}
-              element={<Navigate to={AppRoutePath.SCHEDULE} replace />}
-            />
-            <Route path="*" element={<NotFoundPage />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
-  </QueryClientProvider>
+  <AutomaticThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter
+            future={{
+              v7_relativeSplatPath: true,
+              v7_startTransition: true,
+            }}
+          >
+            <Routes>
+              <Route
+                path={AppRoutePath.LIVE}
+                element={
+                  <PublicRouteGuard routePath={AppRoutePath.LIVE}>
+                    <LivePage />
+                  </PublicRouteGuard>
+                }
+              />
+              <Route
+                path={AppRoutePath.CHAMPIONSHIPS}
+                element={
+                  <PublicRouteGuard routePath={AppRoutePath.CHAMPIONSHIPS}>
+                    <ChampionshipsPage />
+                  </PublicRouteGuard>
+                }
+              />
+              <Route
+                path={AppRoutePath.SCHEDULE}
+                element={
+                  <PublicRouteGuard routePath={AppRoutePath.SCHEDULE}>
+                    <SchedulePage />
+                  </PublicRouteGuard>
+                }
+              />
+              <Route
+                path={AppRoutePath.LEAGUE_CALENDAR}
+                element={
+                  <PublicRouteGuard routePath={AppRoutePath.LEAGUE_CALENDAR}>
+                    <LeagueCalendarPage />
+                  </PublicRouteGuard>
+                }
+              />
+              <Route path={AppRoutePath.LOGIN} element={<LoginPage />} />
+              <Route
+                path={AppRoutePath.ADMIN}
+                element={
+                  <AdminRouteGuard>
+                    <AdminPage />
+                  </AdminRouteGuard>
+                }
+              />
+              <Route
+                path={AppRoutePath.LEGACY_CHAMPIONSHIPS}
+                element={<Navigate to={AppRoutePath.CHAMPIONSHIPS} replace />}
+              />
+              <Route
+                path={AppRoutePath.LEGACY_SCHEDULE}
+                element={<Navigate to={AppRoutePath.SCHEDULE} replace />}
+              />
+              <Route
+                path={AppRoutePath.LEGACY_LEAGUE_CALENDAR}
+                element={<Navigate to={AppRoutePath.LEAGUE_CALENDAR} replace />}
+              />
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  </AutomaticThemeProvider>
 );
 
 export default App;

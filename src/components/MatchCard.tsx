@@ -2,26 +2,20 @@ import type { Match } from "@/lib/types";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Square } from "lucide-react";
-import { MatchStatus } from "@/lib/enums";
-import { Badge } from "@/components/ui/badge";
-import { MATCH_NAIPE_BADGE_CLASS_NAMES, MATCH_NAIPE_LABELS, TEAM_DIVISION_LABELS } from "@/lib/championship";
+import { AppBadgeTone, MatchStatus } from "@/lib/enums";
+import { AppBadge } from "@/components/ui/app-badge";
+import {
+  TEAM_DIVISION_LABELS,
+  resolveMatchNaipeBadgeTone,
+  resolveMatchNaipeLabel,
+  resolveMatchStatusBadgeTone,
+  resolveMatchStatusLabel,
+} from "@/lib/championship";
 
 interface Props {
   match: Match;
   showChampionshipBadge?: boolean;
 }
-
-const statusStyles: Record<MatchStatus, string> = {
-  [MatchStatus.SCHEDULED]: "bg-secondary text-scheduled",
-  [MatchStatus.LIVE]: "bg-live/10 text-live",
-  [MatchStatus.FINISHED]: "bg-primary/10 text-primary",
-};
-
-const statusLabels: Record<MatchStatus, string> = {
-  [MatchStatus.SCHEDULED]: "Agendado",
-  [MatchStatus.LIVE]: "Ao Vivo",
-  [MatchStatus.FINISHED]: "Encerrado",
-};
 
 function RedCardIndicator({ quantity }: { quantity: number }) {
   if (quantity <= 0) {
@@ -29,8 +23,8 @@ function RedCardIndicator({ quantity }: { quantity: number }) {
   }
 
   return (
-    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-700">
-      <Square className="h-2.5 w-2.5 fill-rose-600 text-rose-600" />
+    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-700 dark:text-rose-400">
+      <Square className="h-2.5 w-2.5 fill-rose-600 text-rose-600 dark:fill-rose-500 dark:text-rose-500" />
       {quantity}
     </span>
   );
@@ -39,8 +33,8 @@ function RedCardIndicator({ quantity }: { quantity: number }) {
 export function MatchCard({ match, showChampionshipBadge = true }: Props) {
   const matchCardClassName =
     match.status == MatchStatus.LIVE
-      ? "glass-card enter-item border-live/45 p-4 live-glow"
-      : "glass-card glass-card-hover enter-item p-4";
+      ? "glass-card enter-item w-full border-live/45 p-4 live-glow"
+      : "glass-card glass-card-hover enter-item w-full p-4";
 
   return (
     <div className={matchCardClassName}>
@@ -51,21 +45,21 @@ export function MatchCard({ match, showChampionshipBadge = true }: Props) {
           </span>
           <div className="flex flex-wrap items-center gap-1.5">
             {showChampionshipBadge && match.championships?.name ? (
-              <Badge variant="secondary" className="border-transparent bg-primary/10 text-primary">
+              <AppBadge tone={AppBadgeTone.PRIMARY}>
                 {match.championships.name}
-              </Badge>
+              </AppBadge>
             ) : null}
-            <Badge className={MATCH_NAIPE_BADGE_CLASS_NAMES[match.naipe]}>
-              {MATCH_NAIPE_LABELS[match.naipe]}
-            </Badge>
+            <AppBadge tone={resolveMatchNaipeBadgeTone(String(match.naipe))}>
+              {resolveMatchNaipeLabel(String(match.naipe))}
+            </AppBadge>
             {match.division ? (
-              <Badge variant="secondary">{TEAM_DIVISION_LABELS[match.division]}</Badge>
+              <AppBadge tone={AppBadgeTone.NEUTRAL}>{TEAM_DIVISION_LABELS[match.division]}</AppBadge>
             ) : null}
           </div>
         </div>
-        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusStyles[match.status]}`}>
-          {statusLabels[match.status]}
-        </span>
+        <AppBadge tone={resolveMatchStatusBadgeTone(match.status)} className="shrink-0">
+          {resolveMatchStatusLabel(match.status)}
+        </AppBadge>
       </div>
       <div className="flex items-center justify-between">
         <div className="flex-1 text-right">

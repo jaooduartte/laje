@@ -1,4 +1,4 @@
-import { LeagueEventOrganizerType, LeagueEventType } from "@/lib/enums";
+import { AppBadgeTone, LeagueEventOrganizerType, LeagueEventType } from "@/lib/enums";
 
 export const LEAGUE_EVENT_TYPE_LABELS: Record<LeagueEventType, string> = {
   [LeagueEventType.HH]: "HH",
@@ -7,11 +7,11 @@ export const LEAGUE_EVENT_TYPE_LABELS: Record<LeagueEventType, string> = {
   [LeagueEventType.LAJE_EVENT]: "Eventos da LAJE",
 };
 
-export const LEAGUE_EVENT_TYPE_BADGE_CLASS_NAMES: Record<LeagueEventType, string> = {
-  [LeagueEventType.HH]: "border-transparent bg-amber-100 text-amber-700",
-  [LeagueEventType.OPEN_BAR]: "border-transparent bg-emerald-100 text-emerald-700",
-  [LeagueEventType.CHAMPIONSHIP]: "border-transparent bg-sky-100 text-sky-700",
-  [LeagueEventType.LAJE_EVENT]: "border-transparent bg-rose-100 text-rose-700",
+export const LEAGUE_EVENT_TYPE_BADGE_TONES: Record<LeagueEventType, AppBadgeTone> = {
+  [LeagueEventType.HH]: AppBadgeTone.AMBER,
+  [LeagueEventType.OPEN_BAR]: AppBadgeTone.EMERALD,
+  [LeagueEventType.CHAMPIONSHIP]: AppBadgeTone.BLUE,
+  [LeagueEventType.LAJE_EVENT]: AppBadgeTone.RED,
 };
 
 export const LEAGUE_EVENT_TYPE_DOT_CLASS_NAMES: Record<LeagueEventType, string> = {
@@ -22,10 +22,21 @@ export const LEAGUE_EVENT_TYPE_DOT_CLASS_NAMES: Record<LeagueEventType, string> 
 };
 
 export const LEAGUE_EVENT_TYPE_GLASS_CARD_CLASS_NAMES: Record<LeagueEventType, string> = {
-  [LeagueEventType.HH]: "border-amber-200/70 bg-amber-100/35",
-  [LeagueEventType.OPEN_BAR]: "border-emerald-200/70 bg-emerald-100/35",
-  [LeagueEventType.CHAMPIONSHIP]: "border-blue-200/70 bg-blue-100/35",
-  [LeagueEventType.LAJE_EVENT]: "border-red-200/70 bg-red-100/35",
+  [LeagueEventType.HH]:
+    "border-amber-200/70 bg-amber-100/42 text-amber-900 dark:border-amber-500/45 dark:bg-amber-900/48 dark:text-amber-100",
+  [LeagueEventType.OPEN_BAR]:
+    "border-emerald-200/70 bg-emerald-100/42 text-emerald-900 dark:border-emerald-500/45 dark:bg-emerald-900/48 dark:text-emerald-100",
+  [LeagueEventType.CHAMPIONSHIP]:
+    "border-blue-200/70 bg-blue-100/42 text-blue-900 dark:border-blue-500/45 dark:bg-blue-900/48 dark:text-blue-100",
+  [LeagueEventType.LAJE_EVENT]:
+    "border-red-200/70 bg-red-100/42 text-red-900 dark:border-red-500/45 dark:bg-red-900/52 dark:text-red-100",
+};
+
+export const LEAGUE_EVENT_TYPE_META_TEXT_CLASS_NAMES: Record<LeagueEventType, string> = {
+  [LeagueEventType.HH]: "text-amber-800/90 dark:text-amber-100/85",
+  [LeagueEventType.OPEN_BAR]: "text-emerald-800/90 dark:text-emerald-100/85",
+  [LeagueEventType.CHAMPIONSHIP]: "text-blue-800/90 dark:text-blue-100/85",
+  [LeagueEventType.LAJE_EVENT]: "text-red-800/90 dark:text-red-100/85",
 };
 
 export const LEAGUE_EVENT_ORGANIZER_LABELS: Record<LeagueEventOrganizerType, string> = {
