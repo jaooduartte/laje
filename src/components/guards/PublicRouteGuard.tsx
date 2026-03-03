@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import { Header } from "@/components/Header";
+import { useAuth } from "@/hooks/useAuth";
 import { usePublicAccessSettings } from "@/hooks/usePublicAccessSettings";
 import { AppRoutePath } from "@/lib/enums";
 import { resolveIsPublicRouteBlocked } from "@/lib/publicAccess";
@@ -12,8 +13,9 @@ interface Props {
 
 export function PublicRouteGuard({ children, routePath }: Props) {
   const { publicAccessSettings, loading } = usePublicAccessSettings();
+  const { user, loading: authLoading } = useAuth();
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="app-page">
         <Header />
@@ -27,8 +29,9 @@ export function PublicRouteGuard({ children, routePath }: Props) {
   }
 
   const isRouteBlocked = resolveIsPublicRouteBlocked(publicAccessSettings, routePath);
+  const isAuthenticated = user != null;
 
-  if (!isRouteBlocked) {
+  if (!isRouteBlocked || isAuthenticated) {
     return <>{children}</>;
   }
 

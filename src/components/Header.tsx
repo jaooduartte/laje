@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Calendar, CalendarDays, Radio, Shield, Trophy } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 import { usePublicAccessSettings } from "@/hooks/usePublicAccessSettings";
 import { AppRoutePath } from "@/lib/enums";
 import { resolveIsPublicRouteBlocked } from "@/lib/publicAccess";
@@ -21,6 +22,7 @@ const HEADER_LINKS: HeaderLinkItem[] = [
 
 export function Header() {
   const { publicAccessSettings } = usePublicAccessSettings();
+  const { user, loading: authLoading } = useAuth();
   const location = useLocation();
   const navRef = useRef<HTMLElement | null>(null);
   const linkByPathRef = useRef<Record<string, HTMLAnchorElement | null>>({});
@@ -87,8 +89,9 @@ export function Header() {
             {HEADER_LINKS.map(({ to, label, icon: Icon }) => (
               (() => {
                 const isDisabledByMaintenance = resolveIsPublicRouteBlocked(publicAccessSettings, to);
+                const shouldBlockLinkByMaintenance = !authLoading && !user && isDisabledByMaintenance;
 
-                if (isDisabledByMaintenance) {
+                if (shouldBlockLinkByMaintenance) {
                   linkByPathRef.current[to] = null;
 
                   return (
@@ -97,7 +100,7 @@ export function Header() {
                       type="button"
                       disabled
                       title="Tela temporariamente indisponível por manutenção"
-                      className="relative z-10 flex min-h-11 shrink-0 cursor-not-allowed items-center gap-1.5 rounded-none px-3 py-2.5 text-sm font-medium text-muted-foreground/70 first:rounded-l-xl last:rounded-r-xl sm:min-h-10 sm:py-2"
+                      className="relative z-10 flex min-h-11 shrink-0 cursor-not-allowed items-center gap-1.5 rounded-none px-3 py-2.5 text-sm font-medium text-muted-foreground/70 dark:text-muted-foreground/35 first:rounded-l-xl last:rounded-r-xl sm:min-h-10 sm:py-2"
                     >
                       <Icon className="h-5 w-5 sm:h-4 sm:w-4" />
                       <span className="hidden sm:inline">{label}</span>

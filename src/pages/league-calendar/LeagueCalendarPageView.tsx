@@ -299,11 +299,11 @@ export function LeagueCalendarPageView({
                           onSelectedDateChange(calendarDay);
                         }
                       }}
-                      className={`relative min-h-40 rounded-xl border border-border/45 px-2 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
+                      className={`relative min-h-40 rounded-xl border border-border/20 px-2 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
                         isToday
-                          ? "bg-primary/18 hover:bg-primary/24 dark:bg-primary/42 dark:hover:bg-primary/52"
+                          ? "bg-primary/10 hover:bg-primary/20 dark:bg-primary/15 dark:hover:bg-primary/20"
                           : isSelectedDay
-                            ? "bg-secondary/45 hover:bg-secondary/58"
+                            ? "bg-secondary/45 hover:bg-secondary/60"
                             : "hover:bg-secondary/35"
                       }`}
                     >
@@ -367,14 +367,12 @@ export function LeagueCalendarPageView({
                       key={dayKey}
                       type="button"
                       onClick={() => onSelectedDateChange(calendarDay)}
-                      className={`relative h-16 rounded-xl border border-border/50 px-1 py-1 text-left text-xs backdrop-blur ${
+                      className={`relative h-16 rounded-xl border border-border/20 px-1 py-1 text-left text-xs backdrop-blur ${
                         isToday
-                          ? "bg-primary/22 ring-1 ring-primary/35 dark:bg-primary/50 dark:ring-primary/60"
+                          ? "bg-primary/10 hover:bg-primary/20 dark:bg-primary/15 dark:hover:bg-primary/20"
                           : isSelectedDay
-                            ? "bg-secondary/55 ring-1 ring-primary/25"
-                            : isSameMonth(calendarDay, monthDate)
-                              ? "bg-secondary/35"
-                              : "bg-secondary/20"
+                            ? "bg-secondary/45 hover:bg-secondary/60"
+                            : "hover:bg-secondary/35"
                       }`}
                     >
                       <div className="absolute left-1.5 right-1.5 top-1 flex items-start justify-between">

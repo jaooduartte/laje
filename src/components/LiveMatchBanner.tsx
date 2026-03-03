@@ -26,7 +26,7 @@ export function LiveMatchBanner({ matches }: Props) {
 
   return (
     <div className="enter-section space-y-4">
-      <div className="flex items-center justify-center gap-2 sm:justify-start">
+      <div className="flex items-center justify-center gap-2">
         <Radio className="h-5 w-5 text-live live-pulse" />
         <h2 className="text-xl font-display font-bold text-live">AO VIVO AGORA</h2>
       </div>
