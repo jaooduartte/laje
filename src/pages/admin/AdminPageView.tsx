@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { LogOut } from "lucide-react";
 import { Header } from "@/components/Header";
 import { OnlineVisitorsBadge } from "@/components/OnlineVisitorsBadge";
+import { useOnlineVisitorsProviderContext } from "@/components/online-visitors/OnlineVisitorsProvider";
 import { AdminTeams } from "@/components/admin/AdminTeams";
 import { AdminSports } from "@/components/admin/AdminSports";
 import { AdminMatches } from "@/components/admin/AdminMatches";
@@ -13,7 +14,7 @@ import { AdminUsers } from "@/components/admin/AdminUsers";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AdminPanelTab, ChampionshipCode, ChampionshipStatus, OnlineVisitorsContext } from "@/lib/enums";
+import { AdminPanelTab, ChampionshipCode, ChampionshipStatus } from "@/lib/enums";
 import { CHAMPIONSHIP_STATUS_LABELS } from "@/lib/championship";
 import type { Championship, ChampionshipSport, Match, Sport, Team } from "@/lib/types";
 
@@ -144,6 +145,7 @@ export function AdminPageView({
   const [activeIndicatorLeft, setActiveIndicatorLeft] = useState(0);
   const [activeIndicatorWidth, setActiveIndicatorWidth] = useState(0);
   const [showActiveIndicator, setShowActiveIndicator] = useState(false);
+  const { siteTotalOnlineVisitorsCount } = useOnlineVisitorsProviderContext();
 
   useEffect(() => {
     const hasActiveTab = adminTabItems.some((adminTabItem) => adminTabItem.value == activeTab);
@@ -193,14 +195,14 @@ export function AdminPageView({
             <div className="w-full lg:w-auto">
               <div className="mb-2 flex justify-center sm:hidden">
                 <OnlineVisitorsBadge
-                  context={OnlineVisitorsContext.SITE_TOTAL}
+                  onlineVisitorsCount={siteTotalOnlineVisitorsCount}
                   showLabel
                 />
               </div>
               <div className="flex items-center justify-center gap-4 sm:justify-start">
                 <h1 className="text-center text-2xl font-display font-bold sm:text-left">Painel Admin</h1>
                 <OnlineVisitorsBadge
-                  context={OnlineVisitorsContext.SITE_TOTAL}
+                  onlineVisitorsCount={siteTotalOnlineVisitorsCount}
                   showLabel
                   className="hidden sm:inline-flex"
                 />

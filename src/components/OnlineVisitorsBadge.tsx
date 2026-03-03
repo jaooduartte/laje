@@ -1,23 +1,19 @@
 import { Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useOnlineVisitors } from "@/hooks/useOnlineVisitors";
-import { OnlineVisitorsContext } from "@/lib/enums";
 
 interface OnlineVisitorsBadgeProps {
-  context: OnlineVisitorsContext;
+  onlineVisitorsCount: number;
   showLabel?: boolean;
   accessibleLabel?: string;
   className?: string;
 }
 
 export function OnlineVisitorsBadge({
-  context,
+  onlineVisitorsCount,
   showLabel = false,
   accessibleLabel = "Visitantes online",
   className,
 }: OnlineVisitorsBadgeProps) {
-  const { onlineVisitorsCount } = useOnlineVisitors(context);
-
   return (
     <div
       className={cn(
