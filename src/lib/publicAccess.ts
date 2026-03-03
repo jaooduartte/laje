@@ -42,6 +42,7 @@ export function resolvePublicAccessSettings(
 
 function isPublicRoutePath(routePath: string): boolean {
   return (
+    routePath == AppRoutePath.HOME ||
     routePath == AppRoutePath.LIVE ||
     routePath == AppRoutePath.CHAMPIONSHIPS ||
     routePath == AppRoutePath.SCHEDULE ||
@@ -62,6 +63,10 @@ export function resolveIsPublicRouteBlocked(
 
   if (publicAccessSettings.is_public_access_blocked) {
     return true;
+  }
+
+  if (routePath == AppRoutePath.HOME) {
+    return false;
   }
 
   if (routePath == AppRoutePath.LIVE) {

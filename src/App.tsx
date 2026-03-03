@@ -8,6 +8,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppRoutePath } from "@/lib/enums";
+import { HomePage } from "@/pages/home/HomePage";
 import { LivePage } from "@/pages/live/LivePage";
 import { ChampionshipsPage } from "@/pages/championships/ChampionshipsPage";
 import { SchedulePage } from "@/pages/schedule/SchedulePage";
@@ -32,6 +33,14 @@ const App = () => (
             }}
           >
             <Routes>
+              <Route
+                path={AppRoutePath.HOME}
+                element={
+                  <PublicRouteGuard routePath={AppRoutePath.HOME}>
+                    <HomePage />
+                  </PublicRouteGuard>
+                }
+              />
               <Route
                 path={AppRoutePath.LIVE}
                 element={

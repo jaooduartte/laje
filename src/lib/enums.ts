@@ -27,7 +27,8 @@ export enum AppBadgeTone {
 }
 
 export enum AppRoutePath {
-  LIVE = "/",
+  HOME = "/",
+  LIVE = "/ao-vivo",
   CHAMPIONSHIPS = "/campeonatos",
   SCHEDULE = "/agenda",
   LEAGUE_CALENDAR = "/calendario-da-liga",

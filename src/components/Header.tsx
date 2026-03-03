@@ -1,24 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Calendar, CalendarDays, Radio, Shield, Trophy } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { usePublicAccessSettings } from "@/hooks/usePublicAccessSettings";
 import { AppRoutePath } from "@/lib/enums";
+import { HEADER_APP_NAVIGATION_ITEMS } from "@/lib/navigation";
 import { resolveIsPublicRouteBlocked } from "@/lib/publicAccess";
-
-interface HeaderLinkItem {
-  to: AppRoutePath;
-  label: string;
-  icon: typeof Radio;
-}
-
-const HEADER_LINKS: HeaderLinkItem[] = [
-  { to: AppRoutePath.LIVE, label: "Ao Vivo", icon: Radio },
-  { to: AppRoutePath.CHAMPIONSHIPS, label: "Campeonatos", icon: Trophy },
-  { to: AppRoutePath.SCHEDULE, label: "Agenda", icon: Calendar },
-  { to: AppRoutePath.LEAGUE_CALENDAR, label: "Calendário da Liga", icon: CalendarDays },
-  { to: AppRoutePath.ADMIN, label: "Admin", icon: Shield },
-];
 
 export function Header() {
   const { publicAccessSettings } = usePublicAccessSettings();
@@ -31,7 +17,7 @@ export function Header() {
   const [showActiveIndicator, setShowActiveIndicator] = useState(false);
 
   const activeRoutePath = useMemo(() => {
-    return HEADER_LINKS.find((headerLinkItem) => headerLinkItem.to == location.pathname)?.to ?? null;
+    return HEADER_APP_NAVIGATION_ITEMS.find((headerLinkItem) => headerLinkItem.routePath == location.pathname)?.routePath ?? null;
   }, [location.pathname]);
 
   const updateActiveIndicator = useCallback(() => {
@@ -69,7 +55,7 @@ export function Header() {
     <header className="sticky top-0 z-50">
       <div className="container py-2">
         <div className="glass-card flex h-14 items-center gap-2 px-2 sm:h-16 sm:px-3">
-          <Link to="/" className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg sm:h-14 sm:w-14">
+          <Link to={AppRoutePath.HOME} className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg sm:h-14 sm:w-14">
             <img src="/logo.png" alt="Logo LAJE" className="h-10 w-10 object-contain shadow-none sm:h-12 sm:w-12" />
           </Link>
           <nav
@@ -86,17 +72,17 @@ export function Header() {
               }}
             />
 
-            {HEADER_LINKS.map(({ to, label, icon: Icon }) => (
+            {HEADER_APP_NAVIGATION_ITEMS.map(({ routePath, label, icon: Icon }) => (
               (() => {
-                const isDisabledByMaintenance = resolveIsPublicRouteBlocked(publicAccessSettings, to);
+                const isDisabledByMaintenance = resolveIsPublicRouteBlocked(publicAccessSettings, routePath);
                 const shouldBlockLinkByMaintenance = !authLoading && !user && isDisabledByMaintenance;
 
                 if (shouldBlockLinkByMaintenance) {
-                  linkByPathRef.current[to] = null;
+                  linkByPathRef.current[routePath] = null;
 
                   return (
                     <button
-                      key={to}
+                      key={routePath}
                       type="button"
                       disabled
                       title="Tela temporariamente indisponível por manutenção"
@@ -110,13 +96,13 @@ export function Header() {
 
                 return (
                   <Link
-                    key={to}
-                    to={to}
+                    key={routePath}
+                    to={routePath}
                     ref={(linkElement) => {
-                      linkByPathRef.current[to] = linkElement;
+                      linkByPathRef.current[routePath] = linkElement;
                     }}
                     className={`relative z-10 flex min-h-11 shrink-0 items-center gap-1.5 rounded-none px-3 py-2.5 text-sm font-medium transition-colors first:rounded-l-xl last:rounded-r-xl sm:min-h-10 sm:py-2 ${
-                      location.pathname == to
+                      location.pathname == routePath
                         ? "text-primary"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
