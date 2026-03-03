@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { LogOut } from "lucide-react";
 import { Header } from "@/components/Header";
+import { OnlineVisitorsBadge } from "@/components/OnlineVisitorsBadge";
 import { AdminTeams } from "@/components/admin/AdminTeams";
 import { AdminSports } from "@/components/admin/AdminSports";
 import { AdminMatches } from "@/components/admin/AdminMatches";
@@ -12,7 +13,7 @@ import { AdminUsers } from "@/components/admin/AdminUsers";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AdminPanelTab, ChampionshipCode, ChampionshipStatus } from "@/lib/enums";
+import { AdminPanelTab, ChampionshipCode, ChampionshipStatus, OnlineVisitorsContext } from "@/lib/enums";
 import { CHAMPIONSHIP_STATUS_LABELS } from "@/lib/championship";
 import type { Championship, ChampionshipSport, Match, Sport, Team } from "@/lib/types";
 
@@ -187,27 +188,44 @@ export function AdminPageView({
     <div className="app-page">
       <Header />
       <main className="container py-8 space-y-5">
-        <div className="glass-panel enter-section flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
-          <h1 className="text-center text-2xl font-display font-bold sm:text-left">Painel Admin</h1>
+        <div className="glass-panel enter-section flex flex-col gap-4 p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="w-full lg:w-auto">
+              <div className="mb-2 flex justify-center sm:hidden">
+                <OnlineVisitorsBadge
+                  context={OnlineVisitorsContext.SITE_TOTAL}
+                  showLabel
+                />
+              </div>
+              <div className="flex items-center justify-center gap-4 sm:justify-start">
+                <h1 className="text-center text-2xl font-display font-bold sm:text-left">Painel Admin</h1>
+                <OnlineVisitorsBadge
+                  context={OnlineVisitorsContext.SITE_TOTAL}
+                  showLabel
+                  className="hidden sm:inline-flex"
+                />
+              </div>
+            </div>
 
-          <div className="flex w-full items-center gap-2 lg:w-auto">
-            <Select value={selectedChampionshipCode} onValueChange={onChampionshipCodeChange}>
-              <SelectTrigger className="glass-input h-10 min-w-0 flex-1 sm:w-[280px] sm:flex-none">
-                <SelectValue placeholder="Selecione o campeonato" />
-              </SelectTrigger>
-              <SelectContent>
-                {championships.map((championship) => (
-                  <SelectItem key={championship.id} value={championship.code}>
-                    {championship.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex w-full items-center gap-2 lg:w-auto">
+              <Select value={selectedChampionshipCode} onValueChange={onChampionshipCodeChange}>
+                <SelectTrigger className="glass-input h-10 min-w-0 flex-1 sm:w-[280px] sm:flex-none">
+                  <SelectValue placeholder="Selecione o campeonato" />
+                </SelectTrigger>
+                <SelectContent>
+                  {championships.map((championship) => (
+                    <SelectItem key={championship.id} value={championship.code}>
+                      {championship.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            <Button variant="outline" className="h-10 shrink-0 px-3 sm:px-4" onClick={onSignOut} aria-label="Sair">
-              <LogOut className="h-4 w-4" />
-              <span className="hidden sm:inline">Sair</span>
-            </Button>
+              <Button variant="outline" className="h-10 shrink-0 px-3 sm:px-4" onClick={onSignOut} aria-label="Sair">
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">Sair</span>
+              </Button>
+            </div>
           </div>
         </div>
 

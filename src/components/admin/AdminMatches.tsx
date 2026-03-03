@@ -546,9 +546,11 @@ export function AdminMatches({
           </div>
           </div>
 
-          <Button onClick={handleAdd} className="shadow-[0_4px_10px_rgba(15,23,42,0.06)] hover:shadow-[0_6px_14px_rgba(15,23,42,0.08)]">
-            <Plus className="mr-1 h-4 w-4" /> Criar Jogo
-          </Button>
+          <div className="flex justify-center">
+            <Button onClick={handleAdd} className="shadow-[0_4px_10px_rgba(15,23,42,0.06)] hover:shadow-[0_6px_14px_rgba(15,23,42,0.08)]">
+              <Plus className="mr-1 h-4 w-4" /> Criar Jogo
+            </Button>
+          </div>
 
           {availableSportsForCreate.length == 0 ? (
             <p className="text-xs text-muted-foreground">Nenhuma modalidade vinculada ao campeonato para este naipe.</p>

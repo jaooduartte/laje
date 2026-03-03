@@ -140,3 +140,13 @@ export enum AdminLogResourceTable {
   AUTH_USERS = "auth.users",
   PUBLIC_PAGE_ACCESS_SETTINGS = "public.public_page_access_settings",
 }
+
+export enum OnlineVisitorsContext {
+  SITE_TOTAL = "SITE_TOTAL",
+  LIVE_PAGE = "LIVE_PAGE",
+}
+
+export enum RealtimePresenceChannel {
+  SITE_TOTAL = "presence:site-visitors",
+  LIVE_PAGE = "presence:live-page-visitors",
+}
