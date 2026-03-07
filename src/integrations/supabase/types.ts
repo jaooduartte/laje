@@ -48,8 +48,10 @@ export type Database = {
         Row: {
           championship_id: string
           created_at: string
+          default_match_duration_minutes: number
           id: string
           naipe_mode: Database["public"]["Enums"]["championship_sport_naipe_mode"]
+          result_rule: Database["public"]["Enums"]["championship_sport_result_rule"]
           supports_cards: boolean
           tie_breaker_rule: Database["public"]["Enums"]["championship_sport_tie_breaker_rule"]
           points_draw: number
@@ -60,8 +62,10 @@ export type Database = {
         Insert: {
           championship_id: string
           created_at?: string
+          default_match_duration_minutes?: number
           id?: string
           naipe_mode?: Database["public"]["Enums"]["championship_sport_naipe_mode"]
+          result_rule?: Database["public"]["Enums"]["championship_sport_result_rule"]
           supports_cards?: boolean
           tie_breaker_rule?: Database["public"]["Enums"]["championship_sport_tie_breaker_rule"]
           points_draw?: number
@@ -72,8 +76,10 @@ export type Database = {
         Update: {
           championship_id?: string
           created_at?: string
+          default_match_duration_minutes?: number
           id?: string
           naipe_mode?: Database["public"]["Enums"]["championship_sport_naipe_mode"]
+          result_rule?: Database["public"]["Enums"]["championship_sport_result_rule"]
           supports_cards?: boolean
           tie_breaker_rule?: Database["public"]["Enums"]["championship_sport_tie_breaker_rule"]
           points_draw?: number
@@ -102,6 +108,7 @@ export type Database = {
         Row: {
           action_type: Database["public"]["Enums"]["admin_action_type"]
           actor_email: string | null
+          actor_name: string | null
           actor_role: Database["public"]["Enums"]["app_role"] | null
           actor_user_id: string | null
           created_at: string
@@ -116,6 +123,7 @@ export type Database = {
         Insert: {
           action_type: Database["public"]["Enums"]["admin_action_type"]
           actor_email?: string | null
+          actor_name?: string | null
           actor_role?: Database["public"]["Enums"]["app_role"] | null
           actor_user_id?: string | null
           created_at?: string
@@ -130,6 +138,7 @@ export type Database = {
         Update: {
           action_type?: Database["public"]["Enums"]["admin_action_type"]
           actor_email?: string | null
+          actor_name?: string | null
           actor_role?: Database["public"]["Enums"]["app_role"] | null
           actor_user_id?: string | null
           created_at?: string
@@ -205,18 +214,27 @@ export type Database = {
       admin_user_profiles: {
         Row: {
           created_at: string
+          login_identifier: string
+          name: string
+          password_status: Database["public"]["Enums"]["admin_user_password_status"]
           profile_id: string
           updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
+          login_identifier: string
+          name: string
+          password_status?: Database["public"]["Enums"]["admin_user_password_status"]
           profile_id: string
           updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
+          login_identifier?: string
+          name?: string
+          password_status?: Database["public"]["Enums"]["admin_user_password_status"]
           profile_id?: string
           updated_at?: string
           user_id?: string
@@ -315,6 +333,7 @@ export type Database = {
           away_yellow_cards: number
           away_team_id: string
           championship_id: string
+          court_name: string | null
           created_at: string
           division: Database["public"]["Enums"]["team_division"] | null
           end_time: string
@@ -336,6 +355,7 @@ export type Database = {
           away_yellow_cards?: number
           away_team_id: string
           championship_id: string
+          court_name?: string | null
           created_at?: string
           division?: Database["public"]["Enums"]["team_division"] | null
           end_time: string
@@ -357,6 +377,7 @@ export type Database = {
           away_yellow_cards?: number
           away_team_id?: string
           championship_id?: string
+          court_name?: string | null
           created_at?: string
           division?: Database["public"]["Enums"]["team_division"] | null
           end_time?: string
@@ -558,23 +579,67 @@ export type Database = {
         }
         Returns: undefined
       }
+      admin_delete_users: {
+        Args: {
+          _target_user_ids: string[]
+        }
+        Returns: number
+      }
+      admin_reset_users_password_setup: {
+        Args: {
+          _target_user_ids: string[]
+        }
+        Returns: number
+      }
+      admin_update_user_name: {
+        Args: {
+          _name: string
+          _target_user_id: string
+        }
+        Returns: undefined
+      }
+      admin_update_user_login_identifier: {
+        Args: {
+          _login_identifier: string
+          _target_user_id: string
+        }
+        Returns: undefined
+      }
       admin_update_user_password: {
         Args: { _new_password: string; _target_user_id: string }
         Returns: undefined
       }
       can_access_admin_panel: { Args: never; Returns: boolean }
+      complete_admin_user_password_setup: {
+        Args: { _login_identifier: string; _new_password: string }
+        Returns: string
+      }
       create_admin_user_with_access: {
         Args: {
-          _email: string
-          _password: string
+          _login_identifier: string
+          _name?: string | null
+          _password?: string | null
           _profile_id?: string | null
           _role?: Database["public"]["Enums"]["app_role"] | null
         }
         Returns: string
       }
+      generate_championship_bracket_groups: {
+        Args: { _championship_id: string; _payload: Json }
+        Returns: string
+      }
+      generate_championship_knockout: {
+        Args: { _bracket_edition_id?: string | null; _championship_id: string }
+        Returns: string
+      }
+      get_championship_bracket_view: {
+        Args: { _championship_id: string }
+        Returns: Json
+      }
       get_current_user_admin_context: {
         Args: never
         Returns: {
+          account_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
           control_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
           events_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
           logs_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
@@ -586,6 +651,18 @@ export type Database = {
           sports_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
           teams_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
           users_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
+        }[]
+      }
+      get_current_admin_account: {
+        Args: never
+        Returns: {
+          email: string | null
+          login_identifier: string
+          name: string
+          password_status: Database["public"]["Enums"]["admin_user_password_status"]
+          profile_id: string | null
+          profile_name: string | null
+          user_id: string
         }[]
       }
       get_current_user_role: {
@@ -622,6 +699,10 @@ export type Database = {
           updated_at: string
         }[]
       }
+      get_match_sets: {
+        Args: { _match_id: string }
+        Returns: Json
+      }
       list_admin_profiles: {
         Args: never
         Returns: {
@@ -639,10 +720,25 @@ export type Database = {
           created_at: string
           email: string | null
           last_sign_in_at: string | null
+          login_identifier: string
+          name: string
+          password_status: Database["public"]["Enums"]["admin_user_password_status"]
           profile_id: string | null
           profile_name: string | null
           role: Database["public"]["Enums"]["app_role"] | null
           user_id: string
+        }[]
+      }
+      register_admin_login_action: {
+        Args: never
+        Returns: undefined
+      }
+      resolve_admin_login_state: {
+        Args: { _login_identifier: string }
+        Returns: {
+          auth_email: string
+          login_identifier: string
+          password_status: Database["public"]["Enums"]["admin_user_password_status"]
         }[]
       }
       upsert_admin_profile: {
@@ -664,14 +760,23 @@ export type Database = {
         }
         Returns: undefined
       }
+      save_match_sets: {
+        Args: { _match_id: string; _sets: Json }
+        Returns: undefined
+      }
     }
     Enums: {
-      admin_action_type: "INSERT" | "UPDATE" | "DELETE" | "PASSWORD_CHANGED"
+      admin_action_type: "INSERT" | "UPDATE" | "DELETE" | "PASSWORD_CHANGED" | "LOGIN"
       admin_panel_permission_level: "NONE" | "VIEW" | "EDIT"
-      admin_panel_tab: "matches" | "control" | "teams" | "sports" | "events" | "logs" | "users" | "settings"
+      admin_panel_tab: "matches" | "control" | "teams" | "sports" | "events" | "logs" | "users" | "account" | "settings"
+      admin_user_password_status: "PENDING" | "ACTIVE"
       app_role: "admin" | "eventos" | "mesa"
+      bracket_edition_status: "DRAFT" | "GROUPS_GENERATED" | "KNOCKOUT_GENERATED"
+      bracket_phase: "GROUP_STAGE" | "KNOCKOUT"
+      bracket_third_place_mode: "NONE" | "MATCH" | "CHAMPION_SEMIFINAL_LOSER"
       championship_code: "CLV" | "SOCIETY" | "INTERLAJE"
       championship_sport_naipe_mode: "MISTO" | "MASCULINO_FEMININO"
+      championship_sport_result_rule: "POINTS" | "SETS"
       championship_sport_tie_breaker_rule: "STANDARD" | "POINTS_AVERAGE" | "BEACH_SOCCER" | "BEACH_TENNIS"
       championship_status: "PLANNING" | "UPCOMING" | "IN_PROGRESS" | "FINISHED"
       league_event_organizer_type: "ATHLETIC" | "LAJE"
@@ -806,11 +911,16 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      admin_action_type: ["INSERT", "UPDATE", "DELETE", "PASSWORD_CHANGED", "LOGIN"],
       admin_panel_permission_level: ["NONE", "VIEW", "EDIT"],
-      admin_panel_tab: ["matches", "control", "teams", "sports", "events", "logs", "users", "settings"],
+      admin_panel_tab: ["matches", "control", "teams", "sports", "events", "logs", "users", "account", "settings"],
       app_role: ["admin", "eventos", "mesa"],
+      bracket_edition_status: ["DRAFT", "GROUPS_GENERATED", "KNOCKOUT_GENERATED"],
+      bracket_phase: ["GROUP_STAGE", "KNOCKOUT"],
+      bracket_third_place_mode: ["NONE", "MATCH", "CHAMPION_SEMIFINAL_LOSER"],
       championship_code: ["CLV", "SOCIETY", "INTERLAJE"],
       championship_sport_naipe_mode: ["MISTO", "MASCULINO_FEMININO"],
+      championship_sport_result_rule: ["POINTS", "SETS"],
       championship_sport_tie_breaker_rule: ["STANDARD", "POINTS_AVERAGE", "BEACH_SOCCER", "BEACH_TENNIS"],
       championship_status: ["PLANNING", "UPCOMING", "IN_PROGRESS", "FINISHED"],
       league_event_organizer_type: ["ATHLETIC", "LAJE"],

@@ -1,5 +1,9 @@
 import {
   AppBadgeTone,
+  BracketEditionStatus,
+  BracketPhase,
+  BracketThirdPlaceMode,
+  ChampionshipSportResultRule,
   ChampionshipSportNaipeMode,
   ChampionshipSportTieBreakerRule,
   ChampionshipCode,
@@ -22,8 +26,8 @@ export const TEAM_DIVISION_SELECTION_LABELS: Record<TeamDivisionSelection, strin
 };
 
 export const CHAMPIONSHIP_STATUS_LABELS: Record<ChampionshipStatus, string> = {
-  [ChampionshipStatus.PLANNING]: "Em planejamento",
-  [ChampionshipStatus.UPCOMING]: "Em breve",
+  [ChampionshipStatus.PLANNING]: "Em breve",
+  [ChampionshipStatus.UPCOMING]: "Configurando campeonato",
   [ChampionshipStatus.IN_PROGRESS]: "Em andamento",
   [ChampionshipStatus.FINISHED]: "Encerrado",
 };
@@ -76,6 +80,28 @@ export const CHAMPIONSHIP_SPORT_TIE_BREAKER_RULE_LABELS: Record<ChampionshipSpor
   [ChampionshipSportTieBreakerRule.POINTS_AVERAGE]: "Pontos Average",
   [ChampionshipSportTieBreakerRule.BEACH_SOCCER]: "Beach Soccer",
   [ChampionshipSportTieBreakerRule.BEACH_TENNIS]: "Beach Tennis",
+};
+
+export const CHAMPIONSHIP_SPORT_RESULT_RULE_LABELS: Record<ChampionshipSportResultRule, string> = {
+  [ChampionshipSportResultRule.POINTS]: "Por Pontos",
+  [ChampionshipSportResultRule.SETS]: "Por Sets",
+};
+
+export const BRACKET_PHASE_LABELS: Record<BracketPhase, string> = {
+  [BracketPhase.GROUP_STAGE]: "Fase de Grupos",
+  [BracketPhase.KNOCKOUT]: "Mata-mata",
+};
+
+export const BRACKET_EDITION_STATUS_LABELS: Record<BracketEditionStatus, string> = {
+  [BracketEditionStatus.DRAFT]: "Rascunho",
+  [BracketEditionStatus.GROUPS_GENERATED]: "Grupos Gerados",
+  [BracketEditionStatus.KNOCKOUT_GENERATED]: "Mata-mata Gerado",
+};
+
+export const BRACKET_THIRD_PLACE_MODE_LABELS: Record<BracketThirdPlaceMode, string> = {
+  [BracketThirdPlaceMode.NONE]: "Sem 3º lugar",
+  [BracketThirdPlaceMode.MATCH]: "Disputa de 3º lugar",
+  [BracketThirdPlaceMode.CHAMPION_SEMIFINAL_LOSER]: "3º lugar herdado da semi do campeão",
 };
 
 export function isTeamDivision(value: string): value is TeamDivision {
@@ -147,5 +173,17 @@ export function isChampionshipCode(value: string): value is ChampionshipCode {
     value === ChampionshipCode.CLV ||
     value === ChampionshipCode.SOCIETY ||
     value === ChampionshipCode.INTERLAJE
+  );
+}
+
+export function isChampionshipSportResultRule(value: string): value is ChampionshipSportResultRule {
+  return value === ChampionshipSportResultRule.POINTS || value === ChampionshipSportResultRule.SETS;
+}
+
+export function isBracketThirdPlaceMode(value: string): value is BracketThirdPlaceMode {
+  return (
+    value === BracketThirdPlaceMode.NONE ||
+    value === BracketThirdPlaceMode.MATCH ||
+    value === BracketThirdPlaceMode.CHAMPION_SEMIFINAL_LOSER
   );
 }

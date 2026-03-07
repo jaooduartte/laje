@@ -4,6 +4,7 @@ import { useStandings } from "@/hooks/useStandings";
 import { useSports } from "@/hooks/useSports";
 import { useTeams } from "@/hooks/useTeams";
 import { useChampionships } from "@/hooks/useChampionships";
+import { useChampionshipBracket } from "@/hooks/useChampionshipBracket";
 import { useSelectedChampionship } from "@/hooks/useSelectedChampionship";
 import { useChampionshipSelection } from "@/hooks/useChampionshipSelection";
 import { ChampionshipCode, ChampionshipSportTieBreakerRule, ChampionshipStatus } from "@/lib/enums";
@@ -43,6 +44,9 @@ export function ChampionshipsPage() {
   });
   const { sports, championshipSports } = useSports({ championshipId: selectedChampionshipId });
   const { teams } = useTeams();
+  const { championshipBracketView, loading: championshipBracketLoading } = useChampionshipBracket({
+    championshipId: selectedChampionshipId,
+  });
 
   const [sportFilter, setSportFilter] = useState<string | null>(null);
   const [teamFilter, setTeamFilter] = useState<string>(ALL_TEAM_FILTER);
@@ -205,6 +209,8 @@ export function ChampionshipsPage() {
       onStandingsNaipeFilterChange={setStandingsNaipeFilter}
       onTeamFilterChange={setTeamFilter}
       onYearFilterChange={setYearFilter}
+      championshipBracketView={championshipBracketView}
+      championshipBracketLoading={championshipBracketLoading}
     />
   );
 }

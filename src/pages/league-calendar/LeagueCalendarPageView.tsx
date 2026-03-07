@@ -110,6 +110,9 @@ export function LeagueCalendarPageView({
   const selectedDateEvents = leagueEventsByDate[selectedDateKey] ?? [];
   const mobileShowsSelectedDateEvents = selectedDateEvents.length > 0;
   const mobileVisibleEvents = mobileShowsSelectedDateEvents ? selectedDateEvents : leagueEvents;
+  const eventsSummaryLabel = hasActiveFilters
+    ? `${filteredLeagueEvents.length} evento(s) no ano`
+    : `${leagueEvents.length} evento(s) no mês`;
   const today = new Date();
   const handleOpenLeagueEvent = (leagueEvent: LeagueEvent) => {
     if (typeof window != "undefined" && window.matchMedia("(max-width: 767px)").matches) {
@@ -220,7 +223,7 @@ export function LeagueCalendarPageView({
                 <span>{LEAGUE_EVENT_TYPE_LABELS[leagueEventType]}</span>
               </div>
             ))}
-            <span className="text-xs text-muted-foreground">{leagueEvents.length} evento(s) no mês</span>
+            <span className="text-xs text-muted-foreground">{eventsSummaryLabel}</span>
           </div>
         </section>
 

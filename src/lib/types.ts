@@ -3,12 +3,17 @@ import type {
   AdminPanelPermissionLevel,
   AdminPanelRole,
   AdminPanelTab,
+  AdminUserPasswordStatus,
   LeagueEventOrganizerType,
   LeagueEventType,
   ChampionshipCode,
   ChampionshipSportNaipeMode,
+  ChampionshipSportResultRule,
   ChampionshipSportTieBreakerRule,
   ChampionshipStatus,
+  BracketEditionStatus,
+  BracketPhase,
+  BracketThirdPlaceMode,
   MatchNaipe,
   MatchStatus,
   TeamDivision,
@@ -43,8 +48,10 @@ export interface ChampionshipSport {
   championship_id: string;
   sport_id: string;
   naipe_mode: ChampionshipSportNaipeMode;
+  result_rule: ChampionshipSportResultRule;
   supports_cards: boolean;
   tie_breaker_rule: ChampionshipSportTieBreakerRule;
+  default_match_duration_minutes: number;
   points_win: number;
   points_draw: number;
   points_loss: number;
@@ -64,6 +71,7 @@ export interface Match {
   home_team_id: string;
   away_team_id: string;
   location: string;
+  court_name: string | null;
   start_time: string;
   end_time: string;
   status: MatchStatus;
@@ -122,6 +130,7 @@ export interface LeagueEvent {
 export interface AdminActionLog {
   id: string;
   actor_user_id: string | null;
+  actor_name: string | null;
   actor_email: string | null;
   actor_role: AdminPanelRole | null;
   action_type: AdminActionType;
@@ -147,6 +156,7 @@ export interface CurrentUserAdminContext {
   events_permission: AdminPanelPermissionLevel;
   logs_permission: AdminPanelPermissionLevel;
   users_permission: AdminPanelPermissionLevel;
+  account_permission: AdminPanelPermissionLevel;
   settings_permission: AdminPanelPermissionLevel;
 }
 
@@ -171,10 +181,100 @@ export interface AdminProfile {
 
 export interface AdminUser {
   user_id: string;
+  name: string;
   email: string | null;
+  login_identifier: string;
+  password_status: AdminUserPasswordStatus;
   role: AdminPanelRole | null;
   profile_id: string | null;
   profile_name: string | null;
   created_at: string;
   last_sign_in_at: string | null;
+}
+
+export interface CurrentAdminAccount {
+  user_id: string;
+  name: string;
+  email: string | null;
+  login_identifier: string;
+  password_status: AdminUserPasswordStatus;
+  profile_id: string | null;
+  profile_name: string | null;
+}
+
+export interface ChampionshipBracketEdition {
+  id: string;
+  championship_id: string;
+  status: BracketEditionStatus;
+  payload_snapshot: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChampionshipBracketGroupTeam {
+  team_id: string;
+  team_name: string;
+  team_city: string;
+  position: number;
+}
+
+export interface ChampionshipBracketGroupMatch {
+  id: string;
+  match_id: string | null;
+  status: MatchStatus | null;
+  start_time: string | null;
+  end_time: string | null;
+  location: string | null;
+  court_name: string | null;
+  home_team_id: string | null;
+  away_team_id: string | null;
+  home_team_name: string | null;
+  away_team_name: string | null;
+  winner_team_id: string | null;
+  winner_team_name: string | null;
+}
+
+export interface ChampionshipBracketGroup {
+  id: string;
+  group_number: number;
+  teams: ChampionshipBracketGroupTeam[];
+  matches: ChampionshipBracketGroupMatch[];
+}
+
+export interface ChampionshipBracketKnockoutMatch {
+  id: string;
+  round_number: number;
+  slot_number: number;
+  match_id: string | null;
+  status: MatchStatus | null;
+  start_time: string | null;
+  end_time: string | null;
+  location: string | null;
+  court_name: string | null;
+  home_team_id: string | null;
+  away_team_id: string | null;
+  home_team_name: string | null;
+  away_team_name: string | null;
+  winner_team_id: string | null;
+  winner_team_name: string | null;
+  is_bye: boolean;
+  is_third_place: boolean;
+}
+
+export interface ChampionshipBracketCompetition {
+  id: string;
+  sport_id: string;
+  sport_name: string;
+  naipe: MatchNaipe;
+  division: TeamDivision | null;
+  groups_count: number;
+  qualifiers_per_group: number;
+  third_place_mode: BracketThirdPlaceMode;
+  groups: ChampionshipBracketGroup[];
+  knockout_matches: ChampionshipBracketKnockoutMatch[];
+}
+
+export interface ChampionshipBracketView {
+  edition: ChampionshipBracketEdition | null;
+  competitions: ChampionshipBracketCompetition[];
 }

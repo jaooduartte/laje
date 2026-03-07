@@ -10,6 +10,7 @@ import { AdminMatchControl } from "@/components/admin/AdminMatchControl";
 import { AdminLeagueEvents } from "@/components/admin/AdminLeagueEvents";
 import { AdminLogs } from "@/components/admin/AdminLogs";
 import { AdminPublicAccessSettings } from "@/components/admin/AdminPublicAccessSettings";
+import { AdminAccount } from "@/components/admin/AdminAccount";
 import { AdminUsers } from "@/components/admin/AdminUsers";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -35,6 +36,7 @@ interface AdminPageViewProps {
   canViewEventsTab: boolean;
   canViewLogsTab: boolean;
   canViewUsersTab: boolean;
+  canViewAccountTab: boolean;
   canViewSettingsTab: boolean;
   canManageMatches: boolean;
   canManageChampionshipStatus: boolean;
@@ -42,6 +44,7 @@ interface AdminPageViewProps {
   canManageTeams: boolean;
   canManageLeagueEvents: boolean;
   canManageUsers: boolean;
+  canManageAccount: boolean;
   canManageSettings: boolean;
   defaultTabValue: AdminPanelTab;
   updatingChampionshipStatus: boolean;
@@ -75,6 +78,7 @@ export function AdminPageView({
   canViewEventsTab,
   canViewLogsTab,
   canViewUsersTab,
+  canViewAccountTab,
   canViewSettingsTab,
   canManageMatches,
   canManageChampionshipStatus,
@@ -82,6 +86,7 @@ export function AdminPageView({
   canManageTeams,
   canManageLeagueEvents,
   canManageUsers,
+  canManageAccount,
   canManageSettings,
   defaultTabValue,
   updatingChampionshipStatus,
@@ -123,6 +128,10 @@ export function AdminPageView({
       nextAdminTabItems.push({ value: AdminPanelTab.USERS, label: "Usuários" });
     }
 
+    if (canViewAccountTab) {
+      nextAdminTabItems.push({ value: AdminPanelTab.ACCOUNT, label: "Minha conta" });
+    }
+
     if (canViewSettingsTab) {
       nextAdminTabItems.push({ value: AdminPanelTab.SETTINGS, label: "Configurações" });
     }
@@ -133,6 +142,7 @@ export function AdminPageView({
     canViewEventsTab,
     canViewLogsTab,
     canViewMatchesTab,
+    canViewAccountTab,
     canViewSettingsTab,
     canViewSportsTab,
     canViewTeamsTab,
@@ -240,7 +250,7 @@ export function AdminPageView({
               onValueChange={onChampionshipStatusChange}
               disabled={updatingChampionshipStatus}
             >
-              <SelectTrigger className="glass-input h-10 w-full sm:w-52">
+              <SelectTrigger className="glass-input h-10 w-full sm:w-[320px]">
                 <SelectValue placeholder="Alterar status" />
               </SelectTrigger>
               <SelectContent>
@@ -312,6 +322,7 @@ export function AdminPageView({
             <TabsContent value={AdminPanelTab.CONTROL}>
               <AdminMatchControl
                 matches={liveAndScheduledMatches}
+                championshipSports={championshipSports}
                 onRefetch={onRefetchMatches}
                 canManageScoreboard={canManageScoreboard}
               />
@@ -349,6 +360,12 @@ export function AdminPageView({
           {canViewUsersTab ? (
             <TabsContent value={AdminPanelTab.USERS}>
               <AdminUsers canManageUsers={canManageUsers} />
+            </TabsContent>
+          ) : null}
+
+          {canViewAccountTab ? (
+            <TabsContent value={AdminPanelTab.ACCOUNT}>
+              <AdminAccount canManageAccount={canManageAccount} />
             </TabsContent>
           ) : null}
 

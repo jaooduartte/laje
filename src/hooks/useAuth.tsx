@@ -14,6 +14,7 @@ const DEFAULT_ADMIN_TAB_PERMISSIONS: AdminTabPermissionByTab = {
   [AdminPanelTab.EVENTS]: AdminPanelPermissionLevel.NONE,
   [AdminPanelTab.LOGS]: AdminPanelPermissionLevel.NONE,
   [AdminPanelTab.USERS]: AdminPanelPermissionLevel.NONE,
+  [AdminPanelTab.ACCOUNT]: AdminPanelPermissionLevel.NONE,
   [AdminPanelTab.SETTINGS]: AdminPanelPermissionLevel.NONE,
 };
 
@@ -55,6 +56,9 @@ function resolveAdminTabPermissionsFromContext(context: CurrentUserAdminContext 
       : AdminPanelPermissionLevel.NONE,
     [AdminPanelTab.USERS]: isAdminPanelPermissionLevel(context.users_permission)
       ? context.users_permission
+      : AdminPanelPermissionLevel.NONE,
+    [AdminPanelTab.ACCOUNT]: isAdminPanelPermissionLevel(context.account_permission)
+      ? context.account_permission
       : AdminPanelPermissionLevel.NONE,
     [AdminPanelTab.SETTINGS]: isAdminPanelPermissionLevel(context.settings_permission)
       ? context.settings_permission

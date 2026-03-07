@@ -4,6 +4,7 @@ import { OnlineVisitorsContext } from "@/lib/enums";
 
 interface OnlineVisitorsProviderContextValue {
   siteTotalOnlineVisitorsCount: number;
+  siteTotalOnlineUserIds: string[];
 }
 
 const OnlineVisitorsProviderContext = createContext<OnlineVisitorsProviderContextValue | null>(null);
@@ -13,13 +14,14 @@ interface OnlineVisitorsProviderProps {
 }
 
 export function OnlineVisitorsProvider({ children }: OnlineVisitorsProviderProps) {
-  const { onlineVisitorsCount } = useOnlineVisitors(OnlineVisitorsContext.SITE_TOTAL);
+  const { onlineVisitorsCount, onlineUserIds } = useOnlineVisitors(OnlineVisitorsContext.SITE_TOTAL);
 
   const onlineVisitorsProviderContextValue = useMemo(
     () => ({
       siteTotalOnlineVisitorsCount: onlineVisitorsCount,
+      siteTotalOnlineUserIds: onlineUserIds,
     }),
-    [onlineVisitorsCount],
+    [onlineUserIds, onlineVisitorsCount],
   );
 
   return (

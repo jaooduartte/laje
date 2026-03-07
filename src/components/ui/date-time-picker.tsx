@@ -14,36 +14,70 @@ interface DateTimePickerProps {
   placeholder: string;
   showTime?: boolean;
   className?: string;
+  defaultTime?: string;
 }
 
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, index) => index.toString().padStart(2, "0"));
 const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) => (index * 5).toString().padStart(2, "0"));
 
-function getBaseDate(value: Date | null): Date {
+function resolveDefaultTimeParts(defaultTime?: string): { hour: number; minute: number } | null {
+  if (!defaultTime) {
+    return null;
+  }
+
+  const [hourPart, minutePart] = defaultTime.split(":").map(Number);
+
+  if (Number.isNaN(hourPart) || Number.isNaN(minutePart) || hourPart < 0 || hourPart > 23 || minutePart < 0 || minutePart > 59) {
+    return null;
+  }
+
+  return {
+    hour: hourPart,
+    minute: minutePart,
+  };
+}
+
+function getBaseDate(value: Date | null, defaultTimeParts: { hour: number; minute: number } | null): Date {
   if (value) {
     return new Date(value);
   }
 
   const currentDate = new Date();
+
+  if (defaultTimeParts) {
+    currentDate.setHours(defaultTimeParts.hour, defaultTimeParts.minute, 0, 0);
+    return currentDate;
+  }
+
   currentDate.setSeconds(0, 0);
   return currentDate;
 }
 
-export function DateTimePicker({ value, onChange, placeholder, showTime = true, className }: DateTimePickerProps) {
+export function DateTimePicker({ value, onChange, placeholder, showTime = true, className, defaultTime }: DateTimePickerProps) {
   const selectedDate = value ? new Date(value) : undefined;
+  const defaultTimeParts = useMemo(() => resolveDefaultTimeParts(defaultTime), [defaultTime]);
 
   const selectedHour = useMemo(() => {
+    if (!value && defaultTimeParts) {
+      return defaultTimeParts.hour.toString().padStart(2, "0");
+    }
+
     return value ? value.getHours().toString().padStart(2, "0") : HOUR_OPTIONS[12];
-  }, [value]);
+  }, [defaultTimeParts, value]);
 
   const selectedMinute = useMemo(() => {
+    if (!value && defaultTimeParts) {
+      const roundedMinute = Math.floor(defaultTimeParts.minute / 5) * 5;
+      return roundedMinute.toString().padStart(2, "0");
+    }
+
     if (value) {
       const roundedMinute = Math.floor(value.getMinutes() / 5) * 5;
       return roundedMinute.toString().padStart(2, "0");
     }
 
     return MINUTE_OPTIONS[0];
-  }, [value]);
+  }, [defaultTimeParts, value]);
 
   const handleDateSelect = (nextDate: Date | undefined) => {
     if (!nextDate) {
@@ -57,20 +91,20 @@ export function DateTimePicker({ value, onChange, placeholder, showTime = true, 
       return;
     }
 
-    const baseDate = getBaseDate(value);
+    const baseDate = getBaseDate(value, defaultTimeParts);
     const mergedDate = new Date(nextDate);
     mergedDate.setHours(baseDate.getHours(), baseDate.getMinutes(), 0, 0);
     onChange(mergedDate);
   };
 
   const handleHourChange = (nextHour: string) => {
-    const baseDate = getBaseDate(value);
+    const baseDate = getBaseDate(value, defaultTimeParts);
     baseDate.setHours(Number(nextHour), Number(selectedMinute), 0, 0);
     onChange(baseDate);
   };
 
   const handleMinuteChange = (nextMinute: string) => {
-    const baseDate = getBaseDate(value);
+    const baseDate = getBaseDate(value, defaultTimeParts);
     baseDate.setHours(Number(selectedHour), Number(nextMinute), 0, 0);
     onChange(baseDate);
   };

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
-import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -16,9 +16,15 @@ import {
   TeamDivision,
 } from "@/lib/enums";
 import { CHAMPIONSHIP_STATUS_LABELS, MATCH_NAIPE_LABELS, TEAM_DIVISION_LABELS } from "@/lib/championship";
+import { isAdminUserPasswordStatus, resolveAdminUserPasswordStatusLabel } from "@/lib/adminUsers";
 import { LEAGUE_EVENT_ORGANIZER_LABELS, LEAGUE_EVENT_TYPE_LABELS } from "@/domain/league-events/leagueEvent.constants";
 import type { AdminActionLog } from "@/lib/types";
 import { AppBadge } from "@/components/ui/app-badge";
+import {
+  AppItemsPerPageControl,
+  AppPaginationControls,
+  DEFAULT_PAGINATION_ITEMS_PER_PAGE,
+} from "@/components/ui/app-pagination-controls";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -34,8 +40,6 @@ const ALL_USERS_FILTER = "ALL_USERS";
 const ALL_ACTIONS_FILTER = "ALL_ACTIONS";
 const MAXIMUM_LOG_CHANGES = 7;
 const LOGS_GRID_TEMPLATE = "lg:grid-cols-[minmax(240px,max-content)_minmax(0,1fr)_120px]";
-const LOGS_VISIBLE_PAGE_BUTTONS = 5;
-const LOGS_ITEMS_PER_PAGE_OPTIONS = ["10", "20", "30", "50"];
 
 const ADMIN_PANEL_ROLE_LABELS: Record<AdminPanelRole, string> = {
   [AdminPanelRole.ADMIN]: "Admin",
@@ -48,6 +52,7 @@ const ADMIN_ACTION_TYPE_LABELS: Record<AdminActionType, string> = {
   [AdminActionType.UPDATE]: "Edição",
   [AdminActionType.DELETE]: "Exclusão",
   [AdminActionType.PASSWORD_CHANGED]: "Senha alterada",
+  [AdminActionType.LOGIN]: "Login",
 };
 
 const ADMIN_ACTION_TYPE_BADGE_TONES: Record<AdminActionType, AppBadgeTone> = {
@@ -55,6 +60,7 @@ const ADMIN_ACTION_TYPE_BADGE_TONES: Record<AdminActionType, AppBadgeTone> = {
   [AdminActionType.UPDATE]: AppBadgeTone.AMBER,
   [AdminActionType.DELETE]: AppBadgeTone.RED,
   [AdminActionType.PASSWORD_CHANGED]: AppBadgeTone.BLUE,
+  [AdminActionType.LOGIN]: AppBadgeTone.SKY,
 };
 
 const ADMIN_LOG_RESOURCE_LABELS: Record<AdminLogResourceTable, string> = {
@@ -86,8 +92,12 @@ const ADMIN_LOG_DEFAULT_FIELD_LABELS: Record<string, string> = {
   system_role: "Perfil de sistema",
   profile_id: "Perfil",
   profile_name: "Nome do perfil",
+  login_identifier: "Login",
+  password_status: "Status da senha",
   permissions: "Permissões",
+  target_user_name: "Usuário",
   target_user_email: "E-mail do usuário",
+  target_user_login_identifier: "Login do usuário",
   target_user_role: "Perfil do usuário",
   target_user_id: "ID do usuário",
   city: "Cidade",
@@ -173,6 +183,7 @@ const MATCH_TEAM_FIELDS = new Set(["home_team_id", "away_team_id"]);
 interface AdminLogListItem {
   id: string;
   rawLog: AdminActionLog;
+  actorName: string;
   actorEmail: string;
   actorRole: AdminPanelRole | null;
   actionType: AdminActionType;
@@ -188,7 +199,8 @@ function isAdminActionType(value: string): value is AdminActionType {
     value == AdminActionType.INSERT ||
     value == AdminActionType.UPDATE ||
     value == AdminActionType.DELETE ||
-    value == AdminActionType.PASSWORD_CHANGED
+    value == AdminActionType.PASSWORD_CHANGED ||
+    value == AdminActionType.LOGIN
   );
 }
 
@@ -363,6 +375,10 @@ function resolveFieldValueText(fieldName: string, value: unknown, teamNameById: 
       return CHAMPIONSHIP_STATUS_LABELS[value];
     }
 
+    if (fieldName == "password_status" && isAdminUserPasswordStatus(value)) {
+      return resolveAdminUserPasswordStatusLabel(value);
+    }
+
     return value;
   }
 
@@ -469,6 +485,7 @@ function resolveChangedFields(log: AdminActionLog, teamNameById: TeamNameById): 
 function resolvePrimaryName(log: AdminActionLog): string | null {
   const nextValues = resolveRecordValue(log.new_data);
   const previousValues = resolveRecordValue(log.old_data);
+  const metadata = resolveRecordValue(log.metadata);
 
   if (nextValues?.name && typeof nextValues.name == "string") {
     return nextValues.name;
@@ -478,16 +495,27 @@ function resolvePrimaryName(log: AdminActionLog): string | null {
     return previousValues.name;
   }
 
+  if (metadata?.target_user_name && typeof metadata.target_user_name == "string") {
+    return metadata.target_user_name;
+  }
+
   return null;
 }
 
 function resolveHeadline(log: AdminActionLog): string {
+  const primaryName = resolvePrimaryName(log);
+
+  if (log.action_type == AdminActionType.LOGIN) {
+    return primaryName ? `Acessou a plataforma: ${primaryName}` : "Acessou a plataforma";
+  }
+
   if (log.action_type == AdminActionType.PASSWORD_CHANGED) {
-    return "Senha de usuário administrativo alterada";
+    return primaryName
+      ? `Senha de usuário administrativo alterada: ${primaryName}`
+      : "Senha de usuário administrativo alterada";
   }
 
   const resourceEntityLabel = resolveResourceEntityLabel(log.resource_table);
-  const primaryName = resolvePrimaryName(log);
   const suffix = primaryName ? `: ${primaryName}` : "";
 
   if (log.action_type == AdminActionType.INSERT) {
@@ -502,6 +530,24 @@ function resolveHeadline(log: AdminActionLog): string {
 }
 
 function resolveFallbackDetail(log: AdminActionLog): string {
+  const primaryName = resolvePrimaryName(log);
+
+  if (log.action_type == AdminActionType.LOGIN) {
+    return "Login administrativo registrado.";
+  }
+
+  if (log.resource_table == AdminLogResourceTable.AUTH_USERS && log.action_type == AdminActionType.INSERT) {
+    return primaryName
+      ? `Usuário administrativo ${primaryName} criado com sucesso.`
+      : "Novo usuário administrativo criado.";
+  }
+
+  if (log.resource_table == AdminLogResourceTable.AUTH_USERS && log.action_type == AdminActionType.DELETE) {
+    return primaryName
+      ? `Usuário administrativo ${primaryName} removido.`
+      : "Usuário administrativo removido.";
+  }
+
   if (log.action_type == AdminActionType.INSERT) {
     return `Novo item em ${resolveResourceLabel(log.resource_table)}.`;
   }
@@ -511,10 +557,12 @@ function resolveFallbackDetail(log: AdminActionLog): string {
   }
 
   if (log.action_type == AdminActionType.PASSWORD_CHANGED) {
-    return "Alteração de senha registrada.";
+    return primaryName ? `Alteração de senha registrada para ${primaryName}.` : "Alteração de senha registrada.";
   }
 
-  return `Dados atualizados em ${resolveResourceLabel(log.resource_table)}.`;
+  return primaryName
+    ? `Dados de ${primaryName} atualizados em ${resolveResourceLabel(log.resource_table)}.`
+    : `Dados atualizados em ${resolveResourceLabel(log.resource_table)}.`;
 }
 
 function resolveOrSearchValue(searchText: string): string {
@@ -527,44 +575,23 @@ function resolveOrSearchValue(searchText: string): string {
   return [
     `resource_table.ilike.%${normalizedSearchText}%`,
     `description.ilike.%${normalizedSearchText}%`,
+    `actor_name.ilike.%${normalizedSearchText}%`,
     `actor_email.ilike.%${normalizedSearchText}%`,
     `record_id.ilike.%${normalizedSearchText}%`,
   ].join(",");
 }
 
-function resolveVisiblePages(currentPage: number, totalPages: number): number[] {
-  if (totalPages <= LOGS_VISIBLE_PAGE_BUTTONS) {
-    return Array.from({ length: totalPages }, (_, pageIndex) => pageIndex + 1);
-  }
-
-  const halfRange = Math.floor(LOGS_VISIBLE_PAGE_BUTTONS / 2);
-  let startPage = currentPage - halfRange;
-  let endPage = currentPage + halfRange;
-
-  if (startPage < 1) {
-    endPage += 1 - startPage;
-    startPage = 1;
-  }
-
-  if (endPage > totalPages) {
-    startPage -= endPage - totalPages;
-    endPage = totalPages;
-  }
-
-  return Array.from({ length: endPage - startPage + 1 }, (_, pageIndex) => startPage + pageIndex);
-}
-
 export function AdminLogs() {
   const [logs, setLogs] = useState<AdminActionLog[]>([]);
   const [teamNameById, setTeamNameById] = useState<TeamNameById>({});
-  const [availableUsers, setAvailableUsers] = useState<Array<{ id: string; email: string }>>([]);
+  const [availableUsers, setAvailableUsers] = useState<Array<{ id: string; label: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [selectedLogForJson, setSelectedLogForJson] = useState<AdminActionLog | null>(null);
   const [selectedUserId, setSelectedUserId] = useState(ALL_USERS_FILTER);
   const [selectedActionType, setSelectedActionType] = useState(ALL_ACTIONS_FILTER);
   const [resourceSearch, setResourceSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(20);
+  const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_PAGINATION_ITEMS_PER_PAGE);
   const [totalCount, setTotalCount] = useState(0);
 
   useEffect(() => {
@@ -586,12 +613,12 @@ export function AdminLogs() {
       setTeamNameById(nextTeamNameById);
 
       const nextAvailableUsers = (adminUsersData ?? [])
-        .filter((adminUser) => adminUser.user_id && adminUser.email)
+        .filter((adminUser) => adminUser.user_id && adminUser.name)
         .map((adminUser) => ({
           id: adminUser.user_id,
-          email: adminUser.email ?? "",
+          label: adminUser.name,
         }))
-        .sort((firstUser, secondUser) => firstUser.email.localeCompare(secondUser.email));
+        .sort((firstUser, secondUser) => firstUser.label.localeCompare(secondUser.label));
 
       setAvailableUsers(nextAvailableUsers);
     };
@@ -612,7 +639,8 @@ export function AdminLogs() {
 
       let logsQuery = supabase
         .from("admin_action_logs")
-        .select("id, actor_user_id, actor_email, actor_role, action_type, resource_table, record_id, description, old_data, new_data, metadata, created_at", { count: "exact" })
+        .select("id, actor_user_id, actor_name, actor_email, actor_role, action_type, resource_table, record_id, description, old_data, new_data, metadata, created_at", { count: "exact" })
+        .neq("resource_table", AdminLogResourceTable.LEAGUE_EVENT_ORGANIZER_TEAMS)
         .order("created_at", { ascending: false });
 
       if (selectedUserId != ALL_USERS_FILTER) {
@@ -662,18 +690,18 @@ export function AdminLogs() {
     const userById = new Map<string, string>();
 
     availableUsers.forEach((availableUser) => {
-      userById.set(availableUser.id, availableUser.email);
+      userById.set(availableUser.id, availableUser.label);
     });
 
     logs.forEach((log) => {
-      if (log.actor_user_id && log.actor_email) {
-        userById.set(log.actor_user_id, log.actor_email);
+      if (log.actor_user_id) {
+        userById.set(log.actor_user_id, log.actor_name ?? log.actor_email ?? "Usuário desconhecido");
       }
     });
 
     return [...userById.entries()]
-      .map(([id, email]) => ({ id, email }))
-      .sort((firstUser, secondUser) => firstUser.email.localeCompare(secondUser.email));
+      .map(([id, label]) => ({ id, label }))
+      .sort((firstUser, secondUser) => firstUser.label.localeCompare(secondUser.label));
   }, [availableUsers, logs]);
 
   const listItems = useMemo(() => {
@@ -683,10 +711,12 @@ export function AdminLogs() {
       const detailList = [...matchContextDetails, ...detailChanges].slice(0, MAXIMUM_LOG_CHANGES);
       const resolvedDetails = detailList.length > 0 ? detailList : [resolveFallbackDetail(log)];
       const headline = resolveHeadline(log);
+      const actorName = log.actor_name ?? log.actor_email ?? "Usuário desconhecido";
       const actorEmail = log.actor_email ?? "Usuário desconhecido";
       return {
         id: log.id,
         rawLog: log,
+        actorName,
         actorEmail,
         actorRole: log.actor_role,
         actionType: log.action_type,
@@ -698,8 +728,6 @@ export function AdminLogs() {
   }, [logs, teamNameById]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
-  const visiblePages = resolveVisiblePages(currentPage, totalPages);
-
   useEffect(() => {
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
@@ -724,7 +752,7 @@ export function AdminLogs() {
             <SelectItem value={ALL_USERS_FILTER}>Todos os usuários</SelectItem>
             {userFilterOptions.map((userFilterOption) => (
               <SelectItem key={userFilterOption.id} value={userFilterOption.id}>
-                {userFilterOption.email}
+                {userFilterOption.label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -742,36 +770,12 @@ export function AdminLogs() {
             <SelectItem value={AdminActionType.PASSWORD_CHANGED}>
               {ADMIN_ACTION_TYPE_LABELS[AdminActionType.PASSWORD_CHANGED]}
             </SelectItem>
+            <SelectItem value={AdminActionType.LOGIN}>{ADMIN_ACTION_TYPE_LABELS[AdminActionType.LOGIN]}</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
-      <div className="glass-card enter-section flex flex-wrap items-center justify-end gap-2 p-3">
-        <span className="text-xs text-muted-foreground">Itens por página</span>
-        <Select
-          value={String(itemsPerPage)}
-          onValueChange={(value) => {
-            const parsedValue = Number(value);
-
-            if (Number.isNaN(parsedValue)) {
-              return;
-            }
-
-            setItemsPerPage(parsedValue);
-          }}
-        >
-          <SelectTrigger className="glass-input h-8 w-28">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {LOGS_ITEMS_PER_PAGE_OPTIONS.map((itemsPerPageOption) => (
-              <SelectItem key={itemsPerPageOption} value={itemsPerPageOption}>
-                {itemsPerPageOption}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <AppItemsPerPageControl itemsPerPage={itemsPerPage} onItemsPerPageChange={setItemsPerPage} />
 
       {loading ? (
         <div className="glass-card enter-section flex min-h-28 items-center justify-center">
@@ -792,8 +796,11 @@ export function AdminLogs() {
               <div key={logItem.id} className="px-4 py-3">
                 <div className={`grid gap-2 ${LOGS_GRID_TEMPLATE} lg:items-start lg:gap-3`}>
                   <div className="space-y-1">
-                    <p className="break-words text-sm font-medium leading-tight">{logItem.actorEmail}</p>
+                    <p className="break-words text-sm font-medium leading-tight">{logItem.actorName}</p>
                     <p className="text-xs text-muted-foreground">{format(new Date(logItem.createdAt), "dd/MM/yyyy HH:mm")}</p>
+                    {logItem.actorEmail != logItem.actorName ? (
+                      <p className="break-words text-xs text-muted-foreground">{logItem.actorEmail}</p>
+                    ) : null}
                     {logItem.actorRole ? (
                       <p className="text-xs text-muted-foreground">{ADMIN_PANEL_ROLE_LABELS[logItem.actorRole]}</p>
                     ) : null}
@@ -830,52 +837,7 @@ export function AdminLogs() {
       )}
 
       {!loading && totalCount > 0 ? (
-        <div className="enter-section flex justify-center">
-          <div className="flex items-center gap-1 rounded-2xl border border-border/55 bg-background/40 px-3 py-2 shadow-[0_8px_24px_rgba(15,23,42,0.08)] backdrop-blur-xl">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-xl"
-              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-              disabled={currentPage == 1}
-              aria-label="Página anterior"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-
-            {visiblePages.map((visiblePage) => {
-              const isCurrentPage = visiblePage == currentPage;
-
-              return (
-                <Button
-                  key={visiblePage}
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className={`h-8 min-w-8 rounded-xl px-2 text-xs ${
-                    isCurrentPage ? "bg-primary/15 text-primary" : "text-muted-foreground"
-                  }`}
-                  onClick={() => setCurrentPage(visiblePage)}
-                >
-                  {visiblePage}
-                </Button>
-              );
-            })}
-
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-xl"
-              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-              disabled={currentPage == totalPages}
-              aria-label="Próxima página"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+        <AppPaginationControls currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
       ) : null}
 
       <Dialog

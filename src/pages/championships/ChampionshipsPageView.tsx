@@ -4,9 +4,11 @@ import { LiveMatchBanner } from "@/components/LiveMatchBanner";
 import { MatchCard } from "@/components/MatchCard";
 import { TeamStandingsTable } from "@/components/TeamStandingsTable";
 import { SportFilter } from "@/components/SportFilter";
+import { ChampionshipBracketBoard } from "@/components/championship-brackets/ChampionshipBracketBoard";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { TeamStandingAggregate } from "@/lib/standings";
-import type { Championship, Match, Sport, Team } from "@/lib/types";
+import type { Championship, ChampionshipBracketView, Match, Sport, Team } from "@/lib/types";
 import { ChampionshipCode, MatchNaipe } from "@/lib/enums";
 import { MATCH_NAIPE_LABELS } from "@/lib/championship";
 
@@ -34,6 +36,8 @@ interface ChampionshipsPageViewProps {
   historyTeams: Team[];
   historyYears: string[];
   filteredHistoryMatches: Match[];
+  championshipBracketView: ChampionshipBracketView;
+  championshipBracketLoading: boolean;
   onSelectChampionshipCode: (value: ChampionshipCode) => void;
   onSportFilterChange: (value: string | null) => void;
   onStandingsSportFilterChange: (value: string) => void;
@@ -66,6 +70,8 @@ export function ChampionshipsPageView({
   historyTeams,
   historyYears,
   filteredHistoryMatches,
+  championshipBracketView,
+  championshipBracketLoading,
   onSelectChampionshipCode,
   onSportFilterChange,
   onStandingsSportFilterChange,
@@ -140,104 +146,122 @@ export function ChampionshipsPageView({
 
         <SportFilter sports={sports} selected={sportFilter} onSelect={onSportFilterChange} />
 
-        {!selectedChampionshipIsFinished ? (
-          filteredLiveMatches.length == 0 ? (
-            <p className="enter-section text-center text-sm text-muted-foreground sm:text-left">Nenhum jogo em andamento.</p>
-          ) : (
-            <LiveMatchBanner matches={filteredLiveMatches} />
-          )
-        ) : null}
+        <Tabs defaultValue="overview" className="enter-section space-y-4">
+          <TabsList className="glass-chip grid w-full grid-cols-2 rounded-xl p-1">
+            <TabsTrigger value="overview">Resumo</TabsTrigger>
+            <TabsTrigger value="brackets">Chaves</TabsTrigger>
+          </TabsList>
 
-        {!selectedChampionshipIsFinished ? (
-          <section className="glass-panel enter-section p-5">
-            <h2 className="mb-4 text-center text-xl font-display font-bold sm:text-left">Próximo jogo</h2>
-            {nextMatch ? (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <MatchCard match={nextMatch} showChampionshipBadge={false} />
+          <TabsContent value="overview" className="space-y-6">
+            {!selectedChampionshipIsFinished ? (
+              filteredLiveMatches.length == 0 ? (
+                <p className="enter-section text-center text-sm text-muted-foreground sm:text-left">Nenhum jogo em andamento.</p>
+              ) : (
+                <LiveMatchBanner matches={filteredLiveMatches} />
+              )
+            ) : null}
+
+            {!selectedChampionshipIsFinished ? (
+              <section className="glass-panel enter-section p-5">
+                <h2 className="mb-4 text-center text-xl font-display font-bold sm:text-left">Próximo jogo</h2>
+                {nextMatch ? (
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <MatchCard match={nextMatch} showChampionshipBadge={false} />
+                  </div>
+                ) : (
+                  <p className="text-center text-sm text-muted-foreground sm:text-left">Nenhum jogo agendado.</p>
+                )}
+              </section>
+            ) : null}
+
+            <section className="glass-panel enter-section space-y-4 p-5">
+              <h2 className="text-center text-xl font-display font-bold sm:text-left">Classificação</h2>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Select value={standingsSportFilter} onValueChange={onStandingsSportFilterChange}>
+                  <SelectTrigger className="glass-input w-full">
+                    <SelectValue placeholder="Filtrar modalidade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={allStandingsSportFilter}>Todas as modalidades</SelectItem>
+                    {sports.map((sport) => (
+                      <SelectItem key={sport.id} value={sport.id}>
+                        {sport.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={standingsNaipeFilter} onValueChange={onStandingsNaipeFilterChange}>
+                  <SelectTrigger className="glass-input w-full">
+                    <SelectValue placeholder="Filtrar naipe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={allStandingsNaipeFilter}>Todos os naipes</SelectItem>
+                    <SelectItem value={MatchNaipe.MASCULINO}>{MATCH_NAIPE_LABELS[MatchNaipe.MASCULINO]}</SelectItem>
+                    <SelectItem value={MatchNaipe.FEMININO}>{MATCH_NAIPE_LABELS[MatchNaipe.FEMININO]}</SelectItem>
+                    <SelectItem value={MatchNaipe.MISTO}>{MATCH_NAIPE_LABELS[MatchNaipe.MISTO]}</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            ) : (
-              <p className="text-center text-sm text-muted-foreground sm:text-left">Nenhum jogo agendado.</p>
-            )}
-          </section>
-        ) : null}
 
-        <section className="glass-panel enter-section space-y-4 p-5">
-          <h2 className="text-center text-xl font-display font-bold sm:text-left">Classificação</h2>
+              <TeamStandingsTable standings={filteredStandings} showCardColumns={standingsShowCardColumns} />
+            </section>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Select value={standingsSportFilter} onValueChange={onStandingsSportFilterChange}>
-              <SelectTrigger className="glass-input w-full">
-                <SelectValue placeholder="Filtrar modalidade" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={allStandingsSportFilter}>Todas as modalidades</SelectItem>
-                {sports.map((sport) => (
-                  <SelectItem key={sport.id} value={sport.id}>
-                    {sport.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <section className="glass-panel enter-section space-y-4 p-5">
+              <h2 className="text-center text-xl font-display font-bold sm:text-left">Jogos anteriores</h2>
 
-            <Select value={standingsNaipeFilter} onValueChange={onStandingsNaipeFilterChange}>
-              <SelectTrigger className="glass-input w-full">
-                <SelectValue placeholder="Filtrar naipe" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={allStandingsNaipeFilter}>Todos os naipes</SelectItem>
-                <SelectItem value={MatchNaipe.MASCULINO}>{MATCH_NAIPE_LABELS[MatchNaipe.MASCULINO]}</SelectItem>
-                <SelectItem value={MatchNaipe.FEMININO}>{MATCH_NAIPE_LABELS[MatchNaipe.FEMININO]}</SelectItem>
-                <SelectItem value={MatchNaipe.MISTO}>{MATCH_NAIPE_LABELS[MatchNaipe.MISTO]}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                <Select value={teamFilter} onValueChange={onTeamFilterChange}>
+                  <SelectTrigger className="glass-input w-full sm:w-56">
+                    <SelectValue placeholder="Filtrar por atlética" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={allTeamFilter}>Todas as atléticas</SelectItem>
+                    {historyTeams.map((team) => (
+                      <SelectItem key={team.id} value={team.id}>
+                        {team.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-          <TeamStandingsTable standings={filteredStandings} showCardColumns={standingsShowCardColumns} />
-        </section>
+                <Select value={yearFilter} onValueChange={onYearFilterChange}>
+                  <SelectTrigger className="glass-input w-full sm:w-40">
+                    <SelectValue placeholder="Filtrar por ano" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={allYearFilter}>Todos os anos</SelectItem>
+                    {historyYears.map((year) => (
+                      <SelectItem key={year} value={year}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-        <section className="glass-panel enter-section space-y-4 p-5">
-          <h2 className="text-center text-xl font-display font-bold sm:text-left">Jogos anteriores</h2>
+              {filteredHistoryMatches.length == 0 ? (
+                <p className="text-center text-sm text-muted-foreground sm:text-left">Nenhum resultado registrado.</p>
+              ) : (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {filteredHistoryMatches.map((match) => (
+                    <MatchCard key={match.id} match={match} showChampionshipBadge={false} />
+                  ))}
+                </div>
+              )}
+            </section>
+          </TabsContent>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <Select value={teamFilter} onValueChange={onTeamFilterChange}>
-              <SelectTrigger className="glass-input w-full sm:w-56">
-                <SelectValue placeholder="Filtrar por atlética" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={allTeamFilter}>Todas as atléticas</SelectItem>
-                {historyTeams.map((team) => (
-                  <SelectItem key={team.id} value={team.id}>
-                    {team.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={yearFilter} onValueChange={onYearFilterChange}>
-              <SelectTrigger className="glass-input w-full sm:w-40">
-                <SelectValue placeholder="Filtrar por ano" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={allYearFilter}>Todos os anos</SelectItem>
-                {historyYears.map((year) => (
-                  <SelectItem key={year} value={year}>
-                    {year}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {filteredHistoryMatches.length == 0 ? (
-            <p className="text-center text-sm text-muted-foreground sm:text-left">Nenhum resultado registrado.</p>
-          ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredHistoryMatches.map((match) => (
-                <MatchCard key={match.id} match={match} showChampionshipBadge={false} />
-              ))}
-            </div>
-          )}
-        </section>
+          <TabsContent value="brackets" className="space-y-3 glass-panel p-5">
+            <h2 className="text-center text-xl font-display font-bold sm:text-left">Chaves do Campeonato</h2>
+            <ChampionshipBracketBoard
+              championshipBracketView={championshipBracketView}
+              loading={championshipBracketLoading}
+              emptyMessage="Este campeonato ainda não possui chaveamento gerado."
+            />
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );

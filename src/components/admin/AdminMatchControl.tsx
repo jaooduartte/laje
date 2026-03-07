@@ -1,16 +1,25 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Minus, Play, Plus, Square } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import type { Match } from "@/lib/types";
-import { MatchStatus } from "@/lib/enums";
+import { MATCH_SET_DEFAULT_VALUES } from "@/domain/championship-brackets/championshipBracket.constants";
+import { fetchMatchSets, saveMatchSets } from "@/domain/championship-brackets/championshipBracket.repository";
+import type { MatchSetInput } from "@/domain/championship-brackets/championshipBracket.types";
+import type { ChampionshipSport, Match } from "@/lib/types";
+import { ChampionshipSportResultRule, MatchStatus } from "@/lib/enums";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { AppBadge } from "@/components/ui/app-badge";
+import {
+  AppItemsPerPageControl,
+  AppPaginationControls,
+  DEFAULT_PAGINATION_ITEMS_PER_PAGE,
+} from "@/components/ui/app-pagination-controls";
 import { resolveMatchNaipeBadgeTone, resolveMatchNaipeLabel } from "@/lib/championship";
 
 interface Props {
   matches: Match[];
+  championshipSports: ChampionshipSport[];
   onRefetch: () => void;
   canManageScoreboard: boolean;
 }
@@ -72,9 +81,38 @@ function resolveMatchUpdatePayload(match: Match, draft: MatchControlDraft) {
   };
 }
 
-export function AdminMatchControl({ matches, onRefetch, canManageScoreboard }: Props) {
+function resolveSetWins(matchSets: MatchSetInput[]) {
+  return matchSets.reduce(
+    (total, matchSet) => {
+      if (matchSet.home_points > matchSet.away_points) {
+        return {
+          home_sets: total.home_sets + 1,
+          away_sets: total.away_sets,
+        };
+      }
+
+      if (matchSet.away_points > matchSet.home_points) {
+        return {
+          home_sets: total.home_sets,
+          away_sets: total.away_sets + 1,
+        };
+      }
+
+      return total;
+    },
+    {
+      home_sets: 0,
+      away_sets: 0,
+    },
+  );
+}
+
+export function AdminMatchControl({ matches, championshipSports, onRefetch, canManageScoreboard }: Props) {
   const [matchDraftById, setMatchDraftById] = useState<Record<string, MatchControlDraft>>({});
+  const [matchSetsByMatchId, setMatchSetsByMatchId] = useState<Record<string, MatchSetInput[]>>({});
   const [saveStatusByMatchId, setSaveStatusByMatchId] = useState<Record<string, SaveStatus | undefined>>({});
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_PAGINATION_ITEMS_PER_PAGE);
 
   const saveTimeoutByMatchIdRef = useRef<Record<string, ReturnType<typeof setTimeout> | undefined>>({});
   const clearStatusTimeoutByMatchIdRef = useRef<Record<string, ReturnType<typeof setTimeout> | undefined>>({});
@@ -98,6 +136,51 @@ export function AdminMatchControl({ matches, onRefetch, canManageScoreboard }: P
     });
   }, [matches]);
 
+  const championshipSportResultRuleBySportId = useMemo(() => {
+    const map = new Map<string, ChampionshipSportResultRule>();
+
+    championshipSports.forEach((championshipSport) => {
+      map.set(championshipSport.sport_id, championshipSport.result_rule);
+    });
+
+    return map;
+  }, [championshipSports]);
+
+  const isSetRuleMatch = (match: Match) => {
+    return championshipSportResultRuleBySportId.get(match.sport_id) == ChampionshipSportResultRule.SETS;
+  };
+
+  useEffect(() => {
+    const fetchSets = async () => {
+      const matchesWithSetRule = matches.filter((match) => isSetRuleMatch(match));
+
+      if (matchesWithSetRule.length == 0) {
+        setMatchSetsByMatchId({});
+        return;
+      }
+
+      const resolvedSetsByMatchId: Record<string, MatchSetInput[]> = {};
+      const setResponses = await Promise.all(
+        matchesWithSetRule.map(async (match) => {
+          const { data } = await fetchMatchSets(match.id);
+
+          return {
+            match_id: match.id,
+            sets: data.length > 0 ? data : MATCH_SET_DEFAULT_VALUES,
+          };
+        }),
+      );
+
+      setResponses.forEach((setResponse) => {
+        resolvedSetsByMatchId[setResponse.match_id] = setResponse.sets;
+      });
+
+      setMatchSetsByMatchId(resolvedSetsByMatchId);
+    };
+
+    fetchSets();
+  }, [championshipSports, matches]);
+
   useEffect(() => {
     return () => {
       Object.values(saveTimeoutByMatchIdRef.current).forEach((timeoutReference) => {
@@ -113,6 +196,10 @@ export function AdminMatchControl({ matches, onRefetch, canManageScoreboard }: P
       });
     };
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [itemsPerPage, matches.length]);
 
   const getMatchDraft = (match: Match) => {
     return matchDraftById[match.id] ?? resolveDefaultMatchControlDraft(match);
@@ -281,6 +368,42 @@ export function AdminMatchControl({ matches, onRefetch, canManageScoreboard }: P
     });
   };
 
+  const updateMatchSetValue = (matchId: string, setNumber: number, side: MatchSide, value: string) => {
+    const parsedValue = parseNonNegativeNumber(value);
+
+    setMatchSetsByMatchId((currentMatchSetsByMatchId) => {
+      const currentMatchSets = currentMatchSetsByMatchId[matchId] ?? MATCH_SET_DEFAULT_VALUES;
+      const nextMatchSets = currentMatchSets.map((matchSet) => {
+        if (matchSet.set_number != setNumber) {
+          return matchSet;
+        }
+
+        return {
+          ...matchSet,
+          home_points: side == "home" ? parsedValue : matchSet.home_points,
+          away_points: side == "away" ? parsedValue : matchSet.away_points,
+        };
+      });
+
+      return {
+        ...currentMatchSetsByMatchId,
+        [matchId]: nextMatchSets,
+      };
+    });
+  };
+
+  const persistMatchSets = async (match: Match) => {
+    const matchSets = matchSetsByMatchId[match.id] ?? MATCH_SET_DEFAULT_VALUES;
+    const { error } = await saveMatchSets(match.id, matchSets);
+
+    if (error) {
+      toast.error(error.message);
+      return null;
+    }
+
+    return resolveSetWins(matchSets);
+  };
+
   const handleSetLive = async (matchId: string) => {
     if (!canManageScoreboard) {
       return;
@@ -314,6 +437,24 @@ export function AdminMatchControl({ matches, onRefetch, canManageScoreboard }: P
     }
 
     const currentMatchDraft = getMatchDraft(match);
+
+    if (isSetRuleMatch(match)) {
+      const matchSetsWins = await persistMatchSets(match);
+
+      if (!matchSetsWins) {
+        return;
+      }
+
+      currentMatchDraft.homeScore = matchSetsWins.home_sets;
+      currentMatchDraft.awayScore = matchSetsWins.away_sets;
+      setMatchDraftById((currentMatchDraftById) => ({
+        ...currentMatchDraftById,
+        [match.id]: {
+          ...currentMatchDraft,
+        },
+      }));
+    }
+
     const matchSaved = await flushPendingAutosave(match, currentMatchDraft);
 
     if (!matchSaved) {
@@ -338,13 +479,39 @@ export function AdminMatchControl({ matches, onRefetch, canManageScoreboard }: P
     onRefetch();
   };
 
+  const totalPages = Math.max(1, Math.ceil(matches.length / itemsPerPage));
+
+  const paginatedMatches = useMemo(() => {
+    const rangeStart = (currentPage - 1) * itemsPerPage;
+    const rangeEnd = rangeStart + itemsPerPage;
+
+    return matches.slice(rangeStart, rangeEnd);
+  }, [currentPage, itemsPerPage, matches]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
   if (matches.length == 0) {
     return <p className="text-sm text-muted-foreground">Nenhum jogo ao vivo ou agendado.</p>;
   }
 
   return (
     <div className="enter-section space-y-4">
-      {matches.map((match) => {
+      <div className="glass-card enter-section flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
+        <p className="text-sm text-muted-foreground">{matches.length} jogo(s) encontrado(s)</p>
+
+        <AppItemsPerPageControl
+          itemsPerPage={itemsPerPage}
+          onItemsPerPageChange={setItemsPerPage}
+          shouldRenderCard={false}
+          className="flex flex-wrap items-center justify-end gap-2"
+        />
+      </div>
+
+      {paginatedMatches.map((match) => {
         const matchDraft = getMatchDraft(match);
         const matchSaveStatus = saveStatusByMatchId[match.id];
 
@@ -541,6 +708,53 @@ export function AdminMatchControl({ matches, onRefetch, canManageScoreboard }: P
               </div>
             </div>
 
+            {isSetRuleMatch(match) ? (
+              <div className="space-y-2 rounded-lg border border-border/40 bg-background/50 p-3">
+                <p className="text-xs font-semibold uppercase text-muted-foreground">Detalhamento por Sets</p>
+                <div className="space-y-2">
+                  {(matchSetsByMatchId[match.id] ?? MATCH_SET_DEFAULT_VALUES).map((matchSet) => (
+                    <div key={`${match.id}-set-${matchSet.set_number}`} className="grid grid-cols-[80px_minmax(0,1fr)_minmax(0,1fr)] items-center gap-2">
+                      <p className="text-xs font-semibold">Set {matchSet.set_number}</p>
+                      <Input
+                        type="number"
+                        value={matchSet.home_points}
+                        onChange={(event) => updateMatchSetValue(match.id, matchSet.set_number, "home", event.target.value)}
+                        className="h-8 glass-input text-center text-xs font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
+                      />
+                      <Input
+                        type="number"
+                        value={matchSet.away_points}
+                        onChange={(event) => updateMatchSetValue(match.id, matchSet.set_number, "away", event.target.value)}
+                        className="h-8 glass-input text-center text-xs font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
+                      />
+                    </div>
+                  ))}
+                </div>
+                {match.status == MatchStatus.LIVE ? (
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        const matchSetsWins = await persistMatchSets(match);
+
+                        if (!matchSetsWins) {
+                          return;
+                        }
+
+                        toast.success("Sets salvos.");
+                      }}
+                      disabled={!canManageScoreboard}
+                    >
+                      Salvar sets
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
             {match.supports_cards ? (
               <div className="grid gap-3 glass-panel-muted p-3 sm:grid-cols-2">
                 <div className="space-y-2">
@@ -681,6 +895,8 @@ export function AdminMatchControl({ matches, onRefetch, canManageScoreboard }: P
           </div>
         );
       })}
+
+      <AppPaginationControls currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
     </div>
   );
 }

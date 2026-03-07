@@ -1,8 +1,14 @@
+import { useEffect, useMemo, useState } from "react";
 import { Header } from "@/components/Header";
 import { LiveMatchBanner } from "@/components/LiveMatchBanner";
 import { MatchCard } from "@/components/MatchCard";
 import { TeamStandingsTable } from "@/components/TeamStandingsTable";
 import { SportFilter } from "@/components/SportFilter";
+import {
+  AppItemsPerPageControl,
+  AppPaginationControls,
+  DEFAULT_PAGINATION_ITEMS_PER_PAGE,
+} from "@/components/ui/app-pagination-controls";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Championship, Match, Sport } from "@/lib/types";
 import { MatchNaipe } from "@/lib/enums";
@@ -45,6 +51,28 @@ export function LivePageView({
   onStandingsSportFilterChange,
   onStandingsNaipeFilterChange,
 }: LivePageViewProps) {
+  const [upcomingMatchesCurrentPage, setUpcomingMatchesCurrentPage] = useState(1);
+  const [upcomingMatchesItemsPerPage, setUpcomingMatchesItemsPerPage] = useState(DEFAULT_PAGINATION_ITEMS_PER_PAGE);
+
+  useEffect(() => {
+    setUpcomingMatchesCurrentPage(1);
+  }, [featuredChampionship?.id, sportFilter, upcomingMatchesItemsPerPage]);
+
+  const upcomingMatchesTotalPages = Math.max(1, Math.ceil(filteredUpcomingMatches.length / upcomingMatchesItemsPerPage));
+
+  const paginatedUpcomingMatches = useMemo(() => {
+    const rangeStart = (upcomingMatchesCurrentPage - 1) * upcomingMatchesItemsPerPage;
+    const rangeEnd = rangeStart + upcomingMatchesItemsPerPage;
+
+    return filteredUpcomingMatches.slice(rangeStart, rangeEnd);
+  }, [filteredUpcomingMatches, upcomingMatchesCurrentPage, upcomingMatchesItemsPerPage]);
+
+  useEffect(() => {
+    if (upcomingMatchesCurrentPage > upcomingMatchesTotalPages) {
+      setUpcomingMatchesCurrentPage(upcomingMatchesTotalPages);
+    }
+  }, [upcomingMatchesCurrentPage, upcomingMatchesTotalPages]);
+
   if (isLoading) {
     return (
       <div className="app-page">
@@ -88,10 +116,23 @@ export function LivePageView({
           {filteredUpcomingMatches.length == 0 ? (
             <p className="text-center text-sm text-muted-foreground sm:text-left">Nenhum jogo agendado.</p>
           ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredUpcomingMatches.map((match) => (
-                <MatchCard key={match.id} match={match} showChampionshipBadge={false} />
-              ))}
+            <div className="space-y-4">
+              <AppItemsPerPageControl
+                itemsPerPage={upcomingMatchesItemsPerPage}
+                onItemsPerPageChange={setUpcomingMatchesItemsPerPage}
+              />
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {paginatedUpcomingMatches.map((match) => (
+                  <MatchCard key={match.id} match={match} showChampionshipBadge={false} />
+                ))}
+              </div>
+
+              <AppPaginationControls
+                currentPage={upcomingMatchesCurrentPage}
+                totalPages={upcomingMatchesTotalPages}
+                onPageChange={setUpcomingMatchesCurrentPage}
+              />
             </div>
           )}
         </section>

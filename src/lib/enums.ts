@@ -75,6 +75,28 @@ export enum ChampionshipSportTieBreakerRule {
   BEACH_TENNIS = "BEACH_TENNIS",
 }
 
+export enum ChampionshipSportResultRule {
+  POINTS = "POINTS",
+  SETS = "SETS",
+}
+
+export enum BracketPhase {
+  GROUP_STAGE = "GROUP_STAGE",
+  KNOCKOUT = "KNOCKOUT",
+}
+
+export enum BracketEditionStatus {
+  DRAFT = "DRAFT",
+  GROUPS_GENERATED = "GROUPS_GENERATED",
+  KNOCKOUT_GENERATED = "KNOCKOUT_GENERATED",
+}
+
+export enum BracketThirdPlaceMode {
+  NONE = "NONE",
+  MATCH = "MATCH",
+  CHAMPION_SEMIFINAL_LOSER = "CHAMPION_SEMIFINAL_LOSER",
+}
+
 export enum ChampionshipCode {
   CLV = "CLV",
   SOCIETY = "SOCIETY",
@@ -108,6 +130,7 @@ export enum AdminPanelTab {
   EVENTS = "events",
   LOGS = "logs",
   USERS = "users",
+  ACCOUNT = "account",
   SETTINGS = "settings",
 }
 
@@ -115,6 +138,17 @@ export enum AdminPanelRole {
   ADMIN = "admin",
   EVENTOS = "eventos",
   MESA = "mesa",
+}
+
+export enum AdminUserPasswordStatus {
+  PENDING = "PENDING",
+  ACTIVE = "ACTIVE",
+}
+
+export enum AdminLoginStage {
+  LOGIN_IDENTIFIER = "LOGIN_IDENTIFIER",
+  PASSWORD = "PASSWORD",
+  PASSWORD_SETUP = "PASSWORD_SETUP",
 }
 
 export enum AdminPanelPermissionLevel {
@@ -128,6 +162,7 @@ export enum AdminActionType {
   UPDATE = "UPDATE",
   DELETE = "DELETE",
   PASSWORD_CHANGED = "PASSWORD_CHANGED",
+  LOGIN = "LOGIN",
 }
 
 export enum AdminLogResourceTable {

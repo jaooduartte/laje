@@ -3,29 +3,78 @@ import { Loader2 } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AdminLoginStage } from "@/lib/enums";
 
 interface LoginPageViewProps {
   isLoading: boolean;
   isUnauthorized: boolean;
-  email: string;
+  loginStage: AdminLoginStage;
+  loginIdentifier: string;
   password: string;
+  newPassword: string;
+  confirmPassword: string;
   error: string;
   submitting: boolean;
-  onEmailChange: (value: string) => void;
+  onLoginIdentifierChange: (value: string) => void;
   onPasswordChange: (value: string) => void;
+  onNewPasswordChange: (value: string) => void;
+  onConfirmPasswordChange: (value: string) => void;
+  onResetLoginFlow: () => void;
   onSubmit: (event: FormEvent) => void;
   onSignOut: () => void;
+}
+
+function resolveLoginTitle(loginStage: AdminLoginStage): string {
+  if (loginStage == AdminLoginStage.PASSWORD_SETUP) {
+    return "Crie sua senha";
+  }
+
+  return "LAJE Admin";
+}
+
+function resolveLoginDescription(loginStage: AdminLoginStage): string {
+  if (loginStage == AdminLoginStage.PASSWORD) {
+    return "Digite sua senha para acessar o painel.";
+  }
+
+  if (loginStage == AdminLoginStage.PASSWORD_SETUP) {
+    return "Primeiro acesso ou senha resetada. Defina sua nova senha para continuar.";
+  }
+
+  return "Informe seu usuário para continuar.";
+}
+
+function resolveSubmitLabel(loginStage: AdminLoginStage, submitting: boolean): string {
+  if (submitting) {
+    return "";
+  }
+
+  if (loginStage == AdminLoginStage.LOGIN_IDENTIFIER) {
+    return "Continuar";
+  }
+
+  if (loginStage == AdminLoginStage.PASSWORD_SETUP) {
+    return "Criar senha e entrar";
+  }
+
+  return "Entrar";
 }
 
 export function LoginPageView({
   isLoading,
   isUnauthorized,
-  email,
+  loginStage,
+  loginIdentifier,
   password,
+  newPassword,
+  confirmPassword,
   error,
   submitting,
-  onEmailChange,
+  onLoginIdentifierChange,
   onPasswordChange,
+  onNewPasswordChange,
+  onConfirmPasswordChange,
+  onResetLoginFlow,
   onSubmit,
   onSignOut,
 }: LoginPageViewProps) {
@@ -68,31 +117,73 @@ export function LoginPageView({
         <div className="glass-panel enter-section w-full max-w-sm space-y-8 p-8">
           <div className="space-y-2 text-center">
             <img src="/logo.png" alt="Logo LAJE" className="mx-auto h-14 w-14 rounded-xl object-cover" />
-            <h1 className="text-2xl font-display font-bold">LAJE Admin</h1>
-            <p className="text-sm text-muted-foreground">Acesso restrito à CO da LAJE.</p>
+            <h1 className="text-2xl font-display font-bold">{resolveLoginTitle(loginStage)}</h1>
+            <p className="text-sm text-muted-foreground">{resolveLoginDescription(loginStage)}</p>
           </div>
 
           <form onSubmit={onSubmit} className="space-y-4">
             <Input
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(event) => onEmailChange(event.target.value)}
+              type="text"
+              placeholder="Usuário"
+              value={loginIdentifier}
+              onChange={(event) => onLoginIdentifierChange(event.target.value)}
               required
               className="glass-input"
+              autoComplete="username"
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              disabled={loginStage != AdminLoginStage.LOGIN_IDENTIFIER}
             />
-            <Input
-              type="password"
-              placeholder="Senha"
-              value={password}
-              onChange={(event) => onPasswordChange(event.target.value)}
-              required
-              className="glass-input"
-            />
+
+            {loginStage == AdminLoginStage.PASSWORD ? (
+              <Input
+                type="password"
+                placeholder="Senha"
+                value={password}
+                onChange={(event) => onPasswordChange(event.target.value)}
+                required
+                className="glass-input"
+                autoComplete="current-password"
+              />
+            ) : null}
+
+            {loginStage == AdminLoginStage.PASSWORD_SETUP ? (
+              <div className="space-y-4">
+                <Input
+                  type="password"
+                  placeholder="Nova senha"
+                  value={newPassword}
+                  onChange={(event) => onNewPasswordChange(event.target.value)}
+                  required
+                  className="glass-input"
+                  autoComplete="new-password"
+                />
+                <Input
+                  type="password"
+                  placeholder="Confirmar nova senha"
+                  value={confirmPassword}
+                  onChange={(event) => onConfirmPasswordChange(event.target.value)}
+                  required
+                  className="glass-input"
+                  autoComplete="new-password"
+                />
+              </div>
+            ) : null}
+
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
-            <Button type="submit" className="w-full" disabled={submitting}>
-              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Entrar"}
-            </Button>
+
+            <div className="space-y-2">
+              <Button type="submit" className="w-full" disabled={submitting}>
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : resolveSubmitLabel(loginStage, submitting)}
+              </Button>
+
+              {loginStage != AdminLoginStage.LOGIN_IDENTIFIER ? (
+                <Button type="button" variant="outline" className="w-full bg-background/75" onClick={onResetLoginFlow}>
+                  Alterar usuário
+                </Button>
+              ) : null}
+            </div>
           </form>
         </div>
       </main>

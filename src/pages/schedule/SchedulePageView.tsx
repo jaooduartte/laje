@@ -1,9 +1,15 @@
+import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Loader2 } from "lucide-react";
 import { Header } from "@/components/Header";
 import { MatchCard } from "@/components/MatchCard";
 import { SportFilter } from "@/components/SportFilter";
+import {
+  AppItemsPerPageControl,
+  AppPaginationControls,
+  DEFAULT_PAGINATION_ITEMS_PER_PAGE,
+} from "@/components/ui/app-pagination-controls";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Championship, Match, Sport, Team } from "@/lib/types";
 import { TeamDivision } from "@/lib/enums";
@@ -46,6 +52,51 @@ export function SchedulePageView({
   onTeamFilterChange,
   onDivisionChange,
 }: SchedulePageViewProps) {
+  const [matchesCurrentPage, setMatchesCurrentPage] = useState(1);
+  const [matchesItemsPerPage, setMatchesItemsPerPage] = useState(DEFAULT_PAGINATION_ITEMS_PER_PAGE);
+
+  const orderedMatches = useMemo(() => {
+    return orderedDates.reduce<Match[]>((carry, date) => {
+      return carry.concat(groupedMatches[date] ?? []);
+    }, []);
+  }, [groupedMatches, orderedDates]);
+
+  useEffect(() => {
+    setMatchesCurrentPage(1);
+  }, [divisionFilter, matchesItemsPerPage, selectedChampionshipCode, sportFilter, teamFilter]);
+
+  const matchesTotalPages = Math.max(1, Math.ceil(orderedMatches.length / matchesItemsPerPage));
+
+  const paginatedMatches = useMemo(() => {
+    const rangeStart = (matchesCurrentPage - 1) * matchesItemsPerPage;
+    const rangeEnd = rangeStart + matchesItemsPerPage;
+
+    return orderedMatches.slice(rangeStart, rangeEnd);
+  }, [matchesCurrentPage, matchesItemsPerPage, orderedMatches]);
+
+  const paginatedMatchesByDate = useMemo(() => {
+    return paginatedMatches.reduce<Record<string, Match[]>>((carry, match) => {
+      const matchDate = format(new Date(match.start_time), "yyyy-MM-dd");
+
+      if (!carry[matchDate]) {
+        carry[matchDate] = [];
+      }
+
+      carry[matchDate].push(match);
+      return carry;
+    }, {});
+  }, [paginatedMatches]);
+
+  const paginatedOrderedDates = useMemo(() => {
+    return Object.keys(paginatedMatchesByDate).sort((firstDate, secondDate) => firstDate.localeCompare(secondDate));
+  }, [paginatedMatchesByDate]);
+
+  useEffect(() => {
+    if (matchesCurrentPage > matchesTotalPages) {
+      setMatchesCurrentPage(matchesTotalPages);
+    }
+  }, [matchesCurrentPage, matchesTotalPages]);
+
   if (isLoading) {
     return (
       <div className="app-page">
@@ -128,21 +179,31 @@ export function SchedulePageView({
           <SportFilter sports={sports} selected={sportFilter} onSelect={onSportFilterChange} />
         </div>
 
-        {orderedDates.length == 0 ? (
+        {orderedMatches.length == 0 ? (
           <p className="text-muted-foreground">Nenhum jogo encontrado.</p>
         ) : (
-          orderedDates.map((date) => (
-            <section key={date} className="glass-panel enter-section p-4">
-              <h3 className="mb-3 text-sm font-display font-semibold uppercase tracking-wider text-muted-foreground">
-                {format(new Date(`${date}T12:00:00`), "EEEE, dd 'de' MMMM", { locale: ptBR })}
-              </h3>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {groupedMatches[date].map((match) => (
-                  <MatchCard key={match.id} match={match} showChampionshipBadge={false} />
-                ))}
-              </div>
-            </section>
-          ))
+          <div className="space-y-4">
+            <AppItemsPerPageControl itemsPerPage={matchesItemsPerPage} onItemsPerPageChange={setMatchesItemsPerPage} />
+
+            {paginatedOrderedDates.map((date) => (
+              <section key={date} className="glass-panel enter-section p-4">
+                <h3 className="mb-3 text-sm font-display font-semibold uppercase tracking-wider text-muted-foreground">
+                  {format(new Date(`${date}T12:00:00`), "EEEE, dd 'de' MMMM", { locale: ptBR })}
+                </h3>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {paginatedMatchesByDate[date].map((match) => (
+                    <MatchCard key={match.id} match={match} showChampionshipBadge={false} />
+                  ))}
+                </div>
+              </section>
+            ))}
+
+            <AppPaginationControls
+              currentPage={matchesCurrentPage}
+              totalPages={matchesTotalPages}
+              onPageChange={setMatchesCurrentPage}
+            />
+          </div>
         )}
       </main>
     </div>

@@ -2,81 +2,18 @@ import { useMemo } from "react";
 import type { Championship, ChampionshipSport, Sport } from "@/lib/types";
 import {
   ChampionshipCode,
-  ChampionshipSportNaipeMode,
-  ChampionshipSportTieBreakerRule,
 } from "@/lib/enums";
 import {
+  CHAMPIONSHIP_SPORT_RESULT_RULE_LABELS,
   CHAMPIONSHIP_SPORT_NAIPE_MODE_LABELS,
 } from "@/lib/championship";
+import { CLV_PLATFORM_SPORT_RULES } from "@/domain/sport-rules/sportRules.constants";
 
 interface Props {
   sports: Sport[];
   championshipSports: ChampionshipSport[];
   selectedChampionship: Championship;
 }
-
-interface PlatformSportRule {
-  sportName: string;
-  naipeMode: ChampionshipSportNaipeMode;
-  pointsWin: number;
-  pointsDraw: number;
-  pointsLoss: number;
-  tieBreakerRule: ChampionshipSportTieBreakerRule;
-  supportsCards: boolean;
-  tieBreakerPriority: string[];
-}
-
-const CLV_PLATFORM_SPORT_RULES: PlatformSportRule[] = [
-  {
-    sportName: "Beach Soccer",
-    naipeMode: ChampionshipSportNaipeMode.MASCULINO_FEMININO,
-    pointsWin: 3,
-    pointsDraw: 1,
-    pointsLoss: 0,
-    tieBreakerRule: ChampionshipSportTieBreakerRule.BEACH_SOCCER,
-    supportsCards: true,
-    tieBreakerPriority: [
-      "Confronto direto",
-      "Maior número de vitórias",
-      "Maior saldo de gols",
-      "Mais gols marcados",
-      "Menos gols sofridos",
-      "Menor número de cartões amarelos",
-      "Menor número de cartões vermelhos",
-      "Sorteio",
-    ],
-  },
-  {
-    sportName: "Beach Tennis",
-    naipeMode: ChampionshipSportNaipeMode.MISTO,
-    pointsWin: 3,
-    pointsDraw: 0,
-    pointsLoss: 0,
-    tieBreakerRule: ChampionshipSportTieBreakerRule.BEACH_TENNIS,
-    supportsCards: false,
-    tieBreakerPriority: ["Maior número de vitórias", "Confronto direto", "Saldo dos games/sets", "Sorteio"],
-  },
-  {
-    sportName: "Futevôlei",
-    naipeMode: ChampionshipSportNaipeMode.MASCULINO_FEMININO,
-    pointsWin: 3,
-    pointsDraw: 0,
-    pointsLoss: 0,
-    tieBreakerRule: ChampionshipSportTieBreakerRule.POINTS_AVERAGE,
-    supportsCards: false,
-    tieBreakerPriority: ["Confronto direto", "Pontos average", "Sorteio"],
-  },
-  {
-    sportName: "Vôlei de Praia",
-    naipeMode: ChampionshipSportNaipeMode.MASCULINO_FEMININO,
-    pointsWin: 3,
-    pointsDraw: 0,
-    pointsLoss: 0,
-    tieBreakerRule: ChampionshipSportTieBreakerRule.POINTS_AVERAGE,
-    supportsCards: false,
-    tieBreakerPriority: ["Confronto direto", "Pontos average", "Sorteio"],
-  },
-];
 
 function normalizeSportName(sportName: string): string {
   return sportName
@@ -139,6 +76,9 @@ export function AdminSports({ sports, championshipSports, selectedChampionship }
             const resolvedPointsDraw = championshipSport?.points_draw ?? platformSportRule.pointsDraw;
             const resolvedPointsLoss = championshipSport?.points_loss ?? platformSportRule.pointsLoss;
             const resolvedSupportsCards = championshipSport?.supports_cards ?? platformSportRule.supportsCards;
+            const resolvedResultRule = championshipSport?.result_rule ?? platformSportRule.resultRule;
+            const resolvedDefaultMatchDurationMinutes =
+              championshipSport?.default_match_duration_minutes ?? platformSportRule.defaultMatchDurationMinutes;
 
             return (
               <div key={platformSportRule.sportName} className="enter-item space-y-3 glass-card p-4">
@@ -150,7 +90,7 @@ export function AdminSports({ sports, championshipSports, selectedChampionship }
                   {isLinkedToChampionship ? "Vinculada ao campeonato selecionado." : "Não vinculada ao campeonato selecionado."}
                 </p>
 
-                <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
                   <div className="glass-panel-muted px-3 py-2">
                     <p className="text-xs font-medium text-muted-foreground">Tipo de naipe</p>
                     <p className="font-medium">{CHAMPIONSHIP_SPORT_NAIPE_MODE_LABELS[resolvedNaipeMode]}</p>
@@ -164,6 +104,12 @@ export function AdminSports({ sports, championshipSports, selectedChampionship }
                   <div className="glass-panel-muted px-3 py-2">
                     <p className="text-xs font-medium text-muted-foreground">Cartões</p>
                     <p className="font-medium">{resolvedSupportsCards ? "Sim" : "Não"}</p>
+                  </div>
+
+                  <div className="glass-panel-muted px-3 py-2">
+                    <p className="text-xs font-medium text-muted-foreground">Regra de resultado</p>
+                    <p className="font-medium">{CHAMPIONSHIP_SPORT_RESULT_RULE_LABELS[resolvedResultRule]}</p>
+                    <p className="text-xs text-muted-foreground">{resolvedDefaultMatchDurationMinutes} min por jogo</p>
                   </div>
                 </div>
 

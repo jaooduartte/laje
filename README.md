@@ -13,7 +13,7 @@ O projeto contempla três campeonatos fixos:
 Regras funcionais principais já implementadas:
 
 - tema claro com paleta vermelha;
-- status de campeonato: `Em planejamento`, `Em breve`, `Em andamento`, `Encerrado`;
+- status de campeonato: `Em breve`, `Configurando campeonato`, `Em andamento`, `Encerrado`;
 - suporte a naipe em jogos: `Masculino`, `Feminino`, `Misto`;
 - configuração por modalidade no campeonato:
   - tipo de naipe (`Mista` ou `Masculino e Feminino`);
