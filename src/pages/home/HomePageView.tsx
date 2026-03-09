@@ -42,7 +42,7 @@ export function HomePageView({ items }: HomePageViewProps) {
                       <Icon className="h-5 w-5 text-muted-foreground" />
                       <span className="text-base font-semibold text-muted-foreground">{homePageListItem.label}</span>
                     </span>
-                    <span className="rounded-full border border-border/65 bg-background/60 px-2.5 py-1 text-xs font-semibold text-muted-foreground">
+                    <span className="shrink-0 whitespace-nowrap rounded-full border border-border/65 bg-background/60 px-2 py-1 text-[10px] font-semibold text-muted-foreground sm:px-2.5 sm:text-xs">
                       Em manutenção
                     </span>
                   </button>
