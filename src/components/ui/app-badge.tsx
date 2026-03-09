@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 const APP_BADGE_TONE_CLASS_NAMES: Record<AppBadgeTone, string> = {
   [AppBadgeTone.NEUTRAL]: "border-transparent bg-secondary text-secondary-foreground dark:bg-slate-950 dark:text-slate-100",
-  [AppBadgeTone.PRIMARY]: "border-transparent bg-primary/10 text-primary dark:bg-primary/55 dark:text-primary-foreground",
+  [AppBadgeTone.PRIMARY]: "border-transparent bg-primary/10 text-primary dark:bg-primary/50 dark:text-primary-foreground",
   [AppBadgeTone.RED]: "border-transparent bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-100",
   [AppBadgeTone.AMBER]: "border-transparent bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-100",
   [AppBadgeTone.EMERALD]:

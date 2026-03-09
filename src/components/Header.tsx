@@ -6,15 +6,22 @@ import { AppRoutePath } from "@/lib/enums";
 import { HEADER_APP_NAVIGATION_ITEMS } from "@/lib/navigation";
 import { resolveIsPublicRouteBlocked } from "@/lib/publicAccess";
 
+interface HeaderIndicatorState {
+  left: number;
+  width: number;
+}
+
+let previousHeaderIndicatorState: HeaderIndicatorState | null = null;
+
 export function Header() {
   const { publicAccessSettings } = usePublicAccessSettings();
   const { user, loading: authLoading } = useAuth();
   const location = useLocation();
   const navRef = useRef<HTMLElement | null>(null);
   const linkByPathRef = useRef<Record<string, HTMLAnchorElement | null>>({});
-  const [activeIndicatorLeft, setActiveIndicatorLeft] = useState(0);
-  const [activeIndicatorWidth, setActiveIndicatorWidth] = useState(0);
-  const [showActiveIndicator, setShowActiveIndicator] = useState(false);
+  const [activeIndicatorLeft, setActiveIndicatorLeft] = useState(previousHeaderIndicatorState?.left ?? 0);
+  const [activeIndicatorWidth, setActiveIndicatorWidth] = useState(previousHeaderIndicatorState?.width ?? 0);
+  const [showActiveIndicator, setShowActiveIndicator] = useState(previousHeaderIndicatorState != null);
 
   const activeRoutePath = useMemo(() => {
     return HEADER_APP_NAVIGATION_ITEMS.find((headerLinkItem) => headerLinkItem.routePath == location.pathname)?.routePath ?? null;
@@ -33,11 +40,14 @@ export function Header() {
       return;
     }
 
-    const navRect = navRef.current.getBoundingClientRect();
-    const linkRect = activeLinkElement.getBoundingClientRect();
+    const nextIndicatorState = {
+      left: activeLinkElement.offsetLeft,
+      width: activeLinkElement.offsetWidth,
+    };
 
-    setActiveIndicatorLeft(linkRect.left - navRect.left);
-    setActiveIndicatorWidth(linkRect.width);
+    previousHeaderIndicatorState = nextIndicatorState;
+    setActiveIndicatorLeft(nextIndicatorState.left);
+    setActiveIndicatorWidth(nextIndicatorState.width);
     setShowActiveIndicator(true);
   }, [activeRoutePath]);
 
@@ -64,7 +74,7 @@ export function Header() {
             className="relative ml-auto flex max-w-[calc(100%-3.5rem)] min-w-0 items-center gap-0 overflow-x-auto rounded-xl"
           >
             <span
-              className="pointer-events-none absolute inset-y-0 left-0 rounded-xl bg-primary/22 backdrop-blur-2xl transition-[transform,width,opacity] duration-500"
+              className="pointer-events-none absolute inset-y-0 left-0 rounded-xl bg-primary/20 backdrop-blur-2xl transition-[transform,width,opacity] duration-500"
               style={{
                 width: `${activeIndicatorWidth}px`,
                 transform: `translateX(${activeIndicatorLeft}px)`,
@@ -87,7 +97,7 @@ export function Header() {
                       type="button"
                       disabled
                       title="Tela temporariamente indisponível por manutenção"
-                      className="relative z-10 flex min-h-11 shrink-0 cursor-not-allowed items-center gap-1.5 rounded-none px-3 py-2.5 text-sm font-medium text-muted-foreground/70 dark:text-muted-foreground/35 first:rounded-l-xl last:rounded-r-xl sm:min-h-10 sm:py-2"
+                      className="relative z-10 flex min-h-11 shrink-0 cursor-not-allowed items-center gap-1.5 rounded-none px-3 py-2.5 text-sm font-medium text-muted-foreground/70 dark:text-muted-foreground/30 first:rounded-l-xl last:rounded-r-xl sm:min-h-10 sm:py-2"
                     >
                       <Icon className="h-5 w-5 sm:h-4 sm:w-4" />
                       <span className="hidden sm:inline">{label}</span>

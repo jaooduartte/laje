@@ -116,7 +116,7 @@ export function DateTimePicker({ value, onChange, placeholder, showTime = true, 
           type="button"
           variant="outline"
           className={cn(
-            "glass-input w-full justify-start overflow-hidden text-left font-normal hover:bg-background/75",
+            "glass-input w-full justify-start overflow-hidden text-left font-normal hover:bg-background/70",
             !value ? "text-muted-foreground" : "text-foreground",
             className,
           )}
@@ -127,7 +127,10 @@ export function DateTimePicker({ value, onChange, placeholder, showTime = true, 
           </span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto space-y-3 p-3" align="start">
+      <PopoverContent
+        className="w-auto space-y-3 border-border/70 bg-background/90 p-3 shadow-[0_16px_36px_rgba(15,23,42,0.22)] dark:shadow-none backdrop-blur-lg"
+        align="start"
+      >
         <Calendar mode="single" selected={selectedDate} onSelect={handleDateSelect} locale={ptBR} initialFocus />
         {showTime ? (
           <div className="flex items-center gap-2">

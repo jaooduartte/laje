@@ -145,6 +145,14 @@ export enum AdminUserPasswordStatus {
   ACTIVE = "ACTIVE",
 }
 
+export enum AdminUserSortOption {
+  NAME_ASC = "NAME_ASC",
+  LAST_ACCESS_DESC = "LAST_ACCESS_DESC",
+  ONLINE_DESC = "ONLINE_DESC",
+  ACTIVE_STATUS_DESC = "ACTIVE_STATUS_DESC",
+  PROFILE_ASC = "PROFILE_ASC",
+}
+
 export enum AdminLoginStage {
   LOGIN_IDENTIFIER = "LOGIN_IDENTIFIER",
   PASSWORD = "PASSWORD",

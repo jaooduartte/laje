@@ -1085,7 +1085,7 @@ export function AdminMatches({
           }
         }}
       >
-        <DialogContent className="border-border/60 !bg-background/70 shadow-[0_18px_45px_rgba(15,23,42,0.16)] backdrop-blur-md sm:max-w-4xl">
+        <DialogContent className="sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Novo jogo - {selectedChampionship.name}</DialogTitle>
             <DialogDescription>Defina naipe, modalidade, times, local e horários do confronto.</DialogDescription>

@@ -179,7 +179,7 @@ export function LoginPageView({
               </Button>
 
               {loginStage != AdminLoginStage.LOGIN_IDENTIFIER ? (
-                <Button type="button" variant="outline" className="w-full bg-background/75" onClick={onResetLoginFlow}>
+                <Button type="button" variant="outline" className="w-full bg-background/70" onClick={onResetLoginFlow}>
                   Alterar usuário
                 </Button>
               ) : null}

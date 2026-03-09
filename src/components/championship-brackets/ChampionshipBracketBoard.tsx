@@ -545,10 +545,10 @@ function BracketMatchCard({
 
   return (
     <div
-      className={`flex h-full flex-col overflow-hidden rounded-[1.35rem] border p-3 shadow-[0_16px_32px_rgba(15,23,42,0.16)] ${
+      className={`flex h-full flex-col overflow-hidden rounded-[1.35rem] border p-3 shadow-[0_16px_32px_rgba(15,23,42,0.16)] dark:shadow-none ${
         isFinalCard
-          ? "border-primary/55 bg-primary/10 shadow-[0_20px_44px_rgba(220,38,38,0.16)]"
-          : "border-border/45 bg-background/75"
+          ? "border-primary/50 bg-primary/10 shadow-[0_20px_44px_rgba(220,38,38,0.16)] dark:shadow-none"
+          : "border-border/40 bg-background/70"
       }`}
       style={
         fixedSize
@@ -573,7 +573,7 @@ function BracketMatchCard({
       </div>
 
       <div className="mt-3 flex min-h-0 flex-1 flex-col justify-center gap-2.5">
-        <div className="flex min-h-[44px] items-center justify-center rounded-xl border border-border/35 bg-background/65 px-3 py-2 text-center">
+        <div className="flex min-h-[44px] items-center justify-center rounded-xl border border-border/30 bg-background/60 px-3 py-2 text-center">
           <div className="flex max-w-full items-center justify-center gap-2">
             {isHomeWinner ? <Trophy className="h-4 w-4 shrink-0 text-amber-400" /> : null}
             <p className="max-w-full break-words text-center text-sm font-semibold leading-snug">{resolvedHomeLabel}</p>
@@ -581,10 +581,10 @@ function BracketMatchCard({
         </div>
 
         <div className="flex justify-center">
-          <span className="font-display text-lg font-bold text-muted-foreground/75">×</span>
+          <span className="font-display text-lg font-bold text-muted-foreground/70">×</span>
         </div>
 
-        <div className="flex min-h-[44px] items-center justify-center rounded-xl border border-border/35 bg-background/65 px-3 py-2 text-center">
+        <div className="flex min-h-[44px] items-center justify-center rounded-xl border border-border/30 bg-background/60 px-3 py-2 text-center">
           <div className="flex max-w-full items-center justify-center gap-2">
             {isAwayWinner ? <Trophy className="h-4 w-4 shrink-0 text-amber-400" /> : null}
             <p className="max-w-full break-words text-center text-sm font-semibold leading-snug">{resolvedAwayLabel}</p>
@@ -657,7 +657,7 @@ function DesktopBracketCanvas({
   return (
     <div
       ref={desktopBracketCanvasReference}
-      className="hidden rounded-2xl border border-border/35 bg-background/35 p-4 md:block"
+      className="hidden rounded-2xl border border-border/30 bg-background/30 p-4 md:block"
     >
       <div
         className="flex justify-center"
@@ -928,7 +928,7 @@ export function ChampionshipBracketBoard({
         );
 
         return (
-          <div key={competition.id} className="space-y-4 rounded-2xl border border-border/45 bg-background/30 p-4">
+          <div key={competition.id} className="space-y-4 rounded-2xl border border-border/40 bg-background/30 p-4">
             <div className="space-y-1">
               <h3 className="font-display text-lg font-bold">
                 {competition.sport_name} • {MATCH_NAIPE_LABELS[competition.naipe]}

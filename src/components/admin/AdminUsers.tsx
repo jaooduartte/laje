@@ -20,6 +20,8 @@ import {
   AppBadgeTone,
   AdminPanelPermissionLevel,
   AdminPanelTab,
+  AdminUserPasswordStatus,
+  AdminUserSortOption,
 } from "@/lib/enums";
 import type { AdminProfile, AdminTabPermissionByTab, AdminUser } from "@/lib/types";
 import {
@@ -89,6 +91,37 @@ const ADMIN_PANEL_PERMISSION_LEVEL_SORT_WEIGHTS: Record<AdminPanelPermissionLeve
   [AdminPanelPermissionLevel.EDIT]: 2,
 };
 
+const ADMIN_USER_SORT_OPTION_LABELS: Record<AdminUserSortOption, string> = {
+  [AdminUserSortOption.NAME_ASC]: "Nome",
+  [AdminUserSortOption.LAST_ACCESS_DESC]: "Último acesso",
+  [AdminUserSortOption.ONLINE_DESC]: "Online",
+  [AdminUserSortOption.ACTIVE_STATUS_DESC]: "Ativo",
+  [AdminUserSortOption.PROFILE_ASC]: "Perfil",
+};
+
+const ADMIN_USER_SORT_OPTION_ORDER: AdminUserSortOption[] = [
+  AdminUserSortOption.NAME_ASC,
+  AdminUserSortOption.LAST_ACCESS_DESC,
+  AdminUserSortOption.ONLINE_DESC,
+  AdminUserSortOption.ACTIVE_STATUS_DESC,
+  AdminUserSortOption.PROFILE_ASC,
+];
+
+const ADMIN_USER_PROFILE_SORT_WEIGHTS: Record<string, number> = {
+  admin: 0,
+  presidencia: 1,
+  "vice presidencia": 2,
+  vicepresidencia: 2,
+  "vice presidente": 2,
+  vice: 2,
+  tesoureiro: 3,
+  tesouraria: 3,
+  secretaria: 4,
+  esportes: 5,
+  eventos: 6,
+  comunicacao: 7,
+};
+
 interface Props {
   canManageUsers?: boolean;
 }
@@ -113,6 +146,16 @@ function isAdminPanelPermissionLevel(value: string | null): value is AdminPanelP
     value == AdminPanelPermissionLevel.NONE ||
     value == AdminPanelPermissionLevel.VIEW ||
     value == AdminPanelPermissionLevel.EDIT
+  );
+}
+
+function isAdminUserSortOption(value: string): value is AdminUserSortOption {
+  return (
+    value == AdminUserSortOption.NAME_ASC ||
+    value == AdminUserSortOption.LAST_ACCESS_DESC ||
+    value == AdminUserSortOption.ONLINE_DESC ||
+    value == AdminUserSortOption.ACTIVE_STATUS_DESC ||
+    value == AdminUserSortOption.PROFILE_ASC
   );
 }
 
@@ -202,6 +245,66 @@ function resolveAdminProfilePermissionsSortScore(permissions: AdminTabPermission
   }, 0);
 }
 
+function resolveAdminUserNameSortValue(user: AdminUser): string {
+  return user.name.trim().toLowerCase();
+}
+
+function resolveAdminUserLastAccessSortValue(user: AdminUser, isUserOnline: boolean, currentTimestamp: number): number {
+  if (isUserOnline) {
+    return currentTimestamp;
+  }
+
+  if (!user.last_sign_in_at) {
+    return 0;
+  }
+
+  return new Date(user.last_sign_in_at).getTime();
+}
+
+function resolveAdminUserLastAccessDate(user: AdminUser, isUserOnline: boolean): Date | null {
+  if (isUserOnline) {
+    return new Date();
+  }
+
+  if (!user.last_sign_in_at) {
+    return null;
+  }
+
+  return new Date(user.last_sign_in_at);
+}
+
+function resolveAdminUserOnlineSortValue(isUserOnline: boolean): number {
+  return isUserOnline ? 1 : 0;
+}
+
+function resolveAdminUserActiveStatusSortValue(status: AdminUserPasswordStatus): number {
+  return status == AdminUserPasswordStatus.ACTIVE ? 1 : 0;
+}
+
+function resolveNormalizedAdminUserProfileLabel(profileLabel: string | null): string {
+  return (profileLabel ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[-_]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function resolveAdminUserProfileSortWeight(user: AdminUser): number {
+  const normalizedProfileLabel = resolveNormalizedAdminUserProfileLabel(user.profile_name);
+
+  if (normalizedProfileLabel in ADMIN_USER_PROFILE_SORT_WEIGHTS) {
+    return ADMIN_USER_PROFILE_SORT_WEIGHTS[normalizedProfileLabel];
+  }
+
+  return Number.MAX_SAFE_INTEGER;
+}
+
+function resolveAdminUserProfileSortLabel(user: AdminUser): string {
+  return resolveNormalizedAdminUserProfileLabel(user.profile_name);
+}
+
 export function AdminUsers({ canManageUsers = true }: Props) {
   const { user: currentUser } = useAuth();
   const { siteTotalOnlineUserIds } = useOnlineVisitorsProviderContext();
@@ -209,6 +312,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
   const [profiles, setProfiles] = useState<AdminProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [accessFilter, setAccessFilter] = useState(ALL_PROFILES_FILTER);
+  const [sortOption, setSortOption] = useState<AdminUserSortOption | null>(null);
   const [userSearch, setUserSearch] = useState("");
   const [nameByUserId, setNameByUserId] = useState<Record<string, string>>({});
   const [accessValueByUserId, setAccessValueByUserId] = useState<Record<string, string>>({});
@@ -358,6 +462,10 @@ export function AdminUsers({ canManageUsers = true }: Props) {
     setNewUserAccessValue(profiles[0].profile_id);
   }, [newUserAccessValue, profiles]);
 
+  const onlineUserIdsSet = useMemo(() => {
+    return new Set(siteTotalOnlineUserIds);
+  }, [siteTotalOnlineUserIds]);
+
   const filteredUsers = useMemo(() => {
     const normalizedUserSearch = userSearch.trim().toLowerCase();
 
@@ -376,9 +484,86 @@ export function AdminUsers({ canManageUsers = true }: Props) {
     });
   }, [accessFilter, userSearch, users]);
 
+  const orderedFilteredUsers = useMemo(() => {
+    const resolvedSortOption = sortOption ?? AdminUserSortOption.NAME_ASC;
+    const currentTimestamp = Date.now();
+
+    const sortedUsers = [...filteredUsers].sort((firstUser, secondUser) => {
+      const nameComparison = resolveAdminUserNameSortValue(firstUser).localeCompare(resolveAdminUserNameSortValue(secondUser));
+
+      if (resolvedSortOption == AdminUserSortOption.NAME_ASC) {
+        return nameComparison;
+      }
+
+      if (resolvedSortOption == AdminUserSortOption.LAST_ACCESS_DESC) {
+        const firstUserLastAccess = resolveAdminUserLastAccessSortValue(
+          firstUser,
+          onlineUserIdsSet.has(firstUser.user_id),
+          currentTimestamp,
+        );
+        const secondUserLastAccess = resolveAdminUserLastAccessSortValue(
+          secondUser,
+          onlineUserIdsSet.has(secondUser.user_id),
+          currentTimestamp,
+        );
+        const difference = secondUserLastAccess - firstUserLastAccess;
+
+        if (difference != 0) {
+          return difference;
+        }
+
+        return nameComparison;
+      }
+
+      if (resolvedSortOption == AdminUserSortOption.ONLINE_DESC) {
+        const firstUserOnlineValue = resolveAdminUserOnlineSortValue(onlineUserIdsSet.has(firstUser.user_id));
+        const secondUserOnlineValue = resolveAdminUserOnlineSortValue(onlineUserIdsSet.has(secondUser.user_id));
+        const difference = secondUserOnlineValue - firstUserOnlineValue;
+
+        if (difference != 0) {
+          return difference;
+        }
+
+        return nameComparison;
+      }
+
+      if (resolvedSortOption == AdminUserSortOption.ACTIVE_STATUS_DESC) {
+        const firstUserActiveStatusValue = resolveAdminUserActiveStatusSortValue(firstUser.password_status);
+        const secondUserActiveStatusValue = resolveAdminUserActiveStatusSortValue(secondUser.password_status);
+        const difference = secondUserActiveStatusValue - firstUserActiveStatusValue;
+
+        if (difference != 0) {
+          return difference;
+        }
+
+        return nameComparison;
+      }
+
+      const firstUserProfileWeight = resolveAdminUserProfileSortWeight(firstUser);
+      const secondUserProfileWeight = resolveAdminUserProfileSortWeight(secondUser);
+      const profileWeightDifference = firstUserProfileWeight - secondUserProfileWeight;
+
+      if (profileWeightDifference != 0) {
+        return profileWeightDifference;
+      }
+
+      const profileComparison = resolveAdminUserProfileSortLabel(firstUser).localeCompare(
+        resolveAdminUserProfileSortLabel(secondUser),
+      );
+
+      if (profileComparison != 0) {
+        return profileComparison;
+      }
+
+      return nameComparison;
+    });
+
+    return sortedUsers;
+  }, [filteredUsers, onlineUserIdsSet, sortOption]);
+
   const selectableFilteredUsers = useMemo(() => {
-    return filteredUsers.filter((user) => user.user_id != currentUser?.id);
-  }, [currentUser?.id, filteredUsers]);
+    return orderedFilteredUsers.filter((user) => user.user_id != currentUser?.id);
+  }, [currentUser?.id, orderedFilteredUsers]);
 
   const selectAllFilteredUsersChecked = useMemo(() => {
     if (selectableFilteredUsers.length == 0) {
@@ -399,10 +584,6 @@ export function AdminUsers({ canManageUsers = true }: Props) {
   const isProtectedAdminProfile = useMemo(() => {
     return resolveIsProtectedAdminProfile(selectedProfile);
   }, [selectedProfile]);
-
-  const onlineUserIdsSet = useMemo(() => {
-    return new Set(siteTotalOnlineUserIds);
-  }, [siteTotalOnlineUserIds]);
 
   const editingUser = useMemo(() => {
     if (!editingUserId) {
@@ -425,6 +606,8 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       editedUserAccessValue != resolveUserAccessValue(editingUser) ||
       editedUserPassword.trim().length > 0
     : false;
+  const isEditingUserOnline = editingUser ? onlineUserIdsSet.has(editingUser.user_id) : false;
+  const editingUserLastAccessDate = editingUser ? resolveAdminUserLastAccessDate(editingUser, isEditingUserOnline) : null;
 
   const handleToggleSelectAllFilteredUsers = (checked: CheckedState) => {
     if (!canManageUsers) {
@@ -807,7 +990,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="glass-card enter-section grid gap-2 p-3 md:grid-cols-[minmax(0,1fr)_220px_auto_auto]">
+      <div className="glass-card enter-section grid gap-2 p-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_220px_260px_auto_auto]">
         <Input
           type="search"
           name="admin_user_filter_search"
@@ -835,8 +1018,28 @@ export function AdminUsers({ canManageUsers = true }: Props) {
           </SelectContent>
         </Select>
 
+        <Select
+          value={sortOption ?? undefined}
+          onValueChange={(value) => {
+            if (isAdminUserSortOption(value)) {
+              setSortOption(value);
+            }
+          }}
+        >
+          <SelectTrigger className="glass-input">
+            <SelectValue placeholder="Ordenar listagem" />
+          </SelectTrigger>
+          <SelectContent>
+            {ADMIN_USER_SORT_OPTION_ORDER.map((adminUserSortOption) => (
+              <SelectItem key={adminUserSortOption} value={adminUserSortOption}>
+                {ADMIN_USER_SORT_OPTION_LABELS[adminUserSortOption]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
         {canManageUsers ? (
-          <Button type="button" variant="outline" onClick={handleOpenCreateProfile} className="bg-background/75">
+          <Button type="button" variant="outline" onClick={handleOpenCreateProfile} className="bg-background/70">
             <Shield className="mr-2 h-4 w-4" />
             Perfis
           </Button>
@@ -855,7 +1058,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       </div>
 
       {canManageUsers ? (
-        filteredUsers.length > 0 ? (
+        orderedFilteredUsers.length > 0 ? (
           <div className="glass-card enter-section flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-wrap items-center gap-3">
               <label className="flex items-center gap-2 text-sm text-foreground">
@@ -866,7 +1069,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
               <Button
                 type="button"
                 variant="outline"
-                className="bg-background/75"
+                className="bg-background/70"
                 onClick={() => handleOpenResetUsersPasswordSetupConfirmation(selectedUserIds)}
                 disabled={selectedUserIds.length == 0 || bulkProcessingAction != null}
               >
@@ -881,7 +1084,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
               <Button
                 type="button"
                 variant="outline"
-                className="bg-background/75"
+                className="bg-background/70"
                 onClick={() => handleOpenDeleteUsersConfirmation(selectedUserIds)}
                 disabled={selectedUserIds.length == 0 || bulkProcessingAction != null}
               >
@@ -894,7 +1097,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
               </Button>
             </div>
 
-            <p className="text-sm text-muted-foreground">{filteredUsers.length} usuário(s) encontrado(s)</p>
+            <p className="text-sm text-muted-foreground">{orderedFilteredUsers.length} usuário(s) encontrado(s)</p>
           </div>
         ) : null
       ) : (
@@ -905,13 +1108,14 @@ export function AdminUsers({ canManageUsers = true }: Props) {
         <div className="glass-card enter-section flex min-h-28 items-center justify-center">
           <Loader2 className="h-5 w-5 animate-spin text-primary" />
         </div>
-      ) : filteredUsers.length == 0 ? (
+      ) : orderedFilteredUsers.length == 0 ? (
         <p className="text-sm text-muted-foreground">Nenhum usuário administrativo encontrado.</p>
       ) : (
         <div className="space-y-2">
-          {filteredUsers.map((user) => {
+          {orderedFilteredUsers.map((user) => {
             const isCurrentUser = user.user_id == currentUser?.id;
             const isUserOnline = onlineUserIdsSet.has(user.user_id);
+            const resolvedUserLastAccessDate = resolveAdminUserLastAccessDate(user, isUserOnline);
             const shouldDisplayUserEmail = resolveShouldDisplayInternalAdminUserEmail(user.email, user.login_identifier);
 
             return (
@@ -957,7 +1161,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                           type="button"
                           variant="outline"
                           size="icon"
-                          className="bg-background/75"
+                          className="bg-background/70"
                           onClick={() => handleOpenEditUserModal(user.user_id)}
                           title={`Editar ${user.name}`}
                           aria-label={`Editar ${user.name}`}
@@ -982,7 +1186,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                 <div className="space-y-1 text-xs text-muted-foreground">
                   <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">Último acesso</p>
                   <p className="text-sm text-foreground">
-                    {user.last_sign_in_at ? format(new Date(user.last_sign_in_at), "dd/MM/yyyy HH:mm") : "Sem acesso"}
+                    {resolvedUserLastAccessDate ? format(resolvedUserLastAccessDate, "dd/MM/yyyy HH:mm") : "Sem acesso"}
                   </p>
                 </div>
 
@@ -992,7 +1196,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                       type="button"
                       variant="outline"
                       size="icon"
-                      className="bg-background/75"
+                      className="bg-background/70"
                       onClick={() => handleOpenEditUserModal(user.user_id)}
                       title={`Editar ${user.name}`}
                       aria-label={`Editar ${user.name}`}
@@ -1017,7 +1221,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
           }
         }}
       >
-        <DialogContent className="border-border/60 !bg-background/70 shadow-[0_18px_45px_rgba(15,23,42,0.16)] backdrop-blur-md sm:max-w-xl">
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Criar usuário</DialogTitle>
             <DialogDescription>Defina o nome, o login e o perfil de acesso do usuário administrativo.</DialogDescription>
@@ -1082,7 +1286,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
         }}
       >
         {editingUser ? (
-          <DialogContent className="flex max-h-[calc(100dvh-1.5rem)] flex-col overflow-hidden border-border/60 !bg-background/70 shadow-[0_18px_45px_rgba(15,23,42,0.16)] backdrop-blur-md sm:max-w-3xl">
+          <DialogContent className="flex max-h-[calc(100dvh-1.5rem)] flex-col overflow-hidden sm:max-w-3xl">
             <DialogHeader className="shrink-0">
               <DialogTitle>Editar usuário</DialogTitle>
               <DialogDescription>Atualize nome, login, perfil, senha e ações do usuário administrativo.</DialogDescription>
@@ -1090,21 +1294,15 @@ export function AdminUsers({ canManageUsers = true }: Props) {
 
             <div className="overflow-y-auto pr-1">
               <div className="space-y-4">
-                <div className="rounded-2xl border border-border/50 bg-background/35 p-4 backdrop-blur-md">
+                <div className="rounded-2xl border border-border/50 bg-background/30 p-4 backdrop-blur-md">
                   <div className="flex flex-wrap items-center gap-2">
                     <span
-                      className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                        onlineUserIdsSet.has(editingUser.user_id) ? "bg-emerald-500" : "bg-red-500"
-                      }`}
+                      className={`h-2.5 w-2.5 shrink-0 rounded-full ${isEditingUserOnline ? "bg-emerald-500" : "bg-red-500"}`}
                       title={
-                        onlineUserIdsSet.has(editingUser.user_id)
-                          ? "Usuário online na plataforma"
-                          : "Usuário offline na plataforma"
+                        isEditingUserOnline ? "Usuário online na plataforma" : "Usuário offline na plataforma"
                       }
                       aria-label={
-                        onlineUserIdsSet.has(editingUser.user_id)
-                          ? "Usuário online na plataforma"
-                          : "Usuário offline na plataforma"
+                        isEditingUserOnline ? "Usuário online na plataforma" : "Usuário offline na plataforma"
                       }
                     />
                     <p className="text-sm font-semibold">{editingUser.name}</p>
@@ -1123,16 +1321,14 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                     <p>Criado em {format(new Date(editingUser.created_at), "dd/MM/yyyy HH:mm")}</p>
                     <p>
                       Último acesso:{" "}
-                      {editingUser.last_sign_in_at
-                        ? format(new Date(editingUser.last_sign_in_at), "dd/MM/yyyy HH:mm")
-                        : "Sem acesso"}
+                      {editingUserLastAccessDate ? format(editingUserLastAccessDate, "dd/MM/yyyy HH:mm") : "Sem acesso"}
                     </p>
                   </div>
                 </div>
 
                 {canManageUsers ? (
                   <div className="grid gap-4 lg:grid-cols-2">
-                    <div className="space-y-2 rounded-2xl border border-border/50 bg-background/35 p-4 backdrop-blur-md">
+                    <div className="space-y-2 rounded-2xl border border-border/50 bg-background/30 p-4 backdrop-blur-md">
                       <Label htmlFor={`admin-user-name-modal-${editingUser.user_id}`}>Nome</Label>
                       <Input
                         id={`admin-user-name-modal-${editingUser.user_id}`}
@@ -1149,7 +1345,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                       />
                     </div>
 
-                    <div className="space-y-2 rounded-2xl border border-border/50 bg-background/35 p-4 backdrop-blur-md">
+                    <div className="space-y-2 rounded-2xl border border-border/50 bg-background/30 p-4 backdrop-blur-md">
                       <Label htmlFor={`admin-user-login-modal-${editingUser.user_id}`}>Login</Label>
                       <Input
                         id={`admin-user-login-modal-${editingUser.user_id}`}
@@ -1169,7 +1365,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                       />
                     </div>
 
-                    <div className="space-y-2 rounded-2xl border border-border/50 bg-background/35 p-4 backdrop-blur-md">
+                    <div className="space-y-2 rounded-2xl border border-border/50 bg-background/30 p-4 backdrop-blur-md">
                       <Label htmlFor={`admin-user-access-modal-${editingUser.user_id}`}>Perfil de acesso</Label>
                       <Select
                         value={editedUserAccessValue}
@@ -1193,7 +1389,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                       </Select>
                     </div>
 
-                    <div className="space-y-2 rounded-2xl border border-border/50 bg-background/35 p-4 backdrop-blur-md">
+                    <div className="space-y-2 rounded-2xl border border-border/50 bg-background/30 p-4 backdrop-blur-md">
                       <Label htmlFor={`admin-user-password-modal-${editingUser.user_id}`}>Nova senha</Label>
                       <Input
                         id={`admin-user-password-modal-${editingUser.user_id}`}
@@ -1216,7 +1412,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                 ) : null}
 
                 {canManageUsers ? (
-                  <div className="flex justify-end">
+                  <div className="flex justify-center">
                     <Button
                       type="button"
                       className="w-full sm:w-auto"
@@ -1234,11 +1430,11 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                 ) : null}
 
                 {canManageUsers ? (
-                  <DialogFooter className="gap-2 border-t border-border/45 pt-4 sm:justify-between sm:space-x-0">
+                  <DialogFooter className="gap-2 border-t border-border/40 pt-4 sm:justify-center sm:space-x-0">
                     <Button
                       type="button"
                       variant="outline"
-                      className="bg-background/75"
+                      className="bg-background/70"
                       disabled={
                         editingUser.user_id == currentUser?.id ||
                         resettingUserId == editingUser.user_id ||
@@ -1257,7 +1453,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                     <Button
                       type="button"
                       variant="outline"
-                      className="bg-background/75"
+                      className="bg-background/70"
                       disabled={
                         editingUser.user_id == currentUser?.id ||
                         deletingUserId == editingUser.user_id ||
@@ -1288,10 +1484,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
           }
         }}
       >
-        <AlertDialogContent
-          overlayClassName="bg-transparent"
-          className="border-border/60 !bg-background/70 shadow-[0_18px_45px_rgba(15,23,42,0.16)] backdrop-blur-md"
-        >
+        <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{pendingUsersActionConfirmationTitle}</AlertDialogTitle>
             <AlertDialogDescription>{pendingUsersActionConfirmationDescription}</AlertDialogDescription>
@@ -1307,15 +1500,15 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       </AlertDialog>
 
       <Dialog open={showProfileModal} onOpenChange={setShowProfileModal}>
-        <DialogContent className="border-border/60 !bg-background/70 shadow-[0_18px_45px_rgba(15,23,42,0.16)] backdrop-blur-md sm:max-w-4xl">
+        <DialogContent className="sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Perfis personalizados</DialogTitle>
             <DialogDescription>Defina nome e permissões por aba do admin (visualização ou edição).</DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-            <div className="space-y-2 rounded-2xl border border-border/50 bg-background/35 p-3 backdrop-blur-md">
-              <Button type="button" variant="outline" className="w-full bg-background/75" onClick={handleOpenCreateProfile}>
+            <div className="space-y-2 rounded-2xl border border-border/50 bg-background/30 p-3 backdrop-blur-md">
+              <Button type="button" variant="outline" className="w-full bg-background/70" onClick={handleOpenCreateProfile}>
                 <Plus className="mr-2 h-4 w-4" />
                 Novo perfil
               </Button>
@@ -1331,7 +1524,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                       className={`w-full rounded-xl border px-3 py-2 text-left transition ${
                         profileDraft.profileId == profile.profile_id
                           ? "border-primary/40 bg-primary/10"
-                          : "border-border/50 bg-background/35 hover:bg-background/45"
+                          : "border-border/50 bg-background/30 hover:bg-background/40"
                       }`}
                       onClick={() => handleEditProfile(profile)}
                     >
@@ -1345,7 +1538,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
               </div>
             </div>
 
-            <div className="space-y-3 rounded-2xl border border-border/50 bg-background/35 p-3 backdrop-blur-md">
+            <div className="space-y-3 rounded-2xl border border-border/50 bg-background/30 p-3 backdrop-blur-md">
               <div className="space-y-2">
                 <Label htmlFor="profile-name-input">Nome do perfil</Label>
                 <Input
@@ -1376,7 +1569,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                   {ADMIN_PANEL_TAB_ORDER.map((adminPanelTab) => (
                     <div
                       key={adminPanelTab}
-                      className="grid gap-2 rounded-xl border border-border/50 bg-background/38 p-2 sm:grid-cols-[170px_minmax(0,1fr)] sm:items-center"
+                      className="grid gap-2 rounded-xl border border-border/50 bg-background/30 p-2 sm:grid-cols-[170px_minmax(0,1fr)] sm:items-center"
                     >
                       <p className="text-sm font-medium">{ADMIN_TAB_LABELS[adminPanelTab]}</p>
 

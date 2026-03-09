@@ -74,7 +74,7 @@ export function SportFilter({ sports, selected, onSelect }: Props) {
         className="glass-chip relative flex items-center gap-0 overflow-x-auto rounded-xl p-0"
       >
         <span
-          className="pointer-events-none absolute inset-y-0 left-0 rounded-xl bg-primary/22 backdrop-blur-2xl transition-[transform,width,opacity] duration-500"
+          className="pointer-events-none absolute inset-y-0 left-0 rounded-xl bg-primary/20 backdrop-blur-2xl transition-[transform,width,opacity] duration-500"
           style={{
             width: `${activeIndicatorWidth}px`,
             transform: `translateX(${activeIndicatorLeft}px)`,

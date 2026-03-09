@@ -21,9 +21,14 @@ export class LeagueEventSaveDTO {
   bindToSave(): TablesInsert<"league_events"> {
     const normalizedName = this.formValues.name.trim();
     const normalizedLocation = this.formValues.location.trim();
+    const resolvedEventType = this.formValues.eventType;
 
     if (!normalizedName) {
       throw new Error("Informe o nome do evento.");
+    }
+
+    if (!resolvedEventType) {
+      throw new Error("Selecione o tipo do evento.");
     }
 
     if (!normalizedLocation) {
@@ -35,7 +40,7 @@ export class LeagueEventSaveDTO {
     }
 
     const resolvedOrganizerType =
-      this.formValues.eventType == LeagueEventType.LAJE_EVENT
+      resolvedEventType == LeagueEventType.LAJE_EVENT
         ? LeagueEventOrganizerType.LAJE
         : LeagueEventOrganizerType.ATHLETIC;
 
@@ -50,7 +55,7 @@ export class LeagueEventSaveDTO {
 
     return {
       name: normalizedName,
-      event_type: this.formValues.eventType,
+      event_type: resolvedEventType,
       organizer_type: resolvedOrganizerType,
       organizer_team_id: resolvedOrganizerTeamId,
       location: normalizedLocation,

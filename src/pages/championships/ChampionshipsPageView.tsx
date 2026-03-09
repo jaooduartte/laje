@@ -135,7 +135,7 @@ export function ChampionshipsPageView({
                   onClick={() => onSelectChampionshipCode(championship.code)}
                   className={`glass-card glass-card-hover enter-item relative h-52 overflow-hidden text-left ${
                     isSelected
-                      ? "border-live/55 bg-primary/18 live-glow shadow-[0_0_0_1px_hsl(var(--live)/0.45)]"
+                      ? "border-live/50 bg-primary/10 live-glow shadow-[0_0_0_1px_hsl(var(--live)/0.45)] dark:shadow-none"
                       : ""
                   }`}
                 >
@@ -146,9 +146,9 @@ export function ChampionshipsPageView({
                     loading="lazy"
                   />
 
-                  {isSelected ? <div className="pointer-events-none absolute inset-0 bg-primary/12" /> : null}
+                  {isSelected ? <div className="pointer-events-none absolute inset-0 bg-primary/10" /> : null}
 
-                  <div className="absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-background/95 via-background/70 to-transparent p-3">
+                  <div className="absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-background/90 via-background/70 to-transparent p-3">
                     <p className="font-display text-base font-bold leading-tight">{championship.name}</p>
                   </div>
                 </button>
@@ -315,7 +315,7 @@ export function ChampionshipsPageView({
                 {championshipChampionHistory.map((championshipChampionYearGroup) => (
                   <div
                     key={championshipChampionYearGroup.year}
-                    className="space-y-4 rounded-2xl border border-border/45 bg-background/30 p-4"
+                    className="space-y-4 rounded-2xl border border-border/40 bg-background/30 p-4"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <h3 className="font-display text-lg font-bold">{championshipChampionYearGroup.year}</h3>
@@ -328,7 +328,7 @@ export function ChampionshipsPageView({
                       {championshipChampionYearGroup.champions.map((championshipChampion) => (
                         <div
                           key={championshipChampion.match_id}
-                          className="rounded-2xl border border-border/45 bg-background/40 p-4"
+                          className="rounded-2xl border border-border/40 bg-background/40 p-4"
                         >
                           <div className="space-y-1">
                             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">

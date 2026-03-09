@@ -23,7 +23,7 @@ export function StandingsTable({ standings }: Props) {
     <div className="glass-panel enter-section overflow-hidden">
       <Table>
         <TableHeader>
-          <TableRow className="bg-secondary/45">
+          <TableRow className="bg-secondary/40">
             <TableHead className="w-8 text-center">#</TableHead>
             <TableHead>Time</TableHead>
             <TableHead className="w-28 text-center">Naipe</TableHead>
@@ -39,7 +39,7 @@ export function StandingsTable({ standings }: Props) {
         </TableHeader>
         <TableBody>
           {standings.map((s, i) => (
-            <TableRow key={s.id} className="hover:bg-secondary/25">
+            <TableRow key={s.id} className="hover:bg-secondary/20">
               <TableCell className="text-center font-display font-bold text-muted-foreground">{i + 1}</TableCell>
               <TableCell className="font-display font-semibold">{s.teams?.name}</TableCell>
               <TableCell className="text-center">

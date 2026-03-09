@@ -1728,7 +1728,7 @@ export function AdminChampionshipBracketWizardModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="h-[780px] max-h-[88vh] w-[1120px] max-w-[95vw] flex flex-col overflow-hidden border-border/60 !bg-background/80 backdrop-blur-md shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
+      <DialogContent className="flex h-[780px] max-h-[88vh] w-[1120px] max-w-[95vw] flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>Hora de configurar o campeonato {selectedChampionship.name}!</DialogTitle>
           <DialogDescription>
@@ -1739,7 +1739,7 @@ export function AdminChampionshipBracketWizardModal({
         <div className="flex min-h-0 flex-1 flex-col gap-4">
           {saveErrorBannerData ? (
             <div ref={saveErrorBannerReference}>
-              <Alert variant="destructive" className="border-destructive/60 bg-destructive/5 pr-10 dark:bg-destructive/10">
+              <Alert variant="destructive" className="border-destructive/60 bg-destructive/10 pr-10 dark:bg-destructive/10">
                 <button
                   type="button"
                   aria-label="Fechar aviso de erro"
@@ -1757,16 +1757,16 @@ export function AdminChampionshipBracketWizardModal({
             </div>
           ) : null}
 
-          <div className="rounded-2xl border border-transparent bg-background/60 p-1 shadow-[0_12px_24px_rgba(15,23,42,0.14)] dark:border-border/65">
+          <div className="rounded-2xl border border-transparent bg-background/60 p-1 shadow-[0_12px_24px_rgba(15,23,42,0.14)] dark:shadow-none dark:border-border/60">
             <div className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-7">
               {WIZARD_STEP_LABELS.map((label, stepIndex) => (
                 <div
                   key={label}
                   className={`flex min-h-[56px] items-center justify-center rounded-xl px-3 py-2 text-center text-xs font-semibold transition-colors ${
                     stepIndex == currentStepIndex
-                      ? "bg-primary text-primary-foreground shadow-[0_6px_14px_rgba(220,38,38,0.32)]"
+                      ? "bg-primary text-primary-foreground shadow-[0_6px_14px_rgba(220,38,38,0.32)] dark:shadow-none"
                       : stepIndex < currentStepIndex
-                        ? "bg-primary/12 text-primary"
+                        ? "bg-primary/10 text-primary"
                         : "bg-transparent text-muted-foreground"
                   }`}
                 >
@@ -1781,7 +1781,7 @@ export function AdminChampionshipBracketWizardModal({
           <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2 py-2">
           {currentStepIndex == 0 ? (
             <div className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
-              <div className="rounded-xl bg-background/35 p-3">
+              <div className="rounded-xl bg-background/30 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-semibold">Selecione as atléticas participantes</p>
@@ -1803,7 +1803,7 @@ export function AdminChampionshipBracketWizardModal({
                     const isSelected = selectedTeamIdSet.has(team.id);
 
                     return (
-                      <label key={team.id} className="flex items-center gap-2 rounded-lg bg-background/45 px-3 py-2">
+                      <label key={team.id} className="flex items-center gap-2 rounded-lg bg-background/40 px-3 py-2">
                         <Checkbox
                           className={SQUARE_CHECKBOX_CLASS_NAME}
                           checked={isSelected}
@@ -1830,7 +1830,7 @@ export function AdminChampionshipBracketWizardModal({
 
           {currentStepIndex == 1 ? (
             <div className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
-              <div className="rounded-xl bg-background/35 p-3">
+              <div className="rounded-xl bg-background/30 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-semibold">Matriz Atlética x Modalidade</p>
@@ -1857,7 +1857,7 @@ export function AdminChampionshipBracketWizardModal({
                   Selecione as modalidades que cada atlética disputará.
                 </p>
 
-                <div className="mt-3 rounded-lg bg-background/45 p-3">
+                <div className="mt-3 rounded-lg bg-background/40 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs font-semibold">Seleção rápida de modalidades</p>
                     <label className="flex items-center gap-2 rounded-md px-2 py-1 text-xs">
@@ -1912,7 +1912,7 @@ export function AdminChampionshipBracketWizardModal({
                     return (
                       <div
                         key={team.id}
-                        className="rounded-lg bg-background/70 p-3 shadow-[0_10px_18px_rgba(15,23,42,0.16)]"
+                        className="rounded-lg bg-background/70 p-3 shadow-[0_10px_18px_rgba(15,23,42,0.16)] dark:shadow-none"
                       >
                         <p className="text-sm font-semibold">{team.name}</p>
                         {teamSportOptions.length == 0 ? (
@@ -1951,7 +1951,7 @@ export function AdminChampionshipBracketWizardModal({
 
           {currentStepIndex == 2 ? (
             <div className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
-              <div className="rounded-xl bg-background/35 p-3">
+              <div className="rounded-xl bg-background/30 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-semibold">Matriz Atlética x Modalidade x Naipe</p>
@@ -1976,7 +1976,7 @@ export function AdminChampionshipBracketWizardModal({
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">Selecione os naipes de cada modalidade por atlética.</p>
 
-                <div className="mt-3 rounded-lg bg-background/45 p-3">
+                <div className="mt-3 rounded-lg bg-background/40 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs font-semibold">Seleção rápida de naipes</p>
                     <label className="flex items-center gap-2 rounded-md px-2 py-1 text-xs">
@@ -2043,7 +2043,7 @@ export function AdminChampionshipBracketWizardModal({
                     return (
                       <div
                         key={`team-naipe-${team.id}`}
-                        className="rounded-lg bg-background/70 p-3 shadow-[0_10px_18px_rgba(15,23,42,0.16)]"
+                        className="rounded-lg bg-background/70 p-3 shadow-[0_10px_18px_rgba(15,23,42,0.16)] dark:shadow-none"
                       >
                         <p className="text-sm font-semibold">{team.name}</p>
 
@@ -2119,7 +2119,7 @@ export function AdminChampionshipBracketWizardModal({
                 return (
                   <div
                     key={competitionKey}
-                    className="rounded-xl bg-background/70 p-3 shadow-[0_10px_18px_rgba(15,23,42,0.18)]"
+                    className="rounded-xl bg-background/70 p-3 shadow-[0_10px_18px_rgba(15,23,42,0.18)] dark:shadow-none"
                   >
                     <div className="space-y-0.5">
                       <p className="line-clamp-2 text-sm font-semibold">
@@ -2170,7 +2170,7 @@ export function AdminChampionshipBracketWizardModal({
                             <Label
                               key={`${competitionKey}-qualifiers-${qualifiersPerGroupOption}`}
                               htmlFor={`${competitionKey}-qualifiers-${qualifiersPerGroupOption}`}
-                              className="flex w-full items-center gap-2 rounded-md bg-background/45 px-2 py-1.5 text-[11px] font-normal"
+                              className="flex w-full items-center gap-2 rounded-md bg-background/40 px-2 py-1.5 text-[11px] font-normal"
                             >
                               <RadioGroupItem
                                 id={`${competitionKey}-qualifiers-${qualifiersPerGroupOption}`}
@@ -2190,7 +2190,7 @@ export function AdminChampionshipBracketWizardModal({
 
           {currentStepIndex == 4 ? (
             <div className="space-y-3 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
-              <div className="rounded-xl bg-background/35 p-3">
+              <div className="rounded-xl bg-background/30 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <label className="flex items-center gap-2 rounded-md px-2 py-1 text-xs">
                     <Checkbox
@@ -2219,7 +2219,7 @@ export function AdminChampionshipBracketWizardModal({
                 const competitionTeams = competitionTeamsByCompetitionKey[competitionKey] ?? [];
 
                 return (
-                  <div key={competitionKey} className="rounded-xl bg-background/35 p-3">
+                  <div key={competitionKey} className="rounded-xl bg-background/30 p-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="text-sm font-semibold">
                         {competitionOption.sport_name} • {MATCH_NAIPE_LABELS[competitionOption.naipe]}
@@ -2239,7 +2239,7 @@ export function AdminChampionshipBracketWizardModal({
                             {competitionTeams.map((team) => (
                               <p
                                 key={`${competitionKey}-${team.id}-label`}
-                                className="w-44 shrink-0 rounded-md bg-background/45 px-2 py-1.5 text-xs font-medium"
+                                className="w-44 shrink-0 rounded-md bg-background/40 px-2 py-1.5 text-xs font-medium"
                               >
                                 {team.name}
                               </p>
@@ -2328,7 +2328,7 @@ export function AdminChampionshipBracketWizardModal({
 
               <div className="grid gap-4 md:grid-cols-2">
                 {scheduleDays.map((scheduleDay, scheduleDayIndex) => (
-                  <div key={scheduleDay.id} className="rounded-xl bg-background/35 p-3 shadow-[0_10px_18px_rgba(15,23,42,0.14)]">
+                  <div key={scheduleDay.id} className="rounded-xl bg-background/30 p-3 shadow-[0_10px_18px_rgba(15,23,42,0.14)] dark:shadow-none">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-semibold">Dia {scheduleDayIndex + 1}</p>
                       {scheduleDays.length > 1 ? (
@@ -2461,7 +2461,7 @@ export function AdminChampionshipBracketWizardModal({
 
                           <div className="mt-3 space-y-2">
                             {location.courts.map((court) => (
-                              <div key={court.id} className="rounded-md bg-background/45 p-2">
+                              <div key={court.id} className="rounded-md bg-background/40 p-2">
                                 <Input
                                   placeholder="Nome da quadra"
                                   value={court.name}
@@ -2604,10 +2604,10 @@ export function AdminChampionshipBracketWizardModal({
 
                 <button
                   type="button"
-                  className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-primary/40 bg-background/20 p-4 text-sm text-muted-foreground transition hover:border-primary hover:bg-background/35 hover:text-foreground"
+                  className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-primary/40 bg-background/20 p-4 text-sm text-muted-foreground transition hover:border-primary hover:bg-background/30 hover:text-foreground"
                   onClick={handleAddScheduleDay}
                 >
-                  <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                  <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
                     <Plus className="h-6 w-6" />
                   </span>
                   <span className="font-semibold">Adicionar dia</span>
@@ -2620,23 +2620,23 @@ export function AdminChampionshipBracketWizardModal({
           ) : null}
 
           {currentStepIndex == 6 ? (
-            <div className="space-y-4 rounded-xl bg-background/35 p-3 text-sm animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
+            <div className="space-y-4 rounded-xl bg-background/30 p-3 text-sm animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
               <div className="grid gap-2 sm:grid-cols-3">
-                <div className="rounded-lg border border-transparent bg-background/55 p-3 dark:border-border/70">
+                <div className="rounded-lg border border-transparent bg-background/50 p-3 dark:border-border/70">
                   <p className="text-xs text-muted-foreground">Atléticas participantes</p>
                   <p className="mt-1 text-lg font-semibold">{selectedTeamIds.length}</p>
                 </div>
-                <div className="rounded-lg border border-transparent bg-background/55 p-3 dark:border-border/70">
+                <div className="rounded-lg border border-transparent bg-background/50 p-3 dark:border-border/70">
                   <p className="text-xs text-muted-foreground">Competições ativas</p>
                   <p className="mt-1 text-lg font-semibold">{activeCompetitionKeys.length}</p>
                 </div>
-                <div className="rounded-lg border border-transparent bg-background/55 p-3 dark:border-border/70">
+                <div className="rounded-lg border border-transparent bg-background/50 p-3 dark:border-border/70">
                   <p className="text-xs text-muted-foreground">Dias de agenda</p>
                   <p className="mt-1 text-lg font-semibold">{scheduleDays.length}</p>
                 </div>
               </div>
 
-              <div className="rounded-lg border border-transparent bg-background/55 p-3 dark:border-border/70">
+              <div className="rounded-lg border border-transparent bg-background/50 p-3 dark:border-border/70">
                 <p className="text-sm font-semibold">Agenda configurada</p>
                 <div className="mt-2 space-y-2 text-xs text-muted-foreground">
                   {reviewScheduleDaySummaries.map((scheduleDaySummary) => (
@@ -2673,7 +2673,7 @@ export function AdminChampionshipBracketWizardModal({
                   return (
                     <div
                       key={`review-${competitionKey}`}
-                      className="rounded-lg border border-transparent bg-background/55 p-3 shadow-[0_10px_18px_rgba(15,23,42,0.14)] dark:border-border/70"
+                      className="rounded-lg border border-transparent bg-background/50 p-3 shadow-[0_10px_18px_rgba(15,23,42,0.14)] dark:shadow-none dark:border-border/70"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-sm font-semibold">
@@ -2690,7 +2690,7 @@ export function AdminChampionshipBracketWizardModal({
                           return (
                             <div
                               key={`${competitionKey}-review-group-${groupSummary.group_number}`}
-                              className="rounded-md bg-background/40 p-2 shadow-[0_6px_14px_rgba(15,23,42,0.1)]"
+                              className="rounded-md bg-background/40 p-2 shadow-[0_6px_14px_rgba(15,23,42,0.1)] dark:shadow-none"
                             >
                               <p className="text-xs font-semibold">Chave {groupSummary.group_number}</p>
                               <div className="mt-1 flex flex-wrap gap-1.5">
@@ -2700,7 +2700,7 @@ export function AdminChampionshipBracketWizardModal({
                                   groupSummary.teams.map((groupTeam) => (
                                     <span
                                       key={`${competitionKey}-review-group-${groupSummary.group_number}-${groupTeam.id}`}
-                                      className="rounded-full bg-background/75 px-2 py-0.5 text-[11px]"
+                                      className="rounded-full bg-background/70 px-2 py-0.5 text-[11px]"
                                     >
                                       {groupTeam.name}
                                     </span>

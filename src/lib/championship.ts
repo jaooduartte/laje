@@ -51,9 +51,9 @@ export const CHAMPIONSHIP_STATUS_BADGE_CLASS_NAMES: Record<ChampionshipStatus, s
   [ChampionshipStatus.PLANNING]: "border-transparent bg-secondary text-secondary-foreground",
   [ChampionshipStatus.UPCOMING]: "border-transparent bg-secondary text-secondary-foreground",
   [ChampionshipStatus.IN_PROGRESS]:
-    "border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-500/22 dark:text-emerald-200",
+    "border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200",
   [ChampionshipStatus.FINISHED]:
-    "border-transparent bg-primary/15 text-primary dark:bg-primary/36 dark:text-primary-foreground",
+    "border-transparent bg-primary/10 text-primary dark:bg-primary/30 dark:text-primary-foreground",
 };
 
 export const MATCH_NAIPE_LABELS: Record<MatchNaipe, string> = {

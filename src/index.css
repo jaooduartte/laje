@@ -233,6 +233,16 @@
     box-shadow: 0 0 20px hsl(var(--live) / 0.3), 0 0 60px hsl(var(--live) / 0.1);
   }
 
+  .dark .glass-panel,
+  .dark .glass-card,
+  .dark .glass-card-hover:hover,
+  .dark .list-item-card,
+  .dark .list-item-card-hover:hover,
+  .dark .glass-chip,
+  .dark .live-glow {
+    box-shadow: none;
+  }
+
   .score-text {
     font-variant-numeric: tabular-nums;
   }

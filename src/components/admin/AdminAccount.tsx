@@ -186,7 +186,7 @@ export function AdminAccount({ canManageAccount = false }: Props) {
         </div>
 
         <div className="grid gap-3 xl:grid-cols-2">
-          <div className="space-y-2 rounded-2xl border border-border/50 bg-background/35 p-3 backdrop-blur-md">
+          <div className="space-y-2 rounded-2xl border border-border/50 bg-background/30 p-3 backdrop-blur-md">
             <Label htmlFor="admin-account-name-input">Nome</Label>
             <Input
               id="admin-account-name-input"
@@ -198,7 +198,7 @@ export function AdminAccount({ canManageAccount = false }: Props) {
             />
           </div>
 
-          <div className="space-y-2 rounded-2xl border border-border/50 bg-background/35 p-3 backdrop-blur-md">
+          <div className="space-y-2 rounded-2xl border border-border/50 bg-background/30 p-3 backdrop-blur-md">
             <Label htmlFor="admin-account-login-input">Login</Label>
             <Input
               id="admin-account-login-input"
@@ -214,7 +214,7 @@ export function AdminAccount({ canManageAccount = false }: Props) {
           </div>
         </div>
 
-        <div className="space-y-2 rounded-2xl border border-border/50 bg-background/35 p-3 backdrop-blur-md">
+        <div className="space-y-2 rounded-2xl border border-border/50 bg-background/30 p-3 backdrop-blur-md">
           <Label htmlFor="admin-account-password-input">Nova senha</Label>
           <Input
             id="admin-account-password-input"
@@ -228,7 +228,7 @@ export function AdminAccount({ canManageAccount = false }: Props) {
         </div>
 
         {canManageAccount ? (
-          <div className="flex justify-end">
+          <div className="flex justify-center">
             <Button
               type="button"
               className="w-full sm:w-auto"

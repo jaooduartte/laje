@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Pencil, Plus, Save, Trash2, X } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Team } from "@/lib/types";
@@ -73,6 +73,7 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
   const [teamSearch, setTeamSearch] = useState("");
   const [divisionFilter, setDivisionFilter] = useState<string>(ALL_TEAMS_DIVISION_FILTER);
   const [showCreateTeamModal, setShowCreateTeamModal] = useState(false);
+  const [showEditTeamModal, setShowEditTeamModal] = useState(false);
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [editingTeamName, setEditingTeamName] = useState("");
   const [editingTeamCity, setEditingTeamCity] = useState("Joinville");
@@ -106,6 +107,18 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
   const handleOpenCreateTeamModal = () => {
     resetCreateTeamForm();
     setShowCreateTeamModal(true);
+  };
+
+  const resetEditTeamForm = () => {
+    setEditingTeamId(null);
+    setEditingTeamName("");
+    setEditingTeamCity("Joinville");
+    setEditingTeamDivision(TeamDivision.DIVISAO_ACESSO);
+  };
+
+  const handleCloseEditTeamModal = () => {
+    setShowEditTeamModal(false);
+    resetEditTeamForm();
   };
 
   const handleAdd = async () => {
@@ -151,7 +164,7 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
     onRefetch();
   };
 
-  const handleStartEditingTeam = (team: Team) => {
+  const handleOpenEditTeamModal = (team: Team) => {
     if (!canManageTeams) {
       return;
     }
@@ -160,13 +173,7 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
     setEditingTeamName(team.name);
     setEditingTeamCity(team.city);
     setEditingTeamDivision(team.division);
-  };
-
-  const handleCancelEditingTeam = () => {
-    setEditingTeamId(null);
-    setEditingTeamName("");
-    setEditingTeamCity("Joinville");
-    setEditingTeamDivision(TeamDivision.DIVISAO_ACESSO);
+    setShowEditTeamModal(true);
   };
 
   const handleSaveTeam = async () => {
@@ -200,7 +207,7 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
     }
 
     toast.success("Atlética atualizada.");
-    handleCancelEditingTeam();
+    handleCloseEditTeamModal();
     onRefetch();
   };
 
@@ -256,80 +263,22 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
             <div key={team.id} className="list-item-card list-item-card-hover space-y-3 p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  {editingTeamId == team.id ? (
-                    <Input
-                      value={editingTeamName}
-                      onChange={(event) => setEditingTeamName(event.target.value)}
-                      className="h-8 glass-input"
-                    />
-                  ) : (
-                    <p className="font-display font-semibold leading-tight">{team.name}</p>
-                  )}
+                  <p className="font-display font-semibold leading-tight">{team.name}</p>
                 </div>
 
                 <div className="shrink-0">
-                  {editingTeamId == team.id ? (
-                    <Select value={editingTeamCity} onValueChange={setEditingTeamCity}>
-                      <SelectTrigger className="h-8 w-40 glass-input">
-                        <SelectValue placeholder="Cidade" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TEAM_CITY_OPTIONS.map((cityOption) => (
-                          <SelectItem key={cityOption} value={cityOption}>
-                            {cityOption}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <AppBadge tone={resolveTeamDivisionBadgeTone(team.division)}>
-                      {resolveTeamDivisionLabel(team.division)}
-                    </AppBadge>
-                  )}
+                  <AppBadge tone={resolveTeamDivisionBadgeTone(team.division)}>
+                    {resolveTeamDivisionLabel(team.division)}
+                  </AppBadge>
                 </div>
               </div>
 
               <div className="space-y-2">
-                {editingTeamId == team.id ? (
-                  <Select
-                    value={resolveTeamDivisionSelection(editingTeamDivision)}
-                    onValueChange={(value) => {
-                      if (isTeamDivisionSelection(value)) {
-                        setEditingTeamDivision(resolveTeamDivisionBySelection(value));
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="h-8 w-full glass-input">
-                      <SelectValue placeholder={resolveTeamDivisionLabel(editingTeamDivision)} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={TeamDivisionSelection.DIVISAO_PRINCIPAL}>
-                        {TEAM_DIVISION_SELECTION_LABELS[TeamDivisionSelection.DIVISAO_PRINCIPAL]}
-                      </SelectItem>
-                      <SelectItem value={TeamDivisionSelection.DIVISAO_ACESSO}>
-                        {TEAM_DIVISION_SELECTION_LABELS[TeamDivisionSelection.DIVISAO_ACESSO]}
-                      </SelectItem>
-                      <SelectItem value={TeamDivisionSelection.WITHOUT_DIVISION}>
-                        {TEAM_DIVISION_SELECTION_LABELS[TeamDivisionSelection.WITHOUT_DIVISION]}
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <p className="text-xs text-muted-foreground">{team.city}</p>
-                )}
+                <p className="text-xs text-muted-foreground">{team.city}</p>
 
                 <div className="flex items-center justify-end gap-1">
-                  {canManageTeams && editingTeamId == team.id ? (
-                    <>
-                      <Button variant="ghost" size="icon" onClick={handleSaveTeam}>
-                        <Save className="h-4 w-4 text-primary" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={handleCancelEditingTeam}>
-                        <X className="h-4 w-4 text-muted-foreground" />
-                      </Button>
-                    </>
-                  ) : canManageTeams ? (
-                    <Button variant="ghost" size="icon" onClick={() => handleStartEditingTeam(team)}>
+                  {canManageTeams ? (
+                    <Button variant="ghost" size="icon" onClick={() => handleOpenEditTeamModal(team)}>
                       <Pencil className="h-4 w-4 text-muted-foreground" />
                     </Button>
                   ) : null}
@@ -356,7 +305,7 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
           }
         }}
       >
-        <DialogContent className="border-border/60 !bg-background/70 shadow-[0_18px_45px_rgba(15,23,42,0.16)] backdrop-blur-md sm:max-w-xl">
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Criar atlética</DialogTitle>
             <DialogDescription>Cadastre a atlética e defina a cidade e a divisão dela.</DialogDescription>
@@ -416,6 +365,80 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
             <Button type="button" onClick={handleAdd}>
               <Plus className="mr-2 h-4 w-4" />
               Criar atlética
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={showEditTeamModal}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            handleCloseEditTeamModal();
+          } else {
+            setShowEditTeamModal(true);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Editar atlética</DialogTitle>
+            <DialogDescription>Atualize as informações da atlética selecionada.</DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3">
+            <Input
+              placeholder="Nome da atlética"
+              value={editingTeamName}
+              onChange={(event) => setEditingTeamName(event.target.value)}
+              className="glass-input"
+              autoComplete="off"
+            />
+
+            <Select value={editingTeamCity} onValueChange={setEditingTeamCity}>
+              <SelectTrigger className="glass-input">
+                <SelectValue placeholder="Cidade" />
+              </SelectTrigger>
+              <SelectContent>
+                {TEAM_CITY_OPTIONS.map((cityOption) => (
+                  <SelectItem key={cityOption} value={cityOption}>
+                    {cityOption}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={resolveTeamDivisionSelection(editingTeamDivision)}
+              onValueChange={(value) => {
+                if (isTeamDivisionSelection(value)) {
+                  setEditingTeamDivision(resolveTeamDivisionBySelection(value));
+                }
+              }}
+            >
+              <SelectTrigger className="glass-input">
+                <SelectValue placeholder="Divisão" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={TeamDivisionSelection.DIVISAO_PRINCIPAL}>
+                  {TEAM_DIVISION_SELECTION_LABELS[TeamDivisionSelection.DIVISAO_PRINCIPAL]}
+                </SelectItem>
+                <SelectItem value={TeamDivisionSelection.DIVISAO_ACESSO}>
+                  {TEAM_DIVISION_SELECTION_LABELS[TeamDivisionSelection.DIVISAO_ACESSO]}
+                </SelectItem>
+                <SelectItem value={TeamDivisionSelection.WITHOUT_DIVISION}>
+                  {TEAM_DIVISION_SELECTION_LABELS[TeamDivisionSelection.WITHOUT_DIVISION]}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <DialogFooter className="gap-3 pt-2 sm:gap-2 sm:pt-0">
+            <Button type="button" variant="outline" onClick={handleCloseEditTeamModal}>
+              Cancelar
+            </Button>
+            <Button type="button" onClick={handleSaveTeam}>
+              Salvar alterações
             </Button>
           </DialogFooter>
         </DialogContent>

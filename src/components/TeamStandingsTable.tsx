@@ -8,7 +8,7 @@ interface Props {
 
 function resolveTopPlacementRowClass(position: number): string {
   if (position == 1) {
-    return "bg-amber-100/45 hover:bg-amber-100/60 dark:bg-amber-800/30 dark:hover:bg-amber-900/80";
+    return "bg-amber-100/40 hover:bg-amber-100/60 dark:bg-amber-800/30 dark:hover:bg-amber-900/80";
   }
 
   if (position == 2) {
@@ -19,7 +19,7 @@ function resolveTopPlacementRowClass(position: number): string {
     return "bg-orange-100/40 hover:bg-orange-100/60 dark:bg-orange-800/20 dark:hover:bg-orange-900/50";
   }
 
-  return "hover:bg-secondary/25";
+  return "hover:bg-secondary/20";
 }
 
 export function TeamStandingsTable({ standings, showCardColumns = false }: Props) {
@@ -31,7 +31,7 @@ export function TeamStandingsTable({ standings, showCardColumns = false }: Props
     <div className="glass-panel enter-section overflow-hidden">
       <Table>
         <TableHeader>
-          <TableRow className="bg-secondary/45">
+          <TableRow className="bg-secondary/40">
             <TableHead className="w-8 text-center">#</TableHead>
             <TableHead>Atlética</TableHead>
             <TableHead className="text-center w-10">J</TableHead>

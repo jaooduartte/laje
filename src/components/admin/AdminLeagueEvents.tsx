@@ -1,9 +1,20 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { addMonths, format, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import { AppBadge } from "@/components/ui/app-badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -35,7 +46,12 @@ import {
 } from "@/domain/league-events/leagueEvent.helpers";
 import type { LeagueEventFormValues } from "@/domain/league-events/leagueEvent.types";
 import { LeagueEventSaveDTO } from "@/domain/league-events/LeagueEventSaveDTO";
-import { createLeagueEvent, deleteLeagueEvent, updateLeagueEvent } from "@/domain/league-events/leagueEvent.repository";
+import {
+  createLeagueEvent,
+  deleteLeagueEvent,
+  fetchLeagueEventsByDateRange,
+  updateLeagueEvent,
+} from "@/domain/league-events/leagueEvent.repository";
 
 interface Props {
   teams: Team[];
@@ -56,7 +72,7 @@ const ALL_LEAGUE_EVENT_ORGANIZER_FILTER = "ALL_LEAGUE_EVENT_ORGANIZER_FILTER";
 function resolveDefaultFormValues(): LeagueEventFormValues {
   return {
     name: "",
-    eventType: LeagueEventType.HH,
+    eventType: null,
     organizerTeamIds: [],
     location: "",
     eventDate: null,
@@ -109,7 +125,7 @@ function OrganizerTeamsSelector({
           type="button"
           variant="outline"
           className={cn(
-            "glass-input w-full justify-between overflow-hidden text-left text-sm font-normal hover:bg-background/75",
+            "glass-input w-full justify-between overflow-hidden text-left text-sm font-normal hover:bg-background/70",
             triggerClassName,
           )}
         >
@@ -119,8 +135,12 @@ function OrganizerTeamsSelector({
           </span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[340px] border-border/55 bg-background/88 p-3 backdrop-blur-xl" align="start">
-        <div className="max-h-60 space-y-1 overflow-y-auto pr-1">
+      <PopoverContent
+        withPortal={false}
+        className="w-[340px] border-border/50 bg-background/80 p-3 backdrop-blur-xl"
+        align="start"
+      >
+        <div className="max-h-60 space-y-1 overflow-y-auto overscroll-contain pr-1" onWheelCapture={(event) => event.stopPropagation()}>
           {orderedTeams.map((team) => (
             <label
               key={team.id}
@@ -138,7 +158,7 @@ function OrganizerTeamsSelector({
           ))}
         </div>
 
-        <div className="mt-3 flex justify-end">
+        <div className="mt-3 flex justify-center">
           <Button type="button" variant="ghost" size="sm" onClick={() => onSelectionChange([])}>
             Limpar
           </Button>
@@ -153,12 +173,14 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
   const { leagueEvents, loading, upsertLeagueEvent, removeLeagueEvent } = useLeagueEvents({ monthDate: selectedMonthDate });
 
   const [createFormValues, setCreateFormValues] = useState<LeagueEventFormValues>(resolveDefaultFormValues());
-  const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [editingLeagueEventId, setEditingLeagueEventId] = useState<string | null>(null);
+  const [showEditLeagueEventModal, setShowEditLeagueEventModal] = useState(false);
   const [editingFormValues, setEditingFormValues] = useState<LeagueEventFormValues>(resolveDefaultFormValues());
   const [leagueEventSearch, setLeagueEventSearch] = useState("");
   const [leagueEventTypeFilter, setLeagueEventTypeFilter] = useState<string>(ALL_LEAGUE_EVENT_TYPES_FILTER);
   const [leagueEventOrganizerFilter, setLeagueEventOrganizerFilter] = useState<string>(ALL_LEAGUE_EVENT_ORGANIZER_FILTER);
   const [showCreateLeagueEventModal, setShowCreateLeagueEventModal] = useState(false);
+  const [pendingCreateLeagueEventConflicts, setPendingCreateLeagueEventConflicts] = useState<LeagueEvent[] | null>(null);
 
   const orderedTeams = useMemo(() => {
     return [...teams].sort((firstTeam, secondTeam) => firstTeam.name.localeCompare(secondTeam.name));
@@ -193,13 +215,46 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
 
   const monthControlClassName = "glass-input h-9 rounded-xl text-secondary-foreground";
 
+  const editingLeagueEvent = useMemo(() => {
+    if (!editingLeagueEventId) {
+      return null;
+    }
+
+    return leagueEvents.find((leagueEvent) => leagueEvent.id == editingLeagueEventId) ?? null;
+  }, [editingLeagueEventId, leagueEvents]);
+
+  useEffect(() => {
+    if (!showEditLeagueEventModal) {
+      return;
+    }
+
+    if (!editingLeagueEventId) {
+      return;
+    }
+
+    if (leagueEvents.some((leagueEvent) => leagueEvent.id == editingLeagueEventId)) {
+      return;
+    }
+
+    setShowEditLeagueEventModal(false);
+    setEditingLeagueEventId(null);
+    setEditingFormValues(resolveDefaultFormValues());
+  }, [editingLeagueEventId, leagueEvents, showEditLeagueEventModal]);
+
   const resetCreateLeagueEventForm = () => {
     setCreateFormValues(resolveDefaultFormValues());
   };
 
   const handleOpenCreateLeagueEventModal = () => {
     resetCreateLeagueEventForm();
+    setPendingCreateLeagueEventConflicts(null);
     setShowCreateLeagueEventModal(true);
+  };
+
+  const handleCloseEditLeagueEventModal = () => {
+    setShowEditLeagueEventModal(false);
+    setEditingLeagueEventId(null);
+    setEditingFormValues(resolveDefaultFormValues());
   };
 
   const handleChangeCreateField = <FieldName extends keyof LeagueEventFormValues>(
@@ -238,7 +293,42 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
     });
   };
 
-  const handleCreateLeagueEvent = async () => {
+  const persistCreateLeagueEvent = async (
+    payload: TablesInsert<"league_events">,
+    organizerTeamIds: string[],
+  ) => {
+    const { data, error } = await createLeagueEvent(payload, organizerTeamIds);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    if (data) {
+      upsertLeagueEvent(data as LeagueEvent);
+    }
+
+    toast.success("Evento criado com sucesso.");
+    setPendingCreateLeagueEventConflicts(null);
+    setShowCreateLeagueEventModal(false);
+    resetCreateLeagueEventForm();
+    setSelectedMonthDate(new Date(`${payload.event_date}T12:00:00`));
+  };
+
+  const resolveConflictingLeagueEventsByDate = async (eventDate: string) => {
+    const { data, error } = await fetchLeagueEventsByDateRange({
+      startDate: eventDate,
+      endDate: eventDate,
+    });
+
+    if (error) {
+      throw new Error("Não foi possível validar se já existe evento nessa data.");
+    }
+
+    return data;
+  };
+
+  const handleCreateLeagueEvent = async (shouldIgnoreDateConflict: boolean) => {
     if (!canManageLeagueEvents) {
       return;
     }
@@ -247,43 +337,48 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
       const leagueEventSaveDTO = LeagueEventSaveDTO.fromFormValues(createFormValues);
       const payload = leagueEventSaveDTO.bindToSave();
       const organizerTeamIds = leagueEventSaveDTO.resolveOrganizerTeamIds();
-      const { data, error } = await createLeagueEvent(payload, organizerTeamIds);
 
-      if (error) {
-        toast.error(error.message);
-        return;
+      if (!shouldIgnoreDateConflict) {
+        const conflictingLeagueEvents = await resolveConflictingLeagueEventsByDate(payload.event_date);
+
+        if (conflictingLeagueEvents.length > 0) {
+          setPendingCreateLeagueEventConflicts(conflictingLeagueEvents);
+          return;
+        }
       }
 
-      if (data) {
-        upsertLeagueEvent(data as LeagueEvent);
-      }
-
-      toast.success("Evento criado com sucesso.");
-      setShowCreateLeagueEventModal(false);
-      resetCreateLeagueEventForm();
-      setSelectedMonthDate(new Date(`${payload.event_date}T12:00:00`));
+      await persistCreateLeagueEvent(payload, organizerTeamIds);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Não foi possível criar o evento.";
       toast.error(errorMessage);
     }
   };
 
-  const handleStartEditEvent = (leagueEvent: LeagueEvent) => {
+  const handleSubmitCreateLeagueEvent = async () => {
+    await handleCreateLeagueEvent(false);
+  };
+
+  const handleConfirmCreateLeagueEventDespiteConflict = async () => {
+    setPendingCreateLeagueEventConflicts(null);
+    await handleCreateLeagueEvent(true);
+  };
+
+  const handleOpenEditLeagueEventModal = (leagueEvent: LeagueEvent) => {
     if (!canManageLeagueEvents) {
       return;
     }
 
-    setEditingEventId(leagueEvent.id);
+    setEditingLeagueEventId(leagueEvent.id);
     setEditingFormValues(resolveFormValuesFromLeagueEvent(leagueEvent));
+    setShowEditLeagueEventModal(true);
   };
 
-  const handleCancelEditEvent = () => {
-    setEditingEventId(null);
-    setEditingFormValues(resolveDefaultFormValues());
-  };
-
-  const handleSaveEditEvent = async (leagueEventId: string) => {
+  const handleSaveEditEvent = async () => {
     if (!canManageLeagueEvents) {
+      return;
+    }
+
+    if (!editingLeagueEventId) {
       return;
     }
 
@@ -291,7 +386,7 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
       const leagueEventSaveDTO = LeagueEventSaveDTO.fromFormValues(editingFormValues);
       const payload = leagueEventSaveDTO.bindToSave();
       const organizerTeamIds = leagueEventSaveDTO.resolveOrganizerTeamIds();
-      const { data, error } = await updateLeagueEvent(leagueEventId, payload, organizerTeamIds);
+      const { data, error } = await updateLeagueEvent(editingLeagueEventId, payload, organizerTeamIds);
 
       if (error) {
         toast.error(error.message);
@@ -303,7 +398,7 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
       }
 
       toast.success("Evento atualizado com sucesso.");
-      handleCancelEditEvent();
+      handleCloseEditLeagueEventModal();
       setSelectedMonthDate(new Date(`${payload.event_date}T12:00:00`));
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Não foi possível atualizar o evento.";
@@ -326,6 +421,18 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
     removeLeagueEvent(leagueEventId);
     toast.success("Evento removido com sucesso.");
   };
+
+  const pendingCreateLeagueEventConflictCount = pendingCreateLeagueEventConflicts?.length ?? 0;
+  const pendingCreateLeagueEventConflictDate = pendingCreateLeagueEventConflicts?.[0]?.event_date ?? null;
+  const pendingCreateLeagueEventConflictTitle =
+    pendingCreateLeagueEventConflictCount > 1
+      ? "Já existem eventos nessa data"
+      : "Já existe um evento nessa data";
+  const pendingCreateLeagueEventConflictDescription = pendingCreateLeagueEventConflictDate
+    ? `Encontramos ${
+        pendingCreateLeagueEventConflictCount > 1 ? "eventos cadastrados" : "evento cadastrado"
+      } em ${format(new Date(`${pendingCreateLeagueEventConflictDate}T12:00:00`), "dd/MM/yyyy")}. Deseja criar o evento mesmo assim?`
+    : "Encontramos evento cadastrado nessa data. Deseja criar o evento mesmo assim?";
 
   return (
     <div className="space-y-6">
@@ -422,8 +529,6 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
 
       <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
         {filteredLeagueEvents.map((leagueEvent) => {
-          const isEditing = editingEventId == leagueEvent.id;
-          const formValues = isEditing ? editingFormValues : resolveFormValuesFromLeagueEvent(leagueEvent);
           const organizerName = resolveLeagueEventOrganizerName(leagueEvent);
 
           return (
@@ -432,15 +537,7 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
                 <div className="min-w-0 flex-1 space-y-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="space-y-1">
-                      {isEditing ? (
-                        <Input
-                          value={formValues.name}
-                          onChange={(event) => handleChangeEditField("name", event.target.value)}
-                          className="h-8 glass-input"
-                        />
-                      ) : (
-                        <p className="font-display font-semibold">{leagueEvent.name}</p>
-                      )}
+                      <p className="font-display font-semibold">{leagueEvent.name}</p>
                       <p className="text-xs text-muted-foreground">
                         {format(new Date(`${leagueEvent.event_date}T12:00:00`), "dd/MM/yyyy")}
                       </p>
@@ -451,76 +548,15 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
                     </AppBadge>
                   </div>
 
-                  <div className="space-y-2">
-                    {isEditing ? (
-                      <>
-                        <Select
-                          value={formValues.eventType}
-                          onValueChange={(value) => {
-                            if (isLeagueEventType(value)) {
-                              handleChangeEditField("eventType", value);
-                            }
-                          }}
-                        >
-                          <SelectTrigger className="h-8 glass-input">
-                            <SelectValue placeholder="Tipo" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={LeagueEventType.HH}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.HH]}</SelectItem>
-                            <SelectItem value={LeagueEventType.OPEN_BAR}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.OPEN_BAR]}</SelectItem>
-                            <SelectItem value={LeagueEventType.CHAMPIONSHIP}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.CHAMPIONSHIP]}</SelectItem>
-                            <SelectItem value={LeagueEventType.LAJE_EVENT}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.LAJE_EVENT]}</SelectItem>
-                          </SelectContent>
-                        </Select>
-
-                        {formValues.eventType == LeagueEventType.LAJE_EVENT ? (
-                          <Input value="LAJE" readOnly disabled className="h-8 glass-input" />
-                        ) : (
-                          <OrganizerTeamsSelector
-                            orderedTeams={orderedTeams}
-                            selectedOrganizerTeamIds={formValues.organizerTeamIds}
-                            onSelectionChange={(value) => handleChangeEditField("organizerTeamIds", value)}
-                            placeholder="Selecione as atléticas"
-                            triggerClassName="h-8 w-full"
-                          />
-                        )}
-
-                        <Input
-                          value={formValues.location}
-                          onChange={(event) => handleChangeEditField("location", event.target.value)}
-                          className="h-8 glass-input"
-                          placeholder="Local do evento"
-                        />
-
-                        <DateTimePicker
-                          value={formValues.eventDate}
-                          onChange={(value) => handleChangeEditField("eventDate", value)}
-                          placeholder="Data do evento"
-                          showTime={false}
-                          className="h-8"
-                        />
-                      </>
-                    ) : (
-                      <div className="mt-2 space-y-0.5 border-t border-border/45 pt-2">
-                        <p className="text-sm text-muted-foreground">Organizado por: {organizerName}</p>
-                        <p className="text-sm text-muted-foreground">Local: {leagueEvent.location}</p>
-                      </div>
-                    )}
+                  <div className="mt-2 space-y-0.5 border-t border-border/40 pt-2">
+                    <p className="text-sm text-muted-foreground">Organizado por: {organizerName}</p>
+                    <p className="text-sm text-muted-foreground">Local: {leagueEvent.location}</p>
                   </div>
                 </div>
 
                 <div className="flex shrink-0 flex-col items-center gap-1 self-start">
-                  {canManageLeagueEvents && isEditing ? (
-                    <>
-                      <Button variant="ghost" size="icon" onClick={() => handleSaveEditEvent(leagueEvent.id)}>
-                        <Save className="h-4 w-4 text-primary" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={handleCancelEditEvent}>
-                        <X className="h-4 w-4 text-muted-foreground" />
-                      </Button>
-                    </>
-                  ) : canManageLeagueEvents ? (
-                    <Button variant="ghost" size="icon" onClick={() => handleStartEditEvent(leagueEvent)}>
+                  {canManageLeagueEvents ? (
+                    <Button variant="ghost" size="icon" onClick={() => handleOpenEditLeagueEventModal(leagueEvent)}>
                       <Pencil className="h-4 w-4 text-muted-foreground" />
                     </Button>
                   ) : null}
@@ -547,11 +583,12 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
           setShowCreateLeagueEventModal(isOpen);
 
           if (!isOpen) {
+            setPendingCreateLeagueEventConflicts(null);
             resetCreateLeagueEventForm();
           }
         }}
       >
-        <DialogContent className="border-border/60 !bg-background/70 shadow-[0_18px_45px_rgba(15,23,42,0.16)] backdrop-blur-md sm:max-w-2xl">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Criar evento da liga</DialogTitle>
             <DialogDescription>Cadastre o evento com nome, tipo, organização, local e data.</DialogDescription>
@@ -566,7 +603,7 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
             />
 
             <Select
-              value={createFormValues.eventType}
+              value={createFormValues.eventType ?? undefined}
               onValueChange={(value) => {
                 if (isLeagueEventType(value)) {
                   handleChangeCreateField("eventType", value);
@@ -574,7 +611,7 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
               }}
             >
               <SelectTrigger className="glass-input">
-                <SelectValue placeholder="Tipo" />
+                <SelectValue placeholder="Selecione o tipo do evento" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={LeagueEventType.HH}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.HH]}</SelectItem>
@@ -584,7 +621,15 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
               </SelectContent>
             </Select>
 
-            {createFormValues.eventType == LeagueEventType.LAJE_EVENT ? (
+            {createFormValues.eventType == null ? (
+              <Input
+                value=""
+                readOnly
+                disabled
+                className="glass-input"
+                placeholder="Selecione o tipo do evento para definir a organização"
+              />
+            ) : createFormValues.eventType == LeagueEventType.LAJE_EVENT ? (
               <Input value="LAJE" readOnly disabled className="glass-input" />
             ) : (
               <OrganizerTeamsSelector
@@ -610,17 +655,142 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
             />
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="pt-2">
             <Button type="button" variant="outline" onClick={() => setShowCreateLeagueEventModal(false)}>
               Cancelar
             </Button>
-            <Button type="button" onClick={handleCreateLeagueEvent}>
+            <Button type="button" onClick={handleSubmitCreateLeagueEvent}>
               <Plus className="mr-2 h-4 w-4" />
               Criar evento
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        open={showEditLeagueEventModal && editingLeagueEvent != null}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            handleCloseEditLeagueEventModal();
+          }
+        }}
+      >
+        {editingLeagueEvent ? (
+          <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Editar evento da liga</DialogTitle>
+              <DialogDescription>Atualize nome, tipo, organização, local e data do evento selecionado.</DialogDescription>
+            </DialogHeader>
+
+            <div className="grid gap-3">
+              <Input
+                value={editingFormValues.name}
+                onChange={(event) => handleChangeEditField("name", event.target.value)}
+                placeholder="Nome do evento"
+                className="glass-input"
+              />
+
+              <Select
+                value={editingFormValues.eventType ?? undefined}
+                onValueChange={(value) => {
+                  if (isLeagueEventType(value)) {
+                    handleChangeEditField("eventType", value);
+                  }
+                }}
+              >
+                <SelectTrigger className="glass-input">
+                  <SelectValue placeholder="Selecione o tipo do evento" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={LeagueEventType.HH}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.HH]}</SelectItem>
+                  <SelectItem value={LeagueEventType.OPEN_BAR}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.OPEN_BAR]}</SelectItem>
+                  <SelectItem value={LeagueEventType.CHAMPIONSHIP}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.CHAMPIONSHIP]}</SelectItem>
+                  <SelectItem value={LeagueEventType.LAJE_EVENT}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.LAJE_EVENT]}</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {editingFormValues.eventType == null ? (
+                <Input
+                  value=""
+                  readOnly
+                  disabled
+                  className="glass-input"
+                  placeholder="Selecione o tipo do evento para definir a organização"
+                />
+              ) : editingFormValues.eventType == LeagueEventType.LAJE_EVENT ? (
+                <Input value="LAJE" readOnly disabled className="glass-input" />
+              ) : (
+                <OrganizerTeamsSelector
+                  orderedTeams={orderedTeams}
+                  selectedOrganizerTeamIds={editingFormValues.organizerTeamIds}
+                  onSelectionChange={(value) => handleChangeEditField("organizerTeamIds", value)}
+                  placeholder="Selecione as atléticas"
+                />
+              )}
+
+              <Input
+                value={editingFormValues.location}
+                onChange={(event) => handleChangeEditField("location", event.target.value)}
+                placeholder="Local do evento"
+                className="glass-input"
+              />
+
+              <DateTimePicker
+                value={editingFormValues.eventDate}
+                onChange={(value) => handleChangeEditField("eventDate", value)}
+                placeholder="Data do evento"
+                showTime={false}
+              />
+            </div>
+
+            <DialogFooter className="gap-3 pt-2 sm:gap-2 sm:pt-0">
+              <Button type="button" variant="outline" onClick={handleCloseEditLeagueEventModal}>
+                Cancelar
+              </Button>
+              <Button type="button" onClick={handleSaveEditEvent}>
+                <Save className="mr-2 h-4 w-4" />
+                Salvar alterações
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        ) : null}
+      </Dialog>
+
+      <AlertDialog
+        open={pendingCreateLeagueEventConflicts != null}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setPendingCreateLeagueEventConflicts(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{pendingCreateLeagueEventConflictTitle}</AlertDialogTitle>
+            <AlertDialogDescription>{pendingCreateLeagueEventConflictDescription}</AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {pendingCreateLeagueEventConflicts ? (
+            <div className="space-y-2 rounded-2xl border border-border/50 bg-muted/30 p-3">
+              {pendingCreateLeagueEventConflicts.map((leagueEvent) => (
+                <div key={leagueEvent.id} className="space-y-1 rounded-xl border border-border/40 bg-background p-3">
+                  <p className="text-sm font-semibold text-foreground">{leagueEvent.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {LEAGUE_EVENT_TYPE_LABELS[leagueEvent.event_type]} • Organizado por{" "}
+                    {resolveLeagueEventOrganizerName(leagueEvent)}
+                  </p>
+                  <p className="text-sm text-muted-foreground">Local: {leagueEvent.location}</p>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmCreateLeagueEventDespiteConflict}>Criar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -397,7 +397,7 @@ export function AdminPage() {
           }
         }}
       >
-        <DialogContent className="border-border/60 !bg-background/80 backdrop-blur-md shadow-[0_18px_45px_rgba(15,23,42,0.16)] sm:max-w-xl">
+        <DialogContent className="border-border/60 !bg-background/80 backdrop-blur-md shadow-[0_18px_45px_rgba(15,23,42,0.16)] dark:shadow-none sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Voltar campeonato para Em breve?</DialogTitle>
             <DialogDescription>
@@ -445,7 +445,7 @@ export function AdminPage() {
           }
         }}
       >
-        <DialogContent className="border-border/60 !bg-background/80 backdrop-blur-md shadow-[0_18px_45px_rgba(15,23,42,0.16)] sm:max-w-xl">
+        <DialogContent className="border-border/60 !bg-background/80 backdrop-blur-md shadow-[0_18px_45px_rgba(15,23,42,0.16)] dark:shadow-none sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Jogos atuais já existem</DialogTitle>
             <DialogDescription>
@@ -494,7 +494,7 @@ export function AdminPage() {
       >
         <AlertDialogContent
           overlayClassName="bg-transparent"
-          className="border-border/60 !bg-background/80 shadow-[0_18px_45px_rgba(15,23,42,0.16)] backdrop-blur-md"
+          className="border-border/60 !bg-background/80 shadow-[0_18px_45px_rgba(15,23,42,0.16)] dark:shadow-none backdrop-blur-md"
         >
           <AlertDialogHeader>
             <AlertDialogTitle>Configuração disponível apenas no computador</AlertDialogTitle>

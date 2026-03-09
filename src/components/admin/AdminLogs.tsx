@@ -789,7 +789,7 @@ export function AdminLogs() {
         <p className="text-sm text-muted-foreground">Nenhum log encontrado para os filtros aplicados.</p>
       ) : (
         <div className="glass-card enter-section overflow-hidden">
-          <div className={`hidden ${LOGS_GRID_TEMPLATE} gap-3 border-b border-border/45 bg-secondary/35 px-4 py-2 text-xs font-semibold uppercase text-muted-foreground lg:grid`}>
+          <div className={`hidden ${LOGS_GRID_TEMPLATE} gap-3 border-b border-border/40 bg-secondary/30 px-4 py-2 text-xs font-semibold uppercase text-muted-foreground lg:grid`}>
             <p>Usuário e data</p>
             <p className="text-center">Ação registrada</p>
             <p className="text-right">Tipo</p>
@@ -859,7 +859,7 @@ export function AdminLogs() {
           }
         }}
       >
-        <DialogContent className="border-border/60 !bg-background/70 backdrop-blur-md shadow-[0_18px_45px_rgba(15,23,42,0.16)] sm:max-w-2xl">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Detalhes técnicos do log</DialogTitle>
             <DialogDescription>
@@ -867,7 +867,7 @@ export function AdminLogs() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="max-h-[60vh] overflow-auto rounded-xl border border-border/50 bg-background/35 p-3">
+          <div className="max-h-[60vh] overflow-auto rounded-xl border border-border/50 bg-background/30 p-3">
             <pre className="text-xs leading-relaxed text-foreground">
               {JSON.stringify(selectedLogForJson, null, 2)}
             </pre>

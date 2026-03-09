@@ -23,20 +23,20 @@ export const LEAGUE_EVENT_TYPE_DOT_CLASS_NAMES: Record<LeagueEventType, string> 
 
 export const LEAGUE_EVENT_TYPE_GLASS_CARD_CLASS_NAMES: Record<LeagueEventType, string> = {
   [LeagueEventType.HH]:
-    "border-amber-200/70 bg-amber-100/50 text-amber-900 dark:border-amber-500/45 dark:bg-amber-900/50 dark:text-amber-100",
+    "border-amber-200/70 bg-amber-100/50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-900/50 dark:text-amber-100",
   [LeagueEventType.OPEN_BAR]:
-    "border-emerald-200/70 bg-emerald-100/50 text-emerald-900 dark:border-emerald-500/45 dark:bg-emerald-900/50 dark:text-emerald-100",
+    "border-emerald-200/70 bg-emerald-100/50 text-emerald-900 dark:border-emerald-500/40 dark:bg-emerald-900/50 dark:text-emerald-100",
   [LeagueEventType.CHAMPIONSHIP]:
-    "border-blue-200/70 bg-blue-100/50 text-blue-900 dark:border-blue-500/45 dark:bg-blue-900/50 dark:text-blue-100",
+    "border-blue-200/70 bg-blue-100/50 text-blue-900 dark:border-blue-500/40 dark:bg-blue-900/50 dark:text-blue-100",
   [LeagueEventType.LAJE_EVENT]:
-    "border-red-200/70 bg-red-100/50 text-red-900 dark:border-red-500/45 dark:bg-red-900/50 dark:text-red-100",
+    "border-red-200/70 bg-red-100/50 text-red-900 dark:border-red-500/40 dark:bg-red-900/50 dark:text-red-100",
 };
 
 export const LEAGUE_EVENT_TYPE_META_TEXT_CLASS_NAMES: Record<LeagueEventType, string> = {
-  [LeagueEventType.HH]: "text-amber-800/90 dark:text-amber-100/85",
-  [LeagueEventType.OPEN_BAR]: "text-emerald-800/90 dark:text-emerald-100/85",
-  [LeagueEventType.CHAMPIONSHIP]: "text-blue-800/90 dark:text-blue-100/85",
-  [LeagueEventType.LAJE_EVENT]: "text-red-800/90 dark:text-red-100/85",
+  [LeagueEventType.HH]: "text-amber-800/90 dark:text-amber-100/80",
+  [LeagueEventType.OPEN_BAR]: "text-emerald-800/90 dark:text-emerald-100/80",
+  [LeagueEventType.CHAMPIONSHIP]: "text-blue-800/90 dark:text-blue-100/80",
+  [LeagueEventType.LAJE_EVENT]: "text-red-800/90 dark:text-red-100/80",
 };
 
 export const LEAGUE_EVENT_ORGANIZER_LABELS: Record<LeagueEventOrganizerType, string> = {

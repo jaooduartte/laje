@@ -1,14 +1,14 @@
 import { cva } from "class-variance-authority";
 
 export const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium shadow-[0_4px_10px_rgba(15,23,42,0.06)] ring-offset-background transition-[color,box-shadow,background-color,border-color] hover:shadow-[0_6px_14px_rgba(15,23,42,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium shadow-[0_4px_10px_rgba(15,23,42,0.06)] dark:shadow-none ring-offset-background transition-[color,box-shadow,background-color,border-color] hover:shadow-[0_6px_14px_rgba(15,23,42,0.08)] dark:hover:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-[hsl(1_66%_34%)] dark:hover:bg-[hsl(1_66%_30%)]",
         destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90 dark:bg-[hsl(0_62%_36%)] dark:hover:bg-[hsl(0_62%_32%)]",
-        outline: "border border-transparent bg-background/75 hover:bg-accent hover:text-accent-foreground dark:border-border/65",
-        secondary: "border border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 dark:border-border/65",
+        outline: "border border-transparent bg-background/70 hover:bg-accent hover:text-accent-foreground dark:border-border/60",
+        secondary: "border border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 dark:border-border/60",
         ghost: "shadow-none hover:shadow-none hover:bg-accent hover:text-accent-foreground",
         link: "shadow-none hover:shadow-none text-primary underline-offset-4 hover:underline",
       },
