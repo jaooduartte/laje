@@ -214,10 +214,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
   const [accessValueByUserId, setAccessValueByUserId] = useState<Record<string, string>>({});
   const [loginIdentifierByUserId, setLoginIdentifierByUserId] = useState<Record<string, string>>({});
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
-  const [savingNameUserId, setSavingNameUserId] = useState<string | null>(null);
-  const [savingAccessUserId, setSavingAccessUserId] = useState<string | null>(null);
-  const [savingLoginUserId, setSavingLoginUserId] = useState<string | null>(null);
-  const [savingPasswordUserId, setSavingPasswordUserId] = useState<string | null>(null);
+  const [savingEditedUserId, setSavingEditedUserId] = useState<string | null>(null);
   const [resettingUserId, setResettingUserId] = useState<string | null>(null);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [bulkProcessingAction, setBulkProcessingAction] = useState<"RESET" | "DELETE" | null>(null);
@@ -414,6 +411,20 @@ export function AdminUsers({ canManageUsers = true }: Props) {
 
     return users.find((user) => user.user_id == editingUserId) ?? null;
   }, [editingUserId, users]);
+  const editedUserName = editingUser ? (nameByUserId[editingUser.user_id] ?? editingUser.name) : "";
+  const editedUserLoginIdentifier = editingUser
+    ? (loginIdentifierByUserId[editingUser.user_id] ?? editingUser.login_identifier)
+    : "";
+  const editedUserAccessValue = editingUser
+    ? (accessValueByUserId[editingUser.user_id] ?? resolveUserAccessValue(editingUser))
+    : "";
+  const editedUserPassword = editingUser ? (newPasswordByUserId[editingUser.user_id] ?? "") : "";
+  const hasEditedUserPendingChanges = editingUser
+    ? editedUserName.trim() != editingUser.name ||
+      editedUserLoginIdentifier.trim().toLowerCase() != editingUser.login_identifier.trim().toLowerCase() ||
+      editedUserAccessValue != resolveUserAccessValue(editingUser) ||
+      editedUserPassword.trim().length > 0
+    : false;
 
   const handleToggleSelectAllFilteredUsers = (checked: CheckedState) => {
     if (!canManageUsers) {
@@ -453,129 +464,105 @@ export function AdminUsers({ canManageUsers = true }: Props) {
     setEditingUserId(userId);
   };
 
-  const handleSaveUserAccess = async (user: AdminUser) => {
-    if (!canManageUsers) {
-      return;
-    }
-
-    const selectedAccessValue = accessValueByUserId[user.user_id] ?? resolveUserAccessValue(user);
-    const userAccessSelection = resolveUserAccessSelection(selectedAccessValue);
-
-    if (!userAccessSelection) {
-      toast.error("Selecione um perfil de acesso válido.");
-      return;
-    }
-
-    setSavingAccessUserId(user.user_id);
-
-    const { error } = await supabase.rpc("admin_set_user_access", {
-      _target_user_id: user.user_id,
-      _role: null,
-      _profile_id: userAccessSelection.profileId,
-    });
-
-    setSavingAccessUserId(null);
-
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-
-    toast.success("Acesso atualizado com sucesso.");
-    fetchAdminData();
-  };
-
-  const handleSaveUserName = async (user: AdminUser) => {
+  const handleSaveEditedUser = async (user: AdminUser) => {
     if (!canManageUsers) {
       return;
     }
 
     try {
-      const namePayload = AdminUserNameSaveDTO.fromFormValues({
-        target_user_id: user.user_id,
-        name: nameByUserId[user.user_id] ?? user.name,
-      }).bindToSave();
+      const nextName = nameByUserId[user.user_id] ?? user.name;
+      const nextLoginIdentifier = loginIdentifierByUserId[user.user_id] ?? user.login_identifier;
+      const nextAccessValue = accessValueByUserId[user.user_id] ?? resolveUserAccessValue(user);
+      const nextPassword = newPasswordByUserId[user.user_id] ?? "";
+      const hasNameChanged = nextName.trim() != user.name;
+      const hasLoginIdentifierChanged = nextLoginIdentifier.trim().toLowerCase() != user.login_identifier.trim().toLowerCase();
+      const hasAccessChanged = nextAccessValue != resolveUserAccessValue(user);
+      const hasNewPassword = nextPassword.trim().length > 0;
 
-      setSavingNameUserId(user.user_id);
-
-      const { error } = await supabase.rpc("admin_update_user_name", namePayload);
-
-      setSavingNameUserId(null);
-
-      if (error) {
-        toast.error(error.message);
+      if (!hasNameChanged && !hasLoginIdentifierChanged && !hasAccessChanged && !hasNewPassword) {
         return;
       }
 
-      toast.success("Nome atualizado com sucesso.");
-      fetchAdminData();
-    } catch (error) {
-      setSavingNameUserId(null);
-      toast.error(error instanceof Error ? error.message : "Não foi possível atualizar o nome.");
-    }
-  };
+      const namePayload = hasNameChanged
+        ? AdminUserNameSaveDTO.fromFormValues({
+            target_user_id: user.user_id,
+            name: nextName,
+          }).bindToSave()
+        : null;
+      const loginIdentifierPayload = hasLoginIdentifierChanged
+        ? AdminUserLoginIdentifierSaveDTO.fromFormValues({
+            target_user_id: user.user_id,
+            login_identifier: nextLoginIdentifier,
+          }).bindToSave()
+        : null;
+      const userAccessSelection = hasAccessChanged ? resolveUserAccessSelection(nextAccessValue) : null;
+      const passwordPayload = hasNewPassword
+        ? AdminUserPasswordSaveDTO.fromFormValues({
+            target_user_id: user.user_id,
+            new_password: nextPassword,
+          }).bindToSave()
+        : null;
 
-  const handleSaveUserLoginIdentifier = async (user: AdminUser) => {
-    if (!canManageUsers) {
-      return;
-    }
-
-    try {
-      const loginIdentifierPayload = AdminUserLoginIdentifierSaveDTO.fromFormValues({
-        target_user_id: user.user_id,
-        login_identifier: loginIdentifierByUserId[user.user_id] ?? user.login_identifier,
-      }).bindToSave();
-
-      setSavingLoginUserId(user.user_id);
-
-      const { error } = await supabase.rpc("admin_update_user_login_identifier", loginIdentifierPayload);
-
-      setSavingLoginUserId(null);
-
-      if (error) {
-        toast.error(error.message);
-        return;
+      if (hasAccessChanged && !userAccessSelection) {
+        throw new Error("Selecione um perfil de acesso válido.");
       }
 
-      toast.success("Login atualizado com sucesso.");
-      fetchAdminData();
-    } catch (error) {
-      setSavingLoginUserId(null);
-      toast.error(error instanceof Error ? error.message : "Não foi possível atualizar o login.");
-    }
-  };
+      setSavingEditedUserId(user.user_id);
 
-  const handleSaveUserPassword = async (user: AdminUser) => {
-    if (!canManageUsers) {
-      return;
-    }
+      if (namePayload) {
+        const { error } = await supabase.rpc("admin_update_user_name", namePayload);
 
-    try {
-      const passwordPayload = AdminUserPasswordSaveDTO.fromFormValues({
-        target_user_id: user.user_id,
-        new_password: newPasswordByUserId[user.user_id] ?? "",
-      }).bindToSave();
-
-      setSavingPasswordUserId(user.user_id);
-
-      const { error } = await supabase.rpc("admin_update_user_password", passwordPayload);
-
-      setSavingPasswordUserId(null);
-
-      if (error) {
-        toast.error(error.message);
-        return;
+        if (error) {
+          setSavingEditedUserId(null);
+          await fetchAdminData();
+          toast.error(error.message);
+          return;
+        }
       }
 
-      setNewPasswordByUserId((currentNewPasswordByUserId) => ({
-        ...currentNewPasswordByUserId,
-        [user.user_id]: "",
-      }));
-      toast.success("Senha atualizada com sucesso.");
+      if (loginIdentifierPayload) {
+        const { error } = await supabase.rpc("admin_update_user_login_identifier", loginIdentifierPayload);
+
+        if (error) {
+          setSavingEditedUserId(null);
+          await fetchAdminData();
+          toast.error(error.message);
+          return;
+        }
+      }
+
+      if (userAccessSelection) {
+        const { error } = await supabase.rpc("admin_set_user_access", {
+          _target_user_id: user.user_id,
+          _role: null,
+          _profile_id: userAccessSelection.profileId,
+        });
+
+        if (error) {
+          setSavingEditedUserId(null);
+          await fetchAdminData();
+          toast.error(error.message);
+          return;
+        }
+      }
+
+      if (passwordPayload) {
+        const { error } = await supabase.rpc("admin_update_user_password", passwordPayload);
+
+        if (error) {
+          setSavingEditedUserId(null);
+          await fetchAdminData();
+          toast.error(error.message);
+          return;
+        }
+      }
+
+      setSavingEditedUserId(null);
+      toast.success("Alterações salvas com sucesso.");
       fetchAdminData();
     } catch (error) {
-      setSavingPasswordUserId(null);
-      toast.error(error instanceof Error ? error.message : "Não foi possível atualizar a senha.");
+      setSavingEditedUserId(null);
+      toast.error(error instanceof Error ? error.message : "Não foi possível salvar as alterações do usuário.");
     }
   };
 
@@ -941,26 +928,44 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                     />
                   ) : null}
 
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className={`h-2.5 w-2.5 shrink-0 rounded-full ${isUserOnline ? "bg-emerald-500" : "bg-red-500"}`}
-                        title={isUserOnline ? "Usuário online na plataforma" : "Usuário offline na plataforma"}
-                        aria-label={isUserOnline ? "Usuário online na plataforma" : "Usuário offline na plataforma"}
-                      />
-                      <p className="truncate text-sm font-medium">{user.name}</p>
-                      <AppBadge tone={resolveAdminUserPasswordStatusBadgeTone(user.password_status)}>
-                        {resolveAdminUserPasswordStatusLabel(user.password_status)}
-                      </AppBadge>
-                      {isCurrentUser ? <AppBadge tone={AppBadgeTone.PRIMARY}>você</AppBadge> : null}
+                  <div className="flex min-w-0 flex-1 items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={`h-2.5 w-2.5 shrink-0 rounded-full ${isUserOnline ? "bg-emerald-500" : "bg-red-500"}`}
+                          title={isUserOnline ? "Usuário online na plataforma" : "Usuário offline na plataforma"}
+                          aria-label={isUserOnline ? "Usuário online na plataforma" : "Usuário offline na plataforma"}
+                        />
+                        <p className="truncate text-sm font-medium">{user.name}</p>
+                        <AppBadge tone={resolveAdminUserPasswordStatusBadgeTone(user.password_status)}>
+                          {resolveAdminUserPasswordStatusLabel(user.password_status)}
+                        </AppBadge>
+                        {isCurrentUser ? <AppBadge tone={AppBadgeTone.PRIMARY}>você</AppBadge> : null}
+                      </div>
+
+                      <div className="space-y-1 text-xs text-muted-foreground">
+                        <p className="truncate">Login: {user.login_identifier}</p>
+                        {shouldDisplayUserEmail ? (
+                          <p className="truncate">E-mail: {user.email}</p>
+                        ) : null}
+                      </div>
                     </div>
 
-                    <div className="space-y-1 text-xs text-muted-foreground">
-                      <p className="truncate">Login: {user.login_identifier}</p>
-                      {shouldDisplayUserEmail ? (
-                        <p className="truncate">E-mail: {user.email}</p>
-                      ) : null}
-                    </div>
+                    {canManageUsers ? (
+                      <div className="flex shrink-0 lg:hidden">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="bg-background/75"
+                          onClick={() => handleOpenEditUserModal(user.user_id)}
+                          title={`Editar ${user.name}`}
+                          aria-label={`Editar ${user.name}`}
+                        >
+                          <PencilLine className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
 
@@ -982,7 +987,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                 </div>
 
                 {canManageUsers ? (
-                  <div className="flex shrink-0 justify-end lg:self-center">
+                  <div className="hidden shrink-0 justify-end lg:flex lg:self-center">
                     <Button
                       type="button"
                       variant="outline"
@@ -1056,7 +1061,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
             </Select>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="gap-3 pt-2 sm:gap-2 sm:pt-0">
             <Button type="button" variant="outline" onClick={() => setShowCreateUserModal(false)}>
               Cancelar
             </Button>
@@ -1077,62 +1082,62 @@ export function AdminUsers({ canManageUsers = true }: Props) {
         }}
       >
         {editingUser ? (
-          <DialogContent className="border-border/60 !bg-background/70 shadow-[0_18px_45px_rgba(15,23,42,0.16)] backdrop-blur-md sm:max-w-3xl">
-            <DialogHeader>
+          <DialogContent className="flex max-h-[calc(100dvh-1.5rem)] flex-col overflow-hidden border-border/60 !bg-background/70 shadow-[0_18px_45px_rgba(15,23,42,0.16)] backdrop-blur-md sm:max-w-3xl">
+            <DialogHeader className="shrink-0">
               <DialogTitle>Editar usuário</DialogTitle>
               <DialogDescription>Atualize nome, login, perfil, senha e ações do usuário administrativo.</DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-border/50 bg-background/35 p-4 backdrop-blur-md">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span
-                    className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                      onlineUserIdsSet.has(editingUser.user_id) ? "bg-emerald-500" : "bg-red-500"
-                    }`}
-                    title={
-                      onlineUserIdsSet.has(editingUser.user_id)
-                        ? "Usuário online na plataforma"
-                        : "Usuário offline na plataforma"
-                    }
-                    aria-label={
-                      onlineUserIdsSet.has(editingUser.user_id)
-                        ? "Usuário online na plataforma"
-                        : "Usuário offline na plataforma"
-                    }
-                  />
-                  <p className="text-sm font-semibold">{editingUser.name}</p>
-                  <AppBadge tone={resolveAdminUserPasswordStatusBadgeTone(editingUser.password_status)}>
-                    {resolveAdminUserPasswordStatusLabel(editingUser.password_status)}
-                  </AppBadge>
-                  {editingUser.user_id == currentUser?.id ? <AppBadge tone={AppBadgeTone.PRIMARY}>você</AppBadge> : null}
+            <div className="overflow-y-auto pr-1">
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-border/50 bg-background/35 p-4 backdrop-blur-md">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                        onlineUserIdsSet.has(editingUser.user_id) ? "bg-emerald-500" : "bg-red-500"
+                      }`}
+                      title={
+                        onlineUserIdsSet.has(editingUser.user_id)
+                          ? "Usuário online na plataforma"
+                          : "Usuário offline na plataforma"
+                      }
+                      aria-label={
+                        onlineUserIdsSet.has(editingUser.user_id)
+                          ? "Usuário online na plataforma"
+                          : "Usuário offline na plataforma"
+                      }
+                    />
+                    <p className="text-sm font-semibold">{editingUser.name}</p>
+                    <AppBadge tone={resolveAdminUserPasswordStatusBadgeTone(editingUser.password_status)}>
+                      {resolveAdminUserPasswordStatusLabel(editingUser.password_status)}
+                    </AppBadge>
+                    {editingUser.user_id == currentUser?.id ? <AppBadge tone={AppBadgeTone.PRIMARY}>você</AppBadge> : null}
+                  </div>
+
+                  <div className="mt-3 grid gap-x-4 gap-y-1 text-xs text-muted-foreground md:grid-cols-2">
+                    <p className="truncate">Login atual: {editingUser.login_identifier}</p>
+                    <p className="truncate">Perfil atual: {editingUser.profile_name}</p>
+                    {resolveShouldDisplayInternalAdminUserEmail(editingUser.email, editingUser.login_identifier) ? (
+                      <p className="truncate">E-mail: {editingUser.email}</p>
+                    ) : null}
+                    <p>Criado em {format(new Date(editingUser.created_at), "dd/MM/yyyy HH:mm")}</p>
+                    <p>
+                      Último acesso:{" "}
+                      {editingUser.last_sign_in_at
+                        ? format(new Date(editingUser.last_sign_in_at), "dd/MM/yyyy HH:mm")
+                        : "Sem acesso"}
+                    </p>
+                  </div>
                 </div>
 
-                <div className="mt-3 grid gap-x-4 gap-y-1 text-xs text-muted-foreground md:grid-cols-2">
-                  <p className="truncate">Login atual: {editingUser.login_identifier}</p>
-                  <p className="truncate">Perfil atual: {editingUser.profile_name}</p>
-                  {resolveShouldDisplayInternalAdminUserEmail(editingUser.email, editingUser.login_identifier) ? (
-                    <p className="truncate">E-mail: {editingUser.email}</p>
-                  ) : null}
-                  <p>Criado em {format(new Date(editingUser.created_at), "dd/MM/yyyy HH:mm")}</p>
-                  <p>
-                    Último acesso:{" "}
-                    {editingUser.last_sign_in_at
-                      ? format(new Date(editingUser.last_sign_in_at), "dd/MM/yyyy HH:mm")
-                      : "Sem acesso"}
-                  </p>
-                </div>
-              </div>
-
-              {canManageUsers ? (
-                <div className="grid gap-4 lg:grid-cols-2">
-                  <div className="space-y-2 rounded-2xl border border-border/50 bg-background/35 p-4 backdrop-blur-md">
-                    <Label htmlFor={`admin-user-name-modal-${editingUser.user_id}`}>Nome</Label>
-                    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                {canManageUsers ? (
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <div className="space-y-2 rounded-2xl border border-border/50 bg-background/35 p-4 backdrop-blur-md">
+                      <Label htmlFor={`admin-user-name-modal-${editingUser.user_id}`}>Nome</Label>
                       <Input
                         id={`admin-user-name-modal-${editingUser.user_id}`}
                         type="text"
-                        value={nameByUserId[editingUser.user_id] ?? editingUser.name}
+                        value={editedUserName}
                         onChange={(event) =>
                           setNameByUserId((currentNameByUserId) => ({
                             ...currentNameByUserId,
@@ -1142,31 +1147,14 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                         className="glass-input"
                         autoComplete="off"
                       />
-
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="bg-background/75"
-                        disabled={savingNameUserId == editingUser.user_id}
-                        onClick={() => handleSaveUserName(editingUser)}
-                      >
-                        {savingNameUserId == editingUser.user_id ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <Save className="mr-2 h-4 w-4" />
-                        )}
-                        Salvar nome
-                      </Button>
                     </div>
-                  </div>
 
-                  <div className="space-y-2 rounded-2xl border border-border/50 bg-background/35 p-4 backdrop-blur-md">
-                    <Label htmlFor={`admin-user-login-modal-${editingUser.user_id}`}>Login</Label>
-                    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                    <div className="space-y-2 rounded-2xl border border-border/50 bg-background/35 p-4 backdrop-blur-md">
+                      <Label htmlFor={`admin-user-login-modal-${editingUser.user_id}`}>Login</Label>
                       <Input
                         id={`admin-user-login-modal-${editingUser.user_id}`}
                         type="text"
-                        value={loginIdentifierByUserId[editingUser.user_id] ?? editingUser.login_identifier}
+                        value={editedUserLoginIdentifier}
                         onChange={(event) =>
                           setLoginIdentifierByUserId((currentLoginIdentifierByUserId) => ({
                             ...currentLoginIdentifierByUserId,
@@ -1179,29 +1167,12 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                         autoCapitalize="none"
                         spellCheck={false}
                       />
-
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="bg-background/75"
-                        disabled={savingLoginUserId == editingUser.user_id}
-                        onClick={() => handleSaveUserLoginIdentifier(editingUser)}
-                      >
-                        {savingLoginUserId == editingUser.user_id ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <Save className="mr-2 h-4 w-4" />
-                        )}
-                        Salvar login
-                      </Button>
                     </div>
-                  </div>
 
-                  <div className="space-y-2 rounded-2xl border border-border/50 bg-background/35 p-4 backdrop-blur-md">
-                    <Label htmlFor={`admin-user-access-modal-${editingUser.user_id}`}>Perfil de acesso</Label>
-                    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                    <div className="space-y-2 rounded-2xl border border-border/50 bg-background/35 p-4 backdrop-blur-md">
+                      <Label htmlFor={`admin-user-access-modal-${editingUser.user_id}`}>Perfil de acesso</Label>
                       <Select
-                        value={accessValueByUserId[editingUser.user_id] ?? resolveUserAccessValue(editingUser)}
+                        value={editedUserAccessValue}
                         onValueChange={(value) =>
                           setAccessValueByUserId((currentAccessByUserId) => ({
                             ...currentAccessByUserId,
@@ -1220,31 +1191,14 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                           ))}
                         </SelectContent>
                       </Select>
-
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="bg-background/75"
-                        disabled={savingAccessUserId == editingUser.user_id}
-                        onClick={() => handleSaveUserAccess(editingUser)}
-                      >
-                        {savingAccessUserId == editingUser.user_id ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <Shield className="mr-2 h-4 w-4" />
-                        )}
-                        Salvar acesso
-                      </Button>
                     </div>
-                  </div>
 
-                  <div className="space-y-2 rounded-2xl border border-border/50 bg-background/35 p-4 backdrop-blur-md">
-                    <Label htmlFor={`admin-user-password-modal-${editingUser.user_id}`}>Nova senha</Label>
-                    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                    <div className="space-y-2 rounded-2xl border border-border/50 bg-background/35 p-4 backdrop-blur-md">
+                      <Label htmlFor={`admin-user-password-modal-${editingUser.user_id}`}>Nova senha</Label>
                       <Input
                         id={`admin-user-password-modal-${editingUser.user_id}`}
                         type="password"
-                        value={newPasswordByUserId[editingUser.user_id] ?? ""}
+                        value={editedUserPassword}
                         onChange={(event) =>
                           setNewPasswordByUserId((currentNewPasswordByUserId) => ({
                             ...currentNewPasswordByUserId,
@@ -1257,67 +1211,70 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                         autoCapitalize="none"
                         spellCheck={false}
                       />
-
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="bg-background/75"
-                        disabled={savingPasswordUserId == editingUser.user_id}
-                        onClick={() => handleSaveUserPassword(editingUser)}
-                      >
-                        {savingPasswordUserId == editingUser.user_id ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <Save className="mr-2 h-4 w-4" />
-                        )}
-                        Atualizar senha
-                      </Button>
                     </div>
                   </div>
-                </div>
-              ) : null}
+                ) : null}
 
-              {canManageUsers ? (
-                <DialogFooter className="gap-2 border-t border-border/45 pt-4 sm:justify-between sm:space-x-0">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="bg-background/75"
-                    disabled={
-                      editingUser.user_id == currentUser?.id ||
-                      resettingUserId == editingUser.user_id ||
-                      bulkProcessingAction != null
-                    }
-                    onClick={() => handleOpenResetUsersPasswordSetupConfirmation([editingUser.user_id])}
-                  >
-                    {resettingUserId == editingUser.user_id ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <RotateCcw className="mr-2 h-4 w-4" />
-                    )}
-                    Resetar senha
-                  </Button>
+                {canManageUsers ? (
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      className="w-full sm:w-auto"
+                      disabled={!hasEditedUserPendingChanges || savingEditedUserId == editingUser.user_id}
+                      onClick={() => handleSaveEditedUser(editingUser)}
+                    >
+                      {savingEditedUserId == editingUser.user_id ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="mr-2 h-4 w-4" />
+                      )}
+                      Salvar alterações
+                    </Button>
+                  </div>
+                ) : null}
 
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="bg-background/75"
-                    disabled={
-                      editingUser.user_id == currentUser?.id ||
-                      deletingUserId == editingUser.user_id ||
-                      bulkProcessingAction != null
-                    }
-                    onClick={() => handleOpenDeleteUsersConfirmation([editingUser.user_id])}
-                  >
-                    {deletingUserId == editingUser.user_id ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="mr-2 h-4 w-4" />
-                    )}
-                    Excluir usuário
-                  </Button>
-                </DialogFooter>
-              ) : null}
+                {canManageUsers ? (
+                  <DialogFooter className="gap-2 border-t border-border/45 pt-4 sm:justify-between sm:space-x-0">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="bg-background/75"
+                      disabled={
+                        editingUser.user_id == currentUser?.id ||
+                        resettingUserId == editingUser.user_id ||
+                        bulkProcessingAction != null
+                      }
+                      onClick={() => handleOpenResetUsersPasswordSetupConfirmation([editingUser.user_id])}
+                    >
+                      {resettingUserId == editingUser.user_id ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <RotateCcw className="mr-2 h-4 w-4" />
+                      )}
+                      Resetar senha
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="bg-background/75"
+                      disabled={
+                        editingUser.user_id == currentUser?.id ||
+                        deletingUserId == editingUser.user_id ||
+                        bulkProcessingAction != null
+                      }
+                      onClick={() => handleOpenDeleteUsersConfirmation([editingUser.user_id])}
+                    >
+                      {deletingUserId == editingUser.user_id ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="mr-2 h-4 w-4" />
+                      )}
+                      Excluir usuário
+                    </Button>
+                  </DialogFooter>
+                ) : null}
+              </div>
             </div>
           </DialogContent>
         ) : null}

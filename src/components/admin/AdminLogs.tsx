@@ -185,7 +185,6 @@ interface AdminLogListItem {
   id: string;
   rawLog: AdminActionLog;
   actorName: string;
-  actorEmail: string;
   actorRole: AdminPanelRole | null;
   actionType: AdminActionType;
   createdAt: string;
@@ -712,13 +711,12 @@ export function AdminLogs() {
       const detailList = [...matchContextDetails, ...detailChanges].slice(0, MAXIMUM_LOG_CHANGES);
       const resolvedDetails = detailList.length > 0 ? detailList : [resolveFallbackDetail(log)];
       const headline = resolveHeadline(log);
-      const actorName = log.actor_name ?? log.actor_email ?? "Usuário desconhecido";
-      const actorEmail = log.actor_email ?? "Usuário desconhecido";
+      const actorName = log.actor_name ?? "Usuário desconhecido";
+
       return {
         id: log.id,
         rawLog: log,
         actorName,
-        actorEmail,
         actorRole: log.actor_role,
         actionType: log.action_type,
         createdAt: log.created_at,
@@ -800,13 +798,10 @@ export function AdminLogs() {
           <div className="divide-y divide-border/45">
             {listItems.map((logItem) => (
               <div key={logItem.id} className="px-4 py-3">
-                <div className={`grid gap-2 ${LOGS_GRID_TEMPLATE} lg:items-start lg:gap-3`}>
+                <div className={`grid gap-2 text-center ${LOGS_GRID_TEMPLATE} lg:items-start lg:gap-3 lg:text-left`}>
                   <div className="space-y-1">
                     <p className="break-words text-sm font-medium leading-tight">{logItem.actorName}</p>
                     <p className="text-xs text-muted-foreground">{format(new Date(logItem.createdAt), "dd/MM/yyyy HH:mm")}</p>
-                    {logItem.actorEmail != logItem.actorName ? (
-                      <p className="break-words text-xs text-muted-foreground">{logItem.actorEmail}</p>
-                    ) : null}
                     {logItem.actorRole ? (
                       <p className="text-xs text-muted-foreground">{ADMIN_PANEL_ROLE_LABELS[logItem.actorRole]}</p>
                     ) : null}

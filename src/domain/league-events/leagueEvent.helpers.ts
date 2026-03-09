@@ -1,5 +1,6 @@
 import type { LeagueEvent, Team } from "@/lib/types";
 import { LeagueEventOrganizerType } from "@/lib/enums";
+import { LEAGUE_EVENT_LEGEND_ORDER } from "@/domain/league-events/leagueEvent.constants";
 
 export function resolveLeagueEventOrganizerTeams(leagueEvent: LeagueEvent): Team[] {
   if (leagueEvent.organizer_type == LeagueEventOrganizerType.LAJE) {
@@ -29,6 +30,12 @@ export function resolveLeagueEventOrganizerName(leagueEvent: LeagueEvent): strin
   }
 
   return organizerTeams.map((team) => team.name).join(" + ");
+}
+
+export function resolveUniqueLeagueEventTypes(leagueEvents: LeagueEvent[]) {
+  const uniqueLeagueEventTypes = new Set(leagueEvents.map((leagueEvent) => leagueEvent.event_type));
+
+  return LEAGUE_EVENT_LEGEND_ORDER.filter((leagueEventType) => uniqueLeagueEventTypes.has(leagueEventType));
 }
 
 export function leagueEventHasOrganizerTeam(leagueEvent: LeagueEvent, teamId: string): boolean {

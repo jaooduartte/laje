@@ -24,7 +24,7 @@ import {
   LEAGUE_EVENT_TYPE_LABELS,
   LEAGUE_EVENT_TYPE_META_TEXT_CLASS_NAMES,
 } from "@/domain/league-events/leagueEvent.constants";
-import { resolveLeagueEventOrganizerName } from "@/domain/league-events/leagueEvent.helpers";
+import { resolveLeagueEventOrganizerName, resolveUniqueLeagueEventTypes } from "@/domain/league-events/leagueEvent.helpers";
 
 interface AthleticFilterOption {
   id: string;
@@ -363,7 +363,7 @@ export function LeagueCalendarPageView({
                   const dayEvents = leagueEventsByDate[dayKey] ?? [];
                   const isToday = isSameDay(calendarDay, today);
                   const isSelectedDay = isSameDay(calendarDay, selectedDate);
-                  const firstDayEvent = dayEvents[0] ?? null;
+                  const dayEventTypes = resolveUniqueLeagueEventTypes(dayEvents);
 
                   return (
                     <button
@@ -388,10 +388,15 @@ export function LeagueCalendarPageView({
                             {format(calendarDay, "d")}
                           </span>
                         </div>
-                        {firstDayEvent ? (
-                          <span
-                            className={`mt-0.5 block h-2 w-2 rounded-full ${LEAGUE_EVENT_TYPE_DOT_CLASS_NAMES[firstDayEvent.event_type]}`}
-                          />
+                        {dayEventTypes.length > 0 ? (
+                          <div className="mt-0.5 flex flex-col items-end gap-1">
+                            {dayEventTypes.map((leagueEventType) => (
+                              <span
+                                key={`${dayKey}-${leagueEventType}`}
+                                className={`block h-2 w-2 rounded-full ${LEAGUE_EVENT_TYPE_DOT_CLASS_NAMES[leagueEventType]}`}
+                              />
+                            ))}
+                          </div>
                         ) : null}
                       </div>
                     </button>

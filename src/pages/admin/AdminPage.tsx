@@ -13,6 +13,15 @@ import { useSelectedChampionship } from "@/hooks/useSelectedChampionship";
 import { useChampionshipSelection } from "@/hooks/useChampionshipSelection";
 import { Header } from "@/components/Header";
 import { AdminChampionshipBracketWizardModal } from "@/components/admin/AdminChampionshipBracketWizardModal";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -30,6 +39,7 @@ enum ChampionshipStatusFlowDialog {
   NONE = "NONE",
   RETURN_TO_PLANNING_WITH_GAMES = "RETURN_TO_PLANNING_WITH_GAMES",
   MOVE_TO_UPCOMING_WITH_GAMES = "MOVE_TO_UPCOMING_WITH_GAMES",
+  MOBILE_CONFIGURATION_WARNING = "MOBILE_CONFIGURATION_WARNING",
 }
 
 export function AdminPage() {
@@ -90,6 +100,18 @@ export function AdminPage() {
     }
 
     setChampionshipStatusFlowDialog(ChampionshipStatusFlowDialog.NONE);
+  };
+
+  const resolveIsMobileViewport = () => {
+    if (typeof window == "undefined") {
+      return false;
+    }
+
+    return window.matchMedia("(max-width: 767px)").matches;
+  };
+
+  const handleOpenMobileChampionshipConfigurationWarning = () => {
+    setChampionshipStatusFlowDialog(ChampionshipStatusFlowDialog.MOBILE_CONFIGURATION_WARNING);
   };
 
   const updateChampionshipStatus = async (nextStatus: ChampionshipStatus) => {
@@ -181,6 +203,11 @@ export function AdminPage() {
   };
 
   const handleConfigureNewGames = async () => {
+    if (resolveIsMobileViewport()) {
+      handleOpenMobileChampionshipConfigurationWarning();
+      return;
+    }
+
     setProcessingChampionshipStatusFlowAction(true);
 
     const hasDeletedGames = await deleteCurrentChampionshipMatches();
@@ -215,6 +242,11 @@ export function AdminPage() {
     ) {
       if (matches.length > 0) {
         setChampionshipStatusFlowDialog(ChampionshipStatusFlowDialog.MOVE_TO_UPCOMING_WITH_GAMES);
+        return;
+      }
+
+      if (resolveIsMobileViewport()) {
+        handleOpenMobileChampionshipConfigurationWarning();
         return;
       }
 
@@ -451,6 +483,34 @@ export function AdminPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={championshipStatusFlowDialog == ChampionshipStatusFlowDialog.MOBILE_CONFIGURATION_WARNING}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            closeChampionshipStatusFlowDialog();
+          }
+        }}
+      >
+        <AlertDialogContent
+          overlayClassName="bg-transparent"
+          className="border-border/60 !bg-background/80 shadow-[0_18px_45px_rgba(15,23,42,0.16)] backdrop-blur-md"
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>Configuração disponível apenas no computador</AlertDialogTitle>
+            <AlertDialogDescription>
+              A configuração do campeonato deve ser feita somente no computador, porque na visão de celular os
+              componentes não cabem na tela.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <AlertDialogFooter className="justify-center sm:justify-center">
+            <AlertDialogAction className="w-full sm:w-auto" onClick={closeChampionshipStatusFlowDialog}>
+              OK
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

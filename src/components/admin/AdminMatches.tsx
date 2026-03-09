@@ -750,14 +750,6 @@ export function AdminMatches({
               </Button>
             ) : null}
           </div>
-
-          {hasConfiguredBracket && !loadingChampionshipBracket ? (
-            <p className="text-xs text-muted-foreground">
-              {bracketGroupMatchesProgress.pending > 0
-                ? `Mata-mata automático: faltam ${bracketGroupMatchesProgress.pending} jogo(s) de chave para liberar as próximas etapas.`
-                : "Mata-mata automático habilitado para esta configuração."}
-            </p>
-          ) : null}
         </div>
 
         {!canManageMatches ? (

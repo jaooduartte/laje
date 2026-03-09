@@ -30,7 +30,7 @@ export function AdminAccount({ canManageAccount = false }: Props) {
   const [name, setName] = useState("");
   const [loginIdentifier, setLoginIdentifier] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [savingSection, setSavingSection] = useState<"NAME" | "LOGIN" | "PASSWORD" | null>(null);
+  const [savingAccount, setSavingAccount] = useState(false);
 
   const fetchCurrentAdminAccount = useCallback(async () => {
     setLoading(true);
@@ -65,94 +65,81 @@ export function AdminAccount({ canManageAccount = false }: Props) {
     fetchCurrentAdminAccount();
   }, [fetchCurrentAdminAccount]);
 
-  const handleSaveName = async () => {
+  const handleSaveChanges = async () => {
     if (!currentAdminAccount || !canManageAccount) {
       return;
     }
 
     try {
-      const payload = AdminUserNameSaveDTO.fromFormValues({
-        target_user_id: currentAdminAccount.user_id,
-        name,
-      }).bindToSave();
+      const hasNameChanged = name.trim() != currentAdminAccount.name;
+      const hasLoginIdentifierChanged =
+        loginIdentifier.trim().toLowerCase() != currentAdminAccount.login_identifier.trim().toLowerCase();
+      const hasNewPassword = newPassword.trim().length > 0;
 
-      setSavingSection("NAME");
-
-      const { error } = await supabase.rpc("admin_update_user_name", payload);
-
-      setSavingSection(null);
-
-      if (error) {
-        toast.error(error.message);
+      if (!hasNameChanged && !hasLoginIdentifierChanged && !hasNewPassword) {
         return;
       }
 
-      toast.success("Nome atualizado com sucesso.");
-      fetchCurrentAdminAccount();
-    } catch (error) {
-      setSavingSection(null);
-      toast.error(error instanceof Error ? error.message : "Não foi possível atualizar o nome.");
-    }
-  };
+      const namePayload = hasNameChanged
+        ? AdminUserNameSaveDTO.fromFormValues({
+            target_user_id: currentAdminAccount.user_id,
+            name,
+          }).bindToSave()
+        : null;
+      const loginIdentifierPayload = hasLoginIdentifierChanged
+        ? AdminUserLoginIdentifierSaveDTO.fromFormValues({
+            target_user_id: currentAdminAccount.user_id,
+            login_identifier: loginIdentifier,
+          }).bindToSave()
+        : null;
+      const passwordPayload = hasNewPassword
+        ? AdminUserPasswordSaveDTO.fromFormValues({
+            target_user_id: currentAdminAccount.user_id,
+            new_password: newPassword,
+          }).bindToSave()
+        : null;
 
-  const handleSaveLoginIdentifier = async () => {
-    if (!currentAdminAccount || !canManageAccount) {
-      return;
-    }
+      setSavingAccount(true);
 
-    try {
-      const payload = AdminUserLoginIdentifierSaveDTO.fromFormValues({
-        target_user_id: currentAdminAccount.user_id,
-        login_identifier: loginIdentifier,
-      }).bindToSave();
+      if (namePayload) {
+        const { error } = await supabase.rpc("admin_update_user_name", namePayload);
 
-      setSavingSection("LOGIN");
-
-      const { error } = await supabase.rpc("admin_update_user_login_identifier", payload);
-
-      setSavingSection(null);
-
-      if (error) {
-        toast.error(error.message);
-        return;
+        if (error) {
+          setSavingAccount(false);
+          await fetchCurrentAdminAccount();
+          toast.error(error.message);
+          return;
+        }
       }
 
-      toast.success("Login atualizado com sucesso.");
-      fetchCurrentAdminAccount();
-    } catch (error) {
-      setSavingSection(null);
-      toast.error(error instanceof Error ? error.message : "Não foi possível atualizar o login.");
-    }
-  };
+      if (loginIdentifierPayload) {
+        const { error } = await supabase.rpc("admin_update_user_login_identifier", loginIdentifierPayload);
 
-  const handleSavePassword = async () => {
-    if (!currentAdminAccount || !canManageAccount) {
-      return;
-    }
-
-    try {
-      const payload = AdminUserPasswordSaveDTO.fromFormValues({
-        target_user_id: currentAdminAccount.user_id,
-        new_password: newPassword,
-      }).bindToSave();
-
-      setSavingSection("PASSWORD");
-
-      const { error } = await supabase.rpc("admin_update_user_password", payload);
-
-      setSavingSection(null);
-
-      if (error) {
-        toast.error(error.message);
-        return;
+        if (error) {
+          setSavingAccount(false);
+          await fetchCurrentAdminAccount();
+          toast.error(error.message);
+          return;
+        }
       }
 
-      toast.success("Senha atualizada com sucesso.");
-      setNewPassword("");
+      if (passwordPayload) {
+        const { error } = await supabase.rpc("admin_update_user_password", passwordPayload);
+
+        if (error) {
+          setSavingAccount(false);
+          await fetchCurrentAdminAccount();
+          toast.error(error.message);
+          return;
+        }
+      }
+
+      setSavingAccount(false);
+      toast.success("Alterações salvas com sucesso.");
       fetchCurrentAdminAccount();
     } catch (error) {
-      setSavingSection(null);
-      toast.error(error instanceof Error ? error.message : "Não foi possível atualizar a senha.");
+      setSavingAccount(false);
+      toast.error(error instanceof Error ? error.message : "Não foi possível salvar as alterações.");
     }
   };
 
@@ -167,6 +154,12 @@ export function AdminAccount({ canManageAccount = false }: Props) {
   if (!currentAdminAccount) {
     return <p className="text-sm text-muted-foreground">Não foi possível carregar a conta administrativa atual.</p>;
   }
+
+  const hasNameChanged = name.trim() != currentAdminAccount.name;
+  const hasLoginIdentifierChanged =
+    loginIdentifier.trim().toLowerCase() != currentAdminAccount.login_identifier.trim().toLowerCase();
+  const hasNewPassword = newPassword.trim().length > 0;
+  const hasPendingChanges = hasNameChanged || hasLoginIdentifierChanged || hasNewPassword;
 
   return (
     <div className="space-y-4">
@@ -195,83 +188,58 @@ export function AdminAccount({ canManageAccount = false }: Props) {
         <div className="grid gap-3 xl:grid-cols-2">
           <div className="space-y-2 rounded-2xl border border-border/50 bg-background/35 p-3 backdrop-blur-md">
             <Label htmlFor="admin-account-name-input">Nome</Label>
-            <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
-              <Input
-                id="admin-account-name-input"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                className="glass-input"
-                autoComplete="name"
-                disabled={!canManageAccount}
-              />
-
-              <Button
-                type="button"
-                variant="outline"
-                className="bg-background/75"
-                onClick={handleSaveName}
-                disabled={!canManageAccount || savingSection == "NAME"}
-              >
-                {savingSection == "NAME" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                Salvar nome
-              </Button>
-            </div>
+            <Input
+              id="admin-account-name-input"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              className="glass-input"
+              autoComplete="name"
+              disabled={!canManageAccount}
+            />
           </div>
 
           <div className="space-y-2 rounded-2xl border border-border/50 bg-background/35 p-3 backdrop-blur-md">
             <Label htmlFor="admin-account-login-input">Login</Label>
-            <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
-              <Input
-                id="admin-account-login-input"
-                value={loginIdentifier}
-                onChange={(event) => setLoginIdentifier(event.target.value)}
-                className="glass-input"
-                autoComplete="username"
-                autoCorrect="off"
-                autoCapitalize="none"
-                spellCheck={false}
-                disabled={!canManageAccount}
-              />
-
-              <Button
-                type="button"
-                variant="outline"
-                className="bg-background/75"
-                onClick={handleSaveLoginIdentifier}
-                disabled={!canManageAccount || savingSection == "LOGIN"}
-              >
-                {savingSection == "LOGIN" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                Salvar login
-              </Button>
-            </div>
+            <Input
+              id="admin-account-login-input"
+              value={loginIdentifier}
+              onChange={(event) => setLoginIdentifier(event.target.value)}
+              className="glass-input"
+              autoComplete="username"
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              disabled={!canManageAccount}
+            />
           </div>
         </div>
 
         <div className="space-y-2 rounded-2xl border border-border/50 bg-background/35 p-3 backdrop-blur-md">
           <Label htmlFor="admin-account-password-input">Nova senha</Label>
-          <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
-            <Input
-              id="admin-account-password-input"
-              type="password"
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-              className="glass-input"
-              autoComplete="new-password"
-              disabled={!canManageAccount}
-            />
+          <Input
+            id="admin-account-password-input"
+            type="password"
+            value={newPassword}
+            onChange={(event) => setNewPassword(event.target.value)}
+            className="glass-input"
+            autoComplete="new-password"
+            disabled={!canManageAccount}
+          />
+        </div>
 
+        {canManageAccount ? (
+          <div className="flex justify-end">
             <Button
               type="button"
-              variant="outline"
-              className="bg-background/75"
-              onClick={handleSavePassword}
-              disabled={!canManageAccount || savingSection == "PASSWORD"}
+              className="w-full sm:w-auto"
+              onClick={handleSaveChanges}
+              disabled={!hasPendingChanges || savingAccount}
             >
-              {savingSection == "PASSWORD" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-              Atualizar senha
+              {savingAccount ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              Salvar alterações
             </Button>
           </div>
-        </div>
+        ) : null}
       </div>
     </div>
   );
