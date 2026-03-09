@@ -2,9 +2,10 @@ import type { Match } from "@/lib/types";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Square } from "lucide-react";
-import { AppBadgeTone, MatchStatus } from "@/lib/enums";
+import { AppBadgeTone, BracketPhase, MatchStatus } from "@/lib/enums";
 import { AppBadge } from "@/components/ui/app-badge";
 import {
+  type MatchBracketContext,
   TEAM_DIVISION_LABELS,
   resolveMatchNaipeBadgeTone,
   resolveMatchNaipeLabel,
@@ -15,6 +16,7 @@ import {
 interface Props {
   match: Match;
   showChampionshipBadge?: boolean;
+  bracketContext?: MatchBracketContext;
 }
 
 function RedCardIndicator({ quantity }: { quantity: number }) {
@@ -30,11 +32,15 @@ function RedCardIndicator({ quantity }: { quantity: number }) {
   );
 }
 
-export function MatchCard({ match, showChampionshipBadge = true }: Props) {
+function resolveBracketBadgeTone(bracketContext: MatchBracketContext): AppBadgeTone {
+  return bracketContext.phase == BracketPhase.KNOCKOUT ? AppBadgeTone.AMBER : AppBadgeTone.NEUTRAL;
+}
+
+export function MatchCard({ match, showChampionshipBadge = true, bracketContext }: Props) {
   const matchCardClassName =
     match.status == MatchStatus.LIVE
-      ? "glass-card enter-item w-full border-live/45 p-4 live-glow"
-      : "glass-card glass-card-hover enter-item w-full p-4";
+      ? "list-item-card list-item-card-live w-full p-4 live-glow"
+      : "list-item-card list-item-card-hover w-full p-4";
 
   return (
     <div className={matchCardClassName}>
@@ -54,6 +60,11 @@ export function MatchCard({ match, showChampionshipBadge = true }: Props) {
             </AppBadge>
             {match.division ? (
               <AppBadge tone={AppBadgeTone.NEUTRAL}>{TEAM_DIVISION_LABELS[match.division]}</AppBadge>
+            ) : null}
+            {bracketContext ? (
+              <AppBadge tone={resolveBracketBadgeTone(bracketContext)}>
+                {bracketContext.badgeLabel}
+              </AppBadge>
             ) : null}
           </div>
         </div>

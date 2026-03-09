@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,6 +6,14 @@ import type { Team } from "@/lib/types";
 import { AppBadgeTone, TeamDivision, TeamDivisionSelection } from "@/lib/enums";
 import { Button } from "@/components/ui/button";
 import { AppBadge } from "@/components/ui/app-badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -22,6 +30,7 @@ interface Props {
 }
 
 const TEAM_CITY_OPTIONS = ["Joinville", "Blumenau", "Jaraguá do Sul"] as const;
+const ALL_TEAMS_DIVISION_FILTER = "ALL_TEAMS_DIVISION_FILTER";
 
 function resolveTeamDivisionLabel(division: TeamDivision | null): string {
   if (!division) {
@@ -61,10 +70,43 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
   const [name, setName] = useState("");
   const [city, setCity] = useState("Joinville");
   const [division, setDivision] = useState<TeamDivision | null>(TeamDivision.DIVISAO_ACESSO);
+  const [teamSearch, setTeamSearch] = useState("");
+  const [divisionFilter, setDivisionFilter] = useState<string>(ALL_TEAMS_DIVISION_FILTER);
+  const [showCreateTeamModal, setShowCreateTeamModal] = useState(false);
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [editingTeamName, setEditingTeamName] = useState("");
   const [editingTeamCity, setEditingTeamCity] = useState("Joinville");
   const [editingTeamDivision, setEditingTeamDivision] = useState<TeamDivision | null>(TeamDivision.DIVISAO_ACESSO);
+
+  const filteredTeams = useMemo(() => {
+    const normalizedTeamSearch = teamSearch.trim().toLowerCase();
+
+    return teams.filter((team) => {
+      if (
+        divisionFilter != ALL_TEAMS_DIVISION_FILTER &&
+        resolveTeamDivisionSelection(team.division) != divisionFilter
+      ) {
+        return false;
+      }
+
+      if (normalizedTeamSearch.length == 0) {
+        return true;
+      }
+
+      return `${team.name} ${team.city}`.toLowerCase().includes(normalizedTeamSearch);
+    });
+  }, [divisionFilter, teamSearch, teams]);
+
+  const resetCreateTeamForm = () => {
+    setName("");
+    setCity("Joinville");
+    setDivision(TeamDivision.DIVISAO_ACESSO);
+  };
+
+  const handleOpenCreateTeamModal = () => {
+    resetCreateTeamForm();
+    setShowCreateTeamModal(true);
+  };
 
   const handleAdd = async () => {
     if (!canManageTeams) {
@@ -88,8 +130,8 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
     }
 
     toast.success("Atlética criada!");
-    setName("");
-    setDivision(TeamDivision.DIVISAO_ACESSO);
+    setShowCreateTeamModal(false);
+    resetCreateTeamForm();
     onRefetch();
   };
 
@@ -164,40 +206,23 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
 
   return (
     <div className="space-y-4">
-      {canManageTeams ? (
-        <div className="glass-card enter-section grid gap-2 p-3 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
+      <div className="glass-card enter-section flex flex-col gap-3 p-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-2">
           <Input
-            placeholder="Nome da atlética"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
+            type="search"
+            value={teamSearch}
+            onChange={(event) => setTeamSearch(event.target.value)}
+            placeholder="Buscar atlética por nome"
             className="glass-input"
+            autoComplete="off"
           />
 
-          <Select value={city} onValueChange={setCity}>
+          <Select value={divisionFilter} onValueChange={setDivisionFilter}>
             <SelectTrigger className="glass-input">
-              <SelectValue placeholder="Cidade" />
+              <SelectValue placeholder="Filtrar por divisão" />
             </SelectTrigger>
             <SelectContent>
-              {TEAM_CITY_OPTIONS.map((cityOption) => (
-                <SelectItem key={cityOption} value={cityOption}>
-                  {cityOption}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={resolveTeamDivisionSelection(division)}
-            onValueChange={(value) => {
-              if (isTeamDivisionSelection(value)) {
-                setDivision(resolveTeamDivisionBySelection(value));
-              }
-            }}
-          >
-            <SelectTrigger className="glass-input">
-              <SelectValue placeholder="Divisão" />
-            </SelectTrigger>
-            <SelectContent>
+              <SelectItem value={ALL_TEAMS_DIVISION_FILTER}>Todas as divisões</SelectItem>
               <SelectItem value={TeamDivisionSelection.DIVISAO_PRINCIPAL}>
                 {TEAM_DIVISION_SELECTION_LABELS[TeamDivisionSelection.DIVISAO_PRINCIPAL]}
               </SelectItem>
@@ -209,108 +234,192 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
               </SelectItem>
             </SelectContent>
           </Select>
-
-          <Button onClick={handleAdd} className="w-full md:w-auto">
-            <Plus className="mr-1 h-4 w-4" /> Adicionar
-          </Button>
         </div>
-      ) : (
-        <p className="text-sm text-muted-foreground">Perfil em visualização: sem permissão para editar atléticas.</p>
-      )}
 
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-        {teams.map((team) => (
-          <div key={team.id} className="enter-item space-y-3 glass-card p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                {editingTeamId === team.id ? (
-                  <Input
-                    value={editingTeamName}
-                    onChange={(event) => setEditingTeamName(event.target.value)}
-                    className="h-8 glass-input"
-                  />
-                ) : (
-                  <p className="font-display font-semibold leading-tight">{team.name}</p>
-                )}
+        {canManageTeams ? (
+          <Button type="button" onClick={handleOpenCreateTeamModal} className="w-full xl:w-auto">
+            <Plus className="mr-2 h-4 w-4" />
+            Criar atlética
+          </Button>
+        ) : null}
+      </div>
+
+      {!canManageTeams ? (
+        <p className="text-sm text-muted-foreground">Perfil em visualização: sem permissão para editar atléticas.</p>
+      ) : null}
+
+      {filteredTeams.length == 0 ? (
+        <p className="text-sm text-muted-foreground">Nenhuma atlética encontrada para os filtros selecionados.</p>
+      ) : (
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {filteredTeams.map((team) => (
+            <div key={team.id} className="list-item-card list-item-card-hover space-y-3 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  {editingTeamId == team.id ? (
+                    <Input
+                      value={editingTeamName}
+                      onChange={(event) => setEditingTeamName(event.target.value)}
+                      className="h-8 glass-input"
+                    />
+                  ) : (
+                    <p className="font-display font-semibold leading-tight">{team.name}</p>
+                  )}
+                </div>
+
+                <div className="shrink-0">
+                  {editingTeamId == team.id ? (
+                    <Select value={editingTeamCity} onValueChange={setEditingTeamCity}>
+                      <SelectTrigger className="h-8 w-40 glass-input">
+                        <SelectValue placeholder="Cidade" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TEAM_CITY_OPTIONS.map((cityOption) => (
+                          <SelectItem key={cityOption} value={cityOption}>
+                            {cityOption}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <AppBadge tone={resolveTeamDivisionBadgeTone(team.division)}>
+                      {resolveTeamDivisionLabel(team.division)}
+                    </AppBadge>
+                  )}
+                </div>
               </div>
 
-              <div className="shrink-0">
-                {editingTeamId === team.id ? (
-                  <Select value={editingTeamCity} onValueChange={setEditingTeamCity}>
-                    <SelectTrigger className="h-8 w-40 glass-input">
-                      <SelectValue placeholder="Cidade" />
+              <div className="space-y-2">
+                {editingTeamId == team.id ? (
+                  <Select
+                    value={resolveTeamDivisionSelection(editingTeamDivision)}
+                    onValueChange={(value) => {
+                      if (isTeamDivisionSelection(value)) {
+                        setEditingTeamDivision(resolveTeamDivisionBySelection(value));
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-full glass-input">
+                      <SelectValue placeholder={resolveTeamDivisionLabel(editingTeamDivision)} />
                     </SelectTrigger>
                     <SelectContent>
-                      {TEAM_CITY_OPTIONS.map((cityOption) => (
-                        <SelectItem key={cityOption} value={cityOption}>
-                          {cityOption}
-                        </SelectItem>
-                      ))}
+                      <SelectItem value={TeamDivisionSelection.DIVISAO_PRINCIPAL}>
+                        {TEAM_DIVISION_SELECTION_LABELS[TeamDivisionSelection.DIVISAO_PRINCIPAL]}
+                      </SelectItem>
+                      <SelectItem value={TeamDivisionSelection.DIVISAO_ACESSO}>
+                        {TEAM_DIVISION_SELECTION_LABELS[TeamDivisionSelection.DIVISAO_ACESSO]}
+                      </SelectItem>
+                      <SelectItem value={TeamDivisionSelection.WITHOUT_DIVISION}>
+                        {TEAM_DIVISION_SELECTION_LABELS[TeamDivisionSelection.WITHOUT_DIVISION]}
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 ) : (
-                  <AppBadge tone={resolveTeamDivisionBadgeTone(team.division)}>
-                    {resolveTeamDivisionLabel(team.division)}
-                  </AppBadge>
+                  <p className="text-xs text-muted-foreground">{team.city}</p>
                 )}
+
+                <div className="flex items-center justify-end gap-1">
+                  {canManageTeams && editingTeamId == team.id ? (
+                    <>
+                      <Button variant="ghost" size="icon" onClick={handleSaveTeam}>
+                        <Save className="h-4 w-4 text-primary" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={handleCancelEditingTeam}>
+                        <X className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </>
+                  ) : canManageTeams ? (
+                    <Button variant="ghost" size="icon" onClick={() => handleStartEditingTeam(team)}>
+                      <Pencil className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  ) : null}
+
+                  {canManageTeams ? (
+                    <Button variant="ghost" size="icon" onClick={() => handleDelete(team.id)}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  ) : null}
+                </div>
               </div>
             </div>
+          ))}
+        </div>
+      )}
 
-            <div className="space-y-2">
-              {editingTeamId === team.id ? (
-                <Select
-                  value={resolveTeamDivisionSelection(editingTeamDivision)}
-                  onValueChange={(value) => {
-                    if (isTeamDivisionSelection(value)) {
-                      setEditingTeamDivision(resolveTeamDivisionBySelection(value));
-                    }
-                  }}
-                >
-                  <SelectTrigger className="h-8 w-full glass-input">
-                    <SelectValue placeholder={resolveTeamDivisionLabel(editingTeamDivision)} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={TeamDivisionSelection.DIVISAO_PRINCIPAL}>
-                      {TEAM_DIVISION_SELECTION_LABELS[TeamDivisionSelection.DIVISAO_PRINCIPAL]}
-                    </SelectItem>
-                    <SelectItem value={TeamDivisionSelection.DIVISAO_ACESSO}>
-                      {TEAM_DIVISION_SELECTION_LABELS[TeamDivisionSelection.DIVISAO_ACESSO]}
-                    </SelectItem>
-                    <SelectItem value={TeamDivisionSelection.WITHOUT_DIVISION}>
-                      {TEAM_DIVISION_SELECTION_LABELS[TeamDivisionSelection.WITHOUT_DIVISION]}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              ) : (
-                <p className="text-xs text-muted-foreground">{team.city}</p>
-              )}
+      <Dialog
+        open={showCreateTeamModal}
+        onOpenChange={(isOpen) => {
+          setShowCreateTeamModal(isOpen);
 
-              <div className="flex items-center justify-end gap-1">
-                {canManageTeams && editingTeamId === team.id ? (
-                  <>
-                    <Button variant="ghost" size="icon" onClick={handleSaveTeam}>
-                      <Save className="h-4 w-4 text-primary" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={handleCancelEditingTeam}>
-                      <X className="h-4 w-4 text-muted-foreground" />
-                    </Button>
-                  </>
-                ) : canManageTeams ? (
-                  <Button variant="ghost" size="icon" onClick={() => handleStartEditingTeam(team)}>
-                    <Pencil className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                ) : null}
+          if (!isOpen) {
+            resetCreateTeamForm();
+          }
+        }}
+      >
+        <DialogContent className="border-border/60 !bg-background/70 shadow-[0_18px_45px_rgba(15,23,42,0.16)] backdrop-blur-md sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Criar atlética</DialogTitle>
+            <DialogDescription>Cadastre a atlética e defina a cidade e a divisão dela.</DialogDescription>
+          </DialogHeader>
 
-                {canManageTeams ? (
-                  <Button variant="ghost" size="icon" onClick={() => handleDelete(team.id)}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                ) : null}
-              </div>
-            </div>
+          <div className="grid gap-3">
+            <Input
+              placeholder="Nome da atlética"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              className="glass-input"
+              autoComplete="off"
+            />
+
+            <Select value={city} onValueChange={setCity}>
+              <SelectTrigger className="glass-input">
+                <SelectValue placeholder="Cidade" />
+              </SelectTrigger>
+              <SelectContent>
+                {TEAM_CITY_OPTIONS.map((cityOption) => (
+                  <SelectItem key={cityOption} value={cityOption}>
+                    {cityOption}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={resolveTeamDivisionSelection(division)}
+              onValueChange={(value) => {
+                if (isTeamDivisionSelection(value)) {
+                  setDivision(resolveTeamDivisionBySelection(value));
+                }
+              }}
+            >
+              <SelectTrigger className="glass-input">
+                <SelectValue placeholder="Divisão" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={TeamDivisionSelection.DIVISAO_PRINCIPAL}>
+                  {TEAM_DIVISION_SELECTION_LABELS[TeamDivisionSelection.DIVISAO_PRINCIPAL]}
+                </SelectItem>
+                <SelectItem value={TeamDivisionSelection.DIVISAO_ACESSO}>
+                  {TEAM_DIVISION_SELECTION_LABELS[TeamDivisionSelection.DIVISAO_ACESSO]}
+                </SelectItem>
+                <SelectItem value={TeamDivisionSelection.WITHOUT_DIVISION}>
+                  {TEAM_DIVISION_SELECTION_LABELS[TeamDivisionSelection.WITHOUT_DIVISION]}
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        ))}
-      </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setShowCreateTeamModal(false)}>
+              Cancelar
+            </Button>
+            <Button type="button" onClick={handleAdd}>
+              <Plus className="mr-2 h-4 w-4" />
+              Criar atlética
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

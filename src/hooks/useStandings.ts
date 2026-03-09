@@ -1,19 +1,20 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Standing } from "@/lib/types";
 import type { MatchNaipe, TeamDivision } from "@/lib/enums";
 
 interface UseStandingsOptions {
   championshipId?: string | null;
+  seasonYear?: number | null;
   division?: TeamDivision | null;
   naipe?: MatchNaipe;
 }
 
-export function useStandings({ championshipId, division, naipe }: UseStandingsOptions = {}) {
+export function useStandings({ championshipId, seasonYear, division, naipe }: UseStandingsOptions = {}) {
   const [standings, setStandings] = useState<Standing[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchStandings = async () => {
+  const fetchStandings = useCallback(async () => {
     if (championshipId === null) {
       setStandings([]);
       setLoading(false);
@@ -32,6 +33,10 @@ export function useStandings({ championshipId, division, naipe }: UseStandingsOp
 
       if (championshipId) {
         query = query.eq("championship_id", championshipId);
+      }
+
+      if (typeof seasonYear == "number") {
+        query = query.eq("season_year", seasonYear);
       }
 
       if (division === null) {
@@ -61,7 +66,7 @@ export function useStandings({ championshipId, division, naipe }: UseStandingsOp
     } finally {
       setLoading(false);
     }
-  };
+  }, [championshipId, division, naipe, seasonYear]);
 
   useEffect(() => {
     if (championshipId === null) {
@@ -73,7 +78,7 @@ export function useStandings({ championshipId, division, naipe }: UseStandingsOp
     fetchStandings();
 
     const channel = supabase
-      .channel(`standings-realtime-${championshipId ?? "all"}-${division ?? "any"}-${naipe ?? "all"}`)
+      .channel(`standings-realtime-${championshipId ?? "all"}-${seasonYear ?? "all"}-${division ?? "any"}-${naipe ?? "all"}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "standings" }, () => {
         fetchStandings();
       })
@@ -82,7 +87,7 @@ export function useStandings({ championshipId, division, naipe }: UseStandingsOp
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [championshipId, division, naipe]);
+  }, [championshipId, division, fetchStandings, naipe, seasonYear]);
 
   return { standings, loading, refetch: fetchStandings };
 }

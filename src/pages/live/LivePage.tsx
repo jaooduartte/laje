@@ -3,7 +3,8 @@ import { useMatches } from "@/hooks/useMatches";
 import { useStandings } from "@/hooks/useStandings";
 import { useSports } from "@/hooks/useSports";
 import { useChampionships } from "@/hooks/useChampionships";
-import { MATCH_NAIPE_LABELS } from "@/lib/championship";
+import { useChampionshipBracket } from "@/hooks/useChampionshipBracket";
+import { MATCH_NAIPE_LABELS, resolveMatchBracketContextByMatchId } from "@/lib/championship";
 import { ChampionshipSportTieBreakerRule, ChampionshipStatus } from "@/lib/enums";
 import { aggregateStandingsByTeam } from "@/lib/standings";
 import { LivePageView } from "@/pages/live/LivePageView";
@@ -38,11 +39,20 @@ export function LivePage() {
   }, [championships]);
 
   const selectedChampionshipId = featuredChampionship?.id ?? null;
+  const selectedChampionshipSeasonYear = featuredChampionship?.current_season_year ?? null;
   const selectedChampionshipHasDivisions = featuredChampionship?.uses_divisions ?? false;
 
   const { liveMatches, upcomingMatches, finishedMatches, loading: matchesLoading } = useMatches({
     championshipId: selectedChampionshipId,
+    seasonYear: selectedChampionshipSeasonYear,
   });
+  const { championshipBracketView, loading: championshipBracketLoading } = useChampionshipBracket({
+    championshipId: selectedChampionshipId,
+    seasonYear: selectedChampionshipSeasonYear,
+  });
+  const matchBracketContextByMatchId = useMemo(() => {
+    return resolveMatchBracketContextByMatchId(championshipBracketView);
+  }, [championshipBracketView]);
 
   const [sportFilter, setSportFilter] = useState<string | null>(null);
   const [standingsSportFilter, setStandingsSportFilter] = useState<string>(ALL_STANDINGS_SPORT_FILTER);
@@ -57,6 +67,7 @@ export function LivePage() {
   const standingsDivisionFilter = selectedChampionshipHasDivisions ? undefined : null;
   const { standings, loading: standingsLoading } = useStandings({
     championshipId: selectedChampionshipId,
+    seasonYear: selectedChampionshipSeasonYear,
     division: standingsDivisionFilter,
   });
 
@@ -141,6 +152,10 @@ export function LivePage() {
       allStandingsNaipeFilter={ALL_STANDINGS_NAIPE_FILTER}
       filteredStandings={filteredStandings}
       standingsShowCardColumns={standingsShowCardColumns}
+      championTeamName={filteredStandings[0]?.team_name ?? null}
+      championshipBracketView={championshipBracketView}
+      championshipBracketLoading={championshipBracketLoading}
+      matchBracketContextByMatchId={matchBracketContextByMatchId}
       onSportFilterChange={setSportFilter}
       onStandingsSportFilterChange={setStandingsSportFilter}
       onStandingsNaipeFilterChange={setStandingsNaipeFilter}

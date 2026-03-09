@@ -5,6 +5,7 @@ import type {
   ChampionshipBracketScheduleLocationDraft,
   ChampionshipBracketWizardDraftFormValues,
 } from "@/domain/championship-brackets/championshipBracket.types";
+import { resolveRandomUuid } from "@/lib/random";
 
 function resolveStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
@@ -95,7 +96,7 @@ function resolveScheduleCourtDraft(schedule_court: unknown): ChampionshipBracket
   const parsed_schedule_court = schedule_court as ChampionshipBracketScheduleCourtDraft;
 
   return {
-    id: typeof parsed_schedule_court.id == "string" && parsed_schedule_court.id ? parsed_schedule_court.id : crypto.randomUUID(),
+    id: typeof parsed_schedule_court.id == "string" && parsed_schedule_court.id ? parsed_schedule_court.id : resolveRandomUuid(),
     name: typeof parsed_schedule_court.name == "string" ? parsed_schedule_court.name : "",
     position: Math.max(1, resolveNumberValue(parsed_schedule_court.position, 1)),
     sport_ids: resolveStringArray(parsed_schedule_court.sport_ids),
@@ -115,7 +116,7 @@ function resolveScheduleLocationDraft(schedule_location: unknown): ChampionshipB
     : [];
 
   return {
-    id: typeof parsed_schedule_location.id == "string" && parsed_schedule_location.id ? parsed_schedule_location.id : crypto.randomUUID(),
+    id: typeof parsed_schedule_location.id == "string" && parsed_schedule_location.id ? parsed_schedule_location.id : resolveRandomUuid(),
     name: typeof parsed_schedule_location.name == "string" ? parsed_schedule_location.name : "",
     position: Math.max(1, resolveNumberValue(parsed_schedule_location.position, 1)),
     courts,
@@ -135,7 +136,7 @@ function resolveScheduleDayDraft(schedule_day: unknown): ChampionshipBracketSche
     : [];
 
   return {
-    id: typeof parsed_schedule_day.id == "string" && parsed_schedule_day.id ? parsed_schedule_day.id : crypto.randomUUID(),
+    id: typeof parsed_schedule_day.id == "string" && parsed_schedule_day.id ? parsed_schedule_day.id : resolveRandomUuid(),
     date: typeof parsed_schedule_day.date == "string" ? parsed_schedule_day.date : "",
     start_time: typeof parsed_schedule_day.start_time == "string" ? parsed_schedule_day.start_time : "08:00",
     end_time: typeof parsed_schedule_day.end_time == "string" ? parsed_schedule_day.end_time : "18:00",

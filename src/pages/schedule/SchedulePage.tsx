@@ -4,10 +4,15 @@ import { useMatches } from "@/hooks/useMatches";
 import { useSports } from "@/hooks/useSports";
 import { useTeams } from "@/hooks/useTeams";
 import { useChampionships } from "@/hooks/useChampionships";
+import { useChampionshipBracket } from "@/hooks/useChampionshipBracket";
 import { useSelectedChampionship } from "@/hooks/useSelectedChampionship";
 import { useChampionshipSelection } from "@/hooks/useChampionshipSelection";
 import { MatchStatus, TeamDivision } from "@/lib/enums";
-import { isTeamDivision } from "@/lib/championship";
+import {
+  isTeamDivision,
+  resolveBracketGroupFilterOptions,
+  resolveMatchBracketContextByMatchId,
+} from "@/lib/championship";
 import { SchedulePageView } from "@/pages/schedule/SchedulePageView";
 
 const MATCH_STATUS_SORT_ORDER: Record<MatchStatus, number> = {
@@ -31,19 +36,37 @@ export function SchedulePage() {
     setSelectedChampionshipCode,
   });
 
-  const { matches, loading: matchesLoading } = useMatches({ championshipId: selectedChampionshipId });
+  const selectedChampionshipSeasonYear = selectedChampionship?.current_season_year ?? null;
+  const { matches, loading: matchesLoading } = useMatches({
+    championshipId: selectedChampionshipId,
+    seasonYear: selectedChampionshipSeasonYear,
+  });
+  const { championshipBracketView } = useChampionshipBracket({
+    championshipId: selectedChampionshipId,
+    seasonYear: selectedChampionshipSeasonYear,
+  });
   const { sports } = useSports({ championshipId: selectedChampionshipId });
   const { teams } = useTeams();
 
   const [sportFilter, setSportFilter] = useState<string | null>(null);
   const [teamFilter, setTeamFilter] = useState<string | null>(null);
+  const [groupFilter, setGroupFilter] = useState<string | null>(null);
   const [divisionFilter, setDivisionFilter] = useState<TeamDivision>(TeamDivision.DIVISAO_PRINCIPAL);
 
   useEffect(() => {
     setSportFilter(null);
     setTeamFilter(null);
+    setGroupFilter(null);
     setDivisionFilter(TeamDivision.DIVISAO_PRINCIPAL);
   }, [selectedChampionshipCode]);
+
+  const matchBracketContextByMatchId = useMemo(() => {
+    return resolveMatchBracketContextByMatchId(championshipBracketView);
+  }, [championshipBracketView]);
+
+  const groupOptions = useMemo(() => {
+    return resolveBracketGroupFilterOptions(matchBracketContextByMatchId);
+  }, [matchBracketContextByMatchId]);
 
   const filteredMatches = useMemo(() => {
     return matches.filter((match) => {
@@ -59,9 +82,25 @@ export function SchedulePage() {
         return false;
       }
 
+      if (groupFilter) {
+        const matchBracketContext = matchBracketContextByMatchId[match.id];
+
+        if (!matchBracketContext || matchBracketContext.groupFilterValue != groupFilter) {
+          return false;
+        }
+      }
+
       return true;
     });
-  }, [divisionFilter, matches, selectedChampionshipHasDivisions, sportFilter, teamFilter]);
+  }, [
+    divisionFilter,
+    groupFilter,
+    matchBracketContextByMatchId,
+    matches,
+    selectedChampionshipHasDivisions,
+    sportFilter,
+    teamFilter,
+  ]);
 
   const sortedMatches = useMemo(() => {
     return [...filteredMatches].sort((firstMatch, secondMatch) => {
@@ -117,12 +156,16 @@ export function SchedulePage() {
       sports={sports}
       sportFilter={sportFilter}
       teamFilter={teamFilter}
+      groupFilter={groupFilter}
+      groupOptions={groupOptions}
       divisionFilter={divisionFilter}
       orderedDates={orderedDates}
       groupedMatches={groupedMatches}
+      matchBracketContextByMatchId={matchBracketContextByMatchId}
       onChampionshipCodeChange={handleChampionshipCodeChange}
       onSportFilterChange={setSportFilter}
       onTeamFilterChange={setTeamFilter}
+      onGroupFilterChange={setGroupFilter}
       onDivisionChange={handleDivisionChange}
     />
   );

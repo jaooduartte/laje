@@ -13,6 +13,7 @@ import {
   TEAM_DIVISION_BADGE_TONES,
   TEAM_DIVISION_LABELS,
 } from "@/lib/championship";
+import { resolveRandomUuid } from "@/lib/random";
 import {
   CHAMPIONSHIP_BRACKET_DEFAULT_QUALIFIERS_PER_GROUP,
 } from "@/domain/championship-brackets/championshipBracket.constants";
@@ -142,7 +143,7 @@ function resolveSupportedNaipesByMode(naipe_mode: ChampionshipSportNaipeMode): M
 
 function resolveInitialScheduleDay(): ScheduleDayFormValue {
   return {
-    id: crypto.randomUUID(),
+    id: resolveRandomUuid(),
     date: "",
     start_time: "08:00",
     end_time: "18:00",
@@ -150,12 +151,12 @@ function resolveInitialScheduleDay(): ScheduleDayFormValue {
     break_end_time: "",
     locations: [
       {
-        id: crypto.randomUUID(),
+        id: resolveRandomUuid(),
         name: "",
         position: 1,
         courts: [
           {
-            id: crypto.randomUUID(),
+            id: resolveRandomUuid(),
             name: "",
             position: 1,
             sport_ids: [],
@@ -168,18 +169,18 @@ function resolveInitialScheduleDay(): ScheduleDayFormValue {
 
 function resolveReplicatedScheduleDay(previousScheduleDay: ScheduleDayFormValue): ScheduleDayFormValue {
   return {
-    id: crypto.randomUUID(),
+    id: resolveRandomUuid(),
     date: "",
     start_time: previousScheduleDay.start_time,
     end_time: previousScheduleDay.end_time,
     break_start_time: previousScheduleDay.break_start_time,
     break_end_time: previousScheduleDay.break_end_time,
     locations: previousScheduleDay.locations.map((location, locationIndex) => ({
-      id: crypto.randomUUID(),
+      id: resolveRandomUuid(),
       name: location.name,
       position: locationIndex + 1,
       courts: location.courts.map((court, courtIndex) => ({
-        id: crypto.randomUUID(),
+        id: resolveRandomUuid(),
         name: court.name,
         position: courtIndex + 1,
         sport_ids: [...court.sport_ids],
@@ -1444,17 +1445,19 @@ export function AdminChampionshipBracketWizardModal({
       return;
     }
 
-    setCurrentStepIndex((currentStep) => Math.min(currentStep + 1, WIZARD_STEP_LABELS.length - 1));
+    const next_step_index = Math.min(currentStepIndex + 1, WIZARD_STEP_LABELS.length - 1);
+
+    saveChampionshipBracketWizardDraft(selectedChampionship.id, {
+      ...resolveWizardDraftFormValues(),
+      current_step_index: next_step_index,
+    });
+
+    setCurrentStepIndex(next_step_index);
   };
 
   const handlePreviousStep = () => {
     setCurrentStepIndex((currentStep) => Math.max(currentStep - 1, 0));
   };
-
-  const handleSaveDraft = useCallback(() => {
-    saveChampionshipBracketWizardDraft(selectedChampionship.id, resolveWizardDraftFormValues());
-    toast.success("Rascunho salvo com sucesso.");
-  }, [resolveWizardDraftFormValues, selectedChampionship.id]);
 
   const resolveParticipantsPayload = (): ChampionshipBracketParticipantInput[] => {
     return selectedTeamIds.map((team_id) => {
@@ -2536,7 +2539,7 @@ export function AdminChampionshipBracketWizardModal({
                                   courts: [
                                     ...locationItem.courts,
                                     {
-                                      id: crypto.randomUUID(),
+                                      id: resolveRandomUuid(),
                                       name: "",
                                       position: locationItem.courts.length + 1,
                                       sport_ids: [],
@@ -2577,12 +2580,12 @@ export function AdminChampionshipBracketWizardModal({
                             locations: [
                               ...scheduleDayItem.locations,
                               {
-                                id: crypto.randomUUID(),
+                                id: resolveRandomUuid(),
                                 name: "",
                                 position: scheduleDayItem.locations.length + 1,
                                 courts: [
                                   {
-                                    id: crypto.randomUUID(),
+                                    id: resolveRandomUuid(),
                                     name: "",
                                     position: 1,
                                     sport_ids: [],
@@ -2723,10 +2726,6 @@ export function AdminChampionshipBracketWizardModal({
             </Button>
 
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={handleSaveDraft} disabled={saving}>
-                Salvar rascunho
-              </Button>
-
               <Button variant="outline" onClick={handlePreviousStep} disabled={currentStepIndex == 0 || saving}>
                 Voltar
               </Button>

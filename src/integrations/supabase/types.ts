@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           code: Database["public"]["Enums"]["championship_code"]
           created_at: string
+          current_season_year: number
           default_location: string | null
           id: string
           name: string
@@ -27,6 +28,7 @@ export type Database = {
         Insert: {
           code: Database["public"]["Enums"]["championship_code"]
           created_at?: string
+          current_season_year?: number
           default_location?: string | null
           id?: string
           name: string
@@ -36,6 +38,7 @@ export type Database = {
         Update: {
           code?: Database["public"]["Enums"]["championship_code"]
           created_at?: string
+          current_season_year?: number
           default_location?: string | null
           id?: string
           name?: string
@@ -344,6 +347,7 @@ export type Database = {
           id: string
           location: string
           naipe: Database["public"]["Enums"]["match_naipe"]
+          season_year: number
           sport_id: string
           start_time: string
           status: Database["public"]["Enums"]["match_status"]
@@ -366,6 +370,7 @@ export type Database = {
           id?: string
           location: string
           naipe?: Database["public"]["Enums"]["match_naipe"]
+          season_year?: number
           sport_id: string
           start_time: string
           status?: Database["public"]["Enums"]["match_status"]
@@ -388,6 +393,7 @@ export type Database = {
           id?: string
           location?: string
           naipe?: Database["public"]["Enums"]["match_naipe"]
+          season_year?: number
           sport_id?: string
           start_time?: string
           status?: Database["public"]["Enums"]["match_status"]
@@ -456,6 +462,7 @@ export type Database = {
           played: number
           points: number
           red_cards: number
+          season_year: number
           sport_id: string
           team_id: string
           updated_at: string
@@ -475,6 +482,7 @@ export type Database = {
           played?: number
           points?: number
           red_cards?: number
+          season_year: number
           sport_id: string
           team_id: string
           updated_at?: string
@@ -494,6 +502,7 @@ export type Database = {
           played?: number
           points?: number
           red_cards?: number
+          season_year?: number
           sport_id?: string
           team_id?: string
           updated_at?: string
@@ -633,7 +642,7 @@ export type Database = {
         Returns: string
       }
       get_championship_bracket_view: {
-        Args: { _championship_id: string }
+        Args: { _championship_id: string; _season_year?: number | null }
         Returns: Json
       }
       get_current_user_admin_context: {
@@ -698,6 +707,10 @@ export type Database = {
           is_schedule_page_blocked: boolean
           updated_at: string
         }[]
+      }
+      sync_championship_season_rollover: {
+        Args: never
+        Returns: undefined
       }
       get_match_sets: {
         Args: { _match_id: string }

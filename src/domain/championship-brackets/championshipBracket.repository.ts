@@ -24,9 +24,11 @@ export async function generateChampionshipKnockout(
 
 export async function fetchChampionshipBracketView(
   championship_id: string,
+  season_year?: number | null,
 ): Promise<{ data: ChampionshipBracketView | null; error: Error | null }> {
   const response = await supabase.rpc("get_championship_bracket_view", {
     _championship_id: championship_id,
+    _season_year: season_year ?? null,
   });
 
   if (response.error) {

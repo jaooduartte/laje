@@ -6,12 +6,12 @@ import { Header } from "@/components/Header";
 import { MatchCard } from "@/components/MatchCard";
 import { SportFilter } from "@/components/SportFilter";
 import {
-  AppItemsPerPageControl,
   AppPaginationControls,
   DEFAULT_PAGINATION_ITEMS_PER_PAGE,
 } from "@/components/ui/app-pagination-controls";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Championship, Match, Sport, Team } from "@/lib/types";
+import type { BracketGroupFilterOption, MatchBracketContext } from "@/lib/championship";
 import { TeamDivision } from "@/lib/enums";
 import { TEAM_DIVISION_LABELS } from "@/lib/championship";
 
@@ -25,12 +25,16 @@ interface SchedulePageViewProps {
   sports: Sport[];
   sportFilter: string | null;
   teamFilter: string | null;
+  groupFilter: string | null;
+  groupOptions: BracketGroupFilterOption[];
   divisionFilter: TeamDivision;
   orderedDates: string[];
   groupedMatches: Record<string, Match[]>;
+  matchBracketContextByMatchId: Record<string, MatchBracketContext>;
   onChampionshipCodeChange: (value: string) => void;
   onSportFilterChange: (value: string | null) => void;
   onTeamFilterChange: (value: string | null) => void;
+  onGroupFilterChange: (value: string | null) => void;
   onDivisionChange: (value: string) => void;
 }
 
@@ -44,12 +48,16 @@ export function SchedulePageView({
   sports,
   sportFilter,
   teamFilter,
+  groupFilter,
+  groupOptions,
   divisionFilter,
   orderedDates,
   groupedMatches,
+  matchBracketContextByMatchId,
   onChampionshipCodeChange,
   onSportFilterChange,
   onTeamFilterChange,
+  onGroupFilterChange,
   onDivisionChange,
 }: SchedulePageViewProps) {
   const [matchesCurrentPage, setMatchesCurrentPage] = useState(1);
@@ -63,7 +71,7 @@ export function SchedulePageView({
 
   useEffect(() => {
     setMatchesCurrentPage(1);
-  }, [divisionFilter, matchesItemsPerPage, selectedChampionshipCode, sportFilter, teamFilter]);
+  }, [divisionFilter, groupFilter, matchesItemsPerPage, selectedChampionshipCode, sportFilter, teamFilter]);
 
   const matchesTotalPages = Math.max(1, Math.ceil(orderedMatches.length / matchesItemsPerPage));
 
@@ -158,6 +166,20 @@ export function SchedulePageView({
             </SelectContent>
           </Select>
 
+          <Select value={groupFilter ?? "all"} onValueChange={(value) => onGroupFilterChange(value == "all" ? null : value)}>
+            <SelectTrigger className="glass-input w-48">
+              <SelectValue placeholder="Filtrar por chave" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as chaves</SelectItem>
+              {groupOptions.map((groupOption) => (
+                <SelectItem key={groupOption.value} value={groupOption.value}>
+                  {groupOption.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           {selectedChampionshipHasDivisions ? (
             <Select value={divisionFilter} onValueChange={onDivisionChange}>
               <SelectTrigger className="glass-input w-52">
@@ -183,8 +205,6 @@ export function SchedulePageView({
           <p className="text-muted-foreground">Nenhum jogo encontrado.</p>
         ) : (
           <div className="space-y-4">
-            <AppItemsPerPageControl itemsPerPage={matchesItemsPerPage} onItemsPerPageChange={setMatchesItemsPerPage} />
-
             {paginatedOrderedDates.map((date) => (
               <section key={date} className="glass-panel enter-section p-4">
                 <h3 className="mb-3 text-sm font-display font-semibold uppercase tracking-wider text-muted-foreground">
@@ -192,7 +212,12 @@ export function SchedulePageView({
                 </h3>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {paginatedMatchesByDate[date].map((match) => (
-                    <MatchCard key={match.id} match={match} showChampionshipBadge={false} />
+                    <MatchCard
+                      key={match.id}
+                      match={match}
+                      showChampionshipBadge={false}
+                      bracketContext={matchBracketContextByMatchId[match.id]}
+                    />
                   ))}
                 </div>
               </section>
@@ -202,6 +227,8 @@ export function SchedulePageView({
               currentPage={matchesCurrentPage}
               totalPages={matchesTotalPages}
               onPageChange={setMatchesCurrentPage}
+              itemsPerPage={matchesItemsPerPage}
+              onItemsPerPageChange={setMatchesItemsPerPage}
             />
           </div>
         )}

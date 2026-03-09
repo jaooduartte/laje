@@ -81,7 +81,7 @@ export function AdminSports({ sports, championshipSports, selectedChampionship }
               championshipSport?.default_match_duration_minutes ?? platformSportRule.defaultMatchDurationMinutes;
 
             return (
-              <div key={platformSportRule.sportName} className="enter-item space-y-3 glass-card p-4">
+              <div key={platformSportRule.sportName} className="list-item-card space-y-3 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="font-display font-semibold">{platformSportRule.sportName}</p>
                 </div>

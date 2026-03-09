@@ -8,6 +8,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -41,6 +49,9 @@ interface OrganizerTeamsSelectorProps {
   placeholder: string;
   triggerClassName?: string;
 }
+
+const ALL_LEAGUE_EVENT_TYPES_FILTER = "ALL_LEAGUE_EVENT_TYPES_FILTER";
+const ALL_LEAGUE_EVENT_ORGANIZER_FILTER = "ALL_LEAGUE_EVENT_ORGANIZER_FILTER";
 
 function resolveDefaultFormValues(): LeagueEventFormValues {
   return {
@@ -144,12 +155,52 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
   const [createFormValues, setCreateFormValues] = useState<LeagueEventFormValues>(resolveDefaultFormValues());
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [editingFormValues, setEditingFormValues] = useState<LeagueEventFormValues>(resolveDefaultFormValues());
+  const [leagueEventSearch, setLeagueEventSearch] = useState("");
+  const [leagueEventTypeFilter, setLeagueEventTypeFilter] = useState<string>(ALL_LEAGUE_EVENT_TYPES_FILTER);
+  const [leagueEventOrganizerFilter, setLeagueEventOrganizerFilter] = useState<string>(ALL_LEAGUE_EVENT_ORGANIZER_FILTER);
+  const [showCreateLeagueEventModal, setShowCreateLeagueEventModal] = useState(false);
 
   const orderedTeams = useMemo(() => {
     return [...teams].sort((firstTeam, secondTeam) => firstTeam.name.localeCompare(secondTeam.name));
   }, [teams]);
 
+  const filteredLeagueEvents = useMemo(() => {
+    const normalizedLeagueEventSearch = leagueEventSearch.trim().toLowerCase();
+
+    return leagueEvents.filter((leagueEvent) => {
+      if (
+        leagueEventTypeFilter != ALL_LEAGUE_EVENT_TYPES_FILTER &&
+        leagueEvent.event_type != leagueEventTypeFilter
+      ) {
+        return false;
+      }
+
+      if (leagueEventOrganizerFilter != ALL_LEAGUE_EVENT_ORGANIZER_FILTER) {
+        const organizerTeamIds = resolveLeagueEventOrganizerTeamIds(leagueEvent);
+
+        if (!organizerTeamIds.includes(leagueEventOrganizerFilter)) {
+          return false;
+        }
+      }
+
+      if (normalizedLeagueEventSearch.length == 0) {
+        return true;
+      }
+
+      return leagueEvent.name.toLowerCase().includes(normalizedLeagueEventSearch);
+    });
+  }, [leagueEventOrganizerFilter, leagueEventSearch, leagueEventTypeFilter, leagueEvents]);
+
   const monthControlClassName = "glass-input h-9 rounded-xl text-secondary-foreground";
+
+  const resetCreateLeagueEventForm = () => {
+    setCreateFormValues(resolveDefaultFormValues());
+  };
+
+  const handleOpenCreateLeagueEventModal = () => {
+    resetCreateLeagueEventForm();
+    setShowCreateLeagueEventModal(true);
+  };
 
   const handleChangeCreateField = <FieldName extends keyof LeagueEventFormValues>(
     fieldName: FieldName,
@@ -208,7 +259,8 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
       }
 
       toast.success("Evento criado com sucesso.");
-      setCreateFormValues(resolveDefaultFormValues());
+      setShowCreateLeagueEventModal(false);
+      resetCreateLeagueEventForm();
       setSelectedMonthDate(new Date(`${payload.event_date}T12:00:00`));
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Não foi possível criar o evento.";
@@ -311,66 +363,56 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
         </div>
       </div>
 
-      {canManageLeagueEvents ? (
-        <div className="enter-section grid gap-2 glass-card p-4 lg:grid-cols-[minmax(0,1.2fr)_170px_minmax(0,1.4fr)_minmax(0,1fr)_220px_auto]">
+      <div className="glass-card enter-section flex flex-col gap-3 p-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           <Input
-            value={createFormValues.name}
-            onChange={(event) => handleChangeCreateField("name", event.target.value)}
-            placeholder="Nome do evento"
+            type="search"
+            value={leagueEventSearch}
+            onChange={(event) => setLeagueEventSearch(event.target.value)}
+            placeholder="Buscar evento por nome"
             className="glass-input"
+            autoComplete="off"
           />
 
-          <Select
-            value={createFormValues.eventType}
-            onValueChange={(value) => {
-              if (isLeagueEventType(value)) {
-                handleChangeCreateField("eventType", value);
-              }
-            }}
-          >
+          <Select value={leagueEventOrganizerFilter} onValueChange={setLeagueEventOrganizerFilter}>
             <SelectTrigger className="glass-input">
-              <SelectValue placeholder="Tipo" />
+              <SelectValue placeholder="Filtrar por atlética" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value={ALL_LEAGUE_EVENT_ORGANIZER_FILTER}>Todas as atléticas</SelectItem>
+              {orderedTeams.map((team) => (
+                <SelectItem key={team.id} value={team.id}>
+                  {team.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={leagueEventTypeFilter} onValueChange={setLeagueEventTypeFilter}>
+            <SelectTrigger className="glass-input">
+              <SelectValue placeholder="Filtrar por tipo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_LEAGUE_EVENT_TYPES_FILTER}>Todos os tipos</SelectItem>
               <SelectItem value={LeagueEventType.HH}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.HH]}</SelectItem>
               <SelectItem value={LeagueEventType.OPEN_BAR}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.OPEN_BAR]}</SelectItem>
               <SelectItem value={LeagueEventType.CHAMPIONSHIP}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.CHAMPIONSHIP]}</SelectItem>
               <SelectItem value={LeagueEventType.LAJE_EVENT}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.LAJE_EVENT]}</SelectItem>
             </SelectContent>
           </Select>
-
-          {createFormValues.eventType == LeagueEventType.LAJE_EVENT ? (
-            <Input value="LAJE" readOnly disabled className="glass-input" />
-          ) : (
-            <OrganizerTeamsSelector
-              orderedTeams={orderedTeams}
-              selectedOrganizerTeamIds={createFormValues.organizerTeamIds}
-              onSelectionChange={(value) => handleChangeCreateField("organizerTeamIds", value)}
-              placeholder="Selecione as atléticas"
-            />
-          )}
-
-          <Input
-            value={createFormValues.location}
-            onChange={(event) => handleChangeCreateField("location", event.target.value)}
-            placeholder="Local do evento"
-            className="glass-input"
-          />
-
-          <DateTimePicker
-            value={createFormValues.eventDate}
-            onChange={(value) => handleChangeCreateField("eventDate", value)}
-            placeholder="Data do evento"
-            showTime={false}
-          />
-
-          <Button onClick={handleCreateLeagueEvent} className="w-full lg:w-auto">
-            <Plus className="mr-1 h-4 w-4" /> Adicionar evento
-          </Button>
         </div>
-      ) : (
+
+        {canManageLeagueEvents ? (
+          <Button type="button" onClick={handleOpenCreateLeagueEventModal} className="w-full xl:w-auto">
+            <Plus className="mr-2 h-4 w-4" />
+            Criar evento
+          </Button>
+        ) : null}
+      </div>
+
+      {!canManageLeagueEvents ? (
         <p className="text-sm text-muted-foreground">Perfil em visualização: sem permissão para criar ou editar eventos.</p>
-      )}
+      ) : null}
 
       {loading ? (
         <div className="enter-section flex min-h-28 items-center justify-center glass-card">
@@ -379,13 +421,13 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
       ) : null}
 
       <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-        {leagueEvents.map((leagueEvent) => {
+        {filteredLeagueEvents.map((leagueEvent) => {
           const isEditing = editingEventId == leagueEvent.id;
           const formValues = isEditing ? editingFormValues : resolveFormValuesFromLeagueEvent(leagueEvent);
           const organizerName = resolveLeagueEventOrganizerName(leagueEvent);
 
           return (
-            <div key={leagueEvent.id} className="enter-item glass-card p-4">
+            <div key={leagueEvent.id} className="list-item-card list-item-card-hover p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1 space-y-3">
                   <div className="flex items-start justify-between gap-2">
@@ -495,9 +537,90 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
         })}
       </div>
 
-      {!loading && leagueEvents.length == 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhum evento cadastrado para este mês.</p>
+      {!loading && filteredLeagueEvents.length == 0 ? (
+        <p className="text-sm text-muted-foreground">Nenhum evento cadastrado para os filtros selecionados.</p>
       ) : null}
+
+      <Dialog
+        open={showCreateLeagueEventModal}
+        onOpenChange={(isOpen) => {
+          setShowCreateLeagueEventModal(isOpen);
+
+          if (!isOpen) {
+            resetCreateLeagueEventForm();
+          }
+        }}
+      >
+        <DialogContent className="border-border/60 !bg-background/70 shadow-[0_18px_45px_rgba(15,23,42,0.16)] backdrop-blur-md sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Criar evento da liga</DialogTitle>
+            <DialogDescription>Cadastre o evento com nome, tipo, organização, local e data.</DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3">
+            <Input
+              value={createFormValues.name}
+              onChange={(event) => handleChangeCreateField("name", event.target.value)}
+              placeholder="Nome do evento"
+              className="glass-input"
+            />
+
+            <Select
+              value={createFormValues.eventType}
+              onValueChange={(value) => {
+                if (isLeagueEventType(value)) {
+                  handleChangeCreateField("eventType", value);
+                }
+              }}
+            >
+              <SelectTrigger className="glass-input">
+                <SelectValue placeholder="Tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={LeagueEventType.HH}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.HH]}</SelectItem>
+                <SelectItem value={LeagueEventType.OPEN_BAR}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.OPEN_BAR]}</SelectItem>
+                <SelectItem value={LeagueEventType.CHAMPIONSHIP}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.CHAMPIONSHIP]}</SelectItem>
+                <SelectItem value={LeagueEventType.LAJE_EVENT}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.LAJE_EVENT]}</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {createFormValues.eventType == LeagueEventType.LAJE_EVENT ? (
+              <Input value="LAJE" readOnly disabled className="glass-input" />
+            ) : (
+              <OrganizerTeamsSelector
+                orderedTeams={orderedTeams}
+                selectedOrganizerTeamIds={createFormValues.organizerTeamIds}
+                onSelectionChange={(value) => handleChangeCreateField("organizerTeamIds", value)}
+                placeholder="Selecione as atléticas"
+              />
+            )}
+
+            <Input
+              value={createFormValues.location}
+              onChange={(event) => handleChangeCreateField("location", event.target.value)}
+              placeholder="Local do evento"
+              className="glass-input"
+            />
+
+            <DateTimePicker
+              value={createFormValues.eventDate}
+              onChange={(value) => handleChangeCreateField("eventDate", value)}
+              placeholder="Data do evento"
+              showTime={false}
+            />
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setShowCreateLeagueEventModal(false)}>
+              Cancelar
+            </Button>
+            <Button type="button" onClick={handleCreateLeagueEvent}>
+              <Plus className="mr-2 h-4 w-4" />
+              Criar evento
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

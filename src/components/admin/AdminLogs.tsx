@@ -21,7 +21,6 @@ import { LEAGUE_EVENT_ORGANIZER_LABELS, LEAGUE_EVENT_TYPE_LABELS } from "@/domai
 import type { AdminActionLog } from "@/lib/types";
 import { AppBadge } from "@/components/ui/app-badge";
 import {
-  AppItemsPerPageControl,
   AppPaginationControls,
   DEFAULT_PAGINATION_ITEMS_PER_PAGE,
 } from "@/components/ui/app-pagination-controls";
@@ -40,6 +39,8 @@ const ALL_USERS_FILTER = "ALL_USERS";
 const ALL_ACTIONS_FILTER = "ALL_ACTIONS";
 const MAXIMUM_LOG_CHANGES = 7;
 const LOGS_GRID_TEMPLATE = "lg:grid-cols-[minmax(240px,max-content)_minmax(0,1fr)_120px]";
+
+type ActionTypeFilterValue = AdminActionType | typeof ALL_ACTIONS_FILTER;
 
 const ADMIN_PANEL_ROLE_LABELS: Record<AdminPanelRole, string> = {
   [AdminPanelRole.ADMIN]: "Admin",
@@ -292,7 +293,7 @@ function resolveFieldLabel(resourceTable: string, fieldName: string): string {
     return ADMIN_LOG_DEFAULT_FIELD_LABELS[fieldName];
   }
 
-  return fieldName.replaceAll("_", " ");
+  return fieldName.replace(/_/g, " ");
 }
 
 function resolveDateText(value: string): string {
@@ -566,7 +567,7 @@ function resolveFallbackDetail(log: AdminActionLog): string {
 }
 
 function resolveOrSearchValue(searchText: string): string {
-  const normalizedSearchText = searchText.trim().replaceAll(",", " ").replaceAll("%", "");
+  const normalizedSearchText = searchText.trim().replace(/,/g, " ").replace(/%/g, "");
 
   if (!normalizedSearchText) {
     return "";
@@ -588,7 +589,7 @@ export function AdminLogs() {
   const [loading, setLoading] = useState(true);
   const [selectedLogForJson, setSelectedLogForJson] = useState<AdminActionLog | null>(null);
   const [selectedUserId, setSelectedUserId] = useState(ALL_USERS_FILTER);
-  const [selectedActionType, setSelectedActionType] = useState(ALL_ACTIONS_FILTER);
+  const [selectedActionType, setSelectedActionType] = useState<ActionTypeFilterValue>(ALL_ACTIONS_FILTER);
   const [resourceSearch, setResourceSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_PAGINATION_ITEMS_PER_PAGE);
@@ -728,6 +729,13 @@ export function AdminLogs() {
   }, [logs, teamNameById]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
+
+  const handleSelectedActionTypeChange = (value: string) => {
+    if (value == ALL_ACTIONS_FILTER || isAdminActionType(value)) {
+      setSelectedActionType(value);
+    }
+  };
+
   useEffect(() => {
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
@@ -758,7 +766,7 @@ export function AdminLogs() {
           </SelectContent>
         </Select>
 
-        <Select value={selectedActionType} onValueChange={setSelectedActionType}>
+        <Select value={selectedActionType} onValueChange={handleSelectedActionTypeChange}>
           <SelectTrigger className="glass-input">
             <SelectValue placeholder="Filtrar ação" />
           </SelectTrigger>
@@ -774,8 +782,6 @@ export function AdminLogs() {
           </SelectContent>
         </Select>
       </div>
-
-      <AppItemsPerPageControl itemsPerPage={itemsPerPage} onItemsPerPageChange={setItemsPerPage} />
 
       {loading ? (
         <div className="glass-card enter-section flex min-h-28 items-center justify-center">
@@ -837,7 +843,17 @@ export function AdminLogs() {
       )}
 
       {!loading && totalCount > 0 ? (
-        <AppPaginationControls currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+        <div className="space-y-2">
+          <p className="text-center text-xs text-muted-foreground">Total de itens: {totalCount}</p>
+          <AppPaginationControls
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            showBoundaryButtons
+            itemsPerPage={itemsPerPage}
+            onItemsPerPageChange={setItemsPerPage}
+          />
+        </div>
       ) : null}
 
       <Dialog

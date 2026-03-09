@@ -24,6 +24,7 @@ export interface Championship {
   code: ChampionshipCode;
   name: string;
   status: ChampionshipStatus;
+  current_season_year: number;
   uses_divisions: boolean;
   default_location: string | null;
   created_at: string;
@@ -64,6 +65,7 @@ export interface ChampionshipSport {
 export interface Match {
   id: string;
   championship_id: string;
+  season_year: number;
   division: TeamDivision | null;
   naipe: MatchNaipe;
   supports_cards: boolean;
@@ -82,6 +84,7 @@ export interface Match {
   away_yellow_cards: number;
   away_red_cards: number;
   created_at: string;
+  group_number?: number | null;
   // Joined
   championships?: Championship;
   sports?: Sport;
@@ -92,6 +95,7 @@ export interface Match {
 export interface Standing {
   id: string;
   championship_id: string;
+  season_year: number;
   division: TeamDivision | null;
   naipe: MatchNaipe;
   sport_id: string;
@@ -205,10 +209,16 @@ export interface CurrentAdminAccount {
 export interface ChampionshipBracketEdition {
   id: string;
   championship_id: string;
+  season_year: number;
   status: BracketEditionStatus;
   payload_snapshot: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+}
+
+export interface ChampionshipBracketSeasonView {
+  season_year: number;
+  championship_bracket_view: ChampionshipBracketView;
 }
 
 export interface ChampionshipBracketGroupTeam {

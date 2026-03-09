@@ -5,16 +5,19 @@ import { MatchCard } from "@/components/MatchCard";
 import { TeamStandingsTable } from "@/components/TeamStandingsTable";
 import { SportFilter } from "@/components/SportFilter";
 import {
-  AppItemsPerPageControl,
   AppPaginationControls,
   DEFAULT_PAGINATION_ITEMS_PER_PAGE,
 } from "@/components/ui/app-pagination-controls";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Championship, Match, Sport } from "@/lib/types";
+import type { ChampionshipBracketView } from "@/lib/types";
+import type { MatchBracketContext } from "@/lib/championship";
 import { MatchNaipe } from "@/lib/enums";
 import { MATCH_NAIPE_LABELS } from "@/lib/championship";
 import type { TeamStandingAggregate } from "@/lib/standings";
 import { Loader2 } from "lucide-react";
+import { ChampionshipBracketBoard } from "@/components/championship-brackets/ChampionshipBracketBoard";
 
 interface LivePageViewProps {
   isLoading: boolean;
@@ -29,6 +32,10 @@ interface LivePageViewProps {
   allStandingsNaipeFilter: string;
   filteredStandings: TeamStandingAggregate[];
   standingsShowCardColumns: boolean;
+  championTeamName: string | null;
+  championshipBracketView: ChampionshipBracketView;
+  championshipBracketLoading: boolean;
+  matchBracketContextByMatchId: Record<string, MatchBracketContext>;
   onSportFilterChange: (value: string | null) => void;
   onStandingsSportFilterChange: (value: string) => void;
   onStandingsNaipeFilterChange: (value: string) => void;
@@ -47,6 +54,10 @@ export function LivePageView({
   allStandingsNaipeFilter,
   filteredStandings,
   standingsShowCardColumns,
+  championTeamName,
+  championshipBracketView,
+  championshipBracketLoading,
+  matchBracketContextByMatchId,
   onSportFilterChange,
   onStandingsSportFilterChange,
   onStandingsNaipeFilterChange,
@@ -111,20 +122,36 @@ export function LivePageView({
 
         <SportFilter sports={sports} selected={sportFilter} onSelect={onSportFilterChange} />
 
-        <section className="glass-panel enter-section space-y-4 p-5">
-          <h2 className="mb-4 text-center text-xl font-display font-bold sm:text-left">Próximos Jogos</h2>
+        <Tabs defaultValue="overview" className="enter-section space-y-4">
+          <TabsList className="glass-chip grid w-full grid-cols-2 rounded-xl p-1">
+            <TabsTrigger value="overview">Resumo</TabsTrigger>
+            <TabsTrigger value="knockout">Mata-mata</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="space-y-6">
+            {championTeamName ? (
+              <section className="glass-panel enter-section p-5">
+                <h2 className="text-center text-lg font-display font-bold sm:text-left">Destaque do campeonato</h2>
+                <p className="mt-2 text-center text-sm text-muted-foreground sm:text-left">
+                  Melhor campanha atual: <span className="font-semibold text-foreground">{championTeamName}</span>
+                </p>
+              </section>
+            ) : null}
+
+            <section className="glass-panel enter-section space-y-4 p-5">
+              <h2 className="mb-4 text-center text-xl font-display font-bold sm:text-left">Próximos Jogos</h2>
           {filteredUpcomingMatches.length == 0 ? (
             <p className="text-center text-sm text-muted-foreground sm:text-left">Nenhum jogo agendado.</p>
           ) : (
             <div className="space-y-4">
-              <AppItemsPerPageControl
-                itemsPerPage={upcomingMatchesItemsPerPage}
-                onItemsPerPageChange={setUpcomingMatchesItemsPerPage}
-              />
-
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {paginatedUpcomingMatches.map((match) => (
-                  <MatchCard key={match.id} match={match} showChampionshipBadge={false} />
+                  <MatchCard
+                    key={match.id}
+                    match={match}
+                    showChampionshipBadge={false}
+                    bracketContext={matchBracketContextByMatchId[match.id]}
+                  />
                 ))}
               </div>
 
@@ -132,13 +159,15 @@ export function LivePageView({
                 currentPage={upcomingMatchesCurrentPage}
                 totalPages={upcomingMatchesTotalPages}
                 onPageChange={setUpcomingMatchesCurrentPage}
+                itemsPerPage={upcomingMatchesItemsPerPage}
+                onItemsPerPageChange={setUpcomingMatchesItemsPerPage}
               />
             </div>
           )}
-        </section>
+            </section>
 
-        <section className="glass-panel enter-section space-y-4 p-5">
-          <h2 className="text-center text-xl font-display font-bold sm:text-left">Classificação</h2>
+            <section className="glass-panel enter-section space-y-4 p-5">
+              <h2 className="text-center text-xl font-display font-bold sm:text-left">Classificação</h2>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Select value={standingsSportFilter} onValueChange={onStandingsSportFilterChange}>
@@ -168,8 +197,19 @@ export function LivePageView({
             </Select>
           </div>
 
-          <TeamStandingsTable standings={filteredStandings} showCardColumns={standingsShowCardColumns} />
-        </section>
+              <TeamStandingsTable standings={filteredStandings} showCardColumns={standingsShowCardColumns} />
+            </section>
+          </TabsContent>
+
+          <TabsContent value="knockout" className="space-y-3 glass-panel p-5">
+            <h2 className="text-center text-xl font-display font-bold sm:text-left">Mata-mata do Campeonato</h2>
+            <ChampionshipBracketBoard
+              championshipBracketView={championshipBracketView}
+              loading={championshipBracketLoading}
+              emptyMessage="Este campeonato ainda não possui mata-mata gerado."
+            />
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );

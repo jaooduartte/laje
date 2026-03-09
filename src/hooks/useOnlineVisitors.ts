@@ -3,6 +3,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { OnlineVisitorsContext, RealtimePresenceChannel } from "@/lib/enums";
 import { useAuth } from "@/hooks/useAuth";
+import { resolveRandomUuid } from "@/lib/random";
 
 const VISITOR_SESSION_STORAGE_KEY = "laje_visitor_session_id";
 const PRESENCE_CHANNEL_BY_CONTEXT: Record<OnlineVisitorsContext, RealtimePresenceChannel> = {
@@ -22,7 +23,7 @@ function resolveVisitorSessionId(): string {
     return storedValue;
   }
 
-  const generatedValue = crypto.randomUUID();
+  const generatedValue = resolveRandomUuid();
   window.localStorage.setItem(VISITOR_SESSION_STORAGE_KEY, generatedValue);
 
   return generatedValue;

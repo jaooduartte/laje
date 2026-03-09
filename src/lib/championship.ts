@@ -13,6 +13,21 @@ import {
   TeamDivision,
   TeamDivisionSelection,
 } from "@/lib/enums";
+import type { ChampionshipBracketView } from "@/lib/types";
+
+export interface MatchBracketContext {
+  badgeLabel: string;
+  phase: BracketPhase;
+  seasonYear?: number | null;
+  stageLabel: string;
+  groupFilterValue?: string;
+  groupLabel?: string;
+}
+
+export interface BracketGroupFilterOption {
+  value: string;
+  label: string;
+}
 
 export const TEAM_DIVISION_LABELS: Record<TeamDivision, string> = {
   [TeamDivision.DIVISAO_PRINCIPAL]: "Divisão Principal",
@@ -104,6 +119,36 @@ export const BRACKET_THIRD_PLACE_MODE_LABELS: Record<BracketThirdPlaceMode, stri
   [BracketThirdPlaceMode.CHAMPION_SEMIFINAL_LOSER]: "3º lugar herdado da semi do campeão",
 };
 
+export function resolveKnockoutRoundLabel(
+  roundNumber: number,
+  totalRounds: number,
+  isThirdPlace = false,
+): string {
+  if (isThirdPlace) {
+    return "3º lugar";
+  }
+
+  const remainingRounds = totalRounds - roundNumber;
+
+  if (remainingRounds <= 0) {
+    return "Final";
+  }
+
+  if (remainingRounds == 1) {
+    return "Semifinal";
+  }
+
+  if (remainingRounds == 2) {
+    return "Quartas de final";
+  }
+
+  if (remainingRounds == 3) {
+    return "Oitavas de final";
+  }
+
+  return `${2 ** remainingRounds} avos de final`;
+}
+
 export function isTeamDivision(value: string): value is TeamDivision {
   return value === TeamDivision.DIVISAO_PRINCIPAL || value === TeamDivision.DIVISAO_ACESSO;
 }
@@ -186,4 +231,81 @@ export function isBracketThirdPlaceMode(value: string): value is BracketThirdPla
     value === BracketThirdPlaceMode.MATCH ||
     value === BracketThirdPlaceMode.CHAMPION_SEMIFINAL_LOSER
   );
+}
+
+export function resolveMatchBracketContextByMatchId(
+  championshipBracketView: ChampionshipBracketView,
+  seasonYear?: number | null,
+): Record<string, MatchBracketContext> {
+  return championshipBracketView.competitions.reduce<Record<string, MatchBracketContext>>((matchContextById, competition) => {
+    const divisionLabel = competition.division ? TEAM_DIVISION_LABELS[competition.division] : "Sem divisão";
+    const seasonYearLabel = typeof seasonYear == "number" ? ` • ${seasonYear}` : "";
+    const knockoutTotalRounds = competition.knockout_matches.reduce((currentTotalRounds, knockoutMatch) => {
+      if (knockoutMatch.is_third_place) {
+        return currentTotalRounds;
+      }
+
+      return Math.max(currentTotalRounds, knockoutMatch.round_number);
+    }, 0);
+
+    competition.groups.forEach((group) => {
+      const groupLabel = `${competition.sport_name} • ${MATCH_NAIPE_LABELS[competition.naipe]} • ${divisionLabel}${seasonYearLabel} • Chave ${group.group_number}`;
+      const groupFilterValue = `${competition.id}:${group.id}`;
+      const badgeLabel = `Chave ${group.group_number}`;
+
+      group.matches.forEach((groupMatch) => {
+        if (!groupMatch.match_id) {
+          return;
+        }
+
+        matchContextById[groupMatch.match_id] = {
+          badgeLabel,
+          phase: BracketPhase.GROUP_STAGE,
+          seasonYear,
+          stageLabel: groupLabel,
+          groupFilterValue,
+          groupLabel,
+        };
+      });
+    });
+
+    competition.knockout_matches.forEach((knockoutMatch) => {
+      if (!knockoutMatch.match_id) {
+        return;
+      }
+
+      const badgeLabel = resolveKnockoutRoundLabel(
+        knockoutMatch.round_number,
+        Math.max(knockoutTotalRounds, knockoutMatch.round_number),
+        knockoutMatch.is_third_place,
+      );
+
+      matchContextById[knockoutMatch.match_id] = {
+        badgeLabel,
+        phase: BracketPhase.KNOCKOUT,
+        seasonYear,
+        stageLabel: `${competition.sport_name} • ${MATCH_NAIPE_LABELS[competition.naipe]} • ${divisionLabel}${seasonYearLabel} • ${badgeLabel}`,
+      };
+    });
+
+    return matchContextById;
+  }, {});
+}
+
+export function resolveBracketGroupFilterOptions(
+  matchBracketContextByMatchId: Record<string, MatchBracketContext>,
+): BracketGroupFilterOption[] {
+  const groupOptionsByValue = new Map<string, string>();
+
+  Object.values(matchBracketContextByMatchId).forEach((matchBracketContext) => {
+    if (!matchBracketContext.groupFilterValue || !matchBracketContext.groupLabel) {
+      return;
+    }
+
+    groupOptionsByValue.set(matchBracketContext.groupFilterValue, matchBracketContext.groupLabel);
+  });
+
+  return [...groupOptionsByValue.entries()]
+    .map(([value, label]) => ({ value, label }))
+    .sort((firstGroupOption, secondGroupOption) => firstGroupOption.label.localeCompare(secondGroupOption.label));
 }

@@ -17,6 +17,12 @@ export function useChampionships() {
     setLoading(true);
 
     try {
+      const { error: syncError } = await supabase.rpc("sync_championship_season_rollover");
+
+      if (syncError) {
+        console.error("Erro ao sincronizar virada de temporada:", syncError.message);
+      }
+
       const { data, error } = await supabase.from("championships").select("*");
 
       if (error) {

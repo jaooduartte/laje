@@ -16,8 +16,9 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AdminPanelTab, ChampionshipCode, ChampionshipStatus } from "@/lib/enums";
+import type { MatchBracketContext } from "@/lib/championship";
 import { CHAMPIONSHIP_STATUS_LABELS } from "@/lib/championship";
-import type { Championship, ChampionshipSport, Match, Sport, Team } from "@/lib/types";
+import type { Championship, ChampionshipBracketView, ChampionshipSport, Match, Sport, Team } from "@/lib/types";
 
 interface AdminPageViewProps {
   championships: Championship[];
@@ -28,6 +29,9 @@ interface AdminPageViewProps {
   sports: Sport[];
   championshipSports: ChampionshipSport[];
   liveAndScheduledMatches: Match[];
+  championshipBracketView: ChampionshipBracketView;
+  loadingChampionshipBracket: boolean;
+  matchBracketContextByMatchId: Record<string, MatchBracketContext>;
   profileName: string | null;
   canViewMatchesTab: boolean;
   canViewControlTab: boolean;
@@ -52,6 +56,7 @@ interface AdminPageViewProps {
   onChampionshipStatusChange: (value: string) => void;
   onSignOut: () => void;
   onRefetchMatches: () => void;
+  onRefetchChampionshipBracket: () => void;
   onRefetchTeams: () => void;
   onRefetchChampionships: () => void;
 }
@@ -70,6 +75,9 @@ export function AdminPageView({
   sports,
   championshipSports,
   liveAndScheduledMatches,
+  championshipBracketView,
+  loadingChampionshipBracket,
+  matchBracketContextByMatchId,
   profileName,
   canViewMatchesTab,
   canViewControlTab,
@@ -94,6 +102,7 @@ export function AdminPageView({
   onChampionshipStatusChange,
   onSignOut,
   onRefetchMatches,
+  onRefetchChampionshipBracket,
   onRefetchTeams,
   onRefetchChampionships,
 }: AdminPageViewProps) {
@@ -311,8 +320,12 @@ export function AdminPageView({
                 teams={teams}
                 championshipSports={championshipSports}
                 selectedChampionship={selectedChampionship}
+                championshipBracketView={championshipBracketView}
+                loadingChampionshipBracket={loadingChampionshipBracket}
+                matchBracketContextByMatchId={matchBracketContextByMatchId}
                 canManageMatches={canManageMatches}
                 onRefetch={onRefetchMatches}
+                onRefetchChampionshipBracket={onRefetchChampionshipBracket}
                 onRefetchChampionships={onRefetchChampionships}
               />
             </TabsContent>
@@ -323,7 +336,9 @@ export function AdminPageView({
               <AdminMatchControl
                 matches={liveAndScheduledMatches}
                 championshipSports={championshipSports}
+                matchBracketContextByMatchId={matchBracketContextByMatchId}
                 onRefetch={onRefetchMatches}
+                onRefetchChampionshipBracket={onRefetchChampionshipBracket}
                 canManageScoreboard={canManageScoreboard}
               />
             </TabsContent>

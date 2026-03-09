@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronsLeft, ChevronsRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -84,60 +84,115 @@ interface AppPaginationControlsProps {
   currentPage: number;
   totalPages: number;
   onPageChange: (page: number) => void;
+  showBoundaryButtons?: boolean;
+  itemsPerPage?: number;
+  onItemsPerPageChange?: (value: number) => void;
+  itemsPerPageOptions?: readonly number[];
 }
 
 export function AppPaginationControls({
   currentPage,
   totalPages,
   onPageChange,
+  showBoundaryButtons = false,
+  itemsPerPage,
+  onItemsPerPageChange,
+  itemsPerPageOptions = PAGINATION_ITEMS_PER_PAGE_OPTIONS,
 }: AppPaginationControlsProps) {
   const visiblePages = resolveVisiblePages(currentPage, totalPages);
+  const shouldShowItemsPerPageControl = typeof itemsPerPage == "number" && onItemsPerPageChange != undefined;
 
   return (
-    <div className="enter-section flex justify-center">
-      <div className="flex items-center gap-1 rounded-2xl border border-border/55 bg-background/40 px-3 py-2 shadow-[0_8px_24px_rgba(15,23,42,0.08)] backdrop-blur-xl">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 rounded-xl"
-          onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-          disabled={currentPage == 1}
-          aria-label="Página anterior"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
+    <div className="enter-section">
+      <div
+        className={`rounded-2xl border border-border/55 bg-background/40 px-3 py-2 shadow-[0_8px_24px_rgba(15,23,42,0.08)] backdrop-blur-xl ${
+          shouldShowItemsPerPageControl
+            ? "flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+            : "flex items-center justify-center gap-1"
+        }`}
+      >
+        {shouldShowItemsPerPageControl ? (
+          <AppItemsPerPageControl
+            itemsPerPage={itemsPerPage}
+            onItemsPerPageChange={onItemsPerPageChange}
+            options={itemsPerPageOptions}
+            shouldRenderCard={false}
+            className="flex flex-wrap items-center gap-2"
+          />
+        ) : null}
 
-        {visiblePages.map((visiblePage) => {
-          const isCurrentPage = visiblePage == currentPage;
+        <div className="flex items-center justify-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-xl"
+            onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+            disabled={currentPage == 1}
+            aria-label="Página anterior"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
 
-          return (
+          {showBoundaryButtons ? (
             <Button
-              key={visiblePage}
               type="button"
               variant="ghost"
-              size="sm"
-              className={`h-8 min-w-8 rounded-xl px-2 text-xs ${
-                isCurrentPage ? "bg-primary/15 text-primary" : "text-muted-foreground"
-              }`}
-              onClick={() => onPageChange(visiblePage)}
+              size="icon"
+              className="h-8 w-8 rounded-xl"
+              onClick={() => onPageChange(1)}
+              disabled={currentPage == 1}
+              aria-label="Primeira página"
             >
-              {visiblePage}
+              <ChevronsLeft className="h-4 w-4" />
             </Button>
-          );
-        })}
+          ) : null}
 
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 rounded-xl"
-          onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
-          disabled={currentPage == totalPages}
-          aria-label="Próxima página"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </Button>
+          {visiblePages.map((visiblePage) => {
+            const isCurrentPage = visiblePage == currentPage;
+
+            return (
+              <Button
+                key={visiblePage}
+                type="button"
+                variant="ghost"
+                size="sm"
+                className={`h-8 min-w-8 rounded-xl px-2 text-xs ${
+                  isCurrentPage ? "bg-primary/15 text-primary" : "text-muted-foreground"
+                }`}
+                onClick={() => onPageChange(visiblePage)}
+              >
+                {visiblePage}
+              </Button>
+            );
+          })}
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-xl"
+            onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+            disabled={currentPage == totalPages}
+            aria-label="Próxima página"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+
+          {showBoundaryButtons ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-xl"
+              onClick={() => onPageChange(totalPages)}
+              disabled={currentPage == totalPages}
+              aria-label="Última página"
+            >
+              <ChevronsRight className="h-4 w-4" />
+            </Button>
+          ) : null}
+        </div>
       </div>
     </div>
   );

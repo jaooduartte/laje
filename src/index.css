@@ -159,6 +159,29 @@
     border-color: hsl(var(--primary) / 0.28);
   }
 
+  .list-item-card {
+    border: 1px solid hsl(var(--border) / 0.52);
+    background: hsl(var(--background) / 0.9);
+    border-radius: 1rem;
+    box-shadow: 0 6px 18px hsl(222 22% 16% / 0.07);
+    contain: layout paint style;
+    content-visibility: auto;
+    contain-intrinsic-size: 168px;
+    isolation: isolate;
+    transform: translateZ(0);
+    transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+  }
+
+  .list-item-card-hover:hover {
+    border-color: hsl(var(--primary) / 0.24);
+    box-shadow: 0 10px 24px hsl(222 22% 16% / 0.09);
+    background: hsl(var(--background) / 0.9);
+  }
+
+  .list-item-card-live {
+    border-color: hsl(var(--live) / 0.42);
+  }
+
   .glass-chip {
     border: 1px solid hsl(var(--border) / 0.56);
     background: hsl(var(--background) / 0.62);

@@ -223,6 +223,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
   const [bulkProcessingAction, setBulkProcessingAction] = useState<"RESET" | "DELETE" | null>(null);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showCreateUserModal, setShowCreateUserModal] = useState(false);
   const [profileDraft, setProfileDraft] = useState<ProfileDraft>(resolveEmptyProfileDraft());
   const [savingProfile, setSavingProfile] = useState(false);
   const [creatingUser, setCreatingUser] = useState(false);
@@ -743,6 +744,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       }
 
       toast.success("Usuário administrativo criado com sucesso. A senha será definida no primeiro acesso.");
+      setShowCreateUserModal(false);
       setNewUserName("");
       setNewUserLoginIdentifier("");
       setNewUserAccessValue(profiles[0]?.profile_id ?? "");
@@ -756,6 +758,17 @@ export function AdminUsers({ canManageUsers = true }: Props) {
   const handleOpenCreateProfile = () => {
     setProfileDraft(resolveEmptyProfileDraft());
     setShowProfileModal(true);
+  };
+
+  const resetCreateUserForm = () => {
+    setNewUserName("");
+    setNewUserLoginIdentifier("");
+    setNewUserAccessValue(profiles[0]?.profile_id ?? "");
+  };
+
+  const handleOpenCreateUserModal = () => {
+    resetCreateUserForm();
+    setShowCreateUserModal(true);
   };
 
   const handleEditProfile = (profile: AdminProfile) => {
@@ -807,7 +820,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="glass-card enter-section grid gap-2 p-3 md:grid-cols-[minmax(0,1fr)_220px_auto]">
+      <div className="glass-card enter-section grid gap-2 p-3 md:grid-cols-[minmax(0,1fr)_220px_auto_auto]">
         <Input
           type="search"
           name="admin_user_filter_search"
@@ -841,96 +854,62 @@ export function AdminUsers({ canManageUsers = true }: Props) {
             Perfis
           </Button>
         ) : null}
+        {canManageUsers ? (
+          <Button
+            type="button"
+            onClick={handleOpenCreateUserModal}
+            disabled={profiles.length == 0}
+            className="w-full md:w-auto"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Criar usuário
+          </Button>
+        ) : null}
       </div>
 
       {canManageUsers ? (
-        <>
-          <div className="glass-card enter-section grid gap-2 p-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_220px_auto]">
-            <Input
-              type="text"
-              name="admin_new_user_name_input"
-              value={newUserName}
-              onChange={(event) => setNewUserName(event.target.value)}
-              placeholder="Nome do novo usuário"
-              className="glass-input"
-              autoComplete="off"
-            />
+        filteredUsers.length > 0 ? (
+          <div className="glass-card enter-section flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 text-sm text-foreground">
+                <Checkbox checked={selectAllFilteredUsersChecked} onCheckedChange={handleToggleSelectAllFilteredUsers} />
+                <span>Selecionar todos os usuários filtrados</span>
+              </label>
 
-            <Input
-              type="text"
-              name="admin_new_user_login_identifier_input"
-              value={newUserLoginIdentifier}
-              onChange={(event) => setNewUserLoginIdentifier(event.target.value)}
-              placeholder="Login do novo usuário"
-              className="glass-input"
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="none"
-              spellCheck={false}
-            />
+              <Button
+                type="button"
+                variant="outline"
+                className="bg-background/75"
+                onClick={() => handleOpenResetUsersPasswordSetupConfirmation(selectedUserIds)}
+                disabled={selectedUserIds.length == 0 || bulkProcessingAction != null}
+              >
+                {bulkProcessingAction == "RESET" ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                )}
+                Resetar senhas ({selectedUserIds.length})
+              </Button>
 
-            <Select value={newUserAccessValue} onValueChange={setNewUserAccessValue}>
-              <SelectTrigger className="glass-input">
-                <SelectValue placeholder="Perfil de acesso" />
-              </SelectTrigger>
-              <SelectContent>
-                {profileAccessOptions.map((profileAccessOption) => (
-                  <SelectItem key={profileAccessOption.value} value={profileAccessOption.value}>
-                    {profileAccessOption.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Button type="button" onClick={handleCreateUser} disabled={creatingUser || profiles.length == 0}>
-              {creatingUser ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-              Criar usuário
-            </Button>
-          </div>
-
-          {filteredUsers.length > 0 ? (
-            <div className="glass-card enter-section flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex flex-wrap items-center gap-3">
-                <label className="flex items-center gap-2 text-sm text-foreground">
-                  <Checkbox checked={selectAllFilteredUsersChecked} onCheckedChange={handleToggleSelectAllFilteredUsers} />
-                  <span>Selecionar todos os usuários filtrados</span>
-                </label>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="bg-background/75"
-                  onClick={() => handleOpenResetUsersPasswordSetupConfirmation(selectedUserIds)}
-                  disabled={selectedUserIds.length == 0 || bulkProcessingAction != null}
-                >
-                  {bulkProcessingAction == "RESET" ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <RotateCcw className="mr-2 h-4 w-4" />
-                  )}
-                  Resetar senhas ({selectedUserIds.length})
-                </Button>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="bg-background/75"
-                  onClick={() => handleOpenDeleteUsersConfirmation(selectedUserIds)}
-                  disabled={selectedUserIds.length == 0 || bulkProcessingAction != null}
-                >
-                  {bulkProcessingAction == "DELETE" ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="mr-2 h-4 w-4" />
-                  )}
-                  Excluir selecionados ({selectedUserIds.length})
-                </Button>
-              </div>
-
-              <p className="text-sm text-muted-foreground">{filteredUsers.length} usuário(s) encontrado(s)</p>
+              <Button
+                type="button"
+                variant="outline"
+                className="bg-background/75"
+                onClick={() => handleOpenDeleteUsersConfirmation(selectedUserIds)}
+                disabled={selectedUserIds.length == 0 || bulkProcessingAction != null}
+              >
+                {bulkProcessingAction == "DELETE" ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="mr-2 h-4 w-4" />
+                )}
+                Excluir selecionados ({selectedUserIds.length})
+              </Button>
             </div>
-          ) : null}
-        </>
+
+            <p className="text-sm text-muted-foreground">{filteredUsers.length} usuário(s) encontrado(s)</p>
+          </div>
+        ) : null
       ) : (
         <p className="text-sm text-muted-foreground">Perfil em visualização: sem permissão para criar ou editar usuários.</p>
       )}
@@ -951,7 +930,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
             return (
               <div
                 key={user.user_id}
-                className="glass-card enter-item grid gap-3 p-3 lg:grid-cols-[minmax(0,320px)_minmax(0,170px)_minmax(0,220px)_minmax(0,220px)_auto] lg:items-start"
+                className="list-item-card list-item-card-hover grid gap-3 p-3 lg:grid-cols-[minmax(0,320px)_minmax(0,170px)_minmax(0,220px)_minmax(0,220px)_auto] lg:items-start"
               >
                 <div className="flex min-w-0 items-start gap-3">
                   {canManageUsers ? (
@@ -1022,6 +1001,72 @@ export function AdminUsers({ canManageUsers = true }: Props) {
           })}
         </div>
       )}
+
+      <Dialog
+        open={showCreateUserModal}
+        onOpenChange={(isOpen) => {
+          setShowCreateUserModal(isOpen);
+
+          if (!isOpen) {
+            resetCreateUserForm();
+          }
+        }}
+      >
+        <DialogContent className="border-border/60 !bg-background/70 shadow-[0_18px_45px_rgba(15,23,42,0.16)] backdrop-blur-md sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Criar usuário</DialogTitle>
+            <DialogDescription>Defina o nome, o login e o perfil de acesso do usuário administrativo.</DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3">
+            <Input
+              type="text"
+              name="admin_new_user_name_input"
+              value={newUserName}
+              onChange={(event) => setNewUserName(event.target.value)}
+              placeholder="Nome do novo usuário"
+              className="glass-input"
+              autoComplete="off"
+            />
+
+            <Input
+              type="text"
+              name="admin_new_user_login_identifier_input"
+              value={newUserLoginIdentifier}
+              onChange={(event) => setNewUserLoginIdentifier(event.target.value)}
+              placeholder="Login do novo usuário"
+              className="glass-input"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
+            />
+
+            <Select value={newUserAccessValue} onValueChange={setNewUserAccessValue}>
+              <SelectTrigger className="glass-input">
+                <SelectValue placeholder="Perfil de acesso" />
+              </SelectTrigger>
+              <SelectContent>
+                {profileAccessOptions.map((profileAccessOption) => (
+                  <SelectItem key={profileAccessOption.value} value={profileAccessOption.value}>
+                    {profileAccessOption.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setShowCreateUserModal(false)}>
+              Cancelar
+            </Button>
+            <Button type="button" onClick={handleCreateUser} disabled={creatingUser || profiles.length == 0}>
+              {creatingUser ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+              Criar usuário
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={editingUser != null}

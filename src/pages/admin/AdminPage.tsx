@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -8,6 +8,7 @@ import { useMatches } from "@/hooks/useMatches";
 import { useSports } from "@/hooks/useSports";
 import { useTeams } from "@/hooks/useTeams";
 import { useChampionships } from "@/hooks/useChampionships";
+import { useChampionshipBracket } from "@/hooks/useChampionshipBracket";
 import { useSelectedChampionship } from "@/hooks/useSelectedChampionship";
 import { useChampionshipSelection } from "@/hooks/useChampionshipSelection";
 import { Header } from "@/components/Header";
@@ -22,7 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { AdminPanelTab, AppRoutePath, ChampionshipStatus, MatchStatus } from "@/lib/enums";
-import { isChampionshipStatus } from "@/lib/championship";
+import { isChampionshipStatus, resolveMatchBracketContextByMatchId } from "@/lib/championship";
 import { AdminPageView } from "@/pages/admin/AdminPageView";
 
 enum ChampionshipStatusFlowDialog {
@@ -57,13 +58,31 @@ export function AdminPage() {
     selectedChampionshipCode,
     setSelectedChampionshipCode,
   });
+  const selectedChampionshipSeasonYear = selectedChampionship?.current_season_year ?? null;
 
-  const { matches, refetch: refetchMatches } = useMatches({ championshipId: selectedChampionshipId });
+  const { matches, refetch: refetchMatches } = useMatches({
+    championshipId: selectedChampionshipId,
+    seasonYear: selectedChampionshipSeasonYear,
+  });
+  const {
+    championshipBracketView,
+    loading: loadingChampionshipBracket,
+    refetch: refetchChampionshipBracket,
+  } = useChampionshipBracket({
+    championshipId: selectedChampionshipId,
+    seasonYear: selectedChampionshipSeasonYear,
+  });
   const { teams, refetch: refetchTeams } = useTeams();
   const { sports } = useSports();
   const { championshipSports } = useSports({
     championshipId: selectedChampionshipId,
   });
+  const liveAndScheduledMatches = matches.filter(
+    (match) => match.status == MatchStatus.LIVE || match.status == MatchStatus.SCHEDULED,
+  );
+  const matchBracketContextByMatchId = useMemo(() => {
+    return resolveMatchBracketContextByMatchId(championshipBracketView);
+  }, [championshipBracketView]);
 
   const closeChampionshipStatusFlowDialog = () => {
     if (processingChampionshipStatusFlowAction) {
@@ -105,7 +124,8 @@ export function AdminPage() {
     const { error: matchesError } = await supabase
       .from("matches")
       .delete()
-      .eq("championship_id", selectedChampionship.id);
+      .eq("championship_id", selectedChampionship.id)
+      .eq("season_year", selectedChampionship.current_season_year);
 
     if (matchesError) {
       toast.error(matchesError.message);
@@ -249,9 +269,6 @@ export function AdminPage() {
     );
   }
 
-  const liveAndScheduledMatches = matches.filter(
-    (match) => match.status == MatchStatus.LIVE || match.status == MatchStatus.SCHEDULED,
-  );
   const canViewMatchesTab = canViewAdminTab(AdminPanelTab.MATCHES);
   const canViewControlTab = canViewAdminTab(AdminPanelTab.CONTROL);
   const canViewTeamsTab = canViewAdminTab(AdminPanelTab.TEAMS);
@@ -296,6 +313,9 @@ export function AdminPage() {
         sports={sports}
         championshipSports={championshipSports}
         liveAndScheduledMatches={liveAndScheduledMatches}
+        championshipBracketView={championshipBracketView}
+        loadingChampionshipBracket={loadingChampionshipBracket}
+        matchBracketContextByMatchId={matchBracketContextByMatchId}
         profileName={profileName}
         canViewMatchesTab={canViewMatchesTab}
         canViewControlTab={canViewControlTab}
@@ -320,6 +340,7 @@ export function AdminPage() {
         onChampionshipStatusChange={handleChampionshipStatusChange}
         onSignOut={signOut}
         onRefetchMatches={refetchMatches}
+        onRefetchChampionshipBracket={refetchChampionshipBracket}
         onRefetchTeams={refetchTeams}
         onRefetchChampionships={refetchChampionships}
       />
@@ -332,7 +353,7 @@ export function AdminPage() {
         championshipSports={championshipSports}
         onGenerated={async () => {
           setShowChampionshipBracketWizardModal(false);
-          await Promise.all([refetchMatches(), refetchChampionships()]);
+          await Promise.all([refetchMatches(), refetchChampionshipBracket(), refetchChampionships()]);
         }}
       />
 

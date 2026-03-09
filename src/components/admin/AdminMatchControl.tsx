@@ -1,26 +1,31 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Minus, Play, Plus, Square } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { MATCH_SET_DEFAULT_VALUES } from "@/domain/championship-brackets/championshipBracket.constants";
 import { fetchMatchSets, saveMatchSets } from "@/domain/championship-brackets/championshipBracket.repository";
 import type { MatchSetInput } from "@/domain/championship-brackets/championshipBracket.types";
 import type { ChampionshipSport, Match } from "@/lib/types";
-import { ChampionshipSportResultRule, MatchStatus } from "@/lib/enums";
+import { AppBadgeTone, BracketPhase, ChampionshipSportResultRule, MatchStatus } from "@/lib/enums";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { AppBadge } from "@/components/ui/app-badge";
 import {
-  AppItemsPerPageControl,
   AppPaginationControls,
   DEFAULT_PAGINATION_ITEMS_PER_PAGE,
 } from "@/components/ui/app-pagination-controls";
-import { resolveMatchNaipeBadgeTone, resolveMatchNaipeLabel } from "@/lib/championship";
+import {
+  type MatchBracketContext,
+  resolveMatchNaipeBadgeTone,
+  resolveMatchNaipeLabel,
+} from "@/lib/championship";
 
 interface Props {
   matches: Match[];
   championshipSports: ChampionshipSport[];
+  matchBracketContextByMatchId: Record<string, MatchBracketContext>;
   onRefetch: () => void;
+  onRefetchChampionshipBracket: () => void;
   canManageScoreboard: boolean;
 }
 
@@ -107,7 +112,14 @@ function resolveSetWins(matchSets: MatchSetInput[]) {
   );
 }
 
-export function AdminMatchControl({ matches, championshipSports, onRefetch, canManageScoreboard }: Props) {
+export function AdminMatchControl({
+  matches,
+  championshipSports,
+  matchBracketContextByMatchId,
+  onRefetch,
+  onRefetchChampionshipBracket,
+  canManageScoreboard,
+}: Props) {
   const [matchDraftById, setMatchDraftById] = useState<Record<string, MatchControlDraft>>({});
   const [matchSetsByMatchId, setMatchSetsByMatchId] = useState<Record<string, MatchSetInput[]>>({});
   const [saveStatusByMatchId, setSaveStatusByMatchId] = useState<Record<string, SaveStatus | undefined>>({});
@@ -146,9 +158,9 @@ export function AdminMatchControl({ matches, championshipSports, onRefetch, canM
     return map;
   }, [championshipSports]);
 
-  const isSetRuleMatch = (match: Match) => {
+  const isSetRuleMatch = useCallback((match: Match) => {
     return championshipSportResultRuleBySportId.get(match.sport_id) == ChampionshipSportResultRule.SETS;
-  };
+  }, [championshipSportResultRuleBySportId]);
 
   useEffect(() => {
     const fetchSets = async () => {
@@ -179,17 +191,20 @@ export function AdminMatchControl({ matches, championshipSports, onRefetch, canM
     };
 
     fetchSets();
-  }, [championshipSports, matches]);
+  }, [championshipSports, isSetRuleMatch, matches]);
 
   useEffect(() => {
+    const saveTimeoutByMatchId = saveTimeoutByMatchIdRef.current;
+    const clearStatusTimeoutByMatchId = clearStatusTimeoutByMatchIdRef.current;
+
     return () => {
-      Object.values(saveTimeoutByMatchIdRef.current).forEach((timeoutReference) => {
+      Object.values(saveTimeoutByMatchId).forEach((timeoutReference) => {
         if (timeoutReference) {
           clearTimeout(timeoutReference);
         }
       });
 
-      Object.values(clearStatusTimeoutByMatchIdRef.current).forEach((timeoutReference) => {
+      Object.values(clearStatusTimeoutByMatchId).forEach((timeoutReference) => {
         if (timeoutReference) {
           clearTimeout(timeoutReference);
         }
@@ -418,6 +433,7 @@ export function AdminMatchControl({ matches, championshipSports, onRefetch, canM
 
     toast.success("Jogo iniciado!");
     onRefetch();
+    onRefetchChampionshipBracket();
   };
 
   const flushPendingAutosave = async (match: Match, matchDraft: MatchControlDraft) => {
@@ -455,6 +471,16 @@ export function AdminMatchControl({ matches, championshipSports, onRefetch, canM
       }));
     }
 
+    const matchBracketContext = matchBracketContextByMatchId[match.id];
+
+    if (
+      matchBracketContext?.phase == BracketPhase.KNOCKOUT &&
+      currentMatchDraft.homeScore == currentMatchDraft.awayScore
+    ) {
+      toast.error("Jogos do mata-mata não podem terminar empatados.");
+      return;
+    }
+
     const matchSaved = await flushPendingAutosave(match, currentMatchDraft);
 
     if (!matchSaved) {
@@ -477,6 +503,7 @@ export function AdminMatchControl({ matches, championshipSports, onRefetch, canM
 
     toast.success("Jogo finalizado! Classificação atualizada.");
     onRefetch();
+    onRefetchChampionshipBracket();
   };
 
   const totalPages = Math.max(1, Math.ceil(matches.length / itemsPerPage));
@@ -502,23 +529,17 @@ export function AdminMatchControl({ matches, championshipSports, onRefetch, canM
     <div className="enter-section space-y-4">
       <div className="glass-card enter-section flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
         <p className="text-sm text-muted-foreground">{matches.length} jogo(s) encontrado(s)</p>
-
-        <AppItemsPerPageControl
-          itemsPerPage={itemsPerPage}
-          onItemsPerPageChange={setItemsPerPage}
-          shouldRenderCard={false}
-          className="flex flex-wrap items-center justify-end gap-2"
-        />
       </div>
 
       {paginatedMatches.map((match) => {
         const matchDraft = getMatchDraft(match);
         const matchSaveStatus = saveStatusByMatchId[match.id];
+        const matchBracketContext = matchBracketContextByMatchId[match.id];
 
         return (
           <div
             key={match.id}
-            className={`space-y-4 glass-card enter-item p-5 ${
+            className={`space-y-4 list-item-card p-5 ${
               match.status == MatchStatus.LIVE ? "border-live/50 live-glow" : "border-border"
             }`}
           >
@@ -531,6 +552,11 @@ export function AdminMatchControl({ matches, championshipSports, onRefetch, canM
                   <AppBadge tone={resolveMatchNaipeBadgeTone(String(match.naipe))} className="w-fit">
                     {resolveMatchNaipeLabel(String(match.naipe))}
                   </AppBadge>
+                  {matchBracketContext ? (
+                    <AppBadge tone={AppBadgeTone.NEUTRAL} className="w-fit">
+                      {matchBracketContext.badgeLabel}
+                    </AppBadge>
+                  ) : null}
                 </div>
                 {match.status == MatchStatus.LIVE ? (
                   <span className="text-xs font-bold text-live live-pulse">● AO VIVO</span>
@@ -896,7 +922,13 @@ export function AdminMatchControl({ matches, championshipSports, onRefetch, canM
         );
       })}
 
-      <AppPaginationControls currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+      <AppPaginationControls
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={setCurrentPage}
+        itemsPerPage={itemsPerPage}
+        onItemsPerPageChange={setItemsPerPage}
+      />
     </div>
   );
 }
