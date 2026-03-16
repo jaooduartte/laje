@@ -33,6 +33,11 @@ import {
   resolveSortedChampionshipBracketCompetitionKeys,
   type ChampionshipBracketWizardCompetitionOption,
 } from "@/domain/championship-brackets/championshipBracketWizardView";
+import {
+  resolveChampionshipBracketKnockoutProjection,
+  resolveChampionshipBracketProjectedKnockoutSummary,
+  resolveChampionshipBracketQualificationSummary,
+} from "@/domain/championship-brackets/championshipBracketKnockoutProjection";
 import { ChampionshipBracketSetupDTO } from "@/domain/championship-brackets/ChampionshipBracketSetupDTO";
 import { ChampionshipBracketWizardDraftDTO } from "@/domain/championship-brackets/ChampionshipBracketWizardDraftDTO";
 import {
@@ -47,6 +52,7 @@ import {
   saveChampionshipBracketLocationTemplate,
 } from "@/domain/championship-brackets/championshipBracket.repository";
 import type {
+  ChampionshipBracketCompetitionConfigDraft,
   ChampionshipBracketCompetitionInput,
   ChampionshipBracketLocationTemplate,
   ChampionshipBracketLocationTemplateSaveInput,
@@ -82,10 +88,7 @@ interface Props {
   onGenerated: (bracketEditionId: string) => Promise<void>;
 }
 
-interface CompetitionConfig {
-  groups_count: number;
-  qualifiers_per_group: number;
-}
+type CompetitionConfig = ChampionshipBracketCompetitionConfigDraft;
 
 interface ScheduleCourtFormValue {
   id: string;
@@ -468,6 +471,7 @@ function resolveDefaultCompetitionConfig(team_count: number): CompetitionConfig 
   return {
     groups_count: safe_group_count,
     qualifiers_per_group: CHAMPIONSHIP_BRACKET_DEFAULT_QUALIFIERS_PER_GROUP,
+    should_complete_knockout_with_best_second_placed_teams: false,
   };
 }
 
@@ -712,6 +716,9 @@ export function AdminChampionshipBracketWizardModal({
           carry[competition_key] = {
             groups_count: competition_config.groups_count,
             qualifiers_per_group: competition_config.qualifiers_per_group,
+            should_complete_knockout_with_best_second_placed_teams:
+              competition_config.qualifiers_per_group == 1 &&
+              competition_config.should_complete_knockout_with_best_second_placed_teams == true,
           };
           return carry;
         },
@@ -1991,6 +1998,9 @@ export function AdminChampionshipBracketWizardModal({
         division: parsedCompetitionKey.division,
         groups_count: competitionConfig.groups_count,
         qualifiers_per_group: competitionConfig.qualifiers_per_group,
+        should_complete_knockout_with_best_second_placed_teams:
+          competitionConfig.qualifiers_per_group == 1 &&
+          competitionConfig.should_complete_knockout_with_best_second_placed_teams == true,
         third_place_mode: BracketThirdPlaceMode.CHAMPION_SEMIFINAL_LOSER,
         groups,
       };
@@ -2807,6 +2817,12 @@ export function AdminChampionshipBracketWizardModal({
 
                 const competitionConfig = competitionConfigByKey[competitionKey] ?? resolveDefaultCompetitionConfig(2);
                 const participantCount = teamIdsByCompetitionKey[competitionKey]?.length ?? 0;
+                const knockoutProjection = resolveChampionshipBracketKnockoutProjection({
+                  groups_count: competitionConfig.groups_count,
+                  qualifiers_per_group: competitionConfig.qualifiers_per_group,
+                  should_complete_knockout_with_best_second_placed_teams:
+                    competitionConfig.should_complete_knockout_with_best_second_placed_teams,
+                });
 
                 return (
                   <div
@@ -2820,6 +2836,14 @@ export function AdminChampionshipBracketWizardModal({
                         {competitionOption.division ? ` • ${competitionOption.division}` : ""}
                       </p>
                       <p className="text-xs text-muted-foreground">Participantes: {participantCount}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {resolveChampionshipBracketQualificationSummary({
+                          groups_count: competitionConfig.groups_count,
+                          qualifiers_per_group: competitionConfig.qualifiers_per_group,
+                          should_complete_knockout_with_best_second_placed_teams:
+                            competitionConfig.should_complete_knockout_with_best_second_placed_teams,
+                        })}
+                      </p>
                     </div>
 
                     <div className="mt-2 space-y-2">
@@ -2855,6 +2879,9 @@ export function AdminChampionshipBracketWizardModal({
                               [competitionKey]: {
                                 ...competitionConfig,
                                 qualifiers_per_group: qualifiersPerGroup,
+                                should_complete_knockout_with_best_second_placed_teams:
+                                  qualifiersPerGroup == 1 &&
+                                  competitionConfig.should_complete_knockout_with_best_second_placed_teams == true,
                               },
                             }));
                           }}
@@ -2874,6 +2901,28 @@ export function AdminChampionshipBracketWizardModal({
                           ))}
                         </RadioGroup>
                       </div>
+
+                      {competitionConfig.qualifiers_per_group == 1 ? (
+                        <Label className="flex items-start gap-2 rounded-md bg-background/40 px-2 py-2 text-[11px] font-normal">
+                          <Checkbox
+                            checked={competitionConfig.should_complete_knockout_with_best_second_placed_teams}
+                            onCheckedChange={(checked) => {
+                              setCompetitionConfigByKey((currentCompetitionConfigByKey) => ({
+                                ...currentCompetitionConfigByKey,
+                                [competitionKey]: {
+                                  ...competitionConfig,
+                                  should_complete_knockout_with_best_second_placed_teams: checked == true,
+                                },
+                              }));
+                            }}
+                            className="mt-0.5"
+                          />
+                          <span>
+                            Completar o mata-mata com melhores 2º colocados até fechar a chave de{" "}
+                            {Math.max(2, knockoutProjection.projected_bracket_size)}.
+                          </span>
+                        </Label>
+                      ) : null}
                     </div>
                   </div>
                 );
@@ -3348,6 +3397,18 @@ export function AdminChampionshipBracketWizardModal({
                   const competitionConfig = competitionConfigByKey[competitionKey];
                   const participantTeamIds = teamIdsByCompetitionKey[competitionKey] ?? [];
                   const groupSummaries = reviewCompetitionGroupSummariesByCompetitionKey[competitionKey] ?? [];
+                  const qualificationSummary = resolveChampionshipBracketQualificationSummary({
+                    groups_count: competitionConfig?.groups_count ?? 0,
+                    qualifiers_per_group: competitionConfig?.qualifiers_per_group ?? 1,
+                    should_complete_knockout_with_best_second_placed_teams:
+                      competitionConfig?.should_complete_knockout_with_best_second_placed_teams,
+                  });
+                  const projectedKnockoutSummary = resolveChampionshipBracketProjectedKnockoutSummary({
+                    groups_count: competitionConfig?.groups_count ?? 0,
+                    qualifiers_per_group: competitionConfig?.qualifiers_per_group ?? 1,
+                    should_complete_knockout_with_best_second_placed_teams:
+                      competitionConfig?.should_complete_knockout_with_best_second_placed_teams,
+                  });
 
                   if (!competitionOption || !competitionConfig) {
                     return null;
@@ -3363,9 +3424,14 @@ export function AdminChampionshipBracketWizardModal({
                           {competitionOption.sport_name} • {MATCH_NAIPE_LABELS[competitionOption.naipe]}
                           {competitionOption.division ? ` • ${competitionOption.division}` : ""}
                         </p>
-                        <p className="text-xs text-muted-foreground">
-                          {participantTeamIds.length} atléticas • {competitionConfig.groups_count} grupos • {competitionConfig.qualifiers_per_group} classificados/grupo
-                        </p>
+                        <div className="space-y-0.5 text-right text-xs text-muted-foreground">
+                          <p>
+                            {participantTeamIds.length} atléticas • {competitionConfig.groups_count} grupos •{" "}
+                            {competitionConfig.qualifiers_per_group} classificados/grupo
+                          </p>
+                          <p>{qualificationSummary}</p>
+                          <p>{projectedKnockoutSummary}</p>
+                        </div>
                       </div>
 
                       <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">

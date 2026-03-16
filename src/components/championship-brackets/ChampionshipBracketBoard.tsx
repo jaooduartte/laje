@@ -2,6 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Trophy } from "lucide-react";
+import {
+  resolveChampionshipBracketKnockoutProjection,
+  resolveChampionshipBracketProjectedKnockoutSummary,
+  resolveChampionshipBracketQualificationSummary,
+  resolveChampionshipBracketSeedPlaceholderLabels,
+} from "@/domain/championship-brackets/championshipBracketKnockoutProjection";
 import type {
   ChampionshipBracketCompetition,
   ChampionshipBracketKnockoutMatch,
@@ -15,7 +21,6 @@ import {
   TEAM_DIVISION_LABELS,
   resolveMatchQueueLabel,
   resolveMatchScheduledDateValue,
-  resolveChampionshipGroupLabel,
   resolveKnockoutRoundLabel,
   resolveMatchStatusLabel,
 } from "@/lib/championship";
@@ -93,16 +98,6 @@ const DESKTOP_TOP_OFFSET = 64;
 const DESKTOP_THIRD_PLACE_GAP = 96;
 const DESKTOP_LAYOUT_HORIZONTAL_PADDING = 32;
 
-function resolveBracketSize(qualifiedTeamCount: number): number {
-  let bracketSize = 2;
-
-  while (bracketSize < qualifiedTeamCount) {
-    bracketSize *= 2;
-  }
-
-  return bracketSize;
-}
-
 function resolveTotalRounds(bracketSize: number): number {
   let totalRounds = 1;
 
@@ -122,22 +117,6 @@ function resolveWinnerSourceLabel(roundNumber: number, slotNumber: number, total
   const article = shortRoundLabel == "Semifinal" || shortRoundLabel == "Final" ? "da" : "das";
 
   return `Vencedor ${article} ${shortRoundLabel} ${slotNumber}`;
-}
-
-function resolveSeedLabels(competition: ChampionshipBracketCompetition, bracketSize: number): string[] {
-  const seedLabels: string[] = [];
-
-  for (let qualifierPosition = 1; qualifierPosition <= competition.qualifiers_per_group; qualifierPosition += 1) {
-    for (let groupNumber = 1; groupNumber <= competition.groups_count; groupNumber += 1) {
-      seedLabels.push(`${qualifierPosition}º do ${resolveChampionshipGroupLabel(groupNumber)}`);
-    }
-  }
-
-  while (seedLabels.length < bracketSize) {
-    seedLabels.push("BYE");
-  }
-
-  return seedLabels;
 }
 
 function resolveFallbackKnockoutRounds(
@@ -200,7 +179,13 @@ function resolveFallbackKnockoutRounds(
 function resolveProjectedKnockoutRounds(
   competition: ChampionshipBracketCompetition,
 ): ProjectedKnockoutRoundDisplay[] {
-  const qualifiedTeamCount = competition.groups_count * competition.qualifiers_per_group;
+  const knockoutProjection = resolveChampionshipBracketKnockoutProjection({
+    groups_count: competition.groups_count,
+    qualifiers_per_group: competition.qualifiers_per_group,
+    should_complete_knockout_with_best_second_placed_teams:
+      competition.should_complete_knockout_with_best_second_placed_teams,
+  });
+  const qualifiedTeamCount = knockoutProjection.total_qualified_team_count;
 
   if (qualifiedTeamCount < 2 || competition.groups_count < 2) {
     if (competition.knockout_matches.length == 0) {
@@ -210,9 +195,14 @@ function resolveProjectedKnockoutRounds(
     return resolveFallbackKnockoutRounds(competition);
   }
 
-  const bracketSize = resolveBracketSize(qualifiedTeamCount);
+  const bracketSize = knockoutProjection.projected_bracket_size;
   const totalRounds = resolveTotalRounds(bracketSize);
-  const seedLabels = resolveSeedLabels(competition, bracketSize);
+  const seedLabels = resolveChampionshipBracketSeedPlaceholderLabels({
+    groups_count: competition.groups_count,
+    qualifiers_per_group: competition.qualifiers_per_group,
+    should_complete_knockout_with_best_second_placed_teams:
+      competition.should_complete_knockout_with_best_second_placed_teams,
+  });
   const knockoutMatchByRoundAndSlot = new Map<string, ChampionshipBracketKnockoutMatch>();
 
   competition.knockout_matches.forEach((knockoutMatch) => {
@@ -930,6 +920,18 @@ export function ChampionshipBracketBoard({
 
       {filteredCompetitions.map((competition) => {
         const projectedKnockoutRounds = resolveProjectedKnockoutRounds(competition);
+        const qualificationSummary = resolveChampionshipBracketQualificationSummary({
+          groups_count: competition.groups_count,
+          qualifiers_per_group: competition.qualifiers_per_group,
+          should_complete_knockout_with_best_second_placed_teams:
+            competition.should_complete_knockout_with_best_second_placed_teams,
+        });
+        const projectedKnockoutSummary = resolveChampionshipBracketProjectedKnockoutSummary({
+          groups_count: competition.groups_count,
+          qualifiers_per_group: competition.qualifiers_per_group,
+          should_complete_knockout_with_best_second_placed_teams:
+            competition.should_complete_knockout_with_best_second_placed_teams,
+        });
         const desktopBracketLayout = resolveDesktopBracketLayout(projectedKnockoutRounds);
         const mainProjectedRounds = projectedKnockoutRounds
           .map((projectedRound) => ({
@@ -958,6 +960,9 @@ export function ChampionshipBracketBoard({
               <p className="text-xs text-muted-foreground">
                 Grupos: {competition.groups_count} • Classificados/grupo: {competition.qualifiers_per_group} • 3º lugar:{" "}
                 {BRACKET_THIRD_PLACE_MODE_LABELS[competition.third_place_mode]}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {qualificationSummary} • {projectedKnockoutSummary}
               </p>
             </div>
 

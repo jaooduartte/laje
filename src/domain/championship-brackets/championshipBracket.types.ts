@@ -27,6 +27,7 @@ export interface ChampionshipBracketCompetitionInput {
   division: TeamDivision | null;
   groups_count: number;
   qualifiers_per_group: number;
+  should_complete_knockout_with_best_second_placed_teams: boolean;
   third_place_mode: BracketThirdPlaceMode;
   groups: ChampionshipBracketGroupInput[];
 }
@@ -116,6 +117,7 @@ export interface ChampionshipBracketTieBreakResolutionSaveInput {
 export interface ChampionshipBracketCompetitionConfigDraft {
   groups_count: number;
   qualifiers_per_group: number;
+  should_complete_knockout_with_best_second_placed_teams: boolean;
 }
 
 export type ChampionshipBracketGroupOrderedTeamIdsByGroupNumberDraft = Record<string, string[]>;

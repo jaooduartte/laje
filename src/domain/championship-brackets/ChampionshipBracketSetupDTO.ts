@@ -107,6 +107,8 @@ export class ChampionshipBracketSetupDTO {
       division: competition.division,
       groups_count: competition.groups_count,
       qualifiers_per_group: competition.qualifiers_per_group,
+      should_complete_knockout_with_best_second_placed_teams:
+        competition.qualifiers_per_group == 1 && competition.should_complete_knockout_with_best_second_placed_teams == true,
       third_place_mode: competition.third_place_mode,
       groups: competition.groups.map((group) => ({
         group_number: group.group_number,

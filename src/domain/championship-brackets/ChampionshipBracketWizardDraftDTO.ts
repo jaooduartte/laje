@@ -51,6 +51,10 @@ function resolveCompetitionConfigByKey(
           1,
           resolveNumberValue((competition_config as ChampionshipBracketCompetitionConfigDraft).qualifiers_per_group, 1),
         ),
+        should_complete_knockout_with_best_second_placed_teams: resolveBooleanValue(
+          (competition_config as ChampionshipBracketCompetitionConfigDraft).should_complete_knockout_with_best_second_placed_teams,
+          false,
+        ),
       };
 
       return carry;
@@ -268,6 +272,9 @@ export class ChampionshipBracketWizardDraftDTO {
         carry[competition_key] = {
           groups_count: Math.max(1, competition_config.groups_count),
           qualifiers_per_group: Math.max(1, competition_config.qualifiers_per_group),
+          should_complete_knockout_with_best_second_placed_teams:
+            competition_config.qualifiers_per_group == 1 &&
+            competition_config.should_complete_knockout_with_best_second_placed_teams == true,
         };
         return carry;
       }, {}),
