@@ -1,10 +1,9 @@
 import { Loader2 } from "lucide-react";
 import { Header } from "@/components/Header";
-import { LiveMatchBanner } from "@/components/LiveMatchBanner";
 import { MatchCard } from "@/components/MatchCard";
 import { TeamStandingsTable } from "@/components/TeamStandingsTable";
 import { SportFilter } from "@/components/SportFilter";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsNavigationList, TabsNavigationTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { TeamStandingAggregate } from "@/lib/standings";
 import type { Championship, Match, Sport, Team } from "@/lib/types";
@@ -22,8 +21,7 @@ interface ChampionshipsPageViewProps {
   championshipCardImageByCode: Record<ChampionshipCode, string>;
   sports: Sport[];
   sportFilter: string | null;
-  filteredLiveMatches: Match[];
-  nextMatch: Match | null;
+  nextMatches: Match[];
   standingsSportFilter: string;
   standingsNaipeFilter: string;
   standingsYearFilter: string;
@@ -62,8 +60,7 @@ export function ChampionshipsPageView({
   championshipCardImageByCode,
   sports,
   sportFilter,
-  filteredLiveMatches,
-  nextMatch,
+  nextMatches,
   standingsSportFilter,
   standingsNaipeFilter,
   standingsYearFilter,
@@ -160,30 +157,27 @@ export function ChampionshipsPageView({
         <SportFilter sports={sports} selected={sportFilter} onSelect={onSportFilterChange} />
 
         <Tabs defaultValue="overview" className="enter-section space-y-4">
-          <TabsList className="glass-chip grid w-full grid-cols-2 rounded-xl p-1">
-            <TabsTrigger value="overview">Resumo</TabsTrigger>
-            <TabsTrigger value="champions">Campeões</TabsTrigger>
-          </TabsList>
+          <TabsNavigationList className="grid w-full grid-cols-2">
+            <TabsNavigationTrigger value="overview">Resumo</TabsNavigationTrigger>
+            <TabsNavigationTrigger value="champions">Campeões</TabsNavigationTrigger>
+          </TabsNavigationList>
 
           <TabsContent value="overview" className="space-y-6">
             {!selectedChampionshipIsFinished ? (
-              filteredLiveMatches.length == 0 ? (
-                <p className="enter-section text-center text-sm text-muted-foreground sm:text-left">Nenhum jogo em andamento.</p>
-              ) : (
-                <LiveMatchBanner matches={filteredLiveMatches} />
-              )
-            ) : null}
-
-            {!selectedChampionshipIsFinished ? (
               <section className="glass-panel enter-section p-5">
-                <h2 className="mb-4 text-center text-xl font-display font-bold sm:text-left">Próximo jogo</h2>
-                {nextMatch ? (
+                <h2 className="mb-4 text-center text-xl font-display font-bold sm:text-left">
+                  {nextMatches.length > 1 ? "Próximos jogos" : "Próximo jogo"}
+                </h2>
+                {nextMatches.length > 0 ? (
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    <MatchCard
-                      match={nextMatch}
-                      showChampionshipBadge={false}
-                      bracketContext={matchBracketContextByMatchId[nextMatch.id]}
-                    />
+                    {nextMatches.map((nextMatch) => (
+                      <MatchCard
+                        key={nextMatch.id}
+                        match={nextMatch}
+                        showChampionshipBadge={false}
+                        bracketContext={matchBracketContextByMatchId[nextMatch.id]}
+                      />
+                    ))}
                   </div>
                 ) : (
                   <p className="text-center text-sm text-muted-foreground sm:text-left">Nenhum jogo agendado.</p>
@@ -273,10 +267,10 @@ export function ChampionshipsPageView({
 
                 <Select value={groupFilter} onValueChange={onGroupFilterChange}>
                   <SelectTrigger className="glass-input w-full sm:w-72">
-                    <SelectValue placeholder="Filtrar por chave" />
+                    <SelectValue placeholder="Filtrar por grupo" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ALL_GROUPS">Todas as chaves</SelectItem>
+                    <SelectItem value="ALL_GROUPS">Todos os grupos</SelectItem>
                     {historyGroupOptions.map((groupOption) => (
                       <SelectItem key={groupOption.value} value={groupOption.value}>
                         {groupOption.label}
@@ -296,6 +290,7 @@ export function ChampionshipsPageView({
                       match={match}
                       showChampionshipBadge={false}
                       bracketContext={matchBracketContextByMatchId[match.id]}
+                      showStartedAtDate
                     />
                   ))}
                 </div>

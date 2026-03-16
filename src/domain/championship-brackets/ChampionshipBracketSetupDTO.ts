@@ -29,24 +29,24 @@ export class ChampionshipBracketSetupDTO {
 
   private validateCompetitions() {
     if (this.form_values.competitions.length == 0) {
-      throw new Error("Configure ao menos uma competição para geração de chaves.");
+      throw new Error("Configure ao menos uma competição para geração de grupos.");
     }
 
     this.form_values.competitions.forEach((competition) => {
       if (!competition.sport_id) {
-        throw new Error("Modalidade inválida na configuração de chaves.");
+        throw new Error("Modalidade inválida na configuração de grupos.");
       }
 
       if (competition.groups_count < 1) {
-        throw new Error("Quantidade de chaves deve ser maior que zero.");
+        throw new Error("Quantidade de grupos deve ser maior que zero.");
       }
 
       if (competition.qualifiers_per_group < 1) {
-        throw new Error("Quantidade de classificados por chave deve ser maior que zero.");
+        throw new Error("Quantidade de classificados por grupo deve ser maior que zero.");
       }
 
       if (competition.groups.length == 0) {
-        throw new Error("Defina as atléticas por chave para cada competição.");
+        throw new Error("Defina as atléticas por grupo para cada competição.");
       }
     });
   }
@@ -59,10 +59,6 @@ export class ChampionshipBracketSetupDTO {
     this.form_values.schedule_days.forEach((schedule_day) => {
       if (!schedule_day.date || !schedule_day.start_time || !schedule_day.end_time) {
         throw new Error("Dia de agenda inválido: preencha data, início e fim.");
-      }
-
-      if ((schedule_day.break_start_time && !schedule_day.break_end_time) || (!schedule_day.break_start_time && schedule_day.break_end_time)) {
-        throw new Error("Intervalo inválido: preencha início e fim da pausa.");
       }
 
       if (schedule_day.locations.length == 0) {
@@ -122,8 +118,8 @@ export class ChampionshipBracketSetupDTO {
       date: scheduleDay.date,
       start_time: scheduleDay.start_time,
       end_time: scheduleDay.end_time,
-      break_start_time: scheduleDay.break_start_time,
-      break_end_time: scheduleDay.break_end_time,
+      break_start_time: null,
+      break_end_time: null,
       locations: scheduleDay.locations.map((location) => ({
         name: location.name.trim(),
         position: location.position,

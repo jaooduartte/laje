@@ -13,6 +13,9 @@ import {
   BRACKET_THIRD_PLACE_MODE_LABELS,
   MATCH_NAIPE_LABELS,
   TEAM_DIVISION_LABELS,
+  resolveMatchQueueLabel,
+  resolveMatchScheduledDateValue,
+  resolveChampionshipGroupLabel,
   resolveKnockoutRoundLabel,
   resolveMatchStatusLabel,
 } from "@/lib/championship";
@@ -31,6 +34,8 @@ interface ProjectedKnockoutMatchDisplay {
   is_bye: boolean;
   is_third_place: boolean;
   status: ChampionshipBracketKnockoutMatch["status"];
+  scheduled_date: string | null;
+  queue_position: number | null;
   start_time: string | null;
   location: string | null;
   court_name: string | null;
@@ -124,7 +129,7 @@ function resolveSeedLabels(competition: ChampionshipBracketCompetition, bracketS
 
   for (let qualifierPosition = 1; qualifierPosition <= competition.qualifiers_per_group; qualifierPosition += 1) {
     for (let groupNumber = 1; groupNumber <= competition.groups_count; groupNumber += 1) {
-      seedLabels.push(`${qualifierPosition}º da Chave ${groupNumber}`);
+      seedLabels.push(`${qualifierPosition}º do ${resolveChampionshipGroupLabel(groupNumber)}`);
     }
   }
 
@@ -170,6 +175,8 @@ function resolveFallbackKnockoutRounds(
           is_bye: knockoutMatch.is_bye,
           is_third_place: knockoutMatch.is_third_place,
           status: knockoutMatch.status,
+          scheduled_date: knockoutMatch.scheduled_date,
+          queue_position: knockoutMatch.queue_position,
           start_time: knockoutMatch.start_time,
           location: knockoutMatch.location,
           court_name: knockoutMatch.court_name,
@@ -244,6 +251,8 @@ function resolveProjectedKnockoutRounds(
             (awayPlaceholderLabel == "BYE" && homePlaceholderLabel != "BYE")),
         is_third_place: false,
         status: knockoutMatch?.status ?? null,
+        scheduled_date: knockoutMatch?.scheduled_date ?? null,
+        queue_position: knockoutMatch?.queue_position ?? null,
         start_time: knockoutMatch?.start_time ?? null,
         location: knockoutMatch?.location ?? null,
         court_name: knockoutMatch?.court_name ?? null,
@@ -265,6 +274,8 @@ function resolveProjectedKnockoutRounds(
         is_bye: knockoutMatch?.is_bye ?? false,
         is_third_place: true,
         status: knockoutMatch?.status ?? null,
+        scheduled_date: knockoutMatch?.scheduled_date ?? null,
+        queue_position: knockoutMatch?.queue_position ?? null,
         start_time: knockoutMatch?.start_time ?? null,
         location: knockoutMatch?.location ?? null,
         court_name: knockoutMatch?.court_name ?? null,
@@ -491,8 +502,18 @@ function resolveProjectedMatchStatusSummary(projectedMatch: ProjectedKnockoutMat
 }
 
 function resolveProjectedMatchScheduleSummary(projectedMatch: ProjectedKnockoutMatchDisplay): string {
+  if (projectedMatch.status == MatchStatus.SCHEDULED) {
+    const scheduledDateValue = resolveMatchScheduledDateValue(projectedMatch);
+
+    if (scheduledDateValue) {
+      return `${format(new Date(`${scheduledDateValue}T12:00:00`), "dd/MM", { locale: ptBR })} • ${resolveMatchQueueLabel(projectedMatch.queue_position)}`;
+    }
+
+    return resolveMatchQueueLabel(projectedMatch.queue_position);
+  }
+
   if (!projectedMatch.start_time) {
-    return "Horário a definir";
+    return "A definir em fila";
   }
 
   return format(new Date(projectedMatch.start_time), "dd/MM HH:mm", { locale: ptBR });
@@ -789,7 +810,7 @@ function DesktopBracketCanvas({
 export function ChampionshipBracketBoard({
   championshipBracketView,
   loading = false,
-  emptyMessage = "Nenhuma chave de campeonato encontrada.",
+  emptyMessage = "Nenhum grupo de campeonato encontrado.",
 }: Props) {
   const [sportFilter, setSportFilter] = useState(ALL_FILTER);
   const [naipeFilter, setNaipeFilter] = useState(ALL_FILTER);
@@ -846,7 +867,7 @@ export function ChampionshipBracketBoard({
   }, [divisionFilter, naipeFilter, sportFilter, visibleCompetitions]);
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">Carregando chaves...</p>;
+    return <p className="text-sm text-muted-foreground">Carregando grupos...</p>;
   }
 
   if (visibleCompetitions.length == 0) {
@@ -935,7 +956,7 @@ export function ChampionshipBracketBoard({
                 {competition.division ? ` • ${TEAM_DIVISION_LABELS[competition.division]}` : ""}
               </h3>
               <p className="text-xs text-muted-foreground">
-                Chaves: {competition.groups_count} • Classificados/chave: {competition.qualifiers_per_group} • 3º lugar:{" "}
+                Grupos: {competition.groups_count} • Classificados/grupo: {competition.qualifiers_per_group} • 3º lugar:{" "}
                 {BRACKET_THIRD_PLACE_MODE_LABELS[competition.third_place_mode]}
               </p>
             </div>

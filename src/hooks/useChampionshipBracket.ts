@@ -1,17 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { ChampionshipBracketView } from "@/lib/types";
+import { EMPTY_CHAMPIONSHIP_BRACKET_VIEW } from "@/lib/championship";
 import { fetchChampionshipBracketView } from "@/domain/championship-brackets/championshipBracket.repository";
 
 interface UseChampionshipBracketOptions {
   championshipId?: string | null;
   seasonYear?: number | null;
 }
-
-const EMPTY_CHAMPIONSHIP_BRACKET_VIEW: ChampionshipBracketView = {
-  edition: null,
-  competitions: [],
-};
 
 export function useChampionshipBracket({ championshipId, seasonYear }: UseChampionshipBracketOptions = {}) {
   const [championshipBracketView, setChampionshipBracketView] = useState<ChampionshipBracketView>(

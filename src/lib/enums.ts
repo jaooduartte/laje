@@ -97,6 +97,11 @@ export enum BracketThirdPlaceMode {
   CHAMPION_SEMIFINAL_LOSER = "CHAMPION_SEMIFINAL_LOSER",
 }
 
+export enum ChampionshipBracketTieBreakContextType {
+  GROUP = "GROUP",
+  QUALIFICATION_POOL = "QUALIFICATION_POOL",
+}
+
 export enum ChampionshipCode {
   CLV = "CLV",
   SOCIETY = "SOCIETY",

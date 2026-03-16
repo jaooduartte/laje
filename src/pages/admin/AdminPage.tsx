@@ -32,7 +32,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { AdminPanelTab, AppRoutePath, ChampionshipStatus, MatchStatus } from "@/lib/enums";
-import { isChampionshipStatus, resolveMatchBracketContextByMatchId } from "@/lib/championship";
+import {
+  EMPTY_CHAMPIONSHIP_BRACKET_VIEW,
+  isChampionshipStatus,
+  resolveMatchBracketContextByMatchId,
+} from "@/lib/championship";
 import { AdminPageView } from "@/pages/admin/AdminPageView";
 
 enum ChampionshipStatusFlowDialog {
@@ -90,9 +94,16 @@ export function AdminPage() {
   const liveAndScheduledMatches = matches.filter(
     (match) => match.status == MatchStatus.LIVE || match.status == MatchStatus.SCHEDULED,
   );
+  const visibleChampionshipBracketView = useMemo(() => {
+    if (matches.length == 0) {
+      return EMPTY_CHAMPIONSHIP_BRACKET_VIEW;
+    }
+
+    return championshipBracketView;
+  }, [championshipBracketView, matches.length]);
   const matchBracketContextByMatchId = useMemo(() => {
-    return resolveMatchBracketContextByMatchId(championshipBracketView);
-  }, [championshipBracketView]);
+    return resolveMatchBracketContextByMatchId(visibleChampionshipBracketView);
+  }, [visibleChampionshipBracketView]);
 
   const closeChampionshipStatusFlowDialog = () => {
     if (processingChampionshipStatusFlowAction) {
@@ -154,8 +165,19 @@ export function AdminPage() {
       return false;
     }
 
-    await refetchMatches();
-    toast.success("Jogos atuais removidos.");
+    const { error: bracketEditionsError } = await supabase
+      .from("championship_bracket_editions")
+      .delete()
+      .eq("championship_id", selectedChampionship.id)
+      .eq("season_year", selectedChampionship.current_season_year);
+
+    if (bracketEditionsError) {
+      toast.error(bracketEditionsError.message);
+      return false;
+    }
+
+    await Promise.all([refetchMatches(), refetchChampionshipBracket()]);
+    toast.success("Jogos e chaveamento atual removidos.");
     return true;
   };
 
@@ -228,6 +250,14 @@ export function AdminPage() {
     }
 
     if (selectedChampionship.status == value) {
+      return;
+    }
+
+    if (
+      selectedChampionship.status == ChampionshipStatus.PLANNING &&
+      (value == ChampionshipStatus.IN_PROGRESS || value == ChampionshipStatus.FINISHED)
+    ) {
+      toast.error("Para chegar em Em andamento ou Encerrado, o campeonato precisa passar antes por Configurando campeonato.");
       return;
     }
 
@@ -345,7 +375,7 @@ export function AdminPage() {
         sports={sports}
         championshipSports={championshipSports}
         liveAndScheduledMatches={liveAndScheduledMatches}
-        championshipBracketView={championshipBracketView}
+        championshipBracketView={visibleChampionshipBracketView}
         loadingChampionshipBracket={loadingChampionshipBracket}
         matchBracketContextByMatchId={matchBracketContextByMatchId}
         profileName={profileName}
@@ -374,7 +404,6 @@ export function AdminPage() {
         onRefetchMatches={refetchMatches}
         onRefetchChampionshipBracket={refetchChampionshipBracket}
         onRefetchTeams={refetchTeams}
-        onRefetchChampionships={refetchChampionships}
       />
 
       <AdminChampionshipBracketWizardModal
@@ -397,16 +426,16 @@ export function AdminPage() {
           }
         }}
       >
-        <DialogContent className="border-border/60 !bg-background/80 backdrop-blur-md shadow-[0_18px_45px_rgba(15,23,42,0.16)] dark:shadow-none sm:max-w-xl">
+        <DialogContent className="border-border/60 bg-background backdrop-blur-md shadow-[0_18px_45px_rgba(15,23,42,0.16)] dark:shadow-none sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>Voltar campeonato para Em breve?</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-center">Voltar campeonato para Em breve?</DialogTitle>
+            <DialogDescription className="text-center">
               Este campeonato já possui jogos cadastrados. Escolha se eles devem ser mantidos ao voltar o status para
               Em breve.
             </DialogDescription>
           </DialogHeader>
 
-          <DialogFooter className="gap-2 sm:justify-end">
+          <DialogFooter className="gap-2 sm:justify-center">
             <Button
               type="button"
               variant="outline"
@@ -417,7 +446,7 @@ export function AdminPage() {
             </Button>
             <Button
               type="button"
-              variant="secondary"
+              variant="outline"
               onClick={handleKeepCurrentGamesAndReturnToPlanning}
               disabled={processingChampionshipStatusFlowAction}
             >
@@ -445,16 +474,16 @@ export function AdminPage() {
           }
         }}
       >
-        <DialogContent className="border-border/60 !bg-background/80 backdrop-blur-md shadow-[0_18px_45px_rgba(15,23,42,0.16)] dark:shadow-none sm:max-w-xl">
+        <DialogContent className="border-border/60 bg-background backdrop-blur-md shadow-[0_18px_45px_rgba(15,23,42,0.16)] dark:shadow-none sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>Jogos atuais já existem</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-center">Jogos atuais já existem</DialogTitle>
+            <DialogDescription className="text-center">
               O campeonato está em Em breve, mas já possui jogos cadastrados. Você pode manter os jogos atuais ou
               limpar tudo para montar uma nova configuração de campeonato.
             </DialogDescription>
           </DialogHeader>
 
-          <DialogFooter className="gap-2 sm:justify-end">
+          <DialogFooter className="gap-2 sm:justify-center">
             <Button
               type="button"
               variant="outline"
@@ -465,7 +494,7 @@ export function AdminPage() {
             </Button>
             <Button
               type="button"
-              variant="secondary"
+              variant="outline"
               onClick={handleKeepCurrentGamesAndMoveToUpcoming}
               disabled={processingChampionshipStatusFlowAction}
             >

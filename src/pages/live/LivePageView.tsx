@@ -9,7 +9,7 @@ import {
   DEFAULT_PAGINATION_ITEMS_PER_PAGE,
 } from "@/components/ui/app-pagination-controls";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsNavigationList, TabsNavigationTrigger } from "@/components/ui/tabs";
 import type { Championship, Match, Sport } from "@/lib/types";
 import type { ChampionshipBracketView } from "@/lib/types";
 import type { MatchBracketContext } from "@/lib/championship";
@@ -123,10 +123,10 @@ export function LivePageView({
         <SportFilter sports={sports} selected={sportFilter} onSelect={onSportFilterChange} />
 
         <Tabs defaultValue="overview" className="enter-section space-y-4">
-          <TabsList className="glass-chip grid w-full grid-cols-2 rounded-xl p-1">
-            <TabsTrigger value="overview">Resumo</TabsTrigger>
-            <TabsTrigger value="knockout">Mata-mata</TabsTrigger>
-          </TabsList>
+          <TabsNavigationList className="grid w-full grid-cols-2">
+            <TabsNavigationTrigger value="overview">Resumo</TabsNavigationTrigger>
+            <TabsNavigationTrigger value="knockout">Mata-mata</TabsNavigationTrigger>
+          </TabsNavigationList>
 
           <TabsContent value="overview" className="space-y-6">
             {championTeamName ? (

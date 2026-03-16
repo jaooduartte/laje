@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Match } from "@/lib/types";
 import { MatchStatus } from "@/lib/enums";
+import { resolveMatchScheduledDateValue } from "@/lib/championship";
+import type { MatchSetInput } from "@/domain/championship-brackets/championshipBracket.types";
 
 interface UseMatchesOptions {
   championshipId?: string | null;
@@ -32,7 +34,9 @@ export function useMatches({ championshipId, seasonYear }: UseMatchesOptions = {
         .select(
           "*, championships(*), sports(*), home_team:teams!matches_home_team_id_fkey(*), away_team:teams!matches_away_team_id_fkey(*)",
         )
-        .order("start_time", { ascending: true });
+        .order("scheduled_date", { ascending: true })
+        .order("queue_position", { ascending: true })
+        .order("created_at", { ascending: true });
 
       if (championshipId) {
         query = query.eq("championship_id", championshipId);
@@ -51,7 +55,65 @@ export function useMatches({ championshipId, seasonYear }: UseMatchesOptions = {
       }
 
       if (data) {
-        setMatches(data as unknown as Match[]);
+        const matchRows = data as unknown as Match[];
+        const matchIds = matchRows.map((match) => match.id);
+        const championshipAndSportKeys = [...new Set(matchRows.map((match) => `${match.championship_id}:${match.sport_id}`))];
+        const championshipIds = [...new Set(matchRows.map((match) => match.championship_id))];
+        const sportIds = [...new Set(matchRows.map((match) => match.sport_id))];
+
+        const [championshipSportsResponse, matchSetsResponse] = await Promise.all([
+          championshipAndSportKeys.length == 0
+            ? Promise.resolve({ data: [], error: null })
+            : supabase
+                .from("championship_sports")
+                .select("championship_id, sport_id, result_rule")
+                .in("championship_id", championshipIds)
+                .in("sport_id", sportIds),
+          matchIds.length == 0
+            ? Promise.resolve({ data: [], error: null })
+            : supabase
+                .from("match_sets")
+                .select("match_id, set_number, home_points, away_points")
+                .in("match_id", matchIds)
+                .order("set_number", { ascending: true }),
+        ]);
+
+        if (championshipSportsResponse.error) {
+          console.error("Erro ao carregar regras das modalidades:", championshipSportsResponse.error.message);
+        }
+
+        if (matchSetsResponse.error) {
+          console.error("Erro ao carregar sets das partidas:", matchSetsResponse.error.message);
+        }
+
+        const resultRuleByChampionshipAndSportKey = (championshipSportsResponse.data ?? []).reduce<Record<string, Match["result_rule"]>>(
+          (carry, championshipSport) => {
+            carry[`${championshipSport.championship_id}:${championshipSport.sport_id}`] = championshipSport.result_rule;
+            return carry;
+          },
+          {},
+        );
+
+        const matchSetsByMatchId = (matchSetsResponse.data ?? []).reduce<Record<string, MatchSetInput[]>>((carry, matchSet) => {
+          carry[matchSet.match_id] = [
+            ...(carry[matchSet.match_id] ?? []),
+            {
+              set_number: matchSet.set_number,
+              home_points: matchSet.home_points,
+              away_points: matchSet.away_points,
+            },
+          ];
+
+          return carry;
+        }, {});
+
+        setMatches(
+          matchRows.map((match) => ({
+            ...match,
+            result_rule: resultRuleByChampionshipAndSportKey[`${match.championship_id}:${match.sport_id}`] ?? null,
+            match_sets: matchSetsByMatchId[match.id] ?? [],
+          })),
+        );
       }
     } catch (error) {
       console.error("Erro inesperado ao carregar jogos:", error);
@@ -113,9 +175,42 @@ export function useMatches({ championshipId, seasonYear }: UseMatchesOptions = {
     };
   }, []);
 
-  const liveMatches = matches.filter((match) => match.status === MatchStatus.LIVE);
-  const upcomingMatches = matches.filter((match) => match.status === MatchStatus.SCHEDULED);
-  const finishedMatches = matches.filter((match) => match.status === MatchStatus.FINISHED);
+  const liveMatches = useMemo(() => {
+    return [...matches]
+      .filter((match) => match.status === MatchStatus.LIVE)
+      .sort((firstMatch, secondMatch) => {
+        const firstTimestamp = new Date(firstMatch.start_time ?? firstMatch.created_at).getTime();
+        const secondTimestamp = new Date(secondMatch.start_time ?? secondMatch.created_at).getTime();
+
+        return secondTimestamp - firstTimestamp;
+      });
+  }, [matches]);
+
+  const upcomingMatches = useMemo(() => {
+    return [...matches]
+      .filter((match) => match.status === MatchStatus.SCHEDULED)
+      .sort((firstMatch, secondMatch) => {
+        const firstScheduledDate = resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
+        const secondScheduledDate = resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
+
+        if (firstScheduledDate != secondScheduledDate) {
+          return firstScheduledDate.localeCompare(secondScheduledDate);
+        }
+
+        return (firstMatch.queue_position ?? Number.MAX_SAFE_INTEGER) - (secondMatch.queue_position ?? Number.MAX_SAFE_INTEGER);
+      });
+  }, [matches]);
+
+  const finishedMatches = useMemo(() => {
+    return [...matches]
+      .filter((match) => match.status === MatchStatus.FINISHED)
+      .sort((firstMatch, secondMatch) => {
+        const firstTimestamp = new Date(firstMatch.end_time ?? firstMatch.start_time ?? firstMatch.created_at).getTime();
+        const secondTimestamp = new Date(secondMatch.end_time ?? secondMatch.start_time ?? secondMatch.created_at).getTime();
+
+        return secondTimestamp - firstTimestamp;
+      });
+  }, [matches]);
 
   return { matches, liveMatches, upcomingMatches, finishedMatches, loading, refetch: fetchMatches };
 }

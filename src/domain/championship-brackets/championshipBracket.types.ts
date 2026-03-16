@@ -1,4 +1,9 @@
-import type { BracketThirdPlaceMode, MatchNaipe, TeamDivision } from "@/lib/enums";
+import type {
+  BracketThirdPlaceMode,
+  ChampionshipBracketTieBreakContextType,
+  MatchNaipe,
+  TeamDivision,
+} from "@/lib/enums";
 
 export interface ChampionshipBracketParticipantModalityInput {
   sport_id: string;
@@ -38,6 +43,27 @@ export interface ChampionshipBracketLocationInput {
   courts: ChampionshipBracketCourtInput[];
 }
 
+export interface ChampionshipBracketLocationTemplateCourt {
+  id: string;
+  name: string;
+  position: number;
+  sport_ids: string[];
+}
+
+export interface ChampionshipBracketLocationTemplate {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  courts: ChampionshipBracketLocationTemplateCourt[];
+}
+
+export interface ChampionshipBracketLocationTemplateSaveInput {
+  id?: string | null;
+  name: string;
+  courts: ChampionshipBracketLocationTemplateCourt[];
+}
+
 export interface ChampionshipBracketScheduleDayInput {
   date: string;
   start_time: string;
@@ -53,10 +79,46 @@ export interface ChampionshipBracketSetupFormValues {
   schedule_days: ChampionshipBracketScheduleDayInput[];
 }
 
+export interface ChampionshipBracketPreviewResult {
+  ok: boolean;
+  message?: string | null;
+}
+
+export interface ChampionshipBracketTieBreakPendingTeam {
+  team_id: string;
+  team_name: string;
+}
+
+export interface ChampionshipBracketTieBreakPendingContext {
+  context_key: string;
+  competition_id: string;
+  sport_name: string;
+  naipe: MatchNaipe;
+  division: TeamDivision | null;
+  context_type: ChampionshipBracketTieBreakContextType;
+  group_id: string | null;
+  group_number: number | null;
+  qualification_rank: number | null;
+  title: string;
+  description: string;
+  teams: ChampionshipBracketTieBreakPendingTeam[];
+}
+
+export interface ChampionshipBracketTieBreakResolutionSaveInput {
+  context_key: string;
+  competition_id: string;
+  context_type: ChampionshipBracketTieBreakContextType;
+  group_id?: string | null;
+  qualification_rank?: number | null;
+  team_ids: string[];
+}
+
 export interface ChampionshipBracketCompetitionConfigDraft {
   groups_count: number;
   qualifiers_per_group: number;
 }
+
+export type ChampionshipBracketGroupOrderedTeamIdsByGroupNumberDraft = Record<string, string[]>;
 
 export interface ChampionshipBracketScheduleCourtDraft {
   id: string;
@@ -67,6 +129,7 @@ export interface ChampionshipBracketScheduleCourtDraft {
 
 export interface ChampionshipBracketScheduleLocationDraft {
   id: string;
+  location_template_id: string | null;
   name: string;
   position: number;
   courts: ChampionshipBracketScheduleCourtDraft[];
@@ -89,10 +152,10 @@ export interface ChampionshipBracketWizardDraftFormValues {
   selected_competition_keys_by_team_id: Record<string, string[]>;
   should_apply_modalities_to_all_teams: boolean;
   should_apply_naipes_to_all_teams: boolean;
-  should_apply_group_selection_to_all_competitions: boolean;
   should_replicate_previous_schedule_day: boolean;
   competition_config_by_key: Record<string, ChampionshipBracketCompetitionConfigDraft>;
   group_assignments_by_competition_key: Record<string, Record<string, number>>;
+  group_order_by_competition_key: Record<string, ChampionshipBracketGroupOrderedTeamIdsByGroupNumberDraft>;
   schedule_days: ChampionshipBracketScheduleDayDraft[];
 }
 

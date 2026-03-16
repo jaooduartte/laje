@@ -4,8 +4,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 const VISIBLE_PAGE_BUTTONS = 5;
 
-export const DEFAULT_PAGINATION_ITEMS_PER_PAGE = 20;
-export const PAGINATION_ITEMS_PER_PAGE_OPTIONS = [10, 20, 30, 50] as const;
+export const DEFAULT_PAGINATION_ITEMS_PER_PAGE = 15;
+export const PAGINATION_ITEMS_PER_PAGE_OPTIONS = [15, 30, 60, 120] as const;
 
 function resolveVisiblePages(currentPage: number, totalPages: number): number[] {
   if (totalPages <= VISIBLE_PAGE_BUTTONS) {

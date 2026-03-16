@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { Championship, Match, Sport, Team } from "@/lib/types";
 import type { BracketGroupFilterOption, MatchBracketContext } from "@/lib/championship";
 import { TeamDivision } from "@/lib/enums";
-import { TEAM_DIVISION_LABELS } from "@/lib/championship";
+import { TEAM_DIVISION_LABELS, resolveMatchScheduledDateValue } from "@/lib/championship";
 
 interface SchedulePageViewProps {
   isLoading: boolean;
@@ -84,7 +84,11 @@ export function SchedulePageView({
 
   const paginatedMatchesByDate = useMemo(() => {
     return paginatedMatches.reduce<Record<string, Match[]>>((carry, match) => {
-      const matchDate = format(new Date(match.start_time), "yyyy-MM-dd");
+      const matchDate = resolveMatchScheduledDateValue(match);
+
+      if (!matchDate) {
+        return carry;
+      }
 
       if (!carry[matchDate]) {
         carry[matchDate] = [];
@@ -168,10 +172,10 @@ export function SchedulePageView({
 
           <Select value={groupFilter ?? "all"} onValueChange={(value) => onGroupFilterChange(value == "all" ? null : value)}>
             <SelectTrigger className="glass-input w-48">
-              <SelectValue placeholder="Filtrar por chave" />
+              <SelectValue placeholder="Filtrar por grupo" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todas as chaves</SelectItem>
+              <SelectItem value="all">Todos os grupos</SelectItem>
               {groupOptions.map((groupOption) => (
                 <SelectItem key={groupOption.value} value={groupOption.value}>
                   {groupOption.label}
