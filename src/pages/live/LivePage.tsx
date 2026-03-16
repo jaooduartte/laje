@@ -4,7 +4,12 @@ import { useStandings } from "@/hooks/useStandings";
 import { useSports } from "@/hooks/useSports";
 import { useChampionships } from "@/hooks/useChampionships";
 import { useChampionshipBracket } from "@/hooks/useChampionshipBracket";
-import { MATCH_NAIPE_LABELS, resolveMatchBracketContextByMatchId } from "@/lib/championship";
+import {
+  EMPTY_CHAMPIONSHIP_BRACKET_VIEW,
+  MATCH_NAIPE_LABELS,
+  resolveInterleavedScheduledMatchesByCompetition,
+  resolveMatchBracketContextByMatchId,
+} from "@/lib/championship";
 import { ChampionshipSportTieBreakerRule, ChampionshipStatus } from "@/lib/enums";
 import { aggregateStandingsByTeam } from "@/lib/standings";
 import { LivePageView } from "@/pages/live/LivePageView";
@@ -42,7 +47,7 @@ export function LivePage() {
   const selectedChampionshipSeasonYear = featuredChampionship?.current_season_year ?? null;
   const selectedChampionshipHasDivisions = featuredChampionship?.uses_divisions ?? false;
 
-  const { liveMatches, upcomingMatches, finishedMatches, loading: matchesLoading } = useMatches({
+  const { matches, liveMatches, upcomingMatches, finishedMatches, loading: matchesLoading } = useMatches({
     championshipId: selectedChampionshipId,
     seasonYear: selectedChampionshipSeasonYear,
   });
@@ -50,9 +55,16 @@ export function LivePage() {
     championshipId: selectedChampionshipId,
     seasonYear: selectedChampionshipSeasonYear,
   });
+  const visibleChampionshipBracketView = useMemo(() => {
+    if (matches.length == 0) {
+      return EMPTY_CHAMPIONSHIP_BRACKET_VIEW;
+    }
+
+    return championshipBracketView;
+  }, [championshipBracketView, matches.length]);
   const matchBracketContextByMatchId = useMemo(() => {
-    return resolveMatchBracketContextByMatchId(championshipBracketView);
-  }, [championshipBracketView]);
+    return resolveMatchBracketContextByMatchId(visibleChampionshipBracketView);
+  }, [visibleChampionshipBracketView]);
 
   const [sportFilter, setSportFilter] = useState<string | null>(null);
   const [standingsSportFilter, setStandingsSportFilter] = useState<string>(ALL_STANDINGS_SPORT_FILTER);
@@ -73,9 +85,13 @@ export function LivePage() {
 
   const { sports, championshipSports } = useSports({ championshipId: selectedChampionshipId });
 
-  const filteredUpcomingMatches = sportFilter
-    ? upcomingMatches.filter((match) => match.sport_id == sportFilter)
-    : upcomingMatches;
+  const filteredUpcomingMatches = useMemo(() => {
+    const visibleUpcomingMatches = sportFilter
+      ? upcomingMatches.filter((match) => match.sport_id == sportFilter)
+      : upcomingMatches;
+
+    return resolveInterleavedScheduledMatchesByCompetition(visibleUpcomingMatches);
+  }, [sportFilter, upcomingMatches]);
 
   const filteredLiveMatches = sportFilter ? liveMatches.filter((match) => match.sport_id == sportFilter) : liveMatches;
 
@@ -153,7 +169,7 @@ export function LivePage() {
       filteredStandings={filteredStandings}
       standingsShowCardColumns={standingsShowCardColumns}
       championTeamName={filteredStandings[0]?.team_name ?? null}
-      championshipBracketView={championshipBracketView}
+      championshipBracketView={visibleChampionshipBracketView}
       championshipBracketLoading={championshipBracketLoading}
       matchBracketContextByMatchId={matchBracketContextByMatchId}
       onSportFilterChange={setSportFilter}

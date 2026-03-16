@@ -8,6 +8,7 @@ import {
   AdminLogResourceTable,
   AppBadgeTone,
   AdminPanelRole,
+  ChampionshipSportTieBreakerRule,
   ChampionshipStatus,
   LeagueEventOrganizerType,
   LeagueEventType,
@@ -15,7 +16,12 @@ import {
   MatchStatus,
   TeamDivision,
 } from "@/lib/enums";
-import { CHAMPIONSHIP_STATUS_LABELS, MATCH_NAIPE_LABELS, TEAM_DIVISION_LABELS } from "@/lib/championship";
+import {
+  CHAMPIONSHIP_SPORT_TIE_BREAKER_RULE_LABELS,
+  CHAMPIONSHIP_STATUS_LABELS,
+  MATCH_NAIPE_LABELS,
+  TEAM_DIVISION_LABELS,
+} from "@/lib/championship";
 import { isAdminUserPasswordStatus, resolveAdminUserPasswordStatusLabel } from "@/lib/adminUsers";
 import { LEAGUE_EVENT_ORGANIZER_LABELS, LEAGUE_EVENT_TYPE_LABELS } from "@/domain/league-events/leagueEvent.constants";
 import type { AdminActionLog } from "@/lib/types";
@@ -117,6 +123,10 @@ const ADMIN_LOG_DEFAULT_FIELD_LABELS: Record<string, string> = {
   home_red_cards: "Cartões vermelhos da casa",
   away_yellow_cards: "Cartões amarelos do visitante",
   away_red_cards: "Cartões vermelhos do visitante",
+  current_set_home_score: "Pontos do set atual da casa",
+  current_set_away_score: "Pontos do set atual do visitante",
+  resolved_tie_breaker_rule: "Critério extra de desempate",
+  resolved_tie_break_winner_team_id: "Vencedor do critério extra",
   supports_cards: "Permite cartões",
   default_location: "Local padrão",
   uses_divisions: "Usa divisões",
@@ -242,6 +252,10 @@ function isChampionshipStatusValue(value: string): value is ChampionshipStatus {
   );
 }
 
+function isChampionshipSportTieBreakerRuleValue(value: string): value is ChampionshipSportTieBreakerRule {
+  return Object.values(ChampionshipSportTieBreakerRule).some((tieBreakerRule) => tieBreakerRule == value);
+}
+
 function isLeagueEventOrganizerTypeValue(value: string): value is LeagueEventOrganizerType {
   return value == LeagueEventOrganizerType.ATHLETIC || value == LeagueEventOrganizerType.LAJE;
 }
@@ -331,7 +345,13 @@ function resolveFieldValueText(fieldName: string, value: unknown, teamNameById: 
   }
 
   if (typeof value == "string") {
-    if (fieldName == "home_team_id" || fieldName == "away_team_id" || fieldName == "team_id" || fieldName == "organizer_team_id") {
+    if (
+      fieldName == "home_team_id" ||
+      fieldName == "away_team_id" ||
+      fieldName == "team_id" ||
+      fieldName == "organizer_team_id" ||
+      fieldName == "resolved_tie_break_winner_team_id"
+    ) {
       return resolveTeamName(teamNameById, value);
     }
 
@@ -357,6 +377,10 @@ function resolveFieldValueText(fieldName: string, value: unknown, teamNameById: 
 
     if (fieldName == "division" && isTeamDivisionValue(value)) {
       return TEAM_DIVISION_LABELS[value];
+    }
+
+    if (fieldName == "resolved_tie_breaker_rule" && isChampionshipSportTieBreakerRuleValue(value)) {
+      return CHAMPIONSHIP_SPORT_TIE_BREAKER_RULE_LABELS[value];
     }
 
     if (fieldName == "status" && isMatchStatusValue(value)) {

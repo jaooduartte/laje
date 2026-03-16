@@ -1,3 +1,6 @@
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import type { MatchSetInput } from "@/domain/championship-brackets/championshipBracket.types";
 import {
   AppBadgeTone,
   BracketEditionStatus,
@@ -13,7 +16,7 @@ import {
   TeamDivision,
   TeamDivisionSelection,
 } from "@/lib/enums";
-import type { ChampionshipBracketView } from "@/lib/types";
+import type { ChampionshipBracketView, Match } from "@/lib/types";
 
 export interface MatchBracketContext {
   badgeLabel: string;
@@ -27,6 +30,30 @@ export interface MatchBracketContext {
 export interface BracketGroupFilterOption {
   value: string;
   label: string;
+}
+
+export interface ChampionshipBracketGroupStageOption {
+  value: string;
+  competition_id: string;
+  group_id: string;
+  group_number: number;
+  sport_id: string;
+  sport_name: string;
+  naipe: MatchNaipe;
+  division: TeamDivision | null;
+  label: string;
+  team_ids: string[];
+}
+
+export interface GroupStageMatchBracketBinding {
+  competition_id: string;
+  group_id: string;
+  group_number: number;
+  sport_id: string;
+  sport_name: string;
+  naipe: MatchNaipe;
+  division: TeamDivision | null;
+  team_ids: string[];
 }
 
 export const TEAM_DIVISION_LABELS: Record<TeamDivision, string> = {
@@ -119,6 +146,29 @@ export const BRACKET_THIRD_PLACE_MODE_LABELS: Record<BracketThirdPlaceMode, stri
   [BracketThirdPlaceMode.CHAMPION_SEMIFINAL_LOSER]: "3º lugar herdado da semi do campeão",
 };
 
+export const EMPTY_CHAMPIONSHIP_BRACKET_VIEW: ChampionshipBracketView = {
+  edition: null,
+  competitions: [],
+};
+
+function resolveAlphabeticalGroupSuffix(groupNumber: number): string {
+  const safeGroupNumber = Number.isFinite(groupNumber) ? Math.max(1, Math.trunc(groupNumber)) : 1;
+  let alphabeticalGroupSuffix = "";
+  let remainingGroupNumber = safeGroupNumber;
+
+  while (remainingGroupNumber > 0) {
+    remainingGroupNumber -= 1;
+    alphabeticalGroupSuffix = String.fromCharCode(65 + (remainingGroupNumber % 26)) + alphabeticalGroupSuffix;
+    remainingGroupNumber = Math.floor(remainingGroupNumber / 26);
+  }
+
+  return alphabeticalGroupSuffix;
+}
+
+export function resolveChampionshipGroupLabel(groupNumber: number): string {
+  return `Grupo ${resolveAlphabeticalGroupSuffix(groupNumber)}`;
+}
+
 export function resolveKnockoutRoundLabel(
   roundNumber: number,
   totalRounds: number,
@@ -189,6 +239,167 @@ export function resolveMatchStatusLabel(status: MatchStatus): string {
   return MATCH_STATUS_LABELS[status];
 }
 
+export function resolveMatchScheduledDateValue(match: {
+  scheduled_date: string | null;
+  start_time: string | null;
+}): string | null {
+  if (match.scheduled_date) {
+    return match.scheduled_date;
+  }
+
+  if (match.start_time) {
+    return match.start_time.slice(0, 10);
+  }
+
+  return null;
+}
+
+export function resolveMatchQueueLabel(queuePosition: number | null): string {
+  if (typeof queuePosition == "number" && Number.isFinite(queuePosition) && queuePosition > 0) {
+    return `Jogo ${queuePosition}`;
+  }
+
+  return "Fila do dia";
+}
+
+export function resolveMatchCompetitionKey(match: {
+  sport_id: string;
+  naipe: MatchNaipe;
+  division: TeamDivision | null | undefined;
+}): string {
+  return `${match.sport_id}:${match.naipe}:${match.division ?? "WITHOUT_DIVISION"}`;
+}
+
+export function resolveNextScheduledMatchesByCompetition<
+  MatchItem extends {
+    sport_id: string;
+    naipe: MatchNaipe;
+    division: TeamDivision | null | undefined;
+  },
+>(scheduledMatches: MatchItem[]): MatchItem[] {
+  const competitionKeySet = new Set<string>();
+
+  return scheduledMatches.filter((scheduledMatch) => {
+    const competitionKey = resolveMatchCompetitionKey(scheduledMatch);
+
+    if (competitionKeySet.has(competitionKey)) {
+      return false;
+    }
+
+    competitionKeySet.add(competitionKey);
+    return true;
+  });
+}
+
+export function resolveInterleavedScheduledMatchesByCompetition<
+  MatchItem extends {
+    sport_id: string;
+    naipe: MatchNaipe;
+    division: TeamDivision | null | undefined;
+    scheduled_date: string | null;
+    start_time: string | null;
+  },
+>(scheduledMatches: MatchItem[]): MatchItem[] {
+  const scheduledMatchesByDate = scheduledMatches.reduce<Record<string, MatchItem[]>>((carry, scheduledMatch) => {
+    const scheduledDateValue = resolveMatchScheduledDateValue(scheduledMatch);
+
+    if (!scheduledDateValue) {
+      return carry;
+    }
+
+    carry[scheduledDateValue] = [...(carry[scheduledDateValue] ?? []), scheduledMatch];
+    return carry;
+  }, {});
+
+  return Object.keys(scheduledMatchesByDate)
+    .sort((firstDate, secondDate) => firstDate.localeCompare(secondDate))
+    .flatMap((scheduledDateValue) => {
+      const competitionMatchesByKey = new Map<string, MatchItem[]>();
+      const orderedCompetitionKeys: string[] = [];
+
+      scheduledMatchesByDate[scheduledDateValue].forEach((scheduledMatch) => {
+        const competitionKey = resolveMatchCompetitionKey(scheduledMatch);
+
+        if (!competitionMatchesByKey.has(competitionKey)) {
+          competitionMatchesByKey.set(competitionKey, []);
+          orderedCompetitionKeys.push(competitionKey);
+        }
+
+        competitionMatchesByKey.get(competitionKey)?.push(scheduledMatch);
+      });
+
+      const interleavedMatches: MatchItem[] = [];
+      let hasPendingCompetitionMatches = true;
+
+      while (hasPendingCompetitionMatches) {
+        hasPendingCompetitionMatches = false;
+
+        orderedCompetitionKeys.forEach((competitionKey) => {
+          const competitionMatches = competitionMatchesByKey.get(competitionKey) ?? [];
+          const nextMatch = competitionMatches.shift();
+
+          if (!nextMatch) {
+            return;
+          }
+
+          interleavedMatches.push(nextMatch);
+          hasPendingCompetitionMatches = hasPendingCompetitionMatches || competitionMatches.length > 0;
+        });
+      }
+
+      return interleavedMatches;
+    });
+}
+
+export function resolveMatchStartedAtLabel(startTime: string | null): string | null {
+  if (!startTime) {
+    return null;
+  }
+
+  return `Jogo iniciado às ${format(new Date(startTime), "HH:mm", { locale: ptBR })}`;
+}
+
+export function resolveMatchTieBreakRuleLabel(
+  tieBreakerRule: ChampionshipSportTieBreakerRule | null | undefined,
+): string | null {
+  if (!tieBreakerRule) {
+    return null;
+  }
+
+  return CHAMPIONSHIP_SPORT_TIE_BREAKER_RULE_LABELS[tieBreakerRule];
+}
+
+export function isRecordedMatchSet(matchSet: MatchSetInput | null | undefined): matchSet is MatchSetInput {
+  if (!matchSet) {
+    return false;
+  }
+
+  return (
+    typeof matchSet.set_number == "number" &&
+    typeof matchSet.home_points == "number" &&
+    typeof matchSet.away_points == "number" &&
+    (matchSet.home_points > 0 || matchSet.away_points > 0) &&
+    matchSet.home_points != matchSet.away_points
+  );
+}
+
+export function resolveRecordedMatchSets(match: Pick<Match, "match_sets">): MatchSetInput[] {
+  return (match.match_sets ?? [])
+    .filter((matchSet): matchSet is MatchSetInput => isRecordedMatchSet(matchSet))
+    .sort((firstMatchSet, secondMatchSet) => firstMatchSet.set_number - secondMatchSet.set_number);
+}
+
+export function resolveMatchSetSummary(match: Pick<Match, "match_sets" | "home_team" | "away_team">) {
+  const homeTeamName = match.home_team?.name ?? "Mandante";
+  const awayTeamName = match.away_team?.name ?? "Visitante";
+
+  return resolveRecordedMatchSets(match)
+    .map((matchSet) => ({
+      setNumber: matchSet.set_number,
+      text: `Set ${matchSet.set_number}: ${homeTeamName} ${matchSet.home_points} × ${matchSet.away_points} ${awayTeamName}`,
+    }));
+}
+
 export function isChampionshipSportNaipeMode(value: string): value is ChampionshipSportNaipeMode {
   return value === ChampionshipSportNaipeMode.MISTO || value === ChampionshipSportNaipeMode.MASCULINO_FEMININO;
 }
@@ -249,9 +460,10 @@ export function resolveMatchBracketContextByMatchId(
     }, 0);
 
     competition.groups.forEach((group) => {
-      const groupLabel = `${competition.sport_name} • ${MATCH_NAIPE_LABELS[competition.naipe]} • ${divisionLabel}${seasonYearLabel} • Chave ${group.group_number}`;
+      const championshipGroupLabel = resolveChampionshipGroupLabel(group.group_number);
+      const groupLabel = `${competition.sport_name} • ${MATCH_NAIPE_LABELS[competition.naipe]} • ${divisionLabel}${seasonYearLabel} • ${championshipGroupLabel}`;
       const groupFilterValue = `${competition.id}:${group.id}`;
-      const badgeLabel = `Chave ${group.group_number}`;
+      const badgeLabel = championshipGroupLabel;
 
       group.matches.forEach((groupMatch) => {
         if (!groupMatch.match_id) {
@@ -308,4 +520,56 @@ export function resolveBracketGroupFilterOptions(
   return [...groupOptionsByValue.entries()]
     .map(([value, label]) => ({ value, label }))
     .sort((firstGroupOption, secondGroupOption) => firstGroupOption.label.localeCompare(secondGroupOption.label));
+}
+
+export function resolveChampionshipBracketGroupStageOptions(
+  championshipBracketView: ChampionshipBracketView,
+): ChampionshipBracketGroupStageOption[] {
+  return championshipBracketView.competitions
+    .flatMap((competition) => {
+      const divisionLabel = competition.division ? TEAM_DIVISION_LABELS[competition.division] : "Sem divisão";
+
+      return competition.groups.map((group) => ({
+        value: `${competition.id}:${group.id}`,
+        competition_id: competition.id,
+        group_id: group.id,
+        group_number: group.group_number,
+        sport_id: competition.sport_id,
+        sport_name: competition.sport_name,
+        naipe: competition.naipe,
+        division: competition.division,
+        label: `${competition.sport_name} • ${MATCH_NAIPE_LABELS[competition.naipe]} • ${divisionLabel} • ${resolveChampionshipGroupLabel(group.group_number)}`,
+        team_ids: group.teams.map((team) => team.team_id),
+      }));
+    })
+    .sort((firstGroupOption, secondGroupOption) => firstGroupOption.label.localeCompare(secondGroupOption.label));
+}
+
+export function resolveGroupStageMatchBindingByMatchId(
+  championshipBracketView: ChampionshipBracketView,
+): Record<string, GroupStageMatchBracketBinding> {
+  return championshipBracketView.competitions.reduce<Record<string, GroupStageMatchBracketBinding>>((carry, competition) => {
+    competition.groups.forEach((group) => {
+      const team_ids = group.teams.map((team) => team.team_id);
+
+      group.matches.forEach((groupMatch) => {
+        if (!groupMatch.match_id) {
+          return;
+        }
+
+        carry[groupMatch.match_id] = {
+          competition_id: competition.id,
+          group_id: group.id,
+          group_number: group.group_number,
+          sport_id: competition.sport_id,
+          sport_name: competition.sport_name,
+          naipe: competition.naipe,
+          division: competition.division,
+          team_ids,
+        };
+      });
+    });
+
+    return carry;
+  }, {});
 }

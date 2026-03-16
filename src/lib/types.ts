@@ -1,3 +1,4 @@
+import type { MatchSetInput } from "@/domain/championship-brackets/championshipBracket.types";
 import type {
   AdminActionType,
   AdminPanelPermissionLevel,
@@ -69,13 +70,20 @@ export interface Match {
   division: TeamDivision | null;
   naipe: MatchNaipe;
   supports_cards: boolean;
+  result_rule?: ChampionshipSportResultRule | null;
   sport_id: string;
   home_team_id: string;
   away_team_id: string;
   location: string;
   court_name: string | null;
-  start_time: string;
-  end_time: string;
+  scheduled_date: string | null;
+  queue_position: number | null;
+  current_set_home_score?: number | null;
+  current_set_away_score?: number | null;
+  resolved_tie_breaker_rule?: ChampionshipSportTieBreakerRule | null;
+  resolved_tie_break_winner_team_id?: string | null;
+  start_time: string | null;
+  end_time: string | null;
   status: MatchStatus;
   home_score: number;
   home_yellow_cards: number;
@@ -90,6 +98,7 @@ export interface Match {
   sports?: Sport;
   home_team?: Team;
   away_team?: Team;
+  match_sets?: MatchSetInput[];
 }
 
 export interface Standing {
@@ -232,6 +241,8 @@ export interface ChampionshipBracketGroupMatch {
   id: string;
   match_id: string | null;
   status: MatchStatus | null;
+  scheduled_date: string | null;
+  queue_position: number | null;
   start_time: string | null;
   end_time: string | null;
   location: string | null;
@@ -257,6 +268,8 @@ export interface ChampionshipBracketKnockoutMatch {
   slot_number: number;
   match_id: string | null;
   status: MatchStatus | null;
+  scheduled_date: string | null;
+  queue_position: number | null;
   start_time: string | null;
   end_time: string | null;
   location: string | null;

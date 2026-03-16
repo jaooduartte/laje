@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { format } from "date-fns";
 import { useMatches } from "@/hooks/useMatches";
 import { useSports } from "@/hooks/useSports";
 import { useTeams } from "@/hooks/useTeams";
@@ -9,9 +8,12 @@ import { useSelectedChampionship } from "@/hooks/useSelectedChampionship";
 import { useChampionshipSelection } from "@/hooks/useChampionshipSelection";
 import { MatchStatus, TeamDivision } from "@/lib/enums";
 import {
+  EMPTY_CHAMPIONSHIP_BRACKET_VIEW,
   isTeamDivision,
   resolveBracketGroupFilterOptions,
+  resolveInterleavedScheduledMatchesByCompetition,
   resolveMatchBracketContextByMatchId,
+  resolveMatchScheduledDateValue,
 } from "@/lib/championship";
 import { SchedulePageView } from "@/pages/schedule/SchedulePageView";
 
@@ -47,6 +49,13 @@ export function SchedulePage() {
   });
   const { sports } = useSports({ championshipId: selectedChampionshipId });
   const { teams } = useTeams();
+  const visibleChampionshipBracketView = useMemo(() => {
+    if (matches.length == 0) {
+      return EMPTY_CHAMPIONSHIP_BRACKET_VIEW;
+    }
+
+    return championshipBracketView;
+  }, [championshipBracketView, matches.length]);
 
   const [sportFilter, setSportFilter] = useState<string | null>(null);
   const [teamFilter, setTeamFilter] = useState<string | null>(null);
@@ -61,8 +70,8 @@ export function SchedulePage() {
   }, [selectedChampionshipCode]);
 
   const matchBracketContextByMatchId = useMemo(() => {
-    return resolveMatchBracketContextByMatchId(championshipBracketView);
-  }, [championshipBracketView]);
+    return resolveMatchBracketContextByMatchId(visibleChampionshipBracketView);
+  }, [visibleChampionshipBracketView]);
 
   const groupOptions = useMemo(() => {
     return resolveBracketGroupFilterOptions(matchBracketContextByMatchId);
@@ -111,19 +120,39 @@ export function SchedulePage() {
       }
 
       if (firstMatch.status == MatchStatus.FINISHED && secondMatch.status == MatchStatus.FINISHED) {
-        return new Date(secondMatch.start_time).getTime() - new Date(firstMatch.start_time).getTime();
+        const firstTimestamp = new Date(firstMatch.end_time ?? firstMatch.start_time ?? firstMatch.created_at).getTime();
+        const secondTimestamp = new Date(secondMatch.end_time ?? secondMatch.start_time ?? secondMatch.created_at).getTime();
+
+        return secondTimestamp - firstTimestamp;
       }
 
-      return new Date(firstMatch.start_time).getTime() - new Date(secondMatch.start_time).getTime();
+      const firstScheduledDate = resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
+      const secondScheduledDate = resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
+
+      if (firstScheduledDate != secondScheduledDate) {
+        return firstScheduledDate.localeCompare(secondScheduledDate);
+      }
+
+      return (firstMatch.queue_position ?? Number.MAX_SAFE_INTEGER) - (secondMatch.queue_position ?? Number.MAX_SAFE_INTEGER);
     });
   }, [filteredMatches]);
 
+  const visibleScheduledMatches = useMemo(() => {
+    const scheduledMatches = sortedMatches.filter((match) => match.status == MatchStatus.SCHEDULED);
+
+    return resolveInterleavedScheduledMatchesByCompetition(scheduledMatches);
+  }, [sortedMatches]);
+
   const { groupedMatches, orderedDates } = useMemo(() => {
-    const groupedMatchesResult: Record<string, typeof sortedMatches> = {};
+    const groupedMatchesResult: Record<string, typeof visibleScheduledMatches> = {};
     const orderedDatesResult: string[] = [];
 
-    sortedMatches.forEach((match) => {
-      const dateKey = format(new Date(match.start_time), "yyyy-MM-dd");
+    visibleScheduledMatches.forEach((match) => {
+      const dateKey = resolveMatchScheduledDateValue(match);
+
+      if (!dateKey) {
+        return;
+      }
 
       if (!groupedMatchesResult[dateKey]) {
         groupedMatchesResult[dateKey] = [];
@@ -137,7 +166,7 @@ export function SchedulePage() {
       groupedMatches: groupedMatchesResult,
       orderedDates: orderedDatesResult,
     };
-  }, [sortedMatches]);
+  }, [visibleScheduledMatches]);
 
   const handleDivisionChange = (value: string) => {
     if (isTeamDivision(value)) {

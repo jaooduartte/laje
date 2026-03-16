@@ -14,7 +14,12 @@ import {
   ChampionshipStatus,
   MatchStatus,
 } from "@/lib/enums";
-import { resolveBracketGroupFilterOptions, resolveMatchBracketContextByMatchId } from "@/lib/championship";
+import {
+  resolveBracketGroupFilterOptions,
+  resolveInterleavedScheduledMatchesByCompetition,
+  resolveMatchBracketContextByMatchId,
+  resolveMatchScheduledDateValue,
+} from "@/lib/championship";
 import { resolveChampionshipChampionHistory } from "@/lib/championshipHistory";
 import { aggregateStandingsByTeam } from "@/lib/standings";
 import { ChampionshipsPageView } from "@/pages/championships/ChampionshipsPageView";
@@ -85,21 +90,24 @@ export function ChampionshipsPage() {
     return matches.filter((match) => match.season_year == selectedChampionshipSeasonYear);
   }, [matches, selectedChampionshipSeasonYear]);
 
-  const liveMatches = useMemo(() => {
-    return currentSeasonMatches.filter((match) => match.status == MatchStatus.LIVE);
-  }, [currentSeasonMatches]);
-
   const upcomingMatches = useMemo(() => {
-    return currentSeasonMatches.filter((match) => match.status == MatchStatus.SCHEDULED);
+    return [...currentSeasonMatches]
+      .filter((match) => match.status == MatchStatus.SCHEDULED)
+      .sort((firstMatch, secondMatch) => {
+        const firstScheduledDate = resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
+        const secondScheduledDate = resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
+
+        if (firstScheduledDate != secondScheduledDate) {
+          return firstScheduledDate.localeCompare(secondScheduledDate);
+        }
+
+        return (firstMatch.queue_position ?? Number.MAX_SAFE_INTEGER) - (secondMatch.queue_position ?? Number.MAX_SAFE_INTEGER);
+      });
   }, [currentSeasonMatches]);
 
   const finishedMatches = useMemo(() => {
     return matches.filter((match) => match.status == MatchStatus.FINISHED);
   }, [matches]);
-
-  const filteredLiveMatches = useMemo(() => {
-    return sportFilter ? liveMatches.filter((match) => match.sport_id == sportFilter) : liveMatches;
-  }, [liveMatches, sportFilter]);
 
   const filteredUpcomingMatches = useMemo(() => {
     return sportFilter ? upcomingMatches.filter((match) => match.sport_id == sportFilter) : upcomingMatches;
@@ -111,7 +119,10 @@ export function ChampionshipsPage() {
       : finishedMatches;
 
     return [...sportFilteredMatches].sort((firstMatch, secondMatch) => {
-      return new Date(secondMatch.start_time).getTime() - new Date(firstMatch.start_time).getTime();
+      const firstTimestamp = new Date(firstMatch.end_time ?? firstMatch.start_time ?? firstMatch.created_at).getTime();
+      const secondTimestamp = new Date(secondMatch.end_time ?? secondMatch.start_time ?? secondMatch.created_at).getTime();
+
+      return secondTimestamp - firstTimestamp;
     });
   }, [finishedMatches, sportFilter]);
 
@@ -194,7 +205,9 @@ export function ChampionshipsPage() {
     });
   }, [groupFilter, matchBracketContextByMatchId, sortedFinishedMatches, teamFilter, yearFilter]);
 
-  const nextMatch = filteredUpcomingMatches.length > 0 ? filteredUpcomingMatches[0] : null;
+  const nextMatches = useMemo(() => {
+    return resolveInterleavedScheduledMatchesByCompetition(filteredUpcomingMatches).slice(0, 3);
+  }, [filteredUpcomingMatches]);
 
   const standingsWithFilters = useMemo(() => {
     return standings.filter((standing) => {
@@ -283,11 +296,10 @@ export function ChampionshipsPage() {
       selectedChampionship={selectedChampionship}
       selectedChampionshipCode={selectedChampionshipCode}
       selectedChampionshipIsFinished={selectedChampionshipIsFinished}
-      championshipCardImageByCode={CHAMPIONSHIP_CARD_IMAGE_BY_CODE}
-      sports={sports}
-      sportFilter={sportFilter}
-      filteredLiveMatches={filteredLiveMatches}
-      nextMatch={nextMatch}
+        championshipCardImageByCode={CHAMPIONSHIP_CARD_IMAGE_BY_CODE}
+        sports={sports}
+        sportFilter={sportFilter}
+        nextMatches={nextMatches}
       standingsSportFilter={standingsSportFilter}
       standingsNaipeFilter={standingsNaipeFilter}
       standingsYearFilter={standingsYearFilter}

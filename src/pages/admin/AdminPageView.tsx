@@ -58,7 +58,6 @@ interface AdminPageViewProps {
   onRefetchMatches: () => void;
   onRefetchChampionshipBracket: () => void;
   onRefetchTeams: () => void;
-  onRefetchChampionships: () => void;
 }
 
 interface AdminTabItem {
@@ -104,7 +103,6 @@ export function AdminPageView({
   onRefetchMatches,
   onRefetchChampionshipBracket,
   onRefetchTeams,
-  onRefetchChampionships,
 }: AdminPageViewProps) {
   const adminTabItems = useMemo(() => {
     const nextAdminTabItems: AdminTabItem[] = [];
@@ -157,6 +155,22 @@ export function AdminPageView({
     canViewTeamsTab,
     canViewUsersTab,
   ]);
+
+  const championshipStatusOptions = useMemo(() => {
+    if (selectedChampionship.status == ChampionshipStatus.PLANNING) {
+      return [
+        ChampionshipStatus.PLANNING,
+        ChampionshipStatus.UPCOMING,
+      ];
+    }
+
+    return [
+      ChampionshipStatus.PLANNING,
+      ChampionshipStatus.UPCOMING,
+      ChampionshipStatus.IN_PROGRESS,
+      ChampionshipStatus.FINISHED,
+    ];
+  }, [selectedChampionship.status]);
 
   const tabsListRef = useRef<HTMLDivElement | null>(null);
   const tabTriggerByValueRef = useRef<Partial<Record<AdminPanelTab, HTMLButtonElement | null>>>({});
@@ -263,18 +277,11 @@ export function AdminPageView({
                 <SelectValue placeholder="Alterar status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={ChampionshipStatus.PLANNING}>
-                  {CHAMPIONSHIP_STATUS_LABELS[ChampionshipStatus.PLANNING]}
-                </SelectItem>
-                <SelectItem value={ChampionshipStatus.UPCOMING}>
-                  {CHAMPIONSHIP_STATUS_LABELS[ChampionshipStatus.UPCOMING]}
-                </SelectItem>
-                <SelectItem value={ChampionshipStatus.IN_PROGRESS}>
-                  {CHAMPIONSHIP_STATUS_LABELS[ChampionshipStatus.IN_PROGRESS]}
-                </SelectItem>
-                <SelectItem value={ChampionshipStatus.FINISHED}>
-                  {CHAMPIONSHIP_STATUS_LABELS[ChampionshipStatus.FINISHED]}
-                </SelectItem>
+                {championshipStatusOptions.map((championshipStatusOption) => (
+                  <SelectItem key={championshipStatusOption} value={championshipStatusOption}>
+                    {CHAMPIONSHIP_STATUS_LABELS[championshipStatusOption]}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -326,7 +333,6 @@ export function AdminPageView({
                 canManageMatches={canManageMatches}
                 onRefetch={onRefetchMatches}
                 onRefetchChampionshipBracket={onRefetchChampionshipBracket}
-                onRefetchChampionships={onRefetchChampionships}
               />
             </TabsContent>
           ) : null}
@@ -335,7 +341,9 @@ export function AdminPageView({
             <TabsContent value={AdminPanelTab.CONTROL}>
               <AdminMatchControl
                 matches={liveAndScheduledMatches}
+                championshipStatus={selectedChampionship.status}
                 championshipSports={championshipSports}
+                championshipBracketView={championshipBracketView}
                 matchBracketContextByMatchId={matchBracketContextByMatchId}
                 onRefetch={onRefetchMatches}
                 onRefetchChampionshipBracket={onRefetchChampionshipBracket}

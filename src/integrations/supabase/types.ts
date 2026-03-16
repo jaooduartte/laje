@@ -107,6 +107,47 @@ export type Database = {
           },
         ]
       }
+      championship_bracket_editions: {
+        Row: {
+          championship_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          payload_snapshot: Json
+          season_year: number
+          status: Database["public"]["Enums"]["bracket_edition_status"]
+          updated_at: string
+        }
+        Insert: {
+          championship_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          payload_snapshot?: Json
+          season_year: number
+          status?: Database["public"]["Enums"]["bracket_edition_status"]
+          updated_at?: string
+        }
+        Update: {
+          championship_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          payload_snapshot?: Json
+          season_year?: number
+          status?: Database["public"]["Enums"]["bracket_edition_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "championship_bracket_editions_championship_id_fkey"
+            columns: ["championship_id"]
+            isOneToOne: false
+            referencedRelation: "championships"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       admin_action_logs: {
         Row: {
           action_type: Database["public"]["Enums"]["admin_action_type"]
@@ -329,6 +370,210 @@ export type Database = {
           },
         ]
       }
+      championship_bracket_location_templates: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          normalized_name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          normalized_name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          normalized_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      championship_bracket_location_template_courts: {
+        Row: {
+          created_at: string
+          id: string
+          location_template_id: string
+          name: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          location_template_id: string
+          name: string
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          location_template_id?: string
+          name?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "championship_bracket_location_template_courts_location_template_id_fkey"
+            columns: ["location_template_id"]
+            isOneToOne: false
+            referencedRelation: "championship_bracket_location_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      championship_bracket_location_template_court_sports: {
+        Row: {
+          created_at: string
+          id: string
+          location_template_court_id: string
+          sport_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          location_template_court_id: string
+          sport_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          location_template_court_id?: string
+          sport_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "championship_bracket_location_template_court_sports_location_template_court_id_fkey"
+            columns: ["location_template_court_id"]
+            isOneToOne: false
+            referencedRelation: "championship_bracket_location_template_courts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "championship_bracket_location_template_court_sports_sport_id_fkey"
+            columns: ["sport_id"]
+            isOneToOne: false
+            referencedRelation: "sports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      championship_bracket_tie_break_resolution_teams: {
+        Row: {
+          created_at: string
+          draw_order: number
+          id: string
+          resolution_id: string
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          draw_order: number
+          id?: string
+          resolution_id: string
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          draw_order?: number
+          id?: string
+          resolution_id?: string
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "championship_bracket_tie_break_resolution_teams_resolution_id_fkey"
+            columns: ["resolution_id"]
+            isOneToOne: false
+            referencedRelation: "championship_bracket_tie_break_resolutions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "championship_bracket_tie_break_resolution_teams_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      championship_bracket_tie_break_resolutions: {
+        Row: {
+          bracket_edition_id: string
+          competition_id: string
+          context_key: string
+          context_type: Database["public"]["Enums"]["championship_bracket_tie_break_context_type"]
+          created_at: string
+          created_by: string | null
+          group_id: string | null
+          id: string
+          qualification_rank: number | null
+          tied_team_signature: string
+          updated_at: string
+        }
+        Insert: {
+          bracket_edition_id: string
+          competition_id: string
+          context_key: string
+          context_type: Database["public"]["Enums"]["championship_bracket_tie_break_context_type"]
+          created_at?: string
+          created_by?: string | null
+          group_id?: string | null
+          id?: string
+          qualification_rank?: number | null
+          tied_team_signature: string
+          updated_at?: string
+        }
+        Update: {
+          bracket_edition_id?: string
+          competition_id?: string
+          context_key?: string
+          context_type?: Database["public"]["Enums"]["championship_bracket_tie_break_context_type"]
+          created_at?: string
+          created_by?: string | null
+          group_id?: string | null
+          id?: string
+          qualification_rank?: number | null
+          tied_team_signature?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "championship_bracket_tie_break_resolutions_bracket_edition_id_fkey"
+            columns: ["bracket_edition_id"]
+            isOneToOne: false
+            referencedRelation: "championship_bracket_editions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "championship_bracket_tie_break_resolutions_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "championship_bracket_competitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "championship_bracket_tie_break_resolutions_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "championship_bracket_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       matches: {
         Row: {
           away_red_cards: number
@@ -336,10 +581,12 @@ export type Database = {
           away_yellow_cards: number
           away_team_id: string
           championship_id: string
+          current_set_away_score: number | null
+          current_set_home_score: number | null
           court_name: string | null
           created_at: string
           division: Database["public"]["Enums"]["team_division"] | null
-          end_time: string
+          end_time: string | null
           home_red_cards: number
           home_score: number
           home_yellow_cards: number
@@ -347,9 +594,13 @@ export type Database = {
           id: string
           location: string
           naipe: Database["public"]["Enums"]["match_naipe"]
+          queue_position: number | null
+          resolved_tie_break_winner_team_id: string | null
+          resolved_tie_breaker_rule: Database["public"]["Enums"]["championship_sport_tie_breaker_rule"] | null
+          scheduled_date: string | null
           season_year: number
           sport_id: string
-          start_time: string
+          start_time: string | null
           status: Database["public"]["Enums"]["match_status"]
           supports_cards: boolean
         }
@@ -359,10 +610,12 @@ export type Database = {
           away_yellow_cards?: number
           away_team_id: string
           championship_id: string
+          current_set_away_score?: number | null
+          current_set_home_score?: number | null
           court_name?: string | null
           created_at?: string
           division?: Database["public"]["Enums"]["team_division"] | null
-          end_time: string
+          end_time?: string | null
           home_red_cards?: number
           home_score?: number
           home_yellow_cards?: number
@@ -370,9 +623,13 @@ export type Database = {
           id?: string
           location: string
           naipe?: Database["public"]["Enums"]["match_naipe"]
+          queue_position?: number | null
+          resolved_tie_break_winner_team_id?: string | null
+          resolved_tie_breaker_rule?: Database["public"]["Enums"]["championship_sport_tie_breaker_rule"] | null
+          scheduled_date?: string | null
           season_year?: number
           sport_id: string
-          start_time: string
+          start_time?: string | null
           status?: Database["public"]["Enums"]["match_status"]
           supports_cards?: boolean
         }
@@ -382,10 +639,12 @@ export type Database = {
           away_yellow_cards?: number
           away_team_id?: string
           championship_id?: string
+          current_set_away_score?: number | null
+          current_set_home_score?: number | null
           court_name?: string | null
           created_at?: string
           division?: Database["public"]["Enums"]["team_division"] | null
-          end_time?: string
+          end_time?: string | null
           home_red_cards?: number
           home_score?: number
           home_yellow_cards?: number
@@ -393,9 +652,13 @@ export type Database = {
           id?: string
           location?: string
           naipe?: Database["public"]["Enums"]["match_naipe"]
+          queue_position?: number | null
+          resolved_tie_break_winner_team_id?: string | null
+          resolved_tie_breaker_rule?: Database["public"]["Enums"]["championship_sport_tie_breaker_rule"] | null
+          scheduled_date?: string | null
           season_year?: number
           sport_id?: string
-          start_time?: string
+          start_time?: string | null
           status?: Database["public"]["Enums"]["match_status"]
           supports_cards?: boolean
         }
@@ -422,10 +685,55 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "matches_resolved_tie_break_winner_team_id_fkey"
+            columns: ["resolved_tie_break_winner_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "matches_sport_id_fkey"
             columns: ["sport_id"]
             isOneToOne: false
             referencedRelation: "sports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      match_sets: {
+        Row: {
+          away_points: number
+          created_at: string
+          home_points: number
+          id: string
+          match_id: string
+          set_number: number
+          updated_at: string
+        }
+        Insert: {
+          away_points?: number
+          created_at?: string
+          home_points?: number
+          id?: string
+          match_id: string
+          set_number: number
+          updated_at?: string
+        }
+        Update: {
+          away_points?: number
+          created_at?: string
+          home_points?: number
+          id?: string
+          match_id?: string
+          set_number?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "match_sets_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "matches"
             referencedColumns: ["id"]
           },
         ]
@@ -637,9 +945,21 @@ export type Database = {
         Args: { _championship_id: string; _payload: Json }
         Returns: string
       }
+      preview_championship_bracket_groups: {
+        Args: { _championship_id: string; _payload: Json }
+        Returns: Json
+      }
+      save_championship_bracket_location_template: {
+        Args: { _payload: Json }
+        Returns: string
+      }
       generate_championship_knockout: {
         Args: { _bracket_edition_id?: string | null; _championship_id: string }
         Returns: string
+      }
+      get_championship_bracket_pending_tie_breaks: {
+        Args: { _bracket_edition_id?: string | null; _championship_id: string }
+        Returns: Json
       }
       get_championship_bracket_view: {
         Args: { _championship_id: string; _season_year?: number | null }
@@ -777,6 +1097,10 @@ export type Database = {
         Args: { _match_id: string; _sets: Json }
         Returns: undefined
       }
+      save_championship_bracket_tie_break_resolution: {
+        Args: { _payload: Json }
+        Returns: string
+      }
     }
     Enums: {
       admin_action_type: "INSERT" | "UPDATE" | "DELETE" | "PASSWORD_CHANGED" | "LOGIN"
@@ -791,6 +1115,7 @@ export type Database = {
       championship_sport_naipe_mode: "MISTO" | "MASCULINO_FEMININO"
       championship_sport_result_rule: "POINTS" | "SETS"
       championship_sport_tie_breaker_rule: "STANDARD" | "POINTS_AVERAGE" | "BEACH_SOCCER" | "BEACH_TENNIS"
+      championship_bracket_tie_break_context_type: "GROUP" | "QUALIFICATION_POOL"
       championship_status: "PLANNING" | "UPCOMING" | "IN_PROGRESS" | "FINISHED"
       league_event_organizer_type: "ATHLETIC" | "LAJE"
       league_event_type: "HH" | "OPEN_BAR" | "CHAMPIONSHIP" | "LAJE_EVENT"

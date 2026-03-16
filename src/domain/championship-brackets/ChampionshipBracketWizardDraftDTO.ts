@@ -1,5 +1,6 @@
 import type {
   ChampionshipBracketCompetitionConfigDraft,
+  ChampionshipBracketGroupOrderedTeamIdsByGroupNumberDraft,
   ChampionshipBracketScheduleCourtDraft,
   ChampionshipBracketScheduleDayDraft,
   ChampionshipBracketScheduleLocationDraft,
@@ -88,6 +89,38 @@ function resolveGroupAssignmentsByCompetitionKey(group_assignments_by_competitio
   );
 }
 
+function resolveGroupOrderByCompetitionKey(
+  group_order_by_competition_key: unknown,
+): Record<string, ChampionshipBracketGroupOrderedTeamIdsByGroupNumberDraft> {
+  if (!group_order_by_competition_key || typeof group_order_by_competition_key != "object" || Array.isArray(group_order_by_competition_key)) {
+    return {};
+  }
+
+  return Object.entries(group_order_by_competition_key).reduce<Record<string, ChampionshipBracketGroupOrderedTeamIdsByGroupNumberDraft>>(
+    (carry, [competition_key, group_team_ids_by_group_number]) => {
+      if (!group_team_ids_by_group_number || typeof group_team_ids_by_group_number != "object" || Array.isArray(group_team_ids_by_group_number)) {
+        return carry;
+      }
+
+      carry[competition_key] = Object.entries(group_team_ids_by_group_number).reduce<
+        ChampionshipBracketGroupOrderedTeamIdsByGroupNumberDraft
+      >((groupCarry, [group_number, team_ids]) => {
+        const resolvedTeamIds = [...new Set(resolveStringArray(team_ids))];
+
+        if (resolvedTeamIds.length == 0) {
+          return groupCarry;
+        }
+
+        groupCarry[group_number] = resolvedTeamIds;
+        return groupCarry;
+      }, {});
+
+      return carry;
+    },
+    {},
+  );
+}
+
 function resolveScheduleCourtDraft(schedule_court: unknown): ChampionshipBracketScheduleCourtDraft | null {
   if (!schedule_court || typeof schedule_court != "object" || Array.isArray(schedule_court)) {
     return null;
@@ -117,6 +150,10 @@ function resolveScheduleLocationDraft(schedule_location: unknown): ChampionshipB
 
   return {
     id: typeof parsed_schedule_location.id == "string" && parsed_schedule_location.id ? parsed_schedule_location.id : resolveRandomUuid(),
+    location_template_id:
+      typeof parsed_schedule_location.location_template_id == "string" && parsed_schedule_location.location_template_id
+        ? parsed_schedule_location.location_template_id
+        : null,
     name: typeof parsed_schedule_location.name == "string" ? parsed_schedule_location.name : "",
     position: Math.max(1, resolveNumberValue(parsed_schedule_location.position, 1)),
     courts,
@@ -192,15 +229,12 @@ export class ChampionshipBracketWizardDraftDTO {
         }, {}),
         should_apply_modalities_to_all_teams: resolveBooleanValue(parsed_storage_value.should_apply_modalities_to_all_teams, true),
         should_apply_naipes_to_all_teams: resolveBooleanValue(parsed_storage_value.should_apply_naipes_to_all_teams, true),
-        should_apply_group_selection_to_all_competitions: resolveBooleanValue(
-          parsed_storage_value.should_apply_group_selection_to_all_competitions,
-          false,
-        ),
         should_replicate_previous_schedule_day: resolveBooleanValue(parsed_storage_value.should_replicate_previous_schedule_day, false),
         competition_config_by_key: resolveCompetitionConfigByKey(parsed_storage_value.competition_config_by_key),
         group_assignments_by_competition_key: resolveGroupAssignmentsByCompetitionKey(
           parsed_storage_value.group_assignments_by_competition_key,
         ),
+        group_order_by_competition_key: resolveGroupOrderByCompetitionKey(parsed_storage_value.group_order_by_competition_key),
         schedule_days: resolveScheduleDays(parsed_storage_value.schedule_days),
       });
     } catch {
@@ -227,7 +261,6 @@ export class ChampionshipBracketWizardDraftDTO {
       }, {}),
       should_apply_modalities_to_all_teams: this.form_values.should_apply_modalities_to_all_teams,
       should_apply_naipes_to_all_teams: this.form_values.should_apply_naipes_to_all_teams,
-      should_apply_group_selection_to_all_competitions: this.form_values.should_apply_group_selection_to_all_competitions,
       should_replicate_previous_schedule_day: this.form_values.should_replicate_previous_schedule_day,
       competition_config_by_key: Object.entries(this.form_values.competition_config_by_key).reduce<
         Record<string, ChampionshipBracketCompetitionConfigDraft>
@@ -247,6 +280,24 @@ export class ChampionshipBracketWizardDraftDTO {
         }, {});
         return carry;
       }, {}),
+      group_order_by_competition_key: Object.entries(this.form_values.group_order_by_competition_key).reduce<
+        Record<string, ChampionshipBracketGroupOrderedTeamIdsByGroupNumberDraft>
+      >((carry, [competition_key, group_team_ids_by_group_number]) => {
+        carry[competition_key] = Object.entries(group_team_ids_by_group_number).reduce<
+          ChampionshipBracketGroupOrderedTeamIdsByGroupNumberDraft
+        >((groupCarry, [group_number, team_ids]) => {
+          const resolvedTeamIds = [...new Set(team_ids)];
+
+          if (resolvedTeamIds.length == 0) {
+            return groupCarry;
+          }
+
+          groupCarry[group_number] = resolvedTeamIds;
+          return groupCarry;
+        }, {});
+
+        return carry;
+      }, {}),
       schedule_days: this.form_values.schedule_days.map((schedule_day) => ({
         id: schedule_day.id,
         date: schedule_day.date,
@@ -256,6 +307,7 @@ export class ChampionshipBracketWizardDraftDTO {
         break_end_time: schedule_day.break_end_time,
         locations: schedule_day.locations.map((schedule_location) => ({
           id: schedule_location.id,
+          location_template_id: schedule_location.location_template_id,
           name: schedule_location.name,
           position: schedule_location.position,
           courts: schedule_location.courts.map((schedule_court) => ({
