@@ -215,6 +215,10 @@ export function isMatchNaipe(value: string): value is MatchNaipe {
   return value === MatchNaipe.MASCULINO || value === MatchNaipe.FEMININO || value === MatchNaipe.MISTO;
 }
 
+export function resolveMatchDisplaySlotValue(match: Match & { scheduled_slot?: number | null }) {
+  return match.scheduled_slot ?? match.queue_position ?? Number.MAX_SAFE_INTEGER;
+}
+
 export function resolveMatchNaipeBadgeTone(naipe: string): AppBadgeTone {
   if (isMatchNaipe(naipe)) {
     return MATCH_NAIPE_BADGE_TONES[naipe];

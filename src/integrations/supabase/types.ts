@@ -14,6 +14,94 @@ export type Database = {
   }
   public: {
     Tables: {
+      championship_bracket_matches: {
+        Row: {
+          away_team_id: string
+          bracket_edition_id: string
+          competition_id: string
+          created_at: string
+          group_id: string | null
+          home_team_id: string
+          id: string
+          match_id: string
+          phase: Database["public"]["Enums"]["bracket_phase"]
+          round_number: number
+          slot_number: number
+          updated_at: string
+        }
+        Insert: {
+          away_team_id: string
+          bracket_edition_id: string
+          competition_id: string
+          created_at?: string
+          group_id?: string | null
+          home_team_id: string
+          id?: string
+          match_id: string
+          phase: Database["public"]["Enums"]["bracket_phase"]
+          round_number?: number
+          slot_number: number
+          updated_at?: string
+        }
+        Update: {
+          away_team_id?: string
+          bracket_edition_id?: string
+          competition_id?: string
+          created_at?: string
+          group_id?: string | null
+          home_team_id?: string
+          id?: string
+          match_id?: string
+          phase?: Database["public"]["Enums"]["bracket_phase"]
+          round_number?: number
+          slot_number?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "championship_bracket_matches_bracket_edition_id_fkey"
+            columns: ["bracket_edition_id"]
+            isOneToOne: false
+            referencedRelation: "championship_bracket_editions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "championship_bracket_matches_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "championship_bracket_competitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "championship_bracket_matches_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "championship_bracket_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "championship_bracket_matches_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "championship_bracket_matches_home_team_id_fkey"
+            columns: ["home_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "championship_bracket_matches_away_team_id_fkey"
+            columns: ["away_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       championships: {
         Row: {
           code: Database["public"]["Enums"]["championship_code"]
@@ -595,6 +683,7 @@ export type Database = {
           location: string
           naipe: Database["public"]["Enums"]["match_naipe"]
           queue_position: number | null
+          scheduled_slot: number | null
           resolved_tie_break_winner_team_id: string | null
           resolved_tie_breaker_rule: Database["public"]["Enums"]["championship_sport_tie_breaker_rule"] | null
           scheduled_date: string | null
@@ -624,6 +713,7 @@ export type Database = {
           location: string
           naipe?: Database["public"]["Enums"]["match_naipe"]
           queue_position?: number | null
+          scheduled_slot?: number | null
           resolved_tie_break_winner_team_id?: string | null
           resolved_tie_breaker_rule?: Database["public"]["Enums"]["championship_sport_tie_breaker_rule"] | null
           scheduled_date?: string | null
@@ -653,6 +743,7 @@ export type Database = {
           location?: string
           naipe?: Database["public"]["Enums"]["match_naipe"]
           queue_position?: number | null
+          scheduled_slot?: number | null
           resolved_tie_break_winner_team_id?: string | null
           resolved_tie_breaker_rule?: Database["public"]["Enums"]["championship_sport_tie_breaker_rule"] | null
           scheduled_date?: string | null

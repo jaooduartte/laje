@@ -59,14 +59,21 @@ DECLARE
   home_team_id_val UUID;
   away_team_id_val UUID;
   round_match_index_val INTEGER;
-  global_queue_position INTEGER;
-  last_queue_position_by_team JSONB;
-  home_key TEXT;
-  away_key TEXT;
-  last_home_queue INTEGER;
-  last_away_queue INTEGER;
   selected_day_courts_count INTEGER;
-  min_queue_gap_for_candidate INTEGER;
+  candidate_queue_position INTEGER;
+  current_slot_match_count INTEGER;
+  same_team_same_slot_conflict_exists BOOLEAN;
+  same_team_same_naipe_recent_conflict_exists BOOLEAN;
+  pending_home_team_name TEXT;
+  pending_away_team_name TEXT;
+  pending_home_team_key TEXT;
+  pending_away_team_key TEXT;
+  current_queue_assigned_count INTEGER;
+  current_sport_slot_count INTEGER;
+  pending_home_team_identity TEXT;
+  pending_away_team_identity TEXT;
+  pending_sport_identity TEXT;
+  current_sport_slot_match_count INTEGER;
 BEGIN
   IF NOT public.has_admin_tab_access('matches'::public.admin_panel_tab, true) THEN
     RAISE EXCEPTION 'Usuário sem permissão para gerar chaveamento.';
@@ -384,14 +391,15 @@ BEGIN
     END LOOP;
   END LOOP;
 
-  DROP TABLE IF EXISTS temp_sport_court_counts;
+  DROP TABLE IF EXISTS temp_day_sport_court_counts;
 
-  CREATE TEMP TABLE temp_sport_court_counts (
-    sport_id UUID PRIMARY KEY,
-    court_count INTEGER NOT NULL
+  CREATE TEMP TABLE temp_day_sport_court_counts (
+    event_date DATE NOT NULL,
+    sport_identity TEXT NOT NULL,
+    court_count INTEGER NOT NULL,
+    PRIMARY KEY (event_date, sport_identity)
   ) ON COMMIT DROP;
 
-  -- Table for court counts per day
   DROP TABLE IF EXISTS temp_day_court_counts;
 
   CREATE TEMP TABLE temp_day_court_counts (
@@ -399,37 +407,52 @@ BEGIN
     court_count INTEGER NOT NULL
   ) ON COMMIT DROP;
 
-  INSERT INTO temp_sport_court_counts (sport_id, court_count)
+  INSERT INTO temp_day_sport_court_counts (event_date, sport_identity, court_count)
   SELECT
-    sport_id,
-    MAX(c_count)
-  FROM (
-      SELECT
-        (schedule_day_record->>'date') AS day_date,
-        (trim(both '"' from court_sport_record::text))::uuid AS sport_id,
-        COUNT(DISTINCT court_record->>'name') AS c_count
-      FROM jsonb_array_elements(COALESCE(_payload->'schedule_days', '[]'::jsonb)) AS schedule_day_record,
-      jsonb_array_elements(COALESCE(schedule_day_record->'locations', '[]'::jsonb)) AS location_record,
-      jsonb_array_elements(COALESCE(location_record->'courts', '[]'::jsonb)) AS court_record,
-      jsonb_array_elements(COALESCE(court_record->'sport_ids', '[]'::jsonb)) AS court_sport_record
-      GROUP BY (schedule_day_record->>'date'), (trim(both '"' from court_sport_record::text))::uuid
-  ) AS daily_counts
-  GROUP BY sport_id;
+    days_table.event_date,
+    regexp_replace(lower(trim(COALESCE(sports_table.name, court_sports_table.sport_id::text))), '[^a-z0-9]+', '', 'g') AS sport_identity,
+    COUNT(DISTINCT courts_table.id)::integer AS court_count
+  FROM public.championship_bracket_days AS days_table
+  JOIN public.championship_bracket_locations AS locations_table
+    ON locations_table.bracket_day_id = days_table.id
+  JOIN public.championship_bracket_courts AS courts_table
+    ON courts_table.bracket_location_id = locations_table.id
+  JOIN public.championship_bracket_court_sports AS court_sports_table
+    ON court_sports_table.bracket_court_id = courts_table.id
+  LEFT JOIN public.sports AS sports_table
+    ON sports_table.id = court_sports_table.sport_id
+  WHERE days_table.bracket_edition_id = bracket_edition_id
+  GROUP BY
+    days_table.event_date,
+    regexp_replace(lower(trim(COALESCE(sports_table.name, court_sports_table.sport_id::text))), '[^a-z0-9]+', '', 'g');
 
   INSERT INTO temp_day_court_counts (event_date, court_count)
   SELECT
-    event_date,
-    COUNT(*)::integer AS court_count
-  FROM (
-    SELECT DISTINCT
-      (schedule_day_record->>'date')::date AS event_date,
-      trim(COALESCE(court_record->>'name', '')) AS court_name
-    FROM jsonb_array_elements(COALESCE(_payload->'schedule_days', '[]'::jsonb)) AS schedule_day_record,
-         jsonb_array_elements(COALESCE(schedule_day_record->'locations', '[]'::jsonb)) AS location_record,
-         jsonb_array_elements(COALESCE(location_record->'courts', '[]'::jsonb)) AS court_record
-    WHERE trim(COALESCE(court_record->>'name', '')) <> ''
-  ) AS distinct_day_courts
-  GROUP BY event_date;
+    days_table.event_date,
+    COUNT(DISTINCT courts_table.id)::integer AS court_count
+  FROM public.championship_bracket_days AS days_table
+  JOIN public.championship_bracket_locations AS locations_table
+    ON locations_table.bracket_day_id = days_table.id
+  JOIN public.championship_bracket_courts AS courts_table
+    ON courts_table.bracket_location_id = locations_table.id
+  WHERE days_table.bracket_edition_id = bracket_edition_id
+  GROUP BY days_table.event_date;
+
+  DROP TABLE IF EXISTS temp_assigned_queue_slots;
+
+  CREATE TEMP TABLE temp_assigned_queue_slots (
+    scheduled_date DATE NOT NULL,
+    scheduled_slot INTEGER NOT NULL,
+    sport_id UUID NOT NULL,
+    sport_identity TEXT NOT NULL,
+    naipe public.match_naipe NOT NULL,
+    home_team_id UUID NOT NULL,
+    away_team_id UUID NOT NULL,
+    home_team_identity TEXT NOT NULL,
+    away_team_identity TEXT NOT NULL,
+    PRIMARY KEY (scheduled_date, scheduled_slot, sport_id, home_team_id, away_team_id)
+  ) ON COMMIT DROP;
+
 
   CREATE TEMP TABLE IF NOT EXISTS temp_pending_group_matches (
     competition_id UUID NOT NULL,
@@ -495,32 +518,26 @@ BEGIN
 
       group_match_slot := 1;
 
-      -- Circle Method (Round-Robin) para intercalar de forma justa por rodada (round_number)
       FOR round_idx IN 0 .. current_group_even_size - 2 LOOP
         round_match_index_val := 1;
+
         FOR match_idx IN 0 .. (current_group_even_size / 2) - 1 LOOP
-          -- Time A (Home)
           IF match_idx = 0 THEN
             home_idx := 0;
           ELSE
             home_idx := (round_idx + match_idx - 1) % (current_group_even_size - 1) + 1;
           END IF;
 
-          -- Time B (Away)
           away_idx := (current_group_even_size - 1 - match_idx + round_idx - 1) % (current_group_even_size - 1) + 1;
 
-          -- Convert to 1-based index for SQL array
           home_idx := home_idx + 1;
           away_idx := away_idx + 1;
 
-          -- Garantimos que nenhum dos index saia do out-of-bounds original se o array era ímpar
           IF home_idx <= group_team_count AND away_idx <= group_team_count THEN
             home_team_id_val := group_team_ids[home_idx];
             away_team_id_val := group_team_ids[away_idx];
 
-            -- Evitar matches entre mesmo time na logica bizonha e manter consistencia (ex: 1x2, não 2x1 as vezes)
             IF home_team_id_val IS NOT NULL AND away_team_id_val IS NOT NULL AND home_team_id_val != away_team_id_val THEN
-              -- Uma regra simples de home/away swap baseado na rodada pra balancear as colunas
               IF match_idx = 0 AND round_idx % 2 != 0 THEN
                 home_team_id_val := group_team_ids[away_idx];
                 away_team_id_val := group_team_ids[home_idx];
@@ -566,86 +583,125 @@ BEGIN
     END LOOP;
   END LOOP;
 
-  -- Interleaved match scheduling with minimum gap per day
-  last_queue_position_by_team := '{}'::jsonb;
-  global_queue_position := 1;
-  FOR pending_group_match_record IN
-    WITH sport_priorities AS (
-      SELECT sport_id, MIN(competition_priority) AS sport_priority
-      FROM temp_pending_group_matches
-      GROUP BY sport_id
-    ),
-    ranked_matches AS (
-      SELECT
-        m.*,
-        ROW_NUMBER() OVER (
-          PARTITION BY m.sport_id, m.round_number, m.round_match_index, m.group_number
-          ORDER BY 
-            CASE m.naipe
-              WHEN 'MASCULINO' THEN 1
-              WHEN 'FEMININO' THEN 2
-              WHEN 'MISTO' THEN 3
-              ELSE 4
-            END ASC,
-            m.competition_priority ASC,
-            m.group_match_slot ASC
-        ) AS row_id,
-        COALESCE(c.court_count, 1) AS court_count,
-        sp.sport_priority,
-        (SELECT MAX(group_number) FROM temp_pending_group_matches) AS max_groups
-      FROM temp_pending_group_matches m
-      LEFT JOIN temp_sport_court_counts c ON c.sport_id = m.sport_id
-      LEFT JOIN sport_priorities sp ON sp.sport_id = m.sport_id
-    )
+  DROP TABLE IF EXISTS temp_ordered_group_matches;
+
+  CREATE TEMP TABLE temp_ordered_group_matches (
+    row_id BIGSERIAL PRIMARY KEY,
+    competition_id UUID NOT NULL,
+    sport_id UUID NOT NULL,
+    sport_identity TEXT NOT NULL,
+    division public.team_division NULL,
+    group_id UUID NOT NULL,
+    group_number INTEGER NOT NULL,
+    naipe public.match_naipe NOT NULL,
+    round_number INTEGER NOT NULL,
+    round_match_index INTEGER NOT NULL,
+    competition_slot_number INTEGER NOT NULL,
+    home_team_id UUID NOT NULL,
+    away_team_id UUID NOT NULL,
+    home_team_identity TEXT NOT NULL,
+    away_team_identity TEXT NOT NULL,
+    scheduled_date DATE NOT NULL,
+    location_name TEXT NOT NULL
+  ) ON COMMIT DROP;
+
+  INSERT INTO temp_ordered_group_matches (
+    competition_id,
+    sport_id,
+    sport_identity,
+    division,
+    group_id,
+    group_number,
+    naipe,
+    round_number,
+    round_match_index,
+    competition_slot_number,
+    home_team_id,
+    away_team_id,
+    home_team_identity,
+    away_team_identity,
+    scheduled_date,
+    location_name
+  )
+  WITH sport_priorities AS (
     SELECT
-      ranked_matches.*
-    FROM ranked_matches
+      sport_id,
+      MIN(competition_priority) AS sport_priority
+    FROM temp_pending_group_matches
+    GROUP BY sport_id
+  )
+  SELECT
+    pending_matches_table.competition_id,
+    pending_matches_table.sport_id,
+    regexp_replace(lower(trim(COALESCE(sports_table.name, pending_matches_table.sport_id::text))), '[^a-z0-9]+', '', 'g') AS sport_identity,
+    pending_matches_table.division,
+    pending_matches_table.group_id,
+    pending_matches_table.group_number,
+    pending_matches_table.naipe,
+    pending_matches_table.round_number,
+    pending_matches_table.round_match_index,
+    pending_matches_table.competition_slot_number,
+    pending_matches_table.home_team_id,
+    pending_matches_table.away_team_id,
+    regexp_replace(lower(trim(COALESCE(home_teams_table.name, pending_matches_table.home_team_id::text))), '[^a-z0-9]+', '', 'g') AS home_team_identity,
+    regexp_replace(lower(trim(COALESCE(away_teams_table.name, pending_matches_table.away_team_id::text))), '[^a-z0-9]+', '', 'g') AS away_team_identity,
+    schedule_candidates.event_date,
+    schedule_candidates.location_name
+  FROM temp_pending_group_matches AS pending_matches_table
+  LEFT JOIN sport_priorities AS priorities_table
+    ON priorities_table.sport_id = pending_matches_table.sport_id
+  JOIN public.teams AS home_teams_table
+    ON home_teams_table.id = pending_matches_table.home_team_id
+  JOIN public.teams AS away_teams_table
+    ON away_teams_table.id = pending_matches_table.away_team_id
+  LEFT JOIN public.sports AS sports_table
+    ON sports_table.id = pending_matches_table.sport_id
+  JOIN LATERAL (
+    SELECT DISTINCT
+      days_table.event_date,
+      locations_table.name AS location_name,
+      days_table.start_time,
+      locations_table.position
+    FROM public.championship_bracket_days AS days_table
+    JOIN public.championship_bracket_locations AS locations_table
+      ON locations_table.bracket_day_id = days_table.id
+    JOIN public.championship_bracket_courts AS courts_table
+      ON courts_table.bracket_location_id = locations_table.id
+    JOIN public.championship_bracket_court_sports AS court_sports_table
+      ON court_sports_table.bracket_court_id = courts_table.id
+    WHERE days_table.bracket_edition_id = bracket_edition_id
+      AND court_sports_table.sport_id = pending_matches_table.sport_id
     ORDER BY
-      ranked_matches.round_number ASC,
-      ranked_matches.round_match_index ASC,
-      MOD(ranked_matches.group_number + ranked_matches.sport_priority, COALESCE(ranked_matches.max_groups, 1)) ASC,
-      CEIL(ranked_matches.row_id::numeric / ranked_matches.court_count::numeric) ASC,
-      CASE ranked_matches.naipe
-        WHEN 'MASCULINO' THEN 1
-        WHEN 'FEMININO' THEN 2
-        WHEN 'MISTO' THEN 3
-        ELSE 4
-      END ASC,
-      ranked_matches.sport_priority ASC,
-      ranked_matches.group_number ASC,
-      ranked_matches.row_id ASC
-  LOOP
-    -- Scheduling loop, with per-day min gap logic
-    home_key := pending_group_match_record.home_team_id::text || '|' || pending_group_match_record.naipe::text;
-    away_key := pending_group_match_record.away_team_id::text || '|' || pending_group_match_record.naipe::text;
+      days_table.event_date ASC,
+      days_table.start_time ASC,
+      locations_table.position ASC,
+      locations_table.name ASC
+    LIMIT 1
+  ) AS schedule_candidates ON TRUE
+  ORDER BY
+    pending_matches_table.round_number ASC,
+    pending_matches_table.round_match_index ASC,
+    CASE pending_matches_table.naipe
+      WHEN 'MASCULINO' THEN 1
+      WHEN 'FEMININO' THEN 2
+      WHEN 'MISTO' THEN 3
+      ELSE 4
+    END ASC,
+    priorities_table.sport_priority ASC,
+    md5(
+      pending_matches_table.group_id::text
+      || pending_matches_table.home_team_id::text
+      || pending_matches_table.away_team_id::text
+    ) ASC,
+    pending_matches_table.group_number ASC,
+    pending_matches_table.competition_priority ASC,
+    pending_matches_table.group_match_slot ASC;
 
-    last_home_queue := COALESCE((last_queue_position_by_team ->> home_key)::integer, 0);
-    last_away_queue := COALESCE((last_queue_position_by_team ->> away_key)::integer, 0);
-
-    -- Lookup the real scheduled day for this match candidate
-    SELECT schedule_candidates.event_date
+  WHILE EXISTS (SELECT 1 FROM temp_ordered_group_matches) LOOP
+    SELECT scheduled_date
     INTO selected_queue_date
-    FROM (
-      SELECT DISTINCT
-        days_table.event_date,
-        days_table.start_time,
-        locations_table.position,
-        locations_table.name AS location_name
-      FROM public.championship_bracket_days AS days_table
-      JOIN public.championship_bracket_locations AS locations_table
-        ON locations_table.bracket_day_id = days_table.id
-      JOIN public.championship_bracket_courts AS courts_table
-        ON courts_table.bracket_location_id = locations_table.id
-      JOIN public.championship_bracket_court_sports AS court_sports_table
-        ON court_sports_table.bracket_court_id = courts_table.id
-      WHERE days_table.bracket_edition_id = bracket_edition_id
-        AND court_sports_table.sport_id = pending_group_match_record.sport_id
-    ) AS schedule_candidates
-    ORDER BY
-      schedule_candidates.event_date ASC,
-      schedule_candidates.start_time ASC,
-      schedule_candidates.position ASC,
-      schedule_candidates.location_name ASC
+    FROM temp_ordered_group_matches
+    ORDER BY scheduled_date ASC, row_id ASC
     LIMIT 1;
 
     SELECT court_count
@@ -657,108 +713,163 @@ BEGIN
       selected_day_courts_count := 1;
     END IF;
 
-    min_queue_gap_for_candidate := selected_day_courts_count;
+    candidate_queue_position := COALESCE((
+      SELECT MAX(assigned_slots_table.scheduled_slot)
+      FROM temp_assigned_queue_slots AS assigned_slots_table
+      WHERE assigned_slots_table.scheduled_date = selected_queue_date
+    ), 0) + 1;
 
-    IF (last_home_queue = 0 OR global_queue_position - last_home_queue >= min_queue_gap_for_candidate)
-       AND (last_away_queue = 0 OR global_queue_position - last_away_queue >= min_queue_gap_for_candidate) THEN
-      -- Find location for the scheduled day
-      SELECT
-        schedule_candidates.location_name
-      INTO
-        selected_location_name
-      FROM (
-        SELECT DISTINCT
-          days_table.event_date,
-          days_table.start_time,
-          locations_table.position,
-          locations_table.name AS location_name
-        FROM public.championship_bracket_days AS days_table
-        JOIN public.championship_bracket_locations AS locations_table
-          ON locations_table.bracket_day_id = days_table.id
-        JOIN public.championship_bracket_courts AS courts_table
-          ON courts_table.bracket_location_id = locations_table.id
-        JOIN public.championship_bracket_court_sports AS court_sports_table
-          ON court_sports_table.bracket_court_id = courts_table.id
-        WHERE days_table.bracket_edition_id = bracket_edition_id
-          AND court_sports_table.sport_id = pending_group_match_record.sport_id
-          AND days_table.event_date = selected_queue_date
-      ) AS schedule_candidates
-      ORDER BY
-        schedule_candidates.start_time ASC,
-        schedule_candidates.position ASC,
-        schedule_candidates.location_name ASC
-      LIMIT 1;
+    LOOP
+      current_slot_match_count := 0;
 
-      IF selected_queue_date IS NULL OR selected_location_name IS NULL THEN
-        SELECT COALESCE(sports_table.name, pending_group_match_record.sport_id::text)
-        INTO sport_name
-        FROM public.sports AS sports_table
-        WHERE sports_table.id = pending_group_match_record.sport_id
-        LIMIT 1;
-        RAISE EXCEPTION 'Não há local compatível configurado para a modalidade %.', sport_name;
-      END IF;
+      FOR pending_group_match_record IN
+        SELECT *
+        FROM temp_ordered_group_matches
+        WHERE scheduled_date = selected_queue_date
+        ORDER BY row_id ASC
+      LOOP
+        EXIT WHEN current_slot_match_count >= selected_day_courts_count;
+        pending_home_team_identity := pending_group_match_record.home_team_identity;
+        pending_away_team_identity := pending_group_match_record.away_team_identity;
+        pending_sport_identity := pending_group_match_record.sport_identity;
 
-      INSERT INTO public.matches (
-        championship_id,
-        division,
-        naipe,
-        sport_id,
-        home_team_id,
-        away_team_id,
-        location,
-        court_name,
-        scheduled_date,
-        queue_position,
-        start_time,
-        end_time,
-        season_year,
-        status
-      ) VALUES (
-        _championship_id,
-        pending_group_match_record.division,
-        pending_group_match_record.naipe,
-        pending_group_match_record.sport_id,
-        pending_group_match_record.home_team_id,
-        pending_group_match_record.away_team_id,
-        selected_location_name,
-        NULL,
-        selected_queue_date,
-        global_queue_position,
-        NULL,
-        NULL,
-        championship_current_season_year,
-        'SCHEDULED'::public.match_status
-      )
-      RETURNING id INTO new_match_id;
+        SELECT COALESCE(sport_courts_table.court_count, 1)
+        INTO current_sport_slot_count
+        FROM temp_day_sport_court_counts AS sport_courts_table
+        WHERE sport_courts_table.event_date = selected_queue_date
+          AND sport_courts_table.sport_identity = pending_sport_identity;
 
-      INSERT INTO public.championship_bracket_matches (
-        bracket_edition_id,
-        competition_id,
-        group_id,
-        phase,
-        round_number,
-        slot_number,
-        match_id,
-        home_team_id,
-        away_team_id
-      ) VALUES (
-        bracket_edition_id,
-        pending_group_match_record.competition_id,
-        pending_group_match_record.group_id,
-        'GROUP_STAGE'::public.bracket_phase,
-        pending_group_match_record.round_number,
-        pending_group_match_record.competition_slot_number,
-        new_match_id,
-        pending_group_match_record.home_team_id,
-        pending_group_match_record.away_team_id
-      );
+        IF current_sport_slot_count IS NULL OR current_sport_slot_count < 1 THEN
+          current_sport_slot_count := 1;
+        END IF;
 
-      last_queue_position_by_team := jsonb_set(
-        jsonb_set(last_queue_position_by_team, ARRAY[home_key], to_jsonb(global_queue_position), true),
-        ARRAY[away_key], to_jsonb(global_queue_position), true
-      );
-      global_queue_position := global_queue_position + 1;
-    END IF;
+        SELECT COUNT(*)
+        INTO current_sport_slot_match_count
+        FROM temp_assigned_queue_slots AS assigned_slots_table
+        WHERE assigned_slots_table.scheduled_date = selected_queue_date
+          AND assigned_slots_table.scheduled_slot = candidate_queue_position
+          AND assigned_slots_table.sport_identity = pending_sport_identity;
+
+        IF current_sport_slot_match_count >= current_sport_slot_count THEN
+          CONTINUE;
+        END IF;
+
+        same_team_same_slot_conflict_exists := EXISTS (
+          SELECT 1
+          FROM temp_assigned_queue_slots AS assigned_slots_table
+          WHERE assigned_slots_table.scheduled_date = selected_queue_date
+            AND assigned_slots_table.scheduled_slot = candidate_queue_position
+            AND (
+              assigned_slots_table.home_team_identity IN (pending_home_team_identity, pending_away_team_identity)
+              OR assigned_slots_table.away_team_identity IN (pending_home_team_identity, pending_away_team_identity)
+            )
+        );
+
+        same_team_same_naipe_recent_conflict_exists := EXISTS (
+          SELECT 1
+          FROM temp_assigned_queue_slots AS assigned_slots_table
+          WHERE assigned_slots_table.scheduled_date = selected_queue_date
+            AND assigned_slots_table.naipe = pending_group_match_record.naipe
+            AND assigned_slots_table.scheduled_slot IN (candidate_queue_position, candidate_queue_position - 1)
+            AND (
+              assigned_slots_table.home_team_identity IN (pending_home_team_identity, pending_away_team_identity)
+              OR assigned_slots_table.away_team_identity IN (pending_home_team_identity, pending_away_team_identity)
+            )
+        );
+
+        IF same_team_same_slot_conflict_exists OR same_team_same_naipe_recent_conflict_exists THEN
+          CONTINUE;
+        END IF;
+
+
+        INSERT INTO public.matches (
+          championship_id,
+          division,
+          naipe,
+          sport_id,
+          home_team_id,
+          away_team_id,
+          location,
+          court_name,
+          scheduled_date,
+          scheduled_slot,
+          queue_position,
+          start_time,
+          end_time,
+          season_year,
+          status
+        ) VALUES (
+          _championship_id,
+          pending_group_match_record.division,
+          pending_group_match_record.naipe,
+          pending_group_match_record.sport_id,
+          pending_group_match_record.home_team_id,
+          pending_group_match_record.away_team_id,
+          pending_group_match_record.location_name,
+          NULL,
+          selected_queue_date,
+          candidate_queue_position,
+          candidate_queue_position,
+          NULL,
+          NULL,
+          championship_current_season_year,
+          'SCHEDULED'::public.match_status
+        )
+        RETURNING id INTO new_match_id;
+
+        INSERT INTO public.championship_bracket_matches (
+          bracket_edition_id,
+          competition_id,
+          group_id,
+          phase,
+          round_number,
+          slot_number,
+          match_id,
+          home_team_id,
+          away_team_id
+        ) VALUES (
+          bracket_edition_id,
+          pending_group_match_record.competition_id,
+          pending_group_match_record.group_id,
+          'GROUP_STAGE'::public.bracket_phase,
+          pending_group_match_record.round_number,
+          pending_group_match_record.competition_slot_number,
+          new_match_id,
+          pending_group_match_record.home_team_id,
+          pending_group_match_record.away_team_id
+        );
+
+        INSERT INTO temp_assigned_queue_slots (
+          scheduled_date,
+          scheduled_slot,
+          sport_id,
+          sport_identity,
+          naipe,
+          home_team_id,
+          away_team_id,
+          home_team_identity,
+          away_team_identity
+        ) VALUES (
+          selected_queue_date,
+          candidate_queue_position,
+          pending_group_match_record.sport_id,
+          pending_sport_identity,
+          pending_group_match_record.naipe,
+          pending_group_match_record.home_team_id,
+          pending_group_match_record.away_team_id,
+          pending_home_team_identity,
+          pending_away_team_identity
+        );
+
+        DELETE FROM temp_ordered_group_matches
+        WHERE row_id = pending_group_match_record.row_id;
+
+        current_slot_match_count := current_slot_match_count + 1;
+      END LOOP;
+
+      EXIT WHEN current_slot_match_count > 0;
+      candidate_queue_position := candidate_queue_position + 1;
+    END LOOP;
   END LOOP;
 
   UPDATE public.championship_bracket_editions
@@ -776,6 +887,6 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.generate_championship_bracket_groups(UUID, JSONB)
-IS 'Cria edição de chaveamento por temporada, gera confrontos da fase de grupos por round-robin, ordena a fila para priorizar ocupação de quadras simultâneas e aplica espaçamento mínimo entre jogos da mesma atlética no mesmo naipe com base na quantidade de quadras do dia do jogo.';
+IS 'Cria edição de chaveamento por temporada, gera confrontos da fase de grupos por round-robin e usa queue_position e scheduled_slot como o slot global do dia, limitado pela quantidade real de quadras disponíveis por dia e por modalidade. O algoritmo impede a mesma atlética no mesmo slot entre modalidades distintas, impede repetição da mesma atlética no mesmo naipe no slot atual ou no slot imediatamente seguinte e flexibiliza a ordem dos grupos para reduzir conflitos de agenda.';
 
 NOTIFY pgrst, 'reload schema';

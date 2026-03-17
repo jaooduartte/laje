@@ -7,6 +7,7 @@ import { AppBadge } from "@/components/ui/app-badge";
 import {
   type MatchBracketContext,
   TEAM_DIVISION_LABELS,
+  resolveMatchDisplaySlotValue,
   resolveMatchQueueLabel,
   resolveMatchNaipeBadgeTone,
   resolveMatchNaipeLabel,
@@ -53,7 +54,7 @@ export function MatchCard({
       ? "list-item-card list-item-card-live flex h-full w-full flex-col p-4 live-glow"
       : "list-item-card list-item-card-hover flex h-full w-full flex-col p-4";
   const scheduledDateValue = resolveMatchScheduledDateValue(match);
-  const scheduledQueueLabel = resolveMatchQueueLabel(match.queue_position);
+  const scheduledQueueLabel = resolveMatchQueueLabel(resolveMatchDisplaySlotValue(match));
   const scheduledDayLabel = scheduledDateValue
     ? `${format(new Date(`${scheduledDateValue}T12:00:00`), "dd/MM", { locale: ptBR })} • ${scheduledQueueLabel}`
     : scheduledQueueLabel;
