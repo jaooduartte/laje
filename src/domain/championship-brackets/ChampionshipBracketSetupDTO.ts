@@ -7,7 +7,9 @@ export class ChampionshipBracketSetupDTO {
     this.form_values = form_values;
   }
 
-  static fromFormValues(form_values: ChampionshipBracketSetupFormValues): ChampionshipBracketSetupDTO {
+  static fromFormValues(
+    form_values: ChampionshipBracketSetupFormValues,
+  ): ChampionshipBracketSetupDTO {
     return new ChampionshipBracketSetupDTO(form_values);
   }
 
@@ -22,14 +24,18 @@ export class ChampionshipBracketSetupDTO {
       }
 
       if (participant.modalities.length == 0) {
-        throw new Error("Cada atlética participante precisa ter ao menos uma modalidade/naipe.");
+        throw new Error(
+          "Cada atlética participante precisa ter ao menos uma modalidade/naipe.",
+        );
       }
     });
   }
 
   private validateCompetitions() {
     if (this.form_values.competitions.length == 0) {
-      throw new Error("Configure ao menos uma competição para geração de grupos.");
+      throw new Error(
+        "Configure ao menos uma competição para geração de grupos.",
+      );
     }
 
     this.form_values.competitions.forEach((competition) => {
@@ -42,7 +48,9 @@ export class ChampionshipBracketSetupDTO {
       }
 
       if (competition.qualifiers_per_group < 1) {
-        throw new Error("Quantidade de classificados por grupo deve ser maior que zero.");
+        throw new Error(
+          "Quantidade de classificados por grupo deve ser maior que zero.",
+        );
       }
 
       if (competition.groups.length == 0) {
@@ -57,7 +65,11 @@ export class ChampionshipBracketSetupDTO {
     }
 
     this.form_values.schedule_days.forEach((schedule_day) => {
-      if (!schedule_day.date || !schedule_day.start_time || !schedule_day.end_time) {
+      if (
+        !schedule_day.date ||
+        !schedule_day.start_time ||
+        !schedule_day.end_time
+      ) {
         throw new Error("Dia de agenda inválido: preencha data, início e fim.");
       }
 
@@ -71,7 +83,9 @@ export class ChampionshipBracketSetupDTO {
         }
 
         if (location.courts.length == 0) {
-          throw new Error(`O local ${location.name} precisa ter ao menos uma quadra.`);
+          throw new Error(
+            `O local ${location.name} precisa ter ao menos uma quadra.`,
+          );
         }
 
         location.courts.forEach((court) => {
@@ -80,7 +94,9 @@ export class ChampionshipBracketSetupDTO {
           }
 
           if (court.sport_ids.length == 0) {
-            throw new Error(`A quadra ${court.name} precisa ter ao menos uma modalidade vinculada.`);
+            throw new Error(
+              `A quadra ${court.name} precisa ter ao menos uma modalidade vinculada.`,
+            );
           }
         });
       });
@@ -92,44 +108,52 @@ export class ChampionshipBracketSetupDTO {
     this.validateCompetitions();
     this.validateScheduleDays();
 
-    const normalizedParticipants = this.form_values.participants.map((participant) => ({
-      team_id: participant.team_id,
-      modalities: participant.modalities.map((modality) => ({
-        sport_id: modality.sport_id,
-        naipe: modality.naipe,
-        division: modality.division,
-      })),
-    }));
-
-    const normalizedCompetitions = this.form_values.competitions.map((competition) => ({
-      sport_id: competition.sport_id,
-      naipe: competition.naipe,
-      division: competition.division,
-      groups_count: competition.groups_count,
-      qualifiers_per_group: competition.qualifiers_per_group,
-      third_place_mode: competition.third_place_mode,
-      groups: competition.groups.map((group) => ({
-        group_number: group.group_number,
-        team_ids: [...new Set(group.team_ids)],
-      })),
-    }));
-
-    const normalizedScheduleDays = this.form_values.schedule_days.map((scheduleDay) => ({
-      date: scheduleDay.date,
-      start_time: scheduleDay.start_time,
-      end_time: scheduleDay.end_time,
-      break_start_time: null,
-      break_end_time: null,
-      locations: scheduleDay.locations.map((location) => ({
-        name: location.name.trim(),
-        position: location.position,
-        courts: location.courts.map((court) => ({
-          name: court.name.trim(),
-          position: court.position,
-          sport_ids: [...new Set(court.sport_ids)],
+    const normalizedParticipants = this.form_values.participants.map(
+      (participant) => ({
+        team_id: participant.team_id,
+        modalities: participant.modalities.map((modality) => ({
+          sport_id: modality.sport_id,
+          naipe: modality.naipe,
+          division: modality.division,
         })),
-      })),
-    }));
+      }),
+    );
+
+    const normalizedCompetitions = this.form_values.competitions.map(
+      (competition) => ({
+        sport_id: competition.sport_id,
+        naipe: competition.naipe,
+        division: competition.division,
+        groups_count: competition.groups_count,
+        qualifiers_per_group: competition.qualifiers_per_group,
+        should_complete_knockout_with_best_second_placed_teams:
+          competition.qualifiers_per_group == 1,
+        third_place_mode: competition.third_place_mode,
+        groups: competition.groups.map((group) => ({
+          group_number: group.group_number,
+          team_ids: [...new Set(group.team_ids)],
+        })),
+      }),
+    );
+
+    const normalizedScheduleDays = this.form_values.schedule_days.map(
+      (scheduleDay) => ({
+        date: scheduleDay.date,
+        start_time: scheduleDay.start_time,
+        end_time: scheduleDay.end_time,
+        break_start_time: null,
+        break_end_time: null,
+        locations: scheduleDay.locations.map((location) => ({
+          name: location.name.trim(),
+          position: location.position,
+          courts: location.courts.map((court) => ({
+            name: court.name.trim(),
+            position: court.position,
+            sport_ids: [...new Set(court.sport_ids)],
+          })),
+        })),
+      }),
+    );
 
     return {
       participants: normalizedParticipants,

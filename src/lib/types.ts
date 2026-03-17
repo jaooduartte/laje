@@ -292,6 +292,7 @@ export interface ChampionshipBracketCompetition {
   division: TeamDivision | null;
   groups_count: number;
   qualifiers_per_group: number;
+  should_complete_knockout_with_best_second_placed_teams?: boolean | null;
   third_place_mode: BracketThirdPlaceMode;
   groups: ChampionshipBracketGroup[];
   knockout_matches: ChampionshipBracketKnockoutMatch[];
