@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { resolveMatchDisplaySlotValue } from "@/lib/championship";
 import { useMatches } from "@/hooks/useMatches";
 import { useStandings } from "@/hooks/useStandings";
 import { useSports } from "@/hooks/useSports";
@@ -101,7 +102,7 @@ export function ChampionshipsPage() {
           return firstScheduledDate.localeCompare(secondScheduledDate);
         }
 
-        return (firstMatch.queue_position ?? Number.MAX_SAFE_INTEGER) - (secondMatch.queue_position ?? Number.MAX_SAFE_INTEGER);
+        return resolveMatchDisplaySlotValue(firstMatch) - resolveMatchDisplaySlotValue(secondMatch);
       });
   }, [currentSeasonMatches]);
 

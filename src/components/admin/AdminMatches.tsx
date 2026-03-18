@@ -73,6 +73,55 @@ import {
 } from "@/components/ui/app-pagination-controls";
 import { SportFilter } from "@/components/SportFilter";
 
+type BracketMatchRowLite = {
+  id: string;
+  slot_number: number | null;
+};
+
+type SupabaseLooseQueryError = {
+  message: string;
+};
+
+type SupabaseLooseQueryResult<TData> = {
+  data: TData | null;
+  error: SupabaseLooseQueryError | null;
+};
+
+type SupabaseLooseOrderOptions = {
+  ascending?: boolean;
+};
+
+type SupabaseLooseSelectBuilder<TData> = {
+  eq: (column: string, value: string) => SupabaseLooseSelectBuilder<TData>;
+  order: (column: string, options?: SupabaseLooseOrderOptions) => SupabaseLooseSelectBuilder<TData>;
+  limit: (count: number) => Promise<SupabaseLooseQueryResult<TData>>;
+};
+
+type SupabaseLooseTableClient = {
+  select: (columns: string) => SupabaseLooseSelectBuilder<unknown[]>;
+  insert: (values: Record<string, unknown>) => Promise<SupabaseLooseQueryResult<unknown>>;
+  update: (values: Record<string, unknown>) => {
+    eq: (column: string, value: string) => Promise<SupabaseLooseQueryResult<unknown>>;
+  };
+};
+
+type SupabaseLooseClient = {
+  from: (table: string) => SupabaseLooseTableClient;
+};
+
+const supabaseLoose = supabase as unknown as SupabaseLooseClient;
+
+function resolveMatchDisplaySlotValue(
+  match: Match & { scheduled_slot?: number | null },
+  shouldUseScheduledSlot: boolean,
+) {
+  if (shouldUseScheduledSlot) {
+    return match.scheduled_slot ?? match.queue_position ?? Number.MAX_SAFE_INTEGER;
+  }
+
+  return match.queue_position ?? match.scheduled_slot ?? Number.MAX_SAFE_INTEGER;
+}
+
 interface Props {
   matches: Match[];
   championshipSports: ChampionshipSport[];
@@ -132,9 +181,15 @@ function resolveScheduledDateDraftValue(match: Match): Date | null {
   return new Date(`${scheduledDateValue}T12:00:00`);
 }
 
-function resolveScheduledQueueSummary(match: Match): string {
+function resolveScheduledQueueSummary(
+  match: Match & { scheduled_slot?: number | null },
+  shouldUseScheduledSlot: boolean,
+): string {
   const scheduledDateValue = resolveMatchScheduledDateValue(match);
-  const queueLabel = resolveMatchQueueLabel(match.queue_position);
+  const displayedQueueValue = shouldUseScheduledSlot
+    ? (match.scheduled_slot ?? match.queue_position ?? null)
+    : (match.queue_position ?? match.scheduled_slot ?? null);
+  const queueLabel = resolveMatchQueueLabel(displayedQueueValue);
 
   if (!scheduledDateValue) {
     return queueLabel;
@@ -604,6 +659,7 @@ export function AdminMatches({
     pendingTieBreakContexts.length,
   ]);
 
+  const shouldUseScheduledSlotInMatchList = matchesSportFilter === ALL_MATCHES_SPORT_FILTER;
   const filteredAndSortedMatches = useMemo(() => {
     return [...matches]
       .filter((match) => {
@@ -662,15 +718,23 @@ export function AdminMatches({
         }
 
         if (firstMatch.status == MatchStatus.SCHEDULED && secondMatch.status == MatchStatus.SCHEDULED) {
-          const firstScheduledDate = resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
-          const secondScheduledDate = resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
+  const firstScheduledDate = resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
+  const secondScheduledDate = resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
 
-          if (firstScheduledDate != secondScheduledDate) {
-            return firstScheduledDate.localeCompare(secondScheduledDate);
-          }
+  if (firstScheduledDate != secondScheduledDate) {
+    return firstScheduledDate.localeCompare(secondScheduledDate);
+  }
 
-          return (firstMatch.queue_position ?? Number.MAX_SAFE_INTEGER) - (secondMatch.queue_position ?? Number.MAX_SAFE_INTEGER);
-        }
+  const slotDifference =
+    resolveMatchDisplaySlotValue(firstMatch, shouldUseScheduledSlotInMatchList) -
+    resolveMatchDisplaySlotValue(secondMatch, shouldUseScheduledSlotInMatchList);
+
+  if (slotDifference != 0) {
+    return slotDifference;
+  }
+
+  return firstMatch.created_at.localeCompare(secondMatch.created_at);
+}
 
         if (firstMatch.status == MatchStatus.FINISHED && secondMatch.status == MatchStatus.FINISHED) {
           const firstTimestamp = new Date(firstMatch.end_time ?? firstMatch.start_time ?? firstMatch.created_at).getTime();
@@ -686,6 +750,7 @@ export function AdminMatches({
       });
   }, [
     championshipUsesDivisions,
+    shouldUseScheduledSlotInMatchList,
     matchBracketContextByMatchId,
     matches,
     matchesDivisionFilter,
@@ -864,13 +929,15 @@ export function AdminMatches({
   }, [awayTeamId, homeTeamId, selectedCreateGroupOption]);
 
   const resolveNextGroupStageSlotNumber = async (competitionId: string) => {
-    const { data: competitionBracketMatches, error: fetchBracketSlotError } = await supabase
-      .from("championship_bracket_matches")
-      .select("slot_number")
-      .eq("competition_id", competitionId)
-      .eq("phase", BracketPhase.GROUP_STAGE)
-      .order("slot_number", { ascending: false })
-      .limit(1);
+    const { data: competitionBracketMatches, error: fetchBracketSlotError } = await supabaseLoose
+  .from("championship_bracket_matches")
+  .select("slot_number")
+  .eq("competition_id", competitionId)
+  .eq("phase", BracketPhase.GROUP_STAGE)
+  .order("slot_number", { ascending: false })
+  .limit(1);
+
+const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as BracketMatchRowLite[];
 
     if (fetchBracketSlotError) {
       return {
@@ -880,7 +947,7 @@ export function AdminMatches({
     }
 
     return {
-      slotNumber: (competitionBracketMatches?.[0]?.slot_number ?? 0) + 1,
+      slotNumber: (typedCompetitionBracketMatches[0]?.slot_number ?? 0) + 1,
       errorMessage: null,
     };
   };
@@ -915,7 +982,7 @@ export function AdminMatches({
       };
     }
 
-    const { error: bracketInsertError } = await supabase.from("championship_bracket_matches").insert({
+    const { error: bracketInsertError } = await supabaseLoose.from("championship_bracket_matches").insert({
       bracket_edition_id: championshipBracketView.edition.id,
       competition_id: selectedGroupOption.competition_id,
       group_id: selectedGroupOption.group_id,
@@ -1301,10 +1368,10 @@ export function AdminMatches({
         nextBracketMatchPayload.slot_number = nextSlotNumberResponse.slotNumber;
       }
 
-      const { error: bracketMatchError } = await supabase
-        .from("championship_bracket_matches")
-        .update(nextBracketMatchPayload)
-        .eq("match_id", editingMatchId);
+      const { error: bracketMatchError } = await supabaseLoose
+  .from("championship_bracket_matches")
+  .update(nextBracketMatchPayload)
+  .eq("match_id", editingMatchId);
 
       if (bracketMatchError) {
         setSavingEditingMatch(false);
@@ -1649,7 +1716,7 @@ export function AdminMatches({
 
                           <div className="space-y-0.5 text-xs text-muted-foreground">
                             <p>Local: {match.location}</p>
-                            <p>Fila: {resolveScheduledQueueSummary(match)}</p>
+                            <p>Fila: {resolveScheduledQueueSummary(match, shouldUseScheduledSlotInMatchList)}</p>
                             {startedAtLabel ? <p>{startedAtLabel}</p> : null}
                             {isSetMatch && match.status != MatchStatus.SCHEDULED ? (
                               <p>Sets ganhos: {match.home_score} × {match.away_score}</p>

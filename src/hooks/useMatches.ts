@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Match } from "@/lib/types";
 import { MatchStatus } from "@/lib/enums";
-import { resolveMatchScheduledDateValue } from "@/lib/championship";
+import { resolveMatchDisplaySlotValue, resolveMatchScheduledDateValue } from "@/lib/championship";
 import type { MatchSetInput } from "@/domain/championship-brackets/championshipBracket.types";
 
 interface UseMatchesOptions {
@@ -34,9 +34,10 @@ export function useMatches({ championshipId, seasonYear }: UseMatchesOptions = {
         .select(
           "*, championships(*), sports(*), home_team:teams!matches_home_team_id_fkey(*), away_team:teams!matches_away_team_id_fkey(*)",
         )
-        .order("scheduled_date", { ascending: true })
-        .order("queue_position", { ascending: true })
-        .order("created_at", { ascending: true });
+          .order("scheduled_date", { ascending: true })
+          .order("scheduled_slot", { ascending: true })
+          .order("queue_position", { ascending: true })
+          .order("created_at", { ascending: true });
 
       if (championshipId) {
         query = query.eq("championship_id", championshipId);
@@ -197,7 +198,7 @@ export function useMatches({ championshipId, seasonYear }: UseMatchesOptions = {
           return firstScheduledDate.localeCompare(secondScheduledDate);
         }
 
-        return (firstMatch.queue_position ?? Number.MAX_SAFE_INTEGER) - (secondMatch.queue_position ?? Number.MAX_SAFE_INTEGER);
+        return (resolveMatchDisplaySlotValue(firstMatch) ?? Number.MAX_SAFE_INTEGER) - (resolveMatchDisplaySlotValue(secondMatch) ?? Number.MAX_SAFE_INTEGER);
       });
   }, [matches]);
 
