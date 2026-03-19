@@ -15,6 +15,14 @@ export interface ChampionshipBracketKnockoutProjection {
   uses_best_second_placed_teams: boolean;
 }
 
+function resolveOrdinalPlacementLabel(position: number): string {
+  return `${position}º`;
+}
+
+function resolveBestPlacedLabel(position: number, placing: "1º" | "2º"): string {
+  return `${resolveOrdinalPlacementLabel(position)} melhor ${placing}`;
+}
+
 function resolveProjectedBracketSize(qualified_team_count: number): number {
   if (qualified_team_count < 2) {
     return qualified_team_count;
@@ -35,10 +43,19 @@ export function resolveChampionshipBracketKnockoutProjection(
   const groups_count = Math.max(0, input.groups_count);
   const qualifiers_per_group = Math.max(1, input.qualifiers_per_group);
   const direct_qualified_team_count = groups_count * qualifiers_per_group;
-  const projected_bracket_size = resolveProjectedBracketSize(
-    direct_qualified_team_count,
-  );
-  const uses_best_second_placed_teams = qualifiers_per_group == 1;
+  const uses_best_second_placed_teams =
+    qualifiers_per_group == 1 &&
+    input.should_complete_knockout_with_best_second_placed_teams == true;
+  let projected_bracket_size = resolveProjectedBracketSize(direct_qualified_team_count);
+
+  if (uses_best_second_placed_teams && direct_qualified_team_count >= 2) {
+    projected_bracket_size = 2;
+
+    while (projected_bracket_size <= direct_qualified_team_count) {
+      projected_bracket_size *= 2;
+    }
+  }
+
   const best_second_placed_team_count = uses_best_second_placed_teams
     ? Math.max(0, projected_bracket_size - direct_qualified_team_count)
     : 0;
@@ -72,7 +89,10 @@ export function resolveChampionshipBracketQualificationSummary(
     projection.uses_best_second_placed_teams &&
     projection.best_second_placed_team_count > 0
   ) {
-    return `${projection.projected_bracket_size} vagas: 1º de cada grupo + ${projection.best_second_placed_team_count} ${projection.best_second_placed_team_count == 1 ? "melhor 2º" : "melhores 2º"}`;
+    const bestFirstPlacedLabel = `${projection.direct_qualified_team_count} melhores 1º`;
+    const bestSecondPlacedLabel = `${projection.best_second_placed_team_count} ${projection.best_second_placed_team_count == 1 ? "melhor 2º" : "melhores 2º"}`;
+
+    return `${projection.projected_bracket_size} vagas: ${bestFirstPlacedLabel} + ${bestSecondPlacedLabel}`;
   }
 
   return `${projection.direct_qualified_team_count} vaga${projection.direct_qualified_team_count == 1 ? "" : "s"}: 1º de cada grupo`;
@@ -104,29 +124,42 @@ export function resolveChampionshipBracketSeedPlaceholderLabels(
     return seed_labels;
   }
 
-  for (
-    let group_number = 1;
-    group_number <= input.groups_count;
-    group_number += 1
+  if (
+    projection.uses_best_second_placed_teams &&
+    projection.best_second_placed_team_count > 0
   ) {
-    seed_labels.push(`1º do ${resolveChampionshipGroupLabel(group_number)}`);
-  }
+    for (
+      let firstPlaceIndex = 1;
+      firstPlaceIndex <= input.groups_count;
+      firstPlaceIndex += 1
+    ) {
+      seed_labels.push(resolveBestPlacedLabel(firstPlaceIndex, "1º"));
+    }
 
-  if (input.qualifiers_per_group == 2) {
+    for (
+      let secondPlaceIndex = 1;
+      secondPlaceIndex <= projection.best_second_placed_team_count;
+      secondPlaceIndex += 1
+    ) {
+      seed_labels.push(resolveBestPlacedLabel(secondPlaceIndex, "2º"));
+    }
+  } else {
     for (
       let group_number = 1;
       group_number <= input.groups_count;
       group_number += 1
     ) {
-      seed_labels.push(`2º do ${resolveChampionshipGroupLabel(group_number)}`);
+      seed_labels.push(`1º do ${resolveChampionshipGroupLabel(group_number)}`);
     }
-  } else if (projection.uses_best_second_placed_teams) {
-    for (
-      let second_place_index = 1;
-      second_place_index <= projection.best_second_placed_team_count;
-      second_place_index += 1
-    ) {
-      seed_labels.push(`Melhor 2º ${second_place_index}`);
+
+    if (input.qualifiers_per_group == 2) {
+      for (
+        let group_number = 1;
+        group_number <= input.groups_count;
+        group_number += 1
+      ) {
+        seed_labels.push(`2º do ${resolveChampionshipGroupLabel(group_number)}`);
+      }
     }
   }
 

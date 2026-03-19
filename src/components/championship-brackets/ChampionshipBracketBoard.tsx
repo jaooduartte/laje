@@ -69,13 +69,6 @@ interface BracketConnectorDisplay {
   path: string;
 }
 
-interface BracketTitleDisplay {
-  id: string;
-  label: string;
-  x: number;
-  y: number;
-}
-
 interface DesktopBracketLayout {
   width: number;
   height: number;
@@ -85,7 +78,6 @@ interface DesktopBracketLayout {
   final_match: PlacedBracketMatchDisplay | null;
   third_place_match: PlacedBracketMatchDisplay | null;
   connectors: BracketConnectorDisplay[];
-  titles: BracketTitleDisplay[];
 }
 
 const ALL_FILTER = "ALL_FILTER";
@@ -94,7 +86,7 @@ const DESKTOP_FINAL_CARD_WIDTH = 280;
 const DESKTOP_CARD_HEIGHT = 236;
 const DESKTOP_COLUMN_GAP = 40;
 const DESKTOP_VERTICAL_GAP = 44;
-const DESKTOP_TOP_OFFSET = 64;
+const DESKTOP_TOP_OFFSET = 20;
 const DESKTOP_THIRD_PLACE_GAP = 96;
 const DESKTOP_LAYOUT_HORIZONTAL_PADDING = 32;
 
@@ -220,8 +212,8 @@ function resolveProjectedKnockoutRounds(
 
     for (let slotNumber = 1; slotNumber <= matchesInRound; slotNumber += 1) {
       const knockoutMatch = knockoutMatchByRoundAndSlot.get(`${roundNumber}:${slotNumber}:false`) ?? null;
-      const homeSeedIndex = (slotNumber - 1) * 2;
-      const awaySeedIndex = homeSeedIndex + 1;
+      const homeSeedIndex = roundNumber == 1 ? slotNumber - 1 : (slotNumber * 2) - 1;
+      const awaySeedIndex = roundNumber == 1 ? bracketSize - slotNumber : slotNumber * 2;
       const homePlaceholderLabel =
         roundNumber == 1
           ? seedLabels[homeSeedIndex] ?? "BYE"
@@ -340,18 +332,8 @@ function resolveDesktopBracketLayout(projectedRounds: ProjectedKnockoutRoundDisp
     (thirdPlaceMatch ? DESKTOP_THIRD_PLACE_GAP + DESKTOP_CARD_HEIGHT : 0) +
     16;
 
-  const titles: BracketTitleDisplay[] = [];
   const leftMatches: PlacedBracketMatchDisplay[][] = [];
   const rightMatches: PlacedBracketMatchDisplay[][] = [];
-
-  if (finalMatch) {
-    titles.push({
-      id: `round-title-final-${finalMatch.id}`,
-      label: resolveKnockoutRoundLabel(finalMatch.round_number, totalRounds),
-      x: finalColumnX + (finalCardWidth / 2),
-      y: 18,
-    });
-  }
 
   for (let roundIndex = 0; roundIndex < sideRoundCount; roundIndex += 1) {
     const roundNumber = roundIndex + 1;
@@ -360,7 +342,6 @@ function resolveDesktopBracketLayout(projectedRounds: ProjectedKnockoutRoundDisp
     const leftRoundX = roundIndex * (DESKTOP_CARD_WIDTH + DESKTOP_COLUMN_GAP);
     const rightRoundX =
       rightSideStartX + ((sideRoundCount - roundIndex - 1) * (DESKTOP_CARD_WIDTH + DESKTOP_COLUMN_GAP));
-    const roundLabel = resolveKnockoutRoundLabel(roundNumber, totalRounds);
     const leftRoundMatches = currentRound.matches.slice(0, sideMatchCount).map((projectedMatch, localSlotIndex) => ({
       ...projectedMatch,
       ...resolvePlacedMatchLabels(projectedMatch),
@@ -375,19 +356,6 @@ function resolveDesktopBracketLayout(projectedRounds: ProjectedKnockoutRoundDisp
       x: rightRoundX,
       y: resolveSideMatchTop(roundNumber, localSlotIndex, verticalUnit),
     }));
-
-    titles.push({
-      id: `round-title-left-${roundNumber}`,
-      label: roundLabel,
-      x: leftRoundX + (DESKTOP_CARD_WIDTH / 2),
-      y: 18,
-    });
-    titles.push({
-      id: `round-title-right-${roundNumber}`,
-      label: roundLabel,
-      x: rightRoundX + (DESKTOP_CARD_WIDTH / 2),
-      y: 18,
-    });
 
     leftMatches.push(leftRoundMatches);
     rightMatches.push(rightRoundMatches);
@@ -461,15 +429,6 @@ function resolveDesktopBracketLayout(projectedRounds: ProjectedKnockoutRoundDisp
     });
   });
 
-  if (placedThirdPlaceMatch) {
-    titles.push({
-      id: `round-title-third-place-${placedThirdPlaceMatch.id}`,
-      label: resolveKnockoutRoundLabel(placedThirdPlaceMatch.round_number, totalRounds, true),
-      x: placedThirdPlaceMatch.x + (placedThirdPlaceMatch.card_width / 2),
-      y: DESKTOP_TOP_OFFSET + placedThirdPlaceMatch.y - 20,
-    });
-  }
-
   return {
     width,
     height,
@@ -479,7 +438,6 @@ function resolveDesktopBracketLayout(projectedRounds: ProjectedKnockoutRoundDisp
     final_match: placedFinalMatch,
     third_place_match: placedThirdPlaceMatch,
     connectors,
-    titles,
   };
 }
 
@@ -703,19 +661,6 @@ function DesktopBracketCanvas({
               />
             ))}
           </svg>
-
-          {desktopBracketLayout.titles.map((title) => (
-            <div
-              key={title.id}
-              className="absolute -translate-x-1/2 text-center text-sm font-semibold text-foreground/90"
-              style={{
-                left: `${title.x}px`,
-                top: `${title.y}px`,
-              }}
-            >
-              {title.label}
-            </div>
-          ))}
 
           {desktopBracketLayout.left_matches.flatMap((roundMatches) =>
             roundMatches.map((projectedMatch) => (
@@ -979,10 +924,6 @@ export function ChampionshipBracketBoard({
                 <div className="space-y-4 md:hidden">
                   {mainProjectedRounds.map((projectedRound) => (
                     <div key={`${competition.id}-mobile-round-${projectedRound.round_number}`} className="space-y-3">
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                        {resolveKnockoutRoundLabel(projectedRound.round_number, totalRounds)}
-                      </p>
-
                       <div className="space-y-3">
                         {projectedRound.matches.map((projectedMatch) => (
                           <BracketMatchCard
@@ -1000,9 +941,6 @@ export function ChampionshipBracketBoard({
 
                   {thirdPlaceMatch ? (
                     <div className="space-y-3">
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                        {resolveKnockoutRoundLabel(thirdPlaceMatch.round_number, totalRounds, true)}
-                      </p>
                       <BracketMatchCard projectedMatch={thirdPlaceMatch} totalRounds={totalRounds} />
                     </div>
                   ) : null}
