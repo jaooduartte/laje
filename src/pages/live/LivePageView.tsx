@@ -9,6 +9,7 @@ import {
   DEFAULT_PAGINATION_ITEMS_PER_PAGE,
 } from "@/components/ui/app-pagination-controls";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsNavigationList, TabsNavigationTrigger } from "@/components/ui/tabs";
 import type { Championship, Match, Sport } from "@/lib/types";
 import type { ChampionshipBracketView } from "@/lib/types";
@@ -16,7 +17,7 @@ import type { MatchBracketContext } from "@/lib/championship";
 import { MatchNaipe } from "@/lib/enums";
 import { MATCH_NAIPE_LABELS } from "@/lib/championship";
 import type { TeamStandingAggregate } from "@/lib/standings";
-import { Loader2 } from "lucide-react";
+import { HelpCircle, Loader2 } from "lucide-react";
 import { ChampionshipBracketBoard } from "@/components/championship-brackets/ChampionshipBracketBoard";
 
 interface LivePageViewProps {
@@ -139,7 +140,24 @@ export function LivePageView({
             ) : null}
 
             <section className="glass-panel enter-section space-y-4 p-5">
-              <h2 className="mb-4 text-center text-xl font-display font-bold sm:text-left">Próximos Jogos</h2>
+              <div className="mb-4 flex items-center justify-center gap-2 sm:justify-start">
+                <h2 className="text-center text-xl font-display font-bold sm:text-left">Próximos Jogos</h2>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border/70 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                      aria-label="Ajuda sobre ordenação dos próximos jogos"
+                    >
+                      <HelpCircle className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs text-xs">
+                    Os próximos jogos são ordenados pela fila operacional de cada modalidade, considerando as quadras
+                    disponíveis.
+                  </TooltipContent>
+                </Tooltip>
+              </div>
           {filteredUpcomingMatches.length == 0 ? (
             <p className="text-center text-sm text-muted-foreground sm:text-left">Nenhum jogo agendado.</p>
           ) : (

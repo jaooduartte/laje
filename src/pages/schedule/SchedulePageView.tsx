@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Loader2 } from "lucide-react";
+import { HelpCircle, Loader2 } from "lucide-react";
 import { Header } from "@/components/Header";
 import { MatchCard } from "@/components/MatchCard";
 import { SportFilter } from "@/components/SportFilter";
@@ -10,6 +10,7 @@ import {
   DEFAULT_PAGINATION_ITEMS_PER_PAGE,
 } from "@/components/ui/app-pagination-controls";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Championship, Match, Sport, Team } from "@/lib/types";
 import type { BracketGroupFilterOption, MatchBracketContext } from "@/lib/championship";
 import { TeamDivision } from "@/lib/enums";
@@ -140,7 +141,24 @@ export function SchedulePageView({
       <Header />
       <main className="container py-8 space-y-5">
         <section className="glass-panel enter-section p-5">
-          <h1 className="text-2xl font-display font-bold">Agenda de Jogos</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-display font-bold">Agenda de Jogos</h1>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border/70 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                  aria-label="Ajuda sobre ordenação da agenda"
+                >
+                  <HelpCircle className="h-3.5 w-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs text-xs">
+                A agenda segue a fila operacional de cada modalidade, distribuindo os jogos conforme as quadras
+                disponíveis.
+              </TooltipContent>
+            </Tooltip>
+          </div>
         </section>
 
         <div className="glass-panel enter-section flex flex-wrap items-center gap-4 p-4">

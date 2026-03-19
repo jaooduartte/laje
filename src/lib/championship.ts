@@ -216,7 +216,7 @@ export function isMatchNaipe(value: string): value is MatchNaipe {
 }
 
 export function resolveMatchDisplaySlotValue(match: Match & { scheduled_slot?: number | null }) {
-  return match.scheduled_slot ?? match.queue_position ?? Number.MAX_SAFE_INTEGER;
+  return match.queue_position ?? match.scheduled_slot ?? Number.MAX_SAFE_INTEGER;
 }
 
 export function resolveMatchNaipeBadgeTone(naipe: string): AppBadgeTone {
@@ -318,10 +318,17 @@ export function resolveInterleavedScheduledMatchesByCompetition<
   return Object.keys(scheduledMatchesByDate)
     .sort((firstDate, secondDate) => firstDate.localeCompare(secondDate))
     .flatMap((scheduledDateValue) => {
+      const currentDateMatches = scheduledMatchesByDate[scheduledDateValue];
+      const uniqueSportIds = new Set(currentDateMatches.map((scheduledMatch) => scheduledMatch.sport_id));
+
+      if (uniqueSportIds.size <= 1) {
+        return currentDateMatches;
+      }
+
       const competitionMatchesByKey = new Map<string, MatchItem[]>();
       const orderedCompetitionKeys: string[] = [];
 
-      scheduledMatchesByDate[scheduledDateValue].forEach((scheduledMatch) => {
+      currentDateMatches.forEach((scheduledMatch) => {
         const competitionKey = resolveMatchCompetitionKey(scheduledMatch);
 
         if (!competitionMatchesByKey.has(competitionKey)) {
