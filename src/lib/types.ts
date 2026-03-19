@@ -5,6 +5,8 @@ import type {
   AdminPanelRole,
   AdminPanelTab,
   AdminUserPasswordStatus,
+  LeagueCalendarHolidayDayKind,
+  LeagueCalendarHolidayScope,
   LeagueEventOrganizerType,
   LeagueEventType,
   ChampionshipCode,
@@ -138,6 +140,16 @@ export interface LeagueEvent {
   updated_at: string;
   organizer_team?: Team | null;
   organizer_teams?: Team[];
+}
+
+export interface LeagueCalendarHoliday {
+  id: string;
+  holiday_date: string;
+  name: string;
+  scope: LeagueCalendarHolidayScope;
+  day_kind: LeagueCalendarHolidayDayKind;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface AdminActionLog {

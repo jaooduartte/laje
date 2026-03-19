@@ -626,16 +626,16 @@ function DesktopBracketCanvas({
   return (
     <div
       ref={desktopBracketCanvasReference}
-      className="hidden rounded-2xl border border-border/30 bg-background/30 p-4 md:block"
+      className="hidden rounded-2xl border border-border/30 bg-background/30 px-6 py-5 md:block"
     >
       <div
-        className="flex justify-center"
+        className="flex w-full items-start justify-center overflow-visible"
         style={{
-          height: `${desktopBracketLayout.height * desktopBracketScale}px`,
+          height: `${desktopBracketLayout.height * desktopBracketScale + 32}px`,
         }}
       >
         <div
-          className="relative"
+          className="relative mx-auto shrink-0"
           style={{
             width: `${desktopBracketLayout.width}px`,
             height: `${desktopBracketLayout.height}px`,
