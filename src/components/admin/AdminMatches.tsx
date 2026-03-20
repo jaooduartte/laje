@@ -1683,7 +1683,9 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
                           ) : null}
 
                           <span className="shrink-0 text-xs font-medium uppercase text-muted-foreground">{match.sports?.name}</span>
+                        </div>
 
+                        <div className="flex w-full items-center gap-2 overflow-x-auto pb-1">
                           <AppBadge tone={resolveMatchNaipeBadgeTone(String(match.naipe))} className="shrink-0 whitespace-nowrap">
                             {resolveMatchNaipeLabel(String(match.naipe))}
                           </AppBadge>
@@ -1864,13 +1866,14 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
         }}
       >
         {editingMatch && editingMatchDraft ? (
-          <DialogContent className="sm:max-w-4xl">
-            <DialogHeader>
+          <DialogContent className="flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col overflow-hidden sm:w-full sm:max-w-4xl">
+            <DialogHeader className="shrink-0">
               <DialogTitle>Editar jogo - {selectedChampionship.name}</DialogTitle>
               <DialogDescription>Atualize naipe, modalidade, grupo, times, local e o dia da fila do confronto.</DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-5">
+            <div className="min-h-0 overflow-y-auto pr-1">
+              <div className="space-y-5">
               <div className="space-y-2">
                 <p className="text-xs font-medium text-muted-foreground">Naipe</p>
                 <RadioGroup
@@ -2188,9 +2191,10 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
               {editingLocationOptions.length == 0 ? (
                 <p className="text-xs text-muted-foreground">Nenhum local cadastrado para seleção. Cadastre um local antes de editar o jogo.</p>
               ) : null}
+              </div>
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="shrink-0">
               <Button type="button" variant="outline" onClick={handleCancelEditingMatch} disabled={savingEditingMatch}>
                 Cancelar
               </Button>
@@ -2212,13 +2216,14 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
           }
         }}
       >
-        <DialogContent className="sm:max-w-4xl">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col overflow-hidden sm:w-full sm:max-w-4xl">
+          <DialogHeader className="shrink-0">
             <DialogTitle>Novo jogo - {selectedChampionship.name}</DialogTitle>
             <DialogDescription>Defina naipe, modalidade, chave, times, local e o dia da fila do confronto.</DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-5">
+          <div className="min-h-0 overflow-y-auto pr-1">
+            <div className="space-y-5">
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground">Naipe</p>
               <RadioGroup
@@ -2391,9 +2396,10 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
             {createLocationOptions.length == 0 ? (
               <p className="text-xs text-muted-foreground">Nenhum local cadastrado para seleção. Cadastre um local antes de criar o jogo.</p>
             ) : null}
+            </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="shrink-0">
             <Button type="button" variant="outline" onClick={() => setShowCreateMatchModal(false)}>
               Cancelar
             </Button>

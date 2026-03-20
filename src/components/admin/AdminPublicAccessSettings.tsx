@@ -18,10 +18,38 @@ interface Props {
   canManageSettings?: boolean;
 }
 
+interface PublicAccessSettingsSavePayload {
+  is_public_access_blocked: boolean;
+  is_live_page_blocked: boolean;
+  is_championships_page_blocked: boolean;
+  is_schedule_page_blocked: boolean;
+  is_league_calendar_page_blocked: boolean;
+  blocked_message: string | null;
+}
+
+function resolvePublicAccessSettingsSavePayload(
+  publicAccessSettings: PublicAccessSettings,
+): PublicAccessSettingsSavePayload {
+  return {
+    is_public_access_blocked: publicAccessSettings.is_public_access_blocked,
+    is_live_page_blocked: publicAccessSettings.is_live_page_blocked,
+    is_championships_page_blocked: publicAccessSettings.is_championships_page_blocked,
+    is_schedule_page_blocked: publicAccessSettings.is_schedule_page_blocked,
+    is_league_calendar_page_blocked: publicAccessSettings.is_league_calendar_page_blocked,
+    blocked_message:
+      publicAccessSettings.blocked_message && publicAccessSettings.blocked_message.trim().length > 0
+        ? publicAccessSettings.blocked_message.trim()
+        : null,
+  };
+}
+
 export function AdminPublicAccessSettings({ canManageSettings = false }: Props) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [publicAccessSettings, setPublicAccessSettings] = useState<PublicAccessSettings>(DEFAULT_PUBLIC_ACCESS_SETTINGS);
+  const [lastSavedPayload, setLastSavedPayload] = useState<PublicAccessSettingsSavePayload>(
+    resolvePublicAccessSettingsSavePayload(DEFAULT_PUBLIC_ACCESS_SETTINGS),
+  );
 
   useEffect(() => {
     const fetchPublicAccessSettings = async () => {
@@ -37,6 +65,7 @@ export function AdminPublicAccessSettings({ canManageSettings = false }: Props) 
 
       const normalizedSettings = resolvePublicAccessSettings(data as PublicAccessSettings[] | PublicAccessSettings | null);
       setPublicAccessSettings(normalizedSettings);
+      setLastSavedPayload(resolvePublicAccessSettingsSavePayload(normalizedSettings));
       setLoading(false);
     };
 
@@ -44,32 +73,39 @@ export function AdminPublicAccessSettings({ canManageSettings = false }: Props) 
   }, []);
 
   const handleSaveSettings = async () => {
-    if (!canManageSettings) {
+    if (!canManageSettings || saving) {
+      return;
+    }
+
+    const nextPayload = resolvePublicAccessSettingsSavePayload(publicAccessSettings);
+
+    if (JSON.stringify(nextPayload) == JSON.stringify(lastSavedPayload)) {
+      toast.info("Nenhuma alteração para salvar.");
       return;
     }
 
     setSaving(true);
 
-    const { error } = await supabase.rpc("set_public_access_settings", {
-      _is_public_access_blocked: publicAccessSettings.is_public_access_blocked,
-      _is_live_page_blocked: publicAccessSettings.is_live_page_blocked,
-      _is_championships_page_blocked: publicAccessSettings.is_championships_page_blocked,
-      _is_schedule_page_blocked: publicAccessSettings.is_schedule_page_blocked,
-      _is_league_calendar_page_blocked: publicAccessSettings.is_league_calendar_page_blocked,
-      _blocked_message:
-        publicAccessSettings.blocked_message && publicAccessSettings.blocked_message.trim().length > 0
-          ? publicAccessSettings.blocked_message.trim()
-          : null,
-    });
+    try {
+      const { error } = await supabase.rpc("set_public_access_settings", {
+        _is_public_access_blocked: nextPayload.is_public_access_blocked,
+        _is_live_page_blocked: nextPayload.is_live_page_blocked,
+        _is_championships_page_blocked: nextPayload.is_championships_page_blocked,
+        _is_schedule_page_blocked: nextPayload.is_schedule_page_blocked,
+        _is_league_calendar_page_blocked: nextPayload.is_league_calendar_page_blocked,
+        _blocked_message: nextPayload.blocked_message,
+      });
 
-    setSaving(false);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
 
-    if (error) {
-      toast.error(error.message);
-      return;
+      setLastSavedPayload(nextPayload);
+      toast.success("Configuração pública atualizada.");
+    } finally {
+      setSaving(false);
     }
-
-    toast.success("Configuração pública atualizada.");
   };
 
   if (loading) {

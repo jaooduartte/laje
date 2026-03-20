@@ -133,6 +133,8 @@ const ADMIN_LOG_DEFAULT_FIELD_LABELS: Record<string, string> = {
   points_win: "Pontos por vitória",
   points_draw: "Pontos por empate",
   points_loss: "Pontos por derrota",
+  queue_position: "Jogo",
+  scheduled_slot: "Jogo",
 };
 
 const ADMIN_LOG_RESOURCE_FIELD_LABELS: Partial<Record<AdminLogResourceTable, Record<string, string>>> = {
@@ -190,6 +192,8 @@ const ADMIN_LOG_IGNORED_FIELDS = new Set([
 
 const MATCH_SCORE_FIELDS = new Set(["home_score", "away_score"]);
 const MATCH_TEAM_FIELDS = new Set(["home_team_id", "away_team_id"]);
+const MATCH_QUEUE_SLOT_FIELDS = new Set(["queue_position", "scheduled_slot"]);
+const TEMPORARY_QUEUE_SLOT_THRESHOLD = 1000;
 
 interface AdminLogListItem {
   id: string;
@@ -425,6 +429,24 @@ function resolveComparableValue(value: unknown): string {
   return JSON.stringify(value);
 }
 
+function resolveQueueSlotNumber(value: unknown): number | null {
+  if (typeof value == "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  return null;
+}
+
+function isTemporaryQueueSlotValue(value: unknown): boolean {
+  const queueSlotNumber = resolveQueueSlotNumber(value);
+
+  if (queueSlotNumber == null) {
+    return false;
+  }
+
+  return queueSlotNumber >= TEMPORARY_QUEUE_SLOT_THRESHOLD;
+}
+
 function resolveMatchContextDetails(log: AdminActionLog, teamNameById: TeamNameById): string[] {
   if (log.resource_table != AdminLogResourceTable.MATCHES) {
     return [];
@@ -486,11 +508,26 @@ function resolveChangedFields(log: AdminActionLog, teamNameById: TeamNameById): 
   const previousValues = resolveRecordValue(log.old_data) ?? {};
   const nextValues = resolveRecordValue(log.new_data) ?? {};
   const fieldNames = [...new Set([...Object.keys(previousValues), ...Object.keys(nextValues)])];
+  const isQueueAndScheduledSlotMirrored =
+    resolveQueueSlotNumber(previousValues.queue_position) == resolveQueueSlotNumber(previousValues.scheduled_slot) &&
+    resolveQueueSlotNumber(nextValues.queue_position) == resolveQueueSlotNumber(nextValues.scheduled_slot);
 
   return fieldNames
     .filter((fieldName) => !ADMIN_LOG_IGNORED_FIELDS.has(fieldName))
     .filter((fieldName) => !(log.resource_table == AdminLogResourceTable.MATCHES && MATCH_SCORE_FIELDS.has(fieldName)))
     .filter((fieldName) => resolveComparableValue(previousValues[fieldName]) != resolveComparableValue(nextValues[fieldName]))
+    .filter((fieldName) => {
+      if (log.resource_table != AdminLogResourceTable.MATCHES || !MATCH_QUEUE_SLOT_FIELDS.has(fieldName)) {
+        return true;
+      }
+
+      if (fieldName == "scheduled_slot" && isQueueAndScheduledSlotMirrored) {
+        return false;
+      }
+
+      const nextValue = nextValues[fieldName];
+      return !isTemporaryQueueSlotValue(nextValue);
+    })
     .map((fieldName) => {
       const fieldLabel = resolveFieldLabel(log.resource_table, fieldName);
 
@@ -504,6 +541,55 @@ function resolveChangedFields(log: AdminActionLog, teamNameById: TeamNameById): 
       return `${fieldLabel}: ${previousValueText} para ${nextValueText}`;
     })
     .slice(0, MAXIMUM_LOG_CHANGES);
+}
+
+function shouldHideTemporaryQueueTransitionLog(log: AdminActionLog): boolean {
+  if (log.resource_table != AdminLogResourceTable.MATCHES || log.action_type != AdminActionType.UPDATE) {
+    return false;
+  }
+
+  const previousValues = resolveRecordValue(log.old_data) ?? {};
+  const nextValues = resolveRecordValue(log.new_data) ?? {};
+  const fieldNames = [...new Set([...Object.keys(previousValues), ...Object.keys(nextValues)])]
+    .filter((fieldName) => !ADMIN_LOG_IGNORED_FIELDS.has(fieldName))
+    .filter((fieldName) => resolveComparableValue(previousValues[fieldName]) != resolveComparableValue(nextValues[fieldName]));
+
+  if (fieldNames.length == 0 || !fieldNames.every((fieldName) => MATCH_QUEUE_SLOT_FIELDS.has(fieldName))) {
+    return false;
+  }
+
+  return fieldNames.some((fieldName) => isTemporaryQueueSlotValue(nextValues[fieldName]));
+}
+
+function resolveLogQueueTransition(log: AdminActionLog): { previous: number | null; next: number | null } {
+  const previousValues = resolveRecordValue(log.old_data) ?? {};
+  const nextValues = resolveRecordValue(log.new_data) ?? {};
+
+  const previousQueuePosition = resolveQueueSlotNumber(previousValues.queue_position);
+  const nextQueuePosition = resolveQueueSlotNumber(nextValues.queue_position);
+
+  if (previousQueuePosition != null && nextQueuePosition != null && previousQueuePosition != nextQueuePosition) {
+    return { previous: previousQueuePosition, next: nextQueuePosition };
+  }
+
+  const previousScheduledSlot = resolveQueueSlotNumber(previousValues.scheduled_slot);
+  const nextScheduledSlot = resolveQueueSlotNumber(nextValues.scheduled_slot);
+
+  if (previousScheduledSlot != null && nextScheduledSlot != null && previousScheduledSlot != nextScheduledSlot) {
+    return { previous: previousScheduledSlot, next: nextScheduledSlot };
+  }
+
+  return { previous: null, next: null };
+}
+
+function resolveLogQueueTransitionPairingKey(log: AdminActionLog): string | null {
+  if (log.resource_table != AdminLogResourceTable.MATCHES || log.action_type != AdminActionType.UPDATE || !log.record_id) {
+    return null;
+  }
+
+  const actorUserIdentifier = log.actor_user_id ?? log.actor_email ?? "unknown-actor";
+  const createdAtSecond = log.created_at.slice(0, 19);
+  return `${log.record_id}:${actorUserIdentifier}:${createdAtSecond}`;
 }
 
 function resolvePrimaryName(log: AdminActionLog): string | null {
@@ -729,25 +815,76 @@ export function AdminLogs() {
   }, [availableUsers, logs]);
 
   const listItems = useMemo(() => {
-    return logs.map((log) => {
-      const matchContextDetails = resolveMatchContextDetails(log, teamNameById);
-      const detailChanges = resolveChangedFields(log, teamNameById);
-      const detailList = [...matchContextDetails, ...detailChanges].slice(0, MAXIMUM_LOG_CHANGES);
-      const resolvedDetails = detailList.length > 0 ? detailList : [resolveFallbackDetail(log)];
-      const headline = resolveHeadline(log);
-      const actorName = log.actor_name ?? "Usuário desconhecido";
+    const hiddenTemporaryQueueTransitionByKey = new Map<string, AdminActionLog>();
 
-      return {
-        id: log.id,
-        rawLog: log,
-        actorName,
-        actorRole: log.actor_role,
-        actionType: log.action_type,
-        createdAt: log.created_at,
-        headline,
-        details: resolvedDetails,
-      } satisfies AdminLogListItem;
+    logs.forEach((log) => {
+      if (!shouldHideTemporaryQueueTransitionLog(log)) {
+        return;
+      }
+
+      const pairingKey = resolveLogQueueTransitionPairingKey(log);
+
+      if (!pairingKey) {
+        return;
+      }
+
+      hiddenTemporaryQueueTransitionByKey.set(pairingKey, log);
     });
+
+    return logs
+      .filter((log) => !shouldHideTemporaryQueueTransitionLog(log))
+      .map((log) => {
+        let normalizedLog = log;
+        const pairingKey = resolveLogQueueTransitionPairingKey(log);
+        const queueTransition = resolveLogQueueTransition(log);
+
+        if (
+          pairingKey &&
+          queueTransition.previous != null &&
+          queueTransition.next != null &&
+          isTemporaryQueueSlotValue(queueTransition.previous) &&
+          !isTemporaryQueueSlotValue(queueTransition.next)
+        ) {
+          const hiddenTemporaryLog = hiddenTemporaryQueueTransitionByKey.get(pairingKey);
+          const hiddenQueueTransition = hiddenTemporaryLog ? resolveLogQueueTransition(hiddenTemporaryLog) : null;
+
+          if (
+            hiddenQueueTransition &&
+            hiddenQueueTransition.previous != null &&
+            hiddenQueueTransition.next != null &&
+            !isTemporaryQueueSlotValue(hiddenQueueTransition.previous) &&
+            hiddenQueueTransition.next == queueTransition.previous
+          ) {
+            const nextOldData = resolveRecordValue(log.old_data) ?? {};
+            normalizedLog = {
+              ...log,
+              old_data: {
+                ...nextOldData,
+                queue_position: hiddenQueueTransition.previous,
+                scheduled_slot: hiddenQueueTransition.previous,
+              },
+            };
+          }
+        }
+
+        const matchContextDetails = resolveMatchContextDetails(normalizedLog, teamNameById);
+        const detailChanges = resolveChangedFields(normalizedLog, teamNameById);
+        const detailList = [...matchContextDetails, ...detailChanges].slice(0, MAXIMUM_LOG_CHANGES);
+        const resolvedDetails = detailList.length > 0 ? detailList : [resolveFallbackDetail(normalizedLog)];
+        const headline = resolveHeadline(normalizedLog);
+        const actorName = normalizedLog.actor_name ?? "Usuário desconhecido";
+
+        return {
+          id: normalizedLog.id,
+          rawLog: normalizedLog,
+          actorName,
+          actorRole: normalizedLog.actor_role,
+          actionType: normalizedLog.action_type,
+          createdAt: normalizedLog.created_at,
+          headline,
+          details: resolvedDetails,
+        } satisfies AdminLogListItem;
+      });
   }, [logs, teamNameById]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
