@@ -32,7 +32,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLeagueEvents } from "@/hooks/useLeagueEvents";
 import type { Team, LeagueEvent } from "@/lib/types";
-import { LeagueEventType } from "@/lib/enums";
+import { LeagueEventOrganizerType, LeagueEventType } from "@/lib/enums";
 import { TEAM_DIVISION_LABELS } from "@/lib/championship";
 import { cn } from "@/lib/utils";
 import {
@@ -68,6 +68,7 @@ interface OrganizerTeamsSelectorProps {
 
 const ALL_LEAGUE_EVENT_TYPES_FILTER = "ALL_LEAGUE_EVENT_TYPES_FILTER";
 const ALL_LEAGUE_EVENT_ORGANIZER_FILTER = "ALL_LEAGUE_EVENT_ORGANIZER_FILTER";
+const LAJE_LEAGUE_EVENT_ORGANIZER_FILTER = "LAJE_LEAGUE_EVENT_ORGANIZER_FILTER";
 
 function resolveDefaultFormValues(): LeagueEventFormValues {
   return {
@@ -198,10 +199,16 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
       }
 
       if (leagueEventOrganizerFilter != ALL_LEAGUE_EVENT_ORGANIZER_FILTER) {
-        const organizerTeamIds = resolveLeagueEventOrganizerTeamIds(leagueEvent);
+        if (leagueEventOrganizerFilter == LAJE_LEAGUE_EVENT_ORGANIZER_FILTER) {
+          if (leagueEvent.organizer_type != LeagueEventOrganizerType.LAJE) {
+            return false;
+          }
+        } else {
+          const organizerTeamIds = resolveLeagueEventOrganizerTeamIds(leagueEvent);
 
-        if (!organizerTeamIds.includes(leagueEventOrganizerFilter)) {
-          return false;
+          if (!organizerTeamIds.includes(leagueEventOrganizerFilter)) {
+            return false;
+          }
         }
       }
 
@@ -439,7 +446,7 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
       <div className="enter-section flex flex-col items-center gap-3 glass-card px-4 py-3 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
         <div className="space-y-0.5">
           <p className="text-sm font-medium">Eventos da Liga</p>
-          <p className="text-xs text-muted-foreground">Gestão mensal dos eventos públicos da liga.</p>
+          <p className="text-xs text-muted-foreground">Gestão anual dos eventos públicos da liga.</p>
         </div>
 
         <div className="flex w-full items-center justify-center gap-2 sm:w-auto sm:justify-end">
@@ -483,10 +490,11 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
 
           <Select value={leagueEventOrganizerFilter} onValueChange={setLeagueEventOrganizerFilter}>
             <SelectTrigger className="glass-input">
-              <SelectValue placeholder="Filtrar por atlética" />
+              <SelectValue placeholder="Filtrar por origem" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ALL_LEAGUE_EVENT_ORGANIZER_FILTER}>Todas as atléticas</SelectItem>
+              <SelectItem value={ALL_LEAGUE_EVENT_ORGANIZER_FILTER}>Todos os organizadores</SelectItem>
+              <SelectItem value={LAJE_LEAGUE_EVENT_ORGANIZER_FILTER}>Eventos da LAJE</SelectItem>
               {orderedTeams.map((team) => (
                 <SelectItem key={team.id} value={team.id}>
                   {team.name}

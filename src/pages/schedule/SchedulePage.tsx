@@ -39,7 +39,7 @@ export function SchedulePage() {
   });
 
   const selectedChampionshipSeasonYear = selectedChampionship?.current_season_year ?? null;
-  const { matches, loading: matchesLoading } = useMatches({
+  const { matches, matchRepresentationByMatchId, estimatedStartTimeByMatchId, loading: matchesLoading } = useMatches({
     championshipId: selectedChampionshipId,
     seasonYear: selectedChampionshipSeasonYear,
   });
@@ -191,6 +191,8 @@ export function SchedulePage() {
       orderedDates={orderedDates}
       groupedMatches={groupedMatches}
       matchBracketContextByMatchId={matchBracketContextByMatchId}
+      matchRepresentationByMatchId={matchRepresentationByMatchId}
+      estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
       onChampionshipCodeChange={handleChampionshipCodeChange}
       onSportFilterChange={setSportFilter}
       onTeamFilterChange={setTeamFilter}

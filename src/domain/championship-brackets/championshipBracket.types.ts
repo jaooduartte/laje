@@ -151,6 +151,7 @@ export interface ChampionshipBracketWizardDraftFormValues {
   current_step_index: number;
   selected_team_ids: string[];
   selected_sport_ids_by_team_id: Record<string, string[]>;
+  show_estimated_start_time_on_cards_by_sport_id: Record<string, boolean>;
   selected_competition_keys_by_team_id: Record<string, string[]>;
   should_apply_modalities_to_all_teams: boolean;
   should_apply_naipes_to_all_teams: boolean;

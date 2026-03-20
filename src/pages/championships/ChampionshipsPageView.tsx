@@ -41,6 +41,8 @@ interface ChampionshipsPageViewProps {
   filteredHistoryMatches: Match[];
   championshipChampionHistory: ChampionshipChampionYearGroup[];
   matchBracketContextByMatchId: Record<string, MatchBracketContext>;
+  matchRepresentationByMatchId: Record<string, string>;
+  estimatedStartTimeByMatchId: Record<string, string>;
   onSelectChampionshipCode: (value: ChampionshipCode) => void;
   onSportFilterChange: (value: string | null) => void;
   onStandingsSportFilterChange: (value: string) => void;
@@ -80,6 +82,8 @@ export function ChampionshipsPageView({
   filteredHistoryMatches,
   championshipChampionHistory,
   matchBracketContextByMatchId,
+  matchRepresentationByMatchId,
+  estimatedStartTimeByMatchId,
   onSelectChampionshipCode,
   onSportFilterChange,
   onStandingsSportFilterChange,
@@ -176,6 +180,8 @@ export function ChampionshipsPageView({
                         match={nextMatch}
                         showChampionshipBadge={false}
                         bracketContext={matchBracketContextByMatchId[nextMatch.id]}
+                        matchRepresentation={matchRepresentationByMatchId[nextMatch.id]}
+                        estimatedStartTime={estimatedStartTimeByMatchId[nextMatch.id]}
                       />
                     ))}
                   </div>
@@ -291,6 +297,8 @@ export function ChampionshipsPageView({
                       showChampionshipBadge={false}
                       bracketContext={matchBracketContextByMatchId[match.id]}
                       showStartedAtDate
+                      matchRepresentation={matchRepresentationByMatchId[match.id]}
+                      estimatedStartTime={estimatedStartTimeByMatchId[match.id]}
                     />
                   ))}
                 </div>

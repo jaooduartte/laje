@@ -5,6 +5,8 @@ import type {
   AdminPanelRole,
   AdminPanelTab,
   AdminUserPasswordStatus,
+  LeagueCalendarHolidayDayKind,
+  LeagueCalendarHolidayScope,
   LeagueEventOrganizerType,
   LeagueEventType,
   ChampionshipCode,
@@ -54,6 +56,7 @@ export interface ChampionshipSport {
   supports_cards: boolean;
   tie_breaker_rule: ChampionshipSportTieBreakerRule;
   default_match_duration_minutes: number;
+  show_estimated_start_time_on_cards: boolean;
   points_win: number;
   points_draw: number;
   points_loss: number;
@@ -138,6 +141,16 @@ export interface LeagueEvent {
   updated_at: string;
   organizer_team?: Team | null;
   organizer_teams?: Team[];
+}
+
+export interface LeagueCalendarHoliday {
+  id: string;
+  holiday_date: string;
+  name: string;
+  scope: LeagueCalendarHolidayScope;
+  day_kind: LeagueCalendarHolidayDayKind;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface AdminActionLog {

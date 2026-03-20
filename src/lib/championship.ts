@@ -151,6 +151,32 @@ export const EMPTY_CHAMPIONSHIP_BRACKET_VIEW: ChampionshipBracketView = {
   competitions: [],
 };
 
+const MATCH_REPRESENTATION_COORDINATION_LABEL = "CO";
+const MATCH_REPRESENTATION_TO_BE_DEFINED_LABEL = "A definir";
+const NORMALIZED_BEACH_SOCCER_NAME = "beach soccer";
+
+export interface MatchEstimatedStartTimeChampionshipSport {
+  championship_id: string;
+  sport_id: string;
+  default_match_duration_minutes: number;
+  show_estimated_start_time_on_cards: boolean;
+}
+
+export interface MatchEstimatedStartTimeBracketEdition {
+  championship_id: string;
+  season_year: number;
+  payload_snapshot: Record<string, unknown> | null;
+  schedule_days?: MatchEstimatedStartTimeScheduleDay[];
+}
+
+export interface MatchEstimatedStartTimeScheduleDay {
+  date: string;
+  start_time: string;
+  end_time: string;
+  break_start_time: string | null;
+  break_end_time: string | null;
+}
+
 function resolveAlphabeticalGroupSuffix(groupNumber: number): string {
   const safeGroupNumber = Number.isFinite(groupNumber) ? Math.max(1, Math.trunc(groupNumber)) : 1;
   let alphabeticalGroupSuffix = "";
@@ -216,7 +242,379 @@ export function isMatchNaipe(value: string): value is MatchNaipe {
 }
 
 export function resolveMatchDisplaySlotValue(match: Match & { scheduled_slot?: number | null }) {
-  return match.scheduled_slot ?? match.queue_position ?? Number.MAX_SAFE_INTEGER;
+  return match.queue_position ?? match.scheduled_slot ?? Number.MAX_SAFE_INTEGER;
+}
+
+function resolveMatchRepresentationScopeKey(match: Match): string {
+  const scheduledDateValue = resolveMatchScheduledDateValue(match) ?? "WITHOUT_SCHEDULED_DATE";
+
+  return [
+    match.championship_id,
+    String(match.season_year),
+    scheduledDateValue,
+    match.sport_id,
+    match.naipe,
+    match.division ?? "WITHOUT_DIVISION",
+  ].join(":");
+}
+
+function resolveMatchRepresentationFromPreviousMatch(match: Match | undefined): string {
+  if (!match) {
+    return MATCH_REPRESENTATION_COORDINATION_LABEL;
+  }
+
+  const previousHomeTeamName = match.home_team?.name.trim();
+  const previousAwayTeamName = match.away_team?.name.trim();
+
+  if (!previousHomeTeamName || !previousAwayTeamName) {
+    return MATCH_REPRESENTATION_TO_BE_DEFINED_LABEL;
+  }
+
+  return `${previousHomeTeamName} x ${previousAwayTeamName}`;
+}
+
+export function resolveMatchRepresentationByMatchId(matches: Match[]): Record<string, string> {
+  const matchesByScopeKey = matches.reduce<Record<string, Match[]>>((carry, match) => {
+    const scopeKey = resolveMatchRepresentationScopeKey(match);
+
+    carry[scopeKey] = [...(carry[scopeKey] ?? []), match];
+    return carry;
+  }, {});
+
+  return Object.values(matchesByScopeKey).reduce<Record<string, string>>((carry, scopedMatches) => {
+    const orderedScopedMatches = [...scopedMatches].sort((firstMatch, secondMatch) => {
+      const slotDifference = resolveMatchDisplaySlotValue(firstMatch) - resolveMatchDisplaySlotValue(secondMatch);
+
+      if (slotDifference != 0) {
+        return slotDifference;
+      }
+
+      if (firstMatch.created_at != secondMatch.created_at) {
+        return firstMatch.created_at.localeCompare(secondMatch.created_at);
+      }
+
+      return firstMatch.id.localeCompare(secondMatch.id);
+    });
+
+    orderedScopedMatches.forEach((match, matchIndex) => {
+      carry[match.id] = resolveMatchRepresentationFromPreviousMatch(orderedScopedMatches[matchIndex - 1]);
+    });
+
+    return carry;
+  }, {});
+}
+
+export function resolveNormalizedSportName(sportName: string | null | undefined): string {
+  if (!sportName) {
+    return "";
+  }
+
+  return sportName
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function resolveTimeValueToMinutes(timeValue: string | null | undefined): number | null {
+  if (!timeValue) {
+    return null;
+  }
+
+  const [hourPart, minutePart] = timeValue
+    .split(":")
+    .slice(0, 2)
+    .map((part) => Number(part));
+
+  if (Number.isNaN(hourPart) || Number.isNaN(minutePart)) {
+    return null;
+  }
+
+  if (hourPart < 0 || hourPart > 23 || minutePart < 0 || minutePart > 59) {
+    return null;
+  }
+
+  return hourPart * 60 + minutePart;
+}
+
+function resolveMinutesToTimeLabel(totalMinutes: number): string {
+  const normalizedTotalMinutes = Math.max(0, Math.trunc(totalMinutes));
+  const hourValue = Math.floor(normalizedTotalMinutes / 60) % 24;
+  const minuteValue = normalizedTotalMinutes % 60;
+
+  return `${hourValue.toString().padStart(2, "0")}:${minuteValue.toString().padStart(2, "0")}`;
+}
+
+function resolveEstimatedSlotStartMinutes(params: {
+  dayStartMinutes: number;
+  slotPosition: number;
+  matchDurationMinutes: number;
+  breakStartMinutes: number | null;
+  breakEndMinutes: number | null;
+}): number | null {
+  const {
+    dayStartMinutes,
+    slotPosition,
+    matchDurationMinutes,
+    breakStartMinutes,
+    breakEndMinutes,
+  } = params;
+
+  if (slotPosition < 1 || matchDurationMinutes <= 0) {
+    return null;
+  }
+
+  let currentSlotStartMinutes = dayStartMinutes;
+
+  if (
+    breakStartMinutes != null &&
+    breakEndMinutes != null &&
+    currentSlotStartMinutes >= breakStartMinutes &&
+    currentSlotStartMinutes < breakEndMinutes
+  ) {
+    currentSlotStartMinutes = breakEndMinutes;
+  }
+
+  for (let currentSlotPosition = 1; currentSlotPosition < slotPosition; currentSlotPosition += 1) {
+    const nextSlotStartMinutes = currentSlotStartMinutes + matchDurationMinutes;
+
+    if (breakStartMinutes == null || breakEndMinutes == null) {
+      currentSlotStartMinutes = nextSlotStartMinutes;
+      continue;
+    }
+
+    const doesNextSlotStartInsideBreak =
+      nextSlotStartMinutes >= breakStartMinutes &&
+      nextSlotStartMinutes < breakEndMinutes;
+    const doesAdvanceCrossBreakWindow =
+      currentSlotStartMinutes < breakEndMinutes &&
+      nextSlotStartMinutes > breakStartMinutes;
+
+    if (doesNextSlotStartInsideBreak || doesAdvanceCrossBreakWindow) {
+      currentSlotStartMinutes = Math.max(nextSlotStartMinutes, breakEndMinutes);
+      continue;
+    }
+
+    currentSlotStartMinutes = nextSlotStartMinutes;
+  }
+
+  return currentSlotStartMinutes;
+}
+
+function resolveNormalizedMatchEstimatedStartTimeScheduleDays(
+  scheduleDays: unknown,
+): MatchEstimatedStartTimeScheduleDay[] {
+  if (!Array.isArray(scheduleDays)) {
+    return [];
+  }
+
+  return scheduleDays
+    .filter((scheduleDay): scheduleDay is Record<string, unknown> => {
+      return typeof scheduleDay == "object" && scheduleDay != null;
+    })
+    .map((scheduleDay) => ({
+      date: typeof scheduleDay.date == "string" ? scheduleDay.date : "",
+      start_time: typeof scheduleDay.start_time == "string" ? scheduleDay.start_time : "",
+      end_time: typeof scheduleDay.end_time == "string" ? scheduleDay.end_time : "",
+      break_start_time: typeof scheduleDay.break_start_time == "string" ? scheduleDay.break_start_time : null,
+      break_end_time: typeof scheduleDay.break_end_time == "string" ? scheduleDay.break_end_time : null,
+    }))
+    .filter((scheduleDay) => scheduleDay.date && scheduleDay.start_time && scheduleDay.end_time);
+}
+
+function resolveMatchEstimatedStartTimeScheduleDays(
+  payloadSnapshot: Record<string, unknown> | null | undefined,
+  fallbackScheduleDays: MatchEstimatedStartTimeScheduleDay[] | null | undefined,
+): MatchEstimatedStartTimeScheduleDay[] {
+  if (payloadSnapshot && typeof payloadSnapshot == "object") {
+    const scheduleDaysFromPayloadSnapshot = resolveNormalizedMatchEstimatedStartTimeScheduleDays(
+      (payloadSnapshot as { schedule_days?: unknown }).schedule_days,
+    );
+
+    if (scheduleDaysFromPayloadSnapshot.length > 0) {
+      return scheduleDaysFromPayloadSnapshot;
+    }
+  }
+
+  return resolveNormalizedMatchEstimatedStartTimeScheduleDays(fallbackScheduleDays);
+}
+
+export function resolveEstimatedStartTimeByMatchId(params: {
+  matches: Match[];
+  championshipSports: MatchEstimatedStartTimeChampionshipSport[];
+  championshipBracketEditions: MatchEstimatedStartTimeBracketEdition[];
+}): Record<string, string> {
+  const {
+    matches,
+    championshipSports,
+    championshipBracketEditions,
+  } = params;
+
+  const championshipSportByChampionshipAndSportKey = championshipSports.reduce<
+    Record<string, MatchEstimatedStartTimeChampionshipSport>
+  >((carry, championshipSport) => {
+    carry[`${championshipSport.championship_id}:${championshipSport.sport_id}`] =
+      championshipSport;
+    return carry;
+  }, {});
+
+  const scheduleDayByChampionshipSeasonAndDateKey = championshipBracketEditions.reduce<
+    Record<string, MatchEstimatedStartTimeScheduleDay>
+  >((carry, championshipBracketEdition) => {
+    const scheduleDays = resolveMatchEstimatedStartTimeScheduleDays(
+      championshipBracketEdition.payload_snapshot,
+      championshipBracketEdition.schedule_days,
+    );
+
+    scheduleDays.forEach((scheduleDay) => {
+      carry[
+        `${championshipBracketEdition.championship_id}:${championshipBracketEdition.season_year}:${scheduleDay.date}`
+      ] = scheduleDay;
+    });
+
+    return carry;
+  }, {});
+
+  const estimatedStartTimeBySlotKey: Record<string, string> = {};
+  const minimumRawSlotByChampionshipSeasonDateAndSportKey = matches.reduce<Record<string, number>>((carry, match) => {
+    const scheduledDateValue = resolveMatchScheduledDateValue(match);
+
+    if (!scheduledDateValue) {
+      return carry;
+    }
+
+    const rawSlotPosition = Math.trunc(resolveMatchDisplaySlotValue(match));
+
+    if (!Number.isFinite(rawSlotPosition) || rawSlotPosition <= 0) {
+      return carry;
+    }
+
+    const slotScopeKey = `${match.championship_id}:${match.season_year}:${scheduledDateValue}:${match.sport_id}`;
+    const currentMinimumRawSlot = carry[slotScopeKey];
+
+    if (
+      !Number.isFinite(currentMinimumRawSlot) ||
+      rawSlotPosition < currentMinimumRawSlot
+    ) {
+      carry[slotScopeKey] = rawSlotPosition;
+    }
+
+    return carry;
+  }, {});
+
+  return matches.reduce<Record<string, string>>((carry, match) => {
+    if (match.status != MatchStatus.SCHEDULED) {
+      return carry;
+    }
+
+    if (
+      resolveNormalizedSportName(match.sports?.name) !=
+      NORMALIZED_BEACH_SOCCER_NAME
+    ) {
+      return carry;
+    }
+
+    const championshipSport =
+      championshipSportByChampionshipAndSportKey[
+        `${match.championship_id}:${match.sport_id}`
+      ];
+
+    if (
+      !championshipSport ||
+      championshipSport.show_estimated_start_time_on_cards != true
+    ) {
+      return carry;
+    }
+
+    const matchDurationMinutes = Math.trunc(
+      championshipSport.default_match_duration_minutes,
+    );
+
+    if (!Number.isFinite(matchDurationMinutes) || matchDurationMinutes <= 0) {
+      return carry;
+    }
+
+    const scheduledDateValue = resolveMatchScheduledDateValue(match);
+
+    if (!scheduledDateValue) {
+      return carry;
+    }
+
+    const scheduleDay =
+      scheduleDayByChampionshipSeasonAndDateKey[
+        `${match.championship_id}:${match.season_year}:${scheduledDateValue}`
+      ];
+
+    if (!scheduleDay) {
+      return carry;
+    }
+
+    const rawSlotPosition = Math.trunc(resolveMatchDisplaySlotValue(match));
+
+    if (!Number.isFinite(rawSlotPosition) || rawSlotPosition <= 0) {
+      return carry;
+    }
+
+    const slotScopeKey = `${match.championship_id}:${match.season_year}:${scheduledDateValue}:${match.sport_id}`;
+    const minimumRawSlotPosition = minimumRawSlotByChampionshipSeasonDateAndSportKey[slotScopeKey];
+
+    if (!Number.isFinite(minimumRawSlotPosition) || minimumRawSlotPosition <= 0) {
+      return carry;
+    }
+
+    const slotPosition = rawSlotPosition - minimumRawSlotPosition + 1;
+
+    if (slotPosition <= 0) {
+      return carry;
+    }
+
+    const dayStartMinutes = resolveTimeValueToMinutes(scheduleDay.start_time);
+    const dayEndMinutes = resolveTimeValueToMinutes(scheduleDay.end_time);
+
+    if (dayStartMinutes == null || dayEndMinutes == null || dayEndMinutes <= dayStartMinutes) {
+      return carry;
+    }
+
+    const breakStartMinutes = resolveTimeValueToMinutes(scheduleDay.break_start_time);
+    const breakEndMinutes = resolveTimeValueToMinutes(scheduleDay.break_end_time);
+    const hasBreakWindow = breakStartMinutes != null && breakEndMinutes != null;
+    const normalizedBreakStartMinutes = hasBreakWindow ? breakStartMinutes : null;
+    const normalizedBreakEndMinutes = hasBreakWindow ? breakEndMinutes : null;
+
+    const slotKey = [
+      match.championship_id,
+      String(match.season_year),
+      scheduledDateValue,
+      match.sport_id,
+      String(slotPosition),
+      String(matchDurationMinutes),
+      scheduleDay.start_time,
+      scheduleDay.end_time,
+      scheduleDay.break_start_time ?? "",
+      scheduleDay.break_end_time ?? "",
+    ].join(":");
+
+    if (!estimatedStartTimeBySlotKey[slotKey]) {
+      const estimatedSlotStartMinutes = resolveEstimatedSlotStartMinutes({
+        dayStartMinutes,
+        slotPosition,
+        matchDurationMinutes,
+        breakStartMinutes: normalizedBreakStartMinutes,
+        breakEndMinutes: normalizedBreakEndMinutes,
+      });
+
+      if (estimatedSlotStartMinutes == null) {
+        return carry;
+      }
+
+      estimatedStartTimeBySlotKey[slotKey] = resolveMinutesToTimeLabel(
+        estimatedSlotStartMinutes,
+      );
+    }
+
+    carry[match.id] = estimatedStartTimeBySlotKey[slotKey];
+    return carry;
+  }, {});
 }
 
 export function resolveMatchNaipeBadgeTone(naipe: string): AppBadgeTone {
@@ -318,10 +716,17 @@ export function resolveInterleavedScheduledMatchesByCompetition<
   return Object.keys(scheduledMatchesByDate)
     .sort((firstDate, secondDate) => firstDate.localeCompare(secondDate))
     .flatMap((scheduledDateValue) => {
+      const currentDateMatches = scheduledMatchesByDate[scheduledDateValue];
+      const uniqueSportIds = new Set(currentDateMatches.map((scheduledMatch) => scheduledMatch.sport_id));
+
+      if (uniqueSportIds.size <= 1) {
+        return currentDateMatches;
+      }
+
       const competitionMatchesByKey = new Map<string, MatchItem[]>();
       const orderedCompetitionKeys: string[] = [];
 
-      scheduledMatchesByDate[scheduledDateValue].forEach((scheduledMatch) => {
+      currentDateMatches.forEach((scheduledMatch) => {
         const competitionKey = resolveMatchCompetitionKey(scheduledMatch);
 
         if (!competitionMatchesByKey.has(competitionKey)) {

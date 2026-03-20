@@ -8,10 +8,12 @@ import {
   resolveMatchSetSummary,
   resolveMatchStartedAtLabel,
 } from "@/lib/championship";
-import { AppBadgeTone, ChampionshipSportResultRule } from "@/lib/enums";
+import { AppBadgeTone, ChampionshipSportResultRule, MatchStatus } from "@/lib/enums";
 
 interface Props {
   matches: Match[];
+  matchRepresentationByMatchId?: Record<string, string>;
+  estimatedStartTimeByMatchId?: Record<string, string>;
 }
 
 function RedCardIndicator({ quantity }: { quantity: number }) {
@@ -27,7 +29,11 @@ function RedCardIndicator({ quantity }: { quantity: number }) {
   );
 }
 
-export function LiveMatchBanner({ matches }: Props) {
+export function LiveMatchBanner({
+  matches,
+  matchRepresentationByMatchId = {},
+  estimatedStartTimeByMatchId = {},
+}: Props) {
   if (matches.length === 0) return null;
 
   return (
@@ -39,6 +45,8 @@ export function LiveMatchBanner({ matches }: Props) {
       <div className="grid gap-4 md:grid-cols-2 md:items-stretch">
         {matches.map((match) => {
           const startedAtLabel = resolveMatchStartedAtLabel(match.start_time);
+          const matchRepresentation = matchRepresentationByMatchId[match.id];
+          const estimatedStartTime = estimatedStartTimeByMatchId[match.id];
           const isSetMatch = match.result_rule == ChampionshipSportResultRule.SETS;
           const setSummary = isSetMatch ? resolveMatchSetSummary(match) : [];
           const displayedHomeScore = isSetMatch ? match.current_set_home_score ?? 0 : match.home_score;
@@ -57,6 +65,12 @@ export function LiveMatchBanner({ matches }: Props) {
                     </div>
                     {startedAtLabel ? (
                       <p className="text-xs text-muted-foreground">{startedAtLabel}</p>
+                    ) : null}
+                    {matchRepresentation ? (
+                      <p className="break-words text-xs text-muted-foreground">Representação: {matchRepresentation}</p>
+                    ) : null}
+                    {match.status == MatchStatus.SCHEDULED && estimatedStartTime ? (
+                      <p className="break-words text-xs text-muted-foreground">Horário estimado: {estimatedStartTime}</p>
                     ) : null}
                   </div>
                   <div className="flex items-center gap-1.5">

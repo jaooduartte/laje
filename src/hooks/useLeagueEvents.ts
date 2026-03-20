@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { endOfMonth, format, startOfMonth } from "date-fns";
+import { endOfYear, format, startOfYear } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import type { LeagueEvent } from "@/lib/types";
 import { fetchLeagueEventsByDateRange } from "@/domain/league-events/leagueEvent.repository";
@@ -14,9 +14,9 @@ export function useLeagueEvents({ monthDate }: UseLeagueEventsOptions) {
 
   const dateRange = useMemo(() => {
     return {
-      startDate: format(startOfMonth(monthDate), "yyyy-MM-dd"),
-      endDate: format(endOfMonth(monthDate), "yyyy-MM-dd"),
-      monthKey: format(monthDate, "yyyy-MM"),
+      startDate: format(startOfYear(monthDate), "yyyy-MM-dd"),
+      endDate: format(endOfYear(monthDate), "yyyy-MM-dd"),
+      yearKey: format(monthDate, "yyyy"),
     };
   }, [monthDate]);
 
@@ -60,10 +60,10 @@ export function useLeagueEvents({ monthDate }: UseLeagueEventsOptions) {
     setLeagueEvents((currentLeagueEvents) => {
       const nextLeagueEvents = currentLeagueEvents.filter((currentLeagueEvent) => currentLeagueEvent.id != leagueEvent.id);
 
-      const isInsideCurrentMonth =
+      const isInsideCurrentYear =
         leagueEvent.event_date >= dateRange.startDate && leagueEvent.event_date <= dateRange.endDate;
 
-      if (isInsideCurrentMonth) {
+      if (isInsideCurrentYear) {
         nextLeagueEvents.push(leagueEvent);
       }
 
@@ -81,7 +81,7 @@ export function useLeagueEvents({ monthDate }: UseLeagueEventsOptions) {
     fetchLeagueEvents();
 
     const channel = supabase
-      .channel(`league-events-realtime-${dateRange.monthKey}`)
+      .channel(`league-events-realtime-${dateRange.yearKey}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "league_events" }, () => {
         fetchLeagueEvents();
       })
@@ -90,7 +90,7 @@ export function useLeagueEvents({ monthDate }: UseLeagueEventsOptions) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [dateRange.monthKey, fetchLeagueEvents]);
+  }, [dateRange.yearKey, fetchLeagueEvents]);
 
   return {
     leagueEvents,

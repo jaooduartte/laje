@@ -7,7 +7,6 @@ import { useChampionshipBracket } from "@/hooks/useChampionshipBracket";
 import {
   EMPTY_CHAMPIONSHIP_BRACKET_VIEW,
   MATCH_NAIPE_LABELS,
-  resolveInterleavedScheduledMatchesByCompetition,
   resolveMatchBracketContextByMatchId,
 } from "@/lib/championship";
 import { ChampionshipSportTieBreakerRule, ChampionshipStatus } from "@/lib/enums";
@@ -47,7 +46,15 @@ export function LivePage() {
   const selectedChampionshipSeasonYear = featuredChampionship?.current_season_year ?? null;
   const selectedChampionshipHasDivisions = featuredChampionship?.uses_divisions ?? false;
 
-  const { matches, liveMatches, upcomingMatches, finishedMatches, loading: matchesLoading } = useMatches({
+  const {
+    matches,
+    matchRepresentationByMatchId,
+    estimatedStartTimeByMatchId,
+    liveMatches,
+    upcomingMatches,
+    finishedMatches,
+    loading: matchesLoading,
+  } = useMatches({
     championshipId: selectedChampionshipId,
     seasonYear: selectedChampionshipSeasonYear,
   });
@@ -86,11 +93,9 @@ export function LivePage() {
   const { sports, championshipSports } = useSports({ championshipId: selectedChampionshipId });
 
   const filteredUpcomingMatches = useMemo(() => {
-    const visibleUpcomingMatches = sportFilter
+    return sportFilter
       ? upcomingMatches.filter((match) => match.sport_id == sportFilter)
       : upcomingMatches;
-
-    return resolveInterleavedScheduledMatchesByCompetition(visibleUpcomingMatches);
   }, [sportFilter, upcomingMatches]);
 
   const filteredLiveMatches = sportFilter ? liveMatches.filter((match) => match.sport_id == sportFilter) : liveMatches;
@@ -172,6 +177,8 @@ export function LivePage() {
       championshipBracketView={visibleChampionshipBracketView}
       championshipBracketLoading={championshipBracketLoading}
       matchBracketContextByMatchId={matchBracketContextByMatchId}
+      matchRepresentationByMatchId={matchRepresentationByMatchId}
+      estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
       onSportFilterChange={setSportFilter}
       onStandingsSportFilterChange={setStandingsSportFilter}
       onStandingsNaipeFilterChange={setStandingsNaipeFilter}

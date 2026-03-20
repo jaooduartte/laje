@@ -36,6 +36,7 @@ const ALL_YEAR_FILTER = "ALL_YEARS";
 const ALL_GROUP_FILTER = "ALL_GROUPS";
 const ALL_STANDINGS_SPORT_FILTER = "ALL_STANDINGS_SPORTS";
 const ALL_STANDINGS_NAIPE_FILTER = "ALL_STANDINGS_NAIPES";
+const DEFAULT_NEXT_MATCHES_LIMIT = 6;
 
 export function ChampionshipsPage() {
   const { championships, loading: championshipsLoading } = useChampionships();
@@ -50,7 +51,7 @@ export function ChampionshipsPage() {
   const selectedChampionshipIsFinished = selectedChampionship?.status == ChampionshipStatus.FINISHED;
   const selectedChampionshipSeasonYear = selectedChampionship?.current_season_year ?? null;
 
-  const { matches, loading: matchesLoading } = useMatches({
+  const { matches, matchRepresentationByMatchId, estimatedStartTimeByMatchId, loading: matchesLoading } = useMatches({
     championshipId: selectedChampionshipId,
   });
 
@@ -162,7 +163,6 @@ export function ChampionshipsPage() {
     championshipId: selectedChampionshipId,
     seasonYears: championshipBracketSeasonYears,
   });
-
   const matchBracketContextByMatchId = useMemo(() => {
     return championshipBracketSeasonViews.reduce<Record<string, MatchBracketContext>>(
       (currentMatchBracketContextByMatchId, championshipBracketSeasonView) => {
@@ -207,7 +207,26 @@ export function ChampionshipsPage() {
   }, [groupFilter, matchBracketContextByMatchId, sortedFinishedMatches, teamFilter, yearFilter]);
 
   const nextMatches = useMemo(() => {
-    return resolveInterleavedScheduledMatchesByCompetition(filteredUpcomingMatches).slice(0, 3);
+    const interleavedMatches = resolveInterleavedScheduledMatchesByCompetition(filteredUpcomingMatches);
+    const firstUpcomingMatch = interleavedMatches[0];
+    const firstUpcomingMatchDate = firstUpcomingMatch
+      ? resolveMatchScheduledDateValue(firstUpcomingMatch)
+      : null;
+
+    if (!firstUpcomingMatch || !firstUpcomingMatchDate) {
+      return interleavedMatches.slice(0, DEFAULT_NEXT_MATCHES_LIMIT);
+    }
+
+    const firstUpcomingMatchSlot = resolveMatchDisplaySlotValue(firstUpcomingMatch);
+    const firstRoundMatchesCount = interleavedMatches.filter((upcomingMatch) => {
+      const currentMatchDate = resolveMatchScheduledDateValue(upcomingMatch);
+      const currentMatchSlot = resolveMatchDisplaySlotValue(upcomingMatch);
+
+      return currentMatchDate == firstUpcomingMatchDate && currentMatchSlot == firstUpcomingMatchSlot;
+    }).length;
+    const nextMatchesLimit = firstRoundMatchesCount > 0 ? firstRoundMatchesCount : DEFAULT_NEXT_MATCHES_LIMIT;
+
+    return interleavedMatches.slice(0, nextMatchesLimit);
   }, [filteredUpcomingMatches]);
 
   const standingsWithFilters = useMemo(() => {
@@ -297,10 +316,13 @@ export function ChampionshipsPage() {
       selectedChampionship={selectedChampionship}
       selectedChampionshipCode={selectedChampionshipCode}
       selectedChampionshipIsFinished={selectedChampionshipIsFinished}
-        championshipCardImageByCode={CHAMPIONSHIP_CARD_IMAGE_BY_CODE}
-        sports={sports}
-        sportFilter={sportFilter}
-        nextMatches={nextMatches}
+      championshipCardImageByCode={CHAMPIONSHIP_CARD_IMAGE_BY_CODE}
+      sports={sports}
+      sportFilter={sportFilter}
+      nextMatches={nextMatches}
+      matchBracketContextByMatchId={matchBracketContextByMatchId}
+      matchRepresentationByMatchId={matchRepresentationByMatchId}
+      estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
       standingsSportFilter={standingsSportFilter}
       standingsNaipeFilter={standingsNaipeFilter}
       standingsYearFilter={standingsYearFilter}
@@ -327,7 +349,6 @@ export function ChampionshipsPage() {
       onTeamFilterChange={setTeamFilter}
       onYearFilterChange={setYearFilter}
       onGroupFilterChange={setGroupFilter}
-      matchBracketContextByMatchId={matchBracketContextByMatchId}
     />
   );
 }

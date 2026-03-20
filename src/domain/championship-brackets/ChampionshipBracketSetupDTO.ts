@@ -73,6 +73,39 @@ export class ChampionshipBracketSetupDTO {
         throw new Error("Dia de agenda inválido: preencha data, início e fim.");
       }
 
+      const startMinutes = this.resolveTimeValueToMinutes(schedule_day.start_time);
+      const endMinutes = this.resolveTimeValueToMinutes(schedule_day.end_time);
+
+      if (startMinutes == null || endMinutes == null || endMinutes <= startMinutes) {
+        throw new Error("Dia de agenda inválido: fim precisa ser maior que início.");
+      }
+
+      const breakStartTimeValue = schedule_day.break_start_time?.trim() ?? "";
+      const breakEndTimeValue = schedule_day.break_end_time?.trim() ?? "";
+      const hasBreakStartTime = breakStartTimeValue.length > 0;
+      const hasBreakEndTime = breakEndTimeValue.length > 0;
+
+      if (hasBreakStartTime != hasBreakEndTime) {
+        throw new Error("Dia de agenda inválido: preencha início e fim do intervalo.");
+      }
+
+      if (hasBreakStartTime && hasBreakEndTime) {
+        const breakStartMinutes = this.resolveTimeValueToMinutes(breakStartTimeValue);
+        const breakEndMinutes = this.resolveTimeValueToMinutes(breakEndTimeValue);
+
+        if (
+          breakStartMinutes == null ||
+          breakEndMinutes == null ||
+          breakEndMinutes <= breakStartMinutes
+        ) {
+          throw new Error("Dia de agenda inválido: o fim do intervalo precisa ser maior que o início.");
+        }
+
+        if (breakStartMinutes < startMinutes || breakEndMinutes > endMinutes) {
+          throw new Error("Dia de agenda inválido: intervalo fora da janela do dia.");
+        }
+      }
+
       if (schedule_day.locations.length == 0) {
         throw new Error("Cada dia precisa ter ao menos um local configurado.");
       }
@@ -101,6 +134,20 @@ export class ChampionshipBracketSetupDTO {
         });
       });
     });
+  }
+
+  private resolveTimeValueToMinutes(timeValue: string): number | null {
+    const [hourPart, minutePart] = timeValue.split(":").map(Number);
+
+    if (Number.isNaN(hourPart) || Number.isNaN(minutePart)) {
+      return null;
+    }
+
+    if (hourPart < 0 || hourPart > 23 || minutePart < 0 || minutePart > 59) {
+      return null;
+    }
+
+    return hourPart * 60 + minutePart;
   }
 
   bindToSave(): ChampionshipBracketSetupFormValues {
@@ -141,8 +188,8 @@ export class ChampionshipBracketSetupDTO {
         date: scheduleDay.date,
         start_time: scheduleDay.start_time,
         end_time: scheduleDay.end_time,
-        break_start_time: null,
-        break_end_time: null,
+        break_start_time: scheduleDay.break_start_time?.trim() ? scheduleDay.break_start_time.trim() : null,
+        break_end_time: scheduleDay.break_end_time?.trim() ? scheduleDay.break_end_time.trim() : null,
         locations: scheduleDay.locations.map((location) => ({
           name: location.name.trim(),
           position: location.position,

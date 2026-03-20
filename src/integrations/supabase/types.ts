@@ -143,6 +143,7 @@ export type Database = {
           id: string
           naipe_mode: Database["public"]["Enums"]["championship_sport_naipe_mode"]
           result_rule: Database["public"]["Enums"]["championship_sport_result_rule"]
+          show_estimated_start_time_on_cards: boolean
           supports_cards: boolean
           tie_breaker_rule: Database["public"]["Enums"]["championship_sport_tie_breaker_rule"]
           points_draw: number
@@ -157,6 +158,7 @@ export type Database = {
           id?: string
           naipe_mode?: Database["public"]["Enums"]["championship_sport_naipe_mode"]
           result_rule?: Database["public"]["Enums"]["championship_sport_result_rule"]
+          show_estimated_start_time_on_cards?: boolean
           supports_cards?: boolean
           tie_breaker_rule?: Database["public"]["Enums"]["championship_sport_tie_breaker_rule"]
           points_draw?: number
@@ -171,6 +173,7 @@ export type Database = {
           id?: string
           naipe_mode?: Database["public"]["Enums"]["championship_sport_naipe_mode"]
           result_rule?: Database["public"]["Enums"]["championship_sport_result_rule"]
+          show_estimated_start_time_on_cards?: boolean
           supports_cards?: boolean
           tie_breaker_rule?: Database["public"]["Enums"]["championship_sport_tie_breaker_rule"]
           points_draw?: number
@@ -380,6 +383,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      league_calendar_holidays: {
+        Row: {
+          created_at: string
+          day_kind: Database["public"]["Enums"]["league_calendar_holiday_day_kind"]
+          holiday_date: string
+          id: string
+          name: string
+          scope: Database["public"]["Enums"]["league_calendar_holiday_scope"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          day_kind: Database["public"]["Enums"]["league_calendar_holiday_day_kind"]
+          holiday_date: string
+          id?: string
+          name: string
+          scope: Database["public"]["Enums"]["league_calendar_holiday_scope"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          day_kind?: Database["public"]["Enums"]["league_calendar_holiday_day_kind"]
+          holiday_date?: string
+          id?: string
+          name?: string
+          scope?: Database["public"]["Enums"]["league_calendar_holiday_scope"]
+          updated_at?: string
+        }
+        Relationships: []
       }
       league_events: {
         Row: {
@@ -1032,6 +1065,10 @@ export type Database = {
         }
         Returns: string
       }
+      ensure_league_calendar_holidays_year: {
+        Args: { _year: number }
+        Returns: number
+      }
       generate_championship_bracket_groups: {
         Args: { _championship_id: string; _payload: Json }
         Returns: string
@@ -1208,6 +1245,8 @@ export type Database = {
       championship_sport_tie_breaker_rule: "STANDARD" | "POINTS_AVERAGE" | "BEACH_SOCCER" | "BEACH_TENNIS"
       championship_bracket_tie_break_context_type: "GROUP" | "QUALIFICATION_POOL"
       championship_status: "PLANNING" | "UPCOMING" | "IN_PROGRESS" | "FINISHED"
+      league_calendar_holiday_day_kind: "HOLIDAY" | "OPTIONAL"
+      league_calendar_holiday_scope: "NATIONAL" | "JOINVILLE"
       league_event_organizer_type: "ATHLETIC" | "LAJE"
       league_event_type: "HH" | "OPEN_BAR" | "CHAMPIONSHIP" | "LAJE_EVENT"
       match_naipe: "MASCULINO" | "FEMININO" | "MISTO"
@@ -1352,6 +1391,8 @@ export const Constants = {
       championship_sport_result_rule: ["POINTS", "SETS"],
       championship_sport_tie_breaker_rule: ["STANDARD", "POINTS_AVERAGE", "BEACH_SOCCER", "BEACH_TENNIS"],
       championship_status: ["PLANNING", "UPCOMING", "IN_PROGRESS", "FINISHED"],
+      league_calendar_holiday_day_kind: ["HOLIDAY", "OPTIONAL"],
+      league_calendar_holiday_scope: ["NATIONAL", "JOINVILLE"],
       league_event_organizer_type: ["ATHLETIC", "LAJE"],
       league_event_type: ["HH", "OPEN_BAR", "CHAMPIONSHIP", "LAJE_EVENT"],
       match_naipe: ["MASCULINO", "FEMININO", "MISTO"],

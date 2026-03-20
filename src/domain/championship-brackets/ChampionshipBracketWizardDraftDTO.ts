@@ -32,6 +32,21 @@ function resolveBooleanValue(value: unknown, fallback_value: boolean): boolean {
   return value;
 }
 
+function resolveBooleanRecord(value: unknown): Record<string, boolean> {
+  if (!value || typeof value != "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return Object.entries(value).reduce<Record<string, boolean>>((carry, [key, itemValue]) => {
+    if (typeof itemValue != "boolean") {
+      return carry;
+    }
+
+    carry[key] = itemValue;
+    return carry;
+  }, {});
+}
+
 function resolveCompetitionConfigByKey(
   competition_config_by_key: unknown,
 ): Record<string, ChampionshipBracketCompetitionConfigDraft> {
@@ -349,6 +364,9 @@ export class ChampionshipBracketWizardDraftDTO {
           },
           {},
         ),
+        show_estimated_start_time_on_cards_by_sport_id: resolveBooleanRecord(
+          parsed_storage_value.show_estimated_start_time_on_cards_by_sport_id,
+        ),
         selected_competition_keys_by_team_id: Object.entries(
           parsed_storage_value.selected_competition_keys_by_team_id ?? {},
         ).reduce<Record<string, string[]>>(
@@ -400,6 +418,12 @@ export class ChampionshipBracketWizardDraftDTO {
         },
         {},
       ),
+      show_estimated_start_time_on_cards_by_sport_id: Object.entries(
+        this.form_values.show_estimated_start_time_on_cards_by_sport_id,
+      ).reduce<Record<string, boolean>>((carry, [sport_id, shouldShowEstimatedStartTimeOnCards]) => {
+        carry[sport_id] = shouldShowEstimatedStartTimeOnCards;
+        return carry;
+      }, {}),
       selected_competition_keys_by_team_id: Object.entries(
         this.form_values.selected_competition_keys_by_team_id,
       ).reduce<Record<string, string[]>>(

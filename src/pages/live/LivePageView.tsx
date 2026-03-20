@@ -9,6 +9,7 @@ import {
   DEFAULT_PAGINATION_ITEMS_PER_PAGE,
 } from "@/components/ui/app-pagination-controls";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsNavigationList, TabsNavigationTrigger } from "@/components/ui/tabs";
 import type { Championship, Match, Sport } from "@/lib/types";
 import type { ChampionshipBracketView } from "@/lib/types";
@@ -16,7 +17,7 @@ import type { MatchBracketContext } from "@/lib/championship";
 import { MatchNaipe } from "@/lib/enums";
 import { MATCH_NAIPE_LABELS } from "@/lib/championship";
 import type { TeamStandingAggregate } from "@/lib/standings";
-import { Loader2 } from "lucide-react";
+import { HelpCircle, Loader2 } from "lucide-react";
 import { ChampionshipBracketBoard } from "@/components/championship-brackets/ChampionshipBracketBoard";
 
 interface LivePageViewProps {
@@ -36,6 +37,8 @@ interface LivePageViewProps {
   championshipBracketView: ChampionshipBracketView;
   championshipBracketLoading: boolean;
   matchBracketContextByMatchId: Record<string, MatchBracketContext>;
+  matchRepresentationByMatchId: Record<string, string>;
+  estimatedStartTimeByMatchId: Record<string, string>;
   onSportFilterChange: (value: string | null) => void;
   onStandingsSportFilterChange: (value: string) => void;
   onStandingsNaipeFilterChange: (value: string) => void;
@@ -58,6 +61,8 @@ export function LivePageView({
   championshipBracketView,
   championshipBracketLoading,
   matchBracketContextByMatchId,
+  matchRepresentationByMatchId,
+  estimatedStartTimeByMatchId,
   onSportFilterChange,
   onStandingsSportFilterChange,
   onStandingsNaipeFilterChange,
@@ -118,7 +123,11 @@ export function LivePageView({
           <h1 className="text-2xl font-bold">{featuredChampionship.name}</h1>
         </section>
 
-        <LiveMatchBanner matches={filteredLiveMatches} />
+        <LiveMatchBanner
+          matches={filteredLiveMatches}
+          matchRepresentationByMatchId={matchRepresentationByMatchId}
+          estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
+        />
 
         <SportFilter sports={sports} selected={sportFilter} onSelect={onSportFilterChange} />
 
@@ -139,63 +148,82 @@ export function LivePageView({
             ) : null}
 
             <section className="glass-panel enter-section space-y-4 p-5">
-              <h2 className="mb-4 text-center text-xl font-display font-bold sm:text-left">Próximos Jogos</h2>
-          {filteredUpcomingMatches.length == 0 ? (
-            <p className="text-center text-sm text-muted-foreground sm:text-left">Nenhum jogo agendado.</p>
-          ) : (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {paginatedUpcomingMatches.map((match) => (
-                  <MatchCard
-                    key={match.id}
-                    match={match}
-                    showChampionshipBadge={false}
-                    bracketContext={matchBracketContextByMatchId[match.id]}
-                  />
-                ))}
+              <div className="mb-4 flex items-center justify-center gap-2 sm:justify-start">
+                <h2 className="text-center text-xl font-display font-bold sm:text-left">Próximos Jogos</h2>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border/70 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                      aria-label="Ajuda sobre ordenação dos próximos jogos"
+                    >
+                      <HelpCircle className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs text-xs">
+                    Os próximos jogos são ordenados pela fila operacional de cada modalidade, considerando as quadras
+                    disponíveis.
+                  </TooltipContent>
+                </Tooltip>
               </div>
+              {filteredUpcomingMatches.length == 0 ? (
+                <p className="text-center text-sm text-muted-foreground sm:text-left">Nenhum jogo agendado.</p>
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {paginatedUpcomingMatches.map((match) => (
+                      <MatchCard
+                        key={match.id}
+                        match={match}
+                        showChampionshipBadge={false}
+                        bracketContext={matchBracketContextByMatchId[match.id]}
+                        matchRepresentation={matchRepresentationByMatchId[match.id]}
+                        estimatedStartTime={estimatedStartTimeByMatchId[match.id]}
+                      />
+                    ))}
+                  </div>
 
-              <AppPaginationControls
-                currentPage={upcomingMatchesCurrentPage}
-                totalPages={upcomingMatchesTotalPages}
-                onPageChange={setUpcomingMatchesCurrentPage}
-                itemsPerPage={upcomingMatchesItemsPerPage}
-                onItemsPerPageChange={setUpcomingMatchesItemsPerPage}
-              />
-            </div>
-          )}
+                  <AppPaginationControls
+                    currentPage={upcomingMatchesCurrentPage}
+                    totalPages={upcomingMatchesTotalPages}
+                    onPageChange={setUpcomingMatchesCurrentPage}
+                    itemsPerPage={upcomingMatchesItemsPerPage}
+                    onItemsPerPageChange={setUpcomingMatchesItemsPerPage}
+                  />
+                </div>
+              )}
             </section>
 
             <section className="glass-panel enter-section space-y-4 p-5">
               <h2 className="text-center text-xl font-display font-bold sm:text-left">Classificação</h2>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Select value={standingsSportFilter} onValueChange={onStandingsSportFilterChange}>
-              <SelectTrigger className="glass-input w-full">
-                <SelectValue placeholder="Filtrar modalidade" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={allStandingsSportFilter}>Todas as modalidades</SelectItem>
-                {sports.map((sport) => (
-                  <SelectItem key={sport.id} value={sport.id}>
-                    {sport.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Select value={standingsSportFilter} onValueChange={onStandingsSportFilterChange}>
+                  <SelectTrigger className="glass-input w-full">
+                    <SelectValue placeholder="Filtrar modalidade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={allStandingsSportFilter}>Todas as modalidades</SelectItem>
+                    {sports.map((sport) => (
+                      <SelectItem key={sport.id} value={sport.id}>
+                        {sport.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-            <Select value={standingsNaipeFilter} onValueChange={onStandingsNaipeFilterChange}>
-              <SelectTrigger className="glass-input w-full">
-                <SelectValue placeholder="Filtrar naipe" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={allStandingsNaipeFilter}>Todos os naipes</SelectItem>
-                <SelectItem value={MatchNaipe.MASCULINO}>{MATCH_NAIPE_LABELS[MatchNaipe.MASCULINO]}</SelectItem>
-                <SelectItem value={MatchNaipe.FEMININO}>{MATCH_NAIPE_LABELS[MatchNaipe.FEMININO]}</SelectItem>
-                <SelectItem value={MatchNaipe.MISTO}>{MATCH_NAIPE_LABELS[MatchNaipe.MISTO]}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+                <Select value={standingsNaipeFilter} onValueChange={onStandingsNaipeFilterChange}>
+                  <SelectTrigger className="glass-input w-full">
+                    <SelectValue placeholder="Filtrar naipe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={allStandingsNaipeFilter}>Todos os naipes</SelectItem>
+                    <SelectItem value={MatchNaipe.MASCULINO}>{MATCH_NAIPE_LABELS[MatchNaipe.MASCULINO]}</SelectItem>
+                    <SelectItem value={MatchNaipe.FEMININO}>{MATCH_NAIPE_LABELS[MatchNaipe.FEMININO]}</SelectItem>
+                    <SelectItem value={MatchNaipe.MISTO}>{MATCH_NAIPE_LABELS[MatchNaipe.MISTO]}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
               <TeamStandingsTable standings={filteredStandings} showCardColumns={standingsShowCardColumns} />
             </section>

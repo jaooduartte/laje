@@ -127,6 +127,16 @@ export enum LeagueEventOrganizerType {
   LAJE = "LAJE",
 }
 
+export enum LeagueCalendarHolidayScope {
+  NATIONAL = "NATIONAL",
+  JOINVILLE = "JOINVILLE",
+}
+
+export enum LeagueCalendarHolidayDayKind {
+  HOLIDAY = "HOLIDAY",
+  OPTIONAL = "OPTIONAL",
+}
+
 export enum AdminPanelTab {
   MATCHES = "matches",
   CONTROL = "control",

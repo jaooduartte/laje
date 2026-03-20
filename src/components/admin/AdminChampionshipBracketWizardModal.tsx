@@ -8,6 +8,7 @@ import {
 } from "react";
 import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import type { Championship, ChampionshipSport, Team } from "@/lib/types";
 import {
   BracketThirdPlaceMode,
@@ -150,6 +151,7 @@ interface LocationTemplateDeletionTarget {
 }
 
 const COMPETITION_DIVISION_WITHOUT_DIVISION = "WITHOUT_DIVISION";
+const NORMALIZED_BEACH_SOCCER_NAME = "beach soccer";
 
 const WIZARD_STEP_LABELS = [
   "Participantes",
@@ -179,6 +181,14 @@ interface AnimatedTabBarProps {
   items: AnimatedTabItem[];
   value: string;
   onValueChange: (value: string) => void;
+}
+
+function resolveNormalizedSportName(sportName: string): string {
+  return sportName
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 }
 
 function resolveCompetitionKey(
@@ -359,8 +369,8 @@ function resolveReplicatedScheduleDay(
     date: "",
     start_time: previousScheduleDay.start_time,
     end_time: previousScheduleDay.end_time,
-    break_start_time: "",
-    break_end_time: "",
+    break_start_time: previousScheduleDay.break_start_time,
+    break_end_time: previousScheduleDay.break_end_time,
     locations: previousScheduleDay.locations.map((location, locationIndex) => ({
       id: resolveRandomUuid(),
       location_template_id: location.location_template_id,
@@ -422,6 +432,7 @@ function resolveInitialWizardDraftFormValues(): ChampionshipBracketWizardDraftFo
     current_step_index: 0,
     selected_team_ids: [],
     selected_sport_ids_by_team_id: {},
+    show_estimated_start_time_on_cards_by_sport_id: {},
     selected_competition_keys_by_team_id: {},
     should_apply_modalities_to_all_teams: true,
     should_apply_naipes_to_all_teams: true,
@@ -715,6 +726,10 @@ export function AdminChampionshipBracketWizardModal({
   const [selectedSportIdsByTeamId, setSelectedSportIdsByTeamId] = useState<
     Record<string, string[]>
   >({});
+  const [
+    showEstimatedStartTimeOnCardsBySportId,
+    setShowEstimatedStartTimeOnCardsBySportId,
+  ] = useState<Record<string, boolean>>({});
   const [selectedCompetitionKeysByTeamId, setSelectedCompetitionKeysByTeamId] =
     useState<Record<string, string[]>>({});
   const [shouldApplyModalitiesToAllTeams, setShouldApplyModalitiesToAllTeams] =
@@ -784,6 +799,13 @@ export function AdminChampionshipBracketWizardModal({
 
   const applyWizardDraft = useCallback(
     (draft_form_values: ChampionshipBracketWizardDraftFormValues) => {
+      const defaultShowEstimatedStartTimeOnCardsBySportId = championshipSports.reduce<Record<string, boolean>>(
+        (carry, championshipSport) => {
+          carry[championshipSport.sport_id] = championshipSport.show_estimated_start_time_on_cards;
+          return carry;
+        },
+        {},
+      );
       const nextCurrentStepIndex = Math.max(
         0,
         Math.min(
@@ -810,6 +832,10 @@ export function AdminChampionshipBracketWizardModal({
       setSelectedSportIdsByTeamId(
         draft_form_values.selected_sport_ids_by_team_id,
       );
+      setShowEstimatedStartTimeOnCardsBySportId({
+        ...defaultShowEstimatedStartTimeOnCardsBySportId,
+        ...draft_form_values.show_estimated_start_time_on_cards_by_sport_id,
+      });
       setSelectedCompetitionKeysByTeamId(
         draft_form_values.selected_competition_keys_by_team_id,
       );
@@ -846,7 +872,7 @@ export function AdminChampionshipBracketWizardModal({
       );
       setHasResolvedInitialDraftSnapshot(true);
     },
-    [],
+    [championshipSports],
   );
 
   const resetWizardState = useCallback(() => {
@@ -881,6 +907,15 @@ export function AdminChampionshipBracketWizardModal({
         ).reduce<Record<string, string[]>>(
           (carry, [team_id, selected_sport_ids]) => {
             carry[team_id] = [...selected_sport_ids];
+            return carry;
+          },
+          {},
+        ),
+        show_estimated_start_time_on_cards_by_sport_id: Object.entries(
+          showEstimatedStartTimeOnCardsBySportId,
+        ).reduce<Record<string, boolean>>(
+          (carry, [sport_id, shouldShowEstimatedStartTimeOnCards]) => {
+            carry[sport_id] = shouldShowEstimatedStartTimeOnCards;
             return carry;
           },
           {},
@@ -947,6 +982,7 @@ export function AdminChampionshipBracketWizardModal({
       groupAssignmentsByCompetitionKey,
       groupOrderByCompetitionKey,
       scheduleDays,
+      showEstimatedStartTimeOnCardsBySportId,
       selectedCompetitionKeysByTeamId,
       selectedSportIdsByTeamId,
       selectedTeamIds,
@@ -2484,6 +2520,46 @@ export function AdminChampionshipBracketWizardModal({
           return false;
         }
 
+        const breakStartTimeValue = scheduleDay.break_start_time.trim();
+        const breakEndTimeValue = scheduleDay.break_end_time.trim();
+        const hasBreakStartTime = breakStartTimeValue.length > 0;
+        const hasBreakEndTime = breakEndTimeValue.length > 0;
+
+        if (hasBreakStartTime != hasBreakEndTime) {
+          toast.error(
+            "Preencha início e fim do intervalo ou deixe os dois vazios.",
+          );
+          return false;
+        }
+
+        if (hasBreakStartTime && hasBreakEndTime) {
+          const breakStartMinutes =
+            resolveTimeValueToMinutes(breakStartTimeValue);
+          const breakEndMinutes =
+            resolveTimeValueToMinutes(breakEndTimeValue);
+
+          if (
+            breakStartMinutes == null ||
+            breakEndMinutes == null ||
+            breakEndMinutes <= breakStartMinutes
+          ) {
+            toast.error(
+              "Intervalo inválido: fim deve ser maior que início.",
+            );
+            return false;
+          }
+
+          if (
+            breakStartMinutes < startMinutes ||
+            breakEndMinutes > endMinutes
+          ) {
+            toast.error(
+              "Intervalo inválido: precisa estar dentro da janela do dia.",
+            );
+            return false;
+          }
+        }
+
         if (scheduleDay.locations.length == 0) {
           toast.error("Cada dia precisa de ao menos um local.");
           return false;
@@ -2635,8 +2711,8 @@ export function AdminChampionshipBracketWizardModal({
         date: scheduleDay.date,
         start_time: scheduleDay.start_time,
         end_time: scheduleDay.end_time,
-        break_start_time: null,
-        break_end_time: null,
+        break_start_time: scheduleDay.break_start_time.trim() || null,
+        break_end_time: scheduleDay.break_end_time.trim() || null,
         locations: scheduleDay.locations.map(
           (location, locationIndex): ChampionshipBracketLocationInput => ({
             name: location.name,
@@ -2664,6 +2740,35 @@ export function AdminChampionshipBracketWizardModal({
       resolveScheduleDaysPayload,
     ]);
 
+  const persistBeachSoccerEstimatedStartTimeSetting = useCallback(async () => {
+    const beachSoccerChampionshipSports = championshipSports.filter(
+      (championshipSport) =>
+        resolveNormalizedSportName(championshipSport.sports?.name ?? "") ==
+        NORMALIZED_BEACH_SOCCER_NAME,
+    );
+
+    for (const championshipSport of beachSoccerChampionshipSports) {
+      const nextShowEstimatedStartTimeOnCards =
+        showEstimatedStartTimeOnCardsBySportId[championshipSport.sport_id] ??
+        championshipSport.show_estimated_start_time_on_cards;
+
+      const { error } = await supabase
+        .from("championship_sports")
+        .update({
+          show_estimated_start_time_on_cards:
+            nextShowEstimatedStartTimeOnCards,
+        })
+        .eq("id", championshipSport.id);
+
+      if (error) {
+        throw new Error(
+          error.message ||
+            "Não foi possível salvar a configuração de horário estimado do Beach Soccer.",
+        );
+      }
+    }
+  }, [championshipSports, showEstimatedStartTimeOnCardsBySportId]);
+
   const handleSave = async () => {
     if (!validateCurrentStep()) {
       return;
@@ -2674,6 +2779,8 @@ export function AdminChampionshipBracketWizardModal({
     const payload = resolveSetupPayload();
 
     try {
+      await persistBeachSoccerEstimatedStartTimeSetting();
+
       const response = await generateChampionshipBracketGroups(
         selectedChampionship.id,
         payload,
@@ -3141,6 +3248,8 @@ export function AdminChampionshipBracketWizardModal({
         date: resolveBrazilianDateString(scheduleDay.date),
         start_time: scheduleDay.start_time || "--:--",
         end_time: scheduleDay.end_time || "--:--",
+        break_start_time: scheduleDay.break_start_time || "",
+        break_end_time: scheduleDay.break_end_time || "",
         location_count: scheduleDay.locations.length,
         total_courts: totalCourts,
       };
@@ -3432,6 +3541,14 @@ export function AdminChampionshipBracketWizardModal({
 
                     <div className="mt-3 space-y-3">
                       {modalityCards.map((modalityCard) => {
+                        const isBeachSoccerCard =
+                          resolveNormalizedSportName(modalityCard.sport_name) ==
+                          NORMALIZED_BEACH_SOCCER_NAME;
+                        const shouldShowEstimatedStartTimeOnCards =
+                          showEstimatedStartTimeOnCardsBySportId[
+                            modalityCard.sport_id
+                          ] ?? false;
+
                         return (
                           <div
                             key={`wizard-modality-card-${modalityCard.sport_id}`}
@@ -3467,6 +3584,47 @@ export function AdminChampionshipBracketWizardModal({
                                 Selecionar todas
                               </label>
                             </div>
+
+                            {isBeachSoccerCard ? (
+                              <div className="mt-3 rounded-md border border-border/60 bg-background/45 p-3">
+                                <p className="text-xs font-semibold text-foreground">
+                                  Exibir horário estimado nos cards
+                                </p>
+                                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                                  Mantém a fila normal e adiciona apenas o
+                                  horário estimado para jogos agendados.
+                                </p>
+
+                                <RadioGroup
+                                  className="mt-2 flex items-center gap-4"
+                                  value={
+                                    shouldShowEstimatedStartTimeOnCards
+                                      ? "YES"
+                                      : "NO"
+                                  }
+                                  onValueChange={(value) => {
+                                    setShowEstimatedStartTimeOnCardsBySportId(
+                                      (
+                                        currentShowEstimatedStartTimeOnCardsBySportId,
+                                      ) => ({
+                                        ...currentShowEstimatedStartTimeOnCardsBySportId,
+                                        [modalityCard.sport_id]:
+                                          value == "YES",
+                                      }),
+                                    );
+                                  }}
+                                >
+                                  <label className="flex cursor-pointer items-center gap-2 text-xs">
+                                    <RadioGroupItem value="YES" />
+                                    Sim
+                                  </label>
+                                  <label className="flex cursor-pointer items-center gap-2 text-xs">
+                                    <RadioGroupItem value="NO" />
+                                    Não
+                                  </label>
+                                </RadioGroup>
+                              </div>
+                            ) : null}
 
                             {modalityCard.teams.length == 0 ? (
                               <p className="mt-2 text-xs text-muted-foreground">
@@ -4190,6 +4348,52 @@ export function AdminChampionshipBracketWizardModal({
                           />
                         </div>
 
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-muted-foreground">
+                              Início do intervalo
+                            </Label>
+                            <Input
+                              type="time"
+                              value={scheduleDay.break_start_time}
+                              onChange={(event) => {
+                                const nextBreakStartTime = event.target.value;
+
+                                updateScheduleDay(
+                                  scheduleDay.id,
+                                  (scheduleDayItem) => ({
+                                    ...scheduleDayItem,
+                                    break_start_time: nextBreakStartTime,
+                                  }),
+                                );
+                              }}
+                              className="glass-input"
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-muted-foreground">
+                              Fim do intervalo
+                            </Label>
+                            <Input
+                              type="time"
+                              value={scheduleDay.break_end_time}
+                              onChange={(event) => {
+                                const nextBreakEndTime = event.target.value;
+
+                                updateScheduleDay(
+                                  scheduleDay.id,
+                                  (scheduleDayItem) => ({
+                                    ...scheduleDayItem,
+                                    break_end_time: nextBreakEndTime,
+                                  }),
+                                );
+                              }}
+                              className="glass-input"
+                            />
+                          </div>
+                        </div>
+
                         <div className="mt-4 rounded-lg bg-background/50 p-3">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <div className="space-y-0.5">
@@ -4474,6 +4678,10 @@ export function AdminChampionshipBracketWizardModal({
                           {scheduleDaySummary.date} •{" "}
                           {scheduleDaySummary.start_time} até{" "}
                           {scheduleDaySummary.end_time}
+                          {scheduleDaySummary.break_start_time &&
+                          scheduleDaySummary.break_end_time
+                            ? ` • Intervalo ${scheduleDaySummary.break_start_time} até ${scheduleDaySummary.break_end_time}`
+                            : ""}
                           {" • "}
                           {scheduleDaySummary.location_count} locais •{" "}
                           {scheduleDaySummary.total_courts} quadras
