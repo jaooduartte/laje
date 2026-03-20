@@ -32,6 +32,8 @@ interface AdminPageViewProps {
   championshipBracketView: ChampionshipBracketView;
   loadingChampionshipBracket: boolean;
   matchBracketContextByMatchId: Record<string, MatchBracketContext>;
+  matchRepresentationByMatchId: Record<string, string>;
+  estimatedStartTimeByMatchId: Record<string, string>;
   profileName: string | null;
   canViewMatchesTab: boolean;
   canViewControlTab: boolean;
@@ -46,6 +48,7 @@ interface AdminPageViewProps {
   canManageChampionshipStatus: boolean;
   canManageScoreboard: boolean;
   canManageTeams: boolean;
+  canManageSports: boolean;
   canManageLeagueEvents: boolean;
   canManageUsers: boolean;
   canManageAccount: boolean;
@@ -77,6 +80,8 @@ export function AdminPageView({
   championshipBracketView,
   loadingChampionshipBracket,
   matchBracketContextByMatchId,
+  matchRepresentationByMatchId,
+  estimatedStartTimeByMatchId,
   profileName,
   canViewMatchesTab,
   canViewControlTab,
@@ -91,6 +96,7 @@ export function AdminPageView({
   canManageChampionshipStatus,
   canManageScoreboard,
   canManageTeams,
+  canManageSports,
   canManageLeagueEvents,
   canManageUsers,
   canManageAccount,
@@ -330,6 +336,8 @@ export function AdminPageView({
                 championshipBracketView={championshipBracketView}
                 loadingChampionshipBracket={loadingChampionshipBracket}
                 matchBracketContextByMatchId={matchBracketContextByMatchId}
+                matchRepresentationByMatchId={matchRepresentationByMatchId}
+                estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
                 canManageMatches={canManageMatches}
                 onRefetch={onRefetchMatches}
                 onRefetchChampionshipBracket={onRefetchChampionshipBracket}
@@ -345,6 +353,8 @@ export function AdminPageView({
                 championshipSports={championshipSports}
                 championshipBracketView={championshipBracketView}
                 matchBracketContextByMatchId={matchBracketContextByMatchId}
+                matchRepresentationByMatchId={matchRepresentationByMatchId}
+                estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
                 onRefetch={onRefetchMatches}
                 onRefetchChampionshipBracket={onRefetchChampionshipBracket}
                 canManageScoreboard={canManageScoreboard}
@@ -364,6 +374,7 @@ export function AdminPageView({
                 sports={sports}
                 championshipSports={championshipSports}
                 selectedChampionship={selectedChampionship}
+                canManageSports={canManageSports}
               />
             </TabsContent>
           ) : null}

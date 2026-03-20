@@ -32,6 +32,8 @@ interface SchedulePageViewProps {
   orderedDates: string[];
   groupedMatches: Record<string, Match[]>;
   matchBracketContextByMatchId: Record<string, MatchBracketContext>;
+  matchRepresentationByMatchId: Record<string, string>;
+  estimatedStartTimeByMatchId: Record<string, string>;
   onChampionshipCodeChange: (value: string) => void;
   onSportFilterChange: (value: string | null) => void;
   onTeamFilterChange: (value: string | null) => void;
@@ -55,6 +57,8 @@ export function SchedulePageView({
   orderedDates,
   groupedMatches,
   matchBracketContextByMatchId,
+  matchRepresentationByMatchId,
+  estimatedStartTimeByMatchId,
   onChampionshipCodeChange,
   onSportFilterChange,
   onTeamFilterChange,
@@ -176,10 +180,10 @@ export function SchedulePageView({
           </Select>
           <Select value={teamFilter ?? "all"} onValueChange={(value) => onTeamFilterChange(value == "all" ? null : value)}>
             <SelectTrigger className="glass-input w-48">
-              <SelectValue placeholder="Filtrar por time" />
+              <SelectValue placeholder="Filtrar por atlética" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos os times</SelectItem>
+              <SelectItem value="all">Todas as atléticas</SelectItem>
               {teams.map((team) => (
                 <SelectItem key={team.id} value={team.id}>
                   {team.name}
@@ -239,6 +243,8 @@ export function SchedulePageView({
                       match={match}
                       showChampionshipBadge={false}
                       bracketContext={matchBracketContextByMatchId[match.id]}
+                      matchRepresentation={matchRepresentationByMatchId[match.id]}
+                      estimatedStartTime={estimatedStartTimeByMatchId[match.id]}
                     />
                   ))}
                 </div>

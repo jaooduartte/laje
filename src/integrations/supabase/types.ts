@@ -143,6 +143,7 @@ export type Database = {
           id: string
           naipe_mode: Database["public"]["Enums"]["championship_sport_naipe_mode"]
           result_rule: Database["public"]["Enums"]["championship_sport_result_rule"]
+          show_estimated_start_time_on_cards: boolean
           supports_cards: boolean
           tie_breaker_rule: Database["public"]["Enums"]["championship_sport_tie_breaker_rule"]
           points_draw: number
@@ -157,6 +158,7 @@ export type Database = {
           id?: string
           naipe_mode?: Database["public"]["Enums"]["championship_sport_naipe_mode"]
           result_rule?: Database["public"]["Enums"]["championship_sport_result_rule"]
+          show_estimated_start_time_on_cards?: boolean
           supports_cards?: boolean
           tie_breaker_rule?: Database["public"]["Enums"]["championship_sport_tie_breaker_rule"]
           points_draw?: number
@@ -171,6 +173,7 @@ export type Database = {
           id?: string
           naipe_mode?: Database["public"]["Enums"]["championship_sport_naipe_mode"]
           result_rule?: Database["public"]["Enums"]["championship_sport_result_rule"]
+          show_estimated_start_time_on_cards?: boolean
           supports_cards?: boolean
           tie_breaker_rule?: Database["public"]["Enums"]["championship_sport_tie_breaker_rule"]
           points_draw?: number

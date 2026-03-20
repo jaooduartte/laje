@@ -56,6 +56,7 @@ export interface ChampionshipSport {
   supports_cards: boolean;
   tie_breaker_rule: ChampionshipSportTieBreakerRule;
   default_match_duration_minutes: number;
+  show_estimated_start_time_on_cards: boolean;
   points_win: number;
   points_draw: number;
   points_loss: number;

@@ -34,6 +34,8 @@ interface Props {
   championshipSports: ChampionshipSport[];
   championshipBracketView: ChampionshipBracketView;
   matchBracketContextByMatchId: Record<string, MatchBracketContext>;
+  matchRepresentationByMatchId?: Record<string, string>;
+  estimatedStartTimeByMatchId?: Record<string, string>;
   onRefetch: () => void;
   onRefetchChampionshipBracket: () => void;
   canManageScoreboard: boolean;
@@ -177,6 +179,8 @@ export function AdminMatchControl({
   championshipSports,
   championshipBracketView,
   matchBracketContextByMatchId,
+  matchRepresentationByMatchId = {},
+  estimatedStartTimeByMatchId = {},
   onRefetch,
   onRefetchChampionshipBracket,
   canManageScoreboard,
@@ -952,6 +956,8 @@ export function AdminMatchControl({
             const editingSetDraft = editingSetDraftByMatchId[match.id];
             const startedAtLabel = resolveMatchStartedAtLabel(match.start_time);
             const tieBreakRuleLabel = resolveMatchTieBreakRuleLabel(match.resolved_tie_breaker_rule);
+            const matchRepresentation = matchRepresentationByMatchId[match.id];
+            const estimatedStartTime = estimatedStartTimeByMatchId[match.id];
             const displayedHomeScore = isSetMatch && match.status != MatchStatus.LIVE ? displayedSetWins.home_sets : matchDraft.homeScore;
             const displayedAwayScore = isSetMatch && match.status != MatchStatus.LIVE ? displayedSetWins.away_sets : matchDraft.awayScore;
             const isChampionshipStartBlocked = championshipStatus != ChampionshipStatus.IN_PROGRESS;
@@ -990,23 +996,31 @@ export function AdminMatchControl({
                         <p className="text-xs text-muted-foreground">{startedAtLabel}</p>
                       ) : null}
 
+                      {matchRepresentation ? (
+                        <p className="break-words text-xs text-muted-foreground">Representação: {matchRepresentation}</p>
+                      ) : null}
+
+                      {match.status == MatchStatus.SCHEDULED && estimatedStartTime ? (
+                        <p className="text-xs text-muted-foreground">Horário estimado: {estimatedStartTime}</p>
+                      ) : null}
+
                       {isSetMatch ? (
                         <p className="text-xs font-medium text-muted-foreground">
                           Sets ganhos: {displayedSetWins.home_sets} × {displayedSetWins.away_sets}
                         </p>
                       ) : null}
 
-                    {match.status != MatchStatus.LIVE && isMatchStartBlocked ? (
-                      <p className="text-xs font-medium text-amber-500">
-                        Capacidade ao vivo esgotada: {liveMatchesCount}/{availableCourtsCount} quadra(s) em uso.
-                      </p>
-                    ) : null}
+                      {match.status != MatchStatus.LIVE && isMatchStartBlocked ? (
+                        <p className="text-xs font-medium text-amber-500">
+                          Capacidade ao vivo esgotada: {liveMatchesCount}/{availableCourtsCount} quadra(s) em uso.
+                        </p>
+                      ) : null}
 
-                    {match.status == MatchStatus.SCHEDULED && isChampionshipStartBlocked ? (
-                      <p className="text-xs font-medium text-amber-500">
-                        O campeonato precisa estar Em andamento para iniciar jogos ao vivo.
-                      </p>
-                    ) : null}
+                      {match.status == MatchStatus.SCHEDULED && isChampionshipStartBlocked ? (
+                        <p className="text-xs font-medium text-amber-500">
+                          O campeonato precisa estar Em andamento para iniciar jogos ao vivo.
+                        </p>
+                      ) : null}
 
                       {match.status == MatchStatus.FINISHED && tieBreakRuleLabel ? (
                         <p className="inline-flex items-center gap-1 text-xs font-medium text-amber-500">

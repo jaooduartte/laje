@@ -74,7 +74,7 @@ export function AdminPage() {
   });
   const selectedChampionshipSeasonYear = selectedChampionship?.current_season_year ?? null;
 
-  const { matches, refetch: refetchMatches } = useMatches({
+  const { matches, matchRepresentationByMatchId, estimatedStartTimeByMatchId, refetch: refetchMatches } = useMatches({
     championshipId: selectedChampionshipId,
     seasonYear: selectedChampionshipSeasonYear,
   });
@@ -344,6 +344,7 @@ export function AdminPage() {
   const canManageMatches = canEditAdminTab(AdminPanelTab.MATCHES);
   const canManageChampionshipStatus = canEditAdminTab(AdminPanelTab.MATCHES);
   const canManageTeams = canEditAdminTab(AdminPanelTab.TEAMS);
+  const canManageSports = canEditAdminTab(AdminPanelTab.SPORTS);
   const canManageLeagueEvents = canEditAdminTab(AdminPanelTab.EVENTS);
   const canManageUsers = canEditAdminTab(AdminPanelTab.USERS);
   const canManageAccount = canEditAdminTab(AdminPanelTab.ACCOUNT);
@@ -378,6 +379,8 @@ export function AdminPage() {
         championshipBracketView={visibleChampionshipBracketView}
         loadingChampionshipBracket={loadingChampionshipBracket}
         matchBracketContextByMatchId={matchBracketContextByMatchId}
+        matchRepresentationByMatchId={matchRepresentationByMatchId}
+        estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
         profileName={profileName}
         canViewMatchesTab={canViewMatchesTab}
         canViewControlTab={canViewControlTab}
@@ -392,6 +395,7 @@ export function AdminPage() {
         canManageChampionshipStatus={canManageChampionshipStatus}
         canManageScoreboard={canManageScoreboard}
         canManageTeams={canManageTeams}
+        canManageSports={canManageSports}
         canManageLeagueEvents={canManageLeagueEvents}
         canManageUsers={canManageUsers}
         canManageAccount={canManageAccount}

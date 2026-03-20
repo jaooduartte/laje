@@ -25,7 +25,7 @@ export function StandingsTable({ standings }: Props) {
         <TableHeader>
           <TableRow className="bg-secondary/40">
             <TableHead className="w-8 text-center">#</TableHead>
-            <TableHead>Time</TableHead>
+            <TableHead>Atlética</TableHead>
             <TableHead className="w-28 text-center">Naipe</TableHead>
             <TableHead className="text-center w-10">J</TableHead>
             <TableHead className="text-center w-10">V</TableHead>

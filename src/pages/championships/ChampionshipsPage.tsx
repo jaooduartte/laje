@@ -51,7 +51,7 @@ export function ChampionshipsPage() {
   const selectedChampionshipIsFinished = selectedChampionship?.status == ChampionshipStatus.FINISHED;
   const selectedChampionshipSeasonYear = selectedChampionship?.current_season_year ?? null;
 
-  const { matches, loading: matchesLoading } = useMatches({
+  const { matches, matchRepresentationByMatchId, estimatedStartTimeByMatchId, loading: matchesLoading } = useMatches({
     championshipId: selectedChampionshipId,
   });
 
@@ -316,10 +316,13 @@ export function ChampionshipsPage() {
       selectedChampionship={selectedChampionship}
       selectedChampionshipCode={selectedChampionshipCode}
       selectedChampionshipIsFinished={selectedChampionshipIsFinished}
-        championshipCardImageByCode={CHAMPIONSHIP_CARD_IMAGE_BY_CODE}
-        sports={sports}
-        sportFilter={sportFilter}
-        nextMatches={nextMatches}
+      championshipCardImageByCode={CHAMPIONSHIP_CARD_IMAGE_BY_CODE}
+      sports={sports}
+      sportFilter={sportFilter}
+      nextMatches={nextMatches}
+      matchBracketContextByMatchId={matchBracketContextByMatchId}
+      matchRepresentationByMatchId={matchRepresentationByMatchId}
+      estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
       standingsSportFilter={standingsSportFilter}
       standingsNaipeFilter={standingsNaipeFilter}
       standingsYearFilter={standingsYearFilter}
@@ -346,7 +349,6 @@ export function ChampionshipsPage() {
       onTeamFilterChange={setTeamFilter}
       onYearFilterChange={setYearFilter}
       onGroupFilterChange={setGroupFilter}
-      matchBracketContextByMatchId={matchBracketContextByMatchId}
     />
   );
 }

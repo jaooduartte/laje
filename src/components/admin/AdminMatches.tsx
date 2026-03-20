@@ -130,6 +130,8 @@ interface Props {
   championshipBracketView: ChampionshipBracketView;
   loadingChampionshipBracket: boolean;
   matchBracketContextByMatchId: Record<string, MatchBracketContext>;
+  matchRepresentationByMatchId?: Record<string, string>;
+  estimatedStartTimeByMatchId?: Record<string, string>;
   canManageMatches?: boolean;
   onRefetch: () => void;
   onRefetchChampionshipBracket: () => void;
@@ -265,6 +267,8 @@ export function AdminMatches({
   championshipBracketView,
   loadingChampionshipBracket,
   matchBracketContextByMatchId,
+  matchRepresentationByMatchId = {},
+  estimatedStartTimeByMatchId = {},
   canManageMatches = true,
   onRefetch,
   onRefetchChampionshipBracket,
@@ -1115,7 +1119,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
     }
 
     if (homeTeamId === awayTeamId) {
-      toast.error("Times devem ser diferentes.");
+      toast.error("Atléticas devem ser diferentes.");
       return;
     }
 
@@ -1293,7 +1297,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
     }
 
     if (editingMatchDraft.homeTeamId === editingMatchDraft.awayTeamId) {
-      toast.error("Times devem ser diferentes.");
+      toast.error("Atléticas devem ser diferentes.");
       return;
     }
 
@@ -1719,6 +1723,12 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
                           <div className="space-y-0.5 text-xs text-muted-foreground">
                             <p>Local: {match.location}</p>
                             <p>Fila: {resolveScheduledQueueSummary(match, shouldUseScheduledSlotInMatchList)}</p>
+                            {matchRepresentationByMatchId[match.id] ? (
+                              <p className="break-words">Representação: {matchRepresentationByMatchId[match.id]}</p>
+                            ) : null}
+                            {match.status == MatchStatus.SCHEDULED && estimatedStartTimeByMatchId[match.id] ? (
+                              <p>Horário estimado: {estimatedStartTimeByMatchId[match.id]}</p>
+                            ) : null}
                             {startedAtLabel ? <p>{startedAtLabel}</p> : null}
                             {isSetMatch && match.status != MatchStatus.SCHEDULED ? (
                               <p>Sets ganhos: {match.home_score} × {match.away_score}</p>
@@ -1866,13 +1876,13 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
         }}
       >
         {editingMatch && editingMatchDraft ? (
-          <DialogContent className="flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col overflow-hidden sm:w-full sm:max-w-4xl">
+          <DialogContent className="flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col overflow-hidden sm:max-h-none sm:w-full sm:max-w-4xl sm:overflow-visible">
             <DialogHeader className="shrink-0">
               <DialogTitle>Editar jogo - {selectedChampionship.name}</DialogTitle>
-              <DialogDescription>Atualize naipe, modalidade, grupo, times, local e o dia da fila do confronto.</DialogDescription>
+              <DialogDescription>Atualize naipe, modalidade, grupo, atléticas, local e o dia da fila do confronto.</DialogDescription>
             </DialogHeader>
 
-            <div className="min-h-0 overflow-y-auto pr-1">
+            <div className="min-h-0 overflow-y-auto pr-1 sm:overflow-visible sm:pr-0">
               <div className="space-y-5">
               <div className="space-y-2">
                 <p className="text-xs font-medium text-muted-foreground">Naipe</p>
@@ -2124,7 +2134,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
               </div>
 
               <div className="space-y-3">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Participantes</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Atléticas</p>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <Select
                     value={editingMatchDraft.homeTeamId}
@@ -2139,8 +2149,8 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
                       )
                     }
                   >
-                    <SelectTrigger aria-label="Time Casa" className="glass-input">
-                      <SelectValue placeholder="Time Casa" />
+                    <SelectTrigger aria-label="Atlética da casa" className="glass-input">
+                      <SelectValue placeholder="Atlética da casa" />
                     </SelectTrigger>
                     <SelectContent>
                       {eligibleTeamsForEditingMatch.map((team) => (
@@ -2164,8 +2174,8 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
                       )
                     }
                   >
-                    <SelectTrigger aria-label="Time Visitante" className="glass-input">
-                      <SelectValue placeholder="Time Visitante" />
+                    <SelectTrigger aria-label="Atlética visitante" className="glass-input">
+                      <SelectValue placeholder="Atlética visitante" />
                     </SelectTrigger>
                     <SelectContent>
                       {eligibleTeamsForEditingMatch.map((team) => (
@@ -2216,13 +2226,13 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
           }
         }}
       >
-        <DialogContent className="flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col overflow-hidden sm:w-full sm:max-w-4xl">
+        <DialogContent className="flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col overflow-hidden sm:max-h-none sm:w-full sm:max-w-4xl sm:overflow-visible">
           <DialogHeader className="shrink-0">
             <DialogTitle>Novo jogo - {selectedChampionship.name}</DialogTitle>
-            <DialogDescription>Defina naipe, modalidade, chave, times, local e o dia da fila do confronto.</DialogDescription>
+            <DialogDescription>Defina naipe, modalidade, chave, atléticas, local e o dia da fila do confronto.</DialogDescription>
           </DialogHeader>
 
-          <div className="min-h-0 overflow-y-auto pr-1">
+          <div className="min-h-0 overflow-y-auto pr-1 sm:overflow-visible sm:pr-0">
             <div className="space-y-5">
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground">Naipe</p>
@@ -2353,11 +2363,11 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
             </div>
 
             <div className="space-y-3">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Participantes</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Atléticas</p>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <Select value={homeTeamId} onValueChange={setHomeTeamId}>
                   <SelectTrigger className="glass-input">
-                    <SelectValue placeholder="Time Casa" />
+                    <SelectValue placeholder="Atlética da casa" />
                   </SelectTrigger>
                   <SelectContent>
                     {eligibleTeams.map((team) => (
@@ -2370,7 +2380,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
 
                 <Select value={awayTeamId} onValueChange={setAwayTeamId}>
                   <SelectTrigger className="glass-input">
-                    <SelectValue placeholder="Time Visitante" />
+                    <SelectValue placeholder="Atlética visitante" />
                   </SelectTrigger>
                   <SelectContent>
                     {eligibleTeams.map((team) => (

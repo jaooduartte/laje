@@ -24,6 +24,8 @@ interface Props {
   showChampionshipBadge?: boolean;
   bracketContext?: MatchBracketContext;
   showStartedAtDate?: boolean;
+  matchRepresentation?: string;
+  estimatedStartTime?: string;
 }
 
 function RedCardIndicator({ quantity }: { quantity: number }) {
@@ -48,6 +50,8 @@ export function MatchCard({
   showChampionshipBadge = true,
   bracketContext,
   showStartedAtDate = false,
+  matchRepresentation,
+  estimatedStartTime,
 }: Props) {
   const matchCardClassName =
     match.status == MatchStatus.LIVE
@@ -163,9 +167,15 @@ export function MatchCard({
         </div>
       ) : null}
 
-      <div className="mt-auto flex items-center justify-between pt-3 text-xs text-muted-foreground">
-        <span>{match.location}</span>
-        <span>{footerScheduleLabel}</span>
+      <div className="mt-auto space-y-1 pt-3 text-xs text-muted-foreground">
+        {matchRepresentation ? <p className="break-words">Representação: {matchRepresentation}</p> : null}
+        {match.status == MatchStatus.SCHEDULED && estimatedStartTime ? (
+          <p className="break-words">Horário estimado: {estimatedStartTime}</p>
+        ) : null}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span>{match.location}</span>
+          <span>{footerScheduleLabel}</span>
+        </div>
       </div>
     </div>
   );
