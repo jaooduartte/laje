@@ -253,8 +253,6 @@ function resolveMatchRepresentationScopeKey(match: Match): string {
     String(match.season_year),
     scheduledDateValue,
     match.sport_id,
-    match.naipe,
-    match.division ?? "WITHOUT_DIVISION",
   ].join(":");
 }
 

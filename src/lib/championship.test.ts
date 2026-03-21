@@ -113,38 +113,88 @@ describe("resolveMatchRepresentationByMatchId", () => {
     });
   });
 
-  it("keeps divisions isolated, including matches without division", () => {
-    const principalDivisionMatch = buildMatch({
-      id: "principal-1",
-      division: TeamDivision.DIVISAO_PRINCIPAL,
+  it("follows the same operational queue regardless of naipe and division", () => {
+    const firstMatch = buildMatch({
+      id: "match-queue-1",
       queue_position: 1,
+      naipe: MatchNaipe.MASCULINO,
+      division: TeamDivision.DIVISAO_PRINCIPAL,
       home_team: { id: "team-1", name: "Alpha", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
       away_team: { id: "team-2", name: "Beta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
     });
-    const accessDivisionMatch = buildMatch({
-      id: "access-1",
+    const secondMatch = buildMatch({
+      id: "match-queue-2",
+      queue_position: 2,
+      naipe: MatchNaipe.FEMININO,
       division: TeamDivision.DIVISAO_ACESSO,
-      queue_position: 1,
       home_team: { id: "team-3", name: "Gamma", city: "Joinville", division: TeamDivision.DIVISAO_ACESSO, created_at: "2026-03-01T00:00:00.000Z" },
       away_team: { id: "team-4", name: "Delta", city: "Joinville", division: TeamDivision.DIVISAO_ACESSO, created_at: "2026-03-01T00:00:00.000Z" },
     });
-    const withoutDivisionMatch = buildMatch({
-      id: "without-1",
+    const thirdMatch = buildMatch({
+      id: "match-queue-3",
+      queue_position: 3,
+      naipe: MatchNaipe.MASCULINO,
       division: null,
-      queue_position: 1,
       home_team: { id: "team-5", name: "Epsilon", city: "Joinville", division: null, created_at: "2026-03-01T00:00:00.000Z" },
       away_team: { id: "team-6", name: "Zeta", city: "Joinville", division: null, created_at: "2026-03-01T00:00:00.000Z" },
     });
 
     const representationByMatchId = resolveMatchRepresentationByMatchId([
-      principalDivisionMatch,
-      accessDivisionMatch,
-      withoutDivisionMatch,
+      secondMatch,
+      thirdMatch,
+      firstMatch,
     ]);
 
-    expect(representationByMatchId["principal-1"]).toBe("CO");
-    expect(representationByMatchId["access-1"]).toBe("CO");
-    expect(representationByMatchId["without-1"]).toBe("CO");
+    expect(representationByMatchId["match-queue-1"]).toBe("CO");
+    expect(representationByMatchId["match-queue-2"]).toBe("Alpha x Beta");
+    expect(representationByMatchId["match-queue-3"]).toBe("Gamma x Delta");
+  });
+
+  it("keeps different sports and days isolated in their own operational queues", () => {
+    const beachSoccerFirstMatch = buildMatch({
+      id: "beach-1",
+      sport_id: "sport-beach-soccer",
+      scheduled_date: "2026-03-20",
+      queue_position: 1,
+      home_team: { id: "team-1", name: "Alpha", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      away_team: { id: "team-2", name: "Beta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+    });
+    const beachSoccerSecondMatch = buildMatch({
+      id: "beach-2",
+      sport_id: "sport-beach-soccer",
+      scheduled_date: "2026-03-20",
+      queue_position: 2,
+      home_team: { id: "team-3", name: "Gamma", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      away_team: { id: "team-4", name: "Delta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+    });
+    const futsalFirstMatch = buildMatch({
+      id: "futsal-1",
+      sport_id: "sport-futsal",
+      scheduled_date: "2026-03-20",
+      queue_position: 1,
+      home_team: { id: "team-5", name: "Epsilon", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      away_team: { id: "team-6", name: "Zeta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+    });
+    const beachSoccerNextDayFirstMatch = buildMatch({
+      id: "beach-next-day-1",
+      sport_id: "sport-beach-soccer",
+      scheduled_date: "2026-03-21",
+      queue_position: 1,
+      home_team: { id: "team-7", name: "Eta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      away_team: { id: "team-8", name: "Theta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+    });
+
+    const representationByMatchId = resolveMatchRepresentationByMatchId([
+      beachSoccerSecondMatch,
+      beachSoccerFirstMatch,
+      futsalFirstMatch,
+      beachSoccerNextDayFirstMatch,
+    ]);
+
+    expect(representationByMatchId["beach-1"]).toBe("CO");
+    expect(representationByMatchId["beach-2"]).toBe("Alpha x Beta");
+    expect(representationByMatchId["futsal-1"]).toBe("CO");
+    expect(representationByMatchId["beach-next-day-1"]).toBe("CO");
   });
 
   it("uses created_at and id as tie-breakers and falls back to A definir when the previous teams are undefined", () => {
