@@ -17,7 +17,7 @@ export function OnlineVisitorsBadge({
   return (
     <div
       className={cn(
-        "glass-chip inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-muted-foreground",
+        "app-button-secondary inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-muted-foreground shadow-[0_4px_10px_rgba(15,23,42,0.06)] dark:shadow-none",
         className,
       )}
       title={`${accessibleLabel}: ${onlineVisitorsCount}`}

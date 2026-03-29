@@ -220,12 +220,12 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
             value={teamSearch}
             onChange={(event) => setTeamSearch(event.target.value)}
             placeholder="Buscar atlética por nome"
-            className="glass-input"
+            className="app-input-field"
             autoComplete="off"
           />
 
           <Select value={divisionFilter} onValueChange={setDivisionFilter}>
-            <SelectTrigger className="glass-input">
+            <SelectTrigger className="app-input-field">
               <SelectValue placeholder="Filtrar por divisão" />
             </SelectTrigger>
             <SelectContent>
@@ -316,12 +316,12 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
               placeholder="Nome da atlética"
               value={name}
               onChange={(event) => setName(event.target.value)}
-              className="glass-input"
+              className="app-input-field"
               autoComplete="off"
             />
 
             <Select value={city} onValueChange={setCity}>
-              <SelectTrigger className="glass-input">
+              <SelectTrigger className="app-input-field">
                 <SelectValue placeholder="Cidade" />
               </SelectTrigger>
               <SelectContent>
@@ -341,7 +341,7 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
                 }
               }}
             >
-              <SelectTrigger className="glass-input">
+              <SelectTrigger className="app-input-field">
                 <SelectValue placeholder="Divisão" />
               </SelectTrigger>
               <SelectContent>
@@ -391,12 +391,12 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
               placeholder="Nome da atlética"
               value={editingTeamName}
               onChange={(event) => setEditingTeamName(event.target.value)}
-              className="glass-input"
+              className="app-input-field"
               autoComplete="off"
             />
 
             <Select value={editingTeamCity} onValueChange={setEditingTeamCity}>
-              <SelectTrigger className="glass-input">
+              <SelectTrigger className="app-input-field">
                 <SelectValue placeholder="Cidade" />
               </SelectTrigger>
               <SelectContent>
@@ -416,7 +416,7 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
                 }
               }}
             >
-              <SelectTrigger className="glass-input">
+              <SelectTrigger className="app-input-field">
                 <SelectValue placeholder="Divisão" />
               </SelectTrigger>
               <SelectContent>

@@ -128,7 +128,7 @@ export function LoginPageView({
               value={loginIdentifier}
               onChange={(event) => onLoginIdentifierChange(event.target.value)}
               required
-              className="glass-input"
+              className="app-input-field"
               autoComplete="username"
               autoCorrect="off"
               autoCapitalize="none"
@@ -143,7 +143,7 @@ export function LoginPageView({
                 value={password}
                 onChange={(event) => onPasswordChange(event.target.value)}
                 required
-                className="glass-input"
+                className="app-input-field"
                 autoComplete="current-password"
               />
             ) : null}
@@ -156,7 +156,7 @@ export function LoginPageView({
                   value={newPassword}
                   onChange={(event) => onNewPasswordChange(event.target.value)}
                   required
-                  className="glass-input"
+                  className="app-input-field"
                   autoComplete="new-password"
                 />
                 <Input
@@ -165,7 +165,7 @@ export function LoginPageView({
                   value={confirmPassword}
                   onChange={(event) => onConfirmPasswordChange(event.target.value)}
                   required
-                  className="glass-input"
+                  className="app-input-field"
                   autoComplete="new-password"
                 />
               </div>

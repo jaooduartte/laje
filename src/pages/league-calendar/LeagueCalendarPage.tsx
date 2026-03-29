@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, startOfMonth, startOfWeek, subMonths } from "date-fns";
+import { addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isSameDay, startOfMonth, startOfWeek, subMonths } from "date-fns";
 import { useLeagueEvents } from "@/hooks/useLeagueEvents";
 import { LeagueCalendarPageView } from "@/pages/league-calendar/LeagueCalendarPageView";
 import { isLeagueEventType } from "@/domain/league-events/leagueEvent.constants";
@@ -24,7 +24,7 @@ type HolidayFilterMode =
 
 export function LeagueCalendarPage() {
   const [monthDate, setMonthDate] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const { leagueEvents, loading } = useLeagueEvents({ monthDate });
   const [athleticFilter, setAthleticFilter] = useState<string>(ALL_ATHLETICS_FILTER);
   const [eventTypeFilter, setEventTypeFilter] = useState<string>(ALL_EVENT_TYPES_FILTER);
@@ -232,7 +232,7 @@ export function LeagueCalendarPage() {
   };
 
   const handleSelectedDateChange = (date: Date) => {
-    setSelectedDate(date);
+    setSelectedDate((currentSelectedDate) => (currentSelectedDate && isSameDay(currentSelectedDate, date) ? null : date));
 
     const selectedDateMonthKey = format(date, "yyyy-MM");
     const currentMonthKey = format(monthDate, "yyyy-MM");

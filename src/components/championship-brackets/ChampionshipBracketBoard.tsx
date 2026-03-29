@@ -514,10 +514,10 @@ function BracketMatchCard({
 
   return (
     <div
-      className={`flex h-full flex-col overflow-hidden rounded-[1.35rem] border p-3 shadow-[0_16px_32px_rgba(15,23,42,0.16)] dark:shadow-none ${
+      className={`app-input-field flex h-full flex-col overflow-hidden rounded-[1.35rem] p-3 shadow-[0_8px_20px_rgba(15,23,42,0.15)] dark:shadow-none ${
         isFinalCard
-          ? "border-primary/50 bg-primary/10 shadow-[0_20px_44px_rgba(220,38,38,0.16)] dark:shadow-none"
-          : "border-border/40 bg-background/70"
+          ? "border-transparent !bg-primary/20 dark:!bg-primary/20"
+          : ""
       }`}
       style={
         fixedSize
@@ -542,7 +542,7 @@ function BracketMatchCard({
       </div>
 
       <div className="mt-3 flex min-h-0 flex-1 flex-col justify-center gap-2.5">
-        <div className="flex min-h-[44px] items-center justify-center rounded-xl border border-border/30 bg-background/60 px-3 py-2 text-center">
+        <div className="app-input-field flex min-h-[44px] items-center justify-center rounded-xl px-3 py-2 text-center">
           <div className="flex max-w-full items-center justify-center gap-2">
             {isHomeWinner ? <Trophy className="h-4 w-4 shrink-0 text-amber-400" /> : null}
             <p className="max-w-full break-words text-center text-sm font-semibold leading-snug">{resolvedHomeLabel}</p>
@@ -553,7 +553,7 @@ function BracketMatchCard({
           <span className="font-display text-lg font-bold text-muted-foreground/70">×</span>
         </div>
 
-        <div className="flex min-h-[44px] items-center justify-center rounded-xl border border-border/30 bg-background/60 px-3 py-2 text-center">
+        <div className="app-input-field flex min-h-[44px] items-center justify-center rounded-xl px-3 py-2 text-center">
           <div className="flex max-w-full items-center justify-center gap-2">
             {isAwayWinner ? <Trophy className="h-4 w-4 shrink-0 text-amber-400" /> : null}
             <p className="max-w-full break-words text-center text-sm font-semibold leading-snug">{resolvedAwayLabel}</p>
@@ -626,7 +626,7 @@ function DesktopBracketCanvas({
   return (
     <div
       ref={desktopBracketCanvasReference}
-      className="hidden rounded-2xl border border-border/30 bg-background/30 px-6 py-5 md:block"
+      className="app-card-muted hidden rounded-2xl px-6 py-5 md:block"
     >
       <div
         className="flex w-full items-start justify-center overflow-visible"
@@ -813,7 +813,7 @@ export function ChampionshipBracketBoard({
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <Select value={sportFilter} onValueChange={setSportFilter}>
-          <SelectTrigger className="glass-input">
+          <SelectTrigger className="app-input-field">
             <SelectValue placeholder="Filtrar modalidade" />
           </SelectTrigger>
           <SelectContent>
@@ -827,7 +827,7 @@ export function ChampionshipBracketBoard({
         </Select>
 
         <Select value={naipeFilter} onValueChange={setNaipeFilter}>
-          <SelectTrigger className="glass-input">
+          <SelectTrigger className="app-input-field">
             <SelectValue placeholder="Filtrar naipe" />
           </SelectTrigger>
           <SelectContent>
@@ -839,7 +839,7 @@ export function ChampionshipBracketBoard({
         </Select>
 
         <Select value={divisionFilter} onValueChange={setDivisionFilter}>
-          <SelectTrigger className="glass-input">
+          <SelectTrigger className="app-input-field">
             <SelectValue placeholder="Filtrar divisão" />
           </SelectTrigger>
           <SelectContent>
@@ -896,7 +896,7 @@ export function ChampionshipBracketBoard({
         );
 
         return (
-          <div key={competition.id} className="space-y-4 rounded-2xl border border-border/40 bg-background/30 p-4">
+          <div key={competition.id} className="space-y-4 rounded-2xl app-card-muted p-4">
             <div className="space-y-1">
               <h3 className="font-display text-lg font-bold">
                 {competition.sport_name} • {MATCH_NAIPE_LABELS[competition.naipe]}

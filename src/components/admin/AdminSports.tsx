@@ -166,29 +166,29 @@ export function AdminSports({
                 </p>
 
                 <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                  <div className="glass-panel-muted px-3 py-2">
+                  <div className="app-card-muted px-3 py-2">
                     <p className="text-xs font-medium text-muted-foreground">Tipo de naipe</p>
                     <p className="font-medium">{CHAMPIONSHIP_SPORT_NAIPE_MODE_LABELS[resolvedNaipeMode]}</p>
                   </div>
 
-                  <div className="glass-panel-muted px-3 py-2">
+                  <div className="app-card-muted px-3 py-2">
                     <p className="text-xs font-medium text-muted-foreground">Pontuação</p>
                     <p className="font-medium">V {resolvedPointsWin} • E {resolvedPointsDraw} • D {resolvedPointsLoss}</p>
                   </div>
 
-                  <div className="glass-panel-muted px-3 py-2">
+                  <div className="app-card-muted px-3 py-2">
                     <p className="text-xs font-medium text-muted-foreground">Cartões</p>
                     <p className="font-medium">{resolvedSupportsCards ? "Sim" : "Não"}</p>
                   </div>
 
-                  <div className="glass-panel-muted px-3 py-2">
+                  <div className="app-card-muted px-3 py-2">
                     <p className="text-xs font-medium text-muted-foreground">Regra de resultado</p>
                     <p className="font-medium">{CHAMPIONSHIP_SPORT_RESULT_RULE_LABELS[resolvedResultRule]}</p>
                     <p className="text-xs text-muted-foreground">{resolvedDefaultMatchDurationMinutes} min por jogo</p>
                   </div>
                 </div>
 
-                <div className="glass-panel-muted px-3 py-2">
+                <div className="app-card-muted px-3 py-2">
                   <p className="text-xs font-medium text-muted-foreground">Critérios de desempate (ordem de prioridade)</p>
                   <ol className="mt-1 space-y-1 text-sm font-medium">
                     {platformSportRule.tieBreakerPriority.map((tieBreakerPriorityItem, tieBreakerPriorityIndex) => (
@@ -200,7 +200,7 @@ export function AdminSports({
                 </div>
 
                 {isBeachSoccer ? (
-                  <div className="glass-panel-muted space-y-2 px-3 py-2">
+                  <div className="app-card-muted space-y-2 px-3 py-2">
                     <p className="text-xs font-medium text-muted-foreground">Horário estimado nos cards (Beach Soccer)</p>
                     <RadioGroup
                       value={shouldShowEstimatedStartTimeOnCards ? "YES" : "NO"}

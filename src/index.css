@@ -52,22 +52,22 @@
   }
 
   .dark {
-    --background: 224 28% 8%;
+    --background: 0 0% 0%;
     --foreground: 210 40% 96%;
 
-    --card: 224 28% 10%;
+    --card: 0 0% 10%;
     --card-foreground: 210 40% 96%;
 
-    --popover: 224 28% 10%;
+    --popover: 0 0% 10%;
     --popover-foreground: 210 40% 96%;
 
     --primary: 1 66% 42%;
     --primary-foreground: 0 0% 98%;
 
-    --secondary: 224 20% 16%;
+    --secondary: 0 0% 10%;
     --secondary-foreground: 210 40% 96%;
 
-    --muted: 223 18% 18%;
+    --muted: 0 0% 12%;
     --muted-foreground: 217 17% 72%;
 
     --accent: 1 40% 24%;
@@ -85,7 +85,7 @@
     --scheduled: 218 16% 74%;
     --finished: 28 94% 60%;
 
-    --sidebar-background: 224 28% 9%;
+    --sidebar-background: 0 0% 8%;
     --sidebar-foreground: 210 40% 96%;
     --sidebar-primary: 1 74% 56%;
     --sidebar-primary-foreground: 0 0% 98%;
@@ -120,10 +120,7 @@
   }
 
   .dark .app-page {
-    background:
-      radial-gradient(1200px 500px at 8% -10%, hsl(var(--primary) / 0.16), transparent 55%),
-      radial-gradient(900px 420px at 100% -20%, hsl(var(--accent-foreground) / 0.14), transparent 60%),
-      linear-gradient(180deg, hsl(var(--background)), hsl(var(--secondary) / 0.62));
+    background: hsl(0 0% 0%);
   }
 
   .glass-panel {
@@ -151,6 +148,15 @@
     border-radius: 1rem;
     box-shadow: 0 10px 28px hsl(222 22% 16% / 0.08);
     transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+  }
+
+  .app-header-surface {
+    border: 1px solid hsl(var(--border) / 0.36);
+    background: hsl(var(--card) / 0.56);
+    -webkit-backdrop-filter: blur(18px);
+    backdrop-filter: blur(18px);
+    border-radius: 1rem;
+    box-shadow: 0 10px 28px hsl(222 22% 16% / 0.06);
   }
 
   .glass-card-hover:hover {
@@ -182,7 +188,7 @@
     border-color: hsl(var(--live) / 0.42);
   }
 
-  .glass-chip {
+  .app-pill-container {
     border: 1px solid hsl(var(--border) / 0.56);
     background: hsl(var(--background) / 0.62);
     -webkit-backdrop-filter: blur(12px);
@@ -190,15 +196,153 @@
     box-shadow: 0 8px 20px hsl(222 22% 16% / 0.08);
   }
 
-  .glass-input {
+  .app-pill-option {
+    color: hsl(var(--secondary-foreground) / 0.9);
+    transition: color 180ms ease;
+  }
+
+  .app-pill-option:hover {
+    color: hsl(var(--foreground));
+  }
+
+  .app-pill-option[data-state="active"],
+  .app-pill-option[aria-current="page"] {
+    color: hsl(var(--primary));
+    font-weight: 700;
+  }
+
+  .app-header-nav-container {
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .app-input-field {
     border-color: transparent;
     background: hsl(var(--background) / 0.58);
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
   }
 
-  .dark .glass-input {
-    border-color: hsl(var(--border) / 0.45);
+  .app-input-field-disabled {
+    border-color: transparent;
+    background: hsl(var(--secondary) / 0.85);
+    color: hsl(var(--muted-foreground));
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+  }
+
+  .app-input-field:disabled,
+  .app-input-field[data-disabled="true"],
+  .app-input-field[data-disabled] {
+    opacity: 1 !important;
+  }
+
+  .app-button-primary {
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+  }
+
+  .app-button-primary:hover {
+    background: hsl(var(--primary) / 0.9);
+  }
+
+  .app-button-secondary {
+    border-color: transparent;
+    background: hsl(var(--background) / 0.58);
+    color: hsl(var(--secondary-foreground));
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+  }
+
+  .app-button-secondary:hover {
+    background: hsl(var(--background) / 0.72);
+    color: hsl(var(--foreground));
+  }
+
+  .app-modal-surface {
+    border: 1px solid hsl(var(--border) / 0.55);
+    background: hsl(var(--background) / 0.84);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 24px 60px hsl(222 22% 16% / 0.28);
+  }
+
+  .app-popover-surface {
+    border: 1px solid hsl(var(--border) / 0.55);
+    background: hsl(var(--background) / 0.86);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 16px 36px hsl(222 22% 16% / 0.16);
+  }
+
+  .app-select-dropdown {
+    border: 1px solid hsl(var(--border) / 0.55);
+    background: hsl(var(--background) / 0.86);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 16px 36px hsl(222 22% 16% / 0.16);
+  }
+
+  .app-pagination-container {
+    border: 1px solid hsl(var(--border) / 0.5);
+    background: hsl(var(--background) / 0.52);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 8px 24px hsl(222 22% 16% / 0.08);
+  }
+
+  .app-card-muted {
+    border: 1px solid hsl(var(--border) / 0.42);
+    background: hsl(var(--background) / 0.44);
+    border-radius: 0.75rem;
+  }
+
+  .app-card-emphasis {
+    border: 1px solid hsl(var(--border) / 0.46);
+    background: hsl(var(--background) / 0.56);
+    border-radius: 0.75rem;
+  }
+
+  .app-card-warning {
+    border: 1px solid hsl(40 96% 46% / 0.32);
+    background: hsl(40 96% 46% / 0.08);
+  }
+
+  .app-help-icon-button {
+    border: 1px solid transparent;
+    background: hsl(var(--background) / 0.58);
+    color: hsl(var(--muted-foreground));
+    transition: color 180ms ease, background-color 180ms ease;
+  }
+
+  .app-help-icon-button:hover {
+    color: hsl(var(--foreground));
+    background: hsl(var(--background) / 0.72);
+  }
+
+  .app-button-secondary-active {
+    border-color: hsl(var(--primary) / 0.4);
+    background: hsl(var(--primary) / 0.18);
+    color: hsl(var(--primary-foreground));
+  }
+
+  .app-pill-active-indicator {
+    background: hsl(var(--primary) / 0.2);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+  }
+
+  .app-card-live-active {
+    border-color: hsl(var(--live) / 0.5);
+    background: hsl(var(--primary) / 0.1);
+    box-shadow: 0 0 0 1px hsl(var(--live) / 0.45);
+  }
+
+  .app-text-status-danger {
+    color: hsl(345 83% 41%);
   }
 
   .enter-section {
@@ -234,13 +378,192 @@
   }
 
   .dark .glass-panel,
+  .dark .glass-panel-muted,
   .dark .glass-card,
   .dark .glass-card-hover:hover,
   .dark .list-item-card,
   .dark .list-item-card-hover:hover,
-  .dark .glass-chip,
+  .dark .app-modal-surface,
+  .dark .app-popover-surface,
+  .dark .app-select-dropdown,
+  .dark .app-pagination-container,
+  .dark .app-pill-container,
   .dark .live-glow {
     box-shadow: none;
+  }
+
+  .dark .glass-panel,
+  .dark .glass-panel-muted {
+    border-color: transparent;
+    background: hsl(0, 0%, 8%);
+  }
+
+  .dark .glass-card {
+    border-color: transparent;
+    background: hsl(0, 0%, 8%);
+  }
+
+  .dark .app-header-surface {
+    border-color: transparent;
+    background: hsl(0 0% 14% / 0.56);
+    box-shadow: none;
+  }
+
+  .dark .list-item-card {
+    border-color: transparent;
+    background: hsl(0, 0%, 10%);
+  }
+
+  .dark .app-input-field {
+    border-color: transparent;
+    background: hsl(0, 0%, 12%);
+  }
+
+  .dark .app-input-field:disabled,
+  .dark .app-input-field[data-disabled="true"],
+  .dark .app-input-field[data-disabled] {
+    background: hsl(0, 0%, 10%);
+    color: hsl(var(--muted-foreground));
+  }
+
+  .dark .app-input-field-disabled {
+    border-color: transparent;
+    background: hsl(0, 0%, 10%);
+    color: hsl(var(--muted-foreground));
+  }
+
+  .dark .app-pill-container {
+    border-color: transparent;
+    background: hsl(0, 0%, 8%);
+  }
+
+  .dark .app-header-nav-container {
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .dark .app-button-primary {
+    background: hsl(1 66% 34%);
+    color: hsl(var(--primary-foreground));
+  }
+
+  .dark .app-button-primary:hover {
+    background: hsl(1 66% 38%);
+  }
+
+  .dark .app-button-secondary {
+    border-color: transparent;
+    background: hsl(0, 0%, 12%);
+    color: hsl(var(--secondary-foreground));
+  }
+
+  .dark .app-button-secondary:hover {
+    background: hsl(0, 0%, 16%);
+    color: hsl(var(--foreground));
+  }
+
+  .dark .app-modal-surface {
+    border-color: transparent;
+    background: hsl(0, 0%, 6%);
+  }
+
+  .dark .app-popover-surface {
+    border-color: transparent;
+    background: hsl(0, 0%, 8%);
+  }
+
+  .dark .app-select-dropdown {
+    border-color: transparent;
+    background: hsl(0, 0%, 12%);
+  }
+
+  .dark .app-pagination-container {
+    border-color: transparent;
+    background: hsl(0, 0%, 8%);
+  }
+
+  .dark .app-card-muted {
+    border-color: transparent;
+    background: hsl(0, 0%, 10%);
+  }
+
+  .dark .app-card-emphasis {
+    border-color: transparent;
+    background: hsl(0, 0%, 12%);
+  }
+
+  .dark .app-card-warning {
+    border-color: hsl(40 96% 46% / 0.24);
+    background: hsl(40 96% 46% / 0.12);
+  }
+
+  .dark .app-help-icon-button {
+    border-color: transparent;
+    background: hsl(0, 0%, 12%);
+    color: hsl(var(--muted-foreground));
+  }
+
+  .dark .app-help-icon-button:hover {
+    background: hsl(0, 0%, 12%);
+  }
+
+  .dark .app-button-secondary-active {
+    border-color: transparent;
+    background: hsl(var(--primary) / 0.3);
+    color: hsl(var(--primary-foreground));
+  }
+
+  .dark .app-card-live-active {
+    border-color: hsl(var(--live) / 0.4);
+    box-shadow: none;
+  }
+
+  .dark .app-text-status-danger {
+    color: hsl(345 78% 62%);
+  }
+
+  .dark .glass-card-hover:hover,
+  .dark .list-item-card-hover:hover {
+    border-color: transparent;
+    background: hsl(0, 0%, 12%);
+  }
+
+  .dark .app-pill-active-indicator {
+    background: hsl(var(--primary) / 0.26);
+  }
+
+  .dark .app-pill-option:hover,
+  .dark .app-pill-option:focus-visible {
+    color: hsl(0 0% 100%);
+  }
+
+  .dark .app-pill-option[data-state="active"],
+  .dark .app-pill-option[aria-current="page"] {
+    color: hsl(var(--foreground));
+  }
+
+  .app-calendar-weekdays-bar {
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .dark .app-calendar-weekdays-bar {
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .dark .list-item-card-live {
+    border-color: transparent;
+    background: hsl(0, 0%, 10%);
   }
 
   .score-text {

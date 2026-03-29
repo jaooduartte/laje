@@ -276,11 +276,8 @@ function AnimatedTabBar({ items, value, onValueChange }: AnimatedTabBarProps) {
       return;
     }
 
-    const containerRect = containerReference.current.getBoundingClientRect();
-    const buttonRect = activeButtonElement.getBoundingClientRect();
-
-    setActiveIndicatorLeft(buttonRect.left - containerRect.left);
-    setActiveIndicatorWidth(buttonRect.width);
+    setActiveIndicatorLeft(activeButtonElement.offsetLeft);
+    setActiveIndicatorWidth(activeButtonElement.offsetWidth);
     setShowActiveIndicator(true);
   }, [value]);
 
@@ -294,12 +291,26 @@ function AnimatedTabBar({ items, value, onValueChange }: AnimatedTabBarProps) {
     return () => window.removeEventListener("resize", updateActiveIndicator);
   }, [updateActiveIndicator]);
 
+  useEffect(() => {
+    const containerElement = containerReference.current;
+
+    if (!containerElement) {
+      return;
+    }
+
+    containerElement.addEventListener("scroll", updateActiveIndicator);
+
+    return () => {
+      containerElement.removeEventListener("scroll", updateActiveIndicator);
+    };
+  }, [updateActiveIndicator]);
+
   return (
     <div className="flex justify-center">
       <div
         ref={containerReference}
         role="tablist"
-        className="glass-chip relative inline-flex max-w-full items-center gap-0 overflow-x-auto rounded-xl p-0"
+        className="app-pill-container relative inline-flex max-w-full items-center gap-0 overflow-x-auto rounded-xl p-0"
       >
         <span
           className="pointer-events-none absolute inset-y-0 left-0 rounded-xl bg-primary/20 backdrop-blur-2xl transition-[transform,width,opacity] duration-500"
@@ -3935,7 +3946,7 @@ export function AdminChampionshipBracketWizardModal({
                                   }),
                                 );
                               }}
-                              className="glass-input h-8 w-24 min-w-0 px-2 text-sm"
+                              className="app-input-field h-8 w-24 min-w-0 px-2 text-sm"
                             />
                           </div>
 
@@ -4166,7 +4177,7 @@ export function AdminChampionshipBracketWizardModal({
                                                 <SelectTrigger
                                                   data-testid={`${competitionKey}-group-${groupColumn.group_number}-slot-${slotIndex}-trigger`}
                                                   aria-label={`${resolveChampionshipGroupLabel(groupColumn.group_number)} atlética ${slotIndex + 1}`}
-                                                  className="glass-input h-9 text-xs"
+                                                  className="app-input-field h-9 text-xs"
                                                 >
                                                   <SelectValue
                                                     placeholder={
@@ -4367,7 +4378,7 @@ export function AdminChampionshipBracketWizardModal({
                                   }),
                                 );
                               }}
-                              className="glass-input"
+                              className="app-input-field"
                             />
                           </div>
 
@@ -4389,7 +4400,7 @@ export function AdminChampionshipBracketWizardModal({
                                   }),
                                 );
                               }}
-                              className="glass-input"
+                              className="app-input-field"
                             />
                           </div>
                         </div>
@@ -4463,7 +4474,7 @@ export function AdminChampionshipBracketWizardModal({
                                   )
                                 }
                               >
-                                <SelectTrigger className="glass-input h-9 min-w-[240px] flex-1 text-xs">
+                                <SelectTrigger className="app-input-field h-9 min-w-[240px] flex-1 text-xs">
                                   <SelectValue placeholder="Selecione um local cadastrado" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -4873,7 +4884,7 @@ export function AdminChampionshipBracketWizardModal({
                   );
                 }}
                 placeholder="Ex.: Praia de Piçarras"
-                className="glass-input"
+                className="app-input-field"
               />
             </div>
 
@@ -4929,7 +4940,7 @@ export function AdminChampionshipBracketWizardModal({
                               );
                             }}
                             placeholder={`Quadra ${courtIndex + 1}`}
-                            className="glass-input h-9"
+                            className="app-input-field h-9"
                           />
                         </div>
 

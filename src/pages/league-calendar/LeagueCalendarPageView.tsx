@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LeagueCalendarHolidayDayKind } from "@/lib/enums";
+import { LeagueCalendarHolidayDayKind, LeagueEventType } from "@/lib/enums";
 import type { LeagueCalendarHoliday, LeagueEvent } from "@/lib/types";
 import {
   LEAGUE_EVENT_LEGEND_ORDER,
@@ -40,7 +40,7 @@ interface AthleticFilterOption {
 interface LeagueCalendarPageViewProps {
   loading: boolean;
   monthDate: Date;
-  selectedDate: Date;
+  selectedDate: Date | null;
   calendarDays: Date[];
   leagueEventsByDate: Record<string, LeagueEvent[]>;
   leagueHolidaysByDate: Record<string, LeagueCalendarHoliday[]>;
@@ -71,6 +71,13 @@ interface LeagueCalendarPageViewProps {
 
 const WEEK_DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
+const LEAGUE_EVENT_TYPE_MOBILE_LIGHT_CARD_CLASS_NAMES = {
+  [LeagueEventType.HH]: "!bg-amber-100/80 text-amber-900 dark:!bg-amber-900/40 dark:text-amber-100",
+  [LeagueEventType.OPEN_BAR]: "!bg-emerald-100/80 text-emerald-900 dark:!bg-emerald-900/40 dark:text-emerald-100",
+  [LeagueEventType.CHAMPIONSHIP]: "!bg-blue-100/80 text-blue-900 dark:!bg-blue-900/40 dark:text-blue-100",
+  [LeagueEventType.LAJE_EVENT]: "!bg-red-100/80 text-red-900 dark:!bg-red-900/40 dark:text-red-100",
+} as const;
+
 function LeagueEventMiniCard({ leagueEvent, onClick }: { leagueEvent: LeagueEvent; onClick: () => void }) {
   return (
     <button
@@ -79,7 +86,7 @@ function LeagueEventMiniCard({ leagueEvent, onClick }: { leagueEvent: LeagueEven
         event.stopPropagation();
         onClick();
       }}
-      className={`w-full rounded-xl border px-2 py-1.5 text-left backdrop-blur-md transition-all hover:scale-[1.01] hover:shadow-sm dark:shadow-none ${LEAGUE_EVENT_TYPE_GLASS_CARD_CLASS_NAMES[leagueEvent.event_type]}`}
+      className={`w-full rounded-xl border-transparent px-2 py-1.5 text-left backdrop-blur-md transition-all hover:scale-[1.01] hover:shadow-sm dark:shadow-none ${LEAGUE_EVENT_TYPE_GLASS_CARD_CLASS_NAMES[leagueEvent.event_type]}`}
     >
       <p className="truncate text-[11px] font-semibold">{leagueEvent.name}</p>
       <p className={`truncate text-[10px] ${LEAGUE_EVENT_TYPE_META_TEXT_CLASS_NAMES[leagueEvent.event_type]}`}>
@@ -96,7 +103,7 @@ function LeagueHolidayMiniBadge({ leagueHoliday }: { leagueHoliday: LeagueCalend
   return (
     <Badge
       variant="outline"
-      className="h-5 max-w-full gap-1 rounded-md border-slate-300/80 bg-slate-100/90 px-1.5 text-[10px] font-semibold text-slate-700 dark:border-slate-500/50 dark:bg-slate-900/60 dark:text-slate-200"
+      className="h-5 max-w-full gap-1 rounded-md border-transparent bg-slate-200/90 px-1.5 text-[10px] font-semibold text-slate-700 dark:bg-slate-700/55 dark:text-slate-100"
     >
       <Flag className="h-3 w-3 shrink-0" />
       <span className="truncate">{leagueHoliday.name}</span>
@@ -108,7 +115,7 @@ function LeagueHolidayListBadge({ leagueHoliday }: { leagueHoliday: LeagueCalend
   return (
     <Badge
       variant="outline"
-      className="h-auto max-w-full gap-1.5 whitespace-normal rounded-md border-slate-300/80 bg-slate-100/90 px-2 py-1 text-left text-[11px] font-medium text-slate-700 dark:border-slate-500/50 dark:bg-slate-900/60 dark:text-slate-200"
+      className="h-auto max-w-full gap-1.5 whitespace-normal rounded-md border-transparent bg-slate-200/90 px-2 py-1 text-left text-[11px] font-medium text-slate-700 dark:bg-slate-700/55 dark:text-slate-100"
     >
       <Flag className="h-3 w-3 shrink-0" />
       <span className="truncate">
@@ -155,14 +162,13 @@ export function LeagueCalendarPageView({
     leagueEvents: LeagueEvent[];
   } | null>(null);
   const monthControlClassName =
-    "h-9 rounded-xl border border-transparent bg-background/50 text-secondary-foreground backdrop-blur-xl";
-  const glassPanelClassName =
-    "rounded-2xl border border-border/50 bg-background/40 p-4 backdrop-blur-xl shadow-[0_8px_30px_hsl(222_22%_16%_/_0.08)] dark:shadow-none";
-  const filtersFieldClassName = "h-9 rounded-xl border-transparent bg-background/50 backdrop-blur";
-  const selectedDateKey = format(selectedDate, "yyyy-MM-dd");
-  const selectedDateEvents = leagueEventsByDate[selectedDateKey] ?? [];
-  const selectedDateHolidays = leagueHolidaysByDate[selectedDateKey] ?? [];
-  const selectedDateHasItems = selectedDateEvents.length > 0 || selectedDateHolidays.length > 0;
+    "h-9 rounded-xl border border-transparent app-input-field text-secondary-foreground";
+  const glassPanelClassName = "glass-panel p-4";
+  const filtersFieldClassName = "app-input-field h-9 rounded-xl";
+  const selectedDateKey = selectedDate ? format(selectedDate, "yyyy-MM-dd") : null;
+  const selectedDateEvents = selectedDateKey ? leagueEventsByDate[selectedDateKey] ?? [] : [];
+  const selectedDateHolidays = selectedDateKey ? leagueHolidaysByDate[selectedDateKey] ?? [] : [];
+  const selectedDateHasItems = selectedDateKey != null && (selectedDateEvents.length > 0 || selectedDateHolidays.length > 0);
   const monthDatePrefix = format(monthDate, "yyyy-MM");
   const monthLeagueEvents = leagueEvents.filter((leagueEvent) => leagueEvent.event_date.startsWith(monthDatePrefix));
   const monthLeagueHolidays = leagueHolidays.filter((leagueHoliday) => leagueHoliday.holiday_date.startsWith(monthDatePrefix));
@@ -170,8 +176,8 @@ export function LeagueCalendarPageView({
   const mobileVisibleHolidays = selectedDateHasItems ? selectedDateHolidays : monthLeagueHolidays;
   const totalFilteredItems = filteredLeagueEvents.length + filteredLeagueHolidays.length;
   const eventsSummaryLabel = hasActiveFilters
-    ? `${totalFilteredItems} item(ns) no ano`
-    : `${leagueEvents.length + leagueHolidays.length} item(ns) no ano`;
+    ? `${totalFilteredItems} evento(s) no ano`
+    : `${leagueEvents.length + leagueHolidays.length} evento(s) no ano`;
   const today = new Date();
   const handleOpenLeagueEvent = (leagueEvent: LeagueEvent) => {
     if (typeof window != "undefined" && window.matchMedia("(max-width: 767px)").matches) {
@@ -200,16 +206,16 @@ export function LeagueCalendarPageView({
 
       <main className="container space-y-4 py-8">
         <section className={`${glassPanelClassName} animate-in fade-in-0 slide-in-from-bottom-2 duration-500`}>
-          <div>
-            <h1 className="text-2xl font-display font-bold">Calendário da Liga</h1>
-            <p className="text-sm text-muted-foreground">Eventos públicos cadastrados pelas atléticas parceiras e pela LAJE.</p>
+          <div className="flex flex-col items-center justify-center gap-2">
+            <h1 className="text-center text-2xl font-display font-bold">Calendário da Liga</h1>
+            <p className="text-center text-sm text-muted-foreground">Eventos públicos cadastrados pelas atléticas parceiras e pela LAJE.</p>
           </div>
         </section>
 
         <section className={`${glassPanelClassName} animate-in fade-in-0 slide-in-from-bottom-2 duration-500`}>
           <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_220px_220px_240px]">
             <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={eventSearch}
                 onChange={(event) => onEventSearchChange(event.target.value)}
@@ -278,7 +284,7 @@ export function LeagueCalendarPageView({
               <span className="text-xs text-muted-foreground">{eventsSummaryLabel}</span>
             </div>
 
-            <div className="flex items-center justify-end gap-2">
+            <div className="flex items-center justify-center gap-2 sm:justify-end">
               <Button
                 variant="outline"
                 size="icon"
@@ -319,7 +325,7 @@ export function LeagueCalendarPageView({
             </div>
 
             {totalFilteredItems == 0 ? (
-              <div className="flex min-h-44 items-center justify-center rounded-2xl border border-border/50 bg-background/30">
+              <div className="app-card-muted flex min-h-44 items-center justify-center rounded-2xl">
                 <p className="text-sm text-muted-foreground">Nenhum item encontrado para os filtros aplicados.</p>
               </div>
             ) : (
@@ -344,7 +350,7 @@ export function LeagueCalendarPageView({
                           key={leagueEvent.id}
                           type="button"
                           onClick={() => handleOpenLeagueEvent(leagueEvent)}
-                          className={`rounded-2xl border p-3 text-left backdrop-blur-md transition-all hover:scale-[1.01] ${LEAGUE_EVENT_TYPE_GLASS_CARD_CLASS_NAMES[leagueEvent.event_type]} animate-in fade-in-0 slide-in-from-bottom-2 duration-300`}
+                          className={`app-card-muted rounded-2xl border-transparent p-3 text-left transition-all hover:scale-[1.01] ${LEAGUE_EVENT_TYPE_GLASS_CARD_CLASS_NAMES[leagueEvent.event_type]} animate-in fade-in-0 slide-in-from-bottom-2 duration-300`}
                           style={{ animationDelay: `${leagueEventIndex * 35}ms` }}
                         >
                           <div className="mb-2 flex items-center justify-between gap-2">
@@ -373,7 +379,7 @@ export function LeagueCalendarPageView({
         ) : (
           <>
             <section className={`${glassPanelClassName} hidden p-0 md:block animate-in fade-in-0 slide-in-from-bottom-2 duration-500`}>
-              <div className="grid grid-cols-7 border-b border-border/40 bg-secondary/30 px-3 py-2 text-xs font-semibold uppercase text-muted-foreground">
+              <div className="app-calendar-weekdays-bar grid grid-cols-7 px-3 py-2 text-xs font-semibold uppercase text-muted-foreground">
                 {WEEK_DAYS.map((weekDay) => (
                   <div key={weekDay} className="px-2 py-1 text-center">
                     {weekDay}
@@ -387,7 +393,15 @@ export function LeagueCalendarPageView({
                   const dayEvents = leagueEventsByDate[dayKey] ?? [];
                   const dayHolidays = leagueHolidaysByDate[dayKey] ?? [];
                   const isToday = isSameDay(calendarDay, today);
-                  const isSelectedDay = isSameDay(calendarDay, selectedDate);
+                  const isSelectedDay = selectedDate != null && isSameDay(calendarDay, selectedDate);
+
+                  const dayBaseClassName =
+                    "app-card-muted relative min-h-40 rounded-xl px-2 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50";
+                  const dayStateClassName = isToday
+                    ? "!bg-primary/20 ring-1 !ring-primary/30 hover:!bg-primary/25 dark:!bg-primary/20 dark:!ring-primary/40 dark:hover:!bg-primary/25"
+                    : isSelectedDay
+                      ? "!bg-slate-200/70 ring-1 !ring-slate-300/80 hover:!bg-slate-200/90 dark:!bg-[hsl(0_0%_100%/0.10)] dark:!ring-white/10 dark:hover:!bg-[hsl(0_0%_100%/0.15)]"
+                      : "hover:!bg-background/70 dark:hover:!bg-[hsl(0_0%_10%)]";
 
                   return (
                     <div
@@ -401,13 +415,7 @@ export function LeagueCalendarPageView({
                           onSelectedDateChange(calendarDay);
                         }
                       }}
-                      className={`relative min-h-40 rounded-xl border border-border/20 px-2 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
-                        isToday
-                          ? "bg-primary/10 hover:bg-primary/20 dark:bg-primary/10 dark:hover:bg-primary/20"
-                          : isSelectedDay
-                            ? "bg-secondary/40 hover:bg-secondary/60"
-                            : "hover:bg-secondary/30"
-                      }`}
+                      className={`${dayBaseClassName} ${dayStateClassName}`}
                     >
                       <div className="absolute left-2 right-2 top-2 flex items-start justify-between">
                         <span
@@ -458,7 +466,7 @@ export function LeagueCalendarPageView({
             </section>
 
             <section className={`${glassPanelClassName} md:hidden animate-in fade-in-0 slide-in-from-bottom-2 duration-500`}>
-              <div className="mb-2 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase text-muted-foreground">
+              <div className="app-calendar-weekdays-bar mb-2 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase text-muted-foreground">
                 {WEEK_DAYS.map((weekDay) => (
                   <div key={weekDay} className="py-1">
                     {weekDay}
@@ -472,22 +480,24 @@ export function LeagueCalendarPageView({
                   const dayEvents = leagueEventsByDate[dayKey] ?? [];
                   const dayHolidays = leagueHolidaysByDate[dayKey] ?? [];
                   const isToday = isSameDay(calendarDay, today);
-                  const isSelectedDay = isSameDay(calendarDay, selectedDate);
+                  const isSelectedDay = selectedDate != null && isSameDay(calendarDay, selectedDate);
                   const dayEventTypes = resolveUniqueLeagueEventTypes(dayEvents);
                   const dayHasHoliday = dayHolidays.length > 0;
+
+                  const dayBaseClassName =
+                    "app-card-muted relative h-16 rounded-xl px-1 py-1 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50";
+                  const dayStateClassName = isToday
+                    ? "!bg-primary/10 ring-1 !ring-primary/20 hover:!bg-primary/15 dark:!bg-primary/20 dark:!ring-primary/40 dark:hover:!bg-primary/25"
+                    : isSelectedDay
+                      ? "!bg-slate-200/70 ring-1 !ring-slate-300/80 hover:!bg-slate-200/90 dark:!bg-[hsl(0_0%_100%/0.10)] dark:!ring-white/10 dark:hover:!bg-[hsl(0_0%_100%/0.15)]"
+                      : "hover:!bg-background/70 dark:hover:!bg-[hsl(0_0%_10%)]";
 
                   return (
                     <button
                       key={dayKey}
                       type="button"
                       onClick={() => onSelectedDateChange(calendarDay)}
-                      className={`relative h-16 rounded-xl border border-border/20 px-1 py-1 text-left text-xs backdrop-blur ${
-                        isToday
-                          ? "bg-primary/10 hover:bg-primary/20 dark:bg-primary/10 dark:hover:bg-primary/20"
-                          : isSelectedDay
-                            ? "bg-secondary/40 hover:bg-secondary/60"
-                            : "hover:bg-secondary/30"
-                      }`}
+                      className={`${dayBaseClassName} ${dayStateClassName}`}
                     >
                       <div className="absolute left-1.5 right-1.5 top-1 flex items-start justify-between">
                         <div className="flex flex-col items-start gap-0.5">
@@ -518,9 +528,9 @@ export function LeagueCalendarPageView({
                 })}
               </div>
 
-              <div className="mt-3 space-y-2 rounded-xl border border-border/50 bg-secondary/30 p-3 backdrop-blur-md">
+              <div className="app-card-muted mt-3 space-y-2 rounded-xl p-3">
                 <p className="text-xs font-semibold text-muted-foreground">
-                  {selectedDateHasItems
+                  {selectedDateHasItems && selectedDate
                     ? format(selectedDate, "EEEE, dd 'de' MMMM", { locale: ptBR })
                     : `Eventos de ${format(monthDate, "MMMM 'de' yyyy", { locale: ptBR })}`}
                 </p>
@@ -541,7 +551,7 @@ export function LeagueCalendarPageView({
                     {mobileVisibleEvents.map((leagueEvent) => (
                       <div
                         key={leagueEvent.id}
-                        className={`rounded-xl border px-2 py-1.5 text-left backdrop-blur-md ${LEAGUE_EVENT_TYPE_GLASS_CARD_CLASS_NAMES[leagueEvent.event_type]}`}
+                        className={`app-card-muted rounded-xl border-transparent px-2 py-1.5 text-left ${LEAGUE_EVENT_TYPE_MOBILE_LIGHT_CARD_CLASS_NAMES[leagueEvent.event_type]}`}
                       >
                         {!selectedDateHasItems ? (
                           <p className={`text-[10px] font-medium ${LEAGUE_EVENT_TYPE_META_TEXT_CLASS_NAMES[leagueEvent.event_type]}`}>
@@ -574,7 +584,7 @@ export function LeagueCalendarPageView({
           }
         }}
       >
-        <DialogContent className="border-border/60 !bg-background/70 backdrop-blur-md shadow-[0_18px_45px_rgba(15,23,42,0.16)] dark:shadow-none sm:max-w-md">
+        <DialogContent className="sm:max-w-md">
           {openedLeagueEvent ? (
             <>
               <DialogHeader>
@@ -616,7 +626,7 @@ export function LeagueCalendarPageView({
                 {openedDayDetails.leagueEvents.map((leagueEvent) => (
                   <div
                     key={leagueEvent.id}
-                    className={`rounded-xl border p-3 ${LEAGUE_EVENT_TYPE_GLASS_CARD_CLASS_NAMES[leagueEvent.event_type]}`}
+                    className={`app-card-muted rounded-xl border-transparent p-3 ${LEAGUE_EVENT_TYPE_GLASS_CARD_CLASS_NAMES[leagueEvent.event_type]}`}
                   >
                     <div className="mb-1 flex items-center justify-between gap-2">
                       <p className="truncate text-sm font-semibold">{leagueEvent.name}</p>

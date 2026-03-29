@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { OnlineVisitorsContext, RealtimePresenceChannel } from "@/lib/enums";
@@ -33,10 +33,22 @@ export function useOnlineVisitors(context: OnlineVisitorsContext = OnlineVisitor
   const { user } = useAuth();
   const [onlineVisitorsCount, setOnlineVisitorsCount] = useState(0);
   const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
+  const visitorSessionIdReference = useRef<string | null>(null);
+
+  const resolveOrCreateVisitorSessionId = useCallback(() => {
+    if (visitorSessionIdReference.current) {
+      return visitorSessionIdReference.current;
+    }
+
+    const visitorSessionId = resolveVisitorSessionId();
+    visitorSessionIdReference.current = visitorSessionId;
+    return visitorSessionId;
+  }, []);
 
   useEffect(() => {
-    const visitorSessionId = resolveVisitorSessionId();
+    const visitorSessionId = resolveOrCreateVisitorSessionId();
     const presenceChannel = PRESENCE_CHANNEL_BY_CONTEXT[context];
+    let isChannelSubscribed = false;
 
     const realtimeChannel: RealtimeChannel = supabase.channel(presenceChannel, {
       config: {
@@ -62,21 +74,57 @@ export function useOnlineVisitors(context: OnlineVisitorsContext = OnlineVisitor
       setOnlineUserIds(Array.from(nextOnlineUserIds));
     };
 
-    realtimeChannel.on("presence", { event: "sync" }, syncPresenceState).subscribe(async (status) => {
-      if (status != "SUBSCRIBED") {
+    const trackCurrentPresence = async () => {
+      if (!isChannelSubscribed) {
         return;
       }
 
-      await realtimeChannel.track({
-        connected_at: new Date().toISOString(),
-        user_id: user?.id ?? null,
+      try {
+        await realtimeChannel.track({
+          connected_at: new Date().toISOString(),
+          user_id: user?.id ?? null,
+        });
+        syncPresenceState();
+      } catch (error) {
+        console.error("Erro ao sincronizar presença online:", error);
+      }
+    };
+
+    const handleReconnectSync = () => {
+      if (typeof document != "undefined" && document.visibilityState == "hidden") {
+        return;
+      }
+
+      void trackCurrentPresence();
+    };
+
+    realtimeChannel
+      .on("presence", { event: "sync" }, syncPresenceState)
+      .on("presence", { event: "join" }, syncPresenceState)
+      .on("presence", { event: "leave" }, syncPresenceState)
+      .subscribe((status) => {
+        if (status == "SUBSCRIBED") {
+          isChannelSubscribed = true;
+          void trackCurrentPresence();
+          return;
+        }
+
+        if (status == "CLOSED" || status == "CHANNEL_ERROR" || status == "TIMED_OUT") {
+          isChannelSubscribed = false;
+        }
       });
-    });
+
+    window.addEventListener("focus", handleReconnectSync);
+    window.addEventListener("online", handleReconnectSync);
+    document.addEventListener("visibilitychange", handleReconnectSync);
 
     return () => {
+      window.removeEventListener("focus", handleReconnectSync);
+      window.removeEventListener("online", handleReconnectSync);
+      document.removeEventListener("visibilitychange", handleReconnectSync);
       supabase.removeChannel(realtimeChannel);
     };
-  }, [context, user?.id]);
+  }, [context, resolveOrCreateVisitorSessionId, user?.id]);
 
   return {
     onlineVisitorsCount,

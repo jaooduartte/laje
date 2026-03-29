@@ -59,7 +59,7 @@ export function AppItemsPerPageControl({
           onItemsPerPageChange(parsedValue);
         }}
       >
-        <SelectTrigger className="glass-input h-8 w-28">
+        <SelectTrigger className="app-input-field h-8 w-28">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -105,7 +105,7 @@ export function AppPaginationControls({
   return (
     <div className="enter-section">
       <div
-        className={`rounded-2xl border border-border/50 bg-background/40 px-3 py-2 shadow-[0_8px_24px_rgba(15,23,42,0.08)] dark:shadow-none backdrop-blur-xl ${
+        className={`rounded-2xl app-pagination-container px-3 py-2 ${
           shouldShowItemsPerPageControl
             ? "flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
             : "flex items-center justify-center gap-1"
@@ -158,7 +158,7 @@ export function AppPaginationControls({
                 variant="ghost"
                 size="sm"
                 className={`h-8 min-w-8 rounded-xl px-2 text-xs ${
-                  isCurrentPage ? "bg-primary/10 text-primary" : "text-muted-foreground"
+                  isCurrentPage ? "app-pill-active-indicator text-primary font-bold dark:text-foreground" : "text-muted-foreground hover:text-foreground"
                 }`}
                 onClick={() => onPageChange(visiblePage)}
               >

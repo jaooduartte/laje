@@ -5,6 +5,7 @@ import { TeamStandingsTable } from "@/components/TeamStandingsTable";
 import { SportFilter } from "@/components/SportFilter";
 import { Tabs, TabsContent, TabsNavigationList, TabsNavigationTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { TeamStandingAggregate } from "@/lib/standings";
 import type { Championship, Match, Sport, Team } from "@/lib/types";
 import type { BracketGroupFilterOption, MatchBracketContext } from "@/lib/championship";
@@ -22,6 +23,7 @@ interface ChampionshipsPageViewProps {
   sports: Sport[];
   sportFilter: string | null;
   nextMatches: Match[];
+  isNextMatchesFetching: boolean;
   standingsSportFilter: string;
   standingsNaipeFilter: string;
   standingsYearFilter: string;
@@ -39,6 +41,7 @@ interface ChampionshipsPageViewProps {
   historyTeams: Team[];
   historyYears: string[];
   filteredHistoryMatches: Match[];
+  isHistoryMatchesFetching: boolean;
   championshipChampionHistory: ChampionshipChampionYearGroup[];
   matchBracketContextByMatchId: Record<string, MatchBracketContext>;
   matchRepresentationByMatchId: Record<string, string>;
@@ -63,6 +66,7 @@ export function ChampionshipsPageView({
   sports,
   sportFilter,
   nextMatches,
+  isNextMatchesFetching,
   standingsSportFilter,
   standingsNaipeFilter,
   standingsYearFilter,
@@ -80,6 +84,7 @@ export function ChampionshipsPageView({
   historyTeams,
   historyYears,
   filteredHistoryMatches,
+  isHistoryMatchesFetching,
   championshipChampionHistory,
   matchBracketContextByMatchId,
   matchRepresentationByMatchId,
@@ -134,16 +139,16 @@ export function ChampionshipsPageView({
                   key={championship.id}
                   type="button"
                   onClick={() => onSelectChampionshipCode(championship.code)}
-                  className={`glass-card glass-card-hover enter-item relative h-52 overflow-hidden text-left ${
+                  className={`list-item-card list-item-card-hover enter-item relative h-52 overflow-hidden text-left transition-colors ${
                     isSelected
-                      ? "border-live/50 bg-primary/10 live-glow shadow-[0_0_0_1px_hsl(var(--live)/0.45)] dark:shadow-none"
+                      ? "app-card-live-active live-glow"
                       : ""
                   }`}
                 >
                   <img
                     src={championshipCardImageByCode[championship.code]}
                     alt={`Arte do campeonato ${championship.name}`}
-                    className="h-full w-full bg-background object-contain p-3"
+                    className="h-full w-full bg-background object-contain p-3 dark:bg-[hsl(0_0%_10%)]"
                     loading="lazy"
                   />
 
@@ -172,7 +177,13 @@ export function ChampionshipsPageView({
                 <h2 className="mb-4 text-center text-xl font-display font-bold sm:text-left">
                   {nextMatches.length > 1 ? "Próximos jogos" : "Próximo jogo"}
                 </h2>
-                {nextMatches.length > 0 ? (
+                {isNextMatchesFetching ? (
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {Array.from({ length: 6 }).map((_, index) => (
+                      <Skeleton key={`championship-next-match-skeleton-${index}`} className="h-52 w-full rounded-2xl" />
+                    ))}
+                  </div>
+                ) : nextMatches.length > 0 ? (
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     {nextMatches.map((nextMatch) => (
                       <MatchCard
@@ -196,7 +207,7 @@ export function ChampionshipsPageView({
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <Select value={standingsYearFilter} onValueChange={onStandingsYearFilterChange}>
-                  <SelectTrigger className="glass-input w-full">
+                  <SelectTrigger className="app-input-field w-full">
                     <SelectValue placeholder="Filtrar ano" />
                   </SelectTrigger>
                   <SelectContent>
@@ -210,7 +221,7 @@ export function ChampionshipsPageView({
                 </Select>
 
                 <Select value={standingsSportFilter} onValueChange={onStandingsSportFilterChange}>
-                  <SelectTrigger className="glass-input w-full">
+                  <SelectTrigger className="app-input-field w-full">
                     <SelectValue placeholder="Filtrar modalidade" />
                   </SelectTrigger>
                   <SelectContent>
@@ -224,7 +235,7 @@ export function ChampionshipsPageView({
                 </Select>
 
                 <Select value={standingsNaipeFilter} onValueChange={onStandingsNaipeFilterChange}>
-                  <SelectTrigger className="glass-input w-full">
+                  <SelectTrigger className="app-input-field w-full">
                     <SelectValue placeholder="Filtrar naipe" />
                   </SelectTrigger>
                   <SelectContent>
@@ -244,7 +255,7 @@ export function ChampionshipsPageView({
 
               <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                 <Select value={teamFilter} onValueChange={onTeamFilterChange}>
-                  <SelectTrigger className="glass-input w-full sm:w-56">
+                  <SelectTrigger className="app-input-field w-full sm:w-56">
                     <SelectValue placeholder="Filtrar por atlética" />
                   </SelectTrigger>
                   <SelectContent>
@@ -258,7 +269,7 @@ export function ChampionshipsPageView({
                 </Select>
 
                 <Select value={yearFilter} onValueChange={onYearFilterChange}>
-                  <SelectTrigger className="glass-input w-full sm:w-40">
+                  <SelectTrigger className="app-input-field w-full sm:w-40">
                     <SelectValue placeholder="Filtrar por ano" />
                   </SelectTrigger>
                   <SelectContent>
@@ -272,7 +283,7 @@ export function ChampionshipsPageView({
                 </Select>
 
                 <Select value={groupFilter} onValueChange={onGroupFilterChange}>
-                  <SelectTrigger className="glass-input w-full sm:w-72">
+                  <SelectTrigger className="app-input-field w-full sm:w-72">
                     <SelectValue placeholder="Filtrar por grupo" />
                   </SelectTrigger>
                   <SelectContent>
@@ -286,7 +297,13 @@ export function ChampionshipsPageView({
                 </Select>
               </div>
 
-              {filteredHistoryMatches.length == 0 ? (
+              {isHistoryMatchesFetching ? (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {Array.from({ length: 6 }).map((_, index) => (
+                    <Skeleton key={`championship-history-skeleton-${index}`} className="h-52 w-full rounded-2xl" />
+                  ))}
+                </div>
+              ) : filteredHistoryMatches.length == 0 ? (
                 <p className="text-center text-sm text-muted-foreground sm:text-left">Nenhum resultado registrado.</p>
               ) : (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -318,7 +335,7 @@ export function ChampionshipsPageView({
                 {championshipChampionHistory.map((championshipChampionYearGroup) => (
                   <div
                     key={championshipChampionYearGroup.year}
-                    className="space-y-4 rounded-2xl border border-border/40 bg-background/30 p-4"
+                    className="space-y-4 rounded-2xl app-card-muted p-4"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <h3 className="font-display text-lg font-bold">{championshipChampionYearGroup.year}</h3>
@@ -331,7 +348,7 @@ export function ChampionshipsPageView({
                       {championshipChampionYearGroup.champions.map((championshipChampion) => (
                         <div
                           key={championshipChampion.match_id}
-                          className="rounded-2xl border border-border/40 bg-background/40 p-4"
+                          className="rounded-2xl app-card-emphasis p-4"
                         >
                           <div className="space-y-1">
                             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">

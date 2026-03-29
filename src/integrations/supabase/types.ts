@@ -1097,6 +1097,7 @@ export type Database = {
         Args: never
         Returns: {
           account_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
+          championship_status_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
           control_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
           events_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
           logs_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
@@ -1233,7 +1234,17 @@ export type Database = {
     Enums: {
       admin_action_type: "INSERT" | "UPDATE" | "DELETE" | "PASSWORD_CHANGED" | "LOGIN"
       admin_panel_permission_level: "NONE" | "VIEW" | "EDIT"
-      admin_panel_tab: "matches" | "control" | "teams" | "sports" | "events" | "logs" | "users" | "account" | "settings"
+      admin_panel_tab:
+        | "matches"
+        | "control"
+        | "teams"
+        | "sports"
+        | "events"
+        | "logs"
+        | "users"
+        | "account"
+        | "championship_status"
+        | "settings"
       admin_user_password_status: "PENDING" | "ACTIVE"
       app_role: "admin" | "eventos" | "mesa"
       bracket_edition_status: "DRAFT" | "GROUPS_GENERATED" | "KNOCKOUT_GENERATED"
@@ -1381,7 +1392,18 @@ export const Constants = {
     Enums: {
       admin_action_type: ["INSERT", "UPDATE", "DELETE", "PASSWORD_CHANGED", "LOGIN"],
       admin_panel_permission_level: ["NONE", "VIEW", "EDIT"],
-      admin_panel_tab: ["matches", "control", "teams", "sports", "events", "logs", "users", "account", "settings"],
+      admin_panel_tab: [
+        "matches",
+        "control",
+        "teams",
+        "sports",
+        "events",
+        "logs",
+        "users",
+        "account",
+        "championship_status",
+        "settings",
+      ],
       app_role: ["admin", "eventos", "mesa"],
       bracket_edition_status: ["DRAFT", "GROUPS_GENERATED", "KNOCKOUT_GENERATED"],
       bracket_phase: ["GROUP_STAGE", "KNOCKOUT"],

@@ -1,21 +1,32 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Match } from "@/lib/types";
-import { MatchStatus } from "@/lib/enums";
+import { MatchNaipe, MatchStatus, TeamDivision } from "@/lib/enums";
 import {
   type MatchEstimatedStartTimeBracketEdition,
   type MatchEstimatedStartTimeChampionshipSport,
   type MatchEstimatedStartTimeScheduleDay,
+  type MatchRepresentationSource,
   resolveEstimatedStartTimeByMatchId,
-  resolveMatchDisplaySlotValue,
+  resolveInterleavedScheduledMatchesByCompetition,
+  resolveOrderedScheduledMatches,
   resolveMatchRepresentationByMatchId,
-  resolveMatchScheduledDateValue,
 } from "@/lib/championship";
 import type { MatchSetInput } from "@/domain/championship-brackets/championshipBracket.types";
 
 interface UseMatchesOptions {
   championshipId?: string | null;
   seasonYear?: number | null;
+  statuses?: MatchStatus[];
+  sportId?: string | null;
+  teamId?: string | null;
+  naipe?: MatchNaipe | null;
+  division?: TeamDivision | null;
+  groupFilterValue?: string | null;
+  page?: number;
+  itemsPerPage?: number;
+  includeRealtime?: boolean;
+  sortMode?: "SCHEDULED" | "LIVE" | "FINISHED";
 }
 
 type SupabaseLooseQueryError = {
@@ -55,6 +66,35 @@ type MatchEstimatedStartTimeBracketDayRow = {
 
 const supabaseLoose = supabase as unknown as SupabaseLooseClient;
 
+function resolveGroupNumberByGroupFilterValue(groupFilterValue: string | null | undefined): number | null {
+  if (!groupFilterValue) {
+    return null;
+  }
+
+  const trimmedGroupFilterValue = groupFilterValue.trim();
+  const groupFilterMatch = /^grupo\s+([a-z]+)$/i.exec(trimmedGroupFilterValue);
+
+  if (!groupFilterMatch) {
+    return null;
+  }
+
+  const alphabeticalSuffix = groupFilterMatch[1].toUpperCase();
+  let parsedGroupNumber = 0;
+
+  for (let suffixCharacterIndex = 0; suffixCharacterIndex < alphabeticalSuffix.length; suffixCharacterIndex += 1) {
+    const suffixCharacter = alphabeticalSuffix.charCodeAt(suffixCharacterIndex);
+    const currentCharacterValue = suffixCharacter - 64;
+
+    if (currentCharacterValue < 1 || currentCharacterValue > 26) {
+      return null;
+    }
+
+    parsedGroupNumber = parsedGroupNumber * 26 + currentCharacterValue;
+  }
+
+  return parsedGroupNumber > 0 ? parsedGroupNumber : null;
+}
+
 function resolvePayloadSnapshotValue(payloadSnapshot: unknown): Record<string, unknown> | null {
   if (
     payloadSnapshot &&
@@ -80,7 +120,30 @@ function hasEstimatedStartTimeScheduleDays(
   return Array.isArray(scheduleDays) && scheduleDays.length > 0;
 }
 
-export function useMatches({ championshipId, seasonYear }: UseMatchesOptions = {}) {
+export function useMatches({
+  championshipId,
+  seasonYear,
+  statuses,
+  sportId,
+  teamId,
+  naipe,
+  division,
+  groupFilterValue,
+  page,
+  itemsPerPage,
+  includeRealtime = true,
+  sortMode = "SCHEDULED",
+}: UseMatchesOptions = {}) {
+  const statusesDependencyKey = statuses?.join(",") ?? "";
+
+  const normalizedStatuses = useMemo(() => {
+    if (!statuses || statuses.length == 0) {
+      return [] as MatchStatus[];
+    }
+
+    return [...new Set(statuses)].sort();
+  }, [statusesDependencyKey]);
+
   const [matches, setMatches] = useState<Match[]>([]);
   const [championshipSportsForEstimatedStartTime, setChampionshipSportsForEstimatedStartTime] = useState<
     MatchEstimatedStartTimeChampionshipSport[]
@@ -88,55 +151,253 @@ export function useMatches({ championshipId, seasonYear }: UseMatchesOptions = {
   const [championshipBracketEditionsForEstimatedStartTime, setChampionshipBracketEditionsForEstimatedStartTime] = useState<
     MatchEstimatedStartTimeBracketEdition[]
   >([]);
+  const [representationContextMatches, setRepresentationContextMatches] = useState<MatchRepresentationSource[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
   const hasLoadedMatchesRef = useRef(false);
   const scheduledRefetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const fetchMatches = useCallback(async (shouldShowLoading = false) => {
+  const fetchMatches = useCallback(async ({
+    showLoading = false,
+    showFetching = false,
+  }: {
+    showLoading?: boolean;
+    showFetching?: boolean;
+  } = {}) => {
     if (championshipId === null) {
       setMatches([]);
       setChampionshipSportsForEstimatedStartTime([]);
       setChampionshipBracketEditionsForEstimatedStartTime([]);
+      setRepresentationContextMatches([]);
+      setTotalCount(0);
       setLoading(false);
+      setIsFetching(false);
       hasLoadedMatchesRef.current = false;
       return;
     }
 
-    if (shouldShowLoading || !hasLoadedMatchesRef.current) {
+    if (showFetching) {
+      setIsFetching(true);
+    }
+
+    if (showLoading || !hasLoadedMatchesRef.current) {
       setLoading(true);
     }
 
     try {
-      let query = supabase
-        .from("matches")
-        .select(
-          "*, championships(*), sports(*), home_team:teams!matches_home_team_id_fkey(*), away_team:teams!matches_away_team_id_fkey(*)",
-        )
-          .order("scheduled_date", { ascending: true })
-          .order("scheduled_slot", { ascending: true })
-          .order("queue_position", { ascending: true })
-          .order("created_at", { ascending: true });
+      const groupNumber = resolveGroupNumberByGroupFilterValue(groupFilterValue);
 
-      if (championshipId) {
-        query = query.eq("championship_id", championshipId);
-      }
-
-      if (typeof seasonYear == "number") {
-        query = query.eq("season_year", seasonYear);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        console.error("Erro ao carregar jogos:", error.message);
+      if (groupFilterValue && typeof groupNumber != "number") {
         setMatches([]);
         setChampionshipSportsForEstimatedStartTime([]);
         setChampionshipBracketEditionsForEstimatedStartTime([]);
+        setRepresentationContextMatches([]);
+        setTotalCount(0);
         return;
       }
 
-      if (data) {
-        const matchRows = data as unknown as Match[];
+      const applyMatchFilters = (currentQuery: any) => {
+        let filteredQuery = currentQuery;
+
+        if (championshipId) {
+          filteredQuery = filteredQuery.eq("championship_id", championshipId);
+        }
+
+        if (typeof seasonYear == "number") {
+          filteredQuery = filteredQuery.eq("season_year", seasonYear);
+        }
+
+        if (normalizedStatuses.length > 0) {
+          if (normalizedStatuses.length == 1) {
+            filteredQuery = filteredQuery.eq("status", normalizedStatuses[0]);
+          } else {
+            filteredQuery = filteredQuery.in("status", normalizedStatuses);
+          }
+        }
+
+        if (sportId) {
+          filteredQuery = filteredQuery.eq("sport_id", sportId);
+        }
+
+        if (teamId) {
+          filteredQuery = filteredQuery.or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`);
+        }
+
+        if (naipe) {
+          filteredQuery = filteredQuery.eq("naipe", naipe);
+        }
+
+        if (division !== undefined) {
+          if (division === null) {
+            filteredQuery = filteredQuery.is("division", null);
+          } else {
+            filteredQuery = filteredQuery.eq("division", division);
+          }
+        }
+
+        if (typeof groupNumber == "number") {
+          filteredQuery = filteredQuery.eq("group_number", groupNumber);
+        }
+
+        return filteredQuery;
+      };
+
+      const applyMatchSort = (currentQuery: any) => {
+        if (sortMode == "LIVE") {
+          return currentQuery
+            .order("start_time", { ascending: false, nullsFirst: false })
+            .order("created_at", { ascending: false });
+        }
+
+        if (sortMode == "FINISHED") {
+          return currentQuery
+            .order("end_time", { ascending: false, nullsFirst: false })
+            .order("start_time", { ascending: false, nullsFirst: false })
+            .order("created_at", { ascending: false });
+        }
+
+        return currentQuery
+          .order("scheduled_date", { ascending: true, nullsFirst: false })
+          .order("queue_position", { ascending: true, nullsFirst: false })
+          .order("scheduled_slot", { ascending: true, nullsFirst: false })
+          .order("created_at", { ascending: true });
+      };
+
+      const isPaginated =
+        typeof page == "number" &&
+        typeof itemsPerPage == "number" &&
+        page > 0 &&
+        itemsPerPage > 0;
+      const rangeStart = isPaginated ? (page - 1) * itemsPerPage : null;
+      const rangeEnd = isPaginated && rangeStart != null ? rangeStart + itemsPerPage - 1 : null;
+      let matchRows: Match[] = [];
+      let representationContextRows: MatchRepresentationSource[] = [];
+      let resolvedTotalCount = 0;
+
+      if (sortMode == "SCHEDULED" && isPaginated && rangeStart != null && rangeEnd != null) {
+        let scheduledOrderQuery: any = supabase
+          .from("matches")
+          .select(
+            "id, championship_id, season_year, scheduled_date, start_time, sport_id, naipe, division, queue_position, created_at, scheduled_slot, sports(name), home_team:teams!matches_home_team_id_fkey(name), away_team:teams!matches_away_team_id_fkey(name)",
+          )
+          .order("scheduled_date", { ascending: true, nullsFirst: false })
+          .order("queue_position", { ascending: true, nullsFirst: false })
+          .order("scheduled_slot", { ascending: true, nullsFirst: false })
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true });
+
+        scheduledOrderQuery = applyMatchFilters(scheduledOrderQuery);
+
+        const { data: scheduledOrderRowsData, error: scheduledOrderRowsError } = await scheduledOrderQuery;
+
+        if (scheduledOrderRowsError) {
+          console.error("Erro ao carregar ordenação paginada dos jogos:", scheduledOrderRowsError.message);
+          setMatches([]);
+          setChampionshipSportsForEstimatedStartTime([]);
+          setChampionshipBracketEditionsForEstimatedStartTime([]);
+          setRepresentationContextMatches([]);
+          setTotalCount(0);
+          return;
+        }
+
+        const normalizedOrderedScheduledRows = resolveInterleavedScheduledMatchesByCompetition(
+          resolveOrderedScheduledMatches((scheduledOrderRowsData ?? []) as MatchRepresentationSource[]),
+        );
+        const paginatedOrderedScheduledRows = normalizedOrderedScheduledRows.slice(rangeStart, rangeEnd + 1);
+        const paginatedMatchIds = paginatedOrderedScheduledRows.map((scheduledMatch) => scheduledMatch.id);
+
+        resolvedTotalCount = normalizedOrderedScheduledRows.length;
+        representationContextRows = normalizedOrderedScheduledRows.slice(0, rangeStart);
+
+        if (paginatedMatchIds.length > 0) {
+          const { data: paginatedMatchesData, error: paginatedMatchesError } = await supabase
+            .from("matches")
+            .select(
+              "*, championships(*), sports(*), home_team:teams!matches_home_team_id_fkey(*), away_team:teams!matches_away_team_id_fkey(*)",
+            )
+            .in("id", paginatedMatchIds);
+
+          if (paginatedMatchesError) {
+            console.error("Erro ao carregar jogos paginados:", paginatedMatchesError.message);
+            setMatches([]);
+            setChampionshipSportsForEstimatedStartTime([]);
+            setChampionshipBracketEditionsForEstimatedStartTime([]);
+            setRepresentationContextMatches([]);
+            setTotalCount(0);
+            return;
+          }
+
+          const matchById = new Map((paginatedMatchesData ?? []).map((match) => [match.id, match as Match]));
+          matchRows = paginatedMatchIds.reduce<Match[]>((carry, matchId) => {
+            const match = matchById.get(matchId);
+
+            if (!match) {
+              return carry;
+            }
+
+            return [...carry, match];
+          }, []);
+        }
+      } else {
+        let query: any = supabase
+          .from("matches")
+          .select(
+            "*, championships(*), sports(*), home_team:teams!matches_home_team_id_fkey(*), away_team:teams!matches_away_team_id_fkey(*)",
+            { count: "exact" },
+          )
+          .order("created_at", { ascending: true });
+
+        query = applyMatchFilters(query);
+        query = applyMatchSort(query);
+
+        if (isPaginated && rangeStart != null && rangeEnd != null) {
+          query = query.range(rangeStart, rangeEnd);
+        }
+
+        const { data, error, count } = await query;
+
+        if (error) {
+          console.error("Erro ao carregar jogos:", error.message);
+          setMatches([]);
+          setChampionshipSportsForEstimatedStartTime([]);
+          setChampionshipBracketEditionsForEstimatedStartTime([]);
+          setRepresentationContextMatches([]);
+          setTotalCount(0);
+          return;
+        }
+
+        matchRows = (data ?? []) as Match[];
+        resolvedTotalCount = count ?? matchRows.length;
+
+        if (isPaginated && rangeStart != null && rangeStart > 0) {
+          let contextQuery: any = supabase
+            .from("matches")
+            .select(
+              "id, championship_id, season_year, scheduled_date, start_time, sport_id, naipe, division, queue_position, created_at, scheduled_slot, sports(name), home_team:teams!matches_home_team_id_fkey(name), away_team:teams!matches_away_team_id_fkey(name)",
+            )
+            .order("created_at", { ascending: true });
+
+          contextQuery = applyMatchFilters(contextQuery);
+          contextQuery = applyMatchSort(contextQuery);
+          contextQuery = contextQuery.range(0, rangeStart - 1);
+
+          const { data: representationContextRowsData, error: representationContextRowsError } = await contextQuery;
+
+          if (representationContextRowsError) {
+            console.error(
+              "Erro ao carregar contexto de representação na paginação:",
+              representationContextRowsError.message,
+            );
+          } else {
+            representationContextRows = (representationContextRowsData ?? []) as MatchRepresentationSource[];
+          }
+        }
+      }
+
+      setTotalCount(resolvedTotalCount);
+
+      {
         const matchIds = matchRows.map((match) => match.id);
         const championshipAndSportKeys = [...new Set(matchRows.map((match) => `${match.championship_id}:${match.sport_id}`))];
         const championshipIds = [...new Set(matchRows.map((match) => match.championship_id))];
@@ -295,13 +556,19 @@ export function useMatches({ championshipId, seasonYear }: UseMatchesOptions = {
           {},
         );
 
+        const orderedMatchRows =
+          sortMode == "SCHEDULED"
+            ? resolveInterleavedScheduledMatchesByCompetition(resolveOrderedScheduledMatches(matchRows))
+            : matchRows;
+
         setMatches(
-          matchRows.map((match) => ({
+          orderedMatchRows.map((match) => ({
             ...match,
             result_rule: resultRuleByChampionshipAndSportKey[`${match.championship_id}:${match.sport_id}`] ?? null,
             match_sets: matchSetsByMatchId[match.id] ?? [],
           })),
         );
+        setRepresentationContextMatches(representationContextRows);
         setChampionshipSportsForEstimatedStartTime(championshipSportsForEstimatedStartTimeRows);
         setChampionshipBracketEditionsForEstimatedStartTime(
           latestChampionshipBracketEditions.map((championshipBracketEdition) => ({
@@ -320,23 +587,50 @@ export function useMatches({ championshipId, seasonYear }: UseMatchesOptions = {
       setMatches([]);
       setChampionshipSportsForEstimatedStartTime([]);
       setChampionshipBracketEditionsForEstimatedStartTime([]);
+      setRepresentationContextMatches([]);
+      setTotalCount(0);
     } finally {
       hasLoadedMatchesRef.current = true;
       setLoading(false);
+      if (showFetching) {
+        setIsFetching(false);
+      }
     }
-  }, [championshipId, seasonYear]);
+  }, [
+    championshipId,
+    division,
+    groupFilterValue,
+    itemsPerPage,
+    naipe,
+    page,
+    seasonYear,
+    sortMode,
+    sportId,
+    normalizedStatuses,
+    teamId,
+  ]);
 
   useEffect(() => {
     if (championshipId === null) {
       setMatches([]);
       setChampionshipSportsForEstimatedStartTime([]);
       setChampionshipBracketEditionsForEstimatedStartTime([]);
+      setRepresentationContextMatches([]);
+      setTotalCount(0);
       setLoading(false);
+      setIsFetching(false);
       hasLoadedMatchesRef.current = false;
       return;
     }
 
-    fetchMatches(true);
+    fetchMatches({
+      showLoading: !hasLoadedMatchesRef.current,
+      showFetching: hasLoadedMatchesRef.current,
+    });
+
+    if (!includeRealtime) {
+      return;
+    }
 
     const channel = supabase
       .channel(`matches-realtime-${championshipId ?? "all"}-${seasonYear ?? "all"}`)
@@ -404,7 +698,7 @@ export function useMatches({ championshipId, seasonYear }: UseMatchesOptions = {
 
       supabase.removeChannel(channel);
     };
-  }, [championshipId, fetchMatches, seasonYear]);
+  }, [championshipId, fetchMatches, includeRealtime, seasonYear]);
 
   useEffect(() => {
     return () => {
@@ -416,8 +710,16 @@ export function useMatches({ championshipId, seasonYear }: UseMatchesOptions = {
   }, []);
 
   const matchRepresentationByMatchId = useMemo(() => {
-    return resolveMatchRepresentationByMatchId(matches);
-  }, [matches]);
+    const matchRepresentationSourcesById = [
+      ...representationContextMatches,
+      ...matches,
+    ].reduce<Record<string, MatchRepresentationSource>>((carry, matchRepresentationSource) => {
+      carry[matchRepresentationSource.id] = matchRepresentationSource;
+      return carry;
+    }, {});
+
+    return resolveMatchRepresentationByMatchId(Object.values(matchRepresentationSourcesById));
+  }, [matches, representationContextMatches]);
 
   const estimatedStartTimeByMatchId = useMemo(() => {
     return resolveEstimatedStartTimeByMatchId({
@@ -439,30 +741,9 @@ export function useMatches({ championshipId, seasonYear }: UseMatchesOptions = {
   }, [matches]);
 
   const upcomingMatches = useMemo(() => {
-    return [...matches]
-      .filter((match) => match.status === MatchStatus.SCHEDULED)
-      .sort((firstMatch, secondMatch) => {
-        const firstScheduledDate = resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
-        const secondScheduledDate = resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
-
-        if (firstScheduledDate != secondScheduledDate) {
-          return firstScheduledDate.localeCompare(secondScheduledDate);
-        }
-
-        const slotDifference =
-          (resolveMatchDisplaySlotValue(firstMatch) ?? Number.MAX_SAFE_INTEGER) -
-          (resolveMatchDisplaySlotValue(secondMatch) ?? Number.MAX_SAFE_INTEGER);
-
-        if (slotDifference != 0) {
-          return slotDifference;
-        }
-
-        if (firstMatch.created_at != secondMatch.created_at) {
-          return firstMatch.created_at.localeCompare(secondMatch.created_at);
-        }
-
-        return firstMatch.id.localeCompare(secondMatch.id);
-      });
+    return resolveOrderedScheduledMatches(
+      matches.filter((match) => match.status === MatchStatus.SCHEDULED),
+    );
   }, [matches]);
 
   const finishedMatches = useMemo(() => {
@@ -478,12 +759,14 @@ export function useMatches({ championshipId, seasonYear }: UseMatchesOptions = {
 
   return {
     matches,
+    totalCount,
     matchRepresentationByMatchId,
     estimatedStartTimeByMatchId,
     liveMatches,
     upcomingMatches,
     finishedMatches,
     loading,
+    isFetching,
     refetch: fetchMatches,
   };
 }

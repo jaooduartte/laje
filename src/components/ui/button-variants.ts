@@ -5,10 +5,10 @@ export const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-[hsl(1_66%_34%)] dark:hover:bg-[hsl(1_66%_30%)]",
+        default: "app-button-primary",
         destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90 dark:bg-[hsl(0_62%_36%)] dark:hover:bg-[hsl(0_62%_32%)]",
-        outline: "border border-transparent bg-background/70 hover:bg-accent hover:text-accent-foreground dark:border-border/60",
-        secondary: "border border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 dark:border-border/60",
+        outline: "app-button-secondary",
+        secondary: "app-button-secondary",
         ghost: "shadow-none hover:shadow-none hover:bg-accent hover:text-accent-foreground",
         link: "shadow-none hover:shadow-none text-primary underline-offset-4 hover:underline",
       },

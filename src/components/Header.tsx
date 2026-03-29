@@ -64,17 +64,17 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50">
       <div className="container py-2">
-        <div className="glass-card flex h-14 items-center gap-2 px-2 sm:h-16 sm:px-3">
+        <div className="app-header-surface flex h-14 items-center gap-2 px-2 sm:h-16 sm:px-3">
           <Link to={AppRoutePath.HOME} className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg sm:h-14 sm:w-14">
             <img src="/logo.png" alt="Logo LAJE" className="h-10 w-10 object-contain shadow-none sm:h-12 sm:w-12" />
           </Link>
 
           <nav
             ref={navRef}
-            className="relative ml-auto flex max-w-[calc(100%-3.5rem)] min-w-0 items-center gap-0 overflow-x-auto rounded-xl"
+            className="app-pill-container app-header-nav-container relative ml-auto flex max-w-[calc(100%-3.5rem)] min-w-0 items-center gap-0 overflow-x-auto rounded-xl"
           >
             <span
-              className="pointer-events-none absolute inset-y-0 left-0 rounded-xl bg-primary/20 backdrop-blur-2xl transition-[transform,width,opacity] duration-500"
+              className="app-pill-active-indicator pointer-events-none absolute inset-y-0 left-0 rounded-xl transition-[transform,width,opacity] duration-500"
               style={{
                 width: `${activeIndicatorWidth}px`,
                 transform: `translateX(${activeIndicatorLeft}px)`,
@@ -97,7 +97,7 @@ export function Header() {
                       type="button"
                       disabled
                       title="Tela temporariamente indisponível por manutenção"
-                      className="relative z-10 flex min-h-11 shrink-0 cursor-not-allowed items-center gap-1.5 rounded-none px-3 py-2.5 text-sm font-medium text-muted-foreground/70 dark:text-muted-foreground/30 first:rounded-l-xl last:rounded-r-xl sm:min-h-10 sm:py-2"
+                      className="app-pill-option relative z-10 flex min-h-11 shrink-0 cursor-not-allowed items-center gap-1.5 rounded-none px-3 py-2.5 text-sm font-medium text-muted-foreground/70 dark:text-muted-foreground/30 first:rounded-l-xl last:rounded-r-xl sm:min-h-10 sm:py-2"
                     >
                       <Icon className="h-5 w-5 sm:h-4 sm:w-4" />
                       <span className="hidden sm:inline">{label}</span>
@@ -106,16 +106,17 @@ export function Header() {
                 }
 
                 return (
-                  <Link
+                    <Link
                     key={routePath}
                     to={routePath}
+                    aria-current={location.pathname == routePath ? "page" : undefined}
                     ref={(linkElement) => {
                       linkByPathRef.current[routePath] = linkElement;
                     }}
-                    className={`relative z-10 flex min-h-11 shrink-0 items-center gap-1.5 rounded-none px-3 py-2.5 text-sm font-medium transition-colors first:rounded-l-xl last:rounded-r-xl sm:min-h-10 sm:py-2 ${
+                    className={`app-pill-option relative z-10 flex min-h-11 shrink-0 items-center gap-1.5 rounded-none px-3 py-2.5 text-sm font-medium first:rounded-l-xl last:rounded-r-xl sm:min-h-10 sm:py-2 ${
                       location.pathname == routePath
-                        ? "text-primary"
-                        : "text-muted-foreground hover:text-foreground"
+                        ? "text-primary font-bold dark:text-foreground"
+                        : "text-muted-foreground"
                     }`}
                   >
                     <Icon className="h-5 w-5 sm:h-4 sm:w-4" />
