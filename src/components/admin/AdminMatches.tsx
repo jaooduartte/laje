@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CheckedState } from "@radix-ui/react-checkbox";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -30,6 +30,16 @@ import {
 } from "@/lib/enums";
 import { Button } from "@/components/ui/button";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -39,6 +49,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -67,6 +78,7 @@ import {
   resolveMatchTieBreakRuleLabel,
 } from "@/lib/championship";
 import { AppBadge } from "@/components/ui/app-badge";
+import { scrollToTopOfPage } from "@/lib/scroll";
 import {
   AppPaginationControls,
   DEFAULT_PAGINATION_ITEMS_PER_PAGE,
@@ -132,6 +144,7 @@ interface Props {
   matchBracketContextByMatchId: Record<string, MatchBracketContext>;
   matchRepresentationByMatchId?: Record<string, string>;
   estimatedStartTimeByMatchId?: Record<string, string>;
+  isFetchingMatches?: boolean;
   canManageMatches?: boolean;
   onRefetch: () => void;
   onRefetchChampionshipBracket: () => void;
@@ -269,6 +282,7 @@ export function AdminMatches({
   matchBracketContextByMatchId,
   matchRepresentationByMatchId = {},
   estimatedStartTimeByMatchId = {},
+  isFetchingMatches = false,
   canManageMatches = true,
   onRefetch,
   onRefetchChampionshipBracket,
@@ -296,6 +310,10 @@ export function AdminMatches({
   const [applyingBulkAction, setApplyingBulkAction] = useState(false);
   const [savingEditingMatch, setSavingEditingMatch] = useState(false);
   const [showCreateMatchModal, setShowCreateMatchModal] = useState(false);
+  const [showDeleteMatchDialog, setShowDeleteMatchDialog] = useState(false);
+  const [pendingDeleteMatchId, setPendingDeleteMatchId] = useState<string | null>(null);
+  const [pendingDeleteMatchLabel, setPendingDeleteMatchLabel] = useState("");
+  const [showDeleteSelectedMatchesDialog, setShowDeleteSelectedMatchesDialog] = useState(false);
   const [locationTemplates, setLocationTemplates] = useState<ChampionshipBracketLocationTemplate[]>([]);
   const [loadingLocationTemplates, setLoadingLocationTemplates] = useState(false);
   const [pendingTieBreakContexts, setPendingTieBreakContexts] = useState<ChampionshipBracketTieBreakPendingContext[]>([]);
@@ -303,6 +321,7 @@ export function AdminMatches({
   const [showTieBreakDialog, setShowTieBreakDialog] = useState(false);
   const [savingTieBreakResolutions, setSavingTieBreakResolutions] = useState(false);
   const [draftTieBreakTeamIdsByContextKey, setDraftTieBreakTeamIdsByContextKey] = useState<Record<string, string[]>>({});
+  const hasHandledPaginationScrollRef = useRef(false);
 
   const championshipUsesDivisions = selectedChampionship.uses_divisions;
   const hasConfiguredBracket =
@@ -813,6 +832,15 @@ export function AdminMatches({
   }, [matchesCurrentPage, matchesTotalPages]);
 
   useEffect(() => {
+    if (!hasHandledPaginationScrollRef.current) {
+      hasHandledPaginationScrollRef.current = true;
+      return;
+    }
+
+    scrollToTopOfPage();
+  }, [matchesCurrentPage]);
+
+  useEffect(() => {
     const validGroupFilterValues = new Set(groupsForMatchesFilter.map((groupOption) => groupOption.value));
 
     if (matchesGroupFilter != ALL_MATCHES_GROUP_FILTER && !validGroupFilterValues.has(matchesGroupFilter)) {
@@ -1190,6 +1218,29 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
     onRefetchChampionshipBracket();
   };
 
+  const handleOpenDeleteMatchDialog = (match: Match) => {
+    if (!canManageMatches) {
+      return;
+    }
+
+    setPendingDeleteMatchId(match.id);
+    setPendingDeleteMatchLabel(`${match.home_team?.name ?? "Casa"} x ${match.away_team?.name ?? "Visitante"}`);
+    setShowDeleteMatchDialog(true);
+  };
+
+  const handleDeleteMatchFromDialog = async () => {
+    if (!pendingDeleteMatchId) {
+      return;
+    }
+
+    setShowDeleteMatchDialog(false);
+
+    await handleDelete(pendingDeleteMatchId);
+
+    setPendingDeleteMatchId(null);
+    setPendingDeleteMatchLabel("");
+  };
+
   const handleToggleSelectAllMatches = (checked: CheckedState) => {
     if (checked == true) {
       setSelectedMatchIds(filteredMatchIds);
@@ -1213,6 +1264,19 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
     });
   };
 
+  const handleOpenDeleteSelectedMatchesDialog = () => {
+    if (!canManageMatches) {
+      return;
+    }
+
+    if (selectedMatchIds.length == 0) {
+      toast.error("Selecione ao menos um jogo.");
+      return;
+    }
+
+    setShowDeleteSelectedMatchesDialog(true);
+  };
+
   const handleDeleteSelectedMatches = async () => {
     if (!canManageMatches) {
       return;
@@ -1223,11 +1287,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
       return;
     }
 
-    const confirmed = window.confirm(`Excluir ${selectedMatchIds.length} jogo(s) selecionado(s)?`);
-
-    if (!confirmed) {
-      return;
-    }
+    setShowDeleteSelectedMatchesDialog(false);
 
     setDeletingMatches(true);
 
@@ -1482,7 +1542,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
   return (
     <div className="space-y-6">
       {shouldShowTieBreakBanner ? (
-        <div className="glass-card enter-section border border-amber-500/30 bg-amber-500/5 p-4">
+        <div className="glass-card enter-section app-card-warning p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
@@ -1517,7 +1577,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
           <div className="grid grid-cols-1 gap-3 xl:grid-cols-6 xl:items-center">
             <div className="xl:min-w-0">
               <Select value={matchesStatusFilter} onValueChange={setMatchesStatusFilter}>
-                <SelectTrigger className="glass-input w-full">
+                <SelectTrigger className="app-input-field w-full">
                   <SelectValue placeholder="Filtrar por status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1531,7 +1591,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
 
             <div className="xl:min-w-0">
               <Select value={matchesNaipeFilter} onValueChange={setMatchesNaipeFilter}>
-                <SelectTrigger className="glass-input w-full">
+                <SelectTrigger className="app-input-field w-full">
                   <SelectValue placeholder="Filtrar por naipe" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1548,7 +1608,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
             <div className="xl:min-w-0">
               {championshipUsesDivisions ? (
                 <Select value={matchesDivisionFilter} onValueChange={setMatchesDivisionFilter}>
-                  <SelectTrigger className="glass-input w-full">
+                  <SelectTrigger className="app-input-field w-full">
                     <SelectValue placeholder="Filtrar por divisão" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1562,7 +1622,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
                   </SelectContent>
                 </Select>
               ) : (
-                <div className="glass-panel-muted flex h-10 w-full items-center rounded-xl px-3 py-2 text-sm text-muted-foreground">
+                <div className="app-input-field-disabled flex h-10 w-full items-center rounded-xl px-3 py-2 text-sm">
                   Divisão unificada
                 </div>
               )}
@@ -1570,7 +1630,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
 
             <div className="xl:min-w-0">
               <Select value={matchesGroupFilter} onValueChange={setMatchesGroupFilter}>
-                <SelectTrigger className="glass-input w-full">
+                <SelectTrigger className="app-input-field w-full">
                   <SelectValue placeholder="Filtrar por grupo" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1586,7 +1646,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
 
             <div className="xl:min-w-0">
               <Select value={matchesTeamFilter} onValueChange={setMatchesTeamFilter}>
-                <SelectTrigger className="glass-input w-full">
+                <SelectTrigger className="app-input-field w-full">
                   <SelectValue placeholder="Filtrar por atlética" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1613,7 +1673,17 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
           <p className="text-sm text-muted-foreground">Perfil em visualização: sem permissão para criar, editar ou remover jogos.</p>
         ) : null}
 
-        {filteredAndSortedMatches.length > 0 ? (
+        {isFetchingMatches ? (
+          <div className="space-y-3">
+            <section className="glass-card enter-section flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
+              <Skeleton className="h-5 w-48 rounded-lg" />
+              <Skeleton className="h-9 w-56 rounded-lg" />
+            </section>
+            {Array.from({ length: Math.max(3, matchesItemsPerPage) }).map((_, index) => (
+              <Skeleton key={`admin-matches-skeleton-${index}`} className="h-52 w-full rounded-2xl" />
+            ))}
+          </div>
+        ) : filteredAndSortedMatches.length > 0 ? (
           <>
             <div className="glass-card enter-section flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-wrap items-center gap-3">
@@ -1647,7 +1717,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
                     <Button
                       type="button"
                       variant="destructive"
-                      onClick={() => void handleDeleteSelectedMatches()}
+                      onClick={handleOpenDeleteSelectedMatchesDialog}
                       disabled={deletingMatches || applyingBulkAction || selectedMatchIds.length == 0}
                     >
                       Excluir selecionados
@@ -1734,7 +1804,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
                               <p>Sets ganhos: {match.home_score} × {match.away_score}</p>
                             ) : null}
                             {setSummary.length > 0 ? (
-                              <div className="space-y-0.5 rounded-lg border border-border/40 bg-background/40 p-2">
+                              <div className="space-y-0.5 app-card-muted p-2">
                                 {setSummary.map((matchSetItem) => (
                                   <p key={`${match.id}-admin-set-${matchSetItem.setNumber}`}>{matchSetItem.text}</p>
                                 ))}
@@ -1766,7 +1836,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
                             variant="ghost"
                             size="icon"
                             aria-label={`Excluir jogo ${match.home_team?.name ?? "casa"} x ${match.away_team?.name ?? "visitante"}`}
-                            onClick={() => handleDelete(match.id)}
+                            onClick={() => handleOpenDeleteMatchDialog(match)}
                             disabled={deletingMatches}
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
@@ -1792,6 +1862,61 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
         )}
       </div>
 
+      <AlertDialog
+        open={showDeleteMatchDialog}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setShowDeleteMatchDialog(false);
+            setPendingDeleteMatchId(null);
+            setPendingDeleteMatchLabel("");
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir jogo</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDeleteMatchLabel
+                ? `Deseja realmente excluir o jogo ${pendingDeleteMatchLabel}? Esta ação não poderá ser desfeita.`
+                : "Deseja realmente excluir este jogo? Esta ação não poderá ser desfeita."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingMatches}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleDeleteMatchFromDialog()} disabled={deletingMatches}>
+              Confirmar exclusão
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={showDeleteSelectedMatchesDialog}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setShowDeleteSelectedMatchesDialog(false);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir jogos selecionados</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação removerá {selectedMatchIds.length} jogo(s) selecionado(s).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingMatches}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void handleDeleteSelectedMatches()}
+              disabled={deletingMatches}
+            >
+              Confirmar exclusão
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Dialog open={showTieBreakDialog} onOpenChange={setShowTieBreakDialog}>
         <DialogContent className="sm:max-w-4xl">
           <DialogHeader>
@@ -1811,7 +1936,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
               }));
 
               return (
-                <div key={pendingTieBreakContext.context_key} className="glass-card space-y-3 border border-border/60 p-4">
+                <div key={pendingTieBreakContext.context_key} className="glass-card space-y-3 p-4">
                   <div className="space-y-1">
                     <h3 className="text-sm font-semibold text-foreground">{pendingTieBreakContext.title}</h3>
                     <p className="text-sm text-muted-foreground">{pendingTieBreakContext.description}</p>
@@ -1940,7 +2065,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
                       )
                     }
                   >
-                    <SelectTrigger aria-label="Modalidade do jogo" className="glass-input">
+                    <SelectTrigger aria-label="Modalidade do jogo" className="app-input-field">
                       <SelectValue placeholder="Modalidade" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1973,7 +2098,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
                         );
                       }}
                     >
-                      <SelectTrigger aria-label="Divisão do jogo" className="glass-input">
+                      <SelectTrigger aria-label="Divisão do jogo" className="app-input-field">
                         <SelectValue placeholder="Divisão" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1986,7 +2111,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
                       </SelectContent>
                     </Select>
                   ) : (
-                    <div className="glass-panel-muted flex items-center rounded-xl px-3 py-2 text-sm text-muted-foreground">
+                    <div className="app-input-field-disabled flex items-center rounded-xl px-3 py-2 text-sm">
                       Divisão unificada
                     </div>
                   )}
@@ -2006,7 +2131,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
                       }
                       disabled={loadingChampionshipBracket}
                     >
-                      <SelectTrigger aria-label="Grupo do jogo" className="glass-input">
+                      <SelectTrigger aria-label="Grupo do jogo" className="app-input-field">
                         <SelectValue placeholder="Chave" />
                       </SelectTrigger>
                       <SelectContent>
@@ -2019,7 +2144,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
                       </SelectContent>
                     </Select>
                   ) : (
-                    <div className="glass-panel-muted flex items-center rounded-xl px-3 py-2 text-sm text-muted-foreground">
+                    <div className="app-input-field-disabled flex items-center rounded-xl px-3 py-2 text-sm">
                       Sem chave vinculada
                     </div>
                   )}
@@ -2043,7 +2168,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
                     }
                     disabled={editingLocationOptions.length == 0}
                   >
-                    <SelectTrigger aria-label="Local do jogo" className="glass-input">
+                    <SelectTrigger aria-label="Local do jogo" className="app-input-field">
                       <SelectValue placeholder={loadingLocationTemplates ? "Carregando locais" : "Local"} />
                     </SelectTrigger>
                     <SelectContent>
@@ -2091,7 +2216,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
                         }
                       }}
                     >
-                      <SelectTrigger aria-label="Status do jogo" className="glass-input">
+                      <SelectTrigger aria-label="Status do jogo" className="app-input-field">
                         <SelectValue placeholder="Status do jogo" />
                       </SelectTrigger>
                       <SelectContent>
@@ -2117,7 +2242,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
                       }
                       disabled={editingMatchDraft.status != MatchStatus.FINISHED}
                     >
-                      <SelectTrigger aria-label="Critério de desempate" className="glass-input">
+                      <SelectTrigger aria-label="Critério de desempate" className="app-input-field">
                         <SelectValue placeholder="Critério de desempate" />
                       </SelectTrigger>
                       <SelectContent>
@@ -2149,7 +2274,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
                       )
                     }
                   >
-                    <SelectTrigger aria-label="Atlética da casa" className="glass-input">
+                    <SelectTrigger aria-label="Atlética da casa" className="app-input-field">
                       <SelectValue placeholder="Atlética da casa" />
                     </SelectTrigger>
                     <SelectContent>
@@ -2174,7 +2299,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
                       )
                     }
                   >
-                    <SelectTrigger aria-label="Atlética visitante" className="glass-input">
+                    <SelectTrigger aria-label="Atlética visitante" className="app-input-field">
                       <SelectValue placeholder="Atlética visitante" />
                     </SelectTrigger>
                     <SelectContent>
@@ -2272,7 +2397,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
                     setAwayTeamId("");
                   }}
                 >
-                  <SelectTrigger className="glass-input">
+                  <SelectTrigger className="app-input-field">
                     <SelectValue placeholder="Modalidade" />
                   </SelectTrigger>
                   <SelectContent>
@@ -2296,7 +2421,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
                       }
                     }}
                   >
-                    <SelectTrigger className="glass-input">
+                    <SelectTrigger className="app-input-field">
                       <SelectValue placeholder="Divisão" />
                     </SelectTrigger>
                     <SelectContent>
@@ -2309,7 +2434,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
                     </SelectContent>
                   </Select>
                 ) : (
-                  <div className="glass-panel-muted flex items-center rounded-xl px-3 py-2 text-sm text-muted-foreground">
+                  <div className="app-input-field-disabled flex items-center rounded-xl px-3 py-2 text-sm">
                     Divisão unificada
                   </div>
                 )}
@@ -2322,7 +2447,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
                     }}
                     disabled={loadingChampionshipBracket}
                   >
-                    <SelectTrigger className="glass-input">
+                    <SelectTrigger className="app-input-field">
                       <SelectValue placeholder="Chave" />
                     </SelectTrigger>
                     <SelectContent>
@@ -2335,7 +2460,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
                     </SelectContent>
                   </Select>
                 ) : (
-                  <div className="glass-panel-muted flex items-center rounded-xl px-3 py-2 text-sm text-muted-foreground">
+                  <div className="app-input-field-disabled flex items-center rounded-xl px-3 py-2 text-sm">
                     Sem chave vinculada
                   </div>
                 )}
@@ -2346,7 +2471,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Operação do dia</p>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <Select value={location} onValueChange={setLocation} disabled={createLocationOptions.length == 0}>
-                  <SelectTrigger className="glass-input">
+                  <SelectTrigger className="app-input-field">
                     <SelectValue placeholder={loadingLocationTemplates ? "Carregando locais" : "Local"} />
                   </SelectTrigger>
                   <SelectContent>
@@ -2366,7 +2491,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Atléticas</p>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <Select value={homeTeamId} onValueChange={setHomeTeamId}>
-                  <SelectTrigger className="glass-input">
+                  <SelectTrigger className="app-input-field">
                     <SelectValue placeholder="Atlética da casa" />
                   </SelectTrigger>
                   <SelectContent>
@@ -2379,7 +2504,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
                 </Select>
 
                 <Select value={awayTeamId} onValueChange={setAwayTeamId}>
-                  <SelectTrigger className="glass-input">
+                  <SelectTrigger className="app-input-field">
                     <SelectValue placeholder="Atlética visitante" />
                   </SelectTrigger>
                   <SelectContent>

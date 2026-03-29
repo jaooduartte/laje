@@ -74,7 +74,13 @@ export function AdminPage() {
   });
   const selectedChampionshipSeasonYear = selectedChampionship?.current_season_year ?? null;
 
-  const { matches, matchRepresentationByMatchId, estimatedStartTimeByMatchId, refetch: refetchMatches } = useMatches({
+  const {
+    matches,
+    matchRepresentationByMatchId,
+    estimatedStartTimeByMatchId,
+    isFetching: matchesFetching,
+    refetch: refetchMatches,
+  } = useMatches({
     championshipId: selectedChampionshipId,
     seasonYear: selectedChampionshipSeasonYear,
   });
@@ -340,9 +346,10 @@ export function AdminPage() {
   const canViewUsersTab = canViewAdminTab(AdminPanelTab.USERS);
   const canViewAccountTab = canViewAdminTab(AdminPanelTab.ACCOUNT);
   const canViewSettingsTab = canViewAdminTab(AdminPanelTab.SETTINGS);
+  const canViewChampionshipStatus = canViewAdminTab(AdminPanelTab.CHAMPIONSHIP_STATUS);
 
   const canManageMatches = canEditAdminTab(AdminPanelTab.MATCHES);
-  const canManageChampionshipStatus = canEditAdminTab(AdminPanelTab.MATCHES);
+  const canManageChampionshipStatus = canEditAdminTab(AdminPanelTab.CHAMPIONSHIP_STATUS);
   const canManageTeams = canEditAdminTab(AdminPanelTab.TEAMS);
   const canManageSports = canEditAdminTab(AdminPanelTab.SPORTS);
   const canManageLeagueEvents = canEditAdminTab(AdminPanelTab.EVENTS);
@@ -381,6 +388,7 @@ export function AdminPage() {
         matchBracketContextByMatchId={matchBracketContextByMatchId}
         matchRepresentationByMatchId={matchRepresentationByMatchId}
         estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
+        matchesFetching={matchesFetching}
         profileName={profileName}
         canViewMatchesTab={canViewMatchesTab}
         canViewControlTab={canViewControlTab}
@@ -391,6 +399,7 @@ export function AdminPage() {
         canViewUsersTab={canViewUsersTab}
         canViewAccountTab={canViewAccountTab}
         canViewSettingsTab={canViewSettingsTab}
+        canViewChampionshipStatus={canViewChampionshipStatus}
         canManageMatches={canManageMatches}
         canManageChampionshipStatus={canManageChampionshipStatus}
         canManageScoreboard={canManageScoreboard}
@@ -430,7 +439,7 @@ export function AdminPage() {
           }
         }}
       >
-        <DialogContent className="border-border/60 bg-background backdrop-blur-md shadow-[0_18px_45px_rgba(15,23,42,0.16)] dark:shadow-none sm:max-w-xl">
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle className="text-center">Voltar campeonato para Em breve?</DialogTitle>
             <DialogDescription className="text-center">
@@ -478,7 +487,7 @@ export function AdminPage() {
           }
         }}
       >
-        <DialogContent className="border-border/60 bg-background backdrop-blur-md shadow-[0_18px_45px_rgba(15,23,42,0.16)] dark:shadow-none sm:max-w-xl">
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle className="text-center">Jogos atuais já existem</DialogTitle>
             <DialogDescription className="text-center">
@@ -525,10 +534,7 @@ export function AdminPage() {
           }
         }}
       >
-        <AlertDialogContent
-          overlayClassName="bg-transparent"
-          className="border-border/60 !bg-background/80 shadow-[0_18px_45px_rgba(15,23,42,0.16)] dark:shadow-none backdrop-blur-md"
-        >
+        <AlertDialogContent overlayClassName="bg-transparent">
           <AlertDialogHeader>
             <AlertDialogTitle>Configuração disponível apenas no computador</AlertDialogTitle>
             <AlertDialogDescription>

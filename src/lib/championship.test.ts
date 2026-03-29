@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { MatchNaipe, MatchStatus, TeamDivision } from "@/lib/enums";
 import {
   resolveEstimatedStartTimeByMatchId,
+  resolveInterleavedScheduledMatchesByCompetition,
+  resolveOrderedScheduledMatches,
   resolveMatchRepresentationByMatchId,
   type MatchEstimatedStartTimeBracketEdition,
   type MatchEstimatedStartTimeChampionshipSport,
@@ -113,7 +115,7 @@ describe("resolveMatchRepresentationByMatchId", () => {
     });
   });
 
-  it("follows the same operational queue regardless of naipe and division", () => {
+  it("isolates operational representation by naipe and division within the same modality", () => {
     const firstMatch = buildMatch({
       id: "match-queue-1",
       queue_position: 1,
@@ -146,14 +148,102 @@ describe("resolveMatchRepresentationByMatchId", () => {
     ]);
 
     expect(representationByMatchId["match-queue-1"]).toBe("CO");
-    expect(representationByMatchId["match-queue-2"]).toBe("Alpha x Beta");
-    expect(representationByMatchId["match-queue-3"]).toBe("Gamma x Delta");
+    expect(representationByMatchId["match-queue-2"]).toBe("CO");
+    expect(representationByMatchId["match-queue-3"]).toBe("CO");
+  });
+
+  it("keeps male and female game 1 as independent CO entries", () => {
+    const maleGameOneMatch = buildMatch({
+      id: "male-game-1",
+      queue_position: 1,
+      naipe: MatchNaipe.MASCULINO,
+      home_team: { id: "team-1", name: "Alpha", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      away_team: { id: "team-2", name: "Beta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+    });
+    const femaleGameOneMatch = buildMatch({
+      id: "female-game-1",
+      queue_position: 1,
+      naipe: MatchNaipe.FEMININO,
+      home_team: { id: "team-3", name: "Gamma", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      away_team: { id: "team-4", name: "Delta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+    });
+
+    const representationByMatchId = resolveMatchRepresentationByMatchId([
+      femaleGameOneMatch,
+      maleGameOneMatch,
+    ]);
+
+    expect(representationByMatchId["male-game-1"]).toBe("CO");
+    expect(representationByMatchId["female-game-1"]).toBe("CO");
+  });
+
+  it("uses a single sequential queue for beach soccer across naipes", () => {
+    const gameOneMaleMatch = buildMatch({
+      id: "beach-game-1-male",
+      sport_id: "sport-beach-soccer",
+      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      naipe: MatchNaipe.MASCULINO,
+      queue_position: 1,
+      home_team: { id: "team-1", name: "Alpha", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      away_team: { id: "team-2", name: "Beta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+    });
+    const gameTwoMaleMatch = buildMatch({
+      id: "beach-game-2-male",
+      sport_id: "sport-beach-soccer",
+      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      naipe: MatchNaipe.MASCULINO,
+      queue_position: 2,
+      home_team: { id: "team-3", name: "Gamma", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      away_team: { id: "team-4", name: "Delta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+    });
+    const gameThreeMaleMatch = buildMatch({
+      id: "beach-game-3-male",
+      sport_id: "sport-beach-soccer",
+      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      naipe: MatchNaipe.MASCULINO,
+      queue_position: 3,
+      home_team: { id: "team-5", name: "Epsilon", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      away_team: { id: "team-6", name: "Zeta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+    });
+    const gameFourFemaleMatch = buildMatch({
+      id: "beach-game-4-female",
+      sport_id: "sport-beach-soccer",
+      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      naipe: MatchNaipe.FEMININO,
+      queue_position: 4,
+      home_team: { id: "team-7", name: "Eta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      away_team: { id: "team-8", name: "Theta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+    });
+    const gameFiveMaleMatch = buildMatch({
+      id: "beach-game-5-male",
+      sport_id: "sport-beach-soccer",
+      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      naipe: MatchNaipe.MASCULINO,
+      queue_position: 5,
+      home_team: { id: "team-9", name: "Iota", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      away_team: { id: "team-10", name: "Kappa", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+    });
+
+    const representationByMatchId = resolveMatchRepresentationByMatchId([
+      gameFiveMaleMatch,
+      gameThreeMaleMatch,
+      gameOneMaleMatch,
+      gameFourFemaleMatch,
+      gameTwoMaleMatch,
+    ]);
+
+    expect(representationByMatchId["beach-game-1-male"]).toBe("CO");
+    expect(representationByMatchId["beach-game-2-male"]).toBe("Alpha x Beta");
+    expect(representationByMatchId["beach-game-3-male"]).toBe("Gamma x Delta");
+    expect(representationByMatchId["beach-game-4-female"]).toBe("Epsilon x Zeta");
+    expect(representationByMatchId["beach-game-5-male"]).toBe("Eta x Theta");
   });
 
   it("keeps different sports and days isolated in their own operational queues", () => {
     const beachSoccerFirstMatch = buildMatch({
       id: "beach-1",
       sport_id: "sport-beach-soccer",
+      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
       scheduled_date: "2026-03-20",
       queue_position: 1,
       home_team: { id: "team-1", name: "Alpha", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
@@ -162,6 +252,7 @@ describe("resolveMatchRepresentationByMatchId", () => {
     const beachSoccerSecondMatch = buildMatch({
       id: "beach-2",
       sport_id: "sport-beach-soccer",
+      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
       scheduled_date: "2026-03-20",
       queue_position: 2,
       home_team: { id: "team-3", name: "Gamma", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
@@ -170,6 +261,7 @@ describe("resolveMatchRepresentationByMatchId", () => {
     const futsalFirstMatch = buildMatch({
       id: "futsal-1",
       sport_id: "sport-futsal",
+      sports: { id: "sport-futsal", name: "Futsal", created_at: "2026-03-01T00:00:00.000Z" },
       scheduled_date: "2026-03-20",
       queue_position: 1,
       home_team: { id: "team-5", name: "Epsilon", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
@@ -178,6 +270,7 @@ describe("resolveMatchRepresentationByMatchId", () => {
     const beachSoccerNextDayFirstMatch = buildMatch({
       id: "beach-next-day-1",
       sport_id: "sport-beach-soccer",
+      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
       scheduled_date: "2026-03-21",
       queue_position: 1,
       home_team: { id: "team-7", name: "Eta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
@@ -490,5 +583,124 @@ describe("resolveEstimatedStartTimeByMatchId", () => {
     expect(estimatedStartTimeByMatchId["day-one-match"]).toBe("08:00");
     expect(estimatedStartTimeByMatchId["day-two-first-match"]).toBe("08:00");
     expect(estimatedStartTimeByMatchId["day-two-second-match"]).toBe("08:30");
+  });
+});
+
+describe("resolveOrderedScheduledMatches", () => {
+  it("orders scheduled matches by date, queue/slot, created_at and id", () => {
+    const dayOneSlotOne = buildMatch({
+      id: "day-1-slot-1",
+      scheduled_date: "2026-03-20",
+      queue_position: 1,
+      created_at: "2026-03-20T08:00:00.000Z",
+    });
+    const dayOneSlotTwo = buildMatch({
+      id: "day-1-slot-2",
+      scheduled_date: "2026-03-20",
+      queue_position: 2,
+      created_at: "2026-03-20T08:01:00.000Z",
+    });
+    const dayOneSlotFour = buildMatch({
+      id: "day-1-slot-4",
+      scheduled_date: "2026-03-20",
+      queue_position: 4,
+      created_at: "2026-03-20T08:02:00.000Z",
+    });
+    const dayTwoSlotOne = buildMatch({
+      id: "day-2-slot-1",
+      scheduled_date: "2026-03-21",
+      queue_position: 1,
+      created_at: "2026-03-21T08:00:00.000Z",
+    });
+
+    const orderedMatches = resolveOrderedScheduledMatches([
+      dayOneSlotFour,
+      dayTwoSlotOne,
+      dayOneSlotTwo,
+      dayOneSlotOne,
+    ]);
+
+    expect(orderedMatches.map((match) => match.id)).toEqual([
+      "day-1-slot-1",
+      "day-1-slot-2",
+      "day-1-slot-4",
+      "day-2-slot-1",
+    ]);
+  });
+});
+
+describe("resolveInterleavedScheduledMatchesByCompetition", () => {
+  it("keeps beach soccer sequential across naipes while interleaving other modalities by slot rounds", () => {
+    const beachSoccerGameOne = buildMatch({
+      id: "beach-soccer-game-1",
+      sport_id: "sport-beach-soccer",
+      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      naipe: MatchNaipe.MASCULINO,
+      queue_position: 1,
+    });
+    const futevoleiGameOne = buildMatch({
+      id: "futevolei-game-1",
+      sport_id: "sport-futevolei",
+      sports: { id: "sport-futevolei", name: "Futevôlei", created_at: "2026-03-01T00:00:00.000Z" },
+      naipe: MatchNaipe.MASCULINO,
+      queue_position: 1,
+    });
+    const voleiGameOne = buildMatch({
+      id: "volei-game-1",
+      sport_id: "sport-volei",
+      sports: { id: "sport-volei", name: "Vôlei de Praia", created_at: "2026-03-01T00:00:00.000Z" },
+      naipe: MatchNaipe.FEMININO,
+      queue_position: 1,
+    });
+    const beachSoccerGameTwo = buildMatch({
+      id: "beach-soccer-game-2",
+      sport_id: "sport-beach-soccer",
+      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      naipe: MatchNaipe.MASCULINO,
+      queue_position: 2,
+    });
+    const futevoleiGameTwo = buildMatch({
+      id: "futevolei-game-2",
+      sport_id: "sport-futevolei",
+      sports: { id: "sport-futevolei", name: "Futevôlei", created_at: "2026-03-01T00:00:00.000Z" },
+      naipe: MatchNaipe.MASCULINO,
+      queue_position: 2,
+    });
+    const voleiGameTwo = buildMatch({
+      id: "volei-game-2",
+      sport_id: "sport-volei",
+      sports: { id: "sport-volei", name: "Vôlei de Praia", created_at: "2026-03-01T00:00:00.000Z" },
+      naipe: MatchNaipe.FEMININO,
+      queue_position: 2,
+    });
+    const beachSoccerGameFourFemale = buildMatch({
+      id: "beach-soccer-game-4-female",
+      sport_id: "sport-beach-soccer",
+      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      naipe: MatchNaipe.FEMININO,
+      queue_position: 4,
+    });
+
+    const orderedAndInterleavedMatches = resolveInterleavedScheduledMatchesByCompetition(
+      resolveOrderedScheduledMatches([
+        beachSoccerGameFourFemale,
+        voleiGameTwo,
+        beachSoccerGameTwo,
+        futevoleiGameOne,
+        voleiGameOne,
+        beachSoccerGameOne,
+        futevoleiGameTwo,
+      ]),
+    );
+
+    expect(orderedAndInterleavedMatches.map((match) => match.id)).toEqual([
+      "beach-soccer-game-1",
+      "futevolei-game-1",
+      "volei-game-1",
+      "beach-soccer-game-2",
+      "futevolei-game-2",
+      "volei-game-2",
+      "beach-soccer-game-4-female",
+    ]);
   });
 });

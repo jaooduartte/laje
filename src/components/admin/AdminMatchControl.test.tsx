@@ -191,8 +191,7 @@ function renderAdminMatchControl(params: {
 }) {
   const onRefetch = vi.fn();
   const onRefetchChampionshipBracket = vi.fn();
-
-  render(
+  const renderResult = render(
     <AdminMatchControl
       matches={params.matches}
       championshipStatus={params.championshipStatus ?? ChampionshipStatus.IN_PROGRESS}
@@ -205,9 +204,29 @@ function renderAdminMatchControl(params: {
     />,
   );
 
+  const rerenderAdminMatchControl = (nextParams: {
+    matches: Match[];
+    championshipSports: ChampionshipSport[];
+    championshipStatus?: ChampionshipStatus;
+  }) => {
+    renderResult.rerender(
+      <AdminMatchControl
+        matches={nextParams.matches}
+        championshipStatus={nextParams.championshipStatus ?? ChampionshipStatus.IN_PROGRESS}
+        championshipSports={nextParams.championshipSports}
+        championshipBracketView={buildChampionshipBracketView()}
+        matchBracketContextByMatchId={{}}
+        onRefetch={onRefetch}
+        onRefetchChampionshipBracket={onRefetchChampionshipBracket}
+        canManageScoreboard
+      />,
+    );
+  };
+
   return {
     onRefetch,
     onRefetchChampionshipBracket,
+    rerenderAdminMatchControl,
   };
 }
 
@@ -320,7 +339,7 @@ describe("AdminMatchControl", () => {
       fireEvent.change(scoreInputs[0] as HTMLElement, {
         target: { value: "3" },
       });
-      vi.advanceTimersByTime(500);
+      vi.advanceTimersByTime(150);
       await Promise.resolve();
     });
 
@@ -364,7 +383,7 @@ describe("AdminMatchControl", () => {
       fireEvent.change(input, {
         target: { value: "1" },
       });
-      vi.advanceTimersByTime(500);
+      vi.advanceTimersByTime(150);
       await Promise.resolve();
     });
 
@@ -421,6 +440,43 @@ describe("AdminMatchControl", () => {
       current_set_away_score: 0,
     });
     expect(toastSuccessMock).toHaveBeenCalledWith("Set 1 encerrado.");
+  });
+
+  it("rehydrates set-rule draft from backend when match updates and draft is not dirty", async () => {
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-rehydrate",
+      sport_id: "sport-sets",
+      result_rule: ChampionshipSportResultRule.SETS,
+    });
+    const initialMatch = buildMatch({
+      id: "rehydrate-live-sets-match",
+      sport_id: "sport-sets",
+      status: MatchStatus.LIVE,
+      current_set_home_score: 0,
+      current_set_away_score: 0,
+      home_team: buildTeam({ id: "home-rehydrate-team", name: "Atlética Rehidratar Casa" }),
+      away_team: buildTeam({ id: "away-rehydrate-team", name: "Atlética Rehidratar Visitante" }),
+    });
+    const updatedMatch = buildMatch({
+      ...initialMatch,
+      current_set_home_score: 7,
+      current_set_away_score: 5,
+    });
+
+    const { rerenderAdminMatchControl } = renderAdminMatchControl({
+      matches: [initialMatch],
+      championshipSports: [championshipSport],
+    });
+    rerenderAdminMatchControl({
+      matches: [updatedMatch],
+      championshipSports: [championshipSport],
+    });
+
+    const matchCardElement = resolveMatchCardElement("Atlética Rehidratar Casa");
+    const scoreInputs = within(matchCardElement).getAllByRole("spinbutton");
+
+    expect(scoreInputs[0]).toHaveValue(7);
+    expect(scoreInputs[1]).toHaveValue(5);
   });
 
   it("finaliza jogo por pontos e persiste status encerrado com placar final", async () => {

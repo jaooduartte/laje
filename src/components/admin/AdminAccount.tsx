@@ -185,26 +185,26 @@ export function AdminAccount({ canManageAccount = false }: Props) {
           </div>
         </div>
 
-        <div className="grid gap-3 xl:grid-cols-2">
-          <div className="space-y-2 rounded-2xl border border-border/50 bg-background/30 p-3 backdrop-blur-md">
+        <div className="grid gap-3 xl:grid-cols-3">
+          <div className="space-y-2 rounded-2xl app-card-muted p-3">
             <Label htmlFor="admin-account-name-input">Nome</Label>
             <Input
               id="admin-account-name-input"
               value={name}
               onChange={(event) => setName(event.target.value)}
-              className="glass-input"
+              className="app-input-field"
               autoComplete="name"
               disabled={!canManageAccount}
             />
           </div>
 
-          <div className="space-y-2 rounded-2xl border border-border/50 bg-background/30 p-3 backdrop-blur-md">
+          <div className="space-y-2 rounded-2xl app-card-muted p-3">
             <Label htmlFor="admin-account-login-input">Login</Label>
             <Input
               id="admin-account-login-input"
               value={loginIdentifier}
               onChange={(event) => setLoginIdentifier(event.target.value)}
-              className="glass-input"
+              className="app-input-field"
               autoComplete="username"
               autoCorrect="off"
               autoCapitalize="none"
@@ -212,19 +212,19 @@ export function AdminAccount({ canManageAccount = false }: Props) {
               disabled={!canManageAccount}
             />
           </div>
-        </div>
 
-        <div className="space-y-2 rounded-2xl border border-border/50 bg-background/30 p-3 backdrop-blur-md">
-          <Label htmlFor="admin-account-password-input">Nova senha</Label>
-          <Input
-            id="admin-account-password-input"
-            type="password"
-            value={newPassword}
-            onChange={(event) => setNewPassword(event.target.value)}
-            className="glass-input"
-            autoComplete="new-password"
-            disabled={!canManageAccount}
-          />
+          <div className="space-y-2 rounded-2xl app-card-muted p-3">
+            <Label htmlFor="admin-account-password-input">Nova senha</Label>
+            <Input
+              id="admin-account-password-input"
+              type="password"
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              className="app-input-field"
+              autoComplete="new-password"
+              disabled={!canManageAccount}
+            />
+          </div>
         </div>
 
         {canManageAccount ? (

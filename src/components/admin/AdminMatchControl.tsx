@@ -10,6 +10,7 @@ import { AppBadgeTone, BracketPhase, ChampionshipSportResultRule, ChampionshipSt
 import { SportFilter } from "@/components/SportFilter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { AppBadge } from "@/components/ui/app-badge";
 import {
@@ -27,6 +28,7 @@ import {
   resolveMatchStartedAtLabel,
   resolveMatchTieBreakRuleLabel,
 } from "@/lib/championship";
+import { scrollToTopOfPage } from "@/lib/scroll";
 
 interface Props {
   matches: Match[];
@@ -36,6 +38,7 @@ interface Props {
   matchBracketContextByMatchId: Record<string, MatchBracketContext>;
   matchRepresentationByMatchId?: Record<string, string>;
   estimatedStartTimeByMatchId?: Record<string, string>;
+  isFetchingMatches?: boolean;
   onRefetch: () => void;
   onRefetchChampionshipBracket: () => void;
   canManageScoreboard: boolean;
@@ -77,6 +80,7 @@ const MATCH_CONTROL_STATUS_SORT_ORDER: Record<MatchStatus, number> = {
   [MatchStatus.SCHEDULED]: 1,
   [MatchStatus.FINISHED]: 2,
 };
+const MATCH_CONTROL_AUTOSAVE_DEBOUNCE_IN_MILLISECONDS = 150;
 
 function resolveDefaultMatchControlDraft(match: Match, shouldUseCurrentSetScore: boolean): MatchControlDraft {
   return {
@@ -181,11 +185,13 @@ export function AdminMatchControl({
   matchBracketContextByMatchId,
   matchRepresentationByMatchId = {},
   estimatedStartTimeByMatchId = {},
+  isFetchingMatches = false,
   onRefetch,
   onRefetchChampionshipBracket,
   canManageScoreboard,
 }: Props) {
   const [matchDraftById, setMatchDraftById] = useState<Record<string, MatchControlDraft>>({});
+  const [isDraftDirtyByMatchId, setIsDraftDirtyByMatchId] = useState<Record<string, boolean>>({});
   const [matchSetsByMatchId, setMatchSetsByMatchId] = useState<Record<string, MatchSetInput[]>>({});
   const [editingSetDraftByMatchId, setEditingSetDraftByMatchId] = useState<Record<string, MatchSetEditDraft | undefined>>({});
   const [saveStatusByMatchId, setSaveStatusByMatchId] = useState<Record<string, SaveStatus | undefined>>({});
@@ -196,6 +202,7 @@ export function AdminMatchControl({
 
   const saveTimeoutByMatchIdRef = useRef<Record<string, ReturnType<typeof setTimeout> | undefined>>({});
   const clearStatusTimeoutByMatchIdRef = useRef<Record<string, ReturnType<typeof setTimeout> | undefined>>({});
+  const hasHandledPaginationScrollRef = useRef(false);
 
   const championshipSportResultRuleBySportId = useMemo(() => {
     const map = new Map<string, ChampionshipSportResultRule>();
@@ -230,9 +237,10 @@ export function AdminMatchControl({
       const nextMatchDraftById: Record<string, MatchControlDraft> = {};
 
       matches.forEach((match) => {
-        const previousMatchDraft = previousMatchDraftById[match.id];
+        const shouldPreserveDirtyDraft = isDraftDirtyByMatchId[match.id] == true;
+        const previousMatchDraft = previousMatchDraftById[match.id] ?? null;
 
-        if (previousMatchDraft) {
+        if (shouldPreserveDirtyDraft && previousMatchDraft) {
           nextMatchDraftById[match.id] = previousMatchDraft;
           return;
         }
@@ -242,7 +250,21 @@ export function AdminMatchControl({
 
       return nextMatchDraftById;
     });
-  }, [isSetRuleMatch, matches]);
+  }, [isDraftDirtyByMatchId, isSetRuleMatch, matches]);
+
+  useEffect(() => {
+    setIsDraftDirtyByMatchId((previousDirtyByMatchId) => {
+      const nextDirtyByMatchId: Record<string, boolean> = {};
+
+      matches.forEach((match) => {
+        if (previousDirtyByMatchId[match.id] == true) {
+          nextDirtyByMatchId[match.id] = true;
+        }
+      });
+
+      return nextDirtyByMatchId;
+    });
+  }, [matches]);
 
   const controlSports = useMemo(() => {
     const sportById = new Map<string, Sport>();
@@ -369,6 +391,29 @@ export function AdminMatchControl({
     }, 1200);
   };
 
+  const setDraftDirty = (matchId: string, isDirty: boolean) => {
+    setIsDraftDirtyByMatchId((currentDirtyByMatchId) => {
+      if (isDirty) {
+        if (currentDirtyByMatchId[matchId] == true) {
+          return currentDirtyByMatchId;
+        }
+
+        return {
+          ...currentDirtyByMatchId,
+          [matchId]: true,
+        };
+      }
+
+      if (currentDirtyByMatchId[matchId] != true) {
+        return currentDirtyByMatchId;
+      }
+
+      const nextDirtyByMatchId = { ...currentDirtyByMatchId };
+      delete nextDirtyByMatchId[matchId];
+      return nextDirtyByMatchId;
+    });
+  };
+
   const persistMatchDraft = async (match: Match, matchDraft: MatchControlDraft) => {
     if (!canManageScoreboard) {
       return false;
@@ -392,6 +437,7 @@ export function AdminMatchControl({
       return false;
     }
 
+    setDraftDirty(match.id, false);
     setMatchSaveStatus(match.id, "saved");
     scheduleClearSavedStatus(match.id);
     return true;
@@ -410,7 +456,7 @@ export function AdminMatchControl({
 
     saveTimeoutByMatchIdRef.current[match.id] = setTimeout(() => {
       persistMatchDraft(match, matchDraft);
-    }, 500);
+    }, MATCH_CONTROL_AUTOSAVE_DEBOUNCE_IN_MILLISECONDS);
   };
 
   const updateScore = (match: Match, side: MatchSide, delta: number) => {
@@ -429,6 +475,7 @@ export function AdminMatchControl({
           side == "away" ? Math.max(0, currentMatchDraft.awayScore + delta) : currentMatchDraft.awayScore,
       };
 
+      setDraftDirty(match.id, true);
       scheduleAutosave(match, nextMatchDraft);
 
       return {
@@ -454,6 +501,7 @@ export function AdminMatchControl({
         awayScore: side == "away" ? parsedValue : currentMatchDraft.awayScore,
       };
 
+      setDraftDirty(match.id, true);
       scheduleAutosave(match, nextMatchDraft);
 
       return {
@@ -483,6 +531,7 @@ export function AdminMatchControl({
         nextMatchDraft.awayRedCards = Math.max(0, currentMatchDraft.awayRedCards + delta);
       }
 
+      setDraftDirty(match.id, true);
       scheduleAutosave(match, nextMatchDraft);
 
       return {
@@ -514,6 +563,7 @@ export function AdminMatchControl({
         nextMatchDraft.awayRedCards = parsedValue;
       }
 
+      setDraftDirty(match.id, true);
       scheduleAutosave(match, nextMatchDraft);
 
       return {
@@ -705,6 +755,7 @@ export function AdminMatchControl({
         awayScore: 0,
       },
     }));
+    setDraftDirty(match.id, false);
 
     toast.success(`Set ${nextMatchSets.length} encerrado.`);
     onRefetch();
@@ -897,13 +948,22 @@ export function AdminMatchControl({
     }
   }, [currentPage, totalPages]);
 
+  useEffect(() => {
+    if (!hasHandledPaginationScrollRef.current) {
+      hasHandledPaginationScrollRef.current = true;
+      return;
+    }
+
+    scrollToTopOfPage();
+  }, [currentPage]);
+
   return (
     <div className="enter-section space-y-4">
       <div className="glass-card enter-section space-y-4 p-4">
         <p className="text-sm text-muted-foreground">{sortedMatches.length} jogo(s) encontrado(s)</p>
 
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          <div className="flex min-w-0 flex-1 items-center gap-3">
+          <div className="flex min-w-0 flex-1 items-stretch gap-3">
             {controlSports.length > 0 ? (
               <div className="min-w-0 flex-1">
                 <SportFilter sports={controlSports} selected={sportFilter} onSelect={setSportFilter} />
@@ -917,7 +977,7 @@ export function AdminMatchControl({
               variant="outline"
               size="icon"
               onClick={() => setShowOnlyLiveMatches((currentShowOnlyLiveMatches) => !currentShowOnlyLiveMatches)}
-              className={showOnlyLiveMatches ? "border-primary/40 bg-primary/10 text-primary" : ""}
+              className={`h-10 w-10 shrink-0 self-stretch ${showOnlyLiveMatches ? "app-button-secondary-active" : ""}`}
               aria-label={showOnlyLiveMatches ? "Mostrar jogos agendados também" : "Ocultar jogos que não estão ao vivo"}
             >
               <EyeOff className="h-4 w-4" />
@@ -926,7 +986,13 @@ export function AdminMatchControl({
         </div>
       </div>
 
-      {sortedMatches.length == 0 ? (
+      {isFetchingMatches ? (
+        <div className="space-y-3">
+          {Array.from({ length: Math.max(3, itemsPerPage) }).map((_, index) => (
+            <Skeleton key={`admin-control-skeleton-${index}`} className="h-56 w-full rounded-2xl" />
+          ))}
+        </div>
+      ) : sortedMatches.length == 0 ? (
         <p className="text-sm text-muted-foreground">
           {showOnlyLiveMatches ? "Nenhum jogo ao vivo para os filtros selecionados." : "Nenhum jogo ao vivo ou agendado."}
         </p>
@@ -965,9 +1031,7 @@ export function AdminMatchControl({
             return (
               <div
                 key={match.id}
-                className={`space-y-4 list-item-card p-5 ${
-                  match.status == MatchStatus.LIVE ? "border-live/50 live-glow" : "border-border"
-                }`}
+                className={`space-y-4 glass-card p-5 ${match.status == MatchStatus.LIVE ? "list-item-card-live live-glow" : ""}`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1">
@@ -1074,7 +1138,7 @@ export function AdminMatchControl({
                       <Button
                         size="icon"
                         variant="outline"
-                        className="h-8 w-8"
+                        className="h-8 w-10"
                         onClick={() => updateScore(match, "home", -1)}
                         disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                       >
@@ -1085,14 +1149,14 @@ export function AdminMatchControl({
                         type="number"
                         value={displayedHomeScore}
                         onChange={(event) => updateManualInputScore(match, "home", event.target.value)}
-                        className="score-text h-12 w-14 glass-input text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        className="score-text h-12 w-12 app-input-field text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                       />
 
                       <Button
                         size="icon"
                         variant="outline"
-                        className="h-8 w-8"
+                        className="h-8 w-10"
                         onClick={() => updateScore(match, "home", 1)}
                         disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                       >
@@ -1106,7 +1170,7 @@ export function AdminMatchControl({
                       <Button
                         size="icon"
                         variant="outline"
-                        className="h-8 w-8"
+                        className="h-8 w-10"
                         onClick={() => updateScore(match, "away", -1)}
                         disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                       >
@@ -1117,14 +1181,14 @@ export function AdminMatchControl({
                         type="number"
                         value={displayedAwayScore}
                         onChange={(event) => updateManualInputScore(match, "away", event.target.value)}
-                        className="score-text h-12 w-14 glass-input text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        className="score-text h-12 w-12 app-input-field text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                       />
 
                       <Button
                         size="icon"
                         variant="outline"
-                        className="h-8 w-8"
+                        className="h-8 w-10"
                         onClick={() => updateScore(match, "away", 1)}
                         disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                       >
@@ -1144,7 +1208,7 @@ export function AdminMatchControl({
                       <Button
                         size="icon"
                         variant="outline"
-                        className="h-8 w-8"
+                        className="h-8 w-10"
                         onClick={() => updateScore(match, "home", -1)}
                         disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                       >
@@ -1155,14 +1219,14 @@ export function AdminMatchControl({
                         type="number"
                         value={displayedHomeScore}
                         onChange={(event) => updateManualInputScore(match, "home", event.target.value)}
-                        className="score-text h-12 w-14 glass-input text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        className="score-text h-12 w-12 app-input-field text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                       />
 
                       <Button
                         size="icon"
                         variant="outline"
-                        className="h-8 w-8"
+                        className="h-8 w-10"
                         onClick={() => updateScore(match, "home", 1)}
                         disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                       >
@@ -1176,7 +1240,7 @@ export function AdminMatchControl({
                       <Button
                         size="icon"
                         variant="outline"
-                        className="h-8 w-8"
+                        className="h-8 w-10"
                         onClick={() => updateScore(match, "away", -1)}
                         disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                       >
@@ -1187,14 +1251,14 @@ export function AdminMatchControl({
                         type="number"
                         value={displayedAwayScore}
                         onChange={(event) => updateManualInputScore(match, "away", event.target.value)}
-                        className="score-text h-12 w-14 glass-input text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        className="score-text h-12 w-12 app-input-field text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                       />
 
                       <Button
                         size="icon"
                         variant="outline"
-                        className="h-8 w-8"
+                        className="h-8 w-10"
                         onClick={() => updateScore(match, "away", 1)}
                         disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                       >
@@ -1209,7 +1273,7 @@ export function AdminMatchControl({
                 </div>
 
                 {isSetMatch && setSummary.length > 0 ? (
-                  <div className="space-y-2 rounded-lg border border-border/40 bg-background/50 p-3">
+                  <div className="space-y-2 app-card-emphasis p-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="text-xs font-semibold uppercase text-muted-foreground">Detalhamento por sets</p>
                       <span className="text-xs font-medium text-muted-foreground">
@@ -1238,7 +1302,7 @@ export function AdminMatchControl({
                                   type="number"
                                   value={editingSetDraft.homePoints}
                                   onChange={(event) => handleUpdateEditingRecordedSetScore(match.id, "home", event.target.value)}
-                                  className="h-8 text-center text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                  className="h-8 w-20 text-center text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                   disabled={!canManageScoreboard}
                                 />
                                 <span className="text-center text-xs text-muted-foreground">×</span>
@@ -1246,7 +1310,7 @@ export function AdminMatchControl({
                                   type="number"
                                   value={editingSetDraft.awayPoints}
                                   onChange={(event) => handleUpdateEditingRecordedSetScore(match.id, "away", event.target.value)}
-                                  className="h-8 text-center text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                  className="h-8 w-20 text-center text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                   disabled={!canManageScoreboard}
                                 />
                                 <span className="truncate text-xs font-medium text-right">{match.away_team?.name}</span>
@@ -1256,7 +1320,7 @@ export function AdminMatchControl({
                                   type="button"
                                   size="icon"
                                   variant="outline"
-                                  className="h-8 w-8"
+                                  className="h-8 w-10"
                                   onClick={() => void handleSaveEditedRecordedSet(match)}
                                   disabled={!canManageScoreboard}
                                 >
@@ -1266,7 +1330,7 @@ export function AdminMatchControl({
                                   type="button"
                                   size="icon"
                                   variant="ghost"
-                                  className="h-8 w-8"
+                                  className="h-8 w-10"
                                   onClick={() => handleCancelEditingRecordedSet(match.id)}
                                   disabled={!canManageScoreboard}
                                 >
@@ -1280,7 +1344,7 @@ export function AdminMatchControl({
                         return (
                           <div
                             key={`${match.id}-set-summary-${matchSetSummary.setNumber}`}
-                            className="flex items-center justify-between gap-2 rounded-lg border border-border/30 bg-background/40 px-2 py-1.5"
+                            className="flex items-center justify-between gap-2 app-card-muted px-2 py-1.5"
                           >
                             <p className="min-w-0 text-xs text-muted-foreground">{matchSetSummary.text}</p>
                             {match.status == MatchStatus.LIVE && editableMatchSet ? (
@@ -1313,7 +1377,7 @@ export function AdminMatchControl({
                             <Button
                               size="icon"
                               variant="outline"
-                              className="h-8 w-8"
+                              className="h-8 w-10"
                               onClick={() => updateCards(match, "home", "yellow", -1)}
                               disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                             >
@@ -1323,13 +1387,13 @@ export function AdminMatchControl({
                               type="number"
                               value={matchDraft.homeYellowCards}
                               onChange={(event) => updateManualInputCards(match, "home", "yellow", event.target.value)}
-                              className="h-9 glass-input text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              className="h-9 w-20 app-input-field text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                               disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                             />
                             <Button
                               size="icon"
                               variant="outline"
-                              className="h-8 w-8"
+                              className="h-8 w-10"
                               onClick={() => updateCards(match, "home", "yellow", 1)}
                               disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                             >
@@ -1339,12 +1403,12 @@ export function AdminMatchControl({
                         </div>
 
                         <div className="space-y-1">
-                          <p className="text-[11px] font-semibold uppercase text-rose-700 dark:text-rose-400">Cartões Vermelhos</p>
+                          <p className="text-[11px] font-semibold uppercase app-text-status-danger">Cartões Vermelhos</p>
                           <div className="flex items-center gap-1">
                             <Button
                               size="icon"
                               variant="outline"
-                              className="h-8 w-8"
+                              className="h-8 w-10"
                               onClick={() => updateCards(match, "home", "red", -1)}
                               disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                             >
@@ -1354,13 +1418,13 @@ export function AdminMatchControl({
                               type="number"
                               value={matchDraft.homeRedCards}
                               onChange={(event) => updateManualInputCards(match, "home", "red", event.target.value)}
-                              className="h-9 glass-input text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              className="h-9 w-20 app-input-field text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                               disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                             />
                             <Button
                               size="icon"
                               variant="outline"
-                              className="h-8 w-8"
+                              className="h-8 w-10"
                               onClick={() => updateCards(match, "home", "red", 1)}
                               disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                             >
@@ -1380,7 +1444,7 @@ export function AdminMatchControl({
                             <Button
                               size="icon"
                               variant="outline"
-                              className="h-8 w-8"
+                              className="h-8 w-10"
                               onClick={() => updateCards(match, "away", "yellow", -1)}
                               disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                             >
@@ -1390,13 +1454,13 @@ export function AdminMatchControl({
                               type="number"
                               value={matchDraft.awayYellowCards}
                               onChange={(event) => updateManualInputCards(match, "away", "yellow", event.target.value)}
-                              className="h-9 glass-input text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              className="h-9 w-20 app-input-field text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                               disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                             />
                             <Button
                               size="icon"
                               variant="outline"
-                              className="h-8 w-8"
+                              className="h-8 w-10"
                               onClick={() => updateCards(match, "away", "yellow", 1)}
                               disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                             >
@@ -1406,12 +1470,12 @@ export function AdminMatchControl({
                         </div>
 
                         <div className="space-y-1">
-                          <p className="text-[11px] font-semibold uppercase text-rose-700 dark:text-rose-400">Cartões Vermelhos</p>
+                          <p className="text-[11px] font-semibold uppercase app-text-status-danger">Cartões Vermelhos</p>
                           <div className="flex items-center gap-1">
                             <Button
                               size="icon"
                               variant="outline"
-                              className="h-8 w-8"
+                              className="h-8 w-10"
                               onClick={() => updateCards(match, "away", "red", -1)}
                               disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                             >
@@ -1421,13 +1485,13 @@ export function AdminMatchControl({
                               type="number"
                               value={matchDraft.awayRedCards}
                               onChange={(event) => updateManualInputCards(match, "away", "red", event.target.value)}
-                              className="h-9 glass-input text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              className="h-9 w-20 app-input-field text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                               disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                             />
                             <Button
                               size="icon"
                               variant="outline"
-                              className="h-8 w-8"
+                              className="h-8 w-10"
                               onClick={() => updateCards(match, "away", "red", 1)}
                               disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                             >

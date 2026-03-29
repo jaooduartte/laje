@@ -96,7 +96,7 @@ export const MATCH_STATUS_LABELS: Record<MatchStatus, string> = {
 };
 
 export const MATCH_STATUS_BADGE_TONES: Record<MatchStatus, AppBadgeTone> = {
-  [MatchStatus.SCHEDULED]: AppBadgeTone.NEUTRAL,
+  [MatchStatus.SCHEDULED]: AppBadgeTone.SILVER,
   [MatchStatus.LIVE]: AppBadgeTone.PRIMARY,
   [MatchStatus.FINISHED]: AppBadgeTone.RED,
 };
@@ -241,22 +241,52 @@ export function isMatchNaipe(value: string): value is MatchNaipe {
   return value === MatchNaipe.MASCULINO || value === MatchNaipe.FEMININO || value === MatchNaipe.MISTO;
 }
 
-export function resolveMatchDisplaySlotValue(match: Match & { scheduled_slot?: number | null }) {
+export type MatchRepresentationSource = Pick<
+  Match,
+  | "id"
+  | "championship_id"
+  | "season_year"
+  | "scheduled_date"
+  | "start_time"
+  | "sport_id"
+  | "naipe"
+  | "division"
+  | "queue_position"
+  | "created_at"
+> & {
+  scheduled_slot?: number | null;
+  sports?: Match["sports"];
+  home_team?: Match["home_team"];
+  away_team?: Match["away_team"];
+};
+
+export function resolveMatchDisplaySlotValue(
+  match: Pick<Match, "queue_position"> & { scheduled_slot?: number | null },
+) {
   return match.queue_position ?? match.scheduled_slot ?? Number.MAX_SAFE_INTEGER;
 }
 
-function resolveMatchRepresentationScopeKey(match: Match): string {
+function resolveMatchRepresentationScopeKey(match: MatchRepresentationSource): string {
   const scheduledDateValue = resolveMatchScheduledDateValue(match) ?? "WITHOUT_SCHEDULED_DATE";
+  const normalizedSportName = (match.sports?.name ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+  const representationNaipeScope =
+    normalizedSportName == NORMALIZED_BEACH_SOCCER_NAME ? "ALL_NAIPES" : match.naipe;
 
   return [
     match.championship_id,
     String(match.season_year),
     scheduledDateValue,
     match.sport_id,
+    representationNaipeScope,
+    match.division ?? "WITHOUT_DIVISION",
   ].join(":");
 }
 
-function resolveMatchRepresentationFromPreviousMatch(match: Match | undefined): string {
+function resolveMatchRepresentationFromPreviousMatch(match: MatchRepresentationSource | undefined): string {
   if (!match) {
     return MATCH_REPRESENTATION_COORDINATION_LABEL;
   }
@@ -271,8 +301,8 @@ function resolveMatchRepresentationFromPreviousMatch(match: Match | undefined): 
   return `${previousHomeTeamName} x ${previousAwayTeamName}`;
 }
 
-export function resolveMatchRepresentationByMatchId(matches: Match[]): Record<string, string> {
-  const matchesByScopeKey = matches.reduce<Record<string, Match[]>>((carry, match) => {
+export function resolveMatchRepresentationByMatchId(matches: MatchRepresentationSource[]): Record<string, string> {
+  const matchesByScopeKey = matches.reduce<Record<string, MatchRepresentationSource[]>>((carry, match) => {
     const scopeKey = resolveMatchRepresentationScopeKey(match);
 
     carry[scopeKey] = [...(carry[scopeKey] ?? []), match];
@@ -666,8 +696,47 @@ export function resolveMatchCompetitionKey(match: {
   sport_id: string;
   naipe: MatchNaipe;
   division: TeamDivision | null | undefined;
+  sports?: Match["sports"] | null;
 }): string {
-  return `${match.sport_id}:${match.naipe}:${match.division ?? "WITHOUT_DIVISION"}`;
+  const normalizedSportName = resolveNormalizedSportName(match.sports?.name);
+  const competitionNaipeScope =
+    normalizedSportName == NORMALIZED_BEACH_SOCCER_NAME
+      ? "ALL_NAIPES"
+      : match.naipe;
+
+  return `${match.sport_id}:${competitionNaipeScope}:${match.division ?? "WITHOUT_DIVISION"}`;
+}
+
+export function resolveOrderedScheduledMatches<
+  MatchItem extends {
+    id: string;
+    created_at: string;
+    scheduled_date: string | null;
+    start_time: string | null;
+    queue_position: number | null;
+    scheduled_slot?: number | null;
+  },
+>(scheduledMatches: MatchItem[]): MatchItem[] {
+  return [...scheduledMatches].sort((firstMatch, secondMatch) => {
+    const firstScheduledDate = resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
+    const secondScheduledDate = resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
+
+    if (firstScheduledDate != secondScheduledDate) {
+      return firstScheduledDate.localeCompare(secondScheduledDate);
+    }
+
+    const slotDifference = resolveMatchDisplaySlotValue(firstMatch) - resolveMatchDisplaySlotValue(secondMatch);
+
+    if (slotDifference != 0) {
+      return slotDifference;
+    }
+
+    if (firstMatch.created_at != secondMatch.created_at) {
+      return firstMatch.created_at.localeCompare(secondMatch.created_at);
+    }
+
+    return firstMatch.id.localeCompare(secondMatch.id);
+  });
 }
 
 export function resolveNextScheduledMatchesByCompetition<
@@ -675,6 +744,7 @@ export function resolveNextScheduledMatchesByCompetition<
     sport_id: string;
     naipe: MatchNaipe;
     division: TeamDivision | null | undefined;
+    sports?: Match["sports"] | null;
   },
 >(scheduledMatches: MatchItem[]): MatchItem[] {
   const competitionKeySet = new Set<string>();
@@ -698,6 +768,7 @@ export function resolveInterleavedScheduledMatchesByCompetition<
     division: TeamDivision | null | undefined;
     scheduled_date: string | null;
     start_time: string | null;
+    sports?: Match["sports"] | null;
   },
 >(scheduledMatches: MatchItem[]): MatchItem[] {
   const scheduledMatchesByDate = scheduledMatches.reduce<Record<string, MatchItem[]>>((carry, scheduledMatch) => {
@@ -868,8 +939,9 @@ export function resolveMatchBracketContextByMatchId(
 
     competition.groups.forEach((group) => {
       const championshipGroupLabel = resolveChampionshipGroupLabel(group.group_number);
-      const groupLabel = `${competition.sport_name} • ${MATCH_NAIPE_LABELS[competition.naipe]} • ${divisionLabel}${seasonYearLabel} • ${championshipGroupLabel}`;
-      const groupFilterValue = `${competition.id}:${group.id}`;
+      const groupStageLabel = `${competition.sport_name} • ${MATCH_NAIPE_LABELS[competition.naipe]} • ${divisionLabel}${seasonYearLabel} • ${championshipGroupLabel}`;
+      const groupLabel = championshipGroupLabel;
+      const groupFilterValue = championshipGroupLabel;
       const badgeLabel = championshipGroupLabel;
 
       group.matches.forEach((groupMatch) => {
@@ -881,7 +953,7 @@ export function resolveMatchBracketContextByMatchId(
           badgeLabel,
           phase: BracketPhase.GROUP_STAGE,
           seasonYear,
-          stageLabel: groupLabel,
+          stageLabel: groupStageLabel,
           groupFilterValue,
           groupLabel,
         };

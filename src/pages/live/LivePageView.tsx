@@ -1,15 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Header } from "@/components/Header";
 import { LiveMatchBanner } from "@/components/LiveMatchBanner";
 import { MatchCard } from "@/components/MatchCard";
 import { TeamStandingsTable } from "@/components/TeamStandingsTable";
 import { SportFilter } from "@/components/SportFilter";
-import {
-  AppPaginationControls,
-  DEFAULT_PAGINATION_ITEMS_PER_PAGE,
-} from "@/components/ui/app-pagination-controls";
+import { AppPaginationControls } from "@/components/ui/app-pagination-controls";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsNavigationList, TabsNavigationTrigger } from "@/components/ui/tabs";
 import type { Championship, Match, Sport } from "@/lib/types";
 import type { ChampionshipBracketView } from "@/lib/types";
@@ -19,12 +17,17 @@ import { MATCH_NAIPE_LABELS } from "@/lib/championship";
 import type { TeamStandingAggregate } from "@/lib/standings";
 import { HelpCircle, Loader2 } from "lucide-react";
 import { ChampionshipBracketBoard } from "@/components/championship-brackets/ChampionshipBracketBoard";
+import { scrollToTopOfPage } from "@/lib/scroll";
 
 interface LivePageViewProps {
   isLoading: boolean;
   featuredChampionship: Championship | null;
   filteredLiveMatches: Match[];
   filteredUpcomingMatches: Match[];
+  isUpcomingMatchesFetching: boolean;
+  upcomingMatchesCurrentPage: number;
+  upcomingMatchesItemsPerPage: number;
+  upcomingMatchesTotalPages: number;
   sports: Sport[];
   sportFilter: string | null;
   standingsSportFilter: string;
@@ -40,6 +43,8 @@ interface LivePageViewProps {
   matchRepresentationByMatchId: Record<string, string>;
   estimatedStartTimeByMatchId: Record<string, string>;
   onSportFilterChange: (value: string | null) => void;
+  onUpcomingMatchesPageChange: (page: number) => void;
+  onUpcomingMatchesItemsPerPageChange: (value: number) => void;
   onStandingsSportFilterChange: (value: string) => void;
   onStandingsNaipeFilterChange: (value: string) => void;
 }
@@ -49,6 +54,10 @@ export function LivePageView({
   featuredChampionship,
   filteredLiveMatches,
   filteredUpcomingMatches,
+  isUpcomingMatchesFetching,
+  upcomingMatchesCurrentPage,
+  upcomingMatchesItemsPerPage,
+  upcomingMatchesTotalPages,
   sports,
   sportFilter,
   standingsSportFilter,
@@ -64,30 +73,21 @@ export function LivePageView({
   matchRepresentationByMatchId,
   estimatedStartTimeByMatchId,
   onSportFilterChange,
+  onUpcomingMatchesPageChange,
+  onUpcomingMatchesItemsPerPageChange,
   onStandingsSportFilterChange,
   onStandingsNaipeFilterChange,
 }: LivePageViewProps) {
-  const [upcomingMatchesCurrentPage, setUpcomingMatchesCurrentPage] = useState(1);
-  const [upcomingMatchesItemsPerPage, setUpcomingMatchesItemsPerPage] = useState(DEFAULT_PAGINATION_ITEMS_PER_PAGE);
+  const hasHandledPaginationScrollRef = useRef(false);
 
   useEffect(() => {
-    setUpcomingMatchesCurrentPage(1);
-  }, [featuredChampionship?.id, sportFilter, upcomingMatchesItemsPerPage]);
-
-  const upcomingMatchesTotalPages = Math.max(1, Math.ceil(filteredUpcomingMatches.length / upcomingMatchesItemsPerPage));
-
-  const paginatedUpcomingMatches = useMemo(() => {
-    const rangeStart = (upcomingMatchesCurrentPage - 1) * upcomingMatchesItemsPerPage;
-    const rangeEnd = rangeStart + upcomingMatchesItemsPerPage;
-
-    return filteredUpcomingMatches.slice(rangeStart, rangeEnd);
-  }, [filteredUpcomingMatches, upcomingMatchesCurrentPage, upcomingMatchesItemsPerPage]);
-
-  useEffect(() => {
-    if (upcomingMatchesCurrentPage > upcomingMatchesTotalPages) {
-      setUpcomingMatchesCurrentPage(upcomingMatchesTotalPages);
+    if (!hasHandledPaginationScrollRef.current) {
+      hasHandledPaginationScrollRef.current = true;
+      return;
     }
-  }, [upcomingMatchesCurrentPage, upcomingMatchesTotalPages]);
+
+    scrollToTopOfPage();
+  }, [upcomingMatchesCurrentPage]);
 
   if (isLoading) {
     return (
@@ -154,7 +154,7 @@ export function LivePageView({
                   <TooltipTrigger asChild>
                     <button
                       type="button"
-                      className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border/70 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                      className="hidden h-5 w-5 items-center justify-center rounded-full app-help-icon-button text-xs sm:inline-flex"
                       aria-label="Ajuda sobre ordenação dos próximos jogos"
                     >
                       <HelpCircle className="h-3.5 w-3.5" />
@@ -166,12 +166,20 @@ export function LivePageView({
                   </TooltipContent>
                 </Tooltip>
               </div>
-              {filteredUpcomingMatches.length == 0 ? (
+              {isUpcomingMatchesFetching ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {Array.from({ length: Math.max(3, upcomingMatchesItemsPerPage) }).map((_, index) => (
+                      <Skeleton key={`live-upcoming-skeleton-${index}`} className="h-52 w-full rounded-2xl" />
+                    ))}
+                  </div>
+                </div>
+              ) : filteredUpcomingMatches.length == 0 ? (
                 <p className="text-center text-sm text-muted-foreground sm:text-left">Nenhum jogo agendado.</p>
               ) : (
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {paginatedUpcomingMatches.map((match) => (
+                    {filteredUpcomingMatches.map((match) => (
                       <MatchCard
                         key={match.id}
                         match={match}
@@ -186,9 +194,9 @@ export function LivePageView({
                   <AppPaginationControls
                     currentPage={upcomingMatchesCurrentPage}
                     totalPages={upcomingMatchesTotalPages}
-                    onPageChange={setUpcomingMatchesCurrentPage}
+                    onPageChange={onUpcomingMatchesPageChange}
                     itemsPerPage={upcomingMatchesItemsPerPage}
-                    onItemsPerPageChange={setUpcomingMatchesItemsPerPage}
+                    onItemsPerPageChange={onUpcomingMatchesItemsPerPageChange}
                   />
                 </div>
               )}
@@ -199,7 +207,7 @@ export function LivePageView({
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Select value={standingsSportFilter} onValueChange={onStandingsSportFilterChange}>
-                  <SelectTrigger className="glass-input w-full">
+                  <SelectTrigger className="app-input-field w-full">
                     <SelectValue placeholder="Filtrar modalidade" />
                   </SelectTrigger>
                   <SelectContent>
@@ -213,7 +221,7 @@ export function LivePageView({
                 </Select>
 
                 <Select value={standingsNaipeFilter} onValueChange={onStandingsNaipeFilterChange}>
-                  <SelectTrigger className="glass-input w-full">
+                  <SelectTrigger className="app-input-field w-full">
                     <SelectValue placeholder="Filtrar naipe" />
                   </SelectTrigger>
                   <SelectContent>

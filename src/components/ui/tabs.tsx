@@ -12,7 +12,7 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "glass-chip inline-flex h-10 items-center justify-center rounded-xl p-1 text-muted-foreground",
+      "app-pill-container inline-flex h-10 items-center justify-center rounded-xl p-1 text-muted-foreground",
       className,
     )}
     {...props}
@@ -58,11 +58,8 @@ const TabsNavigationList = React.forwardRef<
       return;
     }
 
-    const listRect = listRef.current.getBoundingClientRect();
-    const triggerRect = activeTriggerElement.getBoundingClientRect();
-
-    setActiveIndicatorLeft(triggerRect.left - listRect.left);
-    setActiveIndicatorWidth(triggerRect.width);
+    setActiveIndicatorLeft(activeTriggerElement.offsetLeft);
+    setActiveIndicatorWidth(activeTriggerElement.offsetWidth);
     setShowActiveIndicator(true);
   }, []);
 
@@ -89,11 +86,13 @@ const TabsNavigationList = React.forwardRef<
 
     listElement.addEventListener("click", updateActiveIndicator);
     listElement.addEventListener("keydown", updateActiveIndicator);
+    listElement.addEventListener("scroll", updateActiveIndicator);
 
     return () => {
       mutationObserver.disconnect();
       listElement.removeEventListener("click", updateActiveIndicator);
       listElement.removeEventListener("keydown", updateActiveIndicator);
+      listElement.removeEventListener("scroll", updateActiveIndicator);
     };
   }, [updateActiveIndicator]);
 
@@ -103,16 +102,16 @@ const TabsNavigationList = React.forwardRef<
   }, [updateActiveIndicator]);
 
   return (
-    <TabsPrimitive.List
+      <TabsPrimitive.List
       ref={setRefs}
       className={cn(
-        "glass-chip relative inline-flex h-10 items-center justify-center overflow-x-auto rounded-xl p-0 text-muted-foreground",
+        "app-pill-container relative inline-flex h-10 items-center justify-center overflow-x-auto overflow-y-hidden rounded-xl p-0 text-muted-foreground",
         className,
       )}
       {...props}
     >
       <span
-        className="pointer-events-none absolute inset-y-0 left-0 rounded-xl bg-primary/20 backdrop-blur-2xl transition-[transform,width,opacity] duration-500"
+        className="app-pill-active-indicator pointer-events-none absolute inset-y-0 left-0 rounded-xl transition-[transform,width,opacity] duration-500"
         style={{
           width: `${activeIndicatorWidth}px`,
           transform: `translateX(${activeIndicatorLeft}px)`,
@@ -133,7 +132,7 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-all data-[state=active]:bg-secondary/70 data-[state=active]:text-foreground data-[state=active]:shadow-sm dark:data-[state=active]:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+      "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-all data-[state=active]:bg-secondary/70 data-[state=active]:text-primary data-[state=active]:font-bold dark:data-[state=active]:text-foreground dark:data-[state=active]:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
       className,
     )}
     {...props}
@@ -148,7 +147,7 @@ const TabsNavigationTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      "relative z-10 inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-none px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors first:rounded-l-xl last:rounded-r-xl data-[state=active]:text-primary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+      "app-pill-option relative z-10 inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-none px-3 py-1.5 text-sm font-medium first:rounded-l-xl last:rounded-r-xl data-[state=active]:text-primary data-[state=active]:font-bold dark:data-[state=active]:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
       className,
     )}
     {...props}

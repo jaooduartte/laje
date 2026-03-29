@@ -183,6 +183,7 @@ export interface CurrentUserAdminContext {
   logs_permission: AdminPanelPermissionLevel;
   users_permission: AdminPanelPermissionLevel;
   account_permission: AdminPanelPermissionLevel;
+  championship_status_permission: AdminPanelPermissionLevel;
   settings_permission: AdminPanelPermissionLevel;
 }
 

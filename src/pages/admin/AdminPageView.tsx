@@ -34,6 +34,7 @@ interface AdminPageViewProps {
   matchBracketContextByMatchId: Record<string, MatchBracketContext>;
   matchRepresentationByMatchId: Record<string, string>;
   estimatedStartTimeByMatchId: Record<string, string>;
+  matchesFetching: boolean;
   profileName: string | null;
   canViewMatchesTab: boolean;
   canViewControlTab: boolean;
@@ -44,6 +45,7 @@ interface AdminPageViewProps {
   canViewUsersTab: boolean;
   canViewAccountTab: boolean;
   canViewSettingsTab: boolean;
+  canViewChampionshipStatus: boolean;
   canManageMatches: boolean;
   canManageChampionshipStatus: boolean;
   canManageScoreboard: boolean;
@@ -82,6 +84,7 @@ export function AdminPageView({
   matchBracketContextByMatchId,
   matchRepresentationByMatchId,
   estimatedStartTimeByMatchId,
+  matchesFetching,
   profileName,
   canViewMatchesTab,
   canViewControlTab,
@@ -92,6 +95,7 @@ export function AdminPageView({
   canViewUsersTab,
   canViewAccountTab,
   canViewSettingsTab,
+  canViewChampionshipStatus,
   canManageMatches,
   canManageChampionshipStatus,
   canManageScoreboard,
@@ -225,6 +229,14 @@ export function AdminPageView({
     return () => window.removeEventListener("resize", updateActiveIndicator);
   }, [updateActiveIndicator]);
 
+  useEffect(() => {
+    if (activeTab != AdminPanelTab.CONTROL) {
+      return;
+    }
+
+    void onRefetchMatches();
+  }, [activeTab, onRefetchMatches]);
+
   return (
     <div className="app-page">
       <Header />
@@ -250,7 +262,7 @@ export function AdminPageView({
 
             <div className="flex w-full items-center gap-2 lg:w-auto">
               <Select value={selectedChampionshipCode} onValueChange={onChampionshipCodeChange}>
-                <SelectTrigger className="glass-input h-10 min-w-0 flex-1 sm:w-[280px] sm:flex-none">
+                <SelectTrigger className="app-input-field h-10 min-w-0 flex-1 sm:w-[280px] sm:flex-none">
                   <SelectValue placeholder="Selecione o campeonato" />
                 </SelectTrigger>
                 <SelectContent>
@@ -270,16 +282,16 @@ export function AdminPageView({
           </div>
         </div>
 
-        {canManageChampionshipStatus ? (
+        {canViewChampionshipStatus ? (
           <div className="glass-panel enter-section flex flex-col gap-2 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center">
             <span className="text-sm font-medium">Status do campeonato</span>
 
             <Select
               value={selectedChampionship.status}
               onValueChange={onChampionshipStatusChange}
-              disabled={updatingChampionshipStatus}
+              disabled={updatingChampionshipStatus || !canManageChampionshipStatus}
             >
-              <SelectTrigger className="glass-input h-10 w-full sm:w-[320px]">
+              <SelectTrigger className="app-input-field h-10 w-full sm:w-[320px]">
                 <SelectValue placeholder="Alterar status" />
               </SelectTrigger>
               <SelectContent>
@@ -300,10 +312,10 @@ export function AdminPageView({
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as AdminPanelTab)} className="enter-section space-y-6">
           <TabsList
             ref={tabsListRef}
-            className="glass-chip relative flex h-auto w-full items-center justify-start gap-0 overflow-x-auto rounded-xl p-0"
+            className="app-pill-container relative flex h-auto w-full items-center justify-start gap-0 overflow-x-auto rounded-xl p-0"
           >
             <span
-              className="pointer-events-none absolute inset-y-0 left-0 rounded-xl bg-primary/20 backdrop-blur-2xl transition-[transform,width,opacity] duration-500"
+              className="app-pill-active-indicator pointer-events-none absolute inset-y-0 left-0 rounded-xl transition-[transform,width,opacity] duration-500"
               style={{
                 width: `${activeIndicatorWidth}px`,
                 transform: `translateX(${activeIndicatorLeft}px)`,
@@ -319,7 +331,7 @@ export function AdminPageView({
                 ref={(triggerElement) => {
                   tabTriggerByValueRef.current[adminTabItem.value] = triggerElement;
                 }}
-                className="relative z-10 whitespace-nowrap rounded-none px-3 py-2.5 text-sm font-medium transition-colors first:rounded-l-xl last:rounded-r-xl sm:px-4 data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none"
+                className="app-pill-option relative z-10 whitespace-nowrap rounded-none px-3 py-2.5 text-sm font-medium first:rounded-l-xl last:rounded-r-xl sm:px-4 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
               >
                 {adminTabItem.label}
               </TabsTrigger>
@@ -338,6 +350,7 @@ export function AdminPageView({
                 matchBracketContextByMatchId={matchBracketContextByMatchId}
                 matchRepresentationByMatchId={matchRepresentationByMatchId}
                 estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
+                isFetchingMatches={matchesFetching}
                 canManageMatches={canManageMatches}
                 onRefetch={onRefetchMatches}
                 onRefetchChampionshipBracket={onRefetchChampionshipBracket}
@@ -355,6 +368,7 @@ export function AdminPageView({
                 matchBracketContextByMatchId={matchBracketContextByMatchId}
                 matchRepresentationByMatchId={matchRepresentationByMatchId}
                 estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
+                isFetchingMatches={matchesFetching}
                 onRefetch={onRefetchMatches}
                 onRefetchChampionshipBracket={onRefetchChampionshipBracket}
                 canManageScoreboard={canManageScoreboard}

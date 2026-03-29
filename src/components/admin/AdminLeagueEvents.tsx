@@ -126,7 +126,7 @@ function OrganizerTeamsSelector({
           type="button"
           variant="outline"
           className={cn(
-            "glass-input w-full justify-between overflow-hidden text-left text-sm font-normal hover:bg-background/70",
+            "app-input-field w-full justify-between overflow-hidden text-left text-sm font-normal hover:bg-background/70",
             triggerClassName,
           )}
         >
@@ -220,7 +220,7 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
     });
   }, [leagueEventOrganizerFilter, leagueEventSearch, leagueEventTypeFilter, leagueEvents]);
 
-  const monthControlClassName = "glass-input h-9 rounded-xl text-secondary-foreground";
+  const monthControlClassName = "app-input-field h-9 rounded-xl text-secondary-foreground";
 
   const editingLeagueEvent = useMemo(() => {
     if (!editingLeagueEventId) {
@@ -484,12 +484,12 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
             value={leagueEventSearch}
             onChange={(event) => setLeagueEventSearch(event.target.value)}
             placeholder="Buscar evento por nome"
-            className="glass-input"
+            className="app-input-field"
             autoComplete="off"
           />
 
           <Select value={leagueEventOrganizerFilter} onValueChange={setLeagueEventOrganizerFilter}>
-            <SelectTrigger className="glass-input">
+            <SelectTrigger className="app-input-field">
               <SelectValue placeholder="Filtrar por origem" />
             </SelectTrigger>
             <SelectContent>
@@ -504,7 +504,7 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
           </Select>
 
           <Select value={leagueEventTypeFilter} onValueChange={setLeagueEventTypeFilter}>
-            <SelectTrigger className="glass-input">
+            <SelectTrigger className="app-input-field">
               <SelectValue placeholder="Filtrar por tipo" />
             </SelectTrigger>
             <SelectContent>
@@ -607,7 +607,7 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
               value={createFormValues.name}
               onChange={(event) => handleChangeCreateField("name", event.target.value)}
               placeholder="Nome do evento"
-              className="glass-input"
+              className="app-input-field"
             />
 
             <Select
@@ -618,7 +618,7 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
                 }
               }}
             >
-              <SelectTrigger className="glass-input">
+              <SelectTrigger className="app-input-field">
                 <SelectValue placeholder="Selecione o tipo do evento" />
               </SelectTrigger>
               <SelectContent>
@@ -634,11 +634,11 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
                 value=""
                 readOnly
                 disabled
-                className="glass-input"
+                className="app-input-field"
                 placeholder="Selecione o tipo do evento para definir a organização"
               />
             ) : createFormValues.eventType == LeagueEventType.LAJE_EVENT ? (
-              <Input value="LAJE" readOnly disabled className="glass-input" />
+              <Input value="LAJE" readOnly disabled className="app-input-field" />
             ) : (
               <OrganizerTeamsSelector
                 orderedTeams={orderedTeams}
@@ -652,7 +652,7 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
               value={createFormValues.location}
               onChange={(event) => handleChangeCreateField("location", event.target.value)}
               placeholder="Local do evento"
-              className="glass-input"
+              className="app-input-field"
             />
 
             <DateTimePicker
@@ -695,7 +695,7 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
                 value={editingFormValues.name}
                 onChange={(event) => handleChangeEditField("name", event.target.value)}
                 placeholder="Nome do evento"
-                className="glass-input"
+                className="app-input-field"
               />
 
               <Select
@@ -706,7 +706,7 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
                   }
                 }}
               >
-                <SelectTrigger className="glass-input">
+                <SelectTrigger className="app-input-field">
                   <SelectValue placeholder="Selecione o tipo do evento" />
                 </SelectTrigger>
                 <SelectContent>
@@ -722,11 +722,11 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
                   value=""
                   readOnly
                   disabled
-                  className="glass-input"
+                  className="app-input-field"
                   placeholder="Selecione o tipo do evento para definir a organização"
                 />
               ) : editingFormValues.eventType == LeagueEventType.LAJE_EVENT ? (
-                <Input value="LAJE" readOnly disabled className="glass-input" />
+                <Input value="LAJE" readOnly disabled className="app-input-field" />
               ) : (
                 <OrganizerTeamsSelector
                   orderedTeams={orderedTeams}
@@ -740,7 +740,7 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
                 value={editingFormValues.location}
                 onChange={(event) => handleChangeEditField("location", event.target.value)}
                 placeholder="Local do evento"
-                className="glass-input"
+                className="app-input-field"
               />
 
               <DateTimePicker

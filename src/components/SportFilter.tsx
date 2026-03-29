@@ -49,11 +49,8 @@ export function SportFilter({ sports, selected, onSelect }: Props) {
       return;
     }
 
-    const containerRect = containerRef.current.getBoundingClientRect();
-    const buttonRect = activeButtonElement.getBoundingClientRect();
-
-    setActiveIndicatorLeft(buttonRect.left - containerRect.left);
-    setActiveIndicatorWidth(buttonRect.width);
+    setActiveIndicatorLeft(activeButtonElement.offsetLeft);
+    setActiveIndicatorWidth(activeButtonElement.offsetWidth);
     setShowActiveIndicator(true);
   }, [selectedSportValue]);
 
@@ -67,14 +64,28 @@ export function SportFilter({ sports, selected, onSelect }: Props) {
     return () => window.removeEventListener("resize", updateActiveIndicator);
   }, [updateActiveIndicator]);
 
+  useEffect(() => {
+    const containerElement = containerRef.current;
+
+    if (!containerElement) {
+      return;
+    }
+
+    containerElement.addEventListener("scroll", updateActiveIndicator);
+
+    return () => {
+      containerElement.removeEventListener("scroll", updateActiveIndicator);
+    };
+  }, [updateActiveIndicator]);
+
   return (
     <div className="enter-section">
       <div
         ref={containerRef}
-        className="glass-chip relative flex items-center gap-0 overflow-x-auto rounded-xl p-0"
+        className="app-pill-container relative flex h-10 items-stretch gap-0 overflow-x-auto rounded-xl p-0"
       >
         <span
-          className="pointer-events-none absolute inset-y-0 left-0 rounded-xl bg-primary/20 backdrop-blur-2xl transition-[transform,width,opacity] duration-500"
+          className="app-pill-active-indicator pointer-events-none absolute inset-y-0 left-0 rounded-xl transition-[transform,width,opacity] duration-500"
           style={{
             width: `${activeIndicatorWidth}px`,
             transform: `translateX(${activeIndicatorLeft}px)`,
@@ -92,9 +103,10 @@ export function SportFilter({ sports, selected, onSelect }: Props) {
               ref={(buttonElement) => {
                 buttonByValueRef.current[sportFilterItem.value] = buttonElement;
               }}
+              data-state={isSelected ? "active" : undefined}
               onClick={() => onSelect(sportFilterItem.value == ALL_SPORT_FILTER_VALUE ? null : sportFilterItem.value)}
-              className={`relative z-10 whitespace-nowrap rounded-none px-3 py-1.5 text-sm font-medium transition-colors first:rounded-l-xl last:rounded-r-xl ${
-                isSelected ? "text-primary" : "text-secondary-foreground hover:text-foreground"
+              className={`app-pill-option relative z-10 h-full whitespace-nowrap rounded-none px-3 py-0 text-sm font-medium first:rounded-l-xl last:rounded-r-xl ${
+                isSelected ? "text-primary font-bold dark:text-foreground" : ""
               }`}
             >
               {sportFilterItem.label}

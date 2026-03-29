@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { scrollToTopOfPage } from "@/lib/scroll";
 
 const ALL_USERS_FILTER = "ALL_USERS";
 const ALL_ACTIONS_FILTER = "ALL_ACTIONS";
@@ -703,6 +704,7 @@ export function AdminLogs() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_PAGINATION_ITEMS_PER_PAGE);
   const [totalCount, setTotalCount] = useState(0);
+  const hasHandledPaginationScrollRef = useRef(false);
 
   useEffect(() => {
     const fetchTeamsAndUsers = async () => {
@@ -901,6 +903,15 @@ export function AdminLogs() {
     }
   }, [currentPage, totalPages]);
 
+  useEffect(() => {
+    if (!hasHandledPaginationScrollRef.current) {
+      hasHandledPaginationScrollRef.current = true;
+      return;
+    }
+
+    scrollToTopOfPage();
+  }, [currentPage]);
+
   return (
     <div className="space-y-4">
       <div className="glass-card enter-section grid gap-2 p-3 md:grid-cols-[minmax(0,1fr)_220px_220px]">
@@ -908,11 +919,11 @@ export function AdminLogs() {
           value={resourceSearch}
           onChange={(event) => setResourceSearch(event.target.value)}
           placeholder="Filtrar por recurso, descrição ou usuário"
-          className="glass-input"
+          className="app-input-field"
         />
 
         <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-          <SelectTrigger className="glass-input">
+          <SelectTrigger className="app-input-field">
             <SelectValue placeholder="Filtrar usuário" />
           </SelectTrigger>
           <SelectContent>
@@ -926,7 +937,7 @@ export function AdminLogs() {
         </Select>
 
         <Select value={selectedActionType} onValueChange={handleSelectedActionTypeChange}>
-          <SelectTrigger className="glass-input">
+          <SelectTrigger className="app-input-field">
             <SelectValue placeholder="Filtrar ação" />
           </SelectTrigger>
           <SelectContent>
@@ -942,75 +953,77 @@ export function AdminLogs() {
         </Select>
       </div>
 
-      {loading ? (
-        <div className="glass-card enter-section flex min-h-28 items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-primary" />
-        </div>
-      ) : listItems.length == 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhum log encontrado para os filtros aplicados.</p>
-      ) : (
-        <div className="glass-card enter-section overflow-hidden">
-          <div className={`hidden ${LOGS_GRID_TEMPLATE} gap-3 border-b border-border/40 bg-secondary/30 px-4 py-2 text-xs font-semibold uppercase text-muted-foreground lg:grid`}>
-            <p>Usuário e data</p>
-            <p className="text-center">Ação registrada</p>
-            <p className="text-right">Tipo</p>
+      <div>
+        {loading ? (
+          <div className="glass-card enter-section flex min-h-28 items-center justify-center">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
           </div>
+        ) : listItems.length == 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhum log encontrado para os filtros aplicados.</p>
+        ) : (
+          <div className="glass-card enter-section overflow-hidden">
+            <div className={`hidden ${LOGS_GRID_TEMPLATE} gap-3 border-b border-border/40 bg-secondary/30 px-4 py-2 text-xs font-semibold uppercase text-muted-foreground lg:grid`}>
+              <p>Usuário e data</p>
+              <p className="text-center">Ação registrada</p>
+              <p className="text-right">Tipo</p>
+            </div>
 
-          <div className="divide-y divide-border/45">
-            {listItems.map((logItem) => (
-              <div key={logItem.id} className="px-4 py-3">
-                <div className={`grid gap-2 text-center ${LOGS_GRID_TEMPLATE} lg:items-start lg:gap-3 lg:text-left`}>
-                  <div className="space-y-1">
-                    <p className="break-words text-sm font-medium leading-tight">{logItem.actorName}</p>
-                    <p className="text-xs text-muted-foreground">{format(new Date(logItem.createdAt), "dd/MM/yyyy HH:mm")}</p>
-                    {logItem.actorRole ? (
-                      <p className="text-xs text-muted-foreground">{ADMIN_PANEL_ROLE_LABELS[logItem.actorRole]}</p>
-                    ) : null}
-                  </div>
+            <div className="divide-y divide-border/45">
+              {listItems.map((logItem) => (
+                <div key={logItem.id} className="px-4 py-3">
+                  <div className={`grid gap-2 text-center ${LOGS_GRID_TEMPLATE} lg:items-start lg:gap-3 lg:text-left`}>
+                    <div className="space-y-1">
+                      <p className="break-words text-sm font-medium leading-tight">{logItem.actorName}</p>
+                      <p className="text-xs text-muted-foreground">{format(new Date(logItem.createdAt), "dd/MM/yyyy HH:mm")}</p>
+                      {logItem.actorRole ? (
+                        <p className="text-xs text-muted-foreground">{ADMIN_PANEL_ROLE_LABELS[logItem.actorRole]}</p>
+                      ) : null}
+                    </div>
 
-                  <div className="space-y-1 text-center">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedLogForJson(logItem.rawLog)}
-                      className="text-sm font-medium text-primary underline-offset-2 transition-colors hover:underline"
-                    >
-                      {logItem.headline}
-                    </button>
+                    <div className="space-y-1 text-center">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedLogForJson(logItem.rawLog)}
+                        className="text-sm font-medium text-primary underline-offset-2 transition-colors hover:underline"
+                      >
+                        {logItem.headline}
+                      </button>
 
-                    <ul className="space-y-0.5">
-                      {logItem.details.map((logDetail, logDetailIndex) => (
-                        <li key={`${logItem.id}-${logDetailIndex}`} className="text-xs text-muted-foreground">
-                          {logDetail}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                      <ul className="space-y-0.5">
+                        {logItem.details.map((logDetail, logDetailIndex) => (
+                          <li key={`${logItem.id}-${logDetailIndex}`} className="text-xs text-muted-foreground">
+                            {logDetail}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
 
-                  <div className="flex justify-center lg:justify-end">
-                    <AppBadge tone={ADMIN_ACTION_TYPE_BADGE_TONES[logItem.actionType]}>
-                      {ADMIN_ACTION_TYPE_LABELS[logItem.actionType]}
-                    </AppBadge>
+                    <div className="flex justify-center lg:justify-end">
+                      <AppBadge tone={ADMIN_ACTION_TYPE_BADGE_TONES[logItem.actionType]}>
+                        {ADMIN_ACTION_TYPE_LABELS[logItem.actionType]}
+                      </AppBadge>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {!loading && totalCount > 0 ? (
-        <div className="space-y-2">
-          <p className="text-center text-xs text-muted-foreground">Total de itens: {totalCount}</p>
-          <AppPaginationControls
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={setCurrentPage}
-            showBoundaryButtons
-            itemsPerPage={itemsPerPage}
-            onItemsPerPageChange={setItemsPerPage}
-          />
-        </div>
-      ) : null}
+        {!loading && totalCount > 0 ? (
+          <div className="space-y-2">
+            <p className="text-center text-xs text-muted-foreground">Total de itens: {totalCount}</p>
+            <AppPaginationControls
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              showBoundaryButtons
+              itemsPerPage={itemsPerPage}
+              onItemsPerPageChange={setItemsPerPage}
+            />
+          </div>
+        ) : null}
+      </div>
 
       <Dialog
         open={selectedLogForJson != null}

@@ -36,10 +36,12 @@ const PaginationLink = ({ className, isActive, size = "icon", ...props }: Pagina
   <a
     aria-current={isActive ? "page" : undefined}
     className={cn(
+      "app-pill-option",
       buttonVariants({
         variant: isActive ? "outline" : "ghost",
         size,
       }),
+      isActive ? "app-pill-active-indicator text-primary font-bold dark:text-foreground" : undefined,
       className,
     )}
     {...props}

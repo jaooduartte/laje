@@ -64,6 +64,7 @@ const ADMIN_TAB_LABELS: Record<AdminPanelTab, string> = {
   [AdminPanelTab.LOGS]: "Logs",
   [AdminPanelTab.USERS]: "Usuários",
   [AdminPanelTab.ACCOUNT]: "Minha conta",
+  [AdminPanelTab.CHAMPIONSHIP_STATUS]: "Status do campeonato",
   [AdminPanelTab.SETTINGS]: "Configurações",
 };
 
@@ -82,6 +83,7 @@ const ADMIN_PANEL_TAB_ORDER: AdminPanelTab[] = [
   AdminPanelTab.LOGS,
   AdminPanelTab.USERS,
   AdminPanelTab.ACCOUNT,
+  AdminPanelTab.CHAMPIONSHIP_STATUS,
   AdminPanelTab.SETTINGS,
 ];
 
@@ -169,6 +171,7 @@ function resolveDefaultPermissions(): AdminTabPermissionByTab {
     [AdminPanelTab.LOGS]: AdminPanelPermissionLevel.NONE,
     [AdminPanelTab.USERS]: AdminPanelPermissionLevel.NONE,
     [AdminPanelTab.ACCOUNT]: AdminPanelPermissionLevel.NONE,
+    [AdminPanelTab.CHAMPIONSHIP_STATUS]: AdminPanelPermissionLevel.NONE,
     [AdminPanelTab.SETTINGS]: AdminPanelPermissionLevel.NONE,
   };
 }
@@ -225,6 +228,32 @@ function resolveEmptyProfileDraft(): ProfileDraft {
     profileName: DEFAULT_PROFILE_NAME,
     permissions: resolveDefaultPermissions(),
   };
+}
+
+function resolveUnselectedProfileDraft(): ProfileDraft {
+  return {
+    profileId: null,
+    profileName: "",
+    permissions: resolveDefaultPermissions(),
+  };
+}
+
+function resolveIsSameProfileDraft(firstProfileDraft: ProfileDraft | null, secondProfileDraft: ProfileDraft): boolean {
+  if (!firstProfileDraft) {
+    return false;
+  }
+
+  if (firstProfileDraft.profileId != secondProfileDraft.profileId) {
+    return false;
+  }
+
+  if (firstProfileDraft.profileName.trim() != secondProfileDraft.profileName.trim()) {
+    return false;
+  }
+
+  return ADMIN_PANEL_TAB_ORDER.every((adminPanelTab) => {
+    return firstProfileDraft.permissions[adminPanelTab] == secondProfileDraft.permissions[adminPanelTab];
+  });
 }
 
 function resolveIsProtectedAdminProfile(profile: AdminProfile | null): boolean {
@@ -325,7 +354,8 @@ export function AdminUsers({ canManageUsers = true }: Props) {
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
-  const [profileDraft, setProfileDraft] = useState<ProfileDraft>(resolveEmptyProfileDraft());
+  const [profileDraft, setProfileDraft] = useState<ProfileDraft>(resolveUnselectedProfileDraft());
+  const [savedProfileDraft, setSavedProfileDraft] = useState<ProfileDraft | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
   const [creatingUser, setCreatingUser] = useState(false);
   const [newUserName, setNewUserName] = useState("");
@@ -346,7 +376,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
     return [...profileAccessOptions];
   }, [profileAccessOptions]);
 
-  const fetchAdminData = useCallback(async () => {
+  const fetchAdminData = useCallback(async (): Promise<AdminProfile[] | null> => {
     setLoading(true);
 
     const [usersResponse, profilesResponse] = await Promise.all([
@@ -358,14 +388,14 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       toast.error(usersResponse.error.message);
       setUsers([]);
       setLoading(false);
-      return;
+      return null;
     }
 
     if (profilesResponse.error) {
       toast.error(profilesResponse.error.message);
       setProfiles([]);
       setLoading(false);
-      return;
+      return null;
     }
 
     const normalizedUsers = (usersResponse.data ?? []).map((adminUserRow) =>
@@ -404,6 +434,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
     setUsers(normalizedUsers);
     setProfiles(normalizedProfiles);
     setLoading(false);
+    return normalizedProfiles;
   }, []);
 
   useEffect(() => {
@@ -584,6 +615,18 @@ export function AdminUsers({ canManageUsers = true }: Props) {
   const isProtectedAdminProfile = useMemo(() => {
     return resolveIsProtectedAdminProfile(selectedProfile);
   }, [selectedProfile]);
+
+  const isProfileDraftReady = useMemo(() => {
+    return profileDraft.profileName.trim().length > 0;
+  }, [profileDraft.profileName]);
+
+  const hasProfilePendingChanges = useMemo(() => {
+    if (!isProfileDraftReady) {
+      return false;
+    }
+
+    return !resolveIsSameProfileDraft(savedProfileDraft, profileDraft);
+  }, [isProfileDraftReady, profileDraft, savedProfileDraft]);
 
   const editingUser = useMemo(() => {
     if (!editingUserId) {
@@ -925,9 +968,16 @@ export function AdminUsers({ canManageUsers = true }: Props) {
     }
   };
 
-  const handleOpenCreateProfile = () => {
-    setProfileDraft(resolveEmptyProfileDraft());
+  const handleOpenProfilesModal = () => {
+    setProfileDraft(resolveUnselectedProfileDraft());
+    setSavedProfileDraft(null);
     setShowProfileModal(true);
+  };
+
+  const handleOpenCreateProfile = () => {
+    const nextProfileDraft = resolveEmptyProfileDraft();
+    setProfileDraft(nextProfileDraft);
+    setSavedProfileDraft(nextProfileDraft);
   };
 
   const resetCreateUserForm = () => {
@@ -942,12 +992,18 @@ export function AdminUsers({ canManageUsers = true }: Props) {
   };
 
   const handleEditProfile = (profile: AdminProfile) => {
-    setProfileDraft(resolveProfileDraftFromProfile(profile));
-    setShowProfileModal(true);
+    const nextProfileDraft = resolveProfileDraftFromProfile(profile);
+    setProfileDraft(nextProfileDraft);
+    setSavedProfileDraft(nextProfileDraft);
   };
 
   const handleSaveProfile = async () => {
     if (!canManageUsers) {
+      return;
+    }
+
+    if (!isProfileDraftReady) {
+      toast.error("Selecione um perfil ou clique em Novo perfil.");
       return;
     }
 
@@ -984,8 +1040,27 @@ export function AdminUsers({ canManageUsers = true }: Props) {
     }
 
     toast.success("Perfil salvo com sucesso.");
-    setShowProfileModal(false);
-    fetchAdminData();
+    const refreshedProfiles = await fetchAdminData();
+    const normalizedProfileNameForMatch = profileDraft.profileName.trim().toLowerCase();
+    const matchedProfile =
+      refreshedProfiles?.find((profile) => profile.profile_id == profileDraft.profileId) ??
+      refreshedProfiles?.find((profile) => profile.profile_name.trim().toLowerCase() == normalizedProfileNameForMatch) ??
+      null;
+
+    if (matchedProfile) {
+      const matchedProfileDraft = resolveProfileDraftFromProfile(matchedProfile);
+      setProfileDraft(matchedProfileDraft);
+      setSavedProfileDraft(matchedProfileDraft);
+      return;
+    }
+
+    const fallbackProfileDraft: ProfileDraft = {
+      ...profileDraft,
+      profileName: profileDraft.profileName.trim(),
+    };
+
+    setProfileDraft(fallbackProfileDraft);
+    setSavedProfileDraft(fallbackProfileDraft);
   };
 
   return (
@@ -997,7 +1072,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
           value={userSearch}
           onChange={(event) => setUserSearch(event.target.value)}
           placeholder="Buscar usuário por nome, login ou e-mail"
-          className="glass-input"
+          className="app-input-field"
           autoComplete="off"
           autoCorrect="off"
           autoCapitalize="none"
@@ -1005,7 +1080,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
         />
 
         <Select value={accessFilter} onValueChange={setAccessFilter}>
-          <SelectTrigger className="glass-input">
+          <SelectTrigger className="app-input-field">
             <SelectValue placeholder="Filtrar por perfil" />
           </SelectTrigger>
           <SelectContent>
@@ -1026,7 +1101,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
             }
           }}
         >
-          <SelectTrigger className="glass-input">
+          <SelectTrigger className="app-input-field">
             <SelectValue placeholder="Ordenar listagem" />
           </SelectTrigger>
           <SelectContent>
@@ -1039,7 +1114,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
         </Select>
 
         {canManageUsers ? (
-          <Button type="button" variant="outline" onClick={handleOpenCreateProfile} className="bg-background/70">
+          <Button type="button" variant="outline" onClick={handleOpenProfilesModal} className="bg-background/70">
             <Shield className="mr-2 h-4 w-4" />
             Perfis
           </Button>
@@ -1066,35 +1141,39 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                 <span>Selecionar todos os usuários filtrados</span>
               </label>
 
-              <Button
-                type="button"
-                variant="outline"
-                className="bg-background/70"
-                onClick={() => handleOpenResetUsersPasswordSetupConfirmation(selectedUserIds)}
-                disabled={selectedUserIds.length == 0 || bulkProcessingAction != null}
-              >
-                {bulkProcessingAction == "RESET" ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <RotateCcw className="mr-2 h-4 w-4" />
-                )}
-                Resetar senhas ({selectedUserIds.length})
-              </Button>
+              {selectedUserIds.length > 0 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="bg-background/70"
+                  onClick={() => handleOpenResetUsersPasswordSetupConfirmation(selectedUserIds)}
+                  disabled={bulkProcessingAction != null}
+                >
+                  {bulkProcessingAction == "RESET" ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                  )}
+                  Resetar senhas ({selectedUserIds.length})
+                </Button>
+              ) : null}
 
-              <Button
-                type="button"
-                variant="outline"
-                className="bg-background/70"
-                onClick={() => handleOpenDeleteUsersConfirmation(selectedUserIds)}
-                disabled={selectedUserIds.length == 0 || bulkProcessingAction != null}
-              >
-                {bulkProcessingAction == "DELETE" ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Trash2 className="mr-2 h-4 w-4" />
-                )}
-                Excluir selecionados ({selectedUserIds.length})
-              </Button>
+              {selectedUserIds.length > 0 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="bg-background/70"
+                  onClick={() => handleOpenDeleteUsersConfirmation(selectedUserIds)}
+                  disabled={bulkProcessingAction != null}
+                >
+                  {bulkProcessingAction == "DELETE" ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="mr-2 h-4 w-4" />
+                  )}
+                  Excluir selecionados ({selectedUserIds.length})
+                </Button>
+              ) : null}
             </div>
 
             <p className="text-sm text-muted-foreground">{orderedFilteredUsers.length} usuário(s) encontrado(s)</p>
@@ -1234,7 +1313,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
               value={newUserName}
               onChange={(event) => setNewUserName(event.target.value)}
               placeholder="Nome do novo usuário"
-              className="glass-input"
+              className="app-input-field"
               autoComplete="off"
             />
 
@@ -1244,7 +1323,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
               value={newUserLoginIdentifier}
               onChange={(event) => setNewUserLoginIdentifier(event.target.value)}
               placeholder="Login do novo usuário"
-              className="glass-input"
+              className="app-input-field"
               autoComplete="off"
               autoCorrect="off"
               autoCapitalize="none"
@@ -1252,7 +1331,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
             />
 
             <Select value={newUserAccessValue} onValueChange={setNewUserAccessValue}>
-              <SelectTrigger className="glass-input">
+              <SelectTrigger className="app-input-field">
                 <SelectValue placeholder="Perfil de acesso" />
               </SelectTrigger>
               <SelectContent>
@@ -1294,7 +1373,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
 
             <div className="overflow-y-auto pr-1">
               <div className="space-y-4">
-                <div className="rounded-2xl border border-border/50 bg-background/30 p-4 backdrop-blur-md">
+                <div className="rounded-2xl app-card-muted p-4">
                   <div className="flex flex-wrap items-center gap-2">
                     <span
                       className={`h-2.5 w-2.5 shrink-0 rounded-full ${isEditingUserOnline ? "bg-emerald-500" : "bg-red-500"}`}
@@ -1328,7 +1407,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
 
                 {canManageUsers ? (
                   <div className="grid gap-4 lg:grid-cols-2">
-                    <div className="space-y-2 rounded-2xl border border-border/50 bg-background/30 p-4 backdrop-blur-md">
+                    <div className="space-y-2 rounded-2xl app-card-muted p-4">
                       <Label htmlFor={`admin-user-name-modal-${editingUser.user_id}`}>Nome</Label>
                       <Input
                         id={`admin-user-name-modal-${editingUser.user_id}`}
@@ -1340,12 +1419,12 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                             [editingUser.user_id]: event.target.value,
                           }))
                         }
-                        className="glass-input"
+                        className="app-input-field"
                         autoComplete="off"
                       />
                     </div>
 
-                    <div className="space-y-2 rounded-2xl border border-border/50 bg-background/30 p-4 backdrop-blur-md">
+                    <div className="space-y-2 rounded-2xl app-card-muted p-4">
                       <Label htmlFor={`admin-user-login-modal-${editingUser.user_id}`}>Login</Label>
                       <Input
                         id={`admin-user-login-modal-${editingUser.user_id}`}
@@ -1357,7 +1436,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                             [editingUser.user_id]: event.target.value,
                           }))
                         }
-                        className="glass-input"
+                        className="app-input-field"
                         autoComplete="off"
                         autoCorrect="off"
                         autoCapitalize="none"
@@ -1365,7 +1444,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                       />
                     </div>
 
-                    <div className="space-y-2 rounded-2xl border border-border/50 bg-background/30 p-4 backdrop-blur-md">
+                    <div className="space-y-2 rounded-2xl app-card-muted p-4">
                       <Label htmlFor={`admin-user-access-modal-${editingUser.user_id}`}>Perfil de acesso</Label>
                       <Select
                         value={editedUserAccessValue}
@@ -1376,7 +1455,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                           }))
                         }
                       >
-                        <SelectTrigger id={`admin-user-access-modal-${editingUser.user_id}`} className="glass-input">
+                        <SelectTrigger id={`admin-user-access-modal-${editingUser.user_id}`} className="app-input-field">
                           <SelectValue placeholder="Perfil de acesso" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1389,7 +1468,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                       </Select>
                     </div>
 
-                    <div className="space-y-2 rounded-2xl border border-border/50 bg-background/30 p-4 backdrop-blur-md">
+                    <div className="space-y-2 rounded-2xl app-card-muted p-4">
                       <Label htmlFor={`admin-user-password-modal-${editingUser.user_id}`}>Nova senha</Label>
                       <Input
                         id={`admin-user-password-modal-${editingUser.user_id}`}
@@ -1401,7 +1480,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                             [editingUser.user_id]: event.target.value,
                           }))
                         }
-                        className="glass-input"
+                        className="app-input-field"
                         autoComplete="new-password"
                         autoCorrect="off"
                         autoCapitalize="none"
@@ -1499,7 +1578,17 @@ export function AdminUsers({ canManageUsers = true }: Props) {
         </AlertDialogContent>
       </AlertDialog>
 
-      <Dialog open={showProfileModal} onOpenChange={setShowProfileModal}>
+      <Dialog
+        open={showProfileModal}
+        onOpenChange={(isOpen) => {
+          setShowProfileModal(isOpen);
+
+          if (!isOpen) {
+            setProfileDraft(resolveUnselectedProfileDraft());
+            setSavedProfileDraft(null);
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Perfis personalizados</DialogTitle>
@@ -1507,7 +1596,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
           </DialogHeader>
 
           <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-            <div className="space-y-2 rounded-2xl border border-border/50 bg-background/30 p-3 backdrop-blur-md">
+            <div className="space-y-2 rounded-2xl app-card-muted p-3">
               <Button type="button" variant="outline" className="w-full bg-background/70" onClick={handleOpenCreateProfile}>
                 <Plus className="mr-2 h-4 w-4" />
                 Novo perfil
@@ -1521,10 +1610,10 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                     <button
                       key={profile.profile_id}
                       type="button"
-                      className={`w-full rounded-xl border px-3 py-2 text-left transition ${
+                      className={`w-full rounded-xl px-3 py-2 text-left transition ${
                         profileDraft.profileId == profile.profile_id
-                          ? "border-primary/40 bg-primary/10"
-                          : "border-border/50 bg-background/30 hover:bg-background/40"
+                          ? "app-card-emphasis dark:bg-[hsl(0_0%_14%)]"
+                          : "app-card-muted hover:bg-background/40 dark:hover:bg-[hsl(0_0%_100%/0.08)]"
                       }`}
                       onClick={() => handleEditProfile(profile)}
                     >
@@ -1538,88 +1627,94 @@ export function AdminUsers({ canManageUsers = true }: Props) {
               </div>
             </div>
 
-            <div className="space-y-3 rounded-2xl border border-border/50 bg-background/30 p-3 backdrop-blur-md">
-              <div className="space-y-2">
-                <Label htmlFor="profile-name-input">Nome do perfil</Label>
-                <Input
-                  id="profile-name-input"
-                  value={profileDraft.profileName}
-                  onChange={(event) =>
-                    setProfileDraft((currentProfileDraft) => ({
-                      ...currentProfileDraft,
-                      profileName: event.target.value,
-                    }))
-                  }
-                  className="glass-input"
-                  placeholder="Ex.: Operador de Agenda"
-                  disabled={isProtectedAdminProfile}
-                />
-              </div>
+            <div className="space-y-3 rounded-2xl app-card-muted p-3">
+              {isProfileDraftReady ? (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="profile-name-input">Nome do perfil</Label>
+                    <Input
+                      id="profile-name-input"
+                      value={profileDraft.profileName}
+                      onChange={(event) =>
+                        setProfileDraft((currentProfileDraft) => ({
+                          ...currentProfileDraft,
+                          profileName: event.target.value,
+                        }))
+                      }
+                      className="app-input-field"
+                      placeholder="Ex.: Operador de Agenda"
+                      disabled={isProtectedAdminProfile}
+                    />
+                  </div>
 
-              {isProtectedAdminProfile ? (
-                <p className="text-xs text-muted-foreground">
-                  O perfil Admin é protegido. É possível visualizar, mas não editar este perfil.
-                </p>
-              ) : null}
+                  {isProtectedAdminProfile ? (
+                    <p className="text-xs text-muted-foreground">
+                      O perfil Admin é protegido. É possível visualizar, mas não editar este perfil.
+                    </p>
+                  ) : null}
 
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Permissões por aba</p>
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Permissões por aba</p>
 
-                <div className="space-y-2">
-                  {ADMIN_PANEL_TAB_ORDER.map((adminPanelTab) => (
-                    <div
-                      key={adminPanelTab}
-                      className="grid gap-2 rounded-xl border border-border/50 bg-background/30 p-2 sm:grid-cols-[170px_minmax(0,1fr)] sm:items-center"
-                    >
-                      <p className="text-sm font-medium">{ADMIN_TAB_LABELS[adminPanelTab]}</p>
+                    <div className="space-y-2">
+                      {ADMIN_PANEL_TAB_ORDER.map((adminPanelTab) => (
+                        <div
+                          key={adminPanelTab}
+                          className="grid gap-2 rounded-xl app-card-muted p-2 sm:grid-cols-[170px_minmax(0,1fr)] sm:items-center"
+                        >
+                          <p className="text-sm font-medium">{ADMIN_TAB_LABELS[adminPanelTab]}</p>
 
-                      <Select
-                        value={profileDraft.permissions[adminPanelTab]}
-                        disabled={isProtectedAdminProfile}
-                        onValueChange={(value) => {
-                          if (!isAdminPanelPermissionLevel(value)) {
-                            return;
-                          }
+                          <Select
+                            value={profileDraft.permissions[adminPanelTab]}
+                            disabled={isProtectedAdminProfile}
+                            onValueChange={(value) => {
+                              if (!isAdminPanelPermissionLevel(value)) {
+                                return;
+                              }
 
-                          setProfileDraft((currentProfileDraft) => ({
-                            ...currentProfileDraft,
-                            permissions: {
-                              ...currentProfileDraft.permissions,
-                              [adminPanelTab]: value,
-                            },
-                          }));
-                        }}
-                      >
-                        <SelectTrigger className="glass-input">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={AdminPanelPermissionLevel.NONE}>
-                            {ADMIN_PERMISSION_LEVEL_LABELS[AdminPanelPermissionLevel.NONE]}
-                          </SelectItem>
-                          <SelectItem value={AdminPanelPermissionLevel.VIEW}>
-                            {ADMIN_PERMISSION_LEVEL_LABELS[AdminPanelPermissionLevel.VIEW]}
-                          </SelectItem>
-                          <SelectItem value={AdminPanelPermissionLevel.EDIT}>
-                            {ADMIN_PERMISSION_LEVEL_LABELS[AdminPanelPermissionLevel.EDIT]}
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
+                              setProfileDraft((currentProfileDraft) => ({
+                                ...currentProfileDraft,
+                                permissions: {
+                                  ...currentProfileDraft.permissions,
+                                  [adminPanelTab]: value,
+                                },
+                              }));
+                            }}
+                          >
+                            <SelectTrigger className="app-input-field">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={AdminPanelPermissionLevel.NONE}>
+                                {ADMIN_PERMISSION_LEVEL_LABELS[AdminPanelPermissionLevel.NONE]}
+                              </SelectItem>
+                              <SelectItem value={AdminPanelPermissionLevel.VIEW}>
+                                {ADMIN_PERMISSION_LEVEL_LABELS[AdminPanelPermissionLevel.VIEW]}
+                              </SelectItem>
+                              <SelectItem value={AdminPanelPermissionLevel.EDIT}>
+                                {ADMIN_PERMISSION_LEVEL_LABELS[AdminPanelPermissionLevel.EDIT]}
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
+                  </div>
 
-              <div className="flex justify-end">
-                <Button
-                  type="button"
-                  onClick={handleSaveProfile}
-                  disabled={savingProfile || !canManageUsers || isProtectedAdminProfile}
-                >
-                  {savingProfile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                  Salvar perfil
-                </Button>
-              </div>
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      onClick={handleSaveProfile}
+                      disabled={savingProfile || !canManageUsers || isProtectedAdminProfile || !hasProfilePendingChanges}
+                    >
+                      {savingProfile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                      Salvar perfil
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <div className="min-h-[52vh]" />
+              )}
             </div>
           </div>
         </DialogContent>

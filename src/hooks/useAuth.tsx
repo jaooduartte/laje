@@ -15,6 +15,7 @@ const DEFAULT_ADMIN_TAB_PERMISSIONS: AdminTabPermissionByTab = {
   [AdminPanelTab.LOGS]: AdminPanelPermissionLevel.NONE,
   [AdminPanelTab.USERS]: AdminPanelPermissionLevel.NONE,
   [AdminPanelTab.ACCOUNT]: AdminPanelPermissionLevel.NONE,
+  [AdminPanelTab.CHAMPIONSHIP_STATUS]: AdminPanelPermissionLevel.NONE,
   [AdminPanelTab.SETTINGS]: AdminPanelPermissionLevel.NONE,
 };
 
@@ -34,6 +35,12 @@ function resolveAdminTabPermissionsFromContext(context: CurrentUserAdminContext 
   if (!context) {
     return DEFAULT_ADMIN_TAB_PERMISSIONS;
   }
+
+  const fallbackChampionshipStatusPermission = isAdminPanelPermissionLevel(context.championship_status_permission)
+    ? context.championship_status_permission
+    : isAdminPanelPermissionLevel(context.settings_permission)
+      ? context.settings_permission
+      : AdminPanelPermissionLevel.NONE;
 
   return {
     [AdminPanelTab.MATCHES]: isAdminPanelPermissionLevel(context.matches_permission)
@@ -60,6 +67,7 @@ function resolveAdminTabPermissionsFromContext(context: CurrentUserAdminContext 
     [AdminPanelTab.ACCOUNT]: isAdminPanelPermissionLevel(context.account_permission)
       ? context.account_permission
       : AdminPanelPermissionLevel.NONE,
+    [AdminPanelTab.CHAMPIONSHIP_STATUS]: fallbackChampionshipStatusPermission,
     [AdminPanelTab.SETTINGS]: isAdminPanelPermissionLevel(context.settings_permission)
       ? context.settings_permission
       : AdminPanelPermissionLevel.NONE,

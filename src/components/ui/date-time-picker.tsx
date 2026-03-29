@@ -116,7 +116,7 @@ export function DateTimePicker({ value, onChange, placeholder, showTime = true, 
           type="button"
           variant="outline"
           className={cn(
-            "glass-input w-full justify-start overflow-hidden text-left font-normal hover:bg-background/70",
+            "app-input-field w-full justify-start overflow-hidden text-left font-normal hover:bg-background/70",
             !value ? "text-muted-foreground" : "text-foreground",
             className,
           )}
@@ -137,7 +137,7 @@ export function DateTimePicker({ value, onChange, placeholder, showTime = true, 
             <Clock3 className="h-4 w-4 text-muted-foreground" />
 
             <Select value={selectedHour} onValueChange={handleHourChange}>
-              <SelectTrigger className="glass-input w-[86px]">
+              <SelectTrigger className="app-input-field w-[86px]">
                 <SelectValue placeholder="Hora" />
               </SelectTrigger>
               <SelectContent>
@@ -152,7 +152,7 @@ export function DateTimePicker({ value, onChange, placeholder, showTime = true, 
             <span className="text-sm text-muted-foreground">:</span>
 
             <Select value={selectedMinute} onValueChange={handleMinuteChange}>
-              <SelectTrigger className="glass-input w-[86px]">
+              <SelectTrigger className="app-input-field w-[86px]">
                 <SelectValue placeholder="Min" />
               </SelectTrigger>
               <SelectContent>
