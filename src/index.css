@@ -197,7 +197,7 @@
   }
 
   .app-pill-option {
-    color: hsl(var(--secondary-foreground) / 0.9);
+    color: hsl(var(--secondary-foreground) / 0.7);
     transition: color 180ms ease;
   }
 
@@ -532,7 +532,7 @@
   }
 
   .dark .app-pill-active-indicator {
-    background: hsl(var(--primary) / 0.26);
+    background: hsl(1 66% 34%);
   }
 
   .dark .app-pill-option:hover,
