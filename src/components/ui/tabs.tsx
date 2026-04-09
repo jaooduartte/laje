@@ -132,7 +132,7 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-all data-[state=active]:bg-secondary/70 data-[state=active]:text-primary data-[state=active]:font-bold dark:data-[state=active]:text-foreground dark:data-[state=active]:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+      "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-all data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:font-bold dark:data-[state=active]:text-primary-foreground dark:data-[state=active]:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
       className,
     )}
     {...props}
@@ -147,7 +147,7 @@ const TabsNavigationTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      "app-pill-option relative z-10 inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-none px-3 py-1.5 text-sm font-medium first:rounded-l-xl last:rounded-r-xl data-[state=active]:text-primary data-[state=active]:font-bold dark:data-[state=active]:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+      "app-pill-option relative z-10 inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-none px-3 py-1.5 text-sm font-medium first:rounded-l-xl last:rounded-r-xl data-[state=active]:text-primary-foreground data-[state=active]:font-bold dark:data-[state=active]:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
       className,
     )}
     {...props}
