@@ -1,5 +1,4 @@
 import { ChevronsLeft, ChevronsRight, ChevronLeft, ChevronRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const VISIBLE_PAGE_BUTTONS = 5;
@@ -122,75 +121,66 @@ export function AppPaginationControls({
         ) : null}
 
         <div className="flex items-center justify-center gap-1">
-          <Button
+          <button
             type="button"
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 rounded-xl"
+            className="app-pill-option inline-flex h-8 w-8 items-center justify-center rounded-xl disabled:pointer-events-none disabled:opacity-50"
             onClick={() => onPageChange(Math.max(1, currentPage - 1))}
             disabled={currentPage == 1}
             aria-label="Página anterior"
           >
             <ChevronLeft className="h-4 w-4" />
-          </Button>
+          </button>
 
           {showBoundaryButtons ? (
-            <Button
+            <button
               type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-xl"
+              className="app-pill-option inline-flex h-8 w-8 items-center justify-center rounded-xl disabled:pointer-events-none disabled:opacity-50"
               onClick={() => onPageChange(1)}
               disabled={currentPage == 1}
               aria-label="Primeira página"
             >
               <ChevronsLeft className="h-4 w-4" />
-            </Button>
+            </button>
           ) : null}
 
           {visiblePages.map((visiblePage) => {
             const isCurrentPage = visiblePage == currentPage;
 
             return (
-              <Button
+              <button
                 key={visiblePage}
                 type="button"
-                variant="ghost"
-                size="sm"
-                className={`h-8 min-w-8 rounded-xl px-2 text-xs ${
-                  isCurrentPage ? "app-pill-active-indicator text-primary font-bold dark:text-foreground" : "text-muted-foreground hover:text-foreground"
+                aria-current={isCurrentPage ? "page" : undefined}
+                className={`app-pill-option inline-flex h-8 min-w-8 items-center justify-center rounded-xl px-2 text-xs ${
+                  isCurrentPage ? "app-pill-active-indicator text-primary-foreground font-bold" : ""
                 }`}
                 onClick={() => onPageChange(visiblePage)}
               >
                 {visiblePage}
-              </Button>
+              </button>
             );
           })}
 
-          <Button
+          <button
             type="button"
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 rounded-xl"
+            className="app-pill-option inline-flex h-8 w-8 items-center justify-center rounded-xl disabled:pointer-events-none disabled:opacity-50"
             onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
             disabled={currentPage == totalPages}
             aria-label="Próxima página"
           >
             <ChevronRight className="h-4 w-4" />
-          </Button>
+          </button>
 
           {showBoundaryButtons ? (
-            <Button
+            <button
               type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-xl"
+              className="app-pill-option inline-flex h-8 w-8 items-center justify-center rounded-xl disabled:pointer-events-none disabled:opacity-50"
               onClick={() => onPageChange(totalPages)}
               disabled={currentPage == totalPages}
               aria-label="Última página"
             >
               <ChevronsRight className="h-4 w-4" />
-            </Button>
+            </button>
           ) : null}
         </div>
       </div>

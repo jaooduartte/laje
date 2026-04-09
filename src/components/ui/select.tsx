@@ -105,7 +105,7 @@ const SelectItem = React.forwardRef<
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-3 pr-8 text-sm outline-none data-[state=checked]:bg-[hsl(0_0%_100%/0.2)] data-[state=checked]:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 focus:bg-background/70 focus:text-foreground dark:focus:bg-[hsl(0_0%_100%/0.12)]",
+      "relative flex w-full cursor-default select-none items-center rounded-md py-1.5 pl-3 pr-8 text-sm outline-none data-[state=checked]:bg-[hsl(var(--primary)/0.16)] data-[state=checked]:text-[hsl(var(--primary))] data-[highlighted]:bg-[hsl(var(--primary)/0.12)] data-[highlighted]:text-[hsl(var(--primary))] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 focus:bg-[hsl(var(--primary)/0.12)] focus:text-[hsl(var(--primary))] dark:data-[state=checked]:bg-[hsl(var(--primary)/0.32)] dark:data-[state=checked]:text-[hsl(var(--primary-foreground))] dark:data-[highlighted]:bg-[hsl(var(--primary)/0.3)] dark:data-[highlighted]:text-[hsl(var(--primary-foreground))] dark:focus:bg-[hsl(var(--primary)/0.3)] dark:focus:text-[hsl(var(--primary-foreground))]",
       className,
     )}
     {...props}

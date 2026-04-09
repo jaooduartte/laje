@@ -115,7 +115,7 @@ export function Header() {
                     }}
                     className={`app-pill-option relative z-10 flex min-h-11 shrink-0 items-center gap-1.5 rounded-none px-3 py-2.5 text-sm font-medium first:rounded-l-xl last:rounded-r-xl sm:min-h-10 sm:py-2 ${
                       location.pathname == routePath
-                        ? "text-primary font-bold dark:text-foreground"
+                        ? "text-primary-foreground font-bold"
                         : "text-muted-foreground"
                     }`}
                   >

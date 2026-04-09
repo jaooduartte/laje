@@ -50,6 +50,21 @@ type SupabaseLooseClient = {
   from: (table: string) => SupabaseLooseTableClient;
 };
 
+type SupabaseMatchQueryChain<TQuery> = {
+  eq: (column: string, value: unknown) => TQuery;
+  in: (column: string, values: readonly unknown[]) => TQuery;
+  is: (column: string, value: null) => TQuery;
+  or: (filters: string) => TQuery;
+  order: (
+    column: string,
+    options?: {
+      ascending?: boolean;
+      nullsFirst?: boolean;
+    },
+  ) => TQuery;
+  range: (from: number, to: number) => TQuery;
+};
+
 type MatchEstimatedStartTimeBracketEditionCandidate = MatchEstimatedStartTimeBracketEdition & {
   id: string;
   has_schedule_days_in_payload: boolean;
@@ -134,15 +149,10 @@ export function useMatches({
   includeRealtime = true,
   sortMode = "SCHEDULED",
 }: UseMatchesOptions = {}) {
-  const statusesDependencyKey = statuses?.join(",") ?? "";
-
-  const normalizedStatuses = useMemo(() => {
-    if (!statuses || statuses.length == 0) {
-      return [] as MatchStatus[];
-    }
-
-    return [...new Set(statuses)].sort();
-  }, [statusesDependencyKey]);
+  const normalizedStatusesKey =
+    statuses && statuses.length > 0
+      ? [...new Set(statuses)].sort().join(",")
+      : "";
 
   const [matches, setMatches] = useState<Match[]>([]);
   const [championshipSportsForEstimatedStartTime, setChampionshipSportsForEstimatedStartTime] = useState<
@@ -151,7 +161,7 @@ export function useMatches({
   const [championshipBracketEditionsForEstimatedStartTime, setChampionshipBracketEditionsForEstimatedStartTime] = useState<
     MatchEstimatedStartTimeBracketEdition[]
   >([]);
-  const [representationContextMatches, setRepresentationContextMatches] = useState<MatchRepresentationSource[]>([]);
+  const [operationalContextMatches, setOperationalContextMatches] = useState<MatchRepresentationSource[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
@@ -169,7 +179,7 @@ export function useMatches({
       setMatches([]);
       setChampionshipSportsForEstimatedStartTime([]);
       setChampionshipBracketEditionsForEstimatedStartTime([]);
-      setRepresentationContextMatches([]);
+      setOperationalContextMatches([]);
       setTotalCount(0);
       setLoading(false);
       setIsFetching(false);
@@ -187,17 +197,20 @@ export function useMatches({
 
     try {
       const groupNumber = resolveGroupNumberByGroupFilterValue(groupFilterValue);
+      const normalizedStatuses = normalizedStatusesKey
+        ? (normalizedStatusesKey.split(",") as MatchStatus[])
+        : [];
 
       if (groupFilterValue && typeof groupNumber != "number") {
         setMatches([]);
         setChampionshipSportsForEstimatedStartTime([]);
         setChampionshipBracketEditionsForEstimatedStartTime([]);
-        setRepresentationContextMatches([]);
+        setOperationalContextMatches([]);
         setTotalCount(0);
         return;
       }
 
-      const applyMatchFilters = (currentQuery: any) => {
+      const applyMatchFilters = <TQuery extends SupabaseMatchQueryChain<TQuery>>(currentQuery: TQuery) => {
         let filteredQuery = currentQuery;
 
         if (championshipId) {
@@ -243,7 +256,7 @@ export function useMatches({
         return filteredQuery;
       };
 
-      const applyMatchSort = (currentQuery: any) => {
+      const applyMatchSort = <TQuery extends SupabaseMatchQueryChain<TQuery>>(currentQuery: TQuery) => {
         if (sortMode == "LIVE") {
           return currentQuery
             .order("start_time", { ascending: false, nullsFirst: false })
@@ -264,6 +277,24 @@ export function useMatches({
           .order("created_at", { ascending: true });
       };
 
+      const applyOperationalContextFilters = <TQuery extends SupabaseMatchQueryChain<TQuery>>(currentQuery: TQuery) => {
+        let filteredQuery = currentQuery;
+
+        if (championshipId) {
+          filteredQuery = filteredQuery.eq("championship_id", championshipId);
+        }
+
+        if (typeof seasonYear == "number") {
+          filteredQuery = filteredQuery.eq("season_year", seasonYear);
+        }
+
+        if (sportId) {
+          filteredQuery = filteredQuery.eq("sport_id", sportId);
+        }
+
+        return filteredQuery;
+      };
+
       const isPaginated =
         typeof page == "number" &&
         typeof itemsPerPage == "number" &&
@@ -272,11 +303,11 @@ export function useMatches({
       const rangeStart = isPaginated ? (page - 1) * itemsPerPage : null;
       const rangeEnd = isPaginated && rangeStart != null ? rangeStart + itemsPerPage - 1 : null;
       let matchRows: Match[] = [];
-      let representationContextRows: MatchRepresentationSource[] = [];
+      let resolvedOperationalContextMatches: MatchRepresentationSource[] = [];
       let resolvedTotalCount = 0;
 
       if (sortMode == "SCHEDULED" && isPaginated && rangeStart != null && rangeEnd != null) {
-        let scheduledOrderQuery: any = supabase
+        let scheduledOrderQuery = supabase
           .from("matches")
           .select(
             "id, championship_id, season_year, scheduled_date, start_time, sport_id, naipe, division, queue_position, created_at, scheduled_slot, sports(name), home_team:teams!matches_home_team_id_fkey(name), away_team:teams!matches_away_team_id_fkey(name)",
@@ -296,7 +327,7 @@ export function useMatches({
           setMatches([]);
           setChampionshipSportsForEstimatedStartTime([]);
           setChampionshipBracketEditionsForEstimatedStartTime([]);
-          setRepresentationContextMatches([]);
+          setOperationalContextMatches([]);
           setTotalCount(0);
           return;
         }
@@ -308,7 +339,6 @@ export function useMatches({
         const paginatedMatchIds = paginatedOrderedScheduledRows.map((scheduledMatch) => scheduledMatch.id);
 
         resolvedTotalCount = normalizedOrderedScheduledRows.length;
-        representationContextRows = normalizedOrderedScheduledRows.slice(0, rangeStart);
 
         if (paginatedMatchIds.length > 0) {
           const { data: paginatedMatchesData, error: paginatedMatchesError } = await supabase
@@ -323,7 +353,7 @@ export function useMatches({
             setMatches([]);
             setChampionshipSportsForEstimatedStartTime([]);
             setChampionshipBracketEditionsForEstimatedStartTime([]);
-            setRepresentationContextMatches([]);
+            setOperationalContextMatches([]);
             setTotalCount(0);
             return;
           }
@@ -340,7 +370,7 @@ export function useMatches({
           }, []);
         }
       } else {
-        let query: any = supabase
+        let query = supabase
           .from("matches")
           .select(
             "*, championships(*), sports(*), home_team:teams!matches_home_team_id_fkey(*), away_team:teams!matches_away_team_id_fkey(*)",
@@ -362,37 +392,37 @@ export function useMatches({
           setMatches([]);
           setChampionshipSportsForEstimatedStartTime([]);
           setChampionshipBracketEditionsForEstimatedStartTime([]);
-          setRepresentationContextMatches([]);
+          setOperationalContextMatches([]);
           setTotalCount(0);
           return;
         }
 
         matchRows = (data ?? []) as Match[];
         resolvedTotalCount = count ?? matchRows.length;
+      }
 
-        if (isPaginated && rangeStart != null && rangeStart > 0) {
-          let contextQuery: any = supabase
-            .from("matches")
-            .select(
-              "id, championship_id, season_year, scheduled_date, start_time, sport_id, naipe, division, queue_position, created_at, scheduled_slot, sports(name), home_team:teams!matches_home_team_id_fkey(name), away_team:teams!matches_away_team_id_fkey(name)",
-            )
-            .order("created_at", { ascending: true });
+      let operationalContextQuery = supabase
+        .from("matches")
+        .select(
+          "id, championship_id, season_year, scheduled_date, start_time, status, sport_id, naipe, division, queue_position, created_at, scheduled_slot, sports(name), home_team:teams!matches_home_team_id_fkey(name), away_team:teams!matches_away_team_id_fkey(name)",
+        )
+        .order("scheduled_date", { ascending: true, nullsFirst: false })
+        .order("queue_position", { ascending: true, nullsFirst: false })
+        .order("scheduled_slot", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true });
 
-          contextQuery = applyMatchFilters(contextQuery);
-          contextQuery = applyMatchSort(contextQuery);
-          contextQuery = contextQuery.range(0, rangeStart - 1);
+      operationalContextQuery = applyOperationalContextFilters(operationalContextQuery);
 
-          const { data: representationContextRowsData, error: representationContextRowsError } = await contextQuery;
+      const { data: operationalContextRowsData, error: operationalContextRowsError } = await operationalContextQuery;
 
-          if (representationContextRowsError) {
-            console.error(
-              "Erro ao carregar contexto de representação na paginação:",
-              representationContextRowsError.message,
-            );
-          } else {
-            representationContextRows = (representationContextRowsData ?? []) as MatchRepresentationSource[];
-          }
-        }
+      if (operationalContextRowsError) {
+        console.error(
+          "Erro ao carregar contexto operacional dos jogos:",
+          operationalContextRowsError.message,
+        );
+      } else {
+        resolvedOperationalContextMatches = (operationalContextRowsData ?? []) as MatchRepresentationSource[];
       }
 
       setTotalCount(resolvedTotalCount);
@@ -561,17 +591,17 @@ export function useMatches({
             ? resolveInterleavedScheduledMatchesByCompetition(resolveOrderedScheduledMatches(matchRows))
             : matchRows;
 
-        setMatches(
-          orderedMatchRows.map((match) => ({
-            ...match,
-            result_rule: resultRuleByChampionshipAndSportKey[`${match.championship_id}:${match.sport_id}`] ?? null,
-            match_sets: matchSetsByMatchId[match.id] ?? [],
-          })),
-        );
-        setRepresentationContextMatches(representationContextRows);
-        setChampionshipSportsForEstimatedStartTime(championshipSportsForEstimatedStartTimeRows);
-        setChampionshipBracketEditionsForEstimatedStartTime(
-          latestChampionshipBracketEditions.map((championshipBracketEdition) => ({
+      setMatches(
+        orderedMatchRows.map((match) => ({
+          ...match,
+          result_rule: resultRuleByChampionshipAndSportKey[`${match.championship_id}:${match.sport_id}`] ?? null,
+          match_sets: matchSetsByMatchId[match.id] ?? [],
+        })),
+      );
+      setOperationalContextMatches(resolvedOperationalContextMatches);
+      setChampionshipSportsForEstimatedStartTime(championshipSportsForEstimatedStartTimeRows);
+      setChampionshipBracketEditionsForEstimatedStartTime(
+        latestChampionshipBracketEditions.map((championshipBracketEdition) => ({
             championship_id: championshipBracketEdition.championship_id,
             season_year: championshipBracketEdition.season_year,
             payload_snapshot: championshipBracketEdition.payload_snapshot,
@@ -587,7 +617,7 @@ export function useMatches({
       setMatches([]);
       setChampionshipSportsForEstimatedStartTime([]);
       setChampionshipBracketEditionsForEstimatedStartTime([]);
-      setRepresentationContextMatches([]);
+      setOperationalContextMatches([]);
       setTotalCount(0);
     } finally {
       hasLoadedMatchesRef.current = true;
@@ -606,7 +636,7 @@ export function useMatches({
     seasonYear,
     sortMode,
     sportId,
-    normalizedStatuses,
+    normalizedStatusesKey,
     teamId,
   ]);
 
@@ -615,7 +645,7 @@ export function useMatches({
       setMatches([]);
       setChampionshipSportsForEstimatedStartTime([]);
       setChampionshipBracketEditionsForEstimatedStartTime([]);
-      setRepresentationContextMatches([]);
+      setOperationalContextMatches([]);
       setTotalCount(0);
       setLoading(false);
       setIsFetching(false);
@@ -710,24 +740,17 @@ export function useMatches({
   }, []);
 
   const matchRepresentationByMatchId = useMemo(() => {
-    const matchRepresentationSourcesById = [
-      ...representationContextMatches,
-      ...matches,
-    ].reduce<Record<string, MatchRepresentationSource>>((carry, matchRepresentationSource) => {
-      carry[matchRepresentationSource.id] = matchRepresentationSource;
-      return carry;
-    }, {});
-
-    return resolveMatchRepresentationByMatchId(Object.values(matchRepresentationSourcesById));
-  }, [matches, representationContextMatches]);
+    return resolveMatchRepresentationByMatchId(matches, operationalContextMatches);
+  }, [matches, operationalContextMatches]);
 
   const estimatedStartTimeByMatchId = useMemo(() => {
     return resolveEstimatedStartTimeByMatchId({
       matches,
+      contextMatches: operationalContextMatches,
       championshipSports: championshipSportsForEstimatedStartTime,
       championshipBracketEditions: championshipBracketEditionsForEstimatedStartTime,
     });
-  }, [championshipBracketEditionsForEstimatedStartTime, championshipSportsForEstimatedStartTime, matches]);
+  }, [championshipBracketEditionsForEstimatedStartTime, championshipSportsForEstimatedStartTime, matches, operationalContextMatches]);
 
   const liveMatches = useMemo(() => {
     return [...matches]

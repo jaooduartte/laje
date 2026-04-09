@@ -313,7 +313,7 @@ function AnimatedTabBar({ items, value, onValueChange }: AnimatedTabBarProps) {
         className="app-pill-container relative inline-flex max-w-full items-center gap-0 overflow-x-auto rounded-xl p-0"
       >
         <span
-          className="pointer-events-none absolute inset-y-0 left-0 rounded-xl bg-primary/20 backdrop-blur-2xl transition-[transform,width,opacity] duration-500"
+          className="app-pill-active-indicator pointer-events-none absolute inset-y-0 left-0 rounded-xl transition-[transform,width,opacity] duration-500"
           style={{
             width: `${activeIndicatorWidth}px`,
             transform: `translateX(${activeIndicatorLeft}px)`,
@@ -335,9 +335,9 @@ function AnimatedTabBar({ items, value, onValueChange }: AnimatedTabBarProps) {
               role="tab"
               data-testid={item.test_id}
               aria-selected={isSelected}
-              className={`relative z-10 whitespace-nowrap rounded-none px-3 py-1.5 text-sm font-medium transition-colors first:rounded-l-xl last:rounded-r-xl ${
+              className={`app-pill-option relative z-10 whitespace-nowrap rounded-none px-3 py-1.5 text-sm font-medium transition-colors first:rounded-l-xl last:rounded-r-xl ${
                 isSelected
-                  ? "text-primary"
+                  ? "text-primary-foreground font-bold"
                   : "text-secondary-foreground hover:text-foreground"
               }`}
               onClick={() => onValueChange(item.value)}
