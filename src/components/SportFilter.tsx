@@ -106,7 +106,7 @@ export function SportFilter({ sports, selected, onSelect }: Props) {
               data-state={isSelected ? "active" : undefined}
               onClick={() => onSelect(sportFilterItem.value == ALL_SPORT_FILTER_VALUE ? null : sportFilterItem.value)}
               className={`app-pill-option relative z-10 h-full whitespace-nowrap rounded-none px-3 py-0 text-sm font-medium first:rounded-l-xl last:rounded-r-xl ${
-                isSelected ? "text-primary font-bold dark:text-foreground" : ""
+                isSelected ? "text-primary-foreground font-bold" : ""
               }`}
             >
               {sportFilterItem.label}

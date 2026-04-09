@@ -248,6 +248,7 @@ export type MatchRepresentationSource = Pick<
   | "season_year"
   | "scheduled_date"
   | "start_time"
+  | "status"
   | "sport_id"
   | "naipe"
   | "division"
@@ -301,7 +302,18 @@ function resolveMatchRepresentationFromPreviousMatch(match: MatchRepresentationS
   return `${previousHomeTeamName} x ${previousAwayTeamName}`;
 }
 
-export function resolveMatchRepresentationByMatchId(matches: MatchRepresentationSource[]): Record<string, string> {
+function resolveUniqueMatchSourcesById<MatchSource extends { id: string }>(matchSources: MatchSource[]): MatchSource[] {
+  const matchSourceById = matchSources.reduce<Record<string, MatchSource>>((carry, matchSource) => {
+    carry[matchSource.id] = matchSource;
+    return carry;
+  }, {});
+
+  return Object.values(matchSourceById);
+}
+
+function resolveOperationalMatchRepresentationByMatchId(
+  matches: MatchRepresentationSource[],
+): Record<string, string> {
   const matchesByScopeKey = matches.reduce<Record<string, MatchRepresentationSource[]>>((carry, match) => {
     const scopeKey = resolveMatchRepresentationScopeKey(match);
 
@@ -327,6 +339,31 @@ export function resolveMatchRepresentationByMatchId(matches: MatchRepresentation
     orderedScopedMatches.forEach((match, matchIndex) => {
       carry[match.id] = resolveMatchRepresentationFromPreviousMatch(orderedScopedMatches[matchIndex - 1]);
     });
+
+    return carry;
+  }, {});
+}
+
+export function resolveMatchRepresentationByMatchId(
+  matches: MatchRepresentationSource[],
+  contextMatches?: MatchRepresentationSource[],
+): Record<string, string> {
+  if (matches.length == 0) {
+    return {};
+  }
+
+  const operationalMatches = resolveUniqueMatchSourcesById([
+    ...(contextMatches ?? []),
+    ...matches,
+  ]);
+  const matchRepresentationByMatchId = resolveOperationalMatchRepresentationByMatchId(operationalMatches);
+
+  return matches.reduce<Record<string, string>>((carry, match) => {
+    const matchRepresentation = matchRepresentationByMatchId[match.id];
+
+    if (matchRepresentation) {
+      carry[match.id] = matchRepresentation;
+    }
 
     return carry;
   }, {});
@@ -469,14 +506,25 @@ function resolveMatchEstimatedStartTimeScheduleDays(
 
 export function resolveEstimatedStartTimeByMatchId(params: {
   matches: Match[];
+  contextMatches?: MatchRepresentationSource[];
   championshipSports: MatchEstimatedStartTimeChampionshipSport[];
   championshipBracketEditions: MatchEstimatedStartTimeBracketEdition[];
 }): Record<string, string> {
   const {
     matches,
+    contextMatches,
     championshipSports,
     championshipBracketEditions,
   } = params;
+
+  if (matches.length == 0) {
+    return {};
+  }
+
+  const operationalMatches = resolveUniqueMatchSourcesById([
+    ...(contextMatches ?? []),
+    ...matches,
+  ]);
 
   const championshipSportByChampionshipAndSportKey = championshipSports.reduce<
     Record<string, MatchEstimatedStartTimeChampionshipSport>
@@ -504,7 +552,7 @@ export function resolveEstimatedStartTimeByMatchId(params: {
   }, {});
 
   const estimatedStartTimeBySlotKey: Record<string, string> = {};
-  const minimumRawSlotByChampionshipSeasonDateAndSportKey = matches.reduce<Record<string, number>>((carry, match) => {
+  const minimumRawSlotByChampionshipSeasonDateAndSportKey = operationalMatches.reduce<Record<string, number>>((carry, match) => {
     const scheduledDateValue = resolveMatchScheduledDateValue(match);
 
     if (!scheduledDateValue) {

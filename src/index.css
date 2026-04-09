@@ -198,16 +198,22 @@
 
   .app-pill-option {
     color: hsl(var(--secondary-foreground) / 0.7);
-    transition: color 180ms ease;
+    transition: color 180ms ease, background-color 180ms ease;
   }
 
-  .app-pill-option:hover {
+  .app-pill-option:not([data-state="active"]):not([aria-current="page"]):hover {
     color: hsl(var(--foreground));
+    background: transparent;
+  }
+
+  .app-pill-option:not([data-state="active"]):not([aria-current="page"]):focus-visible {
+    color: hsl(var(--foreground));
+    background: transparent;
   }
 
   .app-pill-option[data-state="active"],
   .app-pill-option[aria-current="page"] {
-    color: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
     font-weight: 700;
   }
 
@@ -330,7 +336,7 @@
   }
 
   .app-pill-active-indicator {
-    background: hsl(var(--primary) / 0.2);
+    background: hsl(var(--primary));
     -webkit-backdrop-filter: blur(16px);
     backdrop-filter: blur(16px);
   }
@@ -532,17 +538,19 @@
   }
 
   .dark .app-pill-active-indicator {
-    background: hsl(1 66% 34%);
+    background: hsl(var(--primary));
+    box-shadow: none;
   }
 
-  .dark .app-pill-option:hover,
-  .dark .app-pill-option:focus-visible {
-    color: hsl(0 0% 100%);
+  .dark .app-pill-option:not([data-state="active"]):not([aria-current="page"]):hover,
+  .dark .app-pill-option:not([data-state="active"]):not([aria-current="page"]):focus-visible {
+    color: hsl(var(--foreground));
+    background: transparent;
   }
 
   .dark .app-pill-option[data-state="active"],
   .dark .app-pill-option[aria-current="page"] {
-    color: hsl(var(--foreground));
+    color: hsl(var(--primary-foreground));
   }
 
   .app-calendar-weekdays-bar {

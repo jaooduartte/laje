@@ -290,6 +290,65 @@ describe("resolveMatchRepresentationByMatchId", () => {
     expect(representationByMatchId["beach-next-day-1"]).toBe("CO");
   });
 
+  it("uses the real operational queue when the visible list is filtered", () => {
+    const firstOperationalMatch = buildMatch({
+      id: "beach-game-1",
+      sport_id: "sport-beach-soccer",
+      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      queue_position: 1,
+      home_team: { id: "team-1", name: "ATENUN", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      away_team: { id: "team-2", name: "AACOM", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+    });
+    const filteredFirstVisibleMatch = buildMatch({
+      id: "beach-game-2",
+      sport_id: "sport-beach-soccer",
+      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      queue_position: 2,
+      home_team: { id: "team-3", name: "AAAUS", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      away_team: { id: "team-4", name: "RASANTE", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+    });
+    const filteredSecondVisibleMatch = buildMatch({
+      id: "beach-game-17",
+      sport_id: "sport-beach-soccer",
+      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      queue_position: 17,
+      home_team: { id: "team-5", name: "AAAUS", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      away_team: { id: "team-6", name: "CAMALEÃO", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+    });
+
+    const representationByMatchId = resolveMatchRepresentationByMatchId(
+      [filteredFirstVisibleMatch, filteredSecondVisibleMatch],
+      [firstOperationalMatch, filteredFirstVisibleMatch, filteredSecondVisibleMatch],
+    );
+
+    expect(representationByMatchId["beach-game-2"]).toBe("ATENUN x AACOM");
+    expect(representationByMatchId["beach-game-17"]).toBe("AAAUS x RASANTE");
+  });
+
+  it("uses the previous operational game even when it is in a different status than the visible subset", () => {
+    const livePreviousMatch = buildMatch({
+      id: "live-previous-match",
+      status: MatchStatus.LIVE,
+      queue_position: 1,
+      home_team: { id: "team-1", name: "Alpha", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      away_team: { id: "team-2", name: "Beta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+    });
+    const visibleScheduledMatch = buildMatch({
+      id: "scheduled-visible-match",
+      status: MatchStatus.SCHEDULED,
+      queue_position: 2,
+      home_team: { id: "team-3", name: "Gamma", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      away_team: { id: "team-4", name: "Delta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+    });
+
+    const representationByMatchId = resolveMatchRepresentationByMatchId(
+      [visibleScheduledMatch],
+      [livePreviousMatch, visibleScheduledMatch],
+    );
+
+    expect(representationByMatchId["scheduled-visible-match"]).toBe("Alpha x Beta");
+  });
+
   it("uses created_at and id as tie-breakers and falls back to A definir when the previous teams are undefined", () => {
     const firstMatch = buildMatch({
       id: "match-a",
@@ -583,6 +642,38 @@ describe("resolveEstimatedStartTimeByMatchId", () => {
     expect(estimatedStartTimeByMatchId["day-one-match"]).toBe("08:00");
     expect(estimatedStartTimeByMatchId["day-two-first-match"]).toBe("08:00");
     expect(estimatedStartTimeByMatchId["day-two-second-match"]).toBe("08:30");
+  });
+
+  it("uses the real operational slot progression when the visible list is filtered", () => {
+    const liveOperationalMatch = buildMatch({
+      id: "beach-game-1",
+      sport_id: "sport-beach-soccer",
+      status: MatchStatus.LIVE,
+      queue_position: 1,
+      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+    });
+    const filteredVisibleMatch = buildMatch({
+      id: "beach-game-2",
+      sport_id: "sport-beach-soccer",
+      status: MatchStatus.SCHEDULED,
+      queue_position: 2,
+      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+    });
+
+    const estimatedStartTimeByMatchId = resolveEstimatedStartTimeByMatchId({
+      matches: [filteredVisibleMatch],
+      contextMatches: [liveOperationalMatch, filteredVisibleMatch],
+      championshipSports: [
+        buildEstimatedStartTimeChampionshipSport({
+          sport_id: "sport-beach-soccer",
+          default_match_duration_minutes: 30,
+          show_estimated_start_time_on_cards: true,
+        }),
+      ],
+      championshipBracketEditions: [buildEstimatedStartTimeBracketEdition({})],
+    });
+
+    expect(estimatedStartTimeByMatchId["beach-game-2"]).toBe("08:30");
   });
 });
 
