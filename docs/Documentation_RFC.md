@@ -27,7 +27,7 @@
 
 O LAJE App é uma aplicação web voltada à gestão operacional e à divulgação pública de campeonatos universitários organizados pela Liga das Atléticas de Joinville (LAJE). A proposta do projeto consiste em centralizar, em um único sistema, a administração de jogos, classificações, chaveamentos, agenda e eventos institucionais, além de disponibilizar essas informações ao público de forma estruturada e atualizada em tempo quase real.
 
-Atualmente, o projeto já possui base funcional implementada no repositório, bem como documentação técnica organizada em `README`, diretório `docs/` e Wiki do GitHub. Esta RFC tem como objetivo consolidar o entendimento do problema, justificar a solução proposta e alinhar o projeto às diretrizes da linha de Web Apps do Portfólio.
+Atualmente, o projeto já possui base funcional implementada no repositório, bem como documentação técnica organizada em `README`, diretório `docs/` e Wiki do GitHub. Entretanto, para fins de Portfólio, esta RFC passa a documentar o **estado-alvo da entrega**, e não apenas a implementação atual. Isso significa que a solução passa a ser descrita como uma aplicação web completa com frontend desacoplado, backend dedicado em `laje-api`, banco relacional PostgreSQL e hospedagem pública em AWS.
 
 ---
 
@@ -70,13 +70,14 @@ O LAJE App propõe uma solução integrada, com base única de dados e fluxos au
 - modelagem de campeonatos, jogos, classificação e chaveamento implementada;
 - autenticação administrativa com permissões por perfil;
 - logs de ações administrativas;
-- atualização em tempo real em fluxos relevantes.
+- atualização em tempo real em fluxos relevantes;
 
-**Direcionamento futuro:**
-- validação estruturada com usuários reais;
-- implementação de pipeline CI/CD;
-- adoção de monitoramento e observabilidade;
-- ampliação da cobertura de testes conforme diretrizes do Portfólio.
+**Estado-alvo da entrega:**
+- frontend web consumindo API dedicada;
+- backend próprio em `Node.js + Express` no repositório `laje-api`;
+- banco relacional `PostgreSQL` como fonte principal de persistência;
+- hospedagem pública em `AWS`, com infraestrutura alinhada às diretrizes da linha de Web Apps;
+- pipeline CI/CD, análise estática, observabilidade e estratégia de testes alinhadas ao Portfólio.
 
 ---
 
@@ -107,7 +108,6 @@ Na presente etapa, a evidência adotada para sustentar a demanda é a **dor oper
 - a presença de fluxos de negócio completos no sistema, como autenticação administrativa, controle ao vivo, classificação automática, chaveamento e calendário da liga;
 - a existência de modelagem e regras específicas para o contexto competitivo da LAJE.
 
-
 Essas evidências demonstram aderência a um problema real do domínio, embora **ainda não substituam uma validação formal com usuários finais**.
 
 ### Evidência empírica inicial (interações reais — 2026)
@@ -116,8 +116,8 @@ Além da análise do domínio e da modelagem funcional já implementada, foram o
 
 Alguns feedbacks espontâneos registrados incluem:
 
-> "fui tudo q eu pedi uma tabela decente"
-> "ficou muito bom"
+> "fui tudo q eu pedi uma tabela decente"  
+> "ficou muito bom"  
 > "Caraca top"
 
 Essas manifestações indicam percepção imediata de valor na organização e visualização das informações, especialmente em relação a tabelas, classificação e estruturação dos dados.
@@ -126,7 +126,7 @@ Também houve validação funcional direta de necessidades do sistema:
 
 > "tem como fazer pontuação?"
 
-Esse tipo de questionamento reforça que funcionalidades centrais do domínio (como pontuação e classificação) são esperadas pelos usuários e fazem parte do problema real.
+Esse tipo de questionamento reforça que funcionalidades centrais do domínio fazem parte do problema real.
 
 Além disso, foi observada percepção de potencial de expansão do produto:
 
@@ -183,7 +183,7 @@ O diferencial do LAJE App não está em reinventar funcionalidades básicas de t
 - calendário institucional que vai além das partidas;
 - base única de dados para reduzir divergência entre operação interna e experiência pública.
 
-Em vez de atender um mercado genérico de torneios, o projeto busca atender um nicho específico com regras, fluxos e necessidades próprias. Isso justifica a criação de uma solução dedicada, desde que sua aderência ao problema real continue sendo validada com usuários ao longo das próximas entregas.
+Além do diferencial de domínio, a entrega final também buscará diferencial técnico, com arquitetura controlada pelo próprio projeto, backend dedicado, banco relacional explícito e infraestrutura pública em AWS, aderente à linha de Web Apps do Portfólio.
 
 ---
 
@@ -228,7 +228,8 @@ Desenvolver uma aplicação web capaz de centralizar a gestão operacional e a d
 2. Operar partidas ao vivo com atualização em tempo real para público e equipe administrativa.
 3. Automatizar a classificação e a progressão de chaveamento com base no estado persistido das partidas e nas regras configuradas.
 4. Disponibilizar uma experiência pública clara para consulta de agenda, campeonatos, resultados, classificações, chaveamentos e calendário institucional.
-5. Garantir controle de acesso administrativo, rastreabilidade das alterações e base técnica para evolução contínua do produto conforme as diretrizes do Portfólio.
+5. Estruturar a solução-alvo com backend dedicado em `laje-api`, banco PostgreSQL e deploy em AWS, aderindo às diretrizes da linha de Web Apps.
+6. Garantir controle de acesso administrativo, rastreabilidade das alterações e base técnica para evolução contínua do produto conforme as diretrizes do Portfólio.
 
 ---
 
@@ -253,26 +254,29 @@ As métricas de sucesso do projeto devem combinar impacto funcional, experiênci
 ### KPIs de entrega técnica
 
 5. **Disponibilidade de ambiente acessível publicamente**  
-   Como meta de aderência à linha de Web Apps, o sistema deve possuir ambiente público funcional e acessível nas próximas entregas, com link estável para demonstração.
+   O sistema deve possuir ambiente público funcional e acessível, com hospedagem estável em infraestrutura aderente à linha de Web Apps.
 
-6. **Evolução de pipeline e qualidade contínua**  
-   O projeto deverá incorporar pipeline CI/CD, análise estática de código e segurança, e práticas de integração contínua conforme exigido pelo Playbook.
+6. **Banco relacional aderente ao desenho arquitetural**  
+   A solução-alvo deve operar com `PostgreSQL` como banco principal, substituindo a dependência de plataforma gerenciada anterior.
 
-7. **Evolução de testes alinhada ao Portfólio**  
-   A meta futura é amadurecer a estratégia de testes em direção aos percentuais esperados pela linha de Web Apps, com expansão progressiva da cobertura unitária e fortalecimento da abordagem orientada por testes.
+7. **Pipeline e qualidade contínua**  
+   O projeto deverá incorporar `GitHub Actions`, análise estática de código e segurança, e fluxo de deploy contínuo para frontend e backend.
 
 8. **Observabilidade e monitoramento**  
-   Como evolução planejada, o projeto deverá incorporar ferramenta de monitoramento e observabilidade para apoiar diagnóstico, estabilidade e análise de comportamento em produção.
+   A solução deverá incorporar ferramentas de logs, métricas e visibilidade operacional do ambiente implantado.
+
+9. **Evolução de testes alinhada ao Portfólio**  
+   A meta futura é amadurecer a estratégia de testes em direção aos percentuais esperados pela linha de Web Apps, com expansão progressiva da cobertura unitária e fortalecimento da abordagem orientada por testes.
 
 ### Leitura crítica dos KPIs
 
 Nem todos os indicadores acima estão plenamente comprovados nesta fase. Alguns já podem ser avaliados pela base funcional e documental existente; outros dependem de deploy público definitivo, instrumentação técnica e coleta estruturada de feedback com usuários reais. Por isso, esta RFC registra os KPIs em dois horizontes:
 
 - **estado atual:** base funcional, documentação consolidada e fluxos centrais implementados;
-- **direcionamento futuro:** validação com usuários, CI/CD, observabilidade, análise estática e evolução formal da cobertura de testes.
+- **direcionamento futuro:** backend `Express`, banco `PostgreSQL`, deploy em `AWS`, CI/CD, observabilidade, análise estática e evolução formal da cobertura de testes.
 
 ---
 
 ## Nota de Situação da RFC nesta Etapa
 
-O projeto já possui base funcional implementada e documentação suficiente para sustentar a formulação inicial da RFC. Entretanto, parte das evidências de validação com usuários ainda será coletada na próxima etapa, por meio de testes com a versão de demonstração do sistema. Além disso, requisitos técnicos adicionais recomendados ou obrigatórios pelo Playbook — como maturidade de CI/CD, observabilidade, análise estática e metas formais de testes — estão registrados nesta documentação como evolução planejada para as próximas entregas, e não como itens já concluídos.
+O projeto já possui base funcional implementada e documentação suficiente para sustentar a formulação inicial da RFC. Entretanto, parte das evidências de validação com usuários ainda será coletada na próxima etapa, por meio de testes com a versão de demonstração do sistema. Além disso, requisitos técnicos adicionais recomendados ou obrigatórios pelo Playbook — como backend dedicado, banco relacional explícito, deploy em AWS, maturidade de CI/CD, observabilidade, análise estática e metas formais de testes — estão registrados nesta documentação como evolução planejada para as próximas entregas, e não como itens já concluídos.
