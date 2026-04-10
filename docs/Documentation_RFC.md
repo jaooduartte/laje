@@ -27,7 +27,7 @@
 
 O LAJE App é uma aplicação web voltada à gestão operacional e à divulgação pública de campeonatos universitários organizados pela Liga das Atléticas de Joinville (LAJE). A proposta do projeto consiste em centralizar, em um único sistema, a administração de jogos, classificações, chaveamentos, agenda e eventos institucionais, além de disponibilizar essas informações ao público de forma estruturada e atualizada em tempo quase real.
 
-Atualmente, o projeto já possui base funcional implementada no repositório, bem como documentação técnica organizada em `README`, diretório `docs/` e Wiki do GitHub. Entretanto, para fins de Portfólio, esta RFC passa a documentar o **estado-alvo da entrega**, e não apenas a implementação atual. Isso significa que a solução passa a ser descrita como uma aplicação web completa com frontend desacoplado, backend dedicado em `laje-api`, banco relacional PostgreSQL e hospedagem pública em AWS.
+Atualmente, o projeto já possui base funcional implementada no repositório, bem como documentação técnica organizada em `README`, diretório `docs/` e Wiki do GitHub. No estado atual, a aplicação opera com frontend React integrado ao ecossistema Supabase, utilizando autenticação, persistência e atualização em tempo real por meio da plataforma. Para fins de Portfólio, esta RFC passa a documentar o **estado-alvo da entrega**, e não apenas a implementação atual. Isso significa que a solução passa a ser descrita como uma aplicação web completa com frontend desacoplado, backend dedicado em `laje-api`, banco relacional PostgreSQL e hospedagem pública em AWS.
 
 ---
 
@@ -67,10 +67,11 @@ Soluções existentes no mercado tendem a resolver partes do problema, como agen
 O LAJE App propõe uma solução integrada, com base única de dados e fluxos automatizados que conectam operação interna e visualização pública.
 
 **Estado atual do sistema:**
+- frontend React já implementado e integrado ao Supabase;
+- autenticação administrativa atualmente apoiada em Supabase Auth;
+- persistência e regras de domínio atualmente apoiadas em Supabase/Postgres e funções SQL;
 - modelagem de campeonatos, jogos, classificação e chaveamento implementada;
-- autenticação administrativa com permissões por perfil;
-- logs de ações administrativas;
-- atualização em tempo real em fluxos relevantes;
+- logs de ações administrativas e atualização em tempo real em fluxos relevantes.
 
 **Estado-alvo da entrega:**
 - frontend web consumindo API dedicada;
@@ -267,6 +268,18 @@ As métricas de sucesso do projeto devem combinar impacto funcional, experiênci
 
 9. **Evolução de testes alinhada ao Portfólio**  
    A meta futura é amadurecer a estratégia de testes em direção aos percentuais esperados pela linha de Web Apps, com expansão progressiva da cobertura unitária e fortalecimento da abordagem orientada por testes.
+
+### Metas iniciais mensuráveis
+
+Para tornar os indicadores mais objetivos já nesta etapa, o projeto adota como metas iniciais de referência:
+
+- refletir atualizações operacionais críticas na interface pública em até **5 segundos** após persistência do dado;
+- manter ao menos **3 fluxos de negócio completos** documentados e utilizáveis na entrega atual;
+- manter **build**, **lint** e **testes automatizados** executáveis no repositório principal;
+- evoluir a cobertura de testes unitários para um patamar mínimo inicial de **30%**, com crescimento progressivo nas próximas etapas;
+- disponibilizar uma **URL pública funcional** da solução durante a fase de demonstração e validação.
+
+Essas metas não substituem os critérios formais futuros da linha de Web Apps, mas ajudam a tornar o acompanhamento do projeto mais objetivo e verificável desde a primeira entrega.
 
 ### Leitura crítica dos KPIs
 
