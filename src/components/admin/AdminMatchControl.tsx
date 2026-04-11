@@ -81,6 +81,114 @@ const MATCH_CONTROL_STATUS_SORT_ORDER: Record<MatchStatus, number> = {
   [MatchStatus.FINISHED]: 2,
 };
 const MATCH_CONTROL_AUTOSAVE_DEBOUNCE_IN_MILLISECONDS = 150;
+const MATCH_CONTROL_PERSISTED_DRAFT_STORAGE_KEY = "admin_match_control_draft_by_match_id";
+const MATCH_CONTROL_PERSISTED_DRAFT_TTL_IN_MILLISECONDS = 10 * 60 * 1000;
+const SCORE_INPUT_CLASS_NAME =
+  "score-text h-12 w-16 min-w-16 app-input-field px-1 text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
+
+interface PersistedMatchControlDraftEntry {
+  draft: MatchControlDraft;
+  updatedAt: number;
+}
+
+function areMatchControlDraftsEqual(firstDraft: MatchControlDraft, secondDraft: MatchControlDraft): boolean {
+  return (
+    firstDraft.homeScore == secondDraft.homeScore &&
+    firstDraft.awayScore == secondDraft.awayScore &&
+    firstDraft.homeYellowCards == secondDraft.homeYellowCards &&
+    firstDraft.homeRedCards == secondDraft.homeRedCards &&
+    firstDraft.awayYellowCards == secondDraft.awayYellowCards &&
+    firstDraft.awayRedCards == secondDraft.awayRedCards
+  );
+}
+
+function isMatchControlDraftValue(value: unknown): value is MatchControlDraft {
+  if (!value || typeof value != "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  const draftCandidate = value as Record<string, unknown>;
+  const requiredNumericFields = [
+    draftCandidate.homeScore,
+    draftCandidate.awayScore,
+    draftCandidate.homeYellowCards,
+    draftCandidate.homeRedCards,
+    draftCandidate.awayYellowCards,
+    draftCandidate.awayRedCards,
+  ];
+
+  return requiredNumericFields.every((fieldValue) => typeof fieldValue == "number" && Number.isFinite(fieldValue));
+}
+
+function readPersistedMatchControlDraftByMatchId(): Record<string, PersistedMatchControlDraftEntry> {
+  if (typeof window == "undefined") {
+    return {};
+  }
+
+  try {
+    const persistedPayload = window.sessionStorage.getItem(MATCH_CONTROL_PERSISTED_DRAFT_STORAGE_KEY);
+
+    if (!persistedPayload) {
+      return {};
+    }
+
+    const parsedPayload = JSON.parse(persistedPayload) as Record<string, unknown>;
+
+    if (!parsedPayload || typeof parsedPayload != "object" || Array.isArray(parsedPayload)) {
+      return {};
+    }
+
+    const now = Date.now();
+    const sanitizedEntries = Object.entries(parsedPayload).reduce<Record<string, PersistedMatchControlDraftEntry>>(
+      (carry, [matchId, entry]) => {
+        if (!entry || typeof entry != "object" || Array.isArray(entry)) {
+          return carry;
+        }
+
+        const entryCandidate = entry as Record<string, unknown>;
+        const updatedAt = entryCandidate.updatedAt;
+        const draft = entryCandidate.draft;
+
+        if (typeof updatedAt != "number" || !Number.isFinite(updatedAt) || now - updatedAt > MATCH_CONTROL_PERSISTED_DRAFT_TTL_IN_MILLISECONDS) {
+          return carry;
+        }
+
+        if (!isMatchControlDraftValue(draft)) {
+          return carry;
+        }
+
+        carry[matchId] = {
+          draft,
+          updatedAt,
+        };
+
+        return carry;
+      },
+      {},
+    );
+
+    return sanitizedEntries;
+  } catch {
+    return {};
+  }
+}
+
+function writePersistedMatchControlDraftByMatchId(persistedEntries: Record<string, PersistedMatchControlDraftEntry>): void {
+  if (typeof window == "undefined") {
+    return;
+  }
+
+  try {
+    if (Object.keys(persistedEntries).length == 0) {
+      window.sessionStorage.removeItem(MATCH_CONTROL_PERSISTED_DRAFT_STORAGE_KEY);
+      return;
+    }
+
+    window.sessionStorage.setItem(MATCH_CONTROL_PERSISTED_DRAFT_STORAGE_KEY, JSON.stringify(persistedEntries));
+  } catch {
+    // Ignore storage errors (quota/private mode) and keep runtime state only.
+  }
+}
 
 function resolveDefaultMatchControlDraft(match: Match, shouldUseCurrentSetScore: boolean): MatchControlDraft {
   return {
@@ -200,9 +308,41 @@ export function AdminMatchControl({
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_PAGINATION_ITEMS_PER_PAGE);
 
+  const isDraftDirtyByMatchIdRef = useRef<Record<string, boolean>>({});
+  const persistedDraftByMatchIdRef = useRef<Record<string, PersistedMatchControlDraftEntry>>(
+    readPersistedMatchControlDraftByMatchId(),
+  );
+  const matchByIdRef = useRef<Record<string, Match>>({});
+  const matchDraftByIdRef = useRef<Record<string, MatchControlDraft>>({});
+  const canManageScoreboardRef = useRef(canManageScoreboard);
+  const isSetRuleMatchRef = useRef<(match: Match) => boolean>(() => false);
+  const doesMatchSupportCardsRef = useRef<(match: Match) => boolean>(() => false);
   const saveTimeoutByMatchIdRef = useRef<Record<string, ReturnType<typeof setTimeout> | undefined>>({});
   const clearStatusTimeoutByMatchIdRef = useRef<Record<string, ReturnType<typeof setTimeout> | undefined>>({});
   const hasHandledPaginationScrollRef = useRef(false);
+
+  useEffect(() => {
+    isDraftDirtyByMatchIdRef.current = isDraftDirtyByMatchId;
+  }, [isDraftDirtyByMatchId]);
+
+  useEffect(() => {
+    matchDraftByIdRef.current = matchDraftById;
+  }, [matchDraftById]);
+
+  useEffect(() => {
+    canManageScoreboardRef.current = canManageScoreboard;
+  }, [canManageScoreboard]);
+
+  const persistMatchDraftInStorage = useCallback((matchId: string, draft: MatchControlDraft) => {
+    persistedDraftByMatchIdRef.current = {
+      ...persistedDraftByMatchIdRef.current,
+      [matchId]: {
+        draft,
+        updatedAt: Date.now(),
+      },
+    };
+    writePersistedMatchControlDraftByMatchId(persistedDraftByMatchIdRef.current);
+  }, []);
 
   const championshipSportResultRuleBySportId = useMemo(() => {
     const map = new Map<string, ChampionshipSportResultRule>();
@@ -233,24 +373,91 @@ export function AdminMatchControl({
   }, [championshipSportSupportsCardsBySportId]);
 
   useEffect(() => {
+    isSetRuleMatchRef.current = isSetRuleMatch;
+  }, [isSetRuleMatch]);
+
+  useEffect(() => {
+    doesMatchSupportCardsRef.current = doesMatchSupportCards;
+  }, [doesMatchSupportCards]);
+
+  useEffect(() => {
+    matchByIdRef.current = matches.reduce<Record<string, Match>>((carry, match) => {
+      carry[match.id] = match;
+      return carry;
+    }, {});
+  }, [matches]);
+
+  useEffect(() => {
     setMatchDraftById((previousMatchDraftById) => {
       const nextMatchDraftById: Record<string, MatchControlDraft> = {};
+      const currentDirtyByMatchId = isDraftDirtyByMatchIdRef.current;
+      const now = Date.now();
+      const nextPersistedDraftByMatchId = { ...persistedDraftByMatchIdRef.current };
+      let hasPersistedDraftByMatchIdChanges = false;
+      const currentMatchIds = new Set(matches.map((match) => match.id));
 
       matches.forEach((match) => {
-        const shouldPreserveDirtyDraft = isDraftDirtyByMatchId[match.id] == true;
+        const shouldPreserveDirtyDraft = currentDirtyByMatchId[match.id] == true;
         const previousMatchDraft = previousMatchDraftById[match.id] ?? null;
+        const resolvedDefaultDraft = resolveDefaultMatchControlDraft(match, isSetRuleMatch(match));
+        const persistedDraftEntry = nextPersistedDraftByMatchId[match.id];
+        const persistedDraft =
+          persistedDraftEntry && now - persistedDraftEntry.updatedAt <= MATCH_CONTROL_PERSISTED_DRAFT_TTL_IN_MILLISECONDS
+            ? persistedDraftEntry.draft
+            : null;
+
+        if (persistedDraftEntry && !persistedDraft) {
+          delete nextPersistedDraftByMatchId[match.id];
+          hasPersistedDraftByMatchIdChanges = true;
+        }
+
+        if (match.status != MatchStatus.LIVE && persistedDraftEntry) {
+          delete nextPersistedDraftByMatchId[match.id];
+          hasPersistedDraftByMatchIdChanges = true;
+        }
 
         if (shouldPreserveDirtyDraft && previousMatchDraft) {
           nextMatchDraftById[match.id] = previousMatchDraft;
           return;
         }
 
-        nextMatchDraftById[match.id] = resolveDefaultMatchControlDraft(match, isSetRuleMatch(match));
+        if (previousMatchDraft && areMatchControlDraftsEqual(previousMatchDraft, resolvedDefaultDraft)) {
+          nextMatchDraftById[match.id] = previousMatchDraft;
+          return;
+        }
+
+        if (
+          match.status == MatchStatus.LIVE &&
+          persistedDraft &&
+          !areMatchControlDraftsEqual(persistedDraft, resolvedDefaultDraft)
+        ) {
+          nextMatchDraftById[match.id] = persistedDraft;
+          return;
+        }
+
+        if (persistedDraft && areMatchControlDraftsEqual(persistedDraft, resolvedDefaultDraft)) {
+          delete nextPersistedDraftByMatchId[match.id];
+          hasPersistedDraftByMatchIdChanges = true;
+        }
+
+        nextMatchDraftById[match.id] = resolvedDefaultDraft;
       });
+
+      Object.keys(nextPersistedDraftByMatchId).forEach((matchId) => {
+        if (!currentMatchIds.has(matchId)) {
+          delete nextPersistedDraftByMatchId[matchId];
+          hasPersistedDraftByMatchIdChanges = true;
+        }
+      });
+
+      if (hasPersistedDraftByMatchIdChanges) {
+        persistedDraftByMatchIdRef.current = nextPersistedDraftByMatchId;
+        writePersistedMatchControlDraftByMatchId(nextPersistedDraftByMatchId);
+      }
 
       return nextMatchDraftById;
     });
-  }, [isDraftDirtyByMatchId, isSetRuleMatch, matches]);
+  }, [isSetRuleMatch, matches]);
 
   useEffect(() => {
     setIsDraftDirtyByMatchId((previousDirtyByMatchId) => {
@@ -333,6 +540,36 @@ export function AdminMatchControl({
     const clearStatusTimeoutByMatchId = clearStatusTimeoutByMatchIdRef.current;
 
     return () => {
+      Object.entries(isDraftDirtyByMatchIdRef.current).forEach(([matchId, isDirty]) => {
+        if (!isDirty || !canManageScoreboardRef.current) {
+          return;
+        }
+
+        const timeoutReference = saveTimeoutByMatchId[matchId];
+
+        if (timeoutReference) {
+          clearTimeout(timeoutReference);
+        }
+        saveTimeoutByMatchId[matchId] = undefined;
+
+        const match = matchByIdRef.current[matchId];
+        const matchDraft = matchDraftByIdRef.current[matchId];
+
+        if (!match || !matchDraft) {
+          return;
+        }
+
+        persistMatchDraftInStorage(match.id, matchDraft);
+
+        void supabase
+          .from("matches")
+          .update(resolveMatchUpdatePayload(match, matchDraft, {
+            supportsCards: doesMatchSupportCardsRef.current(match),
+            shouldUseCurrentSetScore: isSetRuleMatchRef.current(match),
+          }))
+          .eq("id", match.id);
+      });
+
       Object.values(saveTimeoutByMatchId).forEach((timeoutReference) => {
         if (timeoutReference) {
           clearTimeout(timeoutReference);
@@ -345,7 +582,7 @@ export function AdminMatchControl({
         }
       });
     };
-  }, []);
+  }, [persistMatchDraftInStorage]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -455,7 +692,8 @@ export function AdminMatchControl({
     }
 
     saveTimeoutByMatchIdRef.current[match.id] = setTimeout(() => {
-      persistMatchDraft(match, matchDraft);
+      saveTimeoutByMatchIdRef.current[match.id] = undefined;
+      void persistMatchDraft(match, matchDraft);
     }, MATCH_CONTROL_AUTOSAVE_DEBOUNCE_IN_MILLISECONDS);
   };
 
@@ -476,6 +714,7 @@ export function AdminMatchControl({
       };
 
       setDraftDirty(match.id, true);
+      persistMatchDraftInStorage(match.id, nextMatchDraft);
       scheduleAutosave(match, nextMatchDraft);
 
       return {
@@ -502,6 +741,7 @@ export function AdminMatchControl({
       };
 
       setDraftDirty(match.id, true);
+      persistMatchDraftInStorage(match.id, nextMatchDraft);
       scheduleAutosave(match, nextMatchDraft);
 
       return {
@@ -532,6 +772,7 @@ export function AdminMatchControl({
       }
 
       setDraftDirty(match.id, true);
+      persistMatchDraftInStorage(match.id, nextMatchDraft);
       scheduleAutosave(match, nextMatchDraft);
 
       return {
@@ -564,6 +805,7 @@ export function AdminMatchControl({
       }
 
       setDraftDirty(match.id, true);
+      persistMatchDraftInStorage(match.id, nextMatchDraft);
       scheduleAutosave(match, nextMatchDraft);
 
       return {
@@ -1008,9 +1250,10 @@ export function AdminMatchControl({
             const liveMatchesCount = sportAndDateKey ? liveMatchesCountBySportAndDateKey[sportAndDateKey] ?? 0 : 0;
             const isMatchStartBlocked =
               match.status == MatchStatus.SCHEDULED && availableCourtsCount > 0 && liveMatchesCount >= availableCourtsCount;
+            const queueLabel = resolveMatchQueueLabel(match.queue_position);
             const queueSummary = scheduledDateValue
-              ? `${format(new Date(`${scheduledDateValue}T12:00:00`), "dd/MM", { locale: ptBR })} • ${resolveMatchQueueLabel(match.queue_position)}`
-              : resolveMatchQueueLabel(match.queue_position);
+              ? `${format(new Date(`${scheduledDateValue}T12:00:00`), "dd/MM", { locale: ptBR })} • ${queueLabel}`
+              : queueLabel;
             const isSetMatch = isSetRuleMatch(match);
             const supportsCards = doesMatchSupportCards(match);
             const closedMatchSets = resolveClosedMatchSets(match);
@@ -1051,7 +1294,10 @@ export function AdminMatchControl({
 
                     <div className="space-y-0.5">
                       {match.status == MatchStatus.LIVE ? (
-                        <span className="text-xs font-bold text-live live-pulse">● AO VIVO</span>
+                        <>
+                          <span className="text-xs font-bold text-live live-pulse">● AO VIVO</span>
+                          <p className="text-xs text-muted-foreground">{queueLabel}</p>
+                        </>
                       ) : (
                         <span className="text-xs text-muted-foreground">{queueSummary}</span>
                       )}
@@ -1149,7 +1395,7 @@ export function AdminMatchControl({
                         type="number"
                         value={displayedHomeScore}
                         onChange={(event) => updateManualInputScore(match, "home", event.target.value)}
-                        className="score-text h-12 w-12 app-input-field text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        className={SCORE_INPUT_CLASS_NAME}
                         disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                       />
 
@@ -1181,7 +1427,7 @@ export function AdminMatchControl({
                         type="number"
                         value={displayedAwayScore}
                         onChange={(event) => updateManualInputScore(match, "away", event.target.value)}
-                        className="score-text h-12 w-12 app-input-field text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        className={SCORE_INPUT_CLASS_NAME}
                         disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                       />
 
@@ -1219,7 +1465,7 @@ export function AdminMatchControl({
                         type="number"
                         value={displayedHomeScore}
                         onChange={(event) => updateManualInputScore(match, "home", event.target.value)}
-                        className="score-text h-12 w-12 app-input-field text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        className={SCORE_INPUT_CLASS_NAME}
                         disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                       />
 
@@ -1251,7 +1497,7 @@ export function AdminMatchControl({
                         type="number"
                         value={displayedAwayScore}
                         onChange={(event) => updateManualInputScore(match, "away", event.target.value)}
-                        className="score-text h-12 w-12 app-input-field text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        className={SCORE_INPUT_CLASS_NAME}
                         disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                       />
 

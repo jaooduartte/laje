@@ -227,12 +227,13 @@ function renderAdminMatchControl(params: {
     onRefetch,
     onRefetchChampionshipBracket,
     rerenderAdminMatchControl,
+    unmount: renderResult.unmount,
   };
 }
 
 function resolveMatchCardElement(teamName: string): HTMLElement {
   const teamLabel = screen.getAllByText(teamName)[0];
-  const matchCardElement = teamLabel.closest(".list-item-card");
+  const matchCardElement = teamLabel.closest(".glass-card");
 
   if (!matchCardElement) {
     throw new Error(`Card do jogo não encontrado para ${teamName}.`);
@@ -250,6 +251,7 @@ describe("AdminMatchControl", () => {
     toastErrorMock.mockReset();
     saveMatchSetsMock.mockReset();
     saveMatchSetsMock.mockResolvedValue({ error: null });
+    window.sessionStorage.clear();
   });
 
   afterEach(() => {
@@ -334,6 +336,7 @@ describe("AdminMatchControl", () => {
     const scoreInputs = within(matchCardElement).getAllByRole("spinbutton");
 
     expect(within(matchCardElement).getByText("● AO VIVO")).toBeInTheDocument();
+    expect(within(matchCardElement).getByText("Jogo 1")).toBeInTheDocument();
 
     await act(async () => {
       fireEvent.change(scoreInputs[0] as HTMLElement, {
@@ -349,6 +352,129 @@ describe("AdminMatchControl", () => {
     expect(supabaseUpdateCalls[0]?.payload.away_score).toBe(0);
     expect(supabaseUpdateCalls[0]?.payload.current_set_home_score).toBeNull();
     expect(supabaseUpdateCalls[0]?.payload.current_set_away_score).toBeNull();
+  });
+
+  it("mantém o placar digitado após autosave enquanto o backend não retorna novos dados", async () => {
+    const match = buildMatch({
+      id: "live-points-stale-props-match",
+      sport_id: "sport-points",
+      status: MatchStatus.LIVE,
+      home_team: buildTeam({ id: "home-stale-team", name: "Atlética Persistência Casa" }),
+      away_team: buildTeam({ id: "away-stale-team", name: "Atlética Persistência Visitante" }),
+    });
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-points-stale-props",
+      sport_id: "sport-points",
+      result_rule: ChampionshipSportResultRule.POINTS,
+      supports_cards: false,
+    });
+
+    renderAdminMatchControl({
+      matches: [match],
+      championshipSports: [championshipSport],
+    });
+
+    const matchCardElement = resolveMatchCardElement("Atlética Persistência Casa");
+    const scoreInputs = within(matchCardElement).getAllByRole("spinbutton");
+
+    await act(async () => {
+      fireEvent.change(scoreInputs[0] as HTMLElement, {
+        target: { value: "12" },
+      });
+      vi.advanceTimersByTime(150);
+      await Promise.resolve();
+    });
+
+    expect(supabaseUpdateCalls).toHaveLength(1);
+    expect(supabaseUpdateCalls[0]?.payload.home_score).toBe(12);
+    expect(scoreInputs[0]).toHaveValue(12);
+  });
+
+  it("persiste rascunho pendente ao sair da tela de controle ao vivo", async () => {
+    const match = buildMatch({
+      id: "live-points-unmount-match",
+      sport_id: "sport-points",
+      status: MatchStatus.LIVE,
+      home_team: buildTeam({ id: "home-unmount-team", name: "Atlética Persistir Casa" }),
+      away_team: buildTeam({ id: "away-unmount-team", name: "Atlética Persistir Visitante" }),
+    });
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-points-unmount",
+      sport_id: "sport-points",
+      result_rule: ChampionshipSportResultRule.POINTS,
+      supports_cards: false,
+    });
+    const { unmount } = renderAdminMatchControl({
+      matches: [match],
+      championshipSports: [championshipSport],
+    });
+
+    const matchCardElement = resolveMatchCardElement("Atlética Persistir Casa");
+    const scoreInputs = within(matchCardElement).getAllByRole("spinbutton");
+
+    await act(async () => {
+      fireEvent.change(scoreInputs[0] as HTMLElement, {
+        target: { value: "9" },
+      });
+      await Promise.resolve();
+    });
+
+    expect(supabaseUpdateCalls).toHaveLength(0);
+
+    await act(async () => {
+      unmount();
+      await Promise.resolve();
+    });
+
+    expect(supabaseUpdateCalls).toHaveLength(1);
+    expect(supabaseUpdateCalls[0]?.payload.home_score).toBe(9);
+    expect(supabaseUpdateCalls[0]?.payload.away_score).toBe(0);
+  });
+
+  it("rehydrates placar salvo em sessão ao remontar controle com resposta stale do backend", async () => {
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-sets-session",
+      sport_id: "sport-sets-session",
+      result_rule: ChampionshipSportResultRule.SETS,
+      supports_cards: false,
+    });
+    const staleMatch = buildMatch({
+      id: "live-sets-session-stale-match",
+      sport_id: "sport-sets-session",
+      status: MatchStatus.LIVE,
+      current_set_home_score: 0,
+      current_set_away_score: 0,
+      home_team: buildTeam({ id: "home-session-team", name: "Atlética Sessão Casa" }),
+      away_team: buildTeam({ id: "away-session-team", name: "Atlética Sessão Visitante" }),
+    });
+
+    const firstRender = renderAdminMatchControl({
+      matches: [staleMatch],
+      championshipSports: [championshipSport],
+    });
+    const firstMatchCardElement = resolveMatchCardElement("Atlética Sessão Casa");
+    const firstScoreInputs = within(firstMatchCardElement).getAllByRole("spinbutton");
+
+    await act(async () => {
+      fireEvent.change(firstScoreInputs[0] as HTMLElement, {
+        target: { value: "14" },
+      });
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      firstRender.unmount();
+      await Promise.resolve();
+    });
+
+    renderAdminMatchControl({
+      matches: [staleMatch],
+      championshipSports: [championshipSport],
+    });
+    const secondMatchCardElement = resolveMatchCardElement("Atlética Sessão Casa");
+    const secondScoreInputs = within(secondMatchCardElement).getAllByRole("spinbutton");
+
+    expect(secondScoreInputs[0]).toHaveValue(14);
   });
 
   it("salva cartões em autosave apenas para modalidades com suporte", async () => {

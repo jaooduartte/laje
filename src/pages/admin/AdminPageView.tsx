@@ -235,6 +235,13 @@ export function AdminPageView({
     }
 
     void onRefetchMatches();
+    const refetchConfirmationTimeout = setTimeout(() => {
+      void onRefetchMatches();
+    }, 400);
+
+    return () => {
+      clearTimeout(refetchConfirmationTimeout);
+    };
   }, [activeTab, onRefetchMatches]);
 
   return (
