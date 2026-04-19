@@ -1,8 +1,10 @@
 import { supabase } from "@/integrations/supabase/client";
 import type {
+  ChampionshipCorrectedGroupStanding,
   ChampionshipBracketLocationTemplate,
   ChampionshipBracketLocationTemplateSaveInput,
   ChampionshipBracketPreviewResult,
+  ChampionshipBracketResolvedTieBreakOrderContext,
   ChampionshipBracketSetupFormValues,
   ChampionshipBracketTieBreakPendingContext,
   ChampionshipBracketTieBreakResolutionSaveInput,
@@ -210,6 +212,64 @@ export async function fetchChampionshipBracketPendingTieBreaks(
   };
 }
 
+export async function fetchChampionshipBracketResolvedTieBreakOrders(
+  championship_id: string,
+  season_year?: number | null,
+): Promise<{ data: ChampionshipBracketResolvedTieBreakOrderContext[]; error: Error | null }> {
+  const response = await supabase.rpc("get_championship_bracket_resolved_tie_break_orders", {
+    _championship_id: championship_id,
+    _season_year: season_year ?? null,
+  });
+
+  if (response.error) {
+    return {
+      data: [],
+      error: response.error,
+    };
+  }
+
+  return {
+    data: (response.data as ChampionshipBracketResolvedTieBreakOrderContext[] | null) ?? [],
+    error: null,
+  };
+}
+
+export async function fetchChampionshipCorrectedGroupStandings(
+  championship_id: string,
+  season_year?: number | null,
+): Promise<{ data: ChampionshipCorrectedGroupStanding[]; error: Error | null }> {
+  const response = await supabase.rpc("get_championship_corrected_group_standings", {
+    _championship_id: championship_id,
+    _season_year: season_year ?? null,
+  });
+
+  if (response.error) {
+    return {
+      data: [],
+      error: response.error,
+    };
+  }
+
+  const normalizedRows = ((response.data as ChampionshipCorrectedGroupStanding[] | null) ?? []).map((row) => ({
+    ...row,
+    wins: Number(row.wins),
+    points_base: Number(row.points_base),
+    correction_factor: Number(row.correction_factor),
+    corrected_points: Number(row.corrected_points),
+    goals_for: Number(row.goals_for),
+    goals_against: Number(row.goals_against),
+    goal_diff: Number(row.goal_diff),
+    yellow_cards: Number(row.yellow_cards),
+    red_cards: Number(row.red_cards),
+    points_average: Number(row.points_average),
+  }));
+
+  return {
+    data: normalizedRows,
+    error: null,
+  };
+}
+
 export async function saveChampionshipBracketTieBreakResolution(
   payload: ChampionshipBracketTieBreakResolutionSaveInput,
 ): Promise<{ data: string | null; error: Error | null }> {
@@ -282,4 +342,17 @@ export async function fetchMatchSets(match_id: string): Promise<{ data: MatchSet
     data: (response.data as MatchSetInput[] | null) ?? [],
     error: null,
   };
+}
+
+export async function swapChampionshipKnockoutBracketTeams(
+  competition_id: string,
+  team_a_id: string,
+  team_b_id: string,
+): Promise<{ error: Error | null }> {
+  const response = await supabase.rpc("swap_championship_knockout_bracket_teams", {
+    _competition_id: competition_id,
+    _team_a_id: team_a_id,
+    _team_b_id: team_b_id,
+  });
+  return { error: response.error };
 }

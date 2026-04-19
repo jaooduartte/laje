@@ -1,27 +1,32 @@
-import { Loader2 } from "lucide-react";
+import { Award, HelpCircle, Loader2, Medal, Trophy } from "lucide-react";
 import { Header } from "@/components/Header";
 import { MatchCard } from "@/components/MatchCard";
 import { TeamStandingsTable } from "@/components/TeamStandingsTable";
-import { SportFilter } from "@/components/SportFilter";
 import { Tabs, TabsContent, TabsNavigationList, TabsNavigationTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { TeamStandingAggregate } from "@/lib/standings";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { formatStandingsPoints, type TeamStandingAggregate } from "@/lib/standings";
 import type { Championship, Match, Sport, Team } from "@/lib/types";
-import type { BracketGroupFilterOption, MatchBracketContext } from "@/lib/championship";
+import type {
+  BracketGroupFilterOption,
+  ChampionshipBracketGroupStageOption,
+  MatchBracketContext,
+} from "@/lib/championship";
 import type { ChampionshipChampionYearGroup } from "@/lib/championshipHistory";
 import { ChampionshipCode, MatchNaipe } from "@/lib/enums";
 import { MATCH_NAIPE_LABELS, TEAM_DIVISION_LABELS } from "@/lib/championship";
+import type { ModalidadeConfig } from "@/lib/modalidadeConfig";
 
 interface ChampionshipsPageViewProps {
   isLoading: boolean;
+  isStandingsLoading: boolean;
   championships: Championship[];
   selectedChampionship: Championship | null;
   selectedChampionshipCode: ChampionshipCode;
   selectedChampionshipIsFinished: boolean;
   championshipCardImageByCode: Record<ChampionshipCode, string>;
   sports: Sport[];
-  sportFilter: string | null;
   nextMatches: Match[];
   isNextMatchesFetching: boolean;
   standingsSportFilter: string;
@@ -29,8 +34,11 @@ interface ChampionshipsPageViewProps {
   standingsYearFilter: string;
   allStandingsSportFilter: string;
   allStandingsNaipeFilter: string;
+  standingsBracketGroupOptions: BracketGroupFilterOption[];
+  standingsPlacementFilter: string;
+  allStandingsPlacementFilter: string;
   filteredStandings: TeamStandingAggregate[];
-  standingsShowCardColumns: boolean;
+  standingsModalidadeConfig?: ModalidadeConfig;
   teamFilter: string;
   yearFilter: string;
   groupFilter: string;
@@ -43,14 +51,15 @@ interface ChampionshipsPageViewProps {
   filteredHistoryMatches: Match[];
   isHistoryMatchesFetching: boolean;
   championshipChampionHistory: ChampionshipChampionYearGroup[];
+  overallPodiumStandings: TeamStandingAggregate[];
   matchBracketContextByMatchId: Record<string, MatchBracketContext>;
   matchRepresentationByMatchId: Record<string, string>;
   estimatedStartTimeByMatchId: Record<string, string>;
   onSelectChampionshipCode: (value: ChampionshipCode) => void;
-  onSportFilterChange: (value: string | null) => void;
   onStandingsSportFilterChange: (value: string) => void;
   onStandingsNaipeFilterChange: (value: string) => void;
   onStandingsYearFilterChange: (value: string) => void;
+  onStandingsPlacementFilterChange: (value: string) => void;
   onTeamFilterChange: (value: string) => void;
   onYearFilterChange: (value: string) => void;
   onGroupFilterChange: (value: string) => void;
@@ -58,13 +67,13 @@ interface ChampionshipsPageViewProps {
 
 export function ChampionshipsPageView({
   isLoading,
+  isStandingsLoading,
   championships,
   selectedChampionship,
   selectedChampionshipCode,
   selectedChampionshipIsFinished,
   championshipCardImageByCode,
   sports,
-  sportFilter,
   nextMatches,
   isNextMatchesFetching,
   standingsSportFilter,
@@ -72,8 +81,11 @@ export function ChampionshipsPageView({
   standingsYearFilter,
   allStandingsSportFilter,
   allStandingsNaipeFilter,
+  standingsBracketGroupOptions,
+  standingsPlacementFilter,
+  allStandingsPlacementFilter,
   filteredStandings,
-  standingsShowCardColumns,
+  standingsModalidadeConfig,
   teamFilter,
   yearFilter,
   groupFilter,
@@ -86,18 +98,25 @@ export function ChampionshipsPageView({
   filteredHistoryMatches,
   isHistoryMatchesFetching,
   championshipChampionHistory,
+  overallPodiumStandings,
   matchBracketContextByMatchId,
   matchRepresentationByMatchId,
   estimatedStartTimeByMatchId,
   onSelectChampionshipCode,
-  onSportFilterChange,
   onStandingsSportFilterChange,
   onStandingsNaipeFilterChange,
   onStandingsYearFilterChange,
+  onStandingsPlacementFilterChange,
   onTeamFilterChange,
   onYearFilterChange,
   onGroupFilterChange,
 }: ChampionshipsPageViewProps) {
+  const firstPlaceTeam = overallPodiumStandings[0] ?? null;
+  const secondPlaceTeam = overallPodiumStandings[1] ?? null;
+  const thirdPlaceTeam = overallPodiumStandings[2] ?? null;
+  const isStandingsPlacementFilterDisabled =
+    standingsSportFilter == allStandingsSportFilter || standingsNaipeFilter == allStandingsNaipeFilter;
+
   if (isLoading) {
     return (
       <div className="app-page">
@@ -163,49 +182,40 @@ export function ChampionshipsPageView({
           </div>
         </section>
 
-        <SportFilter sports={sports} selected={sportFilter} onSelect={onSportFilterChange} />
-
-        <Tabs defaultValue="overview" className="enter-section space-y-4">
+        <Tabs defaultValue="standings" className="enter-section space-y-4">
           <TabsNavigationList className="grid w-full grid-cols-2">
-            <TabsNavigationTrigger value="overview">Resumo</TabsNavigationTrigger>
+            <TabsNavigationTrigger value="standings">Classificação</TabsNavigationTrigger>
             <TabsNavigationTrigger value="champions">Campeões</TabsNavigationTrigger>
           </TabsNavigationList>
 
-          <TabsContent value="overview" className="space-y-6">
-            {!selectedChampionshipIsFinished ? (
-              <section className="glass-panel enter-section p-5">
-                <h2 className="mb-4 text-center text-xl font-display font-bold sm:text-left">
-                  {nextMatches.length > 1 ? "Próximos jogos" : "Próximo jogo"}
-                </h2>
-                {isNextMatchesFetching ? (
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {Array.from({ length: 6 }).map((_, index) => (
-                      <Skeleton key={`championship-next-match-skeleton-${index}`} className="h-52 w-full rounded-2xl" />
-                    ))}
-                  </div>
-                ) : nextMatches.length > 0 ? (
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {nextMatches.map((nextMatch) => (
-                      <MatchCard
-                        key={nextMatch.id}
-                        match={nextMatch}
-                        showChampionshipBadge={false}
-                        bracketContext={matchBracketContextByMatchId[nextMatch.id]}
-                        matchRepresentation={matchRepresentationByMatchId[nextMatch.id]}
-                        estimatedStartTime={estimatedStartTimeByMatchId[nextMatch.id]}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-center text-sm text-muted-foreground sm:text-left">Nenhum jogo agendado.</p>
-                )}
-              </section>
-            ) : null}
+          <TabsContent value="standings" className="space-y-6">
+
 
             <section className="glass-panel enter-section space-y-4 p-5">
-              <h2 className="text-center text-xl font-display font-bold sm:text-left">Classificação</h2>
+              <div className="flex items-center justify-center gap-2 sm:justify-start">
+                <h2 className="text-xl font-display font-bold">Classificação</h2>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label="Informação sobre pontuação"
+                    >
+                      <HelpCircle className="h-4 w-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs text-xs">
+                    Algumas pontuações podem aparecer em formato decimal. Isso ocorre quando um multiplicador de 1,5× é
+                    aplicado para equalizar a classificação entre atléticas que jogaram em chaves de tamanhos diferentes.
+                  </TooltipContent>
+                </Tooltip>
+              </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div
+                className={`grid grid-cols-1 gap-3 ${
+                  standingsBracketGroupOptions.length > 0 ? "sm:grid-cols-2 xl:grid-cols-4" : "sm:grid-cols-3"
+                }`}
+              >
                 <Select value={standingsYearFilter} onValueChange={onStandingsYearFilterChange}>
                   <SelectTrigger className="app-input-field w-full">
                     <SelectValue placeholder="Filtrar ano" />
@@ -245,86 +255,42 @@ export function ChampionshipsPageView({
                     <SelectItem value={MatchNaipe.MISTO}>{MATCH_NAIPE_LABELS[MatchNaipe.MISTO]}</SelectItem>
                   </SelectContent>
                 </Select>
+
+                {standingsBracketGroupOptions.length > 0 ? (
+                  <Select
+                    value={standingsPlacementFilter}
+                    onValueChange={onStandingsPlacementFilterChange}
+                    disabled={isStandingsPlacementFilterDisabled}
+                  >
+                    <SelectTrigger
+                      className={`app-input-field w-full ${
+                        isStandingsPlacementFilterDisabled ? "cursor-not-allowed opacity-60" : ""
+                      }`}
+                    >
+                      <SelectValue placeholder="Posição na chave" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={allStandingsPlacementFilter}>Todas as equipes</SelectItem>
+                      <SelectItem value="first_per_group">1º de cada chave (grupo)</SelectItem>
+                      <SelectItem value="second_per_group">2º de cada chave (grupo)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : null}
               </div>
 
-              <TeamStandingsTable standings={filteredStandings} showCardColumns={standingsShowCardColumns} />
+              <TeamStandingsTable
+                standings={filteredStandings}
+                modalidadeConfig={standingsModalidadeConfig}
+                isLoading={isStandingsLoading}
+                variant="public"
+              />
             </section>
 
-            <section className="glass-panel enter-section space-y-4 p-5">
-              <h2 className="text-center text-xl font-display font-bold sm:text-left">Jogos anteriores</h2>
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-                <Select value={teamFilter} onValueChange={onTeamFilterChange}>
-                  <SelectTrigger className="app-input-field w-full sm:w-56">
-                    <SelectValue placeholder="Filtrar por atlética" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={allTeamFilter}>Todas as atléticas</SelectItem>
-                    {historyTeams.map((team) => (
-                      <SelectItem key={team.id} value={team.id}>
-                        {team.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select value={yearFilter} onValueChange={onYearFilterChange}>
-                  <SelectTrigger className="app-input-field w-full sm:w-40">
-                    <SelectValue placeholder="Filtrar por ano" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={allYearFilter}>Todos os anos</SelectItem>
-                    {historyYears.map((year) => (
-                      <SelectItem key={year} value={year}>
-                        {year}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select value={groupFilter} onValueChange={onGroupFilterChange}>
-                  <SelectTrigger className="app-input-field w-full sm:w-72">
-                    <SelectValue placeholder="Filtrar por grupo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL_GROUPS">Todos os grupos</SelectItem>
-                    {historyGroupOptions.map((groupOption) => (
-                      <SelectItem key={groupOption.value} value={groupOption.value}>
-                        {groupOption.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {isHistoryMatchesFetching ? (
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {Array.from({ length: 6 }).map((_, index) => (
-                    <Skeleton key={`championship-history-skeleton-${index}`} className="h-52 w-full rounded-2xl" />
-                  ))}
-                </div>
-              ) : filteredHistoryMatches.length == 0 ? (
-                <p className="text-center text-sm text-muted-foreground sm:text-left">Nenhum resultado registrado.</p>
-              ) : (
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {filteredHistoryMatches.map((match) => (
-                    <MatchCard
-                      key={match.id}
-                      match={match}
-                      showChampionshipBadge={false}
-                      bracketContext={matchBracketContextByMatchId[match.id]}
-                      showStartedAtDate
-                      matchRepresentation={matchRepresentationByMatchId[match.id]}
-                      estimatedStartTime={estimatedStartTimeByMatchId[match.id]}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
           </TabsContent>
 
           <TabsContent value="champions" className="space-y-4 glass-panel p-5">
-            <h2 className="text-center text-xl font-display font-bold sm:text-left">Campeões por modalidade</h2>
+            <h2 className="text-center text-xl font-display font-bold">Campeões por modalidade</h2>
 
             {championshipChampionHistory.length == 0 ? (
               <p className="text-center text-sm text-muted-foreground sm:text-left">
@@ -332,25 +298,65 @@ export function ChampionshipsPageView({
               </p>
             ) : (
               <div className="space-y-4">
-                {championshipChampionHistory.map((championshipChampionYearGroup) => (
+                {championshipChampionHistory.map((championshipChampionYearGroup, index) => (
                   <div
                     key={championshipChampionYearGroup.year}
-                    className="space-y-4 rounded-2xl app-card-muted p-4"
+                    className="space-y-4 rounded-2xl app-card-muted p-4 text-center"
                   >
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-col items-center justify-center gap-1">
                       <h3 className="font-display text-lg font-bold">{championshipChampionYearGroup.year}</h3>
                       <p className="text-xs text-muted-foreground">
                         {championshipChampionYearGroup.champions.length} modalidade(s)
                       </p>
                     </div>
 
+                    {index === 0 && (firstPlaceTeam || secondPlaceTeam || thirdPlaceTeam) ? (
+                      <div className="space-y-2">
+                        <p className="text-sm font-semibold text-muted-foreground">Pódio geral (tempo real)</p>
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                          {firstPlaceTeam ? (
+                            <div className="rounded-2xl border border-amber-400/40 bg-amber-500/10 p-4 text-center md:order-2">
+                              <div className="inline-flex items-center justify-center gap-2 rounded-full bg-amber-500/20 px-2.5 py-1 text-xs font-semibold text-amber-600 dark:bg-amber-500/25 dark:text-amber-200">
+                                <Trophy className="h-3.5 w-3.5" />
+                                1º lugar
+                              </div>
+                              <p className="mt-3 font-display text-lg font-bold">{firstPlaceTeam.team_name}</p>
+                              <p className="text-sm text-muted-foreground">{formatStandingsPoints(firstPlaceTeam.points)} pts</p>
+                            </div>
+                          ) : null}
+
+                          {secondPlaceTeam ? (
+                            <div className="rounded-2xl app-card-emphasis p-4 text-center md:order-1">
+                              <div className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-500/20 dark:text-slate-300">
+                                <Medal className="h-3.5 w-3.5" />
+                                2º lugar
+                              </div>
+                              <p className="mt-3 font-display text-lg font-bold">{secondPlaceTeam.team_name}</p>
+                              <p className="text-sm text-muted-foreground">{formatStandingsPoints(secondPlaceTeam.points)} pts</p>
+                            </div>
+                          ) : null}
+
+                          {thirdPlaceTeam ? (
+                            <div className="rounded-2xl app-card-emphasis p-4 text-center md:order-3">
+                              <div className="inline-flex items-center justify-center gap-2 rounded-full bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-600 dark:bg-orange-500/20 dark:text-orange-300">
+                                <Award className="h-3.5 w-3.5" />
+                                3º lugar
+                              </div>
+                              <p className="mt-3 font-display text-lg font-bold">{thirdPlaceTeam.team_name}</p>
+                              <p className="text-sm text-muted-foreground">{formatStandingsPoints(thirdPlaceTeam.points)} pts</p>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : null}
+
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                       {championshipChampionYearGroup.champions.map((championshipChampion) => (
                         <div
                           key={championshipChampion.match_id}
-                          className="rounded-2xl app-card-emphasis p-4"
+                          className="rounded-2xl app-card-emphasis p-4 text-center shadow-lg"
                         >
-                          <div className="space-y-1">
+                          <div className="space-y-1 text-center">
                             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                               {championshipChampion.sport_name}
                             </p>
@@ -362,22 +368,40 @@ export function ChampionshipsPageView({
                             </p>
                           </div>
 
-                          <div className="mt-4 space-y-3">
-                            <div>
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                                Equipe campeã
-                              </p>
+                          <div className="mt-4 flex flex-col items-center gap-3">
+                            <div className="flex w-full flex-col items-center justify-center gap-1 text-center">
+                              <span className="inline-flex items-center justify-center gap-1.5 rounded-full bg-amber-500/20 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-600 dark:bg-amber-500/25 dark:text-amber-200">
+                                <Trophy className="h-3.5 w-3.5" />
+                                Campeã
+                              </span>
                               <p className="font-display text-lg font-bold">{championshipChampion.champion_team_name}</p>
                             </div>
 
-                            {championshipChampion.runner_up_team_name ? (
-                              <div>
-                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                                  Vice
-                                </p>
-                                <p className="text-sm font-medium text-foreground/90">
-                                  {championshipChampion.runner_up_team_name}
-                                </p>
+                            {championshipChampion.runner_up_team_name || championshipChampion.third_place_team_name ? (
+                              <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
+                                {championshipChampion.runner_up_team_name ? (
+                                  <div className="rounded-lg border border-border/40 px-2 py-1.5 text-center">
+                                    <span className="inline-flex items-center justify-center gap-1.5 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600 dark:bg-slate-500/20 dark:text-slate-300">
+                                      <Medal className="h-3 w-3" />
+                                      Vice
+                                    </span>
+                                    <p className="mt-1 text-sm font-medium text-foreground/90">
+                                      {championshipChampion.runner_up_team_name}
+                                    </p>
+                                  </div>
+                                ) : null}
+
+                                {championshipChampion.third_place_team_name ? (
+                                  <div className="rounded-lg border border-border/40 px-2 py-1.5 text-center">
+                                    <span className="inline-flex items-center justify-center gap-1.5 rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-orange-600 dark:bg-orange-500/20 dark:text-orange-300">
+                                      <Award className="h-3 w-3" />
+                                      3º lugar
+                                    </span>
+                                    <p className="mt-1 text-sm font-medium text-foreground/90">
+                                      {championshipChampion.third_place_team_name}
+                                    </p>
+                                  </div>
+                                ) : null}
                               </div>
                             ) : null}
                           </div>

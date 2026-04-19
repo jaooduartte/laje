@@ -256,6 +256,7 @@ export type MatchRepresentationSource = Pick<
   | "created_at"
 > & {
   scheduled_slot?: number | null;
+  end_time?: Match["end_time"] | null;
   sports?: Match["sports"];
   home_team?: Match["home_team"];
   away_team?: Match["away_team"];
@@ -722,7 +723,7 @@ export function resolveMatchScheduledDateValue(match: {
   start_time: string | null;
 }): string | null {
   if (match.scheduled_date) {
-    return match.scheduled_date;
+    return match.scheduled_date.slice(0, 10);
   }
 
   if (match.start_time) {
@@ -922,6 +923,10 @@ export function resolveMatchSetSummary(match: Pick<Match, "match_sets" | "home_t
   return resolveRecordedMatchSets(match)
     .map((matchSet) => ({
       setNumber: matchSet.set_number,
+      homeTeamName,
+      awayTeamName,
+      homePoints: matchSet.home_points,
+      awayPoints: matchSet.away_points,
       text: `Set ${matchSet.set_number}: ${homeTeamName} ${matchSet.home_points} × ${matchSet.away_points} ${awayTeamName}`,
     }));
 }
@@ -1065,7 +1070,7 @@ export function resolveChampionshipBracketGroupStageOptions(
         sport_name: competition.sport_name,
         naipe: competition.naipe,
         division: competition.division,
-        label: `${competition.sport_name} • ${MATCH_NAIPE_LABELS[competition.naipe]} • ${divisionLabel} • ${resolveChampionshipGroupLabel(group.group_number)}`,
+        label: resolveChampionshipGroupLabel(group.group_number),
         team_ids: group.teams.map((team) => team.team_id),
       }));
     })

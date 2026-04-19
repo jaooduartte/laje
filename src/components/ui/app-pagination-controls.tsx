@@ -45,7 +45,7 @@ export function AppItemsPerPageControl({
 }: AppItemsPerPageControlProps) {
   const content = (
     <div className={className ?? "flex flex-wrap items-center justify-end gap-2"}>
-      <span className="text-xs text-muted-foreground">Itens por página</span>
+      <span className="hidden text-xs text-muted-foreground sm:inline">Itens por página</span>
       <Select
         value={String(itemsPerPage)}
         onValueChange={(value) => {
@@ -58,7 +58,7 @@ export function AppItemsPerPageControl({
           onItemsPerPageChange(parsedValue);
         }}
       >
-        <SelectTrigger className="app-input-field h-8 w-28">
+        <SelectTrigger className="app-input-field h-8 w-16 sm:w-28">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -106,7 +106,7 @@ export function AppPaginationControls({
       <div
         className={`rounded-2xl app-pagination-container px-3 py-2 ${
           shouldShowItemsPerPageControl
-            ? "flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+            ? "flex w-full flex-row items-center justify-between gap-2"
             : "flex items-center justify-center gap-1"
         }`}
       >

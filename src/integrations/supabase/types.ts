@@ -704,6 +704,8 @@ export type Database = {
           championship_id: string
           current_set_away_score: number | null
           current_set_home_score: number | null
+          is_walkover: boolean
+          is_score_sheet_reviewed: boolean
           court_name: string | null
           created_at: string
           division: Database["public"]["Enums"]["team_division"] | null
@@ -717,6 +719,7 @@ export type Database = {
           naipe: Database["public"]["Enums"]["match_naipe"]
           queue_position: number | null
           scheduled_slot: number | null
+          walkover_loser_team_id: string | null
           resolved_tie_break_winner_team_id: string | null
           resolved_tie_breaker_rule: Database["public"]["Enums"]["championship_sport_tie_breaker_rule"] | null
           scheduled_date: string | null
@@ -734,6 +737,8 @@ export type Database = {
           championship_id: string
           current_set_away_score?: number | null
           current_set_home_score?: number | null
+          is_walkover?: boolean
+          is_score_sheet_reviewed?: boolean
           court_name?: string | null
           created_at?: string
           division?: Database["public"]["Enums"]["team_division"] | null
@@ -747,6 +752,7 @@ export type Database = {
           naipe?: Database["public"]["Enums"]["match_naipe"]
           queue_position?: number | null
           scheduled_slot?: number | null
+          walkover_loser_team_id?: string | null
           resolved_tie_break_winner_team_id?: string | null
           resolved_tie_breaker_rule?: Database["public"]["Enums"]["championship_sport_tie_breaker_rule"] | null
           scheduled_date?: string | null
@@ -764,6 +770,8 @@ export type Database = {
           championship_id?: string
           current_set_away_score?: number | null
           current_set_home_score?: number | null
+          is_walkover?: boolean
+          is_score_sheet_reviewed?: boolean
           court_name?: string | null
           created_at?: string
           division?: Database["public"]["Enums"]["team_division"] | null
@@ -777,6 +785,7 @@ export type Database = {
           naipe?: Database["public"]["Enums"]["match_naipe"]
           queue_position?: number | null
           scheduled_slot?: number | null
+          walkover_loser_team_id?: string | null
           resolved_tie_break_winner_team_id?: string | null
           resolved_tie_breaker_rule?: Database["public"]["Enums"]["championship_sport_tie_breaker_rule"] | null
           scheduled_date?: string | null
@@ -804,6 +813,13 @@ export type Database = {
           {
             foreignKeyName: "matches_home_team_id_fkey"
             columns: ["home_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matches_walkover_loser_team_id_fkey"
+            columns: ["walkover_loser_team_id"]
             isOneToOne: false
             referencedRelation: "teams"
             referencedColumns: ["id"]
@@ -1089,6 +1105,35 @@ export type Database = {
         Args: { _bracket_edition_id?: string | null; _championship_id: string }
         Returns: Json
       }
+      get_championship_corrected_group_standings: {
+        Args: { _championship_id: string; _season_year?: number | null }
+        Returns: {
+          competition_id: string
+          correction_factor: number
+          corrected_points: number
+          division: Database["public"]["Enums"]["team_division"] | null
+          goal_diff: number
+          goals_against: number
+          goals_for: number
+          group_id: string
+          group_number: number
+          group_size: number
+          naipe: Database["public"]["Enums"]["match_naipe"]
+          points_base: number
+          points_average: number
+          red_cards: number
+          sport_id: string
+          sport_name: string
+          team_id: string
+          team_name: string
+          wins: number
+          yellow_cards: number
+        }[]
+      }
+      get_championship_bracket_resolved_tie_break_orders: {
+        Args: { _championship_id: string; _season_year?: number | null }
+        Returns: Json
+      }
       get_championship_bracket_view: {
         Args: { _championship_id: string; _season_year?: number | null }
         Returns: Json
@@ -1109,6 +1154,8 @@ export type Database = {
           sports_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
           teams_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
           users_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
+          score_sheet_review_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
+          tie_breaks_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
         }[]
       }
       get_current_admin_account: {
@@ -1160,6 +1207,10 @@ export type Database = {
       sync_championship_season_rollover: {
         Args: never
         Returns: undefined
+      }
+      swap_match_queue_slots: {
+        Args: { _source_match_id: string; _target_match_id: string }
+        Returns: Json
       }
       get_match_sets: {
         Args: { _match_id: string }
@@ -1245,6 +1296,8 @@ export type Database = {
         | "account"
         | "championship_status"
         | "settings"
+        | "score_sheet_review"
+        | "tie_breaks"
       admin_user_password_status: "PENDING" | "ACTIVE"
       app_role: "admin" | "eventos" | "mesa"
       bracket_edition_status: "DRAFT" | "GROUPS_GENERATED" | "KNOCKOUT_GENERATED"
@@ -1403,6 +1456,8 @@ export const Constants = {
         "account",
         "championship_status",
         "settings",
+        "score_sheet_review",
+        "tie_breaks",
       ],
       app_role: ["admin", "eventos", "mesa"],
       bracket_edition_status: ["DRAFT", "GROUPS_GENERATED", "KNOCKOUT_GENERATED"],

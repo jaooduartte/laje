@@ -6,12 +6,14 @@ import { useOnlineVisitorsProviderContext } from "@/components/online-visitors/O
 import { AdminTeams } from "@/components/admin/AdminTeams";
 import { AdminSports } from "@/components/admin/AdminSports";
 import { AdminMatches } from "@/components/admin/AdminMatches";
+import { AdminMatchesViewMode } from "@/components/admin/adminMatches.types";
 import { AdminMatchControl } from "@/components/admin/AdminMatchControl";
 import { AdminLeagueEvents } from "@/components/admin/AdminLeagueEvents";
 import { AdminLogs } from "@/components/admin/AdminLogs";
 import { AdminPublicAccessSettings } from "@/components/admin/AdminPublicAccessSettings";
 import { AdminAccount } from "@/components/admin/AdminAccount";
 import { AdminUsers } from "@/components/admin/AdminUsers";
+import { AdminStandings } from "@/components/admin/AdminStandings";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -45,6 +47,8 @@ interface AdminPageViewProps {
   canViewUsersTab: boolean;
   canViewAccountTab: boolean;
   canViewSettingsTab: boolean;
+  canViewScoreSheetReviewTab: boolean;
+  canViewTieBreaksTab: boolean;
   canViewChampionshipStatus: boolean;
   canManageMatches: boolean;
   canManageChampionshipStatus: boolean;
@@ -60,13 +64,19 @@ interface AdminPageViewProps {
   onChampionshipCodeChange: (value: string) => void;
   onChampionshipStatusChange: (value: string) => void;
   onSignOut: () => void;
-  onRefetchMatches: () => void;
+  onRefetchMatches: (options?: { showLoading?: boolean; showFetching?: boolean }) => void | Promise<void>;
   onRefetchChampionshipBracket: () => void;
   onRefetchTeams: () => void;
+  liveMatchesCount: number;
+  pendingTieBreaksCount: number;
 }
 
+const SCORE_SHEET_REVIEW_TAB_VALUE = "score_sheet_review";
+const TIE_BREAKS_TAB_VALUE = "tie_breaks";
+type AdminPageTabValue = AdminPanelTab | typeof SCORE_SHEET_REVIEW_TAB_VALUE | typeof TIE_BREAKS_TAB_VALUE;
+
 interface AdminTabItem {
-  value: AdminPanelTab;
+  value: AdminPageTabValue;
   label: string;
 }
 
@@ -95,6 +105,8 @@ export function AdminPageView({
   canViewUsersTab,
   canViewAccountTab,
   canViewSettingsTab,
+  canViewScoreSheetReviewTab,
+  canViewTieBreaksTab,
   canViewChampionshipStatus,
   canManageMatches,
   canManageChampionshipStatus,
@@ -113,16 +125,30 @@ export function AdminPageView({
   onRefetchMatches,
   onRefetchChampionshipBracket,
   onRefetchTeams,
+  liveMatchesCount,
+  pendingTieBreaksCount,
 }: AdminPageViewProps) {
   const adminTabItems = useMemo(() => {
     const nextAdminTabItems: AdminTabItem[] = [];
+
+    if (canViewControlTab) {
+      nextAdminTabItems.push({ value: AdminPanelTab.CONTROL, label: "Controle ao Vivo" });
+    }
 
     if (canViewMatchesTab) {
       nextAdminTabItems.push({ value: AdminPanelTab.MATCHES, label: "Jogos" });
     }
 
-    if (canViewControlTab) {
-      nextAdminTabItems.push({ value: AdminPanelTab.CONTROL, label: "Controle ao Vivo" });
+    if (canViewScoreSheetReviewTab) {
+      nextAdminTabItems.push({ value: SCORE_SHEET_REVIEW_TAB_VALUE, label: "Conferência de Súmula" });
+    }
+
+    if (canViewTieBreaksTab) {
+      nextAdminTabItems.push({ value: TIE_BREAKS_TAB_VALUE, label: "Sorteios" });
+    }
+
+    if (canViewMatchesTab) {
+      nextAdminTabItems.push({ value: AdminPanelTab.STANDINGS, label: "Classificação" });
     }
 
     if (canViewTeamsTab) {
@@ -159,6 +185,8 @@ export function AdminPageView({
     canViewEventsTab,
     canViewLogsTab,
     canViewMatchesTab,
+    canViewScoreSheetReviewTab,
+    canViewTieBreaksTab,
     canViewAccountTab,
     canViewSettingsTab,
     canViewSportsTab,
@@ -183,8 +211,9 @@ export function AdminPageView({
   }, [selectedChampionship.status]);
 
   const tabsListRef = useRef<HTMLDivElement | null>(null);
-  const tabTriggerByValueRef = useRef<Partial<Record<AdminPanelTab, HTMLButtonElement | null>>>({});
-  const [activeTab, setActiveTab] = useState<AdminPanelTab>(defaultTabValue);
+  const tabTriggerByValueRef = useRef<Partial<Record<AdminPageTabValue, HTMLButtonElement | null>>>({});
+  const refetchMatchesByActiveTabRef = useRef(onRefetchMatches);
+  const [activeTab, setActiveTab] = useState<AdminPageTabValue>(defaultTabValue);
   const [activeIndicatorLeft, setActiveIndicatorLeft] = useState(0);
   const [activeIndicatorWidth, setActiveIndicatorWidth] = useState(0);
   const [showActiveIndicator, setShowActiveIndicator] = useState(false);
@@ -224,25 +253,47 @@ export function AdminPageView({
     return () => cancelAnimationFrame(animationFrameId);
   }, [updateActiveIndicator]);
 
+  useLayoutEffect(() => {
+    const activeTabTriggerElement = tabTriggerByValueRef.current[activeTab];
+
+    if (!activeTabTriggerElement || typeof ResizeObserver == "undefined") {
+      return;
+    }
+
+    const resizeObserver = new ResizeObserver(() => {
+      updateActiveIndicator();
+    });
+
+    resizeObserver.observe(activeTabTriggerElement);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [activeTab, updateActiveIndicator]);
+
   useEffect(() => {
     window.addEventListener("resize", updateActiveIndicator);
     return () => window.removeEventListener("resize", updateActiveIndicator);
   }, [updateActiveIndicator]);
 
   useEffect(() => {
-    if (activeTab != AdminPanelTab.CONTROL) {
+    refetchMatchesByActiveTabRef.current = onRefetchMatches;
+  }, [onRefetchMatches]);
+
+  useEffect(() => {
+    if (activeTab != AdminPanelTab.CONTROL && activeTab != SCORE_SHEET_REVIEW_TAB_VALUE && activeTab != TIE_BREAKS_TAB_VALUE) {
       return;
     }
 
-    void onRefetchMatches();
+    void refetchMatchesByActiveTabRef.current();
     const refetchConfirmationTimeout = setTimeout(() => {
-      void onRefetchMatches();
+      void refetchMatchesByActiveTabRef.current();
     }, 400);
 
     return () => {
       clearTimeout(refetchConfirmationTimeout);
     };
-  }, [activeTab, onRefetchMatches]);
+  }, [activeTab]);
 
   return (
     <div className="app-page">
@@ -316,7 +367,7 @@ export function AdminPageView({
           <p className="text-sm text-muted-foreground">Perfil atual: {profileName}.</p>
         ) : null}
 
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as AdminPanelTab)} className="enter-section space-y-6">
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as AdminPageTabValue)} className="enter-section space-y-6">
           <TabsList
             ref={tabsListRef}
             className="app-pill-container relative flex h-auto w-full items-center justify-start gap-0 overflow-x-auto rounded-xl p-0"
@@ -338,15 +389,25 @@ export function AdminPageView({
                 ref={(triggerElement) => {
                   tabTriggerByValueRef.current[adminTabItem.value] = triggerElement;
                 }}
-                className="app-pill-option relative z-10 whitespace-nowrap rounded-none px-3 py-2.5 text-sm font-medium first:rounded-l-xl last:rounded-r-xl sm:px-4 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                className="app-pill-option relative z-10 flex items-center gap-1.5 whitespace-nowrap rounded-none px-3 py-2.5 text-sm font-medium first:rounded-l-xl last:rounded-r-xl sm:px-4 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
               >
                 {adminTabItem.label}
+                {adminTabItem.value === AdminPanelTab.CONTROL && liveMatchesCount > 0 && (
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground shadow-sm">
+                    {liveMatchesCount}
+                  </span>
+                )}
+                {adminTabItem.value === TIE_BREAKS_TAB_VALUE && pendingTieBreaksCount > 0 && (
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground shadow-sm">
+                    {pendingTieBreaksCount}
+                  </span>
+                )}
               </TabsTrigger>
             ))}
           </TabsList>
 
-          {canViewMatchesTab ? (
-            <TabsContent value={AdminPanelTab.MATCHES}>
+	          {canViewMatchesTab ? (
+	            <TabsContent value={AdminPanelTab.MATCHES}>
               <AdminMatches
                 matches={matches}
                 teams={teams}
@@ -359,6 +420,49 @@ export function AdminPageView({
                 estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
                 isFetchingMatches={matchesFetching}
                 canManageMatches={canManageMatches}
+                onRefetch={onRefetchMatches}
+                onRefetchChampionshipBracket={onRefetchChampionshipBracket}
+                onOpenTieBreaksTab={() => setActiveTab(TIE_BREAKS_TAB_VALUE)}
+              />
+	            </TabsContent>
+	          ) : null}
+
+	          {canViewScoreSheetReviewTab ? (
+	            <TabsContent value={SCORE_SHEET_REVIEW_TAB_VALUE}>
+	              <AdminMatches
+	                matches={matches}
+	                teams={teams}
+	                championshipSports={championshipSports}
+	                selectedChampionship={selectedChampionship}
+	                championshipBracketView={championshipBracketView}
+	                loadingChampionshipBracket={loadingChampionshipBracket}
+	                matchBracketContextByMatchId={matchBracketContextByMatchId}
+	                matchRepresentationByMatchId={matchRepresentationByMatchId}
+	                estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
+	                isFetchingMatches={matchesFetching}
+	                canManageMatches={canManageMatches}
+	                viewMode={AdminMatchesViewMode.SCORE_SHEET_REVIEW}
+	                onRefetch={onRefetchMatches}
+	                onRefetchChampionshipBracket={onRefetchChampionshipBracket}
+	              />
+	            </TabsContent>
+	          ) : null}
+
+          {canViewTieBreaksTab ? (
+            <TabsContent value={TIE_BREAKS_TAB_VALUE}>
+              <AdminMatches
+                matches={matches}
+                teams={teams}
+                championshipSports={championshipSports}
+                selectedChampionship={selectedChampionship}
+                championshipBracketView={championshipBracketView}
+                loadingChampionshipBracket={loadingChampionshipBracket}
+                matchBracketContextByMatchId={matchBracketContextByMatchId}
+                matchRepresentationByMatchId={matchRepresentationByMatchId}
+                estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
+                isFetchingMatches={matchesFetching}
+                canManageMatches={canManageMatches}
+                viewMode={AdminMatchesViewMode.TIE_BREAKS}
                 onRefetch={onRefetchMatches}
                 onRefetchChampionshipBracket={onRefetchChampionshipBracket}
               />
@@ -379,6 +483,17 @@ export function AdminPageView({
                 onRefetch={onRefetchMatches}
                 onRefetchChampionshipBracket={onRefetchChampionshipBracket}
                 canManageScoreboard={canManageScoreboard}
+              />
+            </TabsContent>
+          ) : null}
+
+          {canViewMatchesTab ? (
+            <TabsContent value={AdminPanelTab.STANDINGS}>
+              <AdminStandings
+                selectedChampionship={selectedChampionship}
+                championshipSports={championshipSports}
+                sports={sports}
+                championshipBracketView={championshipBracketView}
               />
             </TabsContent>
           ) : null}

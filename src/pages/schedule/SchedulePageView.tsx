@@ -11,9 +11,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Championship, Match, Sport, Team } from "@/lib/types";
 import type { BracketGroupFilterOption, MatchBracketContext } from "@/lib/championship";
-import { TeamDivision } from "@/lib/enums";
+import { TeamDivision, MatchStatus } from "@/lib/enums";
 import { scrollToTopOfPage } from "@/lib/scroll";
 import { TEAM_DIVISION_LABELS } from "@/lib/championship";
+import { Tabs, TabsNavigationList, TabsNavigationTrigger } from "@/components/ui/tabs";
+import { resolveMatchDisplaySlotValue, resolveMatchScheduledDateValue } from "@/lib/championship";
 
 interface SchedulePageViewProps {
   isLoading: boolean;
@@ -28,8 +30,11 @@ interface SchedulePageViewProps {
   groupFilter: string | null;
   groupOptions: BracketGroupFilterOption[];
   divisionFilter: TeamDivision;
+  statusFilter: string;
+  yearFilter: string;
   orderedDates: string[];
   groupedMatches: Record<string, Match[]>;
+  matches: Match[];
   isMatchesFetching: boolean;
   matchesCurrentPage: number;
   matchesItemsPerPage: number;
@@ -42,6 +47,8 @@ interface SchedulePageViewProps {
   onTeamFilterChange: (value: string | null) => void;
   onGroupFilterChange: (value: string | null) => void;
   onDivisionChange: (value: string) => void;
+  onStatusFilterChange: (value: MatchStatus) => void;
+  onYearFilterChange: (value: string) => void;
   onMatchesPageChange: (page: number) => void;
   onMatchesItemsPerPageChange: (value: number) => void;
 }
@@ -59,8 +66,11 @@ export function SchedulePageView({
   groupFilter,
   groupOptions,
   divisionFilter,
+  statusFilter,
+  yearFilter,
   orderedDates,
   groupedMatches,
+  matches,
   isMatchesFetching,
   matchesCurrentPage,
   matchesItemsPerPage,
@@ -73,6 +83,8 @@ export function SchedulePageView({
   onTeamFilterChange,
   onGroupFilterChange,
   onDivisionChange,
+  onStatusFilterChange,
+  onYearFilterChange,
   onMatchesPageChange,
   onMatchesItemsPerPageChange,
 }: SchedulePageViewProps) {
@@ -83,6 +95,34 @@ export function SchedulePageView({
       return carry.concat(groupedMatches[date] ?? []);
     }, []);
   }, [groupedMatches, orderedDates]);
+
+  const orderedFinishedMatches = useMemo(() => {
+    if (statusFilter != MatchStatus.FINISHED) {
+      return [];
+    }
+
+    return [...matches].sort((firstMatch, secondMatch) => {
+      const firstSlot = resolveMatchDisplaySlotValue(firstMatch) ?? 0;
+      const secondSlot = resolveMatchDisplaySlotValue(secondMatch) ?? 0;
+
+      if (firstSlot != secondSlot) {
+        return secondSlot - firstSlot;
+      }
+
+      const firstDate = resolveMatchScheduledDateValue(firstMatch) ?? "";
+      const secondDate = resolveMatchScheduledDateValue(secondMatch) ?? "";
+
+      if (firstDate != secondDate) {
+        return secondDate.localeCompare(firstDate);
+      }
+
+      const firstStartedAtTimestamp = firstMatch.start_time ? new Date(firstMatch.start_time).getTime() : 0;
+      const secondStartedAtTimestamp = secondMatch.start_time ? new Date(secondMatch.start_time).getTime() : 0;
+
+      return secondStartedAtTimestamp - firstStartedAtTimestamp;
+    });
+  }, [matches, statusFilter]);
+  const hasVisibleMatches = statusFilter == MatchStatus.FINISHED ? orderedFinishedMatches.length > 0 : orderedMatches.length > 0;
 
   useEffect(() => {
     if (!hasHandledPaginationScrollRef.current) {
@@ -144,6 +184,17 @@ export function SchedulePageView({
           </div>
         </section>
 
+        <Tabs
+          value={statusFilter}
+          onValueChange={(v) => onStatusFilterChange(v)}
+          className="enter-section space-y-4"
+        >
+          <TabsNavigationList className="grid w-full grid-cols-2">
+            <TabsNavigationTrigger value={MatchStatus.SCHEDULED}>Próximos jogos</TabsNavigationTrigger>
+            <TabsNavigationTrigger value={MatchStatus.FINISHED}>Jogos anteriores</TabsNavigationTrigger>
+          </TabsNavigationList>
+        </Tabs>
+
         <div className="glass-panel enter-section grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
           <Select value={selectedChampionshipCode} onValueChange={onChampionshipCodeChange}>
             <SelectTrigger className="app-input-field w-full">
@@ -200,6 +251,20 @@ export function SchedulePageView({
               </SelectContent>
             </Select>
           ) : null}
+
+          <Select value={yearFilter} onValueChange={onYearFilterChange}>
+            <SelectTrigger className="app-input-field w-full">
+              <SelectValue placeholder="Ano" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL_YEARS">Todos os anos</SelectItem>
+              {selectedChampionship.current_season_year && (
+                <SelectItem value={String(selectedChampionship.current_season_year)}>
+                  {selectedChampionship.current_season_year}
+                </SelectItem>
+              )}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="space-y-3">
@@ -211,15 +276,40 @@ export function SchedulePageView({
             <div className="space-y-4">
               <section className="glass-panel enter-section p-4">
                 <Skeleton className="mb-3 h-4 w-56 rounded-lg" />
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid items-center gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {Array.from({ length: Math.max(3, matchesItemsPerPage) }).map((_, index) => (
                     <Skeleton key={`schedule-skeleton-${index}`} className="h-52 w-full rounded-2xl" />
                   ))}
                 </div>
               </section>
             </div>
-          ) : orderedMatches.length == 0 ? (
+          ) : !hasVisibleMatches ? (
             <p className="text-muted-foreground">Nenhum jogo encontrado.</p>
+          ) : statusFilter == MatchStatus.FINISHED ? (
+            <div className="space-y-4">
+              <section className="glass-panel enter-section p-4">
+                <div className="grid items-center gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {orderedFinishedMatches.map((match) => (
+                    <MatchCard
+                      key={match.id}
+                      match={match}
+                      showChampionshipBadge={false}
+                      bracketContext={matchBracketContextByMatchId[match.id]}
+                      matchRepresentation={matchRepresentationByMatchId[match.id]}
+                      estimatedStartTime={estimatedStartTimeByMatchId[match.id]}
+                    />
+                  ))}
+                </div>
+              </section>
+
+              <AppPaginationControls
+                currentPage={matchesCurrentPage}
+                totalPages={matchesTotalPages}
+                onPageChange={onMatchesPageChange}
+                itemsPerPage={matchesItemsPerPage}
+                onItemsPerPageChange={onMatchesItemsPerPageChange}
+              />
+            </div>
           ) : (
             <div className="space-y-4">
               {orderedDates.map((date) => (
@@ -227,7 +317,7 @@ export function SchedulePageView({
                   <h3 className="mb-3 text-sm font-display font-semibold uppercase tracking-wider text-muted-foreground">
                     {format(new Date(`${date}T12:00:00`), "EEEE, dd 'de' MMMM", { locale: ptBR })}
                   </h3>
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid items-center gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     {groupedMatches[date].map((match) => (
                       <MatchCard
                         key={match.id}

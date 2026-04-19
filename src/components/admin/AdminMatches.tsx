@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CheckedState } from "@radix-ui/react-checkbox";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { AlertTriangle, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { AlertTriangle, Check, Clock, EyeOff, Loader2, MoreVertical, Pencil, Plus, Radio, RefreshCw, Square, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -11,16 +11,31 @@ import {
   generateChampionshipKnockout,
   saveMatchSets,
   saveChampionshipBracketTieBreakResolution,
+  swapChampionshipKnockoutBracketTeams,
 } from "@/domain/championship-brackets/championshipBracket.repository";
 import type {
+  ChampionshipCorrectedGroupStanding,
   ChampionshipBracketLocationTemplate,
   ChampionshipBracketScheduleDayInput,
   ChampionshipBracketTieBreakPendingContext,
+  MatchSetInput,
 } from "@/domain/championship-brackets/championshipBracket.types";
-import type { Championship, ChampionshipBracketView, ChampionshipSport, Match, Sport, Team } from "@/lib/types";
+import {
+  resolveChampionshipBracketFirstRoundSeedIndexes,
+  resolveChampionshipBracketKnockoutProjection,
+  resolveChampionshipBracketSeedPlaceholderLabels,
+} from "@/domain/championship-brackets/championshipBracketKnockoutProjection";
+import type {
+  Championship,
+  ChampionshipBracketCompetition,
+  ChampionshipBracketView,
+  ChampionshipSport,
+  Match,
+  Sport,
+  Team,
+} from "@/lib/types";
 import {
   AppBadgeTone,
-  BracketEditionStatus,
   BracketPhase,
   ChampionshipSportResultRule,
   ChampionshipSportTieBreakerRule,
@@ -54,6 +69,8 @@ import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   type MatchBracketContext,
   doesChampionshipSportSupportNaipe,
@@ -70,12 +87,14 @@ import {
   resolveMatchQueueLabel,
   resolveMatchNaipeBadgeTone,
   resolveMatchNaipeLabel,
+  resolveRecordedMatchSets,
   resolveMatchScheduledDateValue,
   resolveMatchSetSummary,
   resolveMatchStartedAtLabel,
   resolveMatchStatusBadgeTone,
   resolveMatchStatusLabel,
   resolveMatchTieBreakRuleLabel,
+  resolveKnockoutRoundLabel,
 } from "@/lib/championship";
 import { AppBadge } from "@/components/ui/app-badge";
 import { scrollToTopOfPage } from "@/lib/scroll";
@@ -84,6 +103,18 @@ import {
   DEFAULT_PAGINATION_ITEMS_PER_PAGE,
 } from "@/components/ui/app-pagination-controls";
 import { SportFilter } from "@/components/SportFilter";
+import {
+  resolveIsTieBreakTeamOrderReady,
+  resolveNormalizedTieBreakTeamOrder,
+} from "@/components/admin/adminMatchesTieBreak.utils";
+import {
+  resolveIsMatchEligibleForQueueSwap,
+  resolveMatchSwapDisplaySlot,
+  resolveMatchSwapOptionLabel,
+} from "@/components/admin/adminMatchesSwap.utils";
+import { AdminMatchesViewMode } from "@/components/admin/adminMatches.types";
+import { useChampionshipCorrectedGroupStandings } from "@/hooks/useChampionshipCorrectedGroupStandings";
+import { formatPointsAverageForStandings, formatStandingsPoints } from "@/lib/standings";
 
 type BracketMatchRowLite = {
   id: string;
@@ -123,6 +154,84 @@ type SupabaseLooseClient = {
 
 const supabaseLoose = supabase as unknown as SupabaseLooseClient;
 
+interface KnockoutMatchBinding {
+  competition: ChampionshipBracketCompetition;
+  round_number: number;
+  slot_number: number;
+  is_third_place: boolean;
+}
+
+interface KnockoutMatchSourceLabels {
+  home: string;
+  away: string;
+}
+
+function resolveKnockoutTotalRounds(bracketSize: number): number {
+  let totalRounds = 1;
+
+  while (2 ** totalRounds < bracketSize) {
+    totalRounds += 1;
+  }
+
+  return totalRounds;
+}
+
+function resolveWinnerSourceLabel(roundNumber: number, slotNumber: number, totalRounds: number): string {
+  const shortRoundLabel = resolveKnockoutRoundLabel(roundNumber, totalRounds).replace(" de final", "");
+  const article = shortRoundLabel == "Semifinal" || shortRoundLabel == "Final" ? "da" : "das";
+
+  return `Vencedor ${article} ${shortRoundLabel} ${slotNumber}`;
+}
+
+function resolveKnockoutMatchSourceLabels(knockoutMatchBinding: KnockoutMatchBinding | null): KnockoutMatchSourceLabels | null {
+  if (!knockoutMatchBinding) {
+    return null;
+  }
+
+  if (knockoutMatchBinding.is_third_place) {
+    return {
+      home: "Perdedor da Semifinal 1",
+      away: "Perdedor da Semifinal 2",
+    };
+  }
+
+  const knockoutProjection = resolveChampionshipBracketKnockoutProjection({
+    groups_count: knockoutMatchBinding.competition.groups_count,
+    qualifiers_per_group: knockoutMatchBinding.competition.qualifiers_per_group,
+    should_complete_knockout_with_best_second_placed_teams:
+      knockoutMatchBinding.competition.should_complete_knockout_with_best_second_placed_teams,
+  });
+
+  if (knockoutProjection.projected_bracket_size < 2 || knockoutMatchBinding.slot_number < 1 || knockoutMatchBinding.round_number < 1) {
+    return null;
+  }
+
+  const totalRounds = resolveKnockoutTotalRounds(knockoutProjection.projected_bracket_size);
+
+  if (knockoutMatchBinding.round_number == 1) {
+    const seedLabels = resolveChampionshipBracketSeedPlaceholderLabels({
+      groups_count: knockoutMatchBinding.competition.groups_count,
+      qualifiers_per_group: knockoutMatchBinding.competition.qualifiers_per_group,
+      should_complete_knockout_with_best_second_placed_teams:
+        knockoutMatchBinding.competition.should_complete_knockout_with_best_second_placed_teams,
+    });
+    const firstRoundSeedIndexes = resolveChampionshipBracketFirstRoundSeedIndexes(
+      knockoutProjection.projected_bracket_size,
+      knockoutMatchBinding.slot_number,
+    );
+
+    return {
+      home: seedLabels[firstRoundSeedIndexes.home_seed_index] ?? "A definir",
+      away: seedLabels[firstRoundSeedIndexes.away_seed_index] ?? "A definir",
+    };
+  }
+
+  return {
+    home: resolveWinnerSourceLabel(knockoutMatchBinding.round_number - 1, (knockoutMatchBinding.slot_number * 2) - 1, totalRounds),
+    away: resolveWinnerSourceLabel(knockoutMatchBinding.round_number - 1, knockoutMatchBinding.slot_number * 2, totalRounds),
+  };
+}
+
 function resolveMatchDisplaySlotValue(
   match: Match & { scheduled_slot?: number | null },
   shouldUseScheduledSlot: boolean,
@@ -146,7 +255,9 @@ interface Props {
   estimatedStartTimeByMatchId?: Record<string, string>;
   isFetchingMatches?: boolean;
   canManageMatches?: boolean;
-  onRefetch: () => void;
+  viewMode?: AdminMatchesViewMode;
+  onOpenTieBreaksTab?: () => void;
+  onRefetch: (options?: { showLoading?: boolean; showFetching?: boolean }) => void | Promise<void>;
   onRefetchChampionshipBracket: () => void;
 }
 
@@ -154,14 +265,25 @@ interface MatchEditDraft {
   sportId: string;
   homeTeamId: string;
   awayTeamId: string;
+  homeScore: number;
+  awayScore: number;
+  homeYellowCards: number;
+  homeRedCards: number;
+  awayYellowCards: number;
+  awayRedCards: number;
   location: string;
   scheduledDate: Date | null;
+  startTime: Date | null;
+  gameSlot: string;
   division: TeamDivision;
   naipe: MatchNaipe;
   status: MatchStatus;
   selectedGroupOptionValue: string;
   resolvedTieBreakerRule: ChampionshipSportTieBreakerRule | "";
 }
+
+type ScoreSheetReviewSaveDecision = "KEEP_REVIEW" | "REMOVE_REVIEW";
+type BulkReviewAction = "MARK" | "UNMARK";
 
 const NAIPE_OPTIONS: MatchNaipe[] = [MatchNaipe.MASCULINO, MatchNaipe.FEMININO, MatchNaipe.MISTO];
 const ALL_MATCHES_SPORT_FILTER = "ALL_MATCHES_SPORTS";
@@ -175,6 +297,8 @@ const MATCHES_STATUS_FILTER_FINISHED = "MATCHES_STATUS_FILTER_FINISHED";
 const MATCHES_STATUS_FILTER_OPEN = "MATCHES_STATUS_FILTER_OPEN";
 const EMPTY_GROUP_OPTION_VALUE = "EMPTY_GROUP_OPTION_VALUE";
 const EMPTY_TIE_BREAKER_RULE_OPTION_VALUE = "EMPTY_TIE_BREAKER_RULE_OPTION_VALUE";
+const EMPTY_TIE_BREAK_TEAM_OPTION_VALUE = "EMPTY_TIE_BREAK_TEAM_OPTION_VALUE";
+const EMPTY_SWAP_MATCH_OPTION_VALUE = "EMPTY_SWAP_MATCH_OPTION_VALUE";
 
 const MATCH_STATUS_SORT_ORDER: Record<MatchStatus, number> = {
   [MatchStatus.LIVE]: 0,
@@ -182,8 +306,85 @@ const MATCH_STATUS_SORT_ORDER: Record<MatchStatus, number> = {
   [MatchStatus.FINISHED]: 2,
 };
 
+type SwapMatchQueueSlotsResponse = {
+  source_match_id: string;
+  target_match_id: string;
+  source_previous_slot: number;
+  target_previous_slot: number;
+  source_next_slot: number;
+  target_next_slot: number;
+};
+
 function resolveDateOnlyString(date: Date): string {
   return format(date, "yyyy-MM-dd");
+}
+
+function resolveSafeScoreValue(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.trunc(value));
+}
+
+function resolveParsedScoreInputValue(value: string): number {
+  const trimmedValue = value.trim();
+
+  if (trimmedValue.length == 0) {
+    return 0;
+  }
+
+  return resolveSafeScoreValue(Number.parseInt(trimmedValue, 10));
+}
+
+function resolveNormalizedGameSlotDraft(value: string): string {
+  const trimmedValue = value.trim();
+
+  if (trimmedValue.length == 0) {
+    return "";
+  }
+
+  const parsedSlotNumber = Number.parseInt(trimmedValue, 10);
+
+  if (!Number.isFinite(parsedSlotNumber) || parsedSlotNumber <= 0) {
+    return "";
+  }
+
+  return String(parsedSlotNumber);
+}
+
+function resolveSetWins(matchSets: MatchSetInput[]) {
+  return matchSets.reduce(
+    (total, matchSet) => {
+      if (matchSet.home_points > matchSet.away_points) {
+        return {
+          home_sets: total.home_sets + 1,
+          away_sets: total.away_sets,
+        };
+      }
+
+      if (matchSet.away_points > matchSet.home_points) {
+        return {
+          home_sets: total.home_sets,
+          away_sets: total.away_sets + 1,
+        };
+      }
+
+      return total;
+    },
+    {
+      home_sets: 0,
+      away_sets: 0,
+    },
+  );
+}
+
+function resolveNormalizedMatchSetsDraft(matchSetsDraft: MatchSetInput[]): MatchSetInput[] {
+  return matchSetsDraft.map((matchSet, matchSetIndex) => ({
+    set_number: matchSetIndex + 1,
+    home_points: resolveSafeScoreValue(matchSet.home_points),
+    away_points: resolveSafeScoreValue(matchSet.away_points),
+  }));
 }
 
 function resolveScheduledDateDraftValue(match: Match): Date | null {
@@ -222,7 +423,19 @@ function resolveAdminMatchesOperationalErrorMessage(error: { code?: string; mess
   }
 
   if (error.code == "42702" && error.message.includes("team_id_value")) {
-    return "A migration 20260316013000_add_match_live_set_progress_and_tie_break_metadata.sql ainda não foi aplicada no banco. Rode npx supabase db push para atualizar a função de sorteio.";
+    return "A função de sorteio manual no banco está desatualizada. Rode npx supabase db push para aplicar a migration de correção de ambiguidade do team_id_value.";
+  }
+
+  if (error.code == "42702" && error.message.includes("bracket_edition_id")) {
+    return "A função generate_championship_knockout do banco está desatualizada. Rode npx supabase db push para aplicar a migration de correção de ambiguidade do bracket_edition_id.";
+  }
+
+  if (
+    error.code == "22P02" &&
+    error.message.includes("bracket_third_place_mode") &&
+    error.message.includes("REQUIRED")
+  ) {
+    return "A função de geração do mata-mata no banco está desatualizada (third_place_mode inválido). Rode npx supabase db push para aplicar a migration de correção.";
   }
 
   return error.message;
@@ -284,9 +497,14 @@ export function AdminMatches({
   estimatedStartTimeByMatchId = {},
   isFetchingMatches = false,
   canManageMatches = true,
+  viewMode = AdminMatchesViewMode.DEFAULT,
+  onOpenTieBreaksTab,
   onRefetch,
   onRefetchChampionshipBracket,
 }: Props) {
+  const isScoreSheetReviewMode = viewMode == AdminMatchesViewMode.SCORE_SHEET_REVIEW;
+  const isTieBreaksMode = viewMode == AdminMatchesViewMode.TIE_BREAKS;
+  const defaultMatchesStatusFilter = isScoreSheetReviewMode ? MATCHES_STATUS_FILTER_FINISHED : ALL_MATCHES_STATUS_FILTER;
   const [naipe, setNaipe] = useState<MatchNaipe>(MatchNaipe.MASCULINO);
   const [sportId, setSportId] = useState("");
   const [homeTeamId, setHomeTeamId] = useState("");
@@ -298,7 +516,7 @@ export function AdminMatches({
   const [editingMatchId, setEditingMatchId] = useState<string | null>(null);
   const [editingMatchDraft, setEditingMatchDraft] = useState<MatchEditDraft | null>(null);
   const [matchesSportFilter, setMatchesSportFilter] = useState<string>(ALL_MATCHES_SPORT_FILTER);
-  const [matchesStatusFilter, setMatchesStatusFilter] = useState<string>(ALL_MATCHES_STATUS_FILTER);
+  const [matchesStatusFilter, setMatchesStatusFilter] = useState<string>(defaultMatchesStatusFilter);
   const [matchesTeamFilter, setMatchesTeamFilter] = useState<string>(ALL_MATCHES_TEAM_FILTER);
   const [matchesNaipeFilter, setMatchesNaipeFilter] = useState<string>(ALL_MATCHES_NAIPE_FILTER);
   const [matchesDivisionFilter, setMatchesDivisionFilter] = useState<string>(ALL_MATCHES_DIVISION_FILTER);
@@ -313,29 +531,42 @@ export function AdminMatches({
   const [showDeleteMatchDialog, setShowDeleteMatchDialog] = useState(false);
   const [pendingDeleteMatchId, setPendingDeleteMatchId] = useState<string | null>(null);
   const [pendingDeleteMatchLabel, setPendingDeleteMatchLabel] = useState("");
+  const [showSwapMatchDialog, setShowSwapMatchDialog] = useState(false);
+  const [pendingSwapSourceMatchId, setPendingSwapSourceMatchId] = useState<string | null>(null);
+  const [pendingSwapTargetMatchId, setPendingSwapTargetMatchId] = useState("");
+  const [swappingMatches, setSwappingMatches] = useState(false);
   const [showDeleteSelectedMatchesDialog, setShowDeleteSelectedMatchesDialog] = useState(false);
+  const [creatingMatch, setCreatingMatch] = useState(false);
   const [locationTemplates, setLocationTemplates] = useState<ChampionshipBracketLocationTemplate[]>([]);
   const [loadingLocationTemplates, setLoadingLocationTemplates] = useState(false);
   const [pendingTieBreakContexts, setPendingTieBreakContexts] = useState<ChampionshipBracketTieBreakPendingContext[]>([]);
   const [loadingPendingTieBreakContexts, setLoadingPendingTieBreakContexts] = useState(false);
   const [showTieBreakDialog, setShowTieBreakDialog] = useState(false);
   const [savingTieBreakResolutions, setSavingTieBreakResolutions] = useState(false);
+  const [savingTieBreakResolutionByContextKey, setSavingTieBreakResolutionByContextKey] = useState<Record<string, boolean>>({});
   const [draftTieBreakTeamIdsByContextKey, setDraftTieBreakTeamIdsByContextKey] = useState<Record<string, string[]>>({});
+  const [editingMatchSetsDraft, setEditingMatchSetsDraft] = useState<MatchSetInput[]>([]);
+  const [hideReviewedMatches, setHideReviewedMatches] = useState(false);
+  const [savingReviewStateByMatchId, setSavingReviewStateByMatchId] = useState<Record<string, boolean>>({});
+  const [bulkReviewAction, setBulkReviewAction] = useState<BulkReviewAction | null>(null);
+  const [showEditReviewConfirmationDialog, setShowEditReviewConfirmationDialog] = useState(false);
   const hasHandledPaginationScrollRef = useRef(false);
+  const hasAttemptedKnockoutCatchUpRef = useRef<string | null>(null);
+  const hasInitializedFilterRefetchRef = useRef(false);
+  const hasInitializedPaginationRefetchRef = useRef(false);
+  const {
+    correctedGroupStandings,
+    loading: loadingCorrectedGroupStandings,
+    refetch: refetchCorrectedGroupStandings,
+  } = useChampionshipCorrectedGroupStandings({
+    championshipId: selectedChampionship.id,
+    seasonYear: selectedChampionship.current_season_year ?? null,
+    enabled: isTieBreaksMode,
+  });
 
   const championshipUsesDivisions = selectedChampionship.uses_divisions;
   const hasConfiguredBracket =
     championshipBracketView.edition != null && championshipBracketView.competitions.length > 0;
-  const bracketGroupMatchesProgress = useMemo(() => {
-    const groupMatches = championshipBracketView.competitions.flatMap((competition) => {
-      return competition.groups.flatMap((group) => group.matches);
-    });
-
-    return {
-      total: groupMatches.length,
-      pending: groupMatches.filter((match) => match.status != MatchStatus.FINISHED).length,
-    };
-  }, [championshipBracketView.competitions]);
   const availableSportsForCreate = useMemo(() => {
     return resolveSportsByNaipe(championshipSports, naipe);
   }, [championshipSports, naipe]);
@@ -348,9 +579,105 @@ export function AdminMatches({
     return resolveSportsByNaipe(championshipSports, editingMatchDraft.naipe);
   }, [championshipSports, editingMatchDraft]);
 
+  const championshipSportResultRuleBySportId = useMemo(() => {
+    const championshipSportResultRuleMap = new Map<string, ChampionshipSportResultRule>();
+
+    championshipSports.forEach((championshipSport) => {
+      championshipSportResultRuleMap.set(championshipSport.sport_id, championshipSport.result_rule);
+    });
+
+    return championshipSportResultRuleMap;
+  }, [championshipSports]);
+
+  const championshipSportSupportsCardsBySportId = useMemo(() => {
+    const championshipSportSupportsCardsMap = new Map<string, boolean>();
+
+    championshipSports.forEach((championshipSport) => {
+      championshipSportSupportsCardsMap.set(championshipSport.sport_id, championshipSport.supports_cards);
+    });
+
+    return championshipSportSupportsCardsMap;
+  }, [championshipSports]);
+
+  const isEditingSetRuleMatch = useMemo(() => {
+    if (!editingMatchDraft) {
+      return false;
+    }
+
+    return championshipSportResultRuleBySportId.get(editingMatchDraft.sportId) == ChampionshipSportResultRule.SETS;
+  }, [championshipSportResultRuleBySportId, editingMatchDraft]);
+
+  const isEditingSportWithCards = useMemo(() => {
+    if (!editingMatchDraft) {
+      return false;
+    }
+
+    return championshipSportSupportsCardsBySportId.get(editingMatchDraft.sportId) == true;
+  }, [championshipSportSupportsCardsBySportId, editingMatchDraft]);
+
+  const championshipSportShowsTimeBySportId = useMemo(() => {
+    const map = new Map<string, boolean>();
+    championshipSports.forEach((s) => {
+      map.set(s.sport_id, s.show_estimated_start_time_on_cards);
+    });
+    return map;
+  }, [championshipSports]);
+
+  const isEditingSportWithTime = useMemo(() => {
+    if (!editingMatchDraft) {
+      return false;
+    }
+    return championshipSportShowsTimeBySportId.get(editingMatchDraft.sportId) == true;
+  }, [championshipSportShowsTimeBySportId, editingMatchDraft]);
+
   const championshipBracketScheduleDays = useMemo(() => {
     return resolveChampionshipBracketScheduleDays(championshipBracketView);
   }, [championshipBracketView]);
+
+  const shouldUseScheduledSlotInMatchList = matchesSportFilter === ALL_MATCHES_SPORT_FILTER;
+
+  const availableQueuePositionsForEditingMatch = useMemo(() => {
+    const usedPositions = new Set<number>();
+
+    // Inclui a posição atual do jogo em edição para garantir que ela sempre apareça na lista
+    if (editingMatchDraft?.gameSlot) {
+      const currentSlot = Number.parseInt(editingMatchDraft.gameSlot, 10);
+      if (Number.isFinite(currentSlot) && currentSlot > 0) {
+        usedPositions.add(currentSlot);
+      }
+    }
+
+    if (editingMatchDraft?.scheduledDate) {
+      const scheduledDateString = resolveDateOnlyString(editingMatchDraft.scheduledDate);
+      const matchesOnSameDate = matches.filter((m) => {
+        if (resolveMatchScheduledDateValue(m) !== scheduledDateString) return false;
+        // Quando filtrado por esporte, restringe ao mesmo esporte para não inflar posições com slots de outras modalidades
+        if (!shouldUseScheduledSlotInMatchList && editingMatchDraft.sportId) {
+          return m.sport_id === editingMatchDraft.sportId;
+        }
+        return true;
+      });
+
+      for (const m of matchesOnSameDate) {
+        const slot = shouldUseScheduledSlotInMatchList
+          ? (m.scheduled_slot ?? m.queue_position)
+          : (m.queue_position ?? m.scheduled_slot);
+        if (slot != null) usedPositions.add(slot);
+      }
+    }
+
+    if (usedPositions.size === 0) {
+      return [];
+    }
+
+    const maxPosition = Math.max(...usedPositions);
+    const positions = [];
+    for (let i = 1; i <= maxPosition; i++) {
+      positions.push(i);
+    }
+
+    return positions;
+  }, [editingMatchDraft?.scheduledDate, editingMatchDraft?.gameSlot, editingMatchDraft?.sportId, shouldUseScheduledSlotInMatchList, matches, editingMatchId]);
 
   const championshipDayDates = useMemo(() => {
     const payloadScheduleDayDates = championshipBracketScheduleDays
@@ -424,13 +751,17 @@ export function AdminMatches({
   }, [availableLocationOptions, editingMatchDraft?.location]);
 
   const teamsAllowedForMatches = useMemo(() => {
+    if (!championshipUsesDivisions) {
+      return teams;
+    }
     return teams.filter((team) => team.division != null);
-  }, [teams]);
+  }, [championshipUsesDivisions, teams]);
 
   const loadPendingTieBreakContexts = useCallback(async () => {
     if (!championshipBracketView.edition?.id) {
       setPendingTieBreakContexts([]);
       setDraftTieBreakTeamIdsByContextKey({});
+      setSavingTieBreakResolutionByContextKey({});
       setLoadingPendingTieBreakContexts(false);
       return;
     }
@@ -450,6 +781,7 @@ export function AdminMatches({
     }
 
     setPendingTieBreakContexts(response.data);
+    setSavingTieBreakResolutionByContextKey({});
     setDraftTieBreakTeamIdsByContextKey(() => {
       return response.data.reduce<Record<string, string[]>>((carry, pendingTieBreakContext) => {
         carry[pendingTieBreakContext.context_key] = [];
@@ -495,24 +827,81 @@ export function AdminMatches({
     setSelectedGroupOptionValue("");
     setEditingMatchId(null);
     setEditingMatchDraft(null);
+    setEditingMatchSetsDraft([]);
     setSavingEditingMatch(false);
+    setShowSwapMatchDialog(false);
+    setPendingSwapSourceMatchId(null);
+    setPendingSwapTargetMatchId("");
+    setSwappingMatches(false);
+    setShowEditReviewConfirmationDialog(false);
     setMatchesSportFilter(ALL_MATCHES_SPORT_FILTER);
+    setMatchesStatusFilter(defaultMatchesStatusFilter);
     setMatchesTeamFilter(ALL_MATCHES_TEAM_FILTER);
     setMatchesNaipeFilter(ALL_MATCHES_NAIPE_FILTER);
     setMatchesDivisionFilter(ALL_MATCHES_DIVISION_FILTER);
     setMatchesGroupFilter(ALL_MATCHES_GROUP_FILTER);
+    setHideReviewedMatches(false);
+    setCreatingMatch(false);
+    setBulkReviewAction(null);
+    setSavingReviewStateByMatchId({});
     setSelectedMatchIds([]);
     setMatchesCurrentPage(1);
     setMatchesItemsPerPage(DEFAULT_PAGINATION_ITEMS_PER_PAGE);
-  }, [selectedChampionship.id]);
+  }, [defaultMatchesStatusFilter, selectedChampionship.id]);
+
+  useEffect(() => {
+    setMatchesStatusFilter(defaultMatchesStatusFilter);
+    setHideReviewedMatches(false);
+    setBulkReviewAction(null);
+    setSelectedMatchIds([]);
+  }, [defaultMatchesStatusFilter, isScoreSheetReviewMode]);
 
   useEffect(() => {
     void loadPendingTieBreakContexts();
   }, [loadPendingTieBreakContexts]);
 
   useEffect(() => {
+    if (!isScoreSheetReviewMode || !canManageMatches || !championshipBracketView.edition?.id) {
+      return;
+    }
+
+    const reconciliationKey = `${selectedChampionship.id}:${championshipBracketView.edition.id}`;
+
+    if (hasAttemptedKnockoutCatchUpRef.current == reconciliationKey) {
+      return;
+    }
+
+    hasAttemptedKnockoutCatchUpRef.current = reconciliationKey;
+
+    void (async () => {
+      const knockoutResponse = await generateChampionshipKnockout(
+        selectedChampionship.id,
+        championshipBracketView.edition?.id,
+      );
+
+      if (knockoutResponse.error) {
+        console.info("Reconciliação automática do mata-mata não aplicou alterações:", knockoutResponse.error.message);
+        return;
+      }
+
+      await Promise.all([onRefetchChampionshipBracket(), loadPendingTieBreakContexts()]);
+    })();
+  }, [
+    canManageMatches,
+    championshipBracketView.edition?.id,
+    isScoreSheetReviewMode,
+    loadPendingTieBreakContexts,
+    onRefetchChampionshipBracket,
+    selectedChampionship.id,
+  ]);
+
+  useEffect(() => {
+    if (isTieBreaksMode) {
+      return;
+    }
+
     void loadLocationTemplates();
-  }, [loadLocationTemplates]);
+  }, [isTieBreaksMode, loadLocationTemplates]);
 
   useEffect(() => {
     setSportId("");
@@ -547,8 +936,29 @@ export function AdminMatches({
   }, [matches, teams]);
 
   const groupsForMatchesFilter = useMemo(() => {
-    return resolveBracketGroupFilterOptions(matchBracketContextByMatchId);
-  }, [matchBracketContextByMatchId]);
+    const allOptions = resolveChampionshipBracketGroupStageOptions(championshipBracketView);
+
+    const filteredOptions = allOptions.filter((option) => {
+      const sportMatch =
+        matchesSportFilter == ALL_MATCHES_SPORT_FILTER || option.sport_id == matchesSportFilter;
+      const naipeMatch =
+        matchesNaipeFilter == ALL_MATCHES_NAIPE_FILTER || option.naipe == matchesNaipeFilter;
+      const divisionMatch =
+        matchesDivisionFilter == ALL_MATCHES_DIVISION_FILTER || option.division == matchesDivisionFilter;
+
+      return sportMatch && naipeMatch && divisionMatch;
+    });
+
+    const uniqueGroups = new Map<string, string>();
+    filteredOptions.forEach((option) => {
+      const groupLabel = resolveChampionshipGroupLabel(option.group_number);
+      uniqueGroups.set(groupLabel, groupLabel);
+    });
+
+    return [...uniqueGroups.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((firstGroupOption, secondGroupOption) => firstGroupOption.label.localeCompare(secondGroupOption.label));
+  }, [championshipBracketView, matchesDivisionFilter, matchesNaipeFilter, matchesSportFilter]);
 
   const championshipBracketGroupStageOptions = useMemo(() => {
     return resolveChampionshipBracketGroupStageOptions(championshipBracketView);
@@ -588,6 +998,25 @@ export function AdminMatches({
     return resolveGroupStageMatchBindingByMatchId(championshipBracketView);
   }, [championshipBracketView]);
 
+  const knockoutMatchBindingByMatchId = useMemo(() => {
+    return championshipBracketView.competitions.reduce<Record<string, KnockoutMatchBinding>>((carry, competition) => {
+      competition.knockout_matches.forEach((knockoutMatch) => {
+        if (!knockoutMatch.match_id) {
+          return;
+        }
+
+        carry[knockoutMatch.match_id] = {
+          competition,
+          round_number: knockoutMatch.round_number,
+          slot_number: knockoutMatch.slot_number,
+          is_third_place: knockoutMatch.is_third_place,
+        };
+      });
+
+      return carry;
+    }, {});
+  }, [championshipBracketView.competitions]);
+
   const editingMatch = useMemo(() => {
     if (!editingMatchId) {
       return null;
@@ -603,6 +1032,18 @@ export function AdminMatches({
 
     return groupStageMatchBracketBindingByMatchId[editingMatchId] ?? null;
   }, [editingMatchId, groupStageMatchBracketBindingByMatchId]);
+
+  const editingKnockoutMatchBinding = useMemo(() => {
+    if (!editingMatchId) {
+      return null;
+    }
+
+    return knockoutMatchBindingByMatchId[editingMatchId] ?? null;
+  }, [editingMatchId, knockoutMatchBindingByMatchId]);
+
+  const editingKnockoutMatchSourceLabels = useMemo(() => {
+    return resolveKnockoutMatchSourceLabels(editingKnockoutMatchBinding);
+  }, [editingKnockoutMatchBinding]);
 
   const editingMatchGroupOptions = useMemo(() => {
     if (!editingMatchDraft) {
@@ -648,6 +1089,38 @@ export function AdminMatches({
     return teamsAllowedForMatches.filter((team) => team.division === editingMatchDraft.division);
   }, [championshipUsesDivisions, editingMatchDraft, selectedEditingGroupOption, teamsAllowedForMatches]);
 
+  // match_id → competition_id para matches do primeiro round do KO (MAX round_number)
+  const knockoutFirstRoundBracketMatchByMatchId = useMemo(() => {
+    const map: Record<string, { competition_id: string }> = {};
+    for (const competition of championshipBracketView.competitions ?? []) {
+      const maxRound = Math.max(0, ...(competition.knockout_matches ?? []).map((km) => km.round_number));
+      if (maxRound === 0) continue;
+      for (const km of competition.knockout_matches ?? []) {
+        if (km.round_number === maxRound && km.match_id) {
+          map[km.match_id] = { competition_id: competition.id };
+        }
+      }
+    }
+    return map;
+  }, [championshipBracketView]);
+
+  // competition_id → Set de team_ids no primeiro round do KO
+  const knockoutFirstRoundTeamIdsByCompetitionId = useMemo(() => {
+    const map: Record<string, Set<string>> = {};
+    for (const competition of championshipBracketView.competitions ?? []) {
+      const maxRound = Math.max(0, ...(competition.knockout_matches ?? []).map((km) => km.round_number));
+      if (maxRound === 0) continue;
+      const teamSet = new Set<string>();
+      for (const km of competition.knockout_matches ?? []) {
+        if (km.round_number !== maxRound) continue;
+        if (km.home_team_id) teamSet.add(km.home_team_id);
+        if (km.away_team_id) teamSet.add(km.away_team_id);
+      }
+      map[competition.id] = teamSet;
+    }
+    return map;
+  }, [championshipBracketView]);
+
   const pendingTieBreakTeamNameByContextKeyAndTeamId = useMemo(() => {
     return pendingTieBreakContexts.reduce<Record<string, Record<string, string>>>((carry, pendingTieBreakContext) => {
       carry[pendingTieBreakContext.context_key] = pendingTieBreakContext.teams.reduce<Record<string, string>>((teamCarry, team) => {
@@ -664,29 +1137,74 @@ export function AdminMatches({
     }
 
     return pendingTieBreakContexts.every((pendingTieBreakContext) => {
-      return draftTieBreakTeamIdsByContextKey[pendingTieBreakContext.context_key]?.length == pendingTieBreakContext.teams.length;
+      return resolveIsTieBreakTeamOrderReady(
+        pendingTieBreakContext,
+        draftTieBreakTeamIdsByContextKey[pendingTieBreakContext.context_key],
+      );
     });
   }, [draftTieBreakTeamIdsByContextKey, pendingTieBreakContexts]);
 
   const shouldShowTieBreakBanner = useMemo(() => {
-    return (
-      pendingTieBreakContexts.length > 0 &&
-      championshipBracketView.edition?.status == BracketEditionStatus.GROUPS_GENERATED &&
-      bracketGroupMatchesProgress.total > 0 &&
-      bracketGroupMatchesProgress.pending == 0
-    );
+    return !isScoreSheetReviewMode && !isTieBreaksMode && pendingTieBreakContexts.length > 0;
   }, [
-    bracketGroupMatchesProgress.pending,
-    bracketGroupMatchesProgress.total,
-    championshipBracketView.edition?.status,
+    isScoreSheetReviewMode,
+    isTieBreaksMode,
     pendingTieBreakContexts.length,
   ]);
+  const isAnyTieBreakResolutionSaveInFlight =
+    savingTieBreakResolutions || Object.values(savingTieBreakResolutionByContextKey).some((isSaving) => isSaving);
 
-  const shouldUseScheduledSlotInMatchList = matchesSportFilter === ALL_MATCHES_SPORT_FILTER;
+  const isSavingReviewState = Object.keys(savingReviewStateByMatchId).length > 0;
+  const correctedStandingByCompetitionAndTeamKey = useMemo(() => {
+    return correctedGroupStandings.reduce<Record<string, ChampionshipCorrectedGroupStanding>>((carry, correctedGroupStanding) => {
+      carry[`${correctedGroupStanding.competition_id}:${correctedGroupStanding.team_id}`] = correctedGroupStanding;
+      return carry;
+    }, {});
+  }, [correctedGroupStandings]);
+
+  const pendingSwapSourceMatch = useMemo(() => {
+    if (!pendingSwapSourceMatchId) {
+      return null;
+    }
+
+    return matches.find((match) => match.id == pendingSwapSourceMatchId) ?? null;
+  }, [matches, pendingSwapSourceMatchId]);
+
+  const eligibleSwapTargetMatchOptions = useMemo(() => {
+    if (!pendingSwapSourceMatch) {
+      return [];
+    }
+
+    return matches
+      .filter((match) => resolveIsMatchEligibleForQueueSwap(pendingSwapSourceMatch, match))
+      .sort((firstMatch, secondMatch) => {
+        const firstSlot = resolveMatchSwapDisplaySlot(firstMatch, shouldUseScheduledSlotInMatchList) ?? Number.MAX_SAFE_INTEGER;
+        const secondSlot = resolveMatchSwapDisplaySlot(secondMatch, shouldUseScheduledSlotInMatchList) ?? Number.MAX_SAFE_INTEGER;
+
+        if (firstSlot != secondSlot) {
+          return firstSlot - secondSlot;
+        }
+
+        if (firstMatch.created_at != secondMatch.created_at) {
+          return firstMatch.created_at.localeCompare(secondMatch.created_at);
+        }
+
+        return firstMatch.id.localeCompare(secondMatch.id);
+      })
+      .map((match) => ({
+        id: match.id,
+        label: resolveMatchSwapOptionLabel(match, shouldUseScheduledSlotInMatchList),
+      }));
+  }, [matches, pendingSwapSourceMatch, shouldUseScheduledSlotInMatchList]);
+
   const filteredAndSortedMatches = useMemo(() => {
     return [...matches]
       .filter((match) => {
         if (matchesSportFilter !== ALL_MATCHES_SPORT_FILTER && match.sport_id != matchesSportFilter) {
+          return false;
+        }
+
+        if (isScoreSheetReviewMode && match.status != MatchStatus.FINISHED) {
           return false;
         }
 
@@ -731,6 +1249,10 @@ export function AdminMatches({
           }
         }
 
+        if (isScoreSheetReviewMode && hideReviewedMatches && match.is_score_sheet_reviewed) {
+          return false;
+        }
+
         return true;
       })
       .sort((firstMatch, secondMatch) => {
@@ -741,29 +1263,45 @@ export function AdminMatches({
         }
 
         if (firstMatch.status == MatchStatus.SCHEDULED && secondMatch.status == MatchStatus.SCHEDULED) {
-  const firstScheduledDate = resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
-  const secondScheduledDate = resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
+          const firstScheduledDate = resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
+          const secondScheduledDate = resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
 
-  if (firstScheduledDate != secondScheduledDate) {
-    return firstScheduledDate.localeCompare(secondScheduledDate);
-  }
+          if (firstScheduledDate != secondScheduledDate) {
+            return firstScheduledDate.localeCompare(secondScheduledDate);
+          }
 
-  const slotDifference =
-    resolveMatchDisplaySlotValue(firstMatch, shouldUseScheduledSlotInMatchList) -
-    resolveMatchDisplaySlotValue(secondMatch, shouldUseScheduledSlotInMatchList);
+          const slotDifference =
+            resolveMatchDisplaySlotValue(firstMatch, shouldUseScheduledSlotInMatchList) -
+            resolveMatchDisplaySlotValue(secondMatch, shouldUseScheduledSlotInMatchList);
 
-  if (slotDifference != 0) {
-    return slotDifference;
-  }
+          if (slotDifference != 0) {
+            return slotDifference;
+          }
 
-  return firstMatch.created_at.localeCompare(secondMatch.created_at);
-}
+          return firstMatch.created_at.localeCompare(secondMatch.created_at);
+        }
 
         if (firstMatch.status == MatchStatus.FINISHED && secondMatch.status == MatchStatus.FINISHED) {
-          const firstTimestamp = new Date(firstMatch.end_time ?? firstMatch.start_time ?? firstMatch.created_at).getTime();
-          const secondTimestamp = new Date(secondMatch.end_time ?? secondMatch.start_time ?? secondMatch.created_at).getTime();
+          const firstScheduledDate = resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
+          const secondScheduledDate = resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
 
-          return secondTimestamp - firstTimestamp;
+          if (firstScheduledDate != secondScheduledDate) {
+            return firstScheduledDate.localeCompare(secondScheduledDate);
+          }
+
+          const slotDifference =
+            resolveMatchDisplaySlotValue(firstMatch, shouldUseScheduledSlotInMatchList) -
+            resolveMatchDisplaySlotValue(secondMatch, shouldUseScheduledSlotInMatchList);
+
+          if (slotDifference != 0) {
+            return slotDifference;
+          }
+
+          if (firstMatch.created_at != secondMatch.created_at) {
+            return firstMatch.created_at.localeCompare(secondMatch.created_at);
+          }
+
+          return firstMatch.id.localeCompare(secondMatch.id);
         }
 
         const firstTimestamp = new Date(firstMatch.start_time ?? firstMatch.created_at).getTime();
@@ -773,6 +1311,8 @@ export function AdminMatches({
       });
   }, [
     championshipUsesDivisions,
+    hideReviewedMatches,
+    isScoreSheetReviewMode,
     shouldUseScheduledSlotInMatchList,
     matchBracketContextByMatchId,
     matches,
@@ -783,6 +1323,18 @@ export function AdminMatches({
     matchesStatusFilter,
     matchesTeamFilter,
   ]);
+
+  useEffect(() => {
+    if (!pendingSwapTargetMatchId) {
+      return;
+    }
+
+    const isTargetMatchOptionAvailable = eligibleSwapTargetMatchOptions.some((option) => option.id == pendingSwapTargetMatchId);
+
+    if (!isTargetMatchOptionAvailable) {
+      setPendingSwapTargetMatchId("");
+    }
+  }, [eligibleSwapTargetMatchOptions, pendingSwapTargetMatchId]);
 
   const filteredMatchIds = useMemo(() => {
     return filteredAndSortedMatches.map((match) => match.id);
@@ -816,6 +1368,7 @@ export function AdminMatches({
     setMatchesCurrentPage(1);
     setSelectedMatchIds([]);
   }, [
+    hideReviewedMatches,
     matchesDivisionFilter,
     matchesGroupFilter,
     matchesItemsPerPage,
@@ -824,6 +1377,49 @@ export function AdminMatches({
     matchesStatusFilter,
     matchesTeamFilter,
   ]);
+
+  useEffect(() => {
+    if (!hasInitializedFilterRefetchRef.current) {
+      hasInitializedFilterRefetchRef.current = true;
+      return;
+    }
+
+    void onRefetch({ showFetching: true });
+
+    const refetchConfirmationTimeout = setTimeout(() => {
+      void onRefetch({ showFetching: true });
+    }, 400);
+
+    return () => {
+      clearTimeout(refetchConfirmationTimeout);
+    };
+  }, [
+    hideReviewedMatches,
+    matchesDivisionFilter,
+    matchesGroupFilter,
+    matchesNaipeFilter,
+    matchesSportFilter,
+    matchesStatusFilter,
+    matchesTeamFilter,
+    onRefetch,
+  ]);
+
+  useEffect(() => {
+    if (!hasInitializedPaginationRefetchRef.current) {
+      hasInitializedPaginationRefetchRef.current = true;
+      return;
+    }
+
+    void onRefetch({ showFetching: true });
+
+    const refetchConfirmationTimeout = setTimeout(() => {
+      void onRefetch({ showFetching: true });
+    }, 400);
+
+    return () => {
+      clearTimeout(refetchConfirmationTimeout);
+    };
+  }, [matchesCurrentPage, matchesItemsPerPage, onRefetch]);
 
   useEffect(() => {
     if (matchesCurrentPage > matchesTotalPages) {
@@ -855,6 +1451,26 @@ export function AdminMatches({
       return currentSelectedMatchIds.filter((selectedMatchId) => matchIds.has(selectedMatchId));
     });
   }, [matches]);
+
+  useEffect(() => {
+    if (!showSwapMatchDialog || pendingSwapSourceMatch) {
+      return;
+    }
+
+    setShowSwapMatchDialog(false);
+    setPendingSwapSourceMatchId(null);
+    setPendingSwapTargetMatchId("");
+  }, [pendingSwapSourceMatch, showSwapMatchDialog]);
+
+  useEffect(() => {
+    if (!isScoreSheetReviewMode || !showSwapMatchDialog) {
+      return;
+    }
+
+    setShowSwapMatchDialog(false);
+    setPendingSwapSourceMatchId(null);
+    setPendingSwapTargetMatchId("");
+  }, [isScoreSheetReviewMode, showSwapMatchDialog]);
 
   useEffect(() => {
     if (!shouldShowTieBreakBanner) {
@@ -962,14 +1578,14 @@ export function AdminMatches({
 
   const resolveNextGroupStageSlotNumber = async (competitionId: string) => {
     const { data: competitionBracketMatches, error: fetchBracketSlotError } = await supabaseLoose
-  .from("championship_bracket_matches")
-  .select("slot_number")
-  .eq("competition_id", competitionId)
-  .eq("phase", BracketPhase.GROUP_STAGE)
-  .order("slot_number", { ascending: false })
-  .limit(1);
+      .from("championship_bracket_matches")
+      .select("slot_number")
+      .eq("competition_id", competitionId)
+      .eq("phase", BracketPhase.GROUP_STAGE)
+      .order("slot_number", { ascending: false })
+      .limit(1);
 
-const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as BracketMatchRowLite[];
+    const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as BracketMatchRowLite[];
 
     if (fetchBracketSlotError) {
       return {
@@ -1088,6 +1704,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
         .update({
           scheduled_date: nextScheduledDate,
           queue_position: null,
+          scheduled_slot: null,
         })
         .eq("id", selectedMatch.id);
 
@@ -1135,7 +1752,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
   };
 
   const handleAdd = async () => {
-    if (!canManageMatches) {
+    if (!canManageMatches || creatingMatch) {
       return;
     }
 
@@ -1151,6 +1768,8 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
       return;
     }
 
+    setCreatingMatch(true);
+
     const { data: insertedMatch, error } = await supabase
       .from("matches")
       .insert({
@@ -1163,6 +1782,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
         location: resolvedLocation,
         scheduled_date: resolveDateOnlyString(scheduledDate),
         queue_position: null,
+        scheduled_slot: null,
         start_time: null,
         end_time: null,
         division: championshipUsesDivisions ? division : null,
@@ -1171,6 +1791,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
       .single();
 
     if (error || !insertedMatch) {
+      setCreatingMatch(false);
       toast.error(error?.message ?? "Não foi possível criar o jogo.");
       return;
     }
@@ -1184,12 +1805,14 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
       });
 
       if (bracketBindingResponse.errorMessage) {
+        setCreatingMatch(false);
         await supabase.from("matches").delete().eq("id", insertedMatch.id);
         toast.error(bracketBindingResponse.errorMessage);
         return;
       }
     }
 
+    setCreatingMatch(false);
     toast.success("Jogo criado!");
     setShowCreateMatchModal(false);
     resetCreateMatchForm();
@@ -1226,6 +1849,73 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
     setPendingDeleteMatchId(match.id);
     setPendingDeleteMatchLabel(`${match.home_team?.name ?? "Casa"} x ${match.away_team?.name ?? "Visitante"}`);
     setShowDeleteMatchDialog(true);
+  };
+
+  const handleOpenSwapMatchDialog = (match: Match) => {
+    if (!canManageMatches || isScoreSheetReviewMode) {
+      return;
+    }
+
+    setPendingSwapSourceMatchId(match.id);
+    setPendingSwapTargetMatchId("");
+    setShowSwapMatchDialog(true);
+  };
+
+  const handleCloseSwapMatchDialog = () => {
+    if (swappingMatches) {
+      return;
+    }
+
+    setShowSwapMatchDialog(false);
+    setPendingSwapSourceMatchId(null);
+    setPendingSwapTargetMatchId("");
+  };
+
+  const handleConfirmSwapMatches = async () => {
+    if (!canManageMatches || isScoreSheetReviewMode) {
+      return;
+    }
+
+    if (!pendingSwapSourceMatch || !pendingSwapTargetMatchId) {
+      toast.error("Selecione um jogo válido para trocar a fila.");
+      return;
+    }
+
+    if (eligibleSwapTargetMatchOptions.length == 0) {
+      toast.error("Não há jogos elegíveis para troca de fila.");
+      return;
+    }
+
+    setSwappingMatches(true);
+
+    const { data, error } = await supabase.rpc("swap_match_queue_slots", {
+      _source_match_id: pendingSwapSourceMatch.id,
+      _target_match_id: pendingSwapTargetMatchId,
+    });
+
+    if (error) {
+      setSwappingMatches(false);
+      toast.error(resolveAdminMatchesOperationalErrorMessage(error));
+      return;
+    }
+
+    const swapResponse = data as SwapMatchQueueSlotsResponse | null;
+
+    setSwappingMatches(false);
+    setShowSwapMatchDialog(false);
+    setPendingSwapSourceMatchId(null);
+    setPendingSwapTargetMatchId("");
+
+    await Promise.all([onRefetch(), onRefetchChampionshipBracket()]);
+
+    if (swapResponse) {
+      toast.success(
+        `Jogos trocados na fila: jogo ${swapResponse.source_previous_slot} ↔ jogo ${swapResponse.target_previous_slot}.`,
+      );
+      return;
+    }
+
+    toast.success("Jogos trocados na fila.");
   };
 
   const handleDeleteMatchFromDialog = async () => {
@@ -1306,35 +1996,189 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
     onRefetchChampionshipBracket();
   };
 
+  const handleUpdateMatchesReviewState = async ({
+    matchIds,
+    reviewed,
+    successMessage,
+    clearSelectionAfterSave = false,
+  }: {
+    matchIds: string[];
+    reviewed: boolean;
+    successMessage: string;
+    clearSelectionAfterSave?: boolean;
+  }) => {
+    if (!canManageMatches || matchIds.length == 0) {
+      return;
+    }
+
+    setSavingReviewStateByMatchId((currentSavingReviewStateByMatchId) => {
+      return matchIds.reduce<Record<string, boolean>>(
+        (nextSavingReviewStateByMatchId, matchId) => ({
+          ...nextSavingReviewStateByMatchId,
+          [matchId]: true,
+        }),
+        { ...currentSavingReviewStateByMatchId },
+      );
+    });
+
+    const reviewStateUpdateQuery =
+      matchIds.length == 1
+        ? supabase
+            .from("matches")
+            .update({ is_score_sheet_reviewed: reviewed })
+            .eq("id", matchIds[0])
+        : supabase
+            .from("matches")
+            .update({ is_score_sheet_reviewed: reviewed })
+            .in("id", matchIds);
+
+    const { error } = await reviewStateUpdateQuery;
+
+    setSavingReviewStateByMatchId((currentSavingReviewStateByMatchId) => {
+      const nextSavingReviewStateByMatchId = { ...currentSavingReviewStateByMatchId };
+
+      matchIds.forEach((matchId) => {
+        delete nextSavingReviewStateByMatchId[matchId];
+      });
+
+      return nextSavingReviewStateByMatchId;
+    });
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    if (clearSelectionAfterSave) {
+      setSelectedMatchIds([]);
+    }
+
+    toast.success(successMessage);
+    await onRefetch();
+  };
+
+  const handleToggleMatchScoreSheetReviewed = async (matchId: string, checked: CheckedState) => {
+    if (!canManageMatches) {
+      return;
+    }
+
+    await handleUpdateMatchesReviewState({
+      matchIds: [matchId],
+      reviewed: checked === true,
+      successMessage: checked === true ? "Jogo marcado como conferido na súmula." : "Jogo desmarcado da conferência de súmula.",
+    });
+  };
+
+  const handleBulkUpdateFilteredMatchesReviewState = async (reviewed: boolean) => {
+    if (!canManageMatches || bulkReviewAction != null) {
+      return;
+    }
+
+    const filteredMatchIdSet = new Set(filteredMatchIds);
+    const selectedFilteredMatchIds = selectedMatchIds.filter((selectedMatchId) => filteredMatchIdSet.has(selectedMatchId));
+
+    if (selectedFilteredMatchIds.length == 0) {
+      toast.error("Selecione ao menos um jogo filtrado.");
+      return;
+    }
+
+    setBulkReviewAction(reviewed ? "MARK" : "UNMARK");
+
+    try {
+      await handleUpdateMatchesReviewState({
+        matchIds: selectedFilteredMatchIds,
+        reviewed,
+        successMessage: reviewed
+          ? `${selectedFilteredMatchIds.length} jogo(s) marcado(s) como conferido(s).`
+          : `${selectedFilteredMatchIds.length} jogo(s) removido(s) da conferência.`,
+        clearSelectionAfterSave: true,
+      });
+    } finally {
+      setBulkReviewAction(null);
+    }
+  };
+
   const handleStartEditingMatch = (match: Match) => {
     if (!canManageMatches) {
       return;
     }
 
     const matchBracketBinding = groupStageMatchBracketBindingByMatchId[match.id];
+    const displaySlot = resolveMatchDisplaySlotValue(match, shouldUseScheduledSlotInMatchList);
+    const currentGameSlot = displaySlot === Number.MAX_SAFE_INTEGER ? null : displaySlot;
 
     setEditingMatchId(match.id);
     setEditingMatchDraft({
       sportId: match.sport_id,
       homeTeamId: match.home_team_id,
       awayTeamId: match.away_team_id,
+      homeScore: match.home_score,
+      awayScore: match.away_score,
+      homeYellowCards: match.home_yellow_cards ?? 0,
+      homeRedCards: match.home_red_cards ?? 0,
+      awayYellowCards: match.away_yellow_cards ?? 0,
+      awayRedCards: match.away_red_cards ?? 0,
       location: match.location,
       scheduledDate: resolveScheduledDateDraftValue(match),
+      startTime: match.start_time ? new Date(match.start_time) : null,
+      gameSlot: currentGameSlot == null ? "" : String(currentGameSlot),
       division: match.division ?? TeamDivision.DIVISAO_PRINCIPAL,
       naipe: match.naipe,
       status: match.status,
       selectedGroupOptionValue: matchBracketBinding ? `${matchBracketBinding.competition_id}:${matchBracketBinding.group_id}` : "",
       resolvedTieBreakerRule: match.resolved_tie_breaker_rule ?? "",
     });
+    setEditingMatchSetsDraft(resolveRecordedMatchSets(match));
   };
 
   const handleCancelEditingMatch = () => {
     setSavingEditingMatch(false);
     setEditingMatchId(null);
     setEditingMatchDraft(null);
+    setEditingMatchSetsDraft([]);
+    setShowEditReviewConfirmationDialog(false);
   };
 
-  const handleSaveEditingMatch = async () => {
+  const handleAddEditingMatchSet = () => {
+    setEditingMatchSetsDraft((currentEditingMatchSetsDraft) => [
+      ...currentEditingMatchSetsDraft,
+      {
+        set_number: currentEditingMatchSetsDraft.length + 1,
+        home_points: 0,
+        away_points: 0,
+      },
+    ]);
+  };
+
+  const handleDeleteEditingMatchSet = (matchSetIndex: number) => {
+    setEditingMatchSetsDraft((currentEditingMatchSetsDraft) => {
+      return currentEditingMatchSetsDraft.filter((_, currentMatchSetIndex) => currentMatchSetIndex != matchSetIndex);
+    });
+  };
+
+  const handleUpdateEditingMatchSetPoints = (
+    matchSetIndex: number,
+    side: "home" | "away",
+    value: string,
+  ) => {
+    const parsedValue = resolveParsedScoreInputValue(value);
+
+    setEditingMatchSetsDraft((currentEditingMatchSetsDraft) => {
+      return currentEditingMatchSetsDraft.map((matchSet, currentMatchSetIndex) => {
+        if (currentMatchSetIndex != matchSetIndex) {
+          return matchSet;
+        }
+
+        return {
+          ...matchSet,
+          home_points: side == "home" ? parsedValue : matchSet.home_points,
+          away_points: side == "away" ? parsedValue : matchSet.away_points,
+        };
+      });
+    });
+  };
+
+  const handleSaveEditingMatch = async (scoreSheetReviewSaveDecision?: ScoreSheetReviewSaveDecision) => {
     if (!canManageMatches) {
       return;
     }
@@ -1361,16 +2205,143 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
       return;
     }
 
+    const normalizedGameSlot = editingMatchDraft.gameSlot;
+    const isLastInQueue = normalizedGameSlot === "LAST_IN_QUEUE";
+    const shouldClearGameSlot = normalizedGameSlot.length == 0;
+    
+    let parsedGameSlot: number | null = null;
+    
+    if (isLastInQueue) {
+      const scheduledDateString = resolveDateOnlyString(editingMatchDraft.scheduledDate);
+      const matchesOnSameDate = matches.filter(m => resolveMatchScheduledDateValue(m) === scheduledDateString && m.id !== editingMatchId);
+      const maxQueuePosition = matchesOnSameDate.reduce((max, m) => Math.max(max, m.queue_position ?? 0), 0);
+      parsedGameSlot = maxQueuePosition + 1;
+    } else if (!shouldClearGameSlot) {
+      parsedGameSlot = Number.parseInt(normalizedGameSlot, 10);
+    }
+
+    if (!isLastInQueue && !shouldClearGameSlot && (!Number.isFinite(parsedGameSlot) || parsedGameSlot == null || parsedGameSlot <= 0)) {
+      toast.error("Informe um número de jogo válido ou deixe o campo vazio.");
+      return;
+    }
+
     if (editingMatchBracketBinding && !selectedEditingGroupOption) {
       toast.error("Selecione o grupo do jogo antes de salvar.");
       return;
     }
 
+    const editingMatch = matches.find((match) => match.id == editingMatchId) ?? null;
+
+    if (
+      editingMatch?.is_score_sheet_reviewed &&
+      scoreSheetReviewSaveDecision == null
+    ) {
+      setShowEditReviewConfirmationDialog(true);
+      return;
+    }
+
+    const shouldKeepScoreSheetReview =
+      editingMatch?.is_score_sheet_reviewed == true &&
+      scoreSheetReviewSaveDecision != "REMOVE_REVIEW";
+
+    if (scoreSheetReviewSaveDecision != null) {
+      setShowEditReviewConfirmationDialog(false);
+    }
+
     setSavingEditingMatch(true);
 
-    const editingMatch = matches.find((match) => match.id == editingMatchId) ?? null;
-    const shouldResetMatchToScheduled =
+    // Para jogos do primeiro round do KO: se o novo time já está na chave, acionar o swap
+    const editingBracketMatch = knockoutFirstRoundBracketMatchByMatchId[editingMatchId];
+    if (editingBracketMatch) {
+      const firstRoundTeamIds = knockoutFirstRoundTeamIdsByCompetitionId[editingBracketMatch.competition_id] ?? new Set<string>();
+      const originalMatch = matches.find((m) => m.id === editingMatchId);
+
+      const homeChanged = originalMatch && editingMatchDraft.homeTeamId !== originalMatch.home_team_id;
+      const awayChanged = originalMatch && editingMatchDraft.awayTeamId !== originalMatch.away_team_id;
+
+      if (homeChanged && originalMatch.home_team_id && firstRoundTeamIds.has(editingMatchDraft.homeTeamId)) {
+        const { error: swapError } = await swapChampionshipKnockoutBracketTeams(
+          editingBracketMatch.competition_id,
+          originalMatch.home_team_id,
+          editingMatchDraft.homeTeamId,
+        );
+        if (swapError) {
+          setSavingEditingMatch(false);
+          toast.error("Erro ao trocar equipes na chave.");
+          return;
+        }
+      }
+
+      if (awayChanged && originalMatch.away_team_id && firstRoundTeamIds.has(editingMatchDraft.awayTeamId)) {
+        const { error: swapError } = await swapChampionshipKnockoutBracketTeams(
+          editingBracketMatch.competition_id,
+          originalMatch.away_team_id,
+          editingMatchDraft.awayTeamId,
+        );
+        if (swapError) {
+          setSavingEditingMatch(false);
+          toast.error("Erro ao trocar equipes na chave.");
+          return;
+        }
+      }
+    }
+
+    const isEditingSetRuleBySelectedSport =
+      championshipSportResultRuleBySportId.get(editingMatchDraft.sportId) == ChampionshipSportResultRule.SETS;
+    const isEditingSportWithCardsBySelectedSport =
+      championshipSportSupportsCardsBySportId.get(editingMatchDraft.sportId) == true;
+    const normalizedEditingMatchSetsDraft = resolveNormalizedMatchSetsDraft(editingMatchSetsDraft);
+
+    if (isEditingSetRuleBySelectedSport) {
+      const hasInvalidEmptySet = normalizedEditingMatchSetsDraft.some((matchSet) => {
+        return matchSet.home_points == 0 && matchSet.away_points == 0;
+      });
+
+      if (hasInvalidEmptySet) {
+        setSavingEditingMatch(false);
+        toast.error("Informe um placar válido para todos os sets ou remova os sets vazios.");
+        return;
+      }
+
+      const hasInvalidDrawSet = normalizedEditingMatchSetsDraft.some((matchSet) => {
+        return matchSet.home_points == matchSet.away_points;
+      });
+
+      if (hasInvalidDrawSet) {
+        setSavingEditingMatch(false);
+        toast.error("Um set não pode terminar empatado.");
+        return;
+      }
+    }
+
+    const shouldSyncMatchSets = isEditingSetRuleBySelectedSport || resolveRecordedMatchSets(editingMatch ?? { match_sets: [] }).length > 0;
+    const shouldResetFinishedMatchToScheduled =
       editingMatchDraft.status == MatchStatus.SCHEDULED && editingMatch?.status == MatchStatus.FINISHED;
+    const shouldReopenFinishedMatchAsLive =
+      editingMatchDraft.status == MatchStatus.LIVE && editingMatch?.status == MatchStatus.FINISHED;
+    const shouldPreserveTieBreakResolution = editingMatchDraft.status == MatchStatus.FINISHED;
+    const resolvedSetWins = isEditingSetRuleBySelectedSport ? resolveSetWins(normalizedEditingMatchSetsDraft) : null;
+    const resolvedHomeScore = resolvedSetWins ? resolvedSetWins.home_sets : resolveSafeScoreValue(editingMatchDraft.homeScore);
+    const resolvedAwayScore = resolvedSetWins ? resolvedSetWins.away_sets : resolveSafeScoreValue(editingMatchDraft.awayScore);
+    const resolvedHomeYellowCards = isEditingSportWithCardsBySelectedSport
+      ? resolveSafeScoreValue(editingMatchDraft.homeYellowCards)
+      : 0;
+    const resolvedHomeRedCards = isEditingSportWithCardsBySelectedSport
+      ? resolveSafeScoreValue(editingMatchDraft.homeRedCards)
+      : 0;
+    const resolvedAwayYellowCards = isEditingSportWithCardsBySelectedSport
+      ? resolveSafeScoreValue(editingMatchDraft.awayYellowCards)
+      : 0;
+    const resolvedAwayRedCards = isEditingSportWithCardsBySelectedSport
+      ? resolveSafeScoreValue(editingMatchDraft.awayRedCards)
+      : 0;
+    const resolvedStartTime = shouldResetFinishedMatchToScheduled
+      ? null
+      : (shouldReopenFinishedMatchAsLive ? (editingMatch?.start_time ?? new Date().toISOString()) : (editingMatchDraft.startTime?.toISOString() ?? null));
+    const resolvedEndTime = shouldResetFinishedMatchToScheduled || shouldReopenFinishedMatchAsLive ? null : editingMatch?.end_time ?? null;
+    const resolvedCourtName = shouldResetFinishedMatchToScheduled ? null : editingMatch?.court_name ?? null;
+    const resolvedCurrentSetHomeScore = shouldResetFinishedMatchToScheduled ? null : editingMatch?.current_set_home_score ?? null;
+    const resolvedCurrentSetAwayScore = shouldResetFinishedMatchToScheduled ? null : editingMatch?.current_set_away_score ?? null;
 
     const { error } = await supabase
       .from("matches")
@@ -1381,20 +2352,22 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
         away_team_id: editingMatchDraft.awayTeamId,
         location: normalizedLocation,
         scheduled_date: resolveDateOnlyString(editingMatchDraft.scheduledDate),
-        queue_position: null,
-        court_name: shouldResetMatchToScheduled || editingMatch?.status == MatchStatus.SCHEDULED ? null : editingMatch?.court_name ?? null,
-        start_time: shouldResetMatchToScheduled || editingMatch?.status == MatchStatus.SCHEDULED ? null : editingMatch?.start_time ?? null,
-        end_time: shouldResetMatchToScheduled || editingMatch?.status == MatchStatus.SCHEDULED ? null : editingMatch?.end_time ?? null,
-        current_set_home_score: shouldResetMatchToScheduled ? null : editingMatch?.current_set_home_score ?? null,
-        current_set_away_score: shouldResetMatchToScheduled ? null : editingMatch?.current_set_away_score ?? null,
-        home_score: editingMatch?.home_score ?? 0,
-        away_score: editingMatch?.away_score ?? 0,
-        home_yellow_cards: editingMatch?.home_yellow_cards ?? 0,
-        home_red_cards: editingMatch?.home_red_cards ?? 0,
-        away_yellow_cards: editingMatch?.away_yellow_cards ?? 0,
-        away_red_cards: editingMatch?.away_red_cards ?? 0,
-        resolved_tie_breaker_rule: shouldResetMatchToScheduled ? null : editingMatchDraft.resolvedTieBreakerRule || null,
-        resolved_tie_break_winner_team_id: shouldResetMatchToScheduled ? null : editingMatch?.resolved_tie_break_winner_team_id ?? null,
+        queue_position: parsedGameSlot,
+        scheduled_slot: parsedGameSlot,
+        court_name: resolvedCourtName,
+        start_time: resolvedStartTime,
+        end_time: resolvedEndTime,
+        current_set_home_score: resolvedCurrentSetHomeScore,
+        current_set_away_score: resolvedCurrentSetAwayScore,
+        home_score: resolvedHomeScore,
+        away_score: resolvedAwayScore,
+        home_yellow_cards: resolvedHomeYellowCards,
+        home_red_cards: resolvedHomeRedCards,
+        away_yellow_cards: resolvedAwayYellowCards,
+        away_red_cards: resolvedAwayRedCards,
+        is_score_sheet_reviewed: shouldKeepScoreSheetReview,
+        resolved_tie_breaker_rule: shouldPreserveTieBreakResolution ? editingMatchDraft.resolvedTieBreakerRule || null : null,
+        resolved_tie_break_winner_team_id: shouldPreserveTieBreakResolution ? editingMatch?.resolved_tie_break_winner_team_id ?? null : null,
         status: editingMatchDraft.status,
         division: championshipUsesDivisions ? editingMatchDraft.division : null,
       })
@@ -1404,6 +2377,19 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
       setSavingEditingMatch(false);
       toast.error(error.message);
       return;
+    }
+
+    if (shouldSyncMatchSets) {
+      const { error: matchSetsError } = await saveMatchSets(
+        editingMatchId,
+        isEditingSetRuleBySelectedSport ? normalizedEditingMatchSetsDraft : [],
+      );
+
+      if (matchSetsError) {
+        setSavingEditingMatch(false);
+        toast.error(resolveAdminMatchesOperationalErrorMessage(matchSetsError));
+        return;
+      }
     }
 
     if (editingMatchBracketBinding && selectedEditingGroupOption) {
@@ -1433,9 +2419,9 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
       }
 
       const { error: bracketMatchError } = await supabaseLoose
-  .from("championship_bracket_matches")
-  .update(nextBracketMatchPayload)
-  .eq("match_id", editingMatchId);
+        .from("championship_bracket_matches")
+        .update(nextBracketMatchPayload)
+        .eq("match_id", editingMatchId);
 
       if (bracketMatchError) {
         setSavingEditingMatch(false);
@@ -1480,20 +2466,43 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
     }));
   };
 
+  const handleUpdateTieBreakContextTeamAtPosition = (
+    pendingTieBreakContext: ChampionshipBracketTieBreakPendingContext,
+    positionIndex: number,
+    teamId: string,
+  ) => {
+    setDraftTieBreakTeamIdsByContextKey((currentDraftTieBreakTeamIdsByContextKey) => {
+      const currentTieBreakTeamOrder = resolveNormalizedTieBreakTeamOrder(
+        pendingTieBreakContext,
+        currentDraftTieBreakTeamIdsByContextKey[pendingTieBreakContext.context_key],
+      );
+
+      currentTieBreakTeamOrder[positionIndex] = teamId;
+
+      return {
+        ...currentDraftTieBreakTeamIdsByContextKey,
+        [pendingTieBreakContext.context_key]: currentTieBreakTeamOrder,
+      };
+    });
+  };
+
   const handleSaveTieBreakResolutions = async () => {
     if (pendingTieBreakContexts.length == 0 || !championshipBracketView.edition?.id) {
       return;
     }
 
     if (!isTieBreakResolutionReady) {
-      toast.error("Realize o sorteio de todos os desempates pendentes antes de confirmar.");
+      toast.error("Defina a ordem completa dos desempates pendentes antes de confirmar.");
       return;
     }
 
     setSavingTieBreakResolutions(true);
 
     for (const pendingTieBreakContext of pendingTieBreakContexts) {
-      const orderedTeamIds = draftTieBreakTeamIdsByContextKey[pendingTieBreakContext.context_key] ?? [];
+      const orderedTeamIds = resolveNormalizedTieBreakTeamOrder(
+        pendingTieBreakContext,
+        draftTieBreakTeamIdsByContextKey[pendingTieBreakContext.context_key],
+      );
 
       const response = await saveChampionshipBracketTieBreakResolution({
         context_key: pendingTieBreakContext.context_key,
@@ -1534,10 +2543,324 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
     toast.success("Sorteio salvo e mata-mata atualizado.");
   };
 
+  const handleSaveSingleTieBreakResolution = async (
+    pendingTieBreakContext: ChampionshipBracketTieBreakPendingContext,
+  ) => {
+    if (!championshipBracketView.edition?.id) {
+      return;
+    }
+
+    const orderedTeamIds = resolveNormalizedTieBreakTeamOrder(
+      pendingTieBreakContext,
+      draftTieBreakTeamIdsByContextKey[pendingTieBreakContext.context_key],
+    );
+
+    if (!resolveIsTieBreakTeamOrderReady(pendingTieBreakContext, orderedTeamIds)) {
+      toast.error("Defina a ordem completa sem repetir atléticas antes de salvar este sorteio.");
+      return;
+    }
+
+    setSavingTieBreakResolutionByContextKey((currentSavingState) => ({
+      ...currentSavingState,
+      [pendingTieBreakContext.context_key]: true,
+    }));
+
+    const response = await saveChampionshipBracketTieBreakResolution({
+      context_key: pendingTieBreakContext.context_key,
+      competition_id: pendingTieBreakContext.competition_id,
+      context_type: pendingTieBreakContext.context_type,
+      group_id: pendingTieBreakContext.group_id,
+      qualification_rank: pendingTieBreakContext.qualification_rank,
+      team_ids: orderedTeamIds,
+    });
+
+    if (response.error) {
+      setSavingTieBreakResolutionByContextKey((currentSavingState) => ({
+        ...currentSavingState,
+        [pendingTieBreakContext.context_key]: false,
+      }));
+      toast.error(resolveAdminMatchesOperationalErrorMessage(response.error));
+      return;
+    }
+
+    const knockoutResponse = await generateChampionshipKnockout(
+      selectedChampionship.id,
+      championshipBracketView.edition.id,
+    );
+
+    if (knockoutResponse.error) {
+      setSavingTieBreakResolutionByContextKey((currentSavingState) => ({
+        ...currentSavingState,
+        [pendingTieBreakContext.context_key]: false,
+      }));
+      toast.error(resolveAdminMatchesOperationalErrorMessage(knockoutResponse.error));
+      await loadPendingTieBreakContexts();
+      return;
+    }
+
+    await Promise.all([
+      onRefetch(),
+      onRefetchChampionshipBracket(),
+      loadPendingTieBreakContexts(),
+    ]);
+
+    setSavingTieBreakResolutionByContextKey((currentSavingState) => ({
+      ...currentSavingState,
+      [pendingTieBreakContext.context_key]: false,
+    }));
+    toast.success("Sorteio salvo e mata-mata atualizado.");
+  };
+
   const handleOpenCreateMatchModal = () => {
     resetCreateMatchForm();
     setShowCreateMatchModal(true);
   };
+
+  if (isTieBreaksMode) {
+    return (
+      <div className="space-y-4">
+        <div className="glass-card enter-section app-card-warning p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                <span>Sorteios manuais de desempate</span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Esta aba mostra apenas empates de chaves já encerradas que ainda impactam vaga/classificação para a próxima fase.
+              </p>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                void Promise.all([
+                  loadPendingTieBreakContexts(),
+                  refetchCorrectedGroupStandings(true),
+                ]);
+              }}
+              disabled={loadingPendingTieBreakContexts || loadingCorrectedGroupStandings || isAnyTieBreakResolutionSaveInFlight}
+            >
+              {loadingPendingTieBreakContexts ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+              Atualizar pendências
+            </Button>
+          </div>
+        </div>
+
+        {loadingPendingTieBreakContexts ? (
+          <div className="space-y-3">
+            <Skeleton className="h-32 w-full rounded-2xl" />
+            <Skeleton className="h-32 w-full rounded-2xl" />
+          </div>
+        ) : pendingTieBreakContexts.length == 0 ? (
+          <div className="glass-card enter-section p-4 text-sm text-muted-foreground">
+            Não há sorteios pendentes para esta edição.
+          </div>
+        ) : (
+          <>
+            <div className="space-y-3">
+              {pendingTieBreakContexts.map((pendingTieBreakContext) => {
+                const orderedTeamIds = resolveNormalizedTieBreakTeamOrder(
+                  pendingTieBreakContext,
+                  draftTieBreakTeamIdsByContextKey[pendingTieBreakContext.context_key],
+                );
+                const isTieBreakContextOrderReady = resolveIsTieBreakTeamOrderReady(pendingTieBreakContext, orderedTeamIds);
+                const teamNameByTeamId = pendingTieBreakTeamNameByContextKeyAndTeamId[pendingTieBreakContext.context_key] ?? {};
+                const isSavingTieBreakContext = savingTieBreakResolutionByContextKey[pendingTieBreakContext.context_key] == true;
+                const tieBreakAuditRows = pendingTieBreakContext.teams
+                  .map((team) => correctedStandingByCompetitionAndTeamKey[`${pendingTieBreakContext.competition_id}:${team.team_id}`])
+                  .filter((tieBreakAuditRow): tieBreakAuditRow is ChampionshipCorrectedGroupStanding => tieBreakAuditRow != null)
+                  .sort((firstRow, secondRow) => {
+                    if (firstRow.corrected_points != secondRow.corrected_points) {
+                      return secondRow.corrected_points - firstRow.corrected_points;
+                    }
+
+                    if (firstRow.points_average != secondRow.points_average) {
+                      return secondRow.points_average - firstRow.points_average;
+                    }
+
+                    if (firstRow.goal_diff != secondRow.goal_diff) {
+                      return secondRow.goal_diff - firstRow.goal_diff;
+                    }
+
+                    if (firstRow.yellow_cards != secondRow.yellow_cards) {
+                      return firstRow.yellow_cards - secondRow.yellow_cards;
+                    }
+
+                    if (firstRow.red_cards != secondRow.red_cards) {
+                      return firstRow.red_cards - secondRow.red_cards;
+                    }
+
+                    if (firstRow.goals_for != secondRow.goals_for) {
+                      return secondRow.goals_for - firstRow.goals_for;
+                    }
+
+                    return firstRow.team_name.localeCompare(secondRow.team_name, "pt-BR", {
+                      sensitivity: "base",
+                    });
+                  });
+                const displayedTieBreakSlots = pendingTieBreakContext.teams.map((_, teamIndex) => ({
+                  position: teamIndex + 1,
+                  teamId: orderedTeamIds[teamIndex] ?? "",
+                }));
+
+                return (
+                  <div key={pendingTieBreakContext.context_key} className="glass-card space-y-3 p-4">
+                    <div className="space-y-1">
+                      <h3 className="text-sm font-semibold text-foreground">{pendingTieBreakContext.title}</h3>
+                      <p className="text-sm text-muted-foreground">{pendingTieBreakContext.description}</p>
+                    </div>
+
+                    {loadingCorrectedGroupStandings ? (
+                      <Skeleton className="h-36 w-full rounded-2xl" />
+                    ) : tieBreakAuditRows.length > 0 ? (
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Resultado atual do empate</p>
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Atlética</TableHead>
+                                <TableHead className="text-right">PTS (corr.)</TableHead>
+                                <TableHead className="text-right">PA</TableHead>
+                                <TableHead className="text-right">SG</TableHead>
+                                <TableHead className="text-right">CA</TableHead>
+                                <TableHead className="text-right">CV</TableHead>
+                                <TableHead className="text-right">GP</TableHead>
+                                <TableHead className="text-right">GC</TableHead>
+                                <TableHead className="text-right">V</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {tieBreakAuditRows.map((tieBreakAuditRow) => (
+                                <TableRow key={`${pendingTieBreakContext.context_key}:${tieBreakAuditRow.team_id}`}>
+                                  <TableCell>{tieBreakAuditRow.team_name}</TableCell>
+                                  <TableCell className="text-right font-semibold text-primary">
+                                    {formatStandingsPoints(tieBreakAuditRow.corrected_points)}
+                                  </TableCell>
+                                  <TableCell className="text-right tabular-nums">
+                                    {formatPointsAverageForStandings(
+                                      tieBreakAuditRow.goals_for,
+                                      tieBreakAuditRow.goals_against,
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-right tabular-nums">{tieBreakAuditRow.goal_diff}</TableCell>
+                                  <TableCell className="text-right tabular-nums">{tieBreakAuditRow.yellow_cards}</TableCell>
+                                  <TableCell className="text-right tabular-nums">{tieBreakAuditRow.red_cards}</TableCell>
+                                  <TableCell className="text-right tabular-nums">{tieBreakAuditRow.goals_for}</TableCell>
+                                  <TableCell className="text-right tabular-nums">{tieBreakAuditRow.goals_against}</TableCell>
+                                  <TableCell className="text-right tabular-nums">{tieBreakAuditRow.wins}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Métricas de pontuação corrigida indisponíveis para este contexto no momento.
+                      </p>
+                    )}
+
+                    {!isTieBreakContextOrderReady ? (
+                      <p className="text-xs font-medium text-amber-500">
+                        Defina a ordem completa sem repetir atléticas para confirmar este desempate.
+                      </p>
+                    ) : null}
+
+                    <div className="grid gap-2 md:grid-cols-2">
+                      {displayedTieBreakSlots.map((displayedTieBreakSlot) => (
+                        <div
+                          key={`${pendingTieBreakContext.context_key}:${displayedTieBreakSlot.position}`}
+                          className="glass-panel-muted flex items-center gap-2 rounded-xl px-3 py-2"
+                        >
+                          <span className="w-8 shrink-0 text-sm font-medium text-muted-foreground">
+                            {displayedTieBreakSlot.position}º
+                          </span>
+                          <Select
+                            value={displayedTieBreakSlot.teamId || EMPTY_TIE_BREAK_TEAM_OPTION_VALUE}
+                            onValueChange={(value) =>
+                              handleUpdateTieBreakContextTeamAtPosition(
+                                pendingTieBreakContext,
+                                displayedTieBreakSlot.position - 1,
+                                value == EMPTY_TIE_BREAK_TEAM_OPTION_VALUE ? "" : value,
+                              )
+                            }
+                            disabled={savingTieBreakResolutions || isSavingTieBreakContext || !canManageMatches}
+                          >
+                            <SelectTrigger
+                              aria-label={`Atlética na posição ${displayedTieBreakSlot.position} do desempate`}
+                              className="app-input-field w-full"
+                            >
+                              <SelectValue placeholder="Selecione a atlética" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={EMPTY_TIE_BREAK_TEAM_OPTION_VALUE}>Selecione a atlética</SelectItem>
+                              {pendingTieBreakContext.teams.map((tieBreakTeamOption) => {
+                                const isSelectedInOtherPosition = displayedTieBreakSlots.some((displayedTieBreakSlotItem) => {
+                                  return (
+                                    displayedTieBreakSlotItem.position != displayedTieBreakSlot.position &&
+                                    displayedTieBreakSlotItem.teamId == tieBreakTeamOption.team_id
+                                  );
+                                });
+
+                                return (
+                                  <SelectItem
+                                    key={`${pendingTieBreakContext.context_key}:${displayedTieBreakSlot.position}:${tieBreakTeamOption.team_id}`}
+                                    value={tieBreakTeamOption.team_id}
+                                    disabled={isSelectedInOtherPosition}
+                                  >
+                                    {teamNameByTeamId[tieBreakTeamOption.team_id] ?? tieBreakTeamOption.team_name}
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => handleShuffleTieBreakContext(pendingTieBreakContext)}
+                        disabled={savingTieBreakResolutions || isSavingTieBreakContext || !canManageMatches}
+                      >
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        {orderedTeamIds.some((teamId) => teamId.length > 0) ? "Refazer sorteio" : "Sortear ordem"}
+                      </Button>
+
+                      <Button
+                        type="button"
+                        onClick={() => void handleSaveSingleTieBreakResolution(pendingTieBreakContext)}
+                        disabled={!isTieBreakContextOrderReady || savingTieBreakResolutions || isSavingTieBreakContext || !canManageMatches}
+                      >
+                        {isSavingTieBreakContext ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Salvar sorteio
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                onClick={handleSaveTieBreakResolutions}
+                disabled={!isTieBreakResolutionReady || isAnyTieBreakResolutionSaveInFlight || !canManageMatches}
+              >
+                {savingTieBreakResolutions ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Confirmar sorteios e gerar mata-mata
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -1547,20 +2870,27 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                 <AlertTriangle className="h-4 w-4 text-amber-500" />
-                <span>Sorteio manual pendente para liberar o mata-mata</span>
+                <span>Sorteio manual pendente em vagas específicas</span>
               </div>
               <p className="text-sm text-muted-foreground">
-                {pendingTieBreakContexts.length} empate(s) chegaram ao último critério. Resolva o sorteio manual para liberar a geração do mata-mata desta edição.
+                {pendingTieBreakContexts.length} empate(s) chegaram ao último critério e aguardam sorteio para definir apenas as vagas afetadas do mata-mata.
               </p>
             </div>
 
             <Button
               type="button"
               variant="outline"
-              onClick={() => setShowTieBreakDialog(true)}
-              disabled={loadingPendingTieBreakContexts || savingTieBreakResolutions}
+              onClick={() => {
+                if (onOpenTieBreaksTab) {
+                  onOpenTieBreaksTab();
+                  return;
+                }
+
+                setShowTieBreakDialog(true);
+              }}
+              disabled={loadingPendingTieBreakContexts || isAnyTieBreakResolutionSaveInFlight}
             >
-              Resolver sorteios
+              {onOpenTieBreaksTab ? "Abrir aba Sorteios" : "Resolver sorteios"}
             </Button>
           </div>
         </div>
@@ -1574,20 +2904,22 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
         />
 
         <div className="glass-card enter-section space-y-3 p-4">
-          <div className="grid grid-cols-1 gap-3 xl:grid-cols-6 xl:items-center">
-            <div className="xl:min-w-0">
-              <Select value={matchesStatusFilter} onValueChange={setMatchesStatusFilter}>
-                <SelectTrigger className="app-input-field w-full">
-                  <SelectValue placeholder="Filtrar por status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_MATCHES_STATUS_FILTER}>Geral</SelectItem>
-                  <SelectItem value={MATCHES_STATUS_FILTER_LIVE}>Ao vivo</SelectItem>
-                  <SelectItem value={MATCHES_STATUS_FILTER_FINISHED}>Encerrados</SelectItem>
-                  <SelectItem value={MATCHES_STATUS_FILTER_OPEN}>Em aberto</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+		          <div className={`grid grid-cols-1 gap-3 xl:items-center ${isScoreSheetReviewMode ? "xl:grid-cols-4" : "xl:grid-cols-6"}`}>
+		            {!isScoreSheetReviewMode ? (
+		              <div className="xl:min-w-0">
+		                <Select value={matchesStatusFilter} onValueChange={setMatchesStatusFilter}>
+		                  <SelectTrigger className="app-input-field w-full">
+		                    <SelectValue placeholder="Filtrar por status" />
+		                  </SelectTrigger>
+		                  <SelectContent>
+		                    <SelectItem value={ALL_MATCHES_STATUS_FILTER}>Geral</SelectItem>
+		                    <SelectItem value={MATCHES_STATUS_FILTER_LIVE}>Ao vivo</SelectItem>
+		                    <SelectItem value={MATCHES_STATUS_FILTER_FINISHED}>Encerrados</SelectItem>
+		                    <SelectItem value={MATCHES_STATUS_FILTER_OPEN}>Em aberto</SelectItem>
+		                  </SelectContent>
+		                </Select>
+		              </div>
+		            ) : null}
 
             <div className="xl:min-w-0">
               <Select value={matchesNaipeFilter} onValueChange={setMatchesNaipeFilter}>
@@ -1645,29 +2977,43 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
             </div>
 
             <div className="xl:min-w-0">
-              <Select value={matchesTeamFilter} onValueChange={setMatchesTeamFilter}>
-                <SelectTrigger className="app-input-field w-full">
-                  <SelectValue placeholder="Filtrar por atlética" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_MATCHES_TEAM_FILTER}>Todas as atléticas</SelectItem>
-                  {teamsForMatchesFilter.map((team) => (
-                    <SelectItem key={team.id} value={team.id}>
-                      {team.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <Select value={matchesTeamFilter} onValueChange={setMatchesTeamFilter}>
+                  <SelectTrigger className="app-input-field flex-1">
+                    <SelectValue placeholder="Filtrar por atlética" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL_MATCHES_TEAM_FILTER}>Todas as atléticas</SelectItem>
+                    {teamsForMatchesFilter.map((team) => (
+                      <SelectItem key={team.id} value={team.id}>
+                        {team.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {isScoreSheetReviewMode ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setHideReviewedMatches((currentHideReviewedMatches) => !currentHideReviewedMatches)}
+                    className={`h-10 w-10 shrink-0 ${hideReviewedMatches ? "app-button-secondary-active" : ""}`}
+                    aria-label={hideReviewedMatches ? "Mostrar jogos revisados também" : "Ocultar jogos já revisados"}
+                  >
+                    <EyeOff className="h-4 w-4" />
+                  </Button>
+                ) : null}
+              </div>
             </div>
 
-            {canManageMatches ? (
-              <Button type="button" onClick={handleOpenCreateMatchModal} className="w-full xl:w-auto">
-                <Plus className="mr-2 h-4 w-4" />
-                Criar jogo
-              </Button>
-            ) : null}
-          </div>
-        </div>
+	            {!isScoreSheetReviewMode && canManageMatches ? (
+	              <Button type="button" onClick={handleOpenCreateMatchModal} className="w-full xl:w-auto">
+	                <Plus className="mr-2 h-4 w-4" />
+	                Criar jogo
+	              </Button>
+	            ) : null}
+	          </div>
+	        </div>
 
         {!canManageMatches ? (
           <p className="text-sm text-muted-foreground">Perfil em visualização: sem permissão para criar, editar ou remover jogos.</p>
@@ -1685,167 +3031,428 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
           </div>
         ) : filteredAndSortedMatches.length > 0 ? (
           <>
-            <div className="glass-card enter-section flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex flex-wrap items-center gap-3">
-                {canManageMatches ? (
-                  <label className="flex items-center gap-2 text-sm text-foreground">
-                    <Checkbox checked={selectAllMatchesChecked} onCheckedChange={handleToggleSelectAllMatches} />
-                    <span>Selecionar todos os jogos filtrados</span>
-                  </label>
-                ) : null}
+	            <div className="glass-card enter-section flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
+	              <div className="flex flex-wrap items-center gap-3">
+	                {canManageMatches ? (
+	                  <label className="flex items-center gap-2 text-sm text-foreground">
+	                    <Checkbox checked={selectAllMatchesChecked} onCheckedChange={handleToggleSelectAllMatches} />
+	                    <span>Selecionar todos os jogos filtrados</span>
+	                  </label>
+	                ) : null}
 
-                {canManageMatches && selectedFilteredMatchCount > 0 ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      type="button"
+		                {canManageMatches && selectedFilteredMatchCount > 0 && isScoreSheetReviewMode ? (
+		                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+		                    <Button
+		                      type="button"
+		                      variant="outline"
+		                      className="w-full sm:w-auto"
+		                      onClick={() => void handleBulkUpdateFilteredMatchesReviewState(true)}
+		                      disabled={
+                            deletingMatches ||
+                            applyingBulkAction ||
+                            selectedMatchIds.length == 0 ||
+                            bulkReviewAction != null ||
+                            isSavingReviewState
+                          }
+		                    >
+                          {bulkReviewAction == "MARK" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+		                      Marcar selecionados como revisados
+		                    </Button>
+		                    <Button
+		                      type="button"
+		                      variant="outline"
+		                      className="w-full sm:w-auto"
+		                      onClick={() => void handleBulkUpdateFilteredMatchesReviewState(false)}
+		                      disabled={
+                            deletingMatches ||
+                            applyingBulkAction ||
+                            selectedMatchIds.length == 0 ||
+                            bulkReviewAction != null ||
+                            isSavingReviewState
+                          }
+		                    >
+                          {bulkReviewAction == "UNMARK" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+		                      Desmarcar selecionados
+		                    </Button>
+		                  </div>
+		                ) : null}
+
+	                {canManageMatches && selectedFilteredMatchCount > 0 && !isScoreSheetReviewMode ? (
+	                  <div className="flex flex-wrap items-center gap-2">
+	                    <Button
+	                      type="button"
                       variant="outline"
                       onClick={() => void handleMoveSelectedMatchesToNextChampionshipDay()}
                       disabled={deletingMatches || applyingBulkAction || selectedMatchIds.length == 0}
                     >
+                      {applyingBulkAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                       Mover selecionados para o próximo dia
                     </Button>
 
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => void handleMoveFilteredMatchesToNextChampionshipDay()}
-                      disabled={deletingMatches || applyingBulkAction || filteredAndSortedMatches.length == 0}
-                    >
-                      Mover todos os jogos filtrados
-                    </Button>
+	                    <Button
+	                      type="button"
+	                      variant="outline"
+	                      onClick={() => void handleMoveFilteredMatchesToNextChampionshipDay()}
+	                      disabled={deletingMatches || applyingBulkAction || filteredAndSortedMatches.length == 0}
+	                    >
+                        {applyingBulkAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+	                      Mover todos os jogos filtrados
+	                    </Button>
 
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      onClick={handleOpenDeleteSelectedMatchesDialog}
-                      disabled={deletingMatches || applyingBulkAction || selectedMatchIds.length == 0}
-                    >
-                      Excluir selecionados
-                    </Button>
-                  </div>
-                ) : null}
+	                    <Button
+	                      type="button"
+	                      variant="destructive"
+	                      onClick={handleOpenDeleteSelectedMatchesDialog}
+	                      disabled={deletingMatches || applyingBulkAction || selectedMatchIds.length == 0}
+	                    >
+                        {deletingMatches ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+	                      Excluir selecionados
+	                    </Button>
+	                  </div>
+	                ) : null}
 
-                <p className="text-sm text-muted-foreground">
+                <p className="text-center text-sm text-muted-foreground lg:text-left">
                   {filteredAndSortedMatches.length} jogo(s) encontrado(s)
                 </p>
               </div>
 
             </div>
 
-            {paginatedMatches.map((match) => {
-              const matchBracketContext = matchBracketContextByMatchId[match.id];
-              const startedAtLabel = resolveMatchStartedAtLabel(match.start_time);
-              const tieBreakRuleLabel = resolveMatchTieBreakRuleLabel(match.resolved_tie_breaker_rule);
-              const isSetMatch = match.result_rule == ChampionshipSportResultRule.SETS;
-              const setSummary = isSetMatch ? resolveMatchSetSummary(match) : [];
-              const displayedHomeScore =
-                isSetMatch && match.status == MatchStatus.LIVE ? match.current_set_home_score ?? 0 : match.home_score;
-              const displayedAwayScore =
-                isSetMatch && match.status == MatchStatus.LIVE ? match.current_set_away_score ?? 0 : match.away_score;
+	            {paginatedMatches.map((match) => {
+	              const matchBracketContext = matchBracketContextByMatchId[match.id];
+	              const startedAtLabel = resolveMatchStartedAtLabel(match.start_time);
+	              const tieBreakRuleLabel = resolveMatchTieBreakRuleLabel(match.resolved_tie_breaker_rule);
+	              const isSetMatch = match.result_rule == ChampionshipSportResultRule.SETS;
+	              const supportsCards = championshipSportSupportsCardsBySportId.get(match.sport_id) == true || match.supports_cards;
+	              const isSavingMatchReviewState = savingReviewStateByMatchId[match.id] == true;
+	              const setSummary = isSetMatch ? resolveMatchSetSummary(match) : [];
+	              const displayedHomeScore =
+	                isSetMatch && match.status == MatchStatus.LIVE ? match.current_set_home_score ?? 0 : match.home_score;
+	              const displayedAwayScore =
+	                isSetMatch && match.status == MatchStatus.LIVE ? match.current_set_away_score ?? 0 : match.away_score;
 
-              return (
-                <div key={match.id} className="list-item-card list-item-card-hover space-y-3 px-4 py-3">
-                  <div className="min-w-0 space-y-2">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 space-y-2">
-                        <div className="flex w-full items-center gap-2 overflow-x-auto pb-1">
-                          {canManageMatches ? (
-                            <Checkbox
-                              checked={selectedMatchIds.includes(match.id)}
-                              onCheckedChange={(checked) => handleToggleSelectedMatch(match.id, checked)}
-                            />
-                          ) : null}
+	              return (
+	                <div key={match.id} className="list-item-card list-item-card-hover px-4 py-3">
+	                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
 
-                          <span className="shrink-0 text-xs font-medium uppercase text-muted-foreground">{match.sports?.name}</span>
-                        </div>
+	                    {/* ── COL 1: Modalidade + Badges ── */}
+	                    <div className="flex flex-col gap-2 sm:w-44 sm:shrink-0">
+	                      {/* Linha: checkbox + modalidade + revisão + (menu mobile) */}
+	                      <div className="flex items-center gap-2">
+	                        {canManageMatches ? (
+	                          <Checkbox
+	                            checked={selectedMatchIds.includes(match.id)}
+	                            onCheckedChange={(checked) => handleToggleSelectedMatch(match.id, checked)}
+	                          />
+	                        ) : null}
 
-                        <div className="flex w-full items-center gap-2 overflow-x-auto pb-1">
-                          <AppBadge tone={resolveMatchNaipeBadgeTone(String(match.naipe))} className="shrink-0 whitespace-nowrap">
-                            {resolveMatchNaipeLabel(String(match.naipe))}
-                          </AppBadge>
+	                        <span className="shrink-0 text-xs font-medium uppercase text-muted-foreground">
+	                          {match.sports?.name}
+	                        </span>
 
-                          <AppBadge tone={resolveMatchStatusBadgeTone(match.status)} className="shrink-0 whitespace-nowrap">
-                            {resolveMatchStatusLabel(match.status)}
-                          </AppBadge>
+	                        {match.is_score_sheet_reviewed ? (
+	                          <span
+	                            title="Conferido com súmula"
+	                            className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400"
+	                          >
+	                            <Check className="h-3 w-3" />
+	                          </span>
+	                        ) : null}
 
-                          {match.division ? (
-                            <AppBadge tone={TEAM_DIVISION_BADGE_TONES[match.division]} className="shrink-0 whitespace-nowrap">
-                              {TEAM_DIVISION_LABELS[match.division]}
-                            </AppBadge>
-                          ) : null}
+	                        {/* Menu — somente mobile */}
+	                        {canManageMatches ? (
+	                          <div className="ml-auto sm:hidden">
+	                            <DropdownMenu>
+	                        <DropdownMenuTrigger asChild>
+	                          <Button
+	                            variant="ghost"
+	                            size="icon"
+	                            aria-label={`Ações do jogo ${match.home_team?.name ?? "casa"} x ${match.away_team?.name ?? "visitante"}`}
+	                            disabled={deletingMatches || swappingMatches}
+	                          >
+	                            <MoreVertical className="h-4 w-4 text-muted-foreground" />
+	                          </Button>
+	                        </DropdownMenuTrigger>
+	                        <DropdownMenuContent align="end" className="w-48">
+	                          <DropdownMenuItem
+	                            onSelect={() => {
+	                              handleStartEditingMatch(match);
+	                            }}
+	                          >
+	                            <Pencil className="mr-2 h-4 w-4" />
+	                            Editar
+	                          </DropdownMenuItem>
+	
+	                          {!isScoreSheetReviewMode && match.status !== MatchStatus.FINISHED ? (
+	                            <DropdownMenuItem
+	                              onSelect={() => {
+	                                handleOpenSwapMatchDialog(match);
+	                              }}
+	                            >
+	                              <RefreshCw className="mr-2 h-4 w-4" />
+	                              Trocar jogo
+	                            </DropdownMenuItem>
+	                          ) : null}
+	
+	                          {!isScoreSheetReviewMode ? (
+	                            <DropdownMenuItem
+	                              className="text-destructive focus:text-destructive"
+	                              onSelect={() => {
+	                                handleOpenDeleteMatchDialog(match);
+	                              }}
+	                            >
+	                              <Trash2 className="mr-2 h-4 w-4" />
+	                              Apagar
+	                            </DropdownMenuItem>
+	                          ) : null}
 
-                          {matchBracketContext ? (
-                            <AppBadge tone={AppBadgeTone.NEUTRAL} className="shrink-0 whitespace-nowrap">
-                              {matchBracketContext.badgeLabel}
-                            </AppBadge>
-                          ) : null}
-                        </div>
+	                          {isScoreSheetReviewMode ? (
+	                            <>
+	                              <DropdownMenuSeparator />
+	                              <DropdownMenuItem
+	                                onSelect={() => void handleToggleMatchScoreSheetReviewed(match.id, !match.is_score_sheet_reviewed)}
+	                                disabled={isSavingMatchReviewState}
+	                              >
+	                                {match.is_score_sheet_reviewed ? (
+	                                  <>
+	                                    <X className="mr-2 h-4 w-4" />
+	                                    Remover revisão da súmula
+	                                  </>
+	                                ) : (
+	                                  <>
+	                                    <Check className="mr-2 h-4 w-4" />
+	                                    Conferir com súmula
+	                                  </>
+	                                )}
+	                              </DropdownMenuItem>
+	                            </>
+	                          ) : null}
+	                        </DropdownMenuContent>
+	                            </DropdownMenu>
+	                          </div>
+	                        ) : null}
+	                      </div>
 
-                        <div className="min-w-0 flex-1 space-y-2">
-                          <div className="flex min-h-9 items-center gap-2 text-sm font-display font-semibold">
-                            <span className="truncate">{match.home_team?.name}</span>
-                            <span className="shrink-0 text-base font-bold score-text">
-                              {displayedHomeScore} × {displayedAwayScore}
-                            </span>
-                            <span className="truncate">{match.away_team?.name}</span>
-                          </div>
+	                      {/* Badges — sempre alinhados à esquerda */}
+	                      <div className="flex flex-wrap items-center gap-1.5 sm:flex-col sm:items-start sm:gap-1">
+	                        <AppBadge tone={resolveMatchNaipeBadgeTone(String(match.naipe))}>
+	                          <span className="sm:hidden">
+	                            {match.naipe === MatchNaipe.MASCULINO ? "♂" : match.naipe === MatchNaipe.FEMININO ? "♀" : "⚥"}
+	                          </span>
+	                          <span className="hidden sm:inline">{resolveMatchNaipeLabel(String(match.naipe))}</span>
+	                        </AppBadge>
 
-                          <div className="space-y-0.5 text-xs text-muted-foreground">
-                            <p>Local: {match.location}</p>
-                            <p>Fila: {resolveScheduledQueueSummary(match, shouldUseScheduledSlotInMatchList)}</p>
-                            {matchRepresentationByMatchId[match.id] ? (
-                              <p className="break-words">Representação: {matchRepresentationByMatchId[match.id]}</p>
-                            ) : null}
-                            {match.status == MatchStatus.SCHEDULED && estimatedStartTimeByMatchId[match.id] ? (
-                              <p>Horário estimado: {estimatedStartTimeByMatchId[match.id]}</p>
-                            ) : null}
-                            {startedAtLabel ? <p>{startedAtLabel}</p> : null}
-                            {isSetMatch && match.status != MatchStatus.SCHEDULED ? (
-                              <p>Sets ganhos: {match.home_score} × {match.away_score}</p>
-                            ) : null}
-                            {setSummary.length > 0 ? (
-                              <div className="space-y-0.5 app-card-muted p-2">
-                                {setSummary.map((matchSetItem) => (
-                                  <p key={`${match.id}-admin-set-${matchSetItem.setNumber}`}>{matchSetItem.text}</p>
-                                ))}
-                              </div>
-                            ) : null}
-                            {tieBreakRuleLabel ? (
-                              <p className="inline-flex items-center gap-1 font-medium text-amber-500">
-                                <AlertTriangle className="h-3 w-3" />
-                                Desempate por {tieBreakRuleLabel}.
-                              </p>
-                            ) : null}
-                          </div>
-                        </div>
-                      </div>
+	                        <AppBadge tone={resolveMatchStatusBadgeTone(match.status)}>
+	                          {match.status === MatchStatus.LIVE ? (
+	                            <Radio className="h-3 w-3 sm:hidden" />
+	                          ) : match.status === MatchStatus.FINISHED ? (
+	                            <Check className="h-3 w-3 sm:hidden" />
+	                          ) : (
+	                            <Clock className="h-3 w-3 sm:hidden" />
+	                          )}
+	                          <span className="hidden sm:inline">{resolveMatchStatusLabel(match.status)}</span>
+	                        </AppBadge>
 
-                      {canManageMatches ? (
-                        <div className="flex shrink-0 flex-col items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Editar jogo ${match.home_team?.name ?? "casa"} x ${match.away_team?.name ?? "visitante"}`}
-                            onClick={() => handleStartEditingMatch(match)}
-                            disabled={deletingMatches}
-                          >
-                            <Pencil className="h-4 w-4 text-muted-foreground" />
-                          </Button>
+	                        {match.division ? (
+	                          <AppBadge tone={TEAM_DIVISION_BADGE_TONES[match.division]}>
+	                            <span className="sm:hidden">
+	                              {match.division === TeamDivision.DIVISAO_PRINCIPAL ? "D.P." : "D.A."}
+	                            </span>
+	                            <span className="hidden sm:inline">{TEAM_DIVISION_LABELS[match.division]}</span>
+	                          </AppBadge>
+	                        ) : null}
 
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Excluir jogo ${match.home_team?.name ?? "casa"} x ${match.away_team?.name ?? "visitante"}`}
-                            onClick={() => handleOpenDeleteMatchDialog(match)}
-                            disabled={deletingMatches}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
+	                        {matchBracketContext ? (
+	                          <AppBadge tone={AppBadgeTone.NEUTRAL} className="shrink-0 whitespace-nowrap">
+	                            {matchBracketContext.badgeLabel}
+	                          </AppBadge>
+	                        ) : null}
+
+	                        {match.is_walkover ? (
+	                          <AppBadge tone={AppBadgeTone.NEUTRAL}>W.O.</AppBadge>
+	                        ) : null}
+	                      </div>
+	                    </div>
+
+	                    {/* ── COL 2: Placar + Sets + Detalhes + Cartões ── */}
+	                    <div className="min-w-0 space-y-2 sm:min-w-[220px] sm:max-w-xs">
+	                      {/* Placar principal — flex-1 em ambos os lados, × sempre no centro */}
+	                      <div className="flex items-center gap-1 font-display text-sm font-semibold">
+	                        <span className="min-w-0 flex-1 truncate text-right">{match.home_team?.name}</span>
+	                        <span className="shrink-0 text-base font-bold score-text">{displayedHomeScore}</span>
+	                        <span className="shrink-0 px-0.5 text-sm text-muted-foreground">×</span>
+	                        <span className="shrink-0 text-base font-bold score-text">{displayedAwayScore}</span>
+	                        <span className="min-w-0 flex-1 truncate">{match.away_team?.name}</span>
+	                      </div>
+
+	                      {/* Sets em árvore — × alinhado com o placar principal */}
+	                      {setSummary.length > 0 && match.status != MatchStatus.SCHEDULED ? (
+	                        <div>
+	                          <div className="mx-auto h-3 w-px bg-primary/70" />
+	                          <div className="border-t-2 border-primary/70" />
+	                          <div className="mt-2 space-y-2">
+	                            {setSummary.map((matchSetItem) => (
+	                              <div
+	                                key={`${match.id}-admin-set-${matchSetItem.setNumber}`}
+	                                className="rounded-md border border-primary/40 bg-primary/10 px-2 py-1.5"
+	                              >
+	                                <div className="flex items-baseline gap-1 font-display text-[13px] font-semibold text-foreground">
+	                                  <span className="min-w-0 flex-1 truncate text-right">
+	                                    <span className="font-normal text-[11px] text-muted-foreground">
+	                                      <span className="hidden sm:inline">Set </span>{matchSetItem.setNumber}<span className="sm:hidden">º</span>{": "}
+	                                    </span>
+	                                    {matchSetItem.homeTeamName}{" "}
+	                                  </span>
+	                                  <span className="shrink-0 score-text">{matchSetItem.homePoints}</span>
+	                                  <span className="shrink-0 px-0.5 text-xs text-muted-foreground">×</span>
+	                                  <span className="shrink-0 score-text">{matchSetItem.awayPoints}</span>
+	                                  <span className="min-w-0 flex-1 truncate">
+	                                    {" "}{matchSetItem.awayTeamName}
+	                                  </span>
+	                                </div>
+	                              </div>
+	                            ))}
+	                          </div>
+	                        </div>
+	                      ) : null}
+
+	                      {/* Detalhes — empilhado no mobile, linha única no desktop */}
+	                      <div className="text-center text-xs text-muted-foreground">
+	                        <div className="flex flex-col items-center gap-y-0.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-x-3 sm:gap-y-0">
+	                          <span>Local: {match.location}</span>
+	                          <span>Fila: {resolveScheduledQueueSummary(match, shouldUseScheduledSlotInMatchList)}</span>
+	                          {matchRepresentationByMatchId[match.id] ? (
+	                            <span className="break-words">Representação: {matchRepresentationByMatchId[match.id]}</span>
+	                          ) : null}
+	                          {match.status == MatchStatus.SCHEDULED && estimatedStartTimeByMatchId[match.id] ? (
+	                            <span>Horário estimado: {estimatedStartTimeByMatchId[match.id]}</span>
+	                          ) : null}
+	                          {startedAtLabel ? <span>{startedAtLabel}</span> : null}
+	                        </div>
+	                        {tieBreakRuleLabel ? (
+	                          <p className="mt-1 inline-flex items-center gap-1 font-medium text-amber-500">
+	                            <AlertTriangle className="h-3 w-3" />
+	                            Desempate por {tieBreakRuleLabel}.
+	                          </p>
+	                        ) : null}
+	                      </div>
+
+	                      {/* Cartões com ícones */}
+	                      {supportsCards ? (
+	                        <div className="space-y-1">
+	                          <p className="text-center text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+	                            Cartões
+	                          </p>
+	                          <div className="mx-auto grid max-w-xs grid-cols-2 gap-x-6 gap-y-1">
+	                            <div className="space-y-0.5 text-center">
+	                              <p className="truncate text-xs font-medium text-foreground">
+	                                {match.home_team?.name ?? "Casa"}
+	                              </p>
+	                              <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+	                                <span className="inline-flex items-center gap-1">
+	                                  <Square className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
+	                                  {match.home_yellow_cards}
+	                                </span>
+	                                <span className="inline-flex items-center gap-1">
+	                                  <Square className="h-2.5 w-2.5 fill-rose-600 text-rose-600 dark:fill-rose-500 dark:text-rose-500" />
+	                                  {match.home_red_cards}
+	                                </span>
+	                              </div>
+	                            </div>
+	                            <div className="space-y-0.5 text-center">
+	                              <p className="truncate text-xs font-medium text-foreground">
+	                                {match.away_team?.name ?? "Visitante"}
+	                              </p>
+	                              <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+	                                <span className="inline-flex items-center gap-1">
+	                                  <Square className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
+	                                  {match.away_yellow_cards}
+	                                </span>
+	                                <span className="inline-flex items-center gap-1">
+	                                  <Square className="h-2.5 w-2.5 fill-rose-600 text-rose-600 dark:fill-rose-500 dark:text-rose-500" />
+	                                  {match.away_red_cards}
+	                                </span>
+	                              </div>
+	                            </div>
+	                          </div>
+	                        </div>
+	                      ) : null}
+	                    </div>
+
+	                    {/* ── COL 3: Menu ações (somente desktop) ── */}
+	                    {canManageMatches ? (
+	                      <div className="hidden sm:flex sm:shrink-0 sm:items-center">
+	                        <DropdownMenu>
+	                        <DropdownMenuTrigger asChild>
+	                          <Button
+	                            variant="ghost"
+	                            size="icon"
+	                            aria-label={`Ações do jogo ${match.home_team?.name ?? "casa"} x ${match.away_team?.name ?? "visitante"}`}
+	                            disabled={deletingMatches || swappingMatches}
+	                          >
+	                            <MoreVertical className="h-4 w-4 text-muted-foreground" />
+	                          </Button>
+	                        </DropdownMenuTrigger>
+	                        <DropdownMenuContent align="end" className="w-48">
+	                          <DropdownMenuItem
+	                            onSelect={() => {
+	                              handleStartEditingMatch(match);
+	                            }}
+	                          >
+	                            <Pencil className="mr-2 h-4 w-4" />
+	                            Editar
+	                          </DropdownMenuItem>
+	
+	                          {!isScoreSheetReviewMode && match.status !== MatchStatus.FINISHED ? (
+	                            <DropdownMenuItem
+	                              onSelect={() => {
+	                                handleOpenSwapMatchDialog(match);
+	                              }}
+	                            >
+	                              <RefreshCw className="mr-2 h-4 w-4" />
+	                              Trocar jogo
+	                            </DropdownMenuItem>
+	                          ) : null}
+	
+	                          {!isScoreSheetReviewMode ? (
+	                            <DropdownMenuItem
+	                              className="text-destructive focus:text-destructive"
+	                              onSelect={() => {
+	                                handleOpenDeleteMatchDialog(match);
+	                              }}
+	                            >
+	                              <Trash2 className="mr-2 h-4 w-4" />
+	                              Apagar
+	                            </DropdownMenuItem>
+	                          ) : null}
+
+	                          {isScoreSheetReviewMode ? (
+	                            <>
+	                              <DropdownMenuSeparator />
+	                              <DropdownMenuItem
+	                                onSelect={() => void handleToggleMatchScoreSheetReviewed(match.id, !match.is_score_sheet_reviewed)}
+	                                disabled={isSavingMatchReviewState}
+	                              >
+	                                {match.is_score_sheet_reviewed ? (
+	                                  <>
+	                                    <X className="mr-2 h-4 w-4" />
+	                                    Remover revisão da súmula
+	                                  </>
+	                                ) : (
+	                                  <>
+	                                    <Check className="mr-2 h-4 w-4" />
+	                                    Conferir com súmula
+	                                  </>
+	                                )}
+	                              </DropdownMenuItem>
+	                            </>
+	                          ) : null}
+	                        </DropdownMenuContent>
+	                        </DropdownMenu>
+	                      </div>
+	                    ) : null}
+	                  </div>
+	                </div>
               );
             })}
 
@@ -1861,6 +3468,78 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
           <p className="text-sm text-muted-foreground">Nenhum jogo encontrado para os filtros selecionados.</p>
         )}
       </div>
+
+      <Dialog
+        open={showSwapMatchDialog}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            handleCloseSwapMatchDialog();
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Trocar jogo na fila</DialogTitle>
+            <DialogDescription>
+              Selecione o jogo do mesmo dia, modalidade, naipe e divisão para trocar a posição da fila.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Jogo selecionado</p>
+              <div className="app-card-muted rounded-xl p-3 text-sm">
+                {pendingSwapSourceMatch
+                  ? resolveMatchSwapOptionLabel(pendingSwapSourceMatch, shouldUseScheduledSlotInMatchList)
+                  : "Selecione um jogo para iniciar a troca."}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Trocar com</p>
+              <Select
+                value={pendingSwapTargetMatchId || EMPTY_SWAP_MATCH_OPTION_VALUE}
+                onValueChange={(value) => {
+                  setPendingSwapTargetMatchId(value == EMPTY_SWAP_MATCH_OPTION_VALUE ? "" : value);
+                }}
+                disabled={eligibleSwapTargetMatchOptions.length == 0 || swappingMatches}
+              >
+                <SelectTrigger aria-label="Selecionar jogo para troca de fila" className="app-input-field">
+                  <SelectValue placeholder="Selecione o jogo para troca" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={EMPTY_SWAP_MATCH_OPTION_VALUE}>Selecione o jogo</SelectItem>
+                  {eligibleSwapTargetMatchOptions.map((swapOption) => (
+                    <SelectItem key={swapOption.id} value={swapOption.id}>
+                      {swapOption.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {eligibleSwapTargetMatchOptions.length == 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Não há jogo elegível para troca neste escopo.
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={handleCloseSwapMatchDialog} disabled={swappingMatches}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void handleConfirmSwapMatches()}
+              disabled={!pendingSwapSourceMatch || !pendingSwapTargetMatchId || swappingMatches}
+            >
+              {swappingMatches ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Confirmar troca
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog
         open={showDeleteMatchDialog}
@@ -1884,6 +3563,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deletingMatches}>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={() => void handleDeleteMatchFromDialog()} disabled={deletingMatches}>
+              {deletingMatches ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Confirmar exclusão
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1911,28 +3591,74 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
               onClick={() => void handleDeleteSelectedMatches()}
               disabled={deletingMatches}
             >
+              {deletingMatches ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Confirmar exclusão
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
+      <Dialog open={showEditReviewConfirmationDialog} onOpenChange={setShowEditReviewConfirmationDialog}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Jogo já revisado na súmula</DialogTitle>
+            <DialogDescription>
+              Este jogo já estava marcado como conferido. Ao salvar a edição, deseja manter a revisão ou remover a marcação?
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="flex flex-col gap-2 sm:flex-col sm:space-x-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowEditReviewConfirmationDialog(false)}
+              disabled={savingEditingMatch}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void handleSaveEditingMatch("KEEP_REVIEW")}
+              disabled={savingEditingMatch}
+            >
+              {savingEditingMatch ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Salvar e manter revisão
+            </Button>
+
+            <Button
+              type="button"
+              onClick={() => void handleSaveEditingMatch("REMOVE_REVIEW")}
+              disabled={savingEditingMatch}
+            >
+              {savingEditingMatch ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Salvar e remover revisão
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showTieBreakDialog} onOpenChange={setShowTieBreakDialog}>
         <DialogContent className="sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Resolver sorteios de desempate</DialogTitle>
             <DialogDescription>
-              Quando a classificação chega ao último critério, o mata-mata fica bloqueado até você confirmar a ordem manual desses empates.
+              Quando a classificação chega ao último critério, apenas as vagas impactadas ficam pendentes até você confirmar a ordem manual desses empates.
             </DialogDescription>
           </DialogHeader>
 
           <div className="max-h-[65vh] space-y-3 overflow-y-auto pr-1">
             {pendingTieBreakContexts.map((pendingTieBreakContext) => {
-              const orderedTeamIds = draftTieBreakTeamIdsByContextKey[pendingTieBreakContext.context_key] ?? [];
+              const orderedTeamIds = resolveNormalizedTieBreakTeamOrder(
+                pendingTieBreakContext,
+                draftTieBreakTeamIdsByContextKey[pendingTieBreakContext.context_key],
+              );
+              const isTieBreakContextOrderReady = resolveIsTieBreakTeamOrderReady(pendingTieBreakContext, orderedTeamIds);
               const teamNameByTeamId = pendingTieBreakTeamNameByContextKeyAndTeamId[pendingTieBreakContext.context_key] ?? {};
+              const isSavingTieBreakContext = savingTieBreakResolutionByContextKey[pendingTieBreakContext.context_key] == true;
               const displayedTieBreakSlots = pendingTieBreakContext.teams.map((_, teamIndex) => ({
                 position: teamIndex + 1,
-                teamId: orderedTeamIds[teamIndex] ?? null,
+                teamId: orderedTeamIds[teamIndex] ?? "",
               }));
 
               return (
@@ -1942,18 +3668,62 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
                     <p className="text-sm text-muted-foreground">{pendingTieBreakContext.description}</p>
                   </div>
 
+                  {!isTieBreakContextOrderReady ? (
+                    <p className="text-xs font-medium text-amber-500">
+                      Defina a ordem completa sem repetir atléticas para confirmar este desempate.
+                    </p>
+                  ) : null}
+
                   <div className="grid gap-2 md:grid-cols-2">
                     {displayedTieBreakSlots.map((displayedTieBreakSlot) => (
-                        <div
-                          key={`${pendingTieBreakContext.context_key}:${displayedTieBreakSlot.position}`}
-                          className="glass-panel-muted flex items-center justify-between rounded-xl px-3 py-2"
+                      <div
+                        key={`${pendingTieBreakContext.context_key}:${displayedTieBreakSlot.position}`}
+                        className="glass-panel-muted flex items-center gap-2 rounded-xl px-3 py-2"
+                      >
+                        <span className="w-8 shrink-0 text-sm font-medium text-muted-foreground">
+                          {displayedTieBreakSlot.position}º
+                        </span>
+                        <Select
+                          value={displayedTieBreakSlot.teamId || EMPTY_TIE_BREAK_TEAM_OPTION_VALUE}
+                          onValueChange={(value) =>
+                            handleUpdateTieBreakContextTeamAtPosition(
+                              pendingTieBreakContext,
+                              displayedTieBreakSlot.position - 1,
+                              value == EMPTY_TIE_BREAK_TEAM_OPTION_VALUE ? "" : value,
+                            )
+                          }
+                          disabled={savingTieBreakResolutions || isSavingTieBreakContext || !canManageMatches}
                         >
-                          <span className="text-sm font-medium text-muted-foreground">{displayedTieBreakSlot.position}º</span>
-                          <span className="flex-1 truncate px-3 text-sm font-medium text-foreground">
-                            {displayedTieBreakSlot.teamId ? teamNameByTeamId[displayedTieBreakSlot.teamId] ?? "Atlética" : ""}
-                          </span>
-                        </div>
-                      ))}
+                          <SelectTrigger
+                            aria-label={`Atlética na posição ${displayedTieBreakSlot.position} do desempate`}
+                            className="app-input-field w-full"
+                          >
+                            <SelectValue placeholder="Selecione a atlética" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={EMPTY_TIE_BREAK_TEAM_OPTION_VALUE}>Selecione a atlética</SelectItem>
+                            {pendingTieBreakContext.teams.map((tieBreakTeamOption) => {
+                              const isSelectedInOtherPosition = displayedTieBreakSlots.some((displayedTieBreakSlotItem) => {
+                                return (
+                                  displayedTieBreakSlotItem.position != displayedTieBreakSlot.position &&
+                                  displayedTieBreakSlotItem.teamId == tieBreakTeamOption.team_id
+                                );
+                              });
+
+                              return (
+                                <SelectItem
+                                  key={`${pendingTieBreakContext.context_key}:${displayedTieBreakSlot.position}:${tieBreakTeamOption.team_id}`}
+                                  value={tieBreakTeamOption.team_id}
+                                  disabled={isSelectedInOtherPosition}
+                                >
+                                  {teamNameByTeamId[tieBreakTeamOption.team_id] ?? tieBreakTeamOption.team_name}
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ))}
                   </div>
 
                   <div className="flex flex-wrap gap-2">
@@ -1961,10 +3731,19 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
                       type="button"
                       variant="outline"
                       onClick={() => handleShuffleTieBreakContext(pendingTieBreakContext)}
-                      disabled={savingTieBreakResolutions}
+                      disabled={savingTieBreakResolutions || isSavingTieBreakContext || !canManageMatches}
                     >
                       <RefreshCw className="mr-2 h-4 w-4" />
-                      {orderedTeamIds.length > 0 ? "Refazer sorteio" : "Sortear ordem"}
+                      {orderedTeamIds.some((teamId) => teamId.length > 0) ? "Refazer sorteio" : "Sortear ordem"}
+                    </Button>
+
+                    <Button
+                      type="button"
+                      onClick={() => void handleSaveSingleTieBreakResolution(pendingTieBreakContext)}
+                      disabled={!isTieBreakContextOrderReady || savingTieBreakResolutions || isSavingTieBreakContext || !canManageMatches}
+                    >
+                      {isSavingTieBreakContext ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      Salvar sorteio
                     </Button>
                   </div>
                 </div>
@@ -1977,15 +3756,16 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
               type="button"
               variant="outline"
               onClick={() => setShowTieBreakDialog(false)}
-              disabled={savingTieBreakResolutions}
+              disabled={isAnyTieBreakResolutionSaveInFlight}
             >
               Fechar
             </Button>
             <Button
               type="button"
               onClick={handleSaveTieBreakResolutions}
-              disabled={!isTieBreakResolutionReady || savingTieBreakResolutions}
+              disabled={!isTieBreakResolutionReady || isAnyTieBreakResolutionSaveInFlight || !canManageMatches}
             >
+              {savingTieBreakResolutions ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Confirmar sorteios e gerar mata-mata
             </Button>
           </DialogFooter>
@@ -2004,7 +3784,7 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
           <DialogContent className="flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col overflow-hidden sm:max-h-none sm:w-full sm:max-w-4xl sm:overflow-visible">
             <DialogHeader className="shrink-0">
               <DialogTitle>Editar jogo - {selectedChampionship.name}</DialogTitle>
-              <DialogDescription>Atualize naipe, modalidade, grupo, atléticas, local e o dia da fila do confronto.</DialogDescription>
+              <DialogDescription>Atualize naipe, modalidade, grupo, placar, status, atléticas, local e o dia da fila do confronto.</DialogDescription>
             </DialogHeader>
 
             <div className="min-h-0 overflow-y-auto pr-1 sm:overflow-visible sm:pr-0">
@@ -2049,167 +3829,199 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
               <div className="space-y-3">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Contexto do jogo</p>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                  <Select
-                    value={editingMatchDraft.sportId}
-                    onValueChange={(value) =>
-                      setEditingMatchDraft((currentDraft) =>
-                        currentDraft
-                          ? {
-                              ...currentDraft,
-                              sportId: value,
-                              selectedGroupOptionValue: "",
-                              homeTeamId: "",
-                              awayTeamId: "",
-                            }
-                          : currentDraft,
-                      )
-                    }
-                  >
-                    <SelectTrigger aria-label="Modalidade do jogo" className="app-input-field">
-                      <SelectValue placeholder="Modalidade" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableSportsForEditing.map((sport) => (
-                        <SelectItem key={sport.id} value={sport.id}>
-                          {sport.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  {championshipUsesDivisions ? (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Modalidade</p>
                     <Select
-                      value={editingMatchDraft.division}
-                      onValueChange={(value) => {
-                        if (!isTeamDivision(value)) {
-                          return;
-                        }
-
-                        setEditingMatchDraft((currentDraft) =>
-                          currentDraft
-                            ? {
-                                ...currentDraft,
-                                division: value,
-                                homeTeamId: "",
-                                awayTeamId: "",
-                                selectedGroupOptionValue: "",
-                              }
-                            : currentDraft,
-                        );
-                      }}
-                    >
-                      <SelectTrigger aria-label="Divisão do jogo" className="app-input-field">
-                        <SelectValue placeholder="Divisão" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={TeamDivision.DIVISAO_PRINCIPAL}>
-                          {TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_PRINCIPAL]}
-                        </SelectItem>
-                        <SelectItem value={TeamDivision.DIVISAO_ACESSO}>
-                          {TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_ACESSO]}
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <div className="app-input-field-disabled flex items-center rounded-xl px-3 py-2 text-sm">
-                      Divisão unificada
-                    </div>
-                  )}
-
-                  {hasConfiguredBracket ? (
-                    <Select
-                      value={editingMatchDraft.selectedGroupOptionValue || EMPTY_GROUP_OPTION_VALUE}
+                      value={editingMatchDraft.sportId}
                       onValueChange={(value) =>
                         setEditingMatchDraft((currentDraft) =>
                           currentDraft
                             ? {
                                 ...currentDraft,
-                                selectedGroupOptionValue: value == EMPTY_GROUP_OPTION_VALUE ? "" : value,
+                                sportId: value,
+                                selectedGroupOptionValue: "",
+                                homeTeamId: "",
+                                awayTeamId: "",
                               }
                             : currentDraft,
                         )
                       }
-                      disabled={loadingChampionshipBracket}
                     >
-                      <SelectTrigger aria-label="Grupo do jogo" className="app-input-field">
-                        <SelectValue placeholder="Chave" />
+                      <SelectTrigger aria-label="Modalidade do jogo" className="app-input-field">
+                        <SelectValue placeholder="Modalidade" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={EMPTY_GROUP_OPTION_VALUE}>Sem chave vinculada</SelectItem>
-                        {editingMatchGroupOptions.map((groupOption) => (
-                          <SelectItem key={groupOption.value} value={groupOption.value}>
-                            {resolveChampionshipGroupLabel(groupOption.group_number)}
+                        {availableSportsForEditing.map((sport) => (
+                          <SelectItem key={sport.id} value={sport.id}>
+                            {sport.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                  ) : (
-                    <div className="app-input-field-disabled flex items-center rounded-xl px-3 py-2 text-sm">
-                      Sem chave vinculada
+                  </div>
+
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Divisão</p>
+                    {championshipUsesDivisions ? (
+                      <Select
+                        value={editingMatchDraft.division}
+                        onValueChange={(value) => {
+                          if (!isTeamDivision(value)) {
+                            return;
+                          }
+
+                          setEditingMatchDraft((currentDraft) =>
+                            currentDraft
+                              ? {
+                                  ...currentDraft,
+                                  division: value,
+                                  homeTeamId: "",
+                                  awayTeamId: "",
+                                  selectedGroupOptionValue: "",
+                                }
+                              : currentDraft,
+                          );
+                        }}
+                      >
+                        <SelectTrigger aria-label="Divisão do jogo" className="app-input-field">
+                          <SelectValue placeholder="Divisão" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={TeamDivision.DIVISAO_PRINCIPAL}>
+                            {TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_PRINCIPAL]}
+                          </SelectItem>
+                          <SelectItem value={TeamDivision.DIVISAO_ACESSO}>
+                            {TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_ACESSO]}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="app-input-field-disabled flex items-center rounded-xl px-3 py-2 text-sm">
+                        Divisão unificada
+                      </div>
+                    )}
+                  </div>
+
+                  {hasConfiguredBracket && !editingKnockoutMatchBinding ? (
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Chave vinculada</p>
+                      <Select
+                        value={editingMatchDraft.selectedGroupOptionValue || EMPTY_GROUP_OPTION_VALUE}
+                        onValueChange={(value) =>
+                          setEditingMatchDraft((currentDraft) =>
+                            currentDraft
+                              ? {
+                                  ...currentDraft,
+                                  selectedGroupOptionValue: value == EMPTY_GROUP_OPTION_VALUE ? "" : value,
+                                }
+                              : currentDraft,
+                          )
+                        }
+                        disabled={loadingChampionshipBracket}
+                      >
+                        <SelectTrigger aria-label="Grupo do jogo" className="app-input-field">
+                          <SelectValue placeholder="Chave" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={EMPTY_GROUP_OPTION_VALUE}>Sem chave vinculada</SelectItem>
+                          {editingMatchGroupOptions.map((groupOption) => (
+                            <SelectItem key={groupOption.value} value={groupOption.value}>
+                              {resolveChampionshipGroupLabel(groupOption.group_number)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
-                  )}
+                  ) : null}
                 </div>
               </div>
 
               <div className="space-y-3">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Operação do dia</p>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <Select
-                    value={editingMatchDraft.location}
-                    onValueChange={(value) =>
-                      setEditingMatchDraft((currentDraft) =>
-                        currentDraft
-                          ? {
-                              ...currentDraft,
-                              location: value,
-                            }
-                          : currentDraft,
-                      )
-                    }
-                    disabled={editingLocationOptions.length == 0}
-                  >
-                    <SelectTrigger aria-label="Local do jogo" className="app-input-field">
-                      <SelectValue placeholder={loadingLocationTemplates ? "Carregando locais" : "Local"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {editingLocationOptions.map((locationOption) => (
-                        <SelectItem key={locationOption} value={locationOption}>
-                          {locationOption}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className={`grid grid-cols-1 gap-3 ${isEditingSportWithTime ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Local</p>
+                    <Select
+                      value={editingMatchDraft.location}
+                      onValueChange={(value) =>
+                        setEditingMatchDraft((currentDraft) =>
+                          currentDraft
+                            ? {
+                                ...currentDraft,
+                                location: value,
+                              }
+                            : currentDraft,
+                        )
+                      }
+                      disabled={editingLocationOptions.length == 0}
+                    >
+                      <SelectTrigger aria-label="Local do jogo" className="app-input-field">
+                        <SelectValue placeholder={loadingLocationTemplates ? "Carregando locais" : "Local"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {editingLocationOptions.map((locationOption) => (
+                          <SelectItem key={locationOption} value={locationOption}>
+                            {locationOption}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                  <DateTimePicker
-                    value={editingMatchDraft.scheduledDate}
-                    onChange={(value) =>
-                      setEditingMatchDraft((currentDraft) =>
-                        currentDraft
-                          ? {
-                              ...currentDraft,
-                              scheduledDate: value,
-                            }
-                          : currentDraft,
-                      )
-                    }
-                    placeholder="Dia da fila"
-                    showTime={false}
-                  />
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Dia da fila</p>
+                    <DateTimePicker
+                      value={editingMatchDraft.scheduledDate}
+                      onChange={(value) =>
+                        setEditingMatchDraft((currentDraft) =>
+                          currentDraft
+                            ? {
+                                ...currentDraft,
+                                scheduledDate: value,
+                              }
+                            : currentDraft,
+                        )
+                      }
+                      placeholder="Dia da fila"
+                      showTime={false}
+                    />
+                  </div>
+
+                  {isEditingSportWithTime ? (
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Horário de início</p>
+                      <DateTimePicker
+                        value={editingMatchDraft.startTime}
+                        onChange={(value) =>
+                          setEditingMatchDraft((currentDraft) =>
+                            currentDraft
+                              ? {
+                                  ...currentDraft,
+                                  startTime: value,
+                                }
+                              : currentDraft,
+                          )
+                        }
+                        placeholder="Horário de início"
+                        showTime={true}
+                      />
+                    </div>
+                  ) : null}
                 </div>
 
-                {editingMatch.status == MatchStatus.FINISHED ? (
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Status</p>
                     <Select
                       value={editingMatchDraft.status}
                       onValueChange={(value) => {
-                        if (value == MatchStatus.SCHEDULED || value == MatchStatus.FINISHED) {
+                        if (value == MatchStatus.SCHEDULED || value == MatchStatus.FINISHED || value == MatchStatus.LIVE) {
                           setEditingMatchDraft((currentDraft) =>
                             currentDraft
                               ? {
                                   ...currentDraft,
                                   status: value,
-                                  resolvedTieBreakerRule:
-                                    value == MatchStatus.SCHEDULED ? "" : currentDraft.resolvedTieBreakerRule,
+                                  resolvedTieBreakerRule: value == MatchStatus.FINISHED ? currentDraft.resolvedTieBreakerRule : "",
                                 }
                               : currentDraft,
                           );
@@ -2220,96 +4032,323 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
                         <SelectValue placeholder="Status do jogo" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value={MatchStatus.SCHEDULED}>Agendado</SelectItem>
+                        <SelectItem value={MatchStatus.LIVE}>Ao vivo</SelectItem>
                         <SelectItem value={MatchStatus.FINISHED}>Encerrado</SelectItem>
-                        <SelectItem value={MatchStatus.SCHEDULED}>Voltar para agendado mantendo resultado</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
 
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Número do jogo</p>
                     <Select
-                      value={editingMatchDraft.resolvedTieBreakerRule || EMPTY_TIE_BREAKER_RULE_OPTION_VALUE}
+                      value={editingMatchDraft.gameSlot || "EMPTY"}
                       onValueChange={(value) =>
                         setEditingMatchDraft((currentDraft) =>
                           currentDraft
                             ? {
                                 ...currentDraft,
-                                resolvedTieBreakerRule:
-                                  value == EMPTY_TIE_BREAKER_RULE_OPTION_VALUE
-                                    ? ""
-                                    : (value as ChampionshipSportTieBreakerRule),
+                                gameSlot: value === "EMPTY" ? "" : value,
                               }
                             : currentDraft,
                         )
                       }
-                      disabled={editingMatchDraft.status != MatchStatus.FINISHED}
                     >
-                      <SelectTrigger aria-label="Critério de desempate" className="app-input-field">
-                        <SelectValue placeholder="Critério de desempate" />
+                      <SelectTrigger aria-label="Número do jogo" className="app-input-field h-10">
+                        <SelectValue placeholder="Nenhum" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={EMPTY_TIE_BREAKER_RULE_OPTION_VALUE}>Sem critério extra</SelectItem>
-                        {Object.entries(CHAMPIONSHIP_SPORT_TIE_BREAKER_RULE_LABELS).map(([tieBreakerRule, label]) => (
-                          <SelectItem key={tieBreakerRule} value={tieBreakerRule}>
-                            {label}
+                        <SelectItem value="EMPTY">Nenhum</SelectItem>
+                        {availableQueuePositionsForEditingMatch.map((pos) => (
+                          <SelectItem key={pos} value={String(pos)}>
+                            Jogo {pos}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="LAST_IN_QUEUE">Último da fila</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                </div>
+              </div>
+
+              {editingMatchDraft.status === MatchStatus.FINISHED ? (
+              <div className="space-y-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Placar</p>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">Casa</p>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={editingMatchDraft.homeScore}
+                      onChange={(event) =>
+                        setEditingMatchDraft((currentDraft) =>
+                          currentDraft
+                            ? {
+                                ...currentDraft,
+                                homeScore: resolveParsedScoreInputValue(event.target.value),
+                              }
+                            : currentDraft,
+                        )
+                      }
+                      className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      aria-label="Placar do mandante"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">Visitante</p>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={editingMatchDraft.awayScore}
+                      onChange={(event) =>
+                        setEditingMatchDraft((currentDraft) =>
+                          currentDraft
+                            ? {
+                                ...currentDraft,
+                                awayScore: resolveParsedScoreInputValue(event.target.value),
+                              }
+                            : currentDraft,
+                        )
+                      }
+                      className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      aria-label="Placar do visitante"
+                    />
+                  </div>
+                </div>
+              </div>
+              ) : null}
+
+              {isEditingSportWithCards && editingMatchDraft.status === MatchStatus.FINISHED ? (
+                <div className="space-y-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Cartões</p>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <div className="space-y-2 app-card-muted rounded-xl p-3">
+                      <p className="text-xs font-medium text-muted-foreground">Casa</p>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium text-amber-700">Amarelos</p>
+                          <Input
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={editingMatchDraft.homeYellowCards}
+                            onChange={(event) =>
+                              setEditingMatchDraft((currentDraft) =>
+                                currentDraft
+                                  ? {
+                                      ...currentDraft,
+                                      homeYellowCards: resolveParsedScoreInputValue(event.target.value),
+                                    }
+                                  : currentDraft,
+                              )
+                            }
+                            className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            aria-label="Cartões amarelos da casa"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium app-text-status-danger">Vermelhos</p>
+                          <Input
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={editingMatchDraft.homeRedCards}
+                            onChange={(event) =>
+                              setEditingMatchDraft((currentDraft) =>
+                                currentDraft
+                                  ? {
+                                      ...currentDraft,
+                                      homeRedCards: resolveParsedScoreInputValue(event.target.value),
+                                    }
+                                  : currentDraft,
+                              )
+                            }
+                            className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            aria-label="Cartões vermelhos da casa"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 app-card-muted rounded-xl p-3">
+                      <p className="text-xs font-medium text-muted-foreground">Visitante</p>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium text-amber-700">Amarelos</p>
+                          <Input
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={editingMatchDraft.awayYellowCards}
+                            onChange={(event) =>
+                              setEditingMatchDraft((currentDraft) =>
+                                currentDraft
+                                  ? {
+                                      ...currentDraft,
+                                      awayYellowCards: resolveParsedScoreInputValue(event.target.value),
+                                    }
+                                  : currentDraft,
+                              )
+                            }
+                            className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            aria-label="Cartões amarelos do visitante"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium app-text-status-danger">Vermelhos</p>
+                          <Input
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={editingMatchDraft.awayRedCards}
+                            onChange={(event) =>
+                              setEditingMatchDraft((currentDraft) =>
+                                currentDraft
+                                  ? {
+                                      ...currentDraft,
+                                      awayRedCards: resolveParsedScoreInputValue(event.target.value),
+                                    }
+                                  : currentDraft,
+                              )
+                            }
+                            className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            aria-label="Cartões vermelhos do visitante"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {isEditingSetRuleMatch ? (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Resultado por set</p>
+                    <Button type="button" variant="outline" size="sm" onClick={handleAddEditingMatchSet}>
+                      <Plus className="mr-1 h-3 w-3" />
+                      Adicionar set
+                    </Button>
+                  </div>
+
+                  {editingMatchSetsDraft.length == 0 ? (
+                    <p className="text-xs text-muted-foreground">Nenhum set registrado. Adicione os sets para definir o resultado por sets.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {editingMatchSetsDraft.map((matchSetDraft, matchSetIndex) => (
+                        <div
+                          key={`editing-match-set-${matchSetIndex}`}
+                          className="app-card-emphasis grid grid-cols-[auto_minmax(0,1fr)_auto_minmax(0,1fr)_auto] items-center gap-2 rounded-xl p-3"
+                        >
+                          <span className="text-xs font-semibold text-muted-foreground">Set {matchSetIndex + 1}</span>
+                          <Input
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={matchSetDraft.home_points}
+                            onChange={(event) => handleUpdateEditingMatchSetPoints(matchSetIndex, "home", event.target.value)}
+                            className="app-input-field h-10 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            aria-label={`Pontuação da casa no set ${matchSetIndex + 1}`}
+                          />
+                          <span className="text-sm font-semibold text-muted-foreground">×</span>
+                          <Input
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={matchSetDraft.away_points}
+                            onChange={(event) => handleUpdateEditingMatchSetPoints(matchSetIndex, "away", event.target.value)}
+                            className="app-input-field h-10 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            aria-label={`Pontuação visitante no set ${matchSetIndex + 1}`}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteEditingMatchSet(matchSetIndex)}
+                            aria-label={`Remover set ${matchSetIndex + 1}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : null}
+
+              <div className="space-y-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Atléticas</p>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="space-y-2">
+                    {editingKnockoutMatchSourceLabels ? (
+                      <p className="text-xs text-muted-foreground">
+                        Casa: Origem da vaga <span className="font-medium text-foreground">{editingKnockoutMatchSourceLabels.home}</span>
+                      </p>
+                    ) : null}
+                    <Select
+                      value={editingMatchDraft.homeTeamId}
+                      onValueChange={(value) =>
+                        setEditingMatchDraft((currentDraft) =>
+                          currentDraft
+                            ? {
+                                ...currentDraft,
+                                homeTeamId: value,
+                              }
+                            : currentDraft,
+                        )
+                      }
+                    >
+                      <SelectTrigger aria-label="Atlética da casa" className="app-input-field">
+                        <SelectValue placeholder="Atlética da casa" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {eligibleTeamsForEditingMatch.map((team) => (
+                          <SelectItem key={team.id} value={team.id}>
+                            {team.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
-                ) : null}
-              </div>
 
-              <div className="space-y-3">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Atléticas</p>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <Select
-                    value={editingMatchDraft.homeTeamId}
-                    onValueChange={(value) =>
-                      setEditingMatchDraft((currentDraft) =>
-                        currentDraft
-                          ? {
-                              ...currentDraft,
-                              homeTeamId: value,
-                            }
-                          : currentDraft,
-                      )
-                    }
-                  >
-                    <SelectTrigger aria-label="Atlética da casa" className="app-input-field">
-                      <SelectValue placeholder="Atlética da casa" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {eligibleTeamsForEditingMatch.map((team) => (
-                        <SelectItem key={team.id} value={team.id}>
-                          {team.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  <Select
-                    value={editingMatchDraft.awayTeamId}
-                    onValueChange={(value) =>
-                      setEditingMatchDraft((currentDraft) =>
-                        currentDraft
-                          ? {
-                              ...currentDraft,
-                              awayTeamId: value,
-                            }
-                          : currentDraft,
-                      )
-                    }
-                  >
-                    <SelectTrigger aria-label="Atlética visitante" className="app-input-field">
-                      <SelectValue placeholder="Atlética visitante" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {eligibleTeamsForEditingMatch.map((team) => (
-                        <SelectItem key={team.id} value={team.id}>
-                          {team.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="space-y-2">
+                    {editingKnockoutMatchSourceLabels ? (
+                      <p className="text-xs text-muted-foreground">
+                        Visitante: Origem da vaga <span className="font-medium text-foreground">{editingKnockoutMatchSourceLabels.away}</span>
+                      </p>
+                    ) : null}
+                    <Select
+                      value={editingMatchDraft.awayTeamId}
+                      onValueChange={(value) =>
+                        setEditingMatchDraft((currentDraft) =>
+                          currentDraft
+                            ? {
+                                ...currentDraft,
+                                awayTeamId: value,
+                              }
+                            : currentDraft,
+                        )
+                      }
+                    >
+                      <SelectTrigger aria-label="Atlética visitante" className="app-input-field">
+                        <SelectValue placeholder="Atlética visitante" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {eligibleTeamsForEditingMatch.map((team) => (
+                          <SelectItem key={team.id} value={team.id}>
+                            {team.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
 
@@ -2333,7 +4372,8 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
               <Button type="button" variant="outline" onClick={handleCancelEditingMatch} disabled={savingEditingMatch}>
                 Cancelar
               </Button>
-              <Button type="button" onClick={handleSaveEditingMatch} disabled={savingEditingMatch || deletingMatches}>
+              <Button type="button" onClick={() => void handleSaveEditingMatch()} disabled={savingEditingMatch || deletingMatches}>
+                {savingEditingMatch ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Salvar alterações
               </Button>
             </DialogFooter>
@@ -2535,15 +4575,15 @@ const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as Brac
           </div>
 
           <DialogFooter className="shrink-0">
-            <Button type="button" variant="outline" onClick={() => setShowCreateMatchModal(false)}>
+            <Button type="button" variant="outline" onClick={() => setShowCreateMatchModal(false)} disabled={creatingMatch}>
               Cancelar
             </Button>
             <Button
               type="button"
               onClick={handleAdd}
-              disabled={loadingLocationTemplates || createLocationOptions.length == 0}
+              disabled={loadingLocationTemplates || createLocationOptions.length == 0 || creatingMatch}
             >
-              <Plus className="mr-2 h-4 w-4" />
+              {creatingMatch ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
               Criar jogo
             </Button>
           </DialogFooter>

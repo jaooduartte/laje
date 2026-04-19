@@ -2,19 +2,13 @@ import { useEffect, useRef } from "react";
 import { Header } from "@/components/Header";
 import { LiveMatchBanner } from "@/components/LiveMatchBanner";
 import { MatchCard } from "@/components/MatchCard";
-import { TeamStandingsTable } from "@/components/TeamStandingsTable";
 import { SportFilter } from "@/components/SportFilter";
 import { AppPaginationControls } from "@/components/ui/app-pagination-controls";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsNavigationList, TabsNavigationTrigger } from "@/components/ui/tabs";
-import type { Championship, Match, Sport } from "@/lib/types";
-import type { ChampionshipBracketView } from "@/lib/types";
+import type { Championship, ChampionshipBracketView, Match, Sport } from "@/lib/types";
 import type { MatchBracketContext } from "@/lib/championship";
-import { MatchNaipe } from "@/lib/enums";
-import { MATCH_NAIPE_LABELS } from "@/lib/championship";
-import type { TeamStandingAggregate } from "@/lib/standings";
 import { HelpCircle, Loader2 } from "lucide-react";
 import { ChampionshipBracketBoard } from "@/components/championship-brackets/ChampionshipBracketBoard";
 import { scrollToTopOfPage } from "@/lib/scroll";
@@ -30,13 +24,6 @@ interface LivePageViewProps {
   upcomingMatchesTotalPages: number;
   sports: Sport[];
   sportFilter: string | null;
-  standingsSportFilter: string;
-  standingsNaipeFilter: string;
-  allStandingsSportFilter: string;
-  allStandingsNaipeFilter: string;
-  filteredStandings: TeamStandingAggregate[];
-  standingsShowCardColumns: boolean;
-  championTeamName: string | null;
   championshipBracketView: ChampionshipBracketView;
   championshipBracketLoading: boolean;
   matchBracketContextByMatchId: Record<string, MatchBracketContext>;
@@ -45,8 +32,6 @@ interface LivePageViewProps {
   onSportFilterChange: (value: string | null) => void;
   onUpcomingMatchesPageChange: (page: number) => void;
   onUpcomingMatchesItemsPerPageChange: (value: number) => void;
-  onStandingsSportFilterChange: (value: string) => void;
-  onStandingsNaipeFilterChange: (value: string) => void;
 }
 
 export function LivePageView({
@@ -60,13 +45,6 @@ export function LivePageView({
   upcomingMatchesTotalPages,
   sports,
   sportFilter,
-  standingsSportFilter,
-  standingsNaipeFilter,
-  allStandingsSportFilter,
-  allStandingsNaipeFilter,
-  filteredStandings,
-  standingsShowCardColumns,
-  championTeamName,
   championshipBracketView,
   championshipBracketLoading,
   matchBracketContextByMatchId,
@@ -75,8 +53,6 @@ export function LivePageView({
   onSportFilterChange,
   onUpcomingMatchesPageChange,
   onUpcomingMatchesItemsPerPageChange,
-  onStandingsSportFilterChange,
-  onStandingsNaipeFilterChange,
 }: LivePageViewProps) {
   const hasHandledPaginationScrollRef = useRef(false);
 
@@ -138,15 +114,6 @@ export function LivePageView({
           </TabsNavigationList>
 
           <TabsContent value="overview" className="space-y-6">
-            {championTeamName ? (
-              <section className="glass-panel enter-section p-5">
-                <h2 className="text-center text-lg font-display font-bold sm:text-left">Destaque do campeonato</h2>
-                <p className="mt-2 text-center text-sm text-muted-foreground sm:text-left">
-                  Melhor campanha atual: <span className="font-semibold text-foreground">{championTeamName}</span>
-                </p>
-              </section>
-            ) : null}
-
             <section className="glass-panel enter-section space-y-4 p-5">
               <div className="mb-4 flex items-center justify-center gap-2 sm:justify-start">
                 <h2 className="text-center text-xl font-display font-bold sm:text-left">Próximos Jogos</h2>
@@ -168,7 +135,7 @@ export function LivePageView({
               </div>
               {isUpcomingMatchesFetching ? (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid items-center grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     {Array.from({ length: Math.max(3, upcomingMatchesItemsPerPage) }).map((_, index) => (
                       <Skeleton key={`live-upcoming-skeleton-${index}`} className="h-52 w-full rounded-2xl" />
                     ))}
@@ -178,7 +145,7 @@ export function LivePageView({
                 <p className="text-center text-sm text-muted-foreground sm:text-left">Nenhum jogo agendado.</p>
               ) : (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid items-center grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     {filteredUpcomingMatches.map((match) => (
                       <MatchCard
                         key={match.id}
@@ -200,40 +167,6 @@ export function LivePageView({
                   />
                 </div>
               )}
-            </section>
-
-            <section className="glass-panel enter-section space-y-4 p-5">
-              <h2 className="text-center text-xl font-display font-bold sm:text-left">Classificação</h2>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Select value={standingsSportFilter} onValueChange={onStandingsSportFilterChange}>
-                  <SelectTrigger className="app-input-field w-full">
-                    <SelectValue placeholder="Filtrar modalidade" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={allStandingsSportFilter}>Todas as modalidades</SelectItem>
-                    {sports.map((sport) => (
-                      <SelectItem key={sport.id} value={sport.id}>
-                        {sport.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select value={standingsNaipeFilter} onValueChange={onStandingsNaipeFilterChange}>
-                  <SelectTrigger className="app-input-field w-full">
-                    <SelectValue placeholder="Filtrar naipe" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={allStandingsNaipeFilter}>Todos os naipes</SelectItem>
-                    <SelectItem value={MatchNaipe.MASCULINO}>{MATCH_NAIPE_LABELS[MatchNaipe.MASCULINO]}</SelectItem>
-                    <SelectItem value={MatchNaipe.FEMININO}>{MATCH_NAIPE_LABELS[MatchNaipe.FEMININO]}</SelectItem>
-                    <SelectItem value={MatchNaipe.MISTO}>{MATCH_NAIPE_LABELS[MatchNaipe.MISTO]}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <TeamStandingsTable standings={filteredStandings} showCardColumns={standingsShowCardColumns} />
             </section>
           </TabsContent>
 

@@ -114,6 +114,43 @@ export interface ChampionshipBracketTieBreakResolutionSaveInput {
   team_ids: string[];
 }
 
+export interface ChampionshipBracketResolvedTieBreakOrderContext {
+  context_key: string;
+  competition_id: string;
+  sport_id: string;
+  sport_name: string;
+  naipe: MatchNaipe;
+  division: TeamDivision | null;
+  context_type: ChampionshipBracketTieBreakContextType;
+  group_id: string | null;
+  group_number: number | null;
+  qualification_rank: number | null;
+  team_ids: string[];
+}
+
+export interface ChampionshipCorrectedGroupStanding {
+  competition_id: string;
+  sport_id: string;
+  sport_name: string;
+  naipe: MatchNaipe;
+  division: TeamDivision | null;
+  group_id: string;
+  group_number: number;
+  group_size: number;
+  team_id: string;
+  team_name: string;
+  wins: number;
+  points_base: number;
+  correction_factor: number;
+  corrected_points: number;
+  goals_for: number;
+  goals_against: number;
+  goal_diff: number;
+  yellow_cards: number;
+  red_cards: number;
+  points_average: number;
+}
+
 export interface ChampionshipBracketCompetitionConfigDraft {
   groups_count: number;
   qualifiers_per_group: number;

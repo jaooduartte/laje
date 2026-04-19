@@ -81,8 +81,12 @@ export interface Match {
   court_name: string | null;
   scheduled_date: string | null;
   queue_position: number | null;
+  scheduled_slot?: number | null;
   current_set_home_score?: number | null;
   current_set_away_score?: number | null;
+  is_walkover?: boolean;
+  walkover_loser_team_id?: string | null;
+  is_score_sheet_reviewed?: boolean;
   resolved_tie_breaker_rule?: ChampionshipSportTieBreakerRule | null;
   resolved_tie_break_winner_team_id?: string | null;
   start_time: string | null;
@@ -185,6 +189,8 @@ export interface CurrentUserAdminContext {
   account_permission: AdminPanelPermissionLevel;
   championship_status_permission: AdminPanelPermissionLevel;
   settings_permission: AdminPanelPermissionLevel;
+  score_sheet_review_permission: AdminPanelPermissionLevel;
+  tie_breaks_permission: AdminPanelPermissionLevel;
 }
 
 export interface PublicAccessSettings {

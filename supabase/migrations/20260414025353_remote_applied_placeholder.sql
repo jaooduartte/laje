@@ -1,0 +1,3 @@
+-- Placeholder local para migration já aplicada no banco remoto.
+-- Arquivo criado para reconciliar histórico do Supabase CLI.
+-- Sem alterações de schema.

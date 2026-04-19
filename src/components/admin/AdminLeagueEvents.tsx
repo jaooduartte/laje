@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { addMonths, format, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Loader2, Pencil, Plus, Save, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, MoreVertical, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { TablesInsert } from "@/integrations/supabase/types";
 import { AppBadge } from "@/components/ui/app-badge";
@@ -18,6 +18,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import {
   Dialog,
@@ -182,6 +188,9 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
   const [leagueEventOrganizerFilter, setLeagueEventOrganizerFilter] = useState<string>(ALL_LEAGUE_EVENT_ORGANIZER_FILTER);
   const [showCreateLeagueEventModal, setShowCreateLeagueEventModal] = useState(false);
   const [pendingCreateLeagueEventConflicts, setPendingCreateLeagueEventConflicts] = useState<LeagueEvent[] | null>(null);
+  const [creatingLeagueEvent, setCreatingLeagueEvent] = useState(false);
+  const [savingEditingLeagueEvent, setSavingEditingLeagueEvent] = useState(false);
+  const [deletingLeagueEventId, setDeletingLeagueEventId] = useState<string | null>(null);
 
   const orderedTeams = useMemo(() => {
     return [...teams].sort((firstTeam, secondTeam) => firstTeam.name.localeCompare(secondTeam.name));
@@ -304,7 +313,11 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
     payload: TablesInsert<"league_events">,
     organizerTeamIds: string[],
   ) => {
+    setCreatingLeagueEvent(true);
+
     const { data, error } = await createLeagueEvent(payload, organizerTeamIds);
+
+    setCreatingLeagueEvent(false);
 
     if (error) {
       toast.error(error.message);
@@ -336,7 +349,7 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
   };
 
   const handleCreateLeagueEvent = async (shouldIgnoreDateConflict: boolean) => {
-    if (!canManageLeagueEvents) {
+    if (!canManageLeagueEvents || creatingLeagueEvent) {
       return;
     }
 
@@ -381,7 +394,7 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
   };
 
   const handleSaveEditEvent = async () => {
-    if (!canManageLeagueEvents) {
+    if (!canManageLeagueEvents || savingEditingLeagueEvent) {
       return;
     }
 
@@ -393,7 +406,9 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
       const leagueEventSaveDTO = LeagueEventSaveDTO.fromFormValues(editingFormValues);
       const payload = leagueEventSaveDTO.bindToSave();
       const organizerTeamIds = leagueEventSaveDTO.resolveOrganizerTeamIds();
+      setSavingEditingLeagueEvent(true);
       const { data, error } = await updateLeagueEvent(editingLeagueEventId, payload, organizerTeamIds);
+      setSavingEditingLeagueEvent(false);
 
       if (error) {
         toast.error(error.message);
@@ -408,17 +423,22 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
       handleCloseEditLeagueEventModal();
       setSelectedMonthDate(new Date(`${payload.event_date}T12:00:00`));
     } catch (error) {
+      setSavingEditingLeagueEvent(false);
       const errorMessage = error instanceof Error ? error.message : "Não foi possível atualizar o evento.";
       toast.error(errorMessage);
     }
   };
 
   const handleDeleteEvent = async (leagueEventId: string) => {
-    if (!canManageLeagueEvents) {
+    if (!canManageLeagueEvents || deletingLeagueEventId != null) {
       return;
     }
 
+    setDeletingLeagueEventId(leagueEventId);
+
     const { error } = await deleteLeagueEvent(leagueEventId);
+
+    setDeletingLeagueEventId(null);
 
     if (error) {
       toast.error(error.message);
@@ -562,19 +582,32 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
                   </div>
                 </div>
 
-                <div className="flex shrink-0 flex-col items-center gap-1 self-start">
-                  {canManageLeagueEvents ? (
-                    <Button variant="ghost" size="icon" onClick={() => handleOpenEditLeagueEventModal(leagueEvent)}>
-                      <Pencil className="h-4 w-4 text-muted-foreground" />
-                    </Button>
-                  ) : null}
-
-                  {canManageLeagueEvents ? (
-                    <Button variant="ghost" size="icon" onClick={() => handleDeleteEvent(leagueEvent.id)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  ) : null}
-                </div>
+                {canManageLeagueEvents ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" aria-label={`Ações do evento ${leagueEvent.name}`} disabled={deletingLeagueEventId != null}>
+                        {deletingLeagueEventId == leagueEvent.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuItem onSelect={() => handleOpenEditLeagueEventModal(leagueEvent)}>
+                        <Pencil className="mr-2 h-4 w-4" />
+                        Editar
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onSelect={() => handleDeleteEvent(leagueEvent.id)}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Apagar
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : null}
               </div>
             </div>
           );
@@ -664,11 +697,11 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
           </div>
 
           <DialogFooter className="pt-2">
-            <Button type="button" variant="outline" onClick={() => setShowCreateLeagueEventModal(false)}>
+            <Button type="button" variant="outline" onClick={() => setShowCreateLeagueEventModal(false)} disabled={creatingLeagueEvent}>
               Cancelar
             </Button>
-            <Button type="button" onClick={handleSubmitCreateLeagueEvent}>
-              <Plus className="mr-2 h-4 w-4" />
+            <Button type="button" onClick={handleSubmitCreateLeagueEvent} disabled={creatingLeagueEvent}>
+              {creatingLeagueEvent ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
               Criar evento
             </Button>
           </DialogFooter>
@@ -752,11 +785,11 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
             </div>
 
             <DialogFooter className="gap-3 pt-2 sm:gap-2 sm:pt-0">
-              <Button type="button" variant="outline" onClick={handleCloseEditLeagueEventModal}>
+              <Button type="button" variant="outline" onClick={handleCloseEditLeagueEventModal} disabled={savingEditingLeagueEvent}>
                 Cancelar
               </Button>
-              <Button type="button" onClick={handleSaveEditEvent}>
-                <Save className="mr-2 h-4 w-4" />
+              <Button type="button" onClick={handleSaveEditEvent} disabled={savingEditingLeagueEvent}>
+                {savingEditingLeagueEvent ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                 Salvar alterações
               </Button>
             </DialogFooter>
@@ -794,8 +827,11 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
           ) : null}
 
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmCreateLeagueEventDespiteConflict}>Criar</AlertDialogAction>
+            <AlertDialogCancel disabled={creatingLeagueEvent}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmCreateLeagueEventDespiteConflict} disabled={creatingLeagueEvent}>
+              {creatingLeagueEvent ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Criar
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

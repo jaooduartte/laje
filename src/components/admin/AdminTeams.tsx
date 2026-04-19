@@ -1,11 +1,17 @@
 import { useMemo, useState } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Loader2, MoreVertical, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Team } from "@/lib/types";
 import { AppBadgeTone, TeamDivision, TeamDivisionSelection } from "@/lib/enums";
 import { Button } from "@/components/ui/button";
 import { AppBadge } from "@/components/ui/app-badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -78,6 +84,9 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
   const [editingTeamName, setEditingTeamName] = useState("");
   const [editingTeamCity, setEditingTeamCity] = useState("Joinville");
   const [editingTeamDivision, setEditingTeamDivision] = useState<TeamDivision | null>(TeamDivision.DIVISAO_ACESSO);
+  const [creatingTeam, setCreatingTeam] = useState(false);
+  const [savingTeam, setSavingTeam] = useState(false);
+  const [deletingTeamId, setDeletingTeamId] = useState<string | null>(null);
 
   const filteredTeams = useMemo(() => {
     const normalizedTeamSearch = teamSearch.trim().toLowerCase();
@@ -122,7 +131,7 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
   };
 
   const handleAdd = async () => {
-    if (!canManageTeams) {
+    if (!canManageTeams || creatingTeam) {
       return;
     }
 
@@ -131,11 +140,15 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
       return;
     }
 
+    setCreatingTeam(true);
+
     const { error } = await supabase.from("teams").insert({
       name: name.trim(),
       city,
       division,
     });
+
+    setCreatingTeam(false);
 
     if (error) {
       toast.error(error.message);
@@ -149,11 +162,15 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
   };
 
   const handleDelete = async (teamId: string) => {
-    if (!canManageTeams) {
+    if (!canManageTeams || deletingTeamId != null) {
       return;
     }
 
+    setDeletingTeamId(teamId);
+
     const { error } = await supabase.from("teams").delete().eq("id", teamId);
+
+    setDeletingTeamId(null);
 
     if (error) {
       toast.error(error.message);
@@ -177,7 +194,7 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
   };
 
   const handleSaveTeam = async () => {
-    if (!canManageTeams) {
+    if (!canManageTeams || savingTeam) {
       return;
     }
 
@@ -192,6 +209,8 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
       return;
     }
 
+    setSavingTeam(true);
+
     const { error } = await supabase
       .from("teams")
       .update({
@@ -200,6 +219,8 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
         division: editingTeamDivision,
       })
       .eq("id", editingTeamId);
+
+    setSavingTeam(false);
 
     if (error) {
       toast.error(error.message);
@@ -261,35 +282,48 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {filteredTeams.map((team) => (
             <div key={team.id} className="list-item-card list-item-card-hover space-y-3 p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-start gap-2">
+                <div className="min-w-0">
                   <p className="font-display font-semibold leading-tight">{team.name}</p>
                 </div>
 
-                <div className="shrink-0">
+                <div className="justify-self-center">
                   <AppBadge tone={resolveTeamDivisionBadgeTone(team.division)}>
                     {resolveTeamDivisionLabel(team.division)}
                   </AppBadge>
                 </div>
+
+                {canManageTeams ? (
+                  <div className="justify-self-end">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" aria-label={`Ações da atlética ${team.name}`} disabled={deletingTeamId != null}>
+                          {deletingTeamId == team.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuItem onSelect={() => handleOpenEditTeamModal(team)}>
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onSelect={() => handleDelete(team.id)}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Apagar
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                ) : null}
               </div>
 
-              <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">{team.city}</p>
-
-                <div className="flex items-center justify-end gap-1">
-                  {canManageTeams ? (
-                    <Button variant="ghost" size="icon" onClick={() => handleOpenEditTeamModal(team)}>
-                      <Pencil className="h-4 w-4 text-muted-foreground" />
-                    </Button>
-                  ) : null}
-
-                  {canManageTeams ? (
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(team.id)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
+              <p className="text-xs text-muted-foreground">{team.city}</p>
             </div>
           ))}
         </div>
@@ -359,11 +393,11 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setShowCreateTeamModal(false)}>
+            <Button type="button" variant="outline" onClick={() => setShowCreateTeamModal(false)} disabled={creatingTeam}>
               Cancelar
             </Button>
-            <Button type="button" onClick={handleAdd}>
-              <Plus className="mr-2 h-4 w-4" />
+            <Button type="button" onClick={handleAdd} disabled={creatingTeam}>
+              {creatingTeam ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
               Criar atlética
             </Button>
           </DialogFooter>
@@ -434,10 +468,11 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
           </div>
 
           <DialogFooter className="gap-3 pt-2 sm:gap-2 sm:pt-0">
-            <Button type="button" variant="outline" onClick={handleCloseEditTeamModal}>
+            <Button type="button" variant="outline" onClick={handleCloseEditTeamModal} disabled={savingTeam}>
               Cancelar
             </Button>
-            <Button type="button" onClick={handleSaveTeam}>
+            <Button type="button" onClick={handleSaveTeam} disabled={savingTeam}>
+              {savingTeam ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Salvar alterações
             </Button>
           </DialogFooter>

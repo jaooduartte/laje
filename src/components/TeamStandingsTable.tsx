@@ -1,9 +1,14 @@
-import type { TeamStandingAggregate } from "@/lib/standings";
+import { formatPointsAverageForStandings, formatStandingsPoints, type TeamStandingAggregate } from "@/lib/standings";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Shuffle } from "lucide-react";
+import { type ModalidadeConfig, type StandingsColumnKey, STANDINGS_COLUMN_LABELS, STANDINGS_COLUMN_TOOLTIPS } from "@/lib/modalidadeConfig";
 
 interface Props {
   standings: TeamStandingAggregate[];
-  showCardColumns?: boolean;
+  modalidadeConfig?: ModalidadeConfig;
+  isLoading?: boolean;
+  variant?: "full" | "public";
+  drawWinners?: Set<string>;
 }
 
 function resolveTopPlacementRowClass(position: number): string {
@@ -22,51 +27,112 @@ function resolveTopPlacementRowClass(position: number): string {
   return "hover:bg-secondary/20";
 }
 
-export function TeamStandingsTable({ standings, showCardColumns = false }: Props) {
-  if (standings.length === 0) {
-    return <p className="text-sm text-muted-foreground text-center py-8">Nenhuma classificação disponível.</p>;
+function renderCell(col: StandingsColumnKey, standing: TeamStandingAggregate): React.ReactNode {
+  switch (col) {
+    case "J": return standing.played;
+    case "V": return standing.wins;
+    case "E": return standing.draws;
+    case "D": return standing.losses;
+    case "GP": return standing.goals_for;
+    case "GC": return standing.goals_against;
+    case "SG": return standing.goal_diff;
+    case "PA": return formatPointsAverageForStandings(standing.goals_for, standing.goals_against);
+    case "CA": return standing.yellow_cards;
+    case "CV": return standing.red_cards;
   }
+}
+
+// Colunas exibidas quando não há configuração de modalidade (legado/cross-sport)
+const DEFAULT_COLUMNS: StandingsColumnKey[] = ["J", "V", "E", "D", "GP", "GC", "SG", "PA"];
+
+export function TeamStandingsTable({
+  standings,
+  modalidadeConfig,
+  isLoading = false,
+  variant = "full",
+  drawWinners,
+}: Props) {
+  if (isLoading) {
+    return (
+      <div className="glass-panel enter-section overflow-hidden p-1">
+        <div className="space-y-4">
+          <div className="bg-secondary/40 h-10 w-full animate-pulse rounded-t-lg" />
+          <div className="space-y-2 px-3 pb-3">
+            {Array.from({ length: 10 }).map((_, index) => (
+              <div key={`standings-skeleton-${index}`} className="flex gap-3">
+                <div className="h-8 w-8 animate-pulse rounded bg-secondary/20" />
+                <div className="h-8 flex-1 animate-pulse rounded bg-secondary/20" />
+                <div className="h-8 w-10 animate-pulse rounded bg-secondary/20" />
+                <div className="h-8 w-10 animate-pulse rounded bg-secondary/20" />
+                <div className="h-8 w-12 animate-pulse rounded bg-secondary/20" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (standings.length === 0) {
+    return <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma classificação disponível.</p>;
+  }
+
+  const isPublic = variant === "public";
+  const activeColumns = modalidadeConfig?.display_columns ?? DEFAULT_COLUMNS;
 
   return (
     <div className="glass-panel enter-section overflow-hidden">
       <Table>
         <TableHeader>
           <TableRow className="bg-secondary/40">
-            <TableHead className="w-8 text-center">#</TableHead>
-            <TableHead>Atlética</TableHead>
-            <TableHead className="text-center w-10">J</TableHead>
-            <TableHead className="text-center w-10">V</TableHead>
-            <TableHead className="text-center w-10">E</TableHead>
-            <TableHead className="text-center w-10">D</TableHead>
-            {showCardColumns ? <TableHead className="text-center w-10">CA</TableHead> : null}
-            {showCardColumns ? <TableHead className="text-center w-10">CV</TableHead> : null}
-            <TableHead className="text-center w-10">GP</TableHead>
-            <TableHead className="text-center w-10">GC</TableHead>
-            <TableHead className="text-center w-10">SG</TableHead>
-            <TableHead className="text-center w-12 font-bold">PTS</TableHead>
+            <TableHead className="w-8 text-center font-display font-bold">#</TableHead>
+            <TableHead className="font-display font-bold">Atlética</TableHead>
+            {!isPublic &&
+              activeColumns.map((col) => (
+                <TableHead
+                  key={col}
+                  className="w-10 text-center font-display font-bold"
+                  title={STANDINGS_COLUMN_TOOLTIPS[col]}
+                >
+                  {STANDINGS_COLUMN_LABELS[col]}
+                </TableHead>
+              ))}
+            <TableHead className="w-12 text-center font-display font-bold">PTS</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {standings.map((standing, standingIndex) => {
             const standingPosition = standingIndex + 1;
+            const isDrawWinner = !isPublic && drawWinners?.has(standing.team_id);
 
             return (
               <TableRow
                 key={`${standing.team_id}:${standing.division ?? "WITHOUT_DIVISION"}`}
                 className={resolveTopPlacementRowClass(standingPosition)}
               >
-                <TableCell className="text-center font-display font-bold text-muted-foreground">{standingIndex + 1}</TableCell>
-                <TableCell className="font-display font-semibold">{standing.team_name}</TableCell>
-                <TableCell className="text-center score-text">{standing.played}</TableCell>
-                <TableCell className="text-center score-text">{standing.wins}</TableCell>
-                <TableCell className="text-center score-text">{standing.draws}</TableCell>
-                <TableCell className="text-center score-text">{standing.losses}</TableCell>
-                {showCardColumns ? <TableCell className="text-center score-text">{standing.yellow_cards}</TableCell> : null}
-                {showCardColumns ? <TableCell className="text-center score-text">{standing.red_cards}</TableCell> : null}
-                <TableCell className="text-center score-text">{standing.goals_for}</TableCell>
-                <TableCell className="text-center score-text">{standing.goals_against}</TableCell>
-                <TableCell className="text-center score-text">{standing.goal_diff}</TableCell>
-                <TableCell className="text-center font-display font-bold text-primary">{standing.points}</TableCell>
+                <TableCell className="text-center font-display font-bold text-muted-foreground">
+                  {standingIndex + 1}
+                </TableCell>
+                <TableCell className="font-display font-semibold">
+                  <div className="flex items-center gap-2">
+                    {standing.team_name}
+                    {isDrawWinner && (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                        <Shuffle className="h-3 w-3" />
+                        Desempate por sorteio
+                      </span>
+                    )}
+                  </div>
+                </TableCell>
+                {!isPublic &&
+                  activeColumns.map((col) => (
+                    <TableCell key={col} className="text-center score-text tabular-nums">
+                      {renderCell(col, standing)}
+                    </TableCell>
+                  ))}
+                <TableCell className="text-center font-display font-bold text-primary">
+                  {formatStandingsPoints(standing.points)}
+                </TableCell>
               </TableRow>
             );
           })}

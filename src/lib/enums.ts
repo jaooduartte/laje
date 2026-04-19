@@ -146,8 +146,11 @@ export enum AdminPanelTab {
   LOGS = "logs",
   USERS = "users",
   ACCOUNT = "account",
+  STANDINGS = "standings",
   CHAMPIONSHIP_STATUS = "championship_status",
   SETTINGS = "settings",
+  SCORE_SHEET_REVIEW = "score_sheet_review",
+  TIE_BREAKS = "tie_breaks",
 }
 
 export enum AdminPanelRole {

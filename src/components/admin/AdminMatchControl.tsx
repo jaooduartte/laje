@@ -1,15 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { AlertTriangle, Check, EyeOff, Minus, Pencil, Play, Plus, Square, X } from "lucide-react";
+import { AlertTriangle, Check, EyeOff, Loader2, Minus, Pencil, Play, Plus, RotateCcw, Square, Trash2, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { saveMatchSets } from "@/domain/championship-brackets/championshipBracket.repository";
+import { saveMatchSets, swapChampionshipKnockoutBracketTeams } from "@/domain/championship-brackets/championshipBracket.repository";
 import type { ChampionshipBracketScheduleDayInput, MatchSetInput } from "@/domain/championship-brackets/championshipBracket.types";
 import type { ChampionshipBracketView, ChampionshipSport, Match, Sport } from "@/lib/types";
-import { AppBadgeTone, BracketPhase, ChampionshipSportResultRule, ChampionshipStatus, MatchStatus } from "@/lib/enums";
+import { AppBadgeTone, BracketPhase, ChampionshipSportResultRule, ChampionshipStatus, MatchNaipe, MatchStatus } from "@/lib/enums";
 import { SportFilter } from "@/components/SportFilter";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { AppBadge } from "@/components/ui/app-badge";
@@ -19,6 +30,7 @@ import {
 } from "@/components/ui/app-pagination-controls";
 import {
   type MatchBracketContext,
+  MATCH_NAIPE_LABELS,
   resolveMatchQueueLabel,
   resolveMatchNaipeBadgeTone,
   resolveMatchNaipeLabel,
@@ -39,7 +51,7 @@ interface Props {
   matchRepresentationByMatchId?: Record<string, string>;
   estimatedStartTimeByMatchId?: Record<string, string>;
   isFetchingMatches?: boolean;
-  onRefetch: () => void;
+  onRefetch: (options?: { showLoading?: boolean; showFetching?: boolean }) => void | Promise<void>;
   onRefetchChampionshipBracket: () => void;
   canManageScoreboard: boolean;
 }
@@ -59,6 +71,10 @@ interface MatchSetEditDraft {
   awayPoints: number;
 }
 
+interface WalkoverRule {
+  winnerPoints: number;
+}
+
 type SaveStatus = "saving" | "saved" | "error";
 type MatchSide = "home" | "away";
 type CardColor = "yellow" | "red";
@@ -75,6 +91,9 @@ const SAVE_STATUS_CLASS_NAMES: Record<SaveStatus, string> = {
   error: "text-destructive",
 };
 
+const ALL_CONTROL_NAIPE_FILTER = "ALL_CONTROL_NAIPES";
+const NAIPE_OPTIONS: MatchNaipe[] = [MatchNaipe.MASCULINO, MatchNaipe.FEMININO, MatchNaipe.MISTO];
+
 const MATCH_CONTROL_STATUS_SORT_ORDER: Record<MatchStatus, number> = {
   [MatchStatus.LIVE]: 0,
   [MatchStatus.SCHEDULED]: 1,
@@ -83,8 +102,16 @@ const MATCH_CONTROL_STATUS_SORT_ORDER: Record<MatchStatus, number> = {
 const MATCH_CONTROL_AUTOSAVE_DEBOUNCE_IN_MILLISECONDS = 150;
 const MATCH_CONTROL_PERSISTED_DRAFT_STORAGE_KEY = "admin_match_control_draft_by_match_id";
 const MATCH_CONTROL_PERSISTED_DRAFT_TTL_IN_MILLISECONDS = 10 * 60 * 1000;
+const WALKOVER_NONE_OPTION_VALUE = "__WALKOVER_NONE_OPTION__";
 const SCORE_INPUT_CLASS_NAME =
   "score-text h-12 w-16 min-w-16 app-input-field px-1 text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
+
+const WALKOVER_RULE_BY_NORMALIZED_SPORT_NAME: Record<string, WalkoverRule> = {
+  "beach soccer": { winnerPoints: 3 },
+  "volei de praia": { winnerPoints: 21 },
+  "beach tennis": { winnerPoints: 6 },
+  futevolei: { winnerPoints: 18 },
+};
 
 interface PersistedMatchControlDraftEntry {
   draft: MatchControlDraft;
@@ -211,6 +238,24 @@ function parseNonNegativeNumber(value: string): number {
   return Math.max(0, parsedValue);
 }
 
+function normalizeSportName(value: string | null | undefined): string {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function resolveWalkoverRule(match: Pick<Match, "sports">): WalkoverRule | null {
+  const normalizedSportName = normalizeSportName(match.sports?.name ?? null);
+
+  if (!normalizedSportName) {
+    return null;
+  }
+
+  return WALKOVER_RULE_BY_NORMALIZED_SPORT_NAME[normalizedSportName] ?? null;
+}
+
 function resolveMatchUpdatePayload(
   match: Match,
   draft: MatchControlDraft,
@@ -303,8 +348,14 @@ export function AdminMatchControl({
   const [matchSetsByMatchId, setMatchSetsByMatchId] = useState<Record<string, MatchSetInput[]>>({});
   const [editingSetDraftByMatchId, setEditingSetDraftByMatchId] = useState<Record<string, MatchSetEditDraft | undefined>>({});
   const [saveStatusByMatchId, setSaveStatusByMatchId] = useState<Record<string, SaveStatus | undefined>>({});
+  const [walkoverLoserTeamIdByMatchId, setWalkoverLoserTeamIdByMatchId] = useState<Record<string, string | undefined>>({});
   const [sportFilter, setSportFilter] = useState<string | null>(null);
+  const [naipeFilter, setNaipeFilter] = useState<string>(ALL_CONTROL_NAIPE_FILTER);
   const [showOnlyLiveMatches, setShowOnlyLiveMatches] = useState(false);
+  const [showFinishConfirmDialog, setShowFinishConfirmDialog] = useState(false);
+  const [pendingFinishMatch, setPendingFinishMatch] = useState<Match | null>(null);
+  const [showReturnToScheduledConfirmDialog, setShowReturnToScheduledConfirmDialog] = useState(false);
+  const [pendingReturnToScheduledMatch, setPendingReturnToScheduledMatch] = useState<Match | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_PAGINATION_ITEMS_PER_PAGE);
 
@@ -320,6 +371,8 @@ export function AdminMatchControl({
   const saveTimeoutByMatchIdRef = useRef<Record<string, ReturnType<typeof setTimeout> | undefined>>({});
   const clearStatusTimeoutByMatchIdRef = useRef<Record<string, ReturnType<typeof setTimeout> | undefined>>({});
   const hasHandledPaginationScrollRef = useRef(false);
+  const hasInitializedSportFilterRef = useRef(false);
+  const hasInitializedPaginationRefetchRef = useRef(false);
 
   useEffect(() => {
     isDraftDirtyByMatchIdRef.current = isDraftDirtyByMatchId;
@@ -473,6 +526,47 @@ export function AdminMatchControl({
     });
   }, [matches]);
 
+  useEffect(() => {
+    setWalkoverLoserTeamIdByMatchId((previousWalkoverLoserTeamIdByMatchId) => {
+      const nextWalkoverLoserTeamIdByMatchId = matches.reduce<Record<string, string | undefined>>((carry, match) => {
+        if (match.status != MatchStatus.SCHEDULED && match.status != MatchStatus.LIVE) {
+          return carry;
+        }
+
+        const selectedLoserTeamId = previousWalkoverLoserTeamIdByMatchId[match.id];
+        const persistedLoserTeamId =
+          match.is_walkover && (match.walkover_loser_team_id == match.home_team_id || match.walkover_loser_team_id == match.away_team_id)
+            ? match.walkover_loser_team_id
+            : null;
+        const resolvedLoserTeamId = selectedLoserTeamId ?? persistedLoserTeamId ?? undefined;
+
+        if (!resolvedLoserTeamId) {
+          return carry;
+        }
+
+        if (resolvedLoserTeamId != match.home_team_id && resolvedLoserTeamId != match.away_team_id) {
+          return carry;
+        }
+
+        carry[match.id] = resolvedLoserTeamId;
+        return carry;
+      }, {});
+
+      const previousEntries = Object.entries(previousWalkoverLoserTeamIdByMatchId);
+      const nextEntries = Object.entries(nextWalkoverLoserTeamIdByMatchId);
+
+      if (previousEntries.length == nextEntries.length) {
+        const hasChanges = previousEntries.some(([matchId, loserTeamId]) => loserTeamId != nextWalkoverLoserTeamIdByMatchId[matchId]);
+
+        if (!hasChanges) {
+          return previousWalkoverLoserTeamIdByMatchId;
+        }
+      }
+
+      return nextWalkoverLoserTeamIdByMatchId;
+    });
+  }, [matches]);
+
   const controlSports = useMemo(() => {
     const sportById = new Map<string, Sport>();
 
@@ -484,6 +578,18 @@ export function AdminMatchControl({
 
     return [...sportById.values()].sort((leftSport, rightSport) => leftSport.name.localeCompare(rightSport.name));
   }, [matches]);
+
+  useEffect(() => {
+    if (!sportFilter) {
+      return;
+    }
+
+    const selectedSportStillAvailable = controlSports.some((sport) => sport.id == sportFilter);
+
+    if (!selectedSportStillAvailable) {
+      setSportFilter(null);
+    }
+  }, [controlSports, sportFilter]);
 
   const championshipBracketScheduleDays = useMemo(() => {
     return resolveChampionshipBracketScheduleDays(championshipBracketView);
@@ -521,6 +627,46 @@ export function AdminMatchControl({
       return carry;
     }, {});
   }, [matches]);
+
+  // match_id → { id, competition_id, round_number } para lookup nos renders do KO
+  const bracketMatchByMatchId = useMemo(() => {
+    const map: Record<string, { id: string; competition_id: string; round_number: number }> = {};
+    for (const competition of championshipBracketView.competitions ?? []) {
+      for (const km of competition.knockout_matches ?? []) {
+        if (km.match_id) {
+          map[km.match_id] = { id: km.id, competition_id: competition.id, round_number: km.round_number };
+        }
+      }
+    }
+    return map;
+  }, [championshipBracketView]);
+
+  // competition_id → max round_number (= primeiro round jogado, ex: quartas numa chave de 8)
+  const maxRoundByCompetitionId = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const competition of championshipBracketView.competitions ?? []) {
+      const max = Math.max(0, ...(competition.knockout_matches ?? []).map((km) => km.round_number));
+      if (max > 0) map[competition.id] = max;
+    }
+    return map;
+  }, [championshipBracketView]);
+
+  // competition_id → lista de { id, name } das equipes no primeiro round (para o seletor de troca)
+  const firstRoundTeamsByCompetitionId = useMemo(() => {
+    const map: Record<string, { id: string; name: string }[]> = {};
+    for (const competition of championshipBracketView.competitions ?? []) {
+      const maxRound = maxRoundByCompetitionId[competition.id];
+      if (!maxRound) continue;
+      const teams: { id: string; name: string }[] = [];
+      for (const km of competition.knockout_matches ?? []) {
+        if (km.round_number !== maxRound) continue;
+        if (km.home_team_id && km.home_team_name) teams.push({ id: km.home_team_id, name: km.home_team_name });
+        if (km.away_team_id && km.away_team_name) teams.push({ id: km.away_team_id, name: km.away_team_name });
+      }
+      map[competition.id] = teams;
+    }
+    return map;
+  }, [championshipBracketView, maxRoundByCompetitionId]);
 
   useEffect(() => {
     const resolvedSetsByMatchId = matches.reduce<Record<string, MatchSetInput[]>>((carry, match) => {
@@ -586,11 +732,45 @@ export function AdminMatchControl({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [itemsPerPage, matches.length, showOnlyLiveMatches, sportFilter]);
+  }, [itemsPerPage, matches.length, naipeFilter, showOnlyLiveMatches, sportFilter]);
 
-  const getMatchDraft = (match: Match) => {
+  useEffect(() => {
+    if (!hasInitializedSportFilterRef.current) {
+      hasInitializedSportFilterRef.current = true;
+      return;
+    }
+
+    void onRefetch({ showFetching: true });
+
+    const refetchConfirmationTimeout = setTimeout(() => {
+      void onRefetch({ showFetching: true });
+    }, 400);
+
+    return () => {
+      clearTimeout(refetchConfirmationTimeout);
+    };
+  }, [onRefetch, sportFilter]);
+
+  useEffect(() => {
+    if (!hasInitializedPaginationRefetchRef.current) {
+      hasInitializedPaginationRefetchRef.current = true;
+      return;
+    }
+
+    void onRefetch({ showFetching: true });
+
+    const refetchConfirmationTimeout = setTimeout(() => {
+      void onRefetch({ showFetching: true });
+    }, 400);
+
+    return () => {
+      clearTimeout(refetchConfirmationTimeout);
+    };
+  }, [currentPage, itemsPerPage, onRefetch]);
+
+  const getMatchDraft = useCallback((match: Match) => {
     return matchDraftById[match.id] ?? resolveDefaultMatchControlDraft(match, isSetRuleMatch(match));
-  };
+  }, [isSetRuleMatch, matchDraftById]);
 
   const resolveClosedMatchSets = useCallback((match: Match) => {
     return matchSetsByMatchId[match.id] ?? resolveRecordedMatchSets(match);
@@ -608,6 +788,85 @@ export function AdminMatchControl({
       away_sets: match.away_score,
     };
   }, [resolveClosedMatchSets]);
+
+  const resolveSelectedWalkoverLoserTeamId = useCallback((match: Match) => {
+    const selectedWalkoverLoserTeamId = walkoverLoserTeamIdByMatchId[match.id];
+
+    if (!selectedWalkoverLoserTeamId) {
+      return null;
+    }
+
+    if (selectedWalkoverLoserTeamId == match.home_team_id || selectedWalkoverLoserTeamId == match.away_team_id) {
+      return selectedWalkoverLoserTeamId;
+    }
+
+    return null;
+  }, [walkoverLoserTeamIdByMatchId]);
+
+  const clearWalkoverSelection = useCallback((matchId: string) => {
+    setWalkoverLoserTeamIdByMatchId((currentWalkoverLoserTeamIdByMatchId) => {
+      if (!currentWalkoverLoserTeamIdByMatchId[matchId]) {
+        return currentWalkoverLoserTeamIdByMatchId;
+      }
+
+      const nextWalkoverLoserTeamIdByMatchId = { ...currentWalkoverLoserTeamIdByMatchId };
+      delete nextWalkoverLoserTeamIdByMatchId[matchId];
+      return nextWalkoverLoserTeamIdByMatchId;
+    });
+  }, []);
+
+  const handleUpdateWalkoverLoserTeamId = useCallback((match: Match, value: string) => {
+    const resolvedWalkoverLoserTeamId = value.trim();
+
+    if (
+      resolvedWalkoverLoserTeamId &&
+      resolvedWalkoverLoserTeamId != match.home_team_id &&
+      resolvedWalkoverLoserTeamId != match.away_team_id
+    ) {
+      return;
+    }
+
+    setWalkoverLoserTeamIdByMatchId((currentWalkoverLoserTeamIdByMatchId) => {
+      if (!resolvedWalkoverLoserTeamId) {
+        if (!currentWalkoverLoserTeamIdByMatchId[match.id]) {
+          return currentWalkoverLoserTeamIdByMatchId;
+        }
+
+        const nextWalkoverLoserTeamIdByMatchId = { ...currentWalkoverLoserTeamIdByMatchId };
+        delete nextWalkoverLoserTeamIdByMatchId[match.id];
+        return nextWalkoverLoserTeamIdByMatchId;
+      }
+
+      if (currentWalkoverLoserTeamIdByMatchId[match.id] == resolvedWalkoverLoserTeamId) {
+        return currentWalkoverLoserTeamIdByMatchId;
+      }
+
+      return {
+        ...currentWalkoverLoserTeamIdByMatchId,
+        [match.id]: resolvedWalkoverLoserTeamId,
+      };
+    });
+  }, []);
+
+  const hasRecordedProgressForWalkover = useCallback((match: Match) => {
+    const currentMatchDraft = getMatchDraft(match);
+
+    if (isSetRuleMatch(match)) {
+      const closedMatchSets = resolveClosedMatchSets(match);
+
+      return (
+        closedMatchSets.length > 0 ||
+        currentMatchDraft.homeScore > 0 ||
+        currentMatchDraft.awayScore > 0 ||
+        (match.current_set_home_score ?? 0) > 0 ||
+        (match.current_set_away_score ?? 0) > 0 ||
+        match.home_score > 0 ||
+        match.away_score > 0
+      );
+    }
+
+    return currentMatchDraft.homeScore > 0 || currentMatchDraft.awayScore > 0 || match.home_score > 0 || match.away_score > 0;
+  }, [getMatchDraft, isSetRuleMatch, resolveClosedMatchSets]);
 
   const setMatchSaveStatus = (matchId: string, saveStatus: SaveStatus | undefined) => {
     setSaveStatusByMatchId((previousStatusByMatchId) => ({
@@ -833,6 +1092,43 @@ export function AdminMatchControl({
     }));
   };
 
+  const handleDeleteRecordedSet = async (match: Match, setNumber: number) => {
+    if (!canManageScoreboard || match.status != MatchStatus.LIVE || !isSetRuleMatch(match)) {
+      return;
+    }
+
+    const closedMatchSets = resolveClosedMatchSets(match);
+    const nextMatchSets = closedMatchSets.filter((matchSet) => matchSet.set_number != setNumber);
+    const resolvedSetWins = await persistMatchSets(match, nextMatchSets);
+
+    if (!resolvedSetWins) {
+      return;
+    }
+
+    const { error } = await supabase
+      .from("matches")
+      .update({
+        home_score: resolvedSetWins.home_sets,
+        away_score: resolvedSetWins.away_sets,
+      })
+      .eq("id", match.id);
+
+    if (error) {
+      toast.error(resolveAdminMatchControlErrorMessage(error, error.message), {
+        id: "admin-match-control-migration-required",
+      });
+      return;
+    }
+
+    setMatchSetsByMatchId((currentMatchSetsByMatchId) => ({
+      ...currentMatchSetsByMatchId,
+      [match.id]: nextMatchSets,
+    }));
+    handleCancelEditingRecordedSet(match.id);
+    toast.success(`Set ${setNumber} removido.`);
+    onRefetch();
+  };
+
   const handleUpdateEditingRecordedSetScore = (
     matchId: string,
     side: MatchSide,
@@ -1003,6 +1299,39 @@ export function AdminMatchControl({
     onRefetch();
   };
 
+  const handleReturnToScheduled = async (match: Match) => {
+    if (!canManageScoreboard) return;
+
+    const { error } = await supabase
+      .from("matches")
+      .update({
+        status: MatchStatus.SCHEDULED,
+        start_time: null,
+        home_score: 0,
+        away_score: 0,
+        current_set_home_score: null,
+        current_set_away_score: null,
+        is_walkover: false,
+        walkover_loser_team_id: null,
+      })
+      .eq("id", match.id);
+
+    if (error) {
+      toast.error("Erro ao voltar ao agendamento.");
+      return;
+    }
+
+    if (match.result_rule === ChampionshipSportResultRule.SETS) {
+      await supabase.from("match_sets").delete().eq("match_id", match.id);
+    }
+
+    setShowReturnToScheduledConfirmDialog(false);
+    setPendingReturnToScheduledMatch(null);
+    toast.success("Jogo voltou ao agendamento.");
+    onRefetch();
+    onRefetchChampionshipBracket();
+  };
+
   const handleSetLive = async (matchId: string) => {
     if (!canManageScoreboard) {
       return;
@@ -1037,6 +1366,8 @@ export function AdminMatchControl({
       .update({
         status: MatchStatus.LIVE,
         start_time: new Date().toISOString(),
+        is_walkover: false,
+        walkover_loser_team_id: null,
       })
       .eq("id", matchId);
 
@@ -1048,6 +1379,100 @@ export function AdminMatchControl({
     }
 
     toast.success("Jogo iniciado!");
+    onRefetch();
+    onRefetchChampionshipBracket();
+  };
+
+  const handleFinishWithWalkover = async (match: Match, walkoverLoserTeamId: string) => {
+    if (!canManageScoreboard) {
+      return;
+    }
+
+    if (championshipStatus != ChampionshipStatus.IN_PROGRESS) {
+      toast.error("Só é possível aplicar W.O. quando o campeonato estiver Em andamento.");
+      return;
+    }
+
+    if (walkoverLoserTeamId != match.home_team_id && walkoverLoserTeamId != match.away_team_id) {
+      toast.error("Selecione uma atlética válida para marcar o W.O.");
+      return;
+    }
+
+    if (match.status == MatchStatus.LIVE && hasRecordedProgressForWalkover(match)) {
+      toast.error("Não é possível aplicar W.O. em jogo ao vivo com placar ou sets já lançados.");
+      return;
+    }
+
+    const walkoverRule = resolveWalkoverRule(match);
+
+    if (!walkoverRule) {
+      toast.error("Modalidade sem configuração de W.O. para pontuação máxima.");
+      return;
+    }
+
+    const isSetMatch = isSetRuleMatch(match);
+    const winnerSide: MatchSide = walkoverLoserTeamId == match.home_team_id ? "away" : "home";
+    const winnerPoints = walkoverRule.winnerPoints;
+    const now = new Date().toISOString();
+    let resolvedHomeScore = winnerSide == "home" ? winnerPoints : 0;
+    let resolvedAwayScore = winnerSide == "away" ? winnerPoints : 0;
+    let nextMatchSets: MatchSetInput[] | null = null;
+
+    if (isSetMatch) {
+      nextMatchSets = [
+        {
+          set_number: 1,
+          home_points: winnerSide == "home" ? winnerPoints : 0,
+          away_points: winnerSide == "away" ? winnerPoints : 0,
+        },
+      ];
+      const resolvedSetWins = await persistMatchSets(match, nextMatchSets);
+
+      if (!resolvedSetWins) {
+        return;
+      }
+
+      resolvedHomeScore = resolvedSetWins.home_sets;
+      resolvedAwayScore = resolvedSetWins.away_sets;
+    }
+
+    const { error } = await supabase
+      .from("matches")
+      .update({
+        home_score: resolvedHomeScore,
+        away_score: resolvedAwayScore,
+        current_set_home_score: null,
+        current_set_away_score: null,
+        home_yellow_cards: 0,
+        home_red_cards: 0,
+        away_yellow_cards: 0,
+        away_red_cards: 0,
+        start_time: match.start_time ?? now,
+        end_time: match.start_time != null ? now : null,
+        status: MatchStatus.FINISHED,
+        is_walkover: true,
+        walkover_loser_team_id: walkoverLoserTeamId,
+      })
+      .eq("id", match.id);
+
+    if (error) {
+      toast.error(resolveAdminMatchControlErrorMessage(error, error.message), {
+        id: "admin-match-control-migration-required",
+      });
+      return;
+    }
+
+    if (nextMatchSets) {
+      setMatchSetsByMatchId((currentMatchSetsByMatchId) => ({
+        ...currentMatchSetsByMatchId,
+        [match.id]: nextMatchSets,
+      }));
+    }
+
+    clearWalkoverSelection(match.id);
+    setDraftDirty(match.id, false);
+
+    toast.success("Jogo encerrado por W.O.! Classificação atualizada.");
     onRefetch();
     onRefetchChampionshipBracket();
   };
@@ -1065,6 +1490,13 @@ export function AdminMatchControl({
 
   const handleFinish = async (match: Match) => {
     if (!canManageScoreboard) {
+      return;
+    }
+
+    const selectedWalkoverLoserTeamId = resolveSelectedWalkoverLoserTeamId(match);
+
+    if (selectedWalkoverLoserTeamId) {
+      await handleFinishWithWalkover(match, selectedWalkoverLoserTeamId);
       return;
     }
 
@@ -1119,6 +1551,8 @@ export function AdminMatchControl({
         away_red_cards: supportsCards ? Math.max(0, currentMatchDraft.awayRedCards) : 0,
         end_time: new Date().toISOString(),
         status: MatchStatus.FINISHED,
+        is_walkover: false,
+        walkover_loser_team_id: null,
       })
       .eq("id", match.id);
 
@@ -1134,9 +1568,36 @@ export function AdminMatchControl({
     onRefetchChampionshipBracket();
   };
 
+  const handleSwapKnockoutTeam = useCallback(
+    async (match: Match, side: "home" | "away", newTeamId: string) => {
+      const bracketMatch = bracketMatchByMatchId[match.id];
+      if (!bracketMatch) return;
+      const currentTeamId = side === "home" ? match.home_team_id : match.away_team_id;
+      if (!currentTeamId || currentTeamId === newTeamId) return;
+
+      const { error } = await swapChampionshipKnockoutBracketTeams(
+        bracketMatch.competition_id,
+        currentTeamId,
+        newTeamId,
+      );
+      if (error) {
+        toast.error("Erro ao trocar equipe.");
+        return;
+      }
+      toast.success("Equipe trocada com sucesso.");
+      await onRefetch({ showFetching: true });
+      onRefetchChampionshipBracket();
+    },
+    [bracketMatchByMatchId, onRefetch, onRefetchChampionshipBracket],
+  );
+
   const filteredMatches = useMemo(() => {
     return matches.filter((match) => {
       if (sportFilter && match.sport_id != sportFilter) {
+        return false;
+      }
+
+      if (naipeFilter !== ALL_CONTROL_NAIPE_FILTER && match.naipe != naipeFilter) {
         return false;
       }
 
@@ -1146,7 +1607,7 @@ export function AdminMatchControl({
 
       return true;
     });
-  }, [matches, showOnlyLiveMatches, sportFilter]);
+  }, [matches, naipeFilter, showOnlyLiveMatches, sportFilter]);
 
   const sortedMatches = useMemo(() => {
     return [...filteredMatches].sort((firstMatch, secondMatch) => {
@@ -1205,14 +1666,26 @@ export function AdminMatchControl({
         <p className="text-sm text-muted-foreground">{sortedMatches.length} jogo(s) encontrado(s)</p>
 
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          <div className="flex min-w-0 flex-1 items-stretch gap-3">
-            {controlSports.length > 0 ? (
-              <div className="min-w-0 flex-1">
-                <SportFilter sports={controlSports} selected={sportFilter} onSelect={setSportFilter} />
-              </div>
-            ) : (
-              <div className="flex-1" />
-            )}
+          {controlSports.length > 0 && (
+            <div className="min-w-0 flex-1">
+              <SportFilter sports={controlSports} selected={sportFilter} onSelect={setSportFilter} />
+            </div>
+          )}
+
+          <div className="flex items-stretch gap-3">
+            <Select value={naipeFilter} onValueChange={setNaipeFilter}>
+              <SelectTrigger className="app-input-field h-10 flex-1 sm:w-40 sm:flex-none">
+                <SelectValue placeholder="Naipe" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_CONTROL_NAIPE_FILTER}>Todos os naipes</SelectItem>
+                {NAIPE_OPTIONS.map((naipeOption) => (
+                  <SelectItem key={naipeOption} value={naipeOption}>
+                    {MATCH_NAIPE_LABELS[naipeOption]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
             <Button
               type="button"
@@ -1269,26 +1742,157 @@ export function AdminMatchControl({
             const estimatedStartTime = estimatedStartTimeByMatchId[match.id];
             const displayedHomeScore = isSetMatch && match.status != MatchStatus.LIVE ? displayedSetWins.home_sets : matchDraft.homeScore;
             const displayedAwayScore = isSetMatch && match.status != MatchStatus.LIVE ? displayedSetWins.away_sets : matchDraft.awayScore;
+            const hasCurrentSetScore =
+              Number(matchDraft.homeScore) > 0 || Number(matchDraft.awayScore) > 0;
             const isChampionshipStartBlocked = championshipStatus != ChampionshipStatus.IN_PROGRESS;
+            const selectedWalkoverLoserTeamId = resolveSelectedWalkoverLoserTeamId(match);
+            const hasWalkoverSelection = selectedWalkoverLoserTeamId != null;
+            const shouldShowWalkoverSelector = match.status == MatchStatus.SCHEDULED || match.status == MatchStatus.LIVE;
+
+            const bracketMatch = bracketMatchByMatchId[match.id];
+            const isKnockoutFirstRound =
+              matchBracketContext?.phase == BracketPhase.KNOCKOUT &&
+              bracketMatch != null &&
+              bracketMatch.round_number == maxRoundByCompetitionId[bracketMatch.competition_id];
+            const firstRoundTeams = bracketMatch
+              ? (firstRoundTeamsByCompetitionId[bracketMatch.competition_id] ?? [])
+              : [];
+            const shouldShowKnockoutTeamSwap =
+              isKnockoutFirstRound &&
+              match.status == MatchStatus.SCHEDULED &&
+              !!match.home_team_id &&
+              !!match.away_team_id &&
+              firstRoundTeams.length > 1;
 
             return (
               <div
                 key={match.id}
                 className={`space-y-4 glass-card p-5 ${match.status == MatchStatus.LIVE ? "list-item-card-live live-glow" : ""}`}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="space-y-1">
-                    <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-2">
-                      <span className="text-xs uppercase text-muted-foreground">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  {/* Linha 0 (mobile) / Direita (sm+): ações */}
+                  <div className="order-2 flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+                    {shouldShowWalkoverSelector ? (
+                      <div className="flex flex-1 items-center gap-1.5 sm:flex-none">
+                        <span
+                          id={`match-walkover-label-${match.id}`}
+                          className="text-xs font-semibold text-muted-foreground"
+                        >
+                          W.O.?
+                        </span>
+                        <Select
+                          value={selectedWalkoverLoserTeamId ?? WALKOVER_NONE_OPTION_VALUE}
+                          onValueChange={(value) =>
+                            handleUpdateWalkoverLoserTeamId(
+                              match,
+                              value == WALKOVER_NONE_OPTION_VALUE ? "" : value,
+                            )
+                          }
+                          disabled={!canManageScoreboard}
+                        >
+                          <SelectTrigger
+                            aria-labelledby={`match-walkover-label-${match.id}`}
+                            aria-label="W.O.?"
+                            className="h-9 w-full app-input-field px-2 text-xs sm:min-w-36 sm:w-auto"
+                          >
+                            <SelectValue placeholder="Não" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={WALKOVER_NONE_OPTION_VALUE}>Não</SelectItem>
+                            <SelectItem value={match.home_team_id}>{match.home_team?.name ?? "Mandante"}</SelectItem>
+                            <SelectItem value={match.away_team_id}>{match.away_team?.name ?? "Visitante"}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : null}
+
+                    {match.status == MatchStatus.SCHEDULED && !hasWalkoverSelection ? (
+                      <Button
+                        size="sm"
+                        onClick={() => handleSetLive(match.id)}
+                        className="bg-live text-primary-foreground hover:bg-live-glow"
+                        disabled={!canManageScoreboard || isMatchStartBlocked || isChampionshipStartBlocked}
+                      >
+                        <Play className="h-3 w-3 sm:mr-1" />
+                        <span className="hidden sm:inline">Iniciar</span>
+                      </Button>
+                    ) : null}
+
+                    {match.status == MatchStatus.SCHEDULED && hasWalkoverSelection ? (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => { setPendingFinishMatch(match); setShowFinishConfirmDialog(true); }}
+                        disabled={!canManageScoreboard || isChampionshipStartBlocked}
+                      >
+                        <Square className="h-3 w-3 sm:mr-1" />
+                        <span className="hidden sm:inline">Encerrar W.O.</span>
+                      </Button>
+                    ) : null}
+
+                    {match.status == MatchStatus.LIVE ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => { setPendingReturnToScheduledMatch(match); setShowReturnToScheduledConfirmDialog(true); }}
+                        disabled={!canManageScoreboard}
+                      >
+                        <RotateCcw className="h-3 w-3 sm:mr-1" />
+                        <span className="hidden sm:inline">Voltar ao agendamento</span>
+                      </Button>
+                    ) : null}
+
+                    {match.status == MatchStatus.LIVE && isSetMatch ? (
+                      <Button
+                        size="sm"
+                        onClick={() => handleFinishSet(match)}
+                        disabled={!canManageScoreboard || !hasCurrentSetScore}
+                        className="!bg-amber-500 !text-white hover:!bg-amber-400"
+                      >
+                        <Square className="h-3 w-3 sm:mr-1" />
+                        <span className="hidden sm:inline">Fim do set</span>
+                      </Button>
+                    ) : null}
+
+                    {match.status == MatchStatus.LIVE ? (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => { setPendingFinishMatch(match); setShowFinishConfirmDialog(true); }}
+                        disabled={!canManageScoreboard || (isSetMatch && !hasWalkoverSelection && closedMatchSets.length == 0)}
+                      >
+                        <Square className="h-3 w-3 sm:mr-1" />
+                        <span className="hidden sm:inline">{hasWalkoverSelection ? "Encerrar W.O." : "Finalizar"}</span>
+                      </Button>
+                    ) : null}
+                  </div>
+
+                  {/* Linhas 1-6 (mobile) / Esquerda (sm+): informações */}
+                  <div className="order-1 space-y-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="shrink-0 text-xs uppercase text-muted-foreground">
                         {match.sports?.name} • {match.location}
                       </span>
-                      <AppBadge tone={resolveMatchNaipeBadgeTone(String(match.naipe))} className="w-fit">
-                        {resolveMatchNaipeLabel(String(match.naipe))}
-                      </AppBadge>
-                      {matchBracketContext ? (
-                        <AppBadge tone={AppBadgeTone.NEUTRAL} className="w-fit">
-                          {matchBracketContext.badgeLabel}
+                      <div className="flex flex-wrap items-center gap-1">
+                        <AppBadge tone={resolveMatchNaipeBadgeTone(String(match.naipe))} className="w-fit">
+                          {resolveMatchNaipeLabel(String(match.naipe))}
                         </AppBadge>
+                        {matchBracketContext ? (
+                          <AppBadge tone={AppBadgeTone.NEUTRAL} className="w-fit">
+                            {matchBracketContext.badgeLabel}
+                          </AppBadge>
+                        ) : null}
+                      </div>
+                      {canManageScoreboard && match.status === MatchStatus.LIVE && matchSaveStatus ? (
+                        <span className="ml-auto flex items-center" title={SAVE_STATUS_LABELS[matchSaveStatus]}>
+                          {matchSaveStatus === "saving" ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                          ) : matchSaveStatus === "saved" ? (
+                            <Check className="h-3.5 w-3.5 text-primary" />
+                          ) : (
+                            <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
+                          )}
+                        </span>
                       ) : null}
                     </div>
 
@@ -1306,12 +1910,12 @@ export function AdminMatchControl({
                         <p className="text-xs text-muted-foreground">{startedAtLabel}</p>
                       ) : null}
 
-                      {matchRepresentation ? (
-                        <p className="break-words text-xs text-muted-foreground">Representação: {matchRepresentation}</p>
-                      ) : null}
-
                       {match.status == MatchStatus.SCHEDULED && estimatedStartTime ? (
                         <p className="text-xs text-muted-foreground">Horário estimado: {estimatedStartTime}</p>
+                      ) : null}
+
+                      {matchRepresentation ? (
+                        <p className="break-words text-xs text-muted-foreground">Representação: {matchRepresentation}</p>
                       ) : null}
 
                       {isSetMatch ? (
@@ -1339,37 +1943,6 @@ export function AdminMatchControl({
                         </p>
                       ) : null}
                     </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-end gap-2">
-                    {canManageScoreboard && match.status == MatchStatus.LIVE && matchSaveStatus ? (
-                      <span className={`text-xs font-semibold ${SAVE_STATUS_CLASS_NAMES[matchSaveStatus]}`}>
-                        {SAVE_STATUS_LABELS[matchSaveStatus]}
-                      </span>
-                    ) : null}
-
-                    {match.status == MatchStatus.SCHEDULED ? (
-                      <Button
-                        size="sm"
-                        onClick={() => handleSetLive(match.id)}
-                        className="bg-live text-primary-foreground hover:bg-live-glow"
-                        disabled={!canManageScoreboard || isMatchStartBlocked || isChampionshipStartBlocked}
-                      >
-                        <Play className="mr-1 h-3 w-3" /> Iniciar
-                      </Button>
-                    ) : null}
-
-                    {match.status == MatchStatus.LIVE && isSetMatch ? (
-                      <Button size="sm" variant="outline" onClick={() => handleFinishSet(match)} disabled={!canManageScoreboard}>
-                        Fim do set
-                      </Button>
-                    ) : null}
-
-                    {match.status == MatchStatus.LIVE ? (
-                      <Button size="sm" variant="destructive" onClick={() => handleFinish(match)} disabled={!canManageScoreboard}>
-                        <Square className="mr-1 h-3 w-3" /> Finalizar
-                      </Button>
-                    ) : null}
                   </div>
                 </div>
 
@@ -1539,27 +2112,27 @@ export function AdminMatchControl({
                               key={`${match.id}-set-summary-${matchSetSummary.setNumber}`}
                               className="flex flex-col gap-2 rounded-lg border border-primary/20 bg-background/60 p-2 sm:flex-row sm:items-center"
                             >
-                              <span className="min-w-16 text-xs font-medium text-muted-foreground">
+                              <span className="min-w-14 text-xs font-medium text-muted-foreground">
                                 Set {matchSetSummary.setNumber}
                               </span>
-                              <div className="grid flex-1 grid-cols-[minmax(0,1fr)_88px_auto_88px_minmax(0,1fr)] items-center gap-2">
+                              <div className="flex flex-1 items-center justify-center gap-2">
                                 <span className="truncate text-xs font-medium">{match.home_team?.name}</span>
                                 <Input
                                   type="number"
                                   value={editingSetDraft.homePoints}
                                   onChange={(event) => handleUpdateEditingRecordedSetScore(match.id, "home", event.target.value)}
-                                  className="h-8 w-20 text-center text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                  className="h-8 w-16 shrink-0 text-center text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                   disabled={!canManageScoreboard}
                                 />
-                                <span className="text-center text-xs text-muted-foreground">×</span>
+                                <span className="shrink-0 text-center text-xs text-muted-foreground">×</span>
                                 <Input
                                   type="number"
                                   value={editingSetDraft.awayPoints}
                                   onChange={(event) => handleUpdateEditingRecordedSetScore(match.id, "away", event.target.value)}
-                                  className="h-8 w-20 text-center text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                  className="h-8 w-16 shrink-0 text-center text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                   disabled={!canManageScoreboard}
                                 />
-                                <span className="truncate text-xs font-medium text-right">{match.away_team?.name}</span>
+                                <span className="truncate text-xs font-medium">{match.away_team?.name}</span>
                               </div>
                               <div className="flex items-center gap-1 self-end sm:self-auto">
                                 <Button
@@ -1581,6 +2154,16 @@ export function AdminMatchControl({
                                   disabled={!canManageScoreboard}
                                 >
                                   <X className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-8 w-10 text-destructive hover:text-destructive"
+                                  onClick={() => void handleDeleteRecordedSet(match, editingSetDraft.setNumber)}
+                                  disabled={!canManageScoreboard}
+                                >
+                                  <Trash2 className="h-4 w-4" />
                                 </Button>
                               </div>
                             </div>
@@ -1762,6 +2345,55 @@ export function AdminMatchControl({
           />
         </>
       )}
+
+      <AlertDialog open={showFinishConfirmDialog} onOpenChange={setShowFinishConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Encerrar jogo</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deseja encerrar o jogo e salvar o placar atual? Esta ação registra o resultado definitivo.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingFinishMatch(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (pendingFinishMatch) {
+                  void handleFinish(pendingFinishMatch);
+                }
+                setPendingFinishMatch(null);
+              }}
+            >
+              Encerrar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showReturnToScheduledConfirmDialog} onOpenChange={setShowReturnToScheduledConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Voltar ao agendamento</AlertDialogTitle>
+            <AlertDialogDescription>
+              Ao voltar ao agendamento, todos os dados inseridos (placar, sets e cartões) serão perdidos. Deseja continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingReturnToScheduledMatch(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (pendingReturnToScheduledMatch) {
+                  void handleReturnToScheduled(pendingReturnToScheduledMatch);
+                }
+              }}
+            >
+              Voltar ao agendamento
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

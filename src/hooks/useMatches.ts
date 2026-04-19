@@ -9,6 +9,8 @@ import {
   type MatchRepresentationSource,
   resolveEstimatedStartTimeByMatchId,
   resolveInterleavedScheduledMatchesByCompetition,
+  resolveMatchDisplaySlotValue,
+  resolveMatchScheduledDateValue,
   resolveOrderedScheduledMatches,
   resolveMatchRepresentationByMatchId,
 } from "@/lib/championship";
@@ -265,6 +267,9 @@ export function useMatches({
 
         if (sortMode == "FINISHED") {
           return currentQuery
+            .order("queue_position", { ascending: false, nullsFirst: false })
+            .order("scheduled_slot", { ascending: false, nullsFirst: false })
+            .order("scheduled_date", { ascending: false, nullsFirst: false })
             .order("end_time", { ascending: false, nullsFirst: false })
             .order("start_time", { ascending: false, nullsFirst: false })
             .order("created_at", { ascending: false });
@@ -306,16 +311,16 @@ export function useMatches({
       let resolvedOperationalContextMatches: MatchRepresentationSource[] = [];
       let resolvedTotalCount = 0;
 
-      if (sortMode == "SCHEDULED" && isPaginated && rangeStart != null && rangeEnd != null) {
+      if ((sortMode == "SCHEDULED" || sortMode == "FINISHED") && isPaginated && rangeStart != null && rangeEnd != null) {
         let scheduledOrderQuery = supabase
           .from("matches")
           .select(
-            "id, championship_id, season_year, scheduled_date, start_time, sport_id, naipe, division, queue_position, created_at, scheduled_slot, sports(name), home_team:teams!matches_home_team_id_fkey(name), away_team:teams!matches_away_team_id_fkey(name)",
+            "id, championship_id, season_year, scheduled_date, start_time, end_time, sport_id, naipe, division, queue_position, created_at, scheduled_slot, sports(name), home_team:teams!matches_home_team_id_fkey(name), away_team:teams!matches_away_team_id_fkey(name)",
           )
-          .order("scheduled_date", { ascending: true, nullsFirst: false })
-          .order("queue_position", { ascending: true, nullsFirst: false })
-          .order("scheduled_slot", { ascending: true, nullsFirst: false })
-          .order("created_at", { ascending: true })
+          .order("scheduled_date", { ascending: sortMode == "SCHEDULED", nullsFirst: false })
+          .order("queue_position", { ascending: sortMode == "SCHEDULED", nullsFirst: false })
+          .order("scheduled_slot", { ascending: sortMode == "SCHEDULED", nullsFirst: false })
+          .order("created_at", { ascending: sortMode == "SCHEDULED" })
           .order("id", { ascending: true });
 
         scheduledOrderQuery = applyMatchFilters(scheduledOrderQuery);
@@ -332,13 +337,47 @@ export function useMatches({
           return;
         }
 
-        const normalizedOrderedScheduledRows = resolveInterleavedScheduledMatchesByCompetition(
-          resolveOrderedScheduledMatches((scheduledOrderRowsData ?? []) as MatchRepresentationSource[]),
-        );
-        const paginatedOrderedScheduledRows = normalizedOrderedScheduledRows.slice(rangeStart, rangeEnd + 1);
-        const paginatedMatchIds = paginatedOrderedScheduledRows.map((scheduledMatch) => scheduledMatch.id);
+        const filteredOrderedRows = (scheduledOrderRowsData ?? []) as MatchRepresentationSource[];
+        const normalizedOrderedRows =
+          sortMode == "SCHEDULED"
+            ? resolveInterleavedScheduledMatchesByCompetition(resolveOrderedScheduledMatches(filteredOrderedRows))
+            : [...filteredOrderedRows].sort((firstMatch, secondMatch) => {
+                const firstSlot = resolveMatchDisplaySlotValue(firstMatch) ?? 0;
+                const secondSlot = resolveMatchDisplaySlotValue(secondMatch) ?? 0;
 
-        resolvedTotalCount = normalizedOrderedScheduledRows.length;
+                if (firstSlot != secondSlot) {
+                  return secondSlot - firstSlot;
+                }
+
+                const firstScheduledDate = resolveMatchScheduledDateValue(firstMatch) ?? "";
+                const secondScheduledDate = resolveMatchScheduledDateValue(secondMatch) ?? "";
+
+                if (firstScheduledDate != secondScheduledDate) {
+                  return secondScheduledDate.localeCompare(firstScheduledDate);
+                }
+
+                const firstEndedAtTimestamp =
+                  firstMatch.end_time ? new Date(firstMatch.end_time).getTime() : 0;
+                const secondEndedAtTimestamp =
+                  secondMatch.end_time ? new Date(secondMatch.end_time).getTime() : 0;
+
+                if (firstEndedAtTimestamp != secondEndedAtTimestamp) {
+                  return secondEndedAtTimestamp - firstEndedAtTimestamp;
+                }
+
+                const firstStartedAtTimestamp = firstMatch.start_time ? new Date(firstMatch.start_time).getTime() : 0;
+                const secondStartedAtTimestamp = secondMatch.start_time ? new Date(secondMatch.start_time).getTime() : 0;
+
+                if (firstStartedAtTimestamp != secondStartedAtTimestamp) {
+                  return secondStartedAtTimestamp - firstStartedAtTimestamp;
+                }
+
+                return String(secondMatch.created_at ?? "").localeCompare(String(firstMatch.created_at ?? ""));
+              });
+        const paginatedOrderedRows = normalizedOrderedRows.slice(rangeStart, rangeEnd + 1);
+        const paginatedMatchIds = paginatedOrderedRows.map((scheduledMatch) => scheduledMatch.id);
+
+        resolvedTotalCount = normalizedOrderedRows.length;
 
         if (paginatedMatchIds.length > 0) {
           const { data: paginatedMatchesData, error: paginatedMatchesError } = await supabase

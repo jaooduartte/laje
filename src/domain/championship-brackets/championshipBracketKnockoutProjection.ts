@@ -1,4 +1,5 @@
 import { resolveChampionshipGroupLabel } from "@/lib/championship";
+import type { KnockoutPairingMode } from "@/lib/modalidadeConfig";
 
 export interface ChampionshipBracketKnockoutProjectionInput {
   groups_count: number;
@@ -35,6 +36,55 @@ function resolveProjectedBracketSize(qualified_team_count: number): number {
   }
 
   return projected_bracket_size;
+}
+
+export function resolveStandardBalancedBracketSeedOrder(
+  bracket_size: number,
+): number[] {
+  if (bracket_size < 2) {
+    return [];
+  }
+
+  // Seeding linear: slot k pareia seed k vs seed (N+1-k).
+  // bracket_size=8 → [1,8, 2,7, 3,6, 4,5]
+  //   slot1=1v8, slot2=2v7 → mesmo lado (SF1)
+  //   slot3=3v6, slot4=4v5 → mesmo lado (SF2)
+  // bracket_size=4 → [1,4, 2,3]
+  const seed_order: number[] = [];
+  for (let slot = 1; slot <= bracket_size / 2; slot++) {
+    seed_order.push(slot);
+    seed_order.push(bracket_size + 1 - slot);
+  }
+  return seed_order;
+}
+
+export function resolveChampionshipBracketFirstRoundSeedIndexes(
+  bracket_size: number,
+  slot_number: number,
+): { home_seed_index: number; away_seed_index: number } {
+  const seed_order = resolveStandardBalancedBracketSeedOrder(bracket_size);
+  const home_seed = seed_order[(slot_number - 1) * 2];
+  const away_seed = seed_order[(slot_number - 1) * 2 + 1];
+
+  return {
+    home_seed_index: (home_seed ?? 1) - 1,
+    away_seed_index: (away_seed ?? bracket_size) - 1,
+  };
+}
+
+/**
+ * Retorna a ordem de seeds para o primeiro round do mata-mata conforme o modo de pareamento.
+ *
+ * Todos os modos atualmente usam seeding LINEAR — o resultado correto por modalidade emerge
+ * naturalmente da ordenação dos times (1ºs seguidos de 2ºs, por grupo):
+ *   - LINEAR / FUTEVOLEI_FEM_INVERTED (8 times): 1ºA×2ºD, 1ºB×2ºC, 1ºC×2ºB, 1ºD×2ºA.
+ *   - BEACH_SOCCER_FEM_DIRECT_SEMI (4 times): semis diretas 1ºA×2ºB e 1ºB×2ºA.
+ */
+export function resolveBracketPairingByMode(
+  _mode: KnockoutPairingMode,
+  bracket_size: number,
+): number[] {
+  return resolveStandardBalancedBracketSeedOrder(bracket_size);
 }
 
 export function resolveChampionshipBracketKnockoutProjection(
