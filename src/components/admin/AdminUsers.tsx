@@ -1,7 +1,7 @@
 import type { CheckedState } from "@radix-ui/react-checkbox";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
-import { Loader2, PencilLine, Plus, RotateCcw, Save, Shield, Trash2 } from "lucide-react";
+import { Loader2, MoreVertical, PencilLine, Plus, RotateCcw, Save, Shield, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useOnlineVisitorsProviderContext } from "@/components/online-visitors/OnlineVisitorsProvider";
@@ -50,6 +50,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Tabs, TabsContent, TabsNavigationList, TabsNavigationTrigger } from "@/components/ui/tabs";
 
 const ALL_PROFILES_FILTER = "ALL_PROFILES";
 const DEFAULT_PROFILE_NAME = "Novo perfil";
@@ -66,6 +68,8 @@ const ADMIN_TAB_LABELS: Record<AdminPanelTab, string> = {
   [AdminPanelTab.ACCOUNT]: "Minha conta",
   [AdminPanelTab.CHAMPIONSHIP_STATUS]: "Status do campeonato",
   [AdminPanelTab.SETTINGS]: "Configurações",
+  [AdminPanelTab.SCORE_SHEET_REVIEW]: "Conferência de Súmula",
+  [AdminPanelTab.TIE_BREAKS]: "Sorteios",
 };
 
 const ADMIN_PERMISSION_LEVEL_LABELS: Record<AdminPanelPermissionLevel, string> = {
@@ -76,6 +80,8 @@ const ADMIN_PERMISSION_LEVEL_LABELS: Record<AdminPanelPermissionLevel, string> =
 
 const ADMIN_PANEL_TAB_ORDER: AdminPanelTab[] = [
   AdminPanelTab.MATCHES,
+  AdminPanelTab.SCORE_SHEET_REVIEW,
+  AdminPanelTab.TIE_BREAKS,
   AdminPanelTab.CONTROL,
   AdminPanelTab.TEAMS,
   AdminPanelTab.SPORTS,
@@ -173,6 +179,8 @@ function resolveDefaultPermissions(): AdminTabPermissionByTab {
     [AdminPanelTab.ACCOUNT]: AdminPanelPermissionLevel.NONE,
     [AdminPanelTab.CHAMPIONSHIP_STATUS]: AdminPanelPermissionLevel.NONE,
     [AdminPanelTab.SETTINGS]: AdminPanelPermissionLevel.NONE,
+    [AdminPanelTab.SCORE_SHEET_REVIEW]: AdminPanelPermissionLevel.NONE,
+    [AdminPanelTab.TIE_BREAKS]: AdminPanelPermissionLevel.NONE,
   };
 }
 
@@ -353,6 +361,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
   const [bulkProcessingAction, setBulkProcessingAction] = useState<"RESET" | "DELETE" | null>(null);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [activeUsersTab, setActiveUsersTab] = useState<"USERS" | "PROFILES">("USERS");
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
   const [profileDraft, setProfileDraft] = useState<ProfileDraft>(resolveUnselectedProfileDraft());
   const [savedProfileDraft, setSavedProfileDraft] = useState<ProfileDraft | null>(null);
@@ -971,7 +980,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
   const handleOpenProfilesModal = () => {
     setProfileDraft(resolveUnselectedProfileDraft());
     setSavedProfileDraft(null);
-    setShowProfileModal(true);
+    setActiveUsersTab("PROFILES");
   };
 
   const handleOpenCreateProfile = () => {
@@ -1065,7 +1074,22 @@ export function AdminUsers({ canManageUsers = true }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="glass-card enter-section grid gap-2 p-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_220px_260px_auto_auto]">
+      <Tabs
+        value={activeUsersTab}
+        onValueChange={(v) => setActiveUsersTab(v as "USERS" | "PROFILES")}
+        className="enter-section space-y-4"
+      >
+        {canManageUsers ? (
+          <TabsNavigationList className="grid w-full grid-cols-2">
+            <TabsNavigationTrigger value="USERS">Usuários</TabsNavigationTrigger>
+            <TabsNavigationTrigger value="PROFILES">
+              Perfis
+            </TabsNavigationTrigger>
+          </TabsNavigationList>
+        ) : null}
+
+        <TabsContent value="USERS" className="space-y-4">
+        <div className="glass-card enter-section grid gap-2 p-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_220px_260px_auto]">
         <Input
           type="search"
           name="admin_user_filter_search"
@@ -1113,12 +1137,6 @@ export function AdminUsers({ canManageUsers = true }: Props) {
           </SelectContent>
         </Select>
 
-        {canManageUsers ? (
-          <Button type="button" variant="outline" onClick={handleOpenProfilesModal} className="bg-background/70">
-            <Shield className="mr-2 h-4 w-4" />
-            Perfis
-          </Button>
-        ) : null}
         {canManageUsers ? (
           <Button
             type="button"
@@ -1234,19 +1252,47 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                       </div>
                     </div>
 
+                    {/* Menu de ações — mobile only (lg:hidden) */}
                     {canManageUsers ? (
-                      <div className="flex shrink-0 lg:hidden">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          className="bg-background/70"
-                          onClick={() => handleOpenEditUserModal(user.user_id)}
-                          title={`Editar ${user.name}`}
-                          aria-label={`Editar ${user.name}`}
-                        >
-                          <PencilLine className="h-4 w-4" />
-                        </Button>
+                      <div className="shrink-0 lg:hidden">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Ações do usuário ${user.name}`}
+                              disabled={bulkProcessingAction != null}
+                            >
+                              {resettingUserId == user.user_id || deletingUserId == user.user_id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                              )}
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-52">
+                            <DropdownMenuItem onSelect={() => handleOpenEditUserModal(user.user_id)}>
+                              <PencilLine className="mr-2 h-4 w-4" />
+                              Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() => handleOpenResetUsersPasswordSetupConfirmation([user.user_id])}
+                              disabled={isCurrentUser || resettingUserId == user.user_id || bulkProcessingAction != null}
+                            >
+                              <RotateCcw className="mr-2 h-4 w-4" />
+                              Resetar senha
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onSelect={() => handleOpenDeleteUsersConfirmation([user.user_id])}
+                              disabled={isCurrentUser || deletingUserId == user.user_id || bulkProcessingAction != null}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Excluir usuário
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     ) : null}
                   </div>
@@ -1269,19 +1315,47 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                   </p>
                 </div>
 
+                {/* Menu de ações — desktop only (hidden lg:flex) */}
                 {canManageUsers ? (
                   <div className="hidden shrink-0 justify-end lg:flex lg:self-center">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      className="bg-background/70"
-                      onClick={() => handleOpenEditUserModal(user.user_id)}
-                      title={`Editar ${user.name}`}
-                      aria-label={`Editar ${user.name}`}
-                    >
-                      <PencilLine className="h-4 w-4" />
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Ações do usuário ${user.name}`}
+                          disabled={bulkProcessingAction != null}
+                        >
+                          {resettingUserId == user.user_id || deletingUserId == user.user_id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-52">
+                        <DropdownMenuItem onSelect={() => handleOpenEditUserModal(user.user_id)}>
+                          <PencilLine className="mr-2 h-4 w-4" />
+                          Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onSelect={() => handleOpenResetUsersPasswordSetupConfirmation([user.user_id])}
+                          disabled={isCurrentUser || resettingUserId == user.user_id || bulkProcessingAction != null}
+                        >
+                          <RotateCcw className="mr-2 h-4 w-4" />
+                          Resetar senha
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onSelect={() => handleOpenDeleteUsersConfirmation([user.user_id])}
+                          disabled={isCurrentUser || deletingUserId == user.user_id || bulkProcessingAction != null}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Excluir usuário
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 ) : null}
               </div>
@@ -1289,6 +1363,134 @@ export function AdminUsers({ canManageUsers = true }: Props) {
           })}
         </div>
       )}
+        </TabsContent>
+
+        <TabsContent value="PROFILES" className="space-y-4">
+          <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+            {/* Lista de perfis */}
+            <div className="glass-card space-y-2 p-3">
+              <Button type="button" variant="outline" className="w-full bg-background/70" onClick={handleOpenCreateProfile}>
+                <Plus className="mr-2 h-4 w-4" />
+                Novo perfil
+              </Button>
+
+              <div className="space-y-1">
+                {profiles.length == 0 ? (
+                  <p className="text-xs text-muted-foreground">Nenhum perfil personalizado cadastrado.</p>
+                ) : (
+                  profiles.map((profile) => (
+                    <button
+                      key={profile.profile_id}
+                      type="button"
+                      className={`w-full rounded-xl px-3 py-2 text-left transition ${
+                        profileDraft.profileId == profile.profile_id
+                          ? "app-card-emphasis dark:bg-[hsl(0_0%_14%)]"
+                          : "app-card-muted hover:bg-background/40 dark:hover:bg-[hsl(0_0%_100%/0.08)]"
+                      }`}
+                      onClick={() => handleEditProfile(profile)}
+                    >
+                      <p className="truncate text-sm font-medium">{profile.profile_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Atualizado em {format(new Date(profile.updated_at), "dd/MM/yyyy HH:mm")}
+                      </p>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Editor de perfil */}
+            <div className="glass-card space-y-3 p-4">
+              {isProfileDraftReady ? (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="profile-name-input">Nome do perfil</Label>
+                    <Input
+                      id="profile-name-input"
+                      value={profileDraft.profileName}
+                      onChange={(event) =>
+                        setProfileDraft((currentProfileDraft) => ({
+                          ...currentProfileDraft,
+                          profileName: event.target.value,
+                        }))
+                      }
+                      className="app-input-field"
+                      placeholder="Ex.: Operador de Agenda"
+                      disabled={isProtectedAdminProfile}
+                    />
+                  </div>
+
+                  {isProtectedAdminProfile ? (
+                    <p className="text-xs text-muted-foreground">
+                      O perfil Admin é protegido. É possível visualizar, mas não editar este perfil.
+                    </p>
+                  ) : null}
+
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Permissões por aba</p>
+                    <div className="space-y-2">
+                      {ADMIN_PANEL_TAB_ORDER.map((adminPanelTab) => (
+                        <div
+                          key={adminPanelTab}
+                          className="grid gap-2 rounded-xl app-card-muted p-2 sm:grid-cols-[170px_minmax(0,1fr)] sm:items-center"
+                        >
+                          <p className="text-sm font-medium">{ADMIN_TAB_LABELS[adminPanelTab]}</p>
+                          <Select
+                            value={profileDraft.permissions[adminPanelTab]}
+                            disabled={isProtectedAdminProfile}
+                            onValueChange={(value) => {
+                              if (!isAdminPanelPermissionLevel(value)) {
+                                return;
+                              }
+                              setProfileDraft((currentProfileDraft) => ({
+                                ...currentProfileDraft,
+                                permissions: {
+                                  ...currentProfileDraft.permissions,
+                                  [adminPanelTab]: value,
+                                },
+                              }));
+                            }}
+                          >
+                            <SelectTrigger className="app-input-field">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={AdminPanelPermissionLevel.NONE}>
+                                {ADMIN_PERMISSION_LEVEL_LABELS[AdminPanelPermissionLevel.NONE]}
+                              </SelectItem>
+                              <SelectItem value={AdminPanelPermissionLevel.VIEW}>
+                                {ADMIN_PERMISSION_LEVEL_LABELS[AdminPanelPermissionLevel.VIEW]}
+                              </SelectItem>
+                              <SelectItem value={AdminPanelPermissionLevel.EDIT}>
+                                {ADMIN_PERMISSION_LEVEL_LABELS[AdminPanelPermissionLevel.EDIT]}
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      onClick={handleSaveProfile}
+                      disabled={savingProfile || !canManageUsers || isProtectedAdminProfile || !hasProfilePendingChanges}
+                    >
+                      {savingProfile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                      Salvar perfil
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <div className="flex min-h-[280px] items-center justify-center">
+                  <p className="text-sm text-muted-foreground">Selecione um perfil ou crie um novo.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
 
       <Dialog
         open={showCreateUserModal}
@@ -1508,47 +1710,6 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                   </div>
                 ) : null}
 
-                {canManageUsers ? (
-                  <DialogFooter className="gap-2 border-t border-border/40 pt-4 sm:justify-center sm:space-x-0">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="bg-background/70"
-                      disabled={
-                        editingUser.user_id == currentUser?.id ||
-                        resettingUserId == editingUser.user_id ||
-                        bulkProcessingAction != null
-                      }
-                      onClick={() => handleOpenResetUsersPasswordSetupConfirmation([editingUser.user_id])}
-                    >
-                      {resettingUserId == editingUser.user_id ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <RotateCcw className="mr-2 h-4 w-4" />
-                      )}
-                      Resetar senha
-                    </Button>
-
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="bg-background/70"
-                      disabled={
-                        editingUser.user_id == currentUser?.id ||
-                        deletingUserId == editingUser.user_id ||
-                        bulkProcessingAction != null
-                      }
-                      onClick={() => handleOpenDeleteUsersConfirmation([editingUser.user_id])}
-                    >
-                      {deletingUserId == editingUser.user_id ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="mr-2 h-4 w-4" />
-                      )}
-                      Excluir usuário
-                    </Button>
-                  </DialogFooter>
-                ) : null}
               </div>
             </div>
           </DialogContent>
@@ -1578,147 +1739,6 @@ export function AdminUsers({ canManageUsers = true }: Props) {
         </AlertDialogContent>
       </AlertDialog>
 
-      <Dialog
-        open={showProfileModal}
-        onOpenChange={(isOpen) => {
-          setShowProfileModal(isOpen);
-
-          if (!isOpen) {
-            setProfileDraft(resolveUnselectedProfileDraft());
-            setSavedProfileDraft(null);
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>Perfis personalizados</DialogTitle>
-            <DialogDescription>Defina nome e permissões por aba do admin (visualização ou edição).</DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-            <div className="space-y-2 rounded-2xl app-card-muted p-3">
-              <Button type="button" variant="outline" className="w-full bg-background/70" onClick={handleOpenCreateProfile}>
-                <Plus className="mr-2 h-4 w-4" />
-                Novo perfil
-              </Button>
-
-              <div className="max-h-[52vh] space-y-1 overflow-y-auto pr-1">
-                {profiles.length == 0 ? (
-                  <p className="text-xs text-muted-foreground">Nenhum perfil personalizado cadastrado.</p>
-                ) : (
-                  profiles.map((profile) => (
-                    <button
-                      key={profile.profile_id}
-                      type="button"
-                      className={`w-full rounded-xl px-3 py-2 text-left transition ${
-                        profileDraft.profileId == profile.profile_id
-                          ? "app-card-emphasis dark:bg-[hsl(0_0%_14%)]"
-                          : "app-card-muted hover:bg-background/40 dark:hover:bg-[hsl(0_0%_100%/0.08)]"
-                      }`}
-                      onClick={() => handleEditProfile(profile)}
-                    >
-                      <p className="truncate text-sm font-medium">{profile.profile_name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Atualizado em {format(new Date(profile.updated_at), "dd/MM/yyyy HH:mm")}
-                      </p>
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-3 rounded-2xl app-card-muted p-3">
-              {isProfileDraftReady ? (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="profile-name-input">Nome do perfil</Label>
-                    <Input
-                      id="profile-name-input"
-                      value={profileDraft.profileName}
-                      onChange={(event) =>
-                        setProfileDraft((currentProfileDraft) => ({
-                          ...currentProfileDraft,
-                          profileName: event.target.value,
-                        }))
-                      }
-                      className="app-input-field"
-                      placeholder="Ex.: Operador de Agenda"
-                      disabled={isProtectedAdminProfile}
-                    />
-                  </div>
-
-                  {isProtectedAdminProfile ? (
-                    <p className="text-xs text-muted-foreground">
-                      O perfil Admin é protegido. É possível visualizar, mas não editar este perfil.
-                    </p>
-                  ) : null}
-
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium">Permissões por aba</p>
-
-                    <div className="space-y-2">
-                      {ADMIN_PANEL_TAB_ORDER.map((adminPanelTab) => (
-                        <div
-                          key={adminPanelTab}
-                          className="grid gap-2 rounded-xl app-card-muted p-2 sm:grid-cols-[170px_minmax(0,1fr)] sm:items-center"
-                        >
-                          <p className="text-sm font-medium">{ADMIN_TAB_LABELS[adminPanelTab]}</p>
-
-                          <Select
-                            value={profileDraft.permissions[adminPanelTab]}
-                            disabled={isProtectedAdminProfile}
-                            onValueChange={(value) => {
-                              if (!isAdminPanelPermissionLevel(value)) {
-                                return;
-                              }
-
-                              setProfileDraft((currentProfileDraft) => ({
-                                ...currentProfileDraft,
-                                permissions: {
-                                  ...currentProfileDraft.permissions,
-                                  [adminPanelTab]: value,
-                                },
-                              }));
-                            }}
-                          >
-                            <SelectTrigger className="app-input-field">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value={AdminPanelPermissionLevel.NONE}>
-                                {ADMIN_PERMISSION_LEVEL_LABELS[AdminPanelPermissionLevel.NONE]}
-                              </SelectItem>
-                              <SelectItem value={AdminPanelPermissionLevel.VIEW}>
-                                {ADMIN_PERMISSION_LEVEL_LABELS[AdminPanelPermissionLevel.VIEW]}
-                              </SelectItem>
-                              <SelectItem value={AdminPanelPermissionLevel.EDIT}>
-                                {ADMIN_PERMISSION_LEVEL_LABELS[AdminPanelPermissionLevel.EDIT]}
-                              </SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end">
-                    <Button
-                      type="button"
-                      onClick={handleSaveProfile}
-                      disabled={savingProfile || !canManageUsers || isProtectedAdminProfile || !hasProfilePendingChanges}
-                    >
-                      {savingProfile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                      Salvar perfil
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <div className="min-h-[52vh]" />
-              )}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

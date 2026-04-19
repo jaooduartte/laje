@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { Team } from '@/lib/types';
 
@@ -6,7 +6,7 @@ export function useTeams() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchTeams = async () => {
+  const fetchTeams = useCallback(async () => {
     setLoading(true);
 
     try {
@@ -27,7 +27,7 @@ export function useTeams() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchTeams();

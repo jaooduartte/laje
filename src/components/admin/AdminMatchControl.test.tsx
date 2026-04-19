@@ -57,12 +57,31 @@ vi.mock("@/domain/championship-brackets/championshipBracket.repository", () => (
 }));
 
 vi.mock("@/components/SportFilter", () => ({
-  SportFilter: () => <div data-testid="sport-filter-mock" />,
+  SportFilter: ({ sports, onSelect }: { sports: { id: string }[]; onSelect: (id: string | null) => void }) => (
+    <button type="button" data-testid="sport-filter-mock" onClick={() => onSelect(sports[0]?.id ?? null)}>
+      Filtro modalidade
+    </button>
+  ),
 }));
 
 vi.mock("@/components/ui/app-pagination-controls", () => ({
   DEFAULT_PAGINATION_ITEMS_PER_PAGE: 15,
-  AppPaginationControls: () => <div data-testid="pagination-controls-mock" />,
+  AppPaginationControls: ({
+    onPageChange,
+    onItemsPerPageChange,
+  }: {
+    onPageChange: (page: number) => void;
+    onItemsPerPageChange: (value: number) => void;
+  }) => (
+    <div>
+      <button type="button" data-testid="pagination-controls-page-mock" onClick={() => onPageChange(2)}>
+        Próxima página
+      </button>
+      <button type="button" data-testid="pagination-controls-size-mock" onClick={() => onItemsPerPageChange(25)}>
+        Itens por página
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -242,6 +261,21 @@ function resolveMatchCardElement(teamName: string): HTMLElement {
   return matchCardElement as HTMLElement;
 }
 
+function selectWalkoverOption(matchCardElement: HTMLElement, optionLabel: string): void {
+  const walkoverSelectTrigger = within(matchCardElement).getByRole("combobox", { name: "W.O.?" });
+
+  act(() => {
+    fireEvent.click(walkoverSelectTrigger);
+    vi.runOnlyPendingTimers();
+  });
+
+  const walkoverOption = screen.getByRole("option", { name: optionLabel });
+
+  act(() => {
+    fireEvent.click(walkoverOption);
+  });
+}
+
 describe("AdminMatchControl", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -252,6 +286,10 @@ describe("AdminMatchControl", () => {
     saveMatchSetsMock.mockReset();
     saveMatchSetsMock.mockResolvedValue({ error: null });
     window.sessionStorage.clear();
+    Object.defineProperty(window, "scrollTo", {
+      value: vi.fn(),
+      writable: true,
+    });
   });
 
   afterEach(() => {
@@ -287,6 +325,324 @@ describe("AdminMatchControl", () => {
     expect(toastSuccessMock).toHaveBeenCalledWith("Jogo iniciado!");
     expect(onRefetch).toHaveBeenCalledTimes(1);
     expect(onRefetchChampionshipBracket).toHaveBeenCalledTimes(1);
+  });
+
+  it("encerra jogo agendado por W.O. no beach soccer com placar máximo para a atlética presente", async () => {
+    const homeTeam = buildTeam({ id: "wo-home-team", name: "Atlética WO Casa" });
+    const awayTeam = buildTeam({ id: "wo-away-team", name: "Atlética WO Visitante" });
+    const match = buildMatch({
+      id: "scheduled-walkover-points-match",
+      sport_id: "sport-beach-soccer-wo",
+      status: MatchStatus.SCHEDULED,
+      sports: buildSport({ id: "sport-beach-soccer-wo", name: "Beach Soccer" }),
+      home_team: homeTeam,
+      away_team: awayTeam,
+      home_team_id: homeTeam.id,
+      away_team_id: awayTeam.id,
+    });
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-beach-soccer-wo",
+      sport_id: "sport-beach-soccer-wo",
+      result_rule: ChampionshipSportResultRule.POINTS,
+    });
+    const { onRefetch, onRefetchChampionshipBracket } = renderAdminMatchControl({
+      matches: [match],
+      championshipSports: [championshipSport],
+    });
+
+    const matchCardElement = resolveMatchCardElement("Atlética WO Casa");
+    selectWalkoverOption(matchCardElement, homeTeam.name);
+
+    await act(async () => {
+      fireEvent.click(within(matchCardElement).getByRole("button", { name: /encerrar w\.o\./i }));
+    });
+
+    expect(saveMatchSetsMock).not.toHaveBeenCalled();
+    expect(supabaseUpdateCalls).toHaveLength(1);
+    expect(supabaseUpdateCalls[0]?.value).toBe("scheduled-walkover-points-match");
+    expect(supabaseUpdateCalls[0]?.payload).toMatchObject({
+      home_score: 0,
+      away_score: 3,
+      status: MatchStatus.FINISHED,
+      is_walkover: true,
+      walkover_loser_team_id: homeTeam.id,
+    });
+    expect(typeof supabaseUpdateCalls[0]?.payload.start_time).toBe("string");
+    expect(typeof supabaseUpdateCalls[0]?.payload.end_time).toBe("string");
+    expect(toastSuccessMock).toHaveBeenCalledWith("Jogo encerrado por W.O.! Classificação atualizada.");
+    expect(onRefetch).toHaveBeenCalledTimes(1);
+    expect(onRefetchChampionshipBracket).toHaveBeenCalledTimes(1);
+  });
+
+  it("encerra jogo agendado por W.O. em modalidade por sets gravando set com pontuação máxima", async () => {
+    const homeTeam = buildTeam({ id: "wo-sets-home-team", name: "Atlética Sets WO Casa" });
+    const awayTeam = buildTeam({ id: "wo-sets-away-team", name: "Atlética Sets WO Visitante" });
+    const match = buildMatch({
+      id: "scheduled-walkover-sets-match",
+      sport_id: "sport-beach-volley-wo",
+      status: MatchStatus.SCHEDULED,
+      sports: buildSport({ id: "sport-beach-volley-wo", name: "Vôlei de Praia" }),
+      home_team: homeTeam,
+      away_team: awayTeam,
+      home_team_id: homeTeam.id,
+      away_team_id: awayTeam.id,
+    });
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-beach-volley-wo",
+      sport_id: "sport-beach-volley-wo",
+      result_rule: ChampionshipSportResultRule.SETS,
+    });
+
+    renderAdminMatchControl({
+      matches: [match],
+      championshipSports: [championshipSport],
+    });
+
+    const matchCardElement = resolveMatchCardElement("Atlética Sets WO Casa");
+    selectWalkoverOption(matchCardElement, awayTeam.name);
+
+    await act(async () => {
+      fireEvent.click(within(matchCardElement).getByRole("button", { name: /encerrar w\.o\./i }));
+    });
+
+    expect(saveMatchSetsMock).toHaveBeenCalledWith("scheduled-walkover-sets-match", [
+      {
+        set_number: 1,
+        home_points: 21,
+        away_points: 0,
+      },
+    ]);
+    expect(supabaseUpdateCalls).toHaveLength(1);
+    expect(supabaseUpdateCalls[0]?.payload).toMatchObject({
+      home_score: 1,
+      away_score: 0,
+      status: MatchStatus.FINISHED,
+      is_walkover: true,
+      walkover_loser_team_id: awayTeam.id,
+    });
+  });
+
+  it("bloqueia W.O. no ao vivo quando já existe placar lançado", async () => {
+    const homeTeam = buildTeam({ id: "wo-live-home-team", name: "Atlética WO Ao Vivo Casa" });
+    const awayTeam = buildTeam({ id: "wo-live-away-team", name: "Atlética WO Ao Vivo Visitante" });
+    const match = buildMatch({
+      id: "live-walkover-blocked-match",
+      sport_id: "sport-live-wo",
+      status: MatchStatus.LIVE,
+      home_score: 1,
+      away_score: 0,
+      home_team: homeTeam,
+      away_team: awayTeam,
+      home_team_id: homeTeam.id,
+      away_team_id: awayTeam.id,
+    });
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-live-wo",
+      sport_id: "sport-live-wo",
+      result_rule: ChampionshipSportResultRule.POINTS,
+    });
+
+    renderAdminMatchControl({
+      matches: [match],
+      championshipSports: [championshipSport],
+    });
+
+    const matchCardElement = resolveMatchCardElement("Atlética WO Ao Vivo Casa");
+    selectWalkoverOption(matchCardElement, homeTeam.name);
+
+    await act(async () => {
+      fireEvent.click(within(matchCardElement).getByRole("button", { name: /encerrar w\.o\./i }));
+    });
+
+    expect(supabaseUpdateCalls).toHaveLength(0);
+    expect(toastErrorMock).toHaveBeenCalledWith("Não é possível aplicar W.O. em jogo ao vivo com placar ou sets já lançados.");
+  });
+
+  it("exibe seletor de W.O. apenas em cards agendados e ao vivo", () => {
+    const scheduledMatch = buildMatch({
+      id: "wo-scheduled-visibility-match",
+      sport_id: "sport-wo-visibility",
+      status: MatchStatus.SCHEDULED,
+      home_team: buildTeam({ id: "wo-scheduled-home", name: "Atlética WO Visibilidade Agendado" }),
+      away_team: buildTeam({ id: "wo-scheduled-away", name: "Atlética WO Visibilidade Agendado 2" }),
+    });
+    const liveMatch = buildMatch({
+      id: "wo-live-visibility-match",
+      sport_id: "sport-wo-visibility",
+      status: MatchStatus.LIVE,
+      home_team: buildTeam({ id: "wo-live-home", name: "Atlética WO Visibilidade Ao Vivo" }),
+      away_team: buildTeam({ id: "wo-live-away", name: "Atlética WO Visibilidade Ao Vivo 2" }),
+    });
+    const finishedMatch = buildMatch({
+      id: "wo-finished-visibility-match",
+      sport_id: "sport-wo-visibility",
+      status: MatchStatus.FINISHED,
+      home_team: buildTeam({ id: "wo-finished-home", name: "Atlética WO Visibilidade Encerrado" }),
+      away_team: buildTeam({ id: "wo-finished-away", name: "Atlética WO Visibilidade Encerrado 2" }),
+    });
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-wo-visibility",
+      sport_id: "sport-wo-visibility",
+      result_rule: ChampionshipSportResultRule.POINTS,
+    });
+
+    renderAdminMatchControl({
+      matches: [scheduledMatch, liveMatch, finishedMatch],
+      championshipSports: [championshipSport],
+    });
+
+    expect(within(resolveMatchCardElement("Atlética WO Visibilidade Agendado")).getByRole("combobox", { name: "W.O.?" })).toBeInTheDocument();
+    expect(within(resolveMatchCardElement("Atlética WO Visibilidade Ao Vivo")).getByRole("combobox", { name: "W.O.?" })).toBeInTheDocument();
+    expect(within(resolveMatchCardElement("Atlética WO Visibilidade Encerrado")).queryByRole("combobox", { name: "W.O.?" })).toBeNull();
+  });
+
+  it("bloqueia aplicação de W.O. quando campeonato não está em andamento", async () => {
+    const homeTeam = buildTeam({ id: "wo-blocked-home-team", name: "Atlética WO Bloqueio Casa" });
+    const awayTeam = buildTeam({ id: "wo-blocked-away-team", name: "Atlética WO Bloqueio Visitante" });
+    const match = buildMatch({
+      id: "live-walkover-status-blocked-match",
+      sport_id: "sport-live-wo-status",
+      status: MatchStatus.LIVE,
+      home_score: 0,
+      away_score: 0,
+      home_team: homeTeam,
+      away_team: awayTeam,
+      home_team_id: homeTeam.id,
+      away_team_id: awayTeam.id,
+    });
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-live-wo-status",
+      sport_id: "sport-live-wo-status",
+      result_rule: ChampionshipSportResultRule.POINTS,
+    });
+
+    renderAdminMatchControl({
+      matches: [match],
+      championshipSports: [championshipSport],
+      championshipStatus: ChampionshipStatus.PLANNING,
+    });
+
+    const matchCardElement = resolveMatchCardElement("Atlética WO Bloqueio Casa");
+    selectWalkoverOption(matchCardElement, homeTeam.name);
+
+    await act(async () => {
+      fireEvent.click(within(matchCardElement).getByRole("button", { name: /encerrar w\.o\./i }));
+    });
+
+    expect(supabaseUpdateCalls).toHaveLength(0);
+    expect(toastErrorMock).toHaveBeenCalledWith("Só é possível aplicar W.O. quando o campeonato estiver Em andamento.");
+  });
+
+  it("atualiza os dados ao trocar a modalidade no filtro do controle ao vivo", async () => {
+    const match = buildMatch({
+      id: "filter-match",
+      sport_id: "sport-filter",
+      status: MatchStatus.SCHEDULED,
+    });
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-filter",
+      sport_id: "sport-filter",
+      result_rule: ChampionshipSportResultRule.POINTS,
+      supports_cards: false,
+    });
+    const { onRefetch } = renderAdminMatchControl({
+      matches: [match],
+      championshipSports: [championshipSport],
+    });
+
+    expect(onRefetch).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("sport-filter-mock"));
+
+    expect(onRefetch).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      vi.advanceTimersByTime(400);
+    });
+
+    expect(onRefetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("volta o filtro de modalidade para Todas quando a modalidade filtrada deixa de ter jogos no controle", async () => {
+    const selectedSportMatch = buildMatch({
+      id: "selected-sport-match",
+      sport_id: "sport-filter-mock-id",
+      status: MatchStatus.SCHEDULED,
+      home_team: buildTeam({ id: "selected-sport-home", name: "Atlética Modalidade Atual" }),
+      away_team: buildTeam({ id: "selected-sport-away", name: "Atlética Modalidade Atual Visitante" }),
+      sports: buildSport({ id: "sport-filter-mock-id", name: "Beach Tennis" }),
+    });
+    const otherSportMatch = buildMatch({
+      id: "other-sport-match",
+      sport_id: "sport-other",
+      status: MatchStatus.SCHEDULED,
+      home_team: buildTeam({ id: "other-sport-home", name: "Atlética Modalidade Restante" }),
+      away_team: buildTeam({ id: "other-sport-away", name: "Atlética Modalidade Restante Visitante" }),
+      sports: buildSport({ id: "sport-other", name: "Vôlei de Praia" }),
+    });
+    const selectedChampionshipSport = buildChampionshipSport({
+      id: "championship-sport-selected",
+      sport_id: "sport-filter-mock-id",
+      result_rule: ChampionshipSportResultRule.POINTS,
+    });
+    const otherChampionshipSport = buildChampionshipSport({
+      id: "championship-sport-other",
+      sport_id: "sport-other",
+      result_rule: ChampionshipSportResultRule.POINTS,
+    });
+    const { rerenderAdminMatchControl } = renderAdminMatchControl({
+      matches: [selectedSportMatch, otherSportMatch],
+      championshipSports: [selectedChampionshipSport, otherChampionshipSport],
+    });
+
+    fireEvent.click(screen.getByTestId("sport-filter-mock"));
+
+    expect(screen.getAllByText("Atlética Modalidade Atual").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Atlética Modalidade Restante")).toBeNull();
+
+    await act(async () => {
+      rerenderAdminMatchControl({
+        matches: [otherSportMatch],
+        championshipSports: [selectedChampionshipSport, otherChampionshipSport],
+      });
+      await Promise.resolve();
+    });
+
+    expect(screen.getAllByText("Atlética Modalidade Restante").length).toBeGreaterThan(0);
+  });
+
+  it("atualiza os dados ao trocar de página no controle ao vivo", async () => {
+    const matches = Array.from({ length: 20 }).map((_, index) =>
+      buildMatch({
+        id: `page-match-${index + 1}`,
+        sport_id: "sport-filter",
+        status: MatchStatus.SCHEDULED,
+        home_team: buildTeam({ id: `home-${index + 1}`, name: `Casa ${index + 1}` }),
+        away_team: buildTeam({ id: `away-${index + 1}`, name: `Visitante ${index + 1}` }),
+      }),
+    );
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-filter",
+      sport_id: "sport-filter",
+      result_rule: ChampionshipSportResultRule.POINTS,
+      supports_cards: false,
+    });
+    const { onRefetch } = renderAdminMatchControl({
+      matches,
+      championshipSports: [championshipSport],
+    });
+
+    expect(onRefetch).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("pagination-controls-page-mock"));
+
+    expect(onRefetch).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      vi.advanceTimersByTime(400);
+    });
+
+    expect(onRefetch).toHaveBeenCalledTimes(2);
   });
 
   it("bloqueia o início do jogo quando o campeonato não está em andamento", async () => {
@@ -518,6 +874,68 @@ describe("AdminMatchControl", () => {
     expect(supabaseUpdateCalls[0]?.payload.home_red_cards).toBe(0);
     expect(supabaseUpdateCalls[0]?.payload.away_yellow_cards).toBe(0);
     expect(supabaseUpdateCalls[0]?.payload.away_red_cards).toBe(0);
+  });
+
+  it("mantém o botão Fim do set desabilitado com placar atual 0 x 0", () => {
+    const match = buildMatch({
+      id: "live-empty-set-score-match",
+      sport_id: "sport-sets-empty",
+      status: MatchStatus.LIVE,
+      supports_cards: false,
+      current_set_home_score: 0,
+      current_set_away_score: 0,
+      home_team: buildTeam({ id: "home-empty-set-score-team", name: "Atlética Set Vazio Casa" }),
+      away_team: buildTeam({ id: "away-empty-set-score-team", name: "Atlética Set Vazio Visitante" }),
+    });
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-sets-empty",
+      sport_id: "sport-sets-empty",
+      result_rule: ChampionshipSportResultRule.SETS,
+    });
+    renderAdminMatchControl({
+      matches: [match],
+      championshipSports: [championshipSport],
+    });
+
+    const matchCardElement = resolveMatchCardElement("Atlética Set Vazio Casa");
+
+    expect(within(matchCardElement).getByRole("button", { name: /fim do set/i })).toBeDisabled();
+  });
+
+  it("habilita o botão Fim do set quando qualquer lado tem pontuação no draft", async () => {
+    const match = buildMatch({
+      id: "live-filled-set-score-match",
+      sport_id: "sport-sets-filled",
+      status: MatchStatus.LIVE,
+      supports_cards: false,
+      current_set_home_score: 0,
+      current_set_away_score: 0,
+      home_team: buildTeam({ id: "home-filled-set-score-team", name: "Atlética Set Preenchido Casa" }),
+      away_team: buildTeam({ id: "away-filled-set-score-team", name: "Atlética Set Preenchido Visitante" }),
+    });
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-sets-filled",
+      sport_id: "sport-sets-filled",
+      result_rule: ChampionshipSportResultRule.SETS,
+    });
+    renderAdminMatchControl({
+      matches: [match],
+      championshipSports: [championshipSport],
+    });
+
+    const matchCardElement = resolveMatchCardElement("Atlética Set Preenchido Casa");
+    const finishSetButton = within(matchCardElement).getByRole("button", { name: /fim do set/i });
+    const scoreInputs = within(matchCardElement).getAllByRole("spinbutton");
+
+    expect(finishSetButton).toBeDisabled();
+
+    await act(async () => {
+      fireEvent.change(scoreInputs[0] as HTMLElement, {
+        target: { value: "1" },
+      });
+    });
+
+    expect(finishSetButton).toBeEnabled();
   });
 
   it("fecha um set, salva os sets e atualiza vitórias de set no jogo ao vivo", async () => {

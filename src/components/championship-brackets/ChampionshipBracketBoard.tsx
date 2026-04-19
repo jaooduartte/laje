@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Trophy } from "lucide-react";
 import {
+  resolveChampionshipBracketFirstRoundSeedIndexes,
   resolveChampionshipBracketKnockoutProjection,
   resolveChampionshipBracketProjectedKnockoutSummary,
   resolveChampionshipBracketQualificationSummary,
@@ -212,15 +213,17 @@ function resolveProjectedKnockoutRounds(
 
     for (let slotNumber = 1; slotNumber <= matchesInRound; slotNumber += 1) {
       const knockoutMatch = knockoutMatchByRoundAndSlot.get(`${roundNumber}:${slotNumber}:false`) ?? null;
-      const homeSeedIndex = roundNumber == 1 ? slotNumber - 1 : (slotNumber * 2) - 1;
-      const awaySeedIndex = roundNumber == 1 ? bracketSize - slotNumber : slotNumber * 2;
-      const homePlaceholderLabel =
+      const firstRoundSeedIndexes =
         roundNumber == 1
-          ? seedLabels[homeSeedIndex] ?? "BYE"
+          ? resolveChampionshipBracketFirstRoundSeedIndexes(bracketSize, slotNumber)
+          : null;
+      const homePlaceholderLabel =
+        firstRoundSeedIndexes != null
+          ? seedLabels[firstRoundSeedIndexes.home_seed_index] ?? "BYE"
           : resolveWinnerSourceLabel(roundNumber - 1, (slotNumber * 2) - 1, totalRounds);
       const awayPlaceholderLabel =
-        roundNumber == 1
-          ? seedLabels[awaySeedIndex] ?? "BYE"
+        firstRoundSeedIndexes != null
+          ? seedLabels[firstRoundSeedIndexes.away_seed_index] ?? "BYE"
           : resolveWinnerSourceLabel(roundNumber - 1, slotNumber * 2, totalRounds);
 
       projectedMatches.push({
@@ -747,7 +750,6 @@ export function ChampionshipBracketBoard({
   loading = false,
   emptyMessage = "Nenhum grupo de campeonato encontrado.",
 }: Props) {
-  const [sportFilter, setSportFilter] = useState(ALL_FILTER);
   const [naipeFilter, setNaipeFilter] = useState(ALL_FILTER);
   const [divisionFilter, setDivisionFilter] = useState(ALL_FILTER);
 
@@ -756,16 +758,6 @@ export function ChampionshipBracketBoard({
       return competition.groups_count > 0 || competition.knockout_matches.length > 0;
     });
   }, [championshipBracketView.competitions]);
-
-  const availableSports = useMemo(() => {
-    const sportsById = new Map<string, string>();
-
-    visibleCompetitions.forEach((competition) => {
-      sportsById.set(competition.sport_id, competition.sport_name);
-    });
-
-    return [...sportsById.entries()].map(([id, name]) => ({ id, name }));
-  }, [visibleCompetitions]);
 
   const availableDivisions = useMemo(() => {
     const divisionSet = new Set<TeamDivision>();
@@ -781,10 +773,6 @@ export function ChampionshipBracketBoard({
 
   const filteredCompetitions = useMemo(() => {
     return visibleCompetitions.filter((competition) => {
-      if (sportFilter != ALL_FILTER && competition.sport_id != sportFilter) {
-        return false;
-      }
-
       if (naipeFilter != ALL_FILTER && competition.naipe != naipeFilter) {
         return false;
       }
@@ -799,7 +787,7 @@ export function ChampionshipBracketBoard({
 
       return true;
     });
-  }, [divisionFilter, naipeFilter, sportFilter, visibleCompetitions]);
+  }, [divisionFilter, naipeFilter, visibleCompetitions]);
 
   if (loading) {
     return <p className="text-sm text-muted-foreground">Carregando grupos...</p>;
@@ -811,21 +799,7 @@ export function ChampionshipBracketBoard({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-        <Select value={sportFilter} onValueChange={setSportFilter}>
-          <SelectTrigger className="app-input-field">
-            <SelectValue placeholder="Filtrar modalidade" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_FILTER}>Todas as modalidades</SelectItem>
-            {availableSports.map((sport) => (
-              <SelectItem key={sport.id} value={sport.id}>
-                {sport.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <Select value={naipeFilter} onValueChange={setNaipeFilter}>
           <SelectTrigger className="app-input-field">
             <SelectValue placeholder="Filtrar naipe" />

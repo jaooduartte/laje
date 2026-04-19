@@ -1,4 +1,4 @@
-import { MatchStatus } from "@/lib/enums";
+import { BracketThirdPlaceMode, MatchStatus } from "@/lib/enums";
 import type {
   ChampionshipBracketCompetition,
   ChampionshipBracketKnockoutMatch,
@@ -13,6 +13,7 @@ export interface ChampionshipChampionEntry {
   division: ChampionshipBracketCompetition["division"];
   champion_team_name: string;
   runner_up_team_name: string | null;
+  third_place_team_name: string | null;
   match_id: string;
 }
 
@@ -57,6 +58,87 @@ function resolveFinalRunnerUpTeamName(finalMatch: ChampionshipBracketKnockoutMat
   return null;
 }
 
+function resolveMatchLoserTeamName(match: ChampionshipBracketKnockoutMatch): string | null {
+  if (!match.winner_team_name) {
+    return null;
+  }
+
+  if (match.winner_team_name == match.home_team_name) {
+    return match.away_team_name ?? null;
+  }
+
+  if (match.winner_team_name == match.away_team_name) {
+    return match.home_team_name ?? null;
+  }
+
+  return null;
+}
+
+function resolveExplicitThirdPlaceTeamName(competition: ChampionshipBracketCompetition): string | null {
+  const thirdPlaceMatch = competition.knockout_matches.find((knockoutMatch) => {
+    return knockoutMatch.is_third_place && knockoutMatch.status == MatchStatus.FINISHED && !!knockoutMatch.winner_team_name;
+  });
+
+  return thirdPlaceMatch?.winner_team_name ?? null;
+}
+
+function didTeamPlayMatch(match: ChampionshipBracketKnockoutMatch, teamId: string | null, teamName: string | null): boolean {
+  if (teamId && (match.home_team_id == teamId || match.away_team_id == teamId)) {
+    return true;
+  }
+
+  if (teamName && (match.home_team_name == teamName || match.away_team_name == teamName)) {
+    return true;
+  }
+
+  return false;
+}
+
+function resolveChampionSemifinalLoserThirdPlaceTeamName(
+  competition: ChampionshipBracketCompetition,
+  finalMatch: ChampionshipBracketKnockoutMatch,
+): string | null {
+  const semifinalRoundNumber = finalMatch.round_number - 1;
+
+  if (semifinalRoundNumber < 1) {
+    return null;
+  }
+
+  const championSemifinal = competition.knockout_matches.find((knockoutMatch) => {
+    return (
+      !knockoutMatch.is_third_place &&
+      knockoutMatch.round_number == semifinalRoundNumber &&
+      knockoutMatch.status == MatchStatus.FINISHED &&
+      didTeamPlayMatch(knockoutMatch, finalMatch.winner_team_id, finalMatch.winner_team_name ?? null)
+    );
+  });
+
+  return championSemifinal ? resolveMatchLoserTeamName(championSemifinal) : null;
+}
+
+function resolveThirdPlaceTeamName(
+  competition: ChampionshipBracketCompetition,
+  finalMatch: ChampionshipBracketKnockoutMatch,
+): string | null {
+  const explicitThirdPlaceTeamName = resolveExplicitThirdPlaceTeamName(competition);
+
+  if (explicitThirdPlaceTeamName) {
+    return explicitThirdPlaceTeamName;
+  }
+
+  // Quando não existe partida explícita de 3º lugar, herdamos o perdedor da semifinal do campeão.
+  // Isso cobre tanto o modo configurado quanto edições legadas que não salvaram o modo corretamente.
+  if (
+    competition.third_place_mode == BracketThirdPlaceMode.CHAMPION_SEMIFINAL_LOSER ||
+    competition.third_place_mode == BracketThirdPlaceMode.NONE ||
+    competition.third_place_mode == BracketThirdPlaceMode.MATCH
+  ) {
+    return resolveChampionSemifinalLoserThirdPlaceTeamName(competition, finalMatch);
+  }
+
+  return null;
+}
+
 export function resolveChampionshipChampionHistory(
   championshipBracketSeasonViews: ChampionshipBracketSeasonView[],
 ): ChampionshipChampionYearGroup[] {
@@ -78,6 +160,7 @@ export function resolveChampionshipChampionHistory(
             division: competition.division,
             champion_team_name: finalMatch.winner_team_name,
             runner_up_team_name: resolveFinalRunnerUpTeamName(finalMatch),
+            third_place_team_name: resolveThirdPlaceTeamName(competition, finalMatch),
             match_id: finalMatch.match_id ?? finalMatch.id,
           };
         })

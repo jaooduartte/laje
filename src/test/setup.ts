@@ -25,3 +25,7 @@ if (!HTMLElement.prototype.setPointerCapture) {
 if (!HTMLElement.prototype.releasePointerCapture) {
   HTMLElement.prototype.releasePointerCapture = () => {};
 }
+
+if (!HTMLElement.prototype.scrollIntoView) {
+  HTMLElement.prototype.scrollIntoView = () => {};
+}

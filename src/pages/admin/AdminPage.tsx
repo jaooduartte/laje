@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -11,6 +11,7 @@ import { useChampionships } from "@/hooks/useChampionships";
 import { useChampionshipBracket } from "@/hooks/useChampionshipBracket";
 import { useSelectedChampionship } from "@/hooks/useSelectedChampionship";
 import { useChampionshipSelection } from "@/hooks/useChampionshipSelection";
+import { usePendingTieBreaks } from "@/hooks/usePendingTieBreaks";
 import { Header } from "@/components/Header";
 import { AdminChampionshipBracketWizardModal } from "@/components/admin/AdminChampionshipBracketWizardModal";
 import {
@@ -97,9 +98,14 @@ export function AdminPage() {
   const { championshipSports } = useSports({
     championshipId: selectedChampionshipId,
   });
+  const liveMatches = matches.filter((match) => match.status == MatchStatus.LIVE);
   const liveAndScheduledMatches = matches.filter(
     (match) => match.status == MatchStatus.LIVE || match.status == MatchStatus.SCHEDULED,
   );
+  
+  const { count: pendingTieBreaksCount, refetch: refetchPendingTieBreaks } = usePendingTieBreaks({
+    championshipId: selectedChampionshipId,
+  });
   const visibleChampionshipBracketView = useMemo(() => {
     if (matches.length == 0) {
       return EMPTY_CHAMPIONSHIP_BRACKET_VIEW;
@@ -110,6 +116,16 @@ export function AdminPage() {
   const matchBracketContextByMatchId = useMemo(() => {
     return resolveMatchBracketContextByMatchId(visibleChampionshipBracketView);
   }, [visibleChampionshipBracketView]);
+
+  const handleRefetchMatches = useCallback(async (options?: { showLoading?: boolean; showFetching?: boolean }) => {
+    await refetchMatches(options);
+    await refetchPendingTieBreaks();
+  }, [refetchMatches, refetchPendingTieBreaks]);
+
+  const handleRefetchChampionshipBracket = useCallback(async () => {
+    await refetchChampionshipBracket();
+    await refetchPendingTieBreaks();
+  }, [refetchChampionshipBracket, refetchPendingTieBreaks]);
 
   const closeChampionshipStatusFlowDialog = () => {
     if (processingChampionshipStatusFlowAction) {
@@ -347,6 +363,8 @@ export function AdminPage() {
   const canViewAccountTab = canViewAdminTab(AdminPanelTab.ACCOUNT);
   const canViewSettingsTab = canViewAdminTab(AdminPanelTab.SETTINGS);
   const canViewChampionshipStatus = canViewAdminTab(AdminPanelTab.CHAMPIONSHIP_STATUS);
+  const canViewScoreSheetReviewTab = canViewAdminTab(AdminPanelTab.SCORE_SHEET_REVIEW);
+  const canViewTieBreaksTab = canViewAdminTab(AdminPanelTab.TIE_BREAKS);
 
   const canManageMatches = canEditAdminTab(AdminPanelTab.MATCHES);
   const canManageChampionshipStatus = canEditAdminTab(AdminPanelTab.CHAMPIONSHIP_STATUS);
@@ -358,8 +376,8 @@ export function AdminPage() {
   const canManageSettings = canEditAdminTab(AdminPanelTab.SETTINGS);
 
   const tabPriority: AdminPanelTab[] = [
-    AdminPanelTab.MATCHES,
     AdminPanelTab.CONTROL,
+    AdminPanelTab.MATCHES,
     AdminPanelTab.TEAMS,
     AdminPanelTab.SPORTS,
     AdminPanelTab.EVENTS,
@@ -399,6 +417,8 @@ export function AdminPage() {
         canViewUsersTab={canViewUsersTab}
         canViewAccountTab={canViewAccountTab}
         canViewSettingsTab={canViewSettingsTab}
+        canViewScoreSheetReviewTab={canViewScoreSheetReviewTab}
+        canViewTieBreaksTab={canViewTieBreaksTab}
         canViewChampionshipStatus={canViewChampionshipStatus}
         canManageMatches={canManageMatches}
         canManageChampionshipStatus={canManageChampionshipStatus}
@@ -414,9 +434,11 @@ export function AdminPage() {
         onChampionshipCodeChange={handleChampionshipCodeChange}
         onChampionshipStatusChange={handleChampionshipStatusChange}
         onSignOut={signOut}
-        onRefetchMatches={refetchMatches}
-        onRefetchChampionshipBracket={refetchChampionshipBracket}
+        onRefetchMatches={handleRefetchMatches}
+        onRefetchChampionshipBracket={handleRefetchChampionshipBracket}
         onRefetchTeams={refetchTeams}
+        liveMatchesCount={liveMatches.length}
+        pendingTieBreaksCount={pendingTieBreaksCount}
       />
 
       <AdminChampionshipBracketWizardModal
@@ -534,7 +556,7 @@ export function AdminPage() {
           }
         }}
       >
-        <AlertDialogContent overlayClassName="bg-transparent">
+        <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Configuração disponível apenas no computador</AlertDialogTitle>
             <AlertDialogDescription>

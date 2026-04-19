@@ -1,4 +1,5 @@
 import type { Standing } from '@/lib/types';
+import { formatPointsAverageForStandings, formatStandingsPoints } from '@/lib/standings';
 import {
   Table,
   TableBody,
@@ -34,6 +35,9 @@ export function StandingsTable({ standings }: Props) {
             <TableHead className="text-center w-10">GP</TableHead>
             <TableHead className="text-center w-10">GC</TableHead>
             <TableHead className="text-center w-10">SG</TableHead>
+            <TableHead className="text-center w-14" title="Pontos médios (GP ÷ GC)">
+              PA
+            </TableHead>
             <TableHead className="text-center w-12 font-bold">PTS</TableHead>
           </TableRow>
         </TableHeader>
@@ -54,7 +58,12 @@ export function StandingsTable({ standings }: Props) {
               <TableCell className="text-center score-text">{s.goals_for}</TableCell>
               <TableCell className="text-center score-text">{s.goals_against}</TableCell>
               <TableCell className="text-center score-text">{s.goal_diff}</TableCell>
-              <TableCell className="text-center font-display font-bold text-primary">{s.points}</TableCell>
+              <TableCell className="text-center score-text tabular-nums">
+                {formatPointsAverageForStandings(s.goals_for, s.goals_against)}
+              </TableCell>
+              <TableCell className="text-center font-display font-bold text-primary">
+                {formatStandingsPoints(s.points)}
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>

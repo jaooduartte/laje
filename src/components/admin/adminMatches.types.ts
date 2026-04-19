@@ -1,0 +1,5 @@
+export enum AdminMatchesViewMode {
+  DEFAULT = "DEFAULT",
+  SCORE_SHEET_REVIEW = "SCORE_SHEET_REVIEW",
+  TIE_BREAKS = "TIE_BREAKS",
+}

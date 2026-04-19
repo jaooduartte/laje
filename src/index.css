@@ -270,9 +270,7 @@
 
   .app-modal-surface {
     border: 1px solid hsl(var(--border) / 0.55);
-    background: hsl(var(--background) / 0.84);
-    -webkit-backdrop-filter: blur(16px);
-    backdrop-filter: blur(16px);
+    background: hsl(var(--background));
     box-shadow: 0 24px 60px hsl(222 22% 16% / 0.28);
   }
 
@@ -330,8 +328,13 @@
   }
 
   .app-button-secondary-active {
-    border-color: hsl(var(--primary) / 0.4);
-    background: hsl(var(--primary) / 0.18);
+    border-color: transparent;
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+  }
+
+  .app-button-secondary-active:hover {
+    background: hsl(var(--primary) / 0.92);
     color: hsl(var(--primary-foreground));
   }
 
@@ -393,9 +396,10 @@
   .dark .app-popover-surface,
   .dark .app-select-dropdown,
   .dark .app-pagination-container,
+  .dark .app-header-surface,
   .dark .app-pill-container,
   .dark .live-glow {
-    box-shadow: none;
+    box-shadow: 0 10px 32px hsl(0 0% 0% / 0.5);
   }
 
   .dark .glass-panel,
@@ -518,7 +522,7 @@
 
   .dark .app-button-secondary-active {
     border-color: transparent;
-    background: hsl(var(--primary) / 0.3);
+    background: hsl(var(--primary));
     color: hsl(var(--primary-foreground));
   }
 

@@ -17,6 +17,8 @@ const DEFAULT_ADMIN_TAB_PERMISSIONS: AdminTabPermissionByTab = {
   [AdminPanelTab.ACCOUNT]: AdminPanelPermissionLevel.NONE,
   [AdminPanelTab.CHAMPIONSHIP_STATUS]: AdminPanelPermissionLevel.NONE,
   [AdminPanelTab.SETTINGS]: AdminPanelPermissionLevel.NONE,
+  [AdminPanelTab.SCORE_SHEET_REVIEW]: AdminPanelPermissionLevel.NONE,
+  [AdminPanelTab.TIE_BREAKS]: AdminPanelPermissionLevel.NONE,
 };
 
 function isAdminPanelRole(value: string | null): value is AdminPanelRole {
@@ -70,6 +72,12 @@ function resolveAdminTabPermissionsFromContext(context: CurrentUserAdminContext 
     [AdminPanelTab.CHAMPIONSHIP_STATUS]: fallbackChampionshipStatusPermission,
     [AdminPanelTab.SETTINGS]: isAdminPanelPermissionLevel(context.settings_permission)
       ? context.settings_permission
+      : AdminPanelPermissionLevel.NONE,
+    [AdminPanelTab.SCORE_SHEET_REVIEW]: isAdminPanelPermissionLevel(context.score_sheet_review_permission)
+      ? context.score_sheet_review_permission
+      : AdminPanelPermissionLevel.NONE,
+    [AdminPanelTab.TIE_BREAKS]: isAdminPanelPermissionLevel(context.tie_breaks_permission)
+      ? context.tie_breaks_permission
       : AdminPanelPermissionLevel.NONE,
   };
 }

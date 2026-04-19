@@ -75,6 +75,7 @@ export function MatchCard({
     match.status == MatchStatus.SCHEDULED
       ? scheduledDayLabel
       : startedAtLabel ?? scheduledDayLabel;
+  const shouldShowFinishedQueueSummary = match.status == MatchStatus.FINISHED;
   const liveSetHomeScore = match.current_set_home_score ?? 0;
   const liveSetAwayScore = match.current_set_away_score ?? 0;
   const displayedHomeScore =
@@ -92,83 +93,106 @@ export function MatchCard({
 
   return (
     <div className={matchCardClassName}>
-      <div className="mb-3 flex items-start justify-between gap-2">
-        <div className="space-y-1">
+      <div className="mb-3 flex flex-col gap-1.5">
+        <div className="flex items-center justify-between gap-2">
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
             {match.sports?.name}
           </span>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {showChampionshipBadge && match.championships?.name ? (
-              <AppBadge tone={AppBadgeTone.PRIMARY}>
-                {match.championships.name}
-              </AppBadge>
-            ) : null}
-            <AppBadge tone={resolveMatchNaipeBadgeTone(String(match.naipe))}>
-              {resolveMatchNaipeLabel(String(match.naipe))}
+          <AppBadge tone={resolveMatchStatusBadgeTone(match.status)} className="shrink-0">
+            {resolveMatchStatusLabel(match.status)}
+          </AppBadge>
+        </div>
+        <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          {showChampionshipBadge && match.championships?.name ? (
+            <AppBadge tone={AppBadgeTone.PRIMARY}>
+              {match.championships.name}
             </AppBadge>
-            {match.division ? (
-              <AppBadge tone={AppBadgeTone.NEUTRAL}>{TEAM_DIVISION_LABELS[match.division]}</AppBadge>
-            ) : null}
-            {bracketContext ? (
-              <AppBadge tone={resolveBracketBadgeTone(bracketContext)}>
-                {bracketContext.badgeLabel}
-              </AppBadge>
-            ) : null}
+          ) : null}
+          <AppBadge tone={resolveMatchNaipeBadgeTone(String(match.naipe))}>
+            {resolveMatchNaipeLabel(String(match.naipe))}
+          </AppBadge>
+          {match.division ? (
+            <AppBadge tone={AppBadgeTone.NEUTRAL}>{TEAM_DIVISION_LABELS[match.division]}</AppBadge>
+          ) : null}
+          {bracketContext ? (
+            <AppBadge tone={resolveBracketBadgeTone(bracketContext)}>
+              {bracketContext.badgeLabel}
+            </AppBadge>
+          ) : null}
+          {match.is_walkover ? (
+            <AppBadge tone={AppBadgeTone.NEUTRAL}>W.O.</AppBadge>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="flex flex-1 flex-col justify-center">
+        <div className="flex items-center justify-between">
+          <div className="flex-1 text-right">
+            <p className="inline-flex items-center gap-1 font-display text-sm font-semibold">
+              {match.home_team?.name}
+              {match.status != MatchStatus.SCHEDULED ? <RedCardIndicator quantity={match.home_red_cards} /> : null}
+            </p>
+          </div>
+          <div className="mx-4 text-center">
+            {match.status === MatchStatus.SCHEDULED ? (
+              <p className="text-xl font-display font-bold text-muted-foreground">×</p>
+            ) : (
+              <p className="text-xl font-display font-bold score-text">
+                {displayedHomeScore} <span className="text-muted-foreground text-sm">×</span> {displayedAwayScore}
+              </p>
+            )}
+          </div>
+          <div className="flex-1">
+            <p className="inline-flex items-center gap-1 font-display text-sm font-semibold">
+              {match.away_team?.name}
+              {match.status != MatchStatus.SCHEDULED ? <RedCardIndicator quantity={match.away_red_cards} /> : null}
+            </p>
           </div>
         </div>
-        <AppBadge tone={resolveMatchStatusBadgeTone(match.status)} className="shrink-0">
-          {resolveMatchStatusLabel(match.status)}
-        </AppBadge>
+
+        {isSetMatch && match.status == MatchStatus.LIVE ? (
+          <div className="mt-3">
+            <p className="text-center text-xs text-muted-foreground">Sets: {match.home_score} × {match.away_score}</p>
+          </div>
+        ) : null}
+
+        {matchSetSummary.length > 0 && match.status != MatchStatus.SCHEDULED ? (
+          <div className="mt-4 flex justify-center">
+            <div className="w-full max-w-lg">
+              <div className="mx-auto h-3 w-px bg-primary/70" />
+              <div className="border-t-2 border-primary/70" />
+
+              <div className="mt-2 space-y-2">
+                {matchSetSummary.map((matchSetItem) => (
+                  <div
+                    key={`${match.id}-set-summary-${matchSetItem.setNumber}`}
+                    className="rounded-md border border-primary/40 bg-primary/10 px-2 py-1.5"
+                  >
+                    <p className="text-center font-display text-[13px] font-semibold text-foreground">
+                      Set {matchSetItem.setNumber}: {matchSetItem.homeTeamName}{" "}
+                      <span className="score-text text-base font-bold">{matchSetItem.homePoints}</span>
+                      <span className="mx-1 text-muted-foreground">×</span>
+                      <span className="score-text text-base font-bold">{matchSetItem.awayPoints}</span>{" "}
+                      {matchSetItem.awayTeamName}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {tieBreakRuleLabel ? (
+          <div className="mt-3 inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-500">
+            <AlertTriangle className="h-3 w-3" />
+            Desempate por {tieBreakRuleLabel}
+          </div>
+        ) : null}
       </div>
-      <div className="flex items-center justify-between">
-        <div className="flex-1 text-right">
-          <p className="inline-flex items-center gap-1 font-display text-sm font-semibold">
-            {match.home_team?.name}
-            {match.status != MatchStatus.SCHEDULED ? <RedCardIndicator quantity={match.home_red_cards} /> : null}
-          </p>
-        </div>
-        <div className="mx-4 text-center">
-          {match.status === MatchStatus.SCHEDULED ? (
-            <p className="text-xl font-display font-bold text-muted-foreground">×</p>
-          ) : (
-            <p className="text-xl font-display font-bold score-text">
-              {displayedHomeScore} <span className="text-muted-foreground text-sm">×</span> {displayedAwayScore}
-            </p>
-          )}
-        </div>
-        <div className="flex-1">
-          <p className="inline-flex items-center gap-1 font-display text-sm font-semibold">
-            {match.away_team?.name}
-            {match.status != MatchStatus.SCHEDULED ? <RedCardIndicator quantity={match.away_red_cards} /> : null}
-          </p>
-        </div>
-      </div>
 
-      {isSetMatch && match.status == MatchStatus.LIVE ? (
-        <div className="mt-3">
-          <p className="text-center text-xs text-muted-foreground">Sets: {match.home_score} × {match.away_score}</p>
-        </div>
-      ) : null}
-
-      {matchSetSummary.length > 0 && match.status != MatchStatus.SCHEDULED ? (
-        <div className="mt-3 space-y-1 rounded-lg border border-border/40 bg-background/40 p-2">
-          {matchSetSummary.map((matchSetItem) => (
-            <p key={`${match.id}-set-summary-${matchSetItem.setNumber}`} className="text-[11px] text-muted-foreground">
-              {matchSetItem.text}
-            </p>
-          ))}
-        </div>
-      ) : null}
-
-      {tieBreakRuleLabel ? (
-        <div className="mt-3 inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-500">
-          <AlertTriangle className="h-3 w-3" />
-          Desempate por {tieBreakRuleLabel}
-        </div>
-      ) : null}
-
-      <div className="mt-auto space-y-1 pt-3 text-xs text-muted-foreground">
+      <div className="space-y-1 pt-3 text-xs text-muted-foreground">
         {matchRepresentation ? <p className="break-words">Representação: {matchRepresentation}</p> : null}
+        {shouldShowFinishedQueueSummary ? <p className="break-words">Fila: {scheduledDayLabel}</p> : null}
         {match.status == MatchStatus.SCHEDULED && estimatedStartTime ? (
           <p className="break-words">Horário estimado: {estimatedStartTime}</p>
         ) : null}

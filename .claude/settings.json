@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -n \"CREATE OR REPLACE FUNCTION.*group_ranking\" /Users/joaoduarte/PROJETOS/laje-app/laje/supabase/migrations/*.sql)",
+      "Bash(npm test:*)"
+    ]
+  }
+}

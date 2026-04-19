@@ -6,8 +6,11 @@ import { useSports } from "@/hooks/useSports";
 import { useTeams } from "@/hooks/useTeams";
 import { useChampionships } from "@/hooks/useChampionships";
 import { useChampionshipBracketHistory } from "@/hooks/useChampionshipBracketHistory";
+import { useChampionshipBracketResolvedTieBreakOrders } from "@/hooks/useChampionshipBracketResolvedTieBreakOrders";
+import { useChampionshipCorrectedGroupStandings } from "@/hooks/useChampionshipCorrectedGroupStandings";
 import { useSelectedChampionship } from "@/hooks/useSelectedChampionship";
 import { useChampionshipSelection } from "@/hooks/useChampionshipSelection";
+import type { ChampionshipBracketResolvedTieBreakOrderContext } from "@/domain/championship-brackets/championshipBracket.types";
 import type { MatchBracketContext } from "@/lib/championship";
 import {
   ChampionshipCode,
@@ -16,14 +19,24 @@ import {
   MatchNaipe,
   MatchStatus,
 } from "@/lib/enums";
+import { resolveModalidadeConfigBySportId, type ModalidadeConfig } from "@/lib/modalidadeConfig";
+import type { Team, Match } from "@/lib/types";
 import {
   resolveBracketGroupFilterOptions,
+  resolveChampionshipBracketGroupStageOptions,
+  resolveChampionshipGroupLabel,
   resolveInterleavedScheduledMatchesByCompetition,
   resolveMatchBracketContextByMatchId,
   resolveMatchScheduledDateValue,
 } from "@/lib/championship";
 import { resolveChampionshipChampionHistory } from "@/lib/championshipHistory";
-import { aggregateStandingsByTeam } from "@/lib/standings";
+import {
+  applyCorrectedGroupPointsToStanding,
+  aggregateStandingsByTeam,
+  filterAggregatesByBracketGroupPlacement,
+  resolveCorrectedStandingKey,
+  resolveManualTieBreakWinnerTeamIdByPairKey,
+} from "@/lib/standings";
 import { ChampionshipsPageView } from "@/pages/championships/ChampionshipsPageView";
 
 const CHAMPIONSHIP_CARD_IMAGE_BY_CODE: Record<ChampionshipCode, string> = {
@@ -37,6 +50,8 @@ const ALL_YEAR_FILTER = "ALL_YEARS";
 const ALL_GROUP_FILTER = "ALL_GROUPS";
 const ALL_STANDINGS_SPORT_FILTER = "ALL_STANDINGS_SPORTS";
 const ALL_STANDINGS_NAIPE_FILTER = "ALL_STANDINGS_NAIPES";
+const ALL_STANDINGS_GROUP_FILTER = "ALL_STANDINGS_GROUPS";
+const ALL_STANDINGS_PLACEMENT_FILTER = "all";
 const DEFAULT_NEXT_MATCHES_LIMIT = 6;
 
 export function ChampionshipsPage() {
@@ -53,12 +68,12 @@ export function ChampionshipsPage() {
   const selectedChampionshipSeasonYear = selectedChampionship?.current_season_year ?? null;
 
   const standingsDivisionFilter = selectedChampionshipHasDivisions ? undefined : null;
-  const [sportFilter, setSportFilter] = useState<string | null>(null);
   const [teamFilter, setTeamFilter] = useState<string>(ALL_TEAM_FILTER);
   const [yearFilter, setYearFilter] = useState<string>(ALL_YEAR_FILTER);
   const [groupFilter, setGroupFilter] = useState<string>(ALL_GROUP_FILTER);
   const [standingsSportFilter, setStandingsSportFilter] = useState<string>(ALL_STANDINGS_SPORT_FILTER);
   const [standingsNaipeFilter, setStandingsNaipeFilter] = useState<string>(ALL_STANDINGS_NAIPE_FILTER);
+  const [standingsPlacementFilter, setStandingsPlacementFilter] = useState<string>(ALL_STANDINGS_PLACEMENT_FILTER);
   const [standingsYearFilter, setStandingsYearFilter] = useState<string>(
     selectedChampionshipSeasonYear != null ? String(selectedChampionshipSeasonYear) : ALL_YEAR_FILTER,
   );
@@ -68,88 +83,47 @@ export function ChampionshipsPage() {
     seasonYear: standingsYearFilter == ALL_YEAR_FILTER ? null : Number(standingsYearFilter),
     division: standingsDivisionFilter,
   });
+  const standingsCorrectedSeasonYear = standingsYearFilter == ALL_YEAR_FILTER ? null : Number(standingsYearFilter);
+  const shouldUseCorrectedPointsOnStandings =
+    standingsCorrectedSeasonYear != null && Number.isFinite(standingsCorrectedSeasonYear);
+  const { correctedGroupStandings, loading: correctedGroupStandingsLoading } = useChampionshipCorrectedGroupStandings({
+    championshipId: selectedChampionshipId,
+    seasonYear: shouldUseCorrectedPointsOnStandings ? standingsCorrectedSeasonYear : null,
+    enabled: shouldUseCorrectedPointsOnStandings,
+  });
   const { sports, championshipSports } = useSports({ championshipId: selectedChampionshipId });
   const { teams } = useTeams();
 
   useEffect(() => {
-    setSportFilter(null);
     setTeamFilter(ALL_TEAM_FILTER);
     setYearFilter(ALL_YEAR_FILTER);
     setGroupFilter(ALL_GROUP_FILTER);
     setStandingsSportFilter(ALL_STANDINGS_SPORT_FILTER);
     setStandingsNaipeFilter(ALL_STANDINGS_NAIPE_FILTER);
+    setStandingsPlacementFilter(ALL_STANDINGS_PLACEMENT_FILTER);
     setStandingsYearFilter(selectedChampionshipSeasonYear != null ? String(selectedChampionshipSeasonYear) : ALL_YEAR_FILTER);
   }, [selectedChampionshipCode, selectedChampionshipSeasonYear]);
 
-  const {
-    matches: upcomingMatches,
-    matchRepresentationByMatchId: upcomingMatchRepresentationByMatchId,
-    estimatedStartTimeByMatchId: upcomingEstimatedStartTimeByMatchId,
-    loading: upcomingMatchesLoading,
-    isFetching: upcomingMatchesFetching,
-  } = useMatches({
-    championshipId: selectedChampionshipId,
-    seasonYear: selectedChampionshipSeasonYear,
-    statuses: [MatchStatus.SCHEDULED],
-    sportId: sportFilter,
-    sortMode: "SCHEDULED",
-  });
+  useEffect(() => {
+    const isStandingsContextSelected =
+      standingsSportFilter != ALL_STANDINGS_SPORT_FILTER &&
+      standingsNaipeFilter != ALL_STANDINGS_NAIPE_FILTER;
 
-  const {
-    matches: allFinishedMatches,
-    loading: allFinishedMatchesLoading,
-  } = useMatches({
-    championshipId: selectedChampionshipId,
-    statuses: [MatchStatus.FINISHED],
-    sortMode: "FINISHED",
-  });
-
-  const historyTeamFilter = teamFilter == ALL_TEAM_FILTER ? null : teamFilter;
-  const historySeasonYearFilter = yearFilter == ALL_YEAR_FILTER ? null : Number(yearFilter);
-  const historyGroupFilter = groupFilter == ALL_GROUP_FILTER ? null : groupFilter;
-
-  const {
-    matches: filteredHistoryMatches,
-    matchRepresentationByMatchId: historyMatchRepresentationByMatchId,
-    estimatedStartTimeByMatchId: historyEstimatedStartTimeByMatchId,
-    loading: filteredHistoryMatchesLoading,
-    isFetching: filteredHistoryMatchesFetching,
-  } = useMatches({
-    championshipId: selectedChampionshipId,
-    seasonYear: historySeasonYearFilter,
-    statuses: [MatchStatus.FINISHED],
-    sportId: sportFilter,
-    teamId: historyTeamFilter,
-    groupFilterValue: historyGroupFilter,
-    sortMode: "FINISHED",
-  });
-
-  const historyTeams = useMemo(() => {
-    const historyTeamIds = new Set<string>();
-
-    allFinishedMatches.forEach((match) => {
-      historyTeamIds.add(match.home_team_id);
-      historyTeamIds.add(match.away_team_id);
-    });
-
-    return teams
-      .filter((team) => historyTeamIds.has(team.id))
-      .sort((firstTeam, secondTeam) => firstTeam.name.localeCompare(secondTeam.name));
-  }, [allFinishedMatches, teams]);
-
-  const historyYears = useMemo(() => {
-    const uniqueYears = new Set<string>();
-
-    allFinishedMatches.forEach((match) => {
-      uniqueYears.add(String(match.season_year));
-    });
-
-    if (selectedChampionshipSeasonYear != null) {
-      uniqueYears.add(String(selectedChampionshipSeasonYear));
+    if (!isStandingsContextSelected && standingsPlacementFilter != ALL_STANDINGS_PLACEMENT_FILTER) {
+      setStandingsPlacementFilter(ALL_STANDINGS_PLACEMENT_FILTER);
     }
+  }, [standingsNaipeFilter, standingsPlacementFilter, standingsSportFilter]);
 
-    return [...uniqueYears].sort((firstYear, secondYear) => Number(secondYear) - Number(firstYear));
-  }, [allFinishedMatches, selectedChampionshipSeasonYear]);
+  const nextMatches: Match[] = [];
+  const historyTeams: Team[] = [];
+  const historyYears = useMemo(() => {
+    const years = new Set<string>();
+    if (selectedChampionshipSeasonYear != null) {
+      years.add(String(selectedChampionshipSeasonYear));
+    }
+    // We could still add years from championshipBracketHistory if needed
+    return [...years].sort((a, b) => b.localeCompare(a));
+  }, [selectedChampionshipSeasonYear]);
 
   const championshipBracketSeasonYears = useMemo(() => {
     return historyYears.map(Number).filter((seasonYear) => Number.isFinite(seasonYear));
@@ -159,52 +133,49 @@ export function ChampionshipsPage() {
     championshipId: selectedChampionshipId,
     seasonYears: championshipBracketSeasonYears,
   });
-  const matchBracketContextByMatchId = useMemo(() => {
-    return championshipBracketSeasonViews.reduce<Record<string, MatchBracketContext>>(
-      (currentMatchBracketContextByMatchId, championshipBracketSeasonView) => {
-        const seasonMatchBracketContextByMatchId = resolveMatchBracketContextByMatchId(
-          championshipBracketSeasonView.championship_bracket_view,
-          championshipBracketSeasonView.season_year,
-        );
+  const historyGroupOptions = useMemo(() => {
+    const allOptions = championshipBracketSeasonViews.flatMap((seasonView) => {
+      return resolveChampionshipBracketGroupStageOptions(seasonView.championship_bracket_view);
+    });
 
-        return {
-          ...currentMatchBracketContextByMatchId,
-          ...seasonMatchBracketContextByMatchId,
+    const uniqueGroups = new Map<string, string>();
+    allOptions.forEach((option) => {
+      const groupLabel = resolveChampionshipGroupLabel(option.group_number);
+      uniqueGroups.set(groupLabel, groupLabel);
+    });
+
+    return [...uniqueGroups.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((firstGroupOption, secondGroupOption) => firstGroupOption.label.localeCompare(secondGroupOption.label));
+  }, [championshipBracketSeasonViews]);
+
+  const matchBracketContextByMatchId = {};
+  const matchRepresentationByMatchId = {};
+  const estimatedStartTimeByMatchId = {};
+
+  const correctedStandingByKey = useMemo(() => {
+    return correctedGroupStandings.reduce<Record<string, { points_base: number; corrected_points: number }>>(
+      (carry, correctedGroupStanding) => {
+        carry[resolveCorrectedStandingKey(correctedGroupStanding)] = {
+          points_base: correctedGroupStanding.points_base,
+          corrected_points: correctedGroupStanding.corrected_points,
         };
+        return carry;
       },
       {},
     );
-  }, [championshipBracketSeasonViews]);
+  }, [correctedGroupStandings]);
 
-  const historyGroupOptions = useMemo(() => {
-    return resolveBracketGroupFilterOptions(matchBracketContextByMatchId);
-  }, [matchBracketContextByMatchId]);
-
-  const nextMatches = useMemo(() => {
-    const interleavedMatches = resolveInterleavedScheduledMatchesByCompetition(upcomingMatches);
-    const firstUpcomingMatch = interleavedMatches[0];
-    const firstUpcomingMatchDate = firstUpcomingMatch
-      ? resolveMatchScheduledDateValue(firstUpcomingMatch)
-      : null;
-
-    if (!firstUpcomingMatch || !firstUpcomingMatchDate) {
-      return interleavedMatches.slice(0, DEFAULT_NEXT_MATCHES_LIMIT);
+  const standingsWithCorrectedPoints = useMemo(() => {
+    if (!shouldUseCorrectedPointsOnStandings) {
+      return standings;
     }
 
-    const firstUpcomingMatchSlot = resolveMatchDisplaySlotValue(firstUpcomingMatch);
-    const firstRoundMatchesCount = interleavedMatches.filter((upcomingMatch) => {
-      const currentMatchDate = resolveMatchScheduledDateValue(upcomingMatch);
-      const currentMatchSlot = resolveMatchDisplaySlotValue(upcomingMatch);
-
-      return currentMatchDate == firstUpcomingMatchDate && currentMatchSlot == firstUpcomingMatchSlot;
-    }).length;
-    const nextMatchesLimit = firstRoundMatchesCount > 0 ? firstRoundMatchesCount : DEFAULT_NEXT_MATCHES_LIMIT;
-
-    return interleavedMatches.slice(0, nextMatchesLimit);
-  }, [upcomingMatches]);
+    return standings.map((standing) => applyCorrectedGroupPointsToStanding(standing, correctedStandingByKey));
+  }, [correctedStandingByKey, shouldUseCorrectedPointsOnStandings, standings]);
 
   const standingsWithFilters = useMemo(() => {
-    return standings.filter((standing) => {
+    return standingsWithCorrectedPoints.filter((standing) => {
       if (standingsSportFilter != ALL_STANDINGS_SPORT_FILTER && standing.sport_id != standingsSportFilter) {
         return false;
       }
@@ -215,7 +186,17 @@ export function ChampionshipsPage() {
 
       return true;
     });
-  }, [standings, standingsNaipeFilter, standingsSportFilter]);
+  }, [
+    standingsWithCorrectedPoints,
+    standingsNaipeFilter,
+    standingsSportFilter,
+  ]);
+
+  const overallPodiumStandings = useMemo(() => {
+    return aggregateStandingsByTeam(standingsWithCorrectedPoints).slice(0, 3);
+  }, [standingsWithCorrectedPoints]);
+
+
 
   const standingsTieBreakerRule = useMemo(() => {
     if (standingsSportFilter == ALL_STANDINGS_SPORT_FILTER) {
@@ -229,17 +210,70 @@ export function ChampionshipsPage() {
     return selectedChampionshipSport?.tie_breaker_rule ?? ChampionshipSportTieBreakerRule.STANDARD;
   }, [championshipSports, standingsSportFilter]);
 
-  const standingsShowCardColumns = useMemo(() => {
-    if (standingsSportFilter == ALL_STANDINGS_SPORT_FILTER) {
-      return false;
+  const standingsResolvedTieBreakSeasonYear =
+    standingsYearFilter == ALL_YEAR_FILTER ? null : Number(standingsYearFilter);
+  const shouldUseManualTieBreakOnStandings =
+    standingsResolvedTieBreakSeasonYear != null &&
+    standingsSportFilter != ALL_STANDINGS_SPORT_FILTER &&
+    standingsNaipeFilter != ALL_STANDINGS_NAIPE_FILTER;
+  const {
+    resolvedTieBreakOrders,
+    loading: resolvedTieBreakOrdersLoading,
+  } = useChampionshipBracketResolvedTieBreakOrders({
+    championshipId: selectedChampionshipId,
+    seasonYear: standingsResolvedTieBreakSeasonYear,
+    enabled: shouldUseManualTieBreakOnStandings,
+  });
+
+  const filteredResolvedTieBreakOrders = useMemo<ChampionshipBracketResolvedTieBreakOrderContext[]>(() => {
+    if (!shouldUseManualTieBreakOnStandings) {
+      return [];
     }
 
-    const selectedChampionshipSport = championshipSports.find(
-      (championshipSport) => championshipSport.sport_id == standingsSportFilter,
-    );
+    const selectedStandingsNaipeFilter = standingsNaipeFilter as MatchNaipe;
 
-    return selectedChampionshipSport?.supports_cards == true;
-  }, [championshipSports, standingsSportFilter]);
+    return resolvedTieBreakOrders.filter((resolvedTieBreakOrder) => {
+      return (
+        resolvedTieBreakOrder.sport_id == standingsSportFilter &&
+        resolvedTieBreakOrder.naipe == selectedStandingsNaipeFilter &&
+        resolvedTieBreakOrder.team_ids.length >= 2
+      );
+    });
+  }, [
+    resolvedTieBreakOrders,
+    shouldUseManualTieBreakOnStandings,
+    standingsNaipeFilter,
+    standingsSportFilter,
+  ]);
+
+  const standingsManualTieBreakWinnerTeamIdByPairKey = useMemo(() => {
+    if (filteredResolvedTieBreakOrders.length == 0) {
+      return undefined;
+    }
+
+    const manualTieBreakWinnerTeamIdByPairKey = resolveManualTieBreakWinnerTeamIdByPairKey(filteredResolvedTieBreakOrders);
+
+    if (Object.keys(manualTieBreakWinnerTeamIdByPairKey).length == 0) {
+      return undefined;
+    }
+
+    return manualTieBreakWinnerTeamIdByPairKey;
+  }, [filteredResolvedTieBreakOrders]);
+
+  const filteredStandings = useMemo(() => {
+    return aggregateStandingsByTeam(standingsWithFilters, {
+      manualTieBreakWinnerTeamIdByPairKey: standingsManualTieBreakWinnerTeamIdByPairKey,
+    });
+  }, [standingsWithFilters, standingsManualTieBreakWinnerTeamIdByPairKey]);
+
+  const standingsModalidadeConfig = useMemo((): ModalidadeConfig | undefined => {
+    if (standingsSportFilter == ALL_STANDINGS_SPORT_FILTER) return undefined;
+
+    const activeNaipe =
+      standingsNaipeFilter == ALL_STANDINGS_NAIPE_FILTER ? null : (standingsNaipeFilter as MatchNaipe);
+
+    return resolveModalidadeConfigBySportId(standingsSportFilter, activeNaipe, sports);
+  }, [sports, standingsNaipeFilter, standingsSportFilter]);
 
   const standingsHeadToHeadSportFilter = standingsSportFilter == ALL_STANDINGS_SPORT_FILTER ? null : standingsSportFilter;
   const standingsHeadToHeadNaipeFilter =
@@ -255,54 +289,98 @@ export function ChampionshipsPage() {
     sortMode: "FINISHED",
   });
 
-  const filteredStandings = useMemo(() => {
-    return aggregateStandingsByTeam(standingsWithFilters, {
-      tieBreakerRule: standingsTieBreakerRule,
-      headToHeadMatches: standingsHeadToHeadMatches,
-    });
-  }, [standingsHeadToHeadMatches, standingsTieBreakerRule, standingsWithFilters]);
-
-  const championshipChampionHistory = useMemo(() => {
-    const currentChampionshipChampionHistory = resolveChampionshipChampionHistory(championshipBracketSeasonViews);
-
-    if (!sportFilter) {
-      return currentChampionshipChampionHistory;
+  const standingsBracketGroupOptions = useMemo(() => {
+    if (standingsYearFilter == ALL_YEAR_FILTER) {
+      return [];
     }
 
-    return currentChampionshipChampionHistory
-      .map((championshipChampionYearGroup) => ({
-        ...championshipChampionYearGroup,
-        champions: championshipChampionYearGroup.champions.filter(
-          (championshipChampion) => championshipChampion.sport_id == sportFilter,
-        ),
-      }))
-      .filter((championshipChampionYearGroup) => championshipChampionYearGroup.champions.length > 0);
-  }, [championshipBracketSeasonViews, sportFilter]);
+    const seasonYear = Number(standingsYearFilter);
 
-  const matchRepresentationByMatchId = useMemo(() => {
-    return {
-      ...upcomingMatchRepresentationByMatchId,
-      ...historyMatchRepresentationByMatchId,
-    };
-  }, [historyMatchRepresentationByMatchId, upcomingMatchRepresentationByMatchId]);
+    if (!Number.isFinite(seasonYear)) {
+      return [];
+    }
 
-  const estimatedStartTimeByMatchId = useMemo(() => {
-    return {
-      ...upcomingEstimatedStartTimeByMatchId,
-      ...historyEstimatedStartTimeByMatchId,
-    };
-  }, [historyEstimatedStartTimeByMatchId, upcomingEstimatedStartTimeByMatchId]);
+    const seasonView = championshipBracketSeasonViews.find((seasonBracketView) => seasonBracketView.season_year == seasonYear);
+
+    if (!seasonView) {
+      return [];
+    }
+
+    const allOptions = resolveChampionshipBracketGroupStageOptions(seasonView.championship_bracket_view);
+
+    return allOptions.filter((option) => {
+      const sportMatch =
+        standingsSportFilter == ALL_STANDINGS_SPORT_FILTER || option.sport_id == standingsSportFilter;
+      const naipeMatch =
+        standingsNaipeFilter == ALL_STANDINGS_NAIPE_FILTER || option.naipe == standingsNaipeFilter;
+
+      return sportMatch && naipeMatch;
+    });
+  }, [championshipBracketSeasonViews, standingsYearFilter, standingsSportFilter, standingsNaipeFilter]);
+
+  const placementFilteredStandings = useMemo(() => {
+    const isStandingsPlacementFilterDisabled =
+      standingsSportFilter == ALL_STANDINGS_SPORT_FILTER || standingsNaipeFilter == ALL_STANDINGS_NAIPE_FILTER;
+    const resolvedPlacementFilter = isStandingsPlacementFilterDisabled ? ALL_STANDINGS_PLACEMENT_FILTER : standingsPlacementFilter;
+
+    return filterAggregatesByBracketGroupPlacement(filteredStandings, {
+      groupOptions: standingsBracketGroupOptions,
+      placement:
+        resolvedPlacementFilter == "first_per_group"
+          ? "first_per_group"
+          : resolvedPlacementFilter == "second_per_group"
+            ? "second_per_group"
+            : "all",
+      groupSelectValue: ALL_STANDINGS_GROUP_FILTER,
+      allGroupSelectValue: ALL_STANDINGS_GROUP_FILTER,
+      sportSelectValue: standingsSportFilter,
+      allSportSelectValue: ALL_STANDINGS_SPORT_FILTER,
+      naipeSelectValue: standingsNaipeFilter,
+      allNaipeSelectValue: ALL_STANDINGS_NAIPE_FILTER,
+      sortOptions: {
+        tieBreakerRule: standingsTieBreakerRule,
+        headToHeadMatches: standingsHeadToHeadMatches,
+        manualTieBreakWinnerTeamIdByPairKey: standingsManualTieBreakWinnerTeamIdByPairKey,
+      },
+      resolveTieBreakerRuleForSport: (sportId) => {
+        const championshipSport = championshipSports.find((c) => c.sport_id == sportId);
+
+        return championshipSport?.tie_breaker_rule ?? ChampionshipSportTieBreakerRule.STANDARD;
+      },
+      finalTieBreakerRule: standingsTieBreakerRule,
+    });
+  }, [
+    championshipSports,
+    filteredStandings,
+    standingsBracketGroupOptions,
+    standingsHeadToHeadMatches,
+    standingsManualTieBreakWinnerTeamIdByPairKey,
+    standingsNaipeFilter,
+    standingsPlacementFilter,
+    standingsSportFilter,
+    standingsTieBreakerRule,
+  ]);
+
+  const championshipChampionHistory = useMemo(() => {
+    return resolveChampionshipChampionHistory(championshipBracketSeasonViews);
+  }, [championshipBracketSeasonViews]);
+
+  const isLoading = 
+    championshipsLoading ||
+    championshipBracketHistoryLoading;
+
+  const isNextMatchesFetching = false;
+  const isHistoryMatchesFetching = false;
+  const filteredHistoryMatches: Match[] = [];
 
   return (
     <ChampionshipsPageView
-      isLoading={
-        championshipsLoading ||
+      isLoading={isLoading}
+      isStandingsLoading={
         standingsLoading ||
-        championshipBracketHistoryLoading ||
-        upcomingMatchesLoading ||
-        allFinishedMatchesLoading ||
-        filteredHistoryMatchesLoading ||
-        standingsHeadToHeadMatchesLoading
+        correctedGroupStandingsLoading ||
+        standingsHeadToHeadMatchesLoading ||
+        resolvedTieBreakOrdersLoading
       }
       championships={championships}
       selectedChampionship={selectedChampionship}
@@ -310,9 +388,8 @@ export function ChampionshipsPage() {
       selectedChampionshipIsFinished={selectedChampionshipIsFinished}
       championshipCardImageByCode={CHAMPIONSHIP_CARD_IMAGE_BY_CODE}
       sports={sports}
-      sportFilter={sportFilter}
       nextMatches={nextMatches}
-      isNextMatchesFetching={upcomingMatchesFetching}
+      isNextMatchesFetching={isNextMatchesFetching}
       matchBracketContextByMatchId={matchBracketContextByMatchId}
       matchRepresentationByMatchId={matchRepresentationByMatchId}
       estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
@@ -321,8 +398,11 @@ export function ChampionshipsPage() {
       standingsYearFilter={standingsYearFilter}
       allStandingsSportFilter={ALL_STANDINGS_SPORT_FILTER}
       allStandingsNaipeFilter={ALL_STANDINGS_NAIPE_FILTER}
-      filteredStandings={filteredStandings}
-      standingsShowCardColumns={standingsShowCardColumns}
+      standingsBracketGroupOptions={standingsBracketGroupOptions}
+      standingsPlacementFilter={standingsPlacementFilter}
+      allStandingsPlacementFilter={ALL_STANDINGS_PLACEMENT_FILTER}
+      filteredStandings={placementFilteredStandings}
+      standingsModalidadeConfig={standingsModalidadeConfig}
       teamFilter={teamFilter}
       yearFilter={yearFilter}
       groupFilter={groupFilter}
@@ -333,13 +413,14 @@ export function ChampionshipsPage() {
       historyTeams={historyTeams}
       historyYears={historyYears}
       filteredHistoryMatches={filteredHistoryMatches}
-      isHistoryMatchesFetching={filteredHistoryMatchesFetching}
+      isHistoryMatchesFetching={isHistoryMatchesFetching}
       championshipChampionHistory={championshipChampionHistory}
+      overallPodiumStandings={overallPodiumStandings}
       onSelectChampionshipCode={setSelectedChampionshipCode}
-      onSportFilterChange={setSportFilter}
       onStandingsSportFilterChange={setStandingsSportFilter}
       onStandingsNaipeFilterChange={setStandingsNaipeFilter}
       onStandingsYearFilterChange={setStandingsYearFilter}
+      onStandingsPlacementFilterChange={setStandingsPlacementFilter}
       onTeamFilterChange={setTeamFilter}
       onYearFilterChange={setYearFilter}
       onGroupFilterChange={setGroupFilter}
