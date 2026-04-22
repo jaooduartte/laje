@@ -143,6 +143,10 @@ export function AppPaginationControls({
             </button>
           ) : null}
 
+          <span className="app-pill-option inline-flex h-8 min-w-8 items-center justify-center rounded-xl px-2 text-xs font-bold app-pill-active-indicator text-primary-foreground md:hidden">
+            {currentPage}
+          </span>
+
           {visiblePages.map((visiblePage) => {
             const isCurrentPage = visiblePage == currentPage;
 
@@ -151,7 +155,7 @@ export function AppPaginationControls({
                 key={visiblePage}
                 type="button"
                 aria-current={isCurrentPage ? "page" : undefined}
-                className={`app-pill-option inline-flex h-8 min-w-8 items-center justify-center rounded-xl px-2 text-xs ${
+                className={`app-pill-option hidden h-8 min-w-8 items-center justify-center rounded-xl px-2 text-xs md:inline-flex ${
                   isCurrentPage ? "app-pill-active-indicator text-primary-foreground font-bold" : ""
                 }`}
                 onClick={() => onPageChange(visiblePage)}
