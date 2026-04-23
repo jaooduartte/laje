@@ -5,7 +5,9 @@ import { useMatches } from "@/hooks/useMatches";
 import { useChampionshipBracketResolvedTieBreakOrders } from "@/hooks/useChampionshipBracketResolvedTieBreakOrders";
 import { useChampionshipCorrectedGroupStandings } from "@/hooks/useChampionshipCorrectedGroupStandings";
 import { useChampionshipBracketHistory } from "@/hooks/useChampionshipBracketHistory";
+import { resolveChampionshipCompetitionPodiums } from "@/lib/championshipPodium";
 import {
+  applyOfficialThirdPlacementToStandings,
   aggregateStandingsByTeam,
   applyCorrectedGroupPointsToStanding,
   filterAggregatesByBracketGroupPlacement,
@@ -293,6 +295,48 @@ export function AdminStandings({ selectedChampionship, championshipSports, sport
     standingsTieBreakerRule,
   ]);
 
+  const standingsWithOfficialThirdPlacement = useMemo(() => {
+    if (!shouldUseManualTieBreakOnStandings) {
+      return {
+        adjustedStandings: filteredStandings,
+        badgeByTeamKey: {},
+      };
+    }
+
+    const selectedNaipeFilter = naipeFilter as MatchNaipe;
+    const officialThirdPlacements = resolveChampionshipCompetitionPodiums(selectedSeasonBracketView)
+      .filter((competitionPodium) => {
+        if (
+          competitionPodium.sport_id != sportFilter ||
+          competitionPodium.naipe != selectedNaipeFilter ||
+          competitionPodium.third_place == null
+        ) {
+          return false;
+        }
+
+        if (!selectedChampionship.uses_divisions) {
+          return true;
+        }
+
+        return competitionPodium.division == divisionFilter;
+      })
+      .map((competitionPodium) => ({
+        team_id: competitionPodium.third_place!.team.team_id,
+        division: competitionPodium.division ?? null,
+        source: competitionPodium.third_place!.source,
+      }));
+
+    return applyOfficialThirdPlacementToStandings(filteredStandings, officialThirdPlacements);
+  }, [
+    divisionFilter,
+    filteredStandings,
+    naipeFilter,
+    selectedChampionship.uses_divisions,
+    selectedSeasonBracketView,
+    shouldUseManualTieBreakOnStandings,
+    sportFilter,
+  ]);
+
   const isLoading = standingsLoading || correctedStandingsLoading || tieBreaksLoading || finishedMatchesLoading;
 
   const activeModalidadeConfig = useMemo(() => {
@@ -397,7 +441,7 @@ export function AdminStandings({ selectedChampionship, championshipSports, sport
       </div>
 
       <TeamStandingsTable
-        standings={filteredStandings}
+        standings={standingsWithOfficialThirdPlacement.adjustedStandings}
         modalidadeConfig={activeModalidadeConfig}
         isLoading={isLoading}
         variant="full"

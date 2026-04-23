@@ -1,4 +1,5 @@
 import { type ChampionshipBracketGroupStageOption, resolveChampionshipGroupLabel } from "@/lib/championship";
+import { ChampionshipThirdPlaceSource } from "@/lib/championshipPodium";
 import { ChampionshipSportTieBreakerRule, type MatchNaipe, type TeamDivision } from "@/lib/enums";
 import type { Match, Standing } from "@/lib/types";
 import { resolveCascadeForLegacyRule, type TieBreakCriterion } from "@/lib/modalidadeConfig";
@@ -20,6 +21,19 @@ export interface TeamStandingAggregate {
   red_cards: number;
 }
 
+export interface TeamStandingOfficialThirdPlacement {
+  team_id: string;
+  division: TeamDivision | null;
+  source: ChampionshipThirdPlaceSource;
+}
+
+export interface TeamStandingOfficialThirdBadge {
+  source: ChampionshipThirdPlaceSource;
+  original_position: number;
+}
+
+export type TeamStandingOfficialThirdBadgeByTeamKey = Record<string, TeamStandingOfficialThirdBadge>;
+
 interface RankingMetrics {
   team_id: string;
   points: number;
@@ -38,6 +52,12 @@ interface SortStandingsOptions {
 }
 
 const DEFAULT_TIE_BREAKER_RULE = ChampionshipSportTieBreakerRule.STANDARD;
+
+export function resolveTeamStandingAggregateKey(
+  standing: Pick<TeamStandingAggregate, "team_id" | "division">,
+): string {
+  return `${standing.team_id}:${standing.division ?? "WITHOUT_DIVISION"}`;
+}
 
 interface CorrectedStandingPoints {
   team_id: string;
@@ -558,6 +578,60 @@ export function aggregateStandingsByTeam(
   });
 
   return sortTeamStandingAggregatesByRanking([...teamStandingMap.values()], options);
+}
+
+export function applyOfficialThirdPlacementToStandings(
+  standings: TeamStandingAggregate[],
+  placements: TeamStandingOfficialThirdPlacement[],
+): {
+  adjustedStandings: TeamStandingAggregate[];
+  badgeByTeamKey: TeamStandingOfficialThirdBadgeByTeamKey;
+} {
+  if (standings.length == 0 || placements.length == 0) {
+    return {
+      adjustedStandings: standings,
+      badgeByTeamKey: {},
+    };
+  }
+
+  const adjustedStandings = [...standings];
+  const badgeByTeamKey: TeamStandingOfficialThirdBadgeByTeamKey = {};
+  const targetIndex = Math.min(2, adjustedStandings.length - 1);
+
+  if (targetIndex < 0) {
+    return {
+      adjustedStandings,
+      badgeByTeamKey,
+    };
+  }
+
+  placements.forEach((placement) => {
+    const teamKey = resolveTeamStandingAggregateKey(placement);
+    const currentIndex = adjustedStandings.findIndex((standing) => {
+      return resolveTeamStandingAggregateKey(standing) == teamKey;
+    });
+
+    if (currentIndex < 0 || currentIndex == targetIndex) {
+      return;
+    }
+
+    const [teamToReposition] = adjustedStandings.splice(currentIndex, 1);
+
+    if (!teamToReposition) {
+      return;
+    }
+
+    adjustedStandings.splice(targetIndex, 0, teamToReposition);
+    badgeByTeamKey[teamKey] = {
+      source: placement.source,
+      original_position: currentIndex + 1,
+    };
+  });
+
+  return {
+    adjustedStandings,
+    badgeByTeamKey,
+  };
 }
 
 export type BracketGroupPlacementFilter = "all" | "first_per_group" | "second_per_group";

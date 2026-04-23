@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Trophy } from "lucide-react";
+import { Award, Medal, Trophy } from "lucide-react";
 import {
   resolveChampionshipBracketFirstRoundSeedIndexes,
   resolveChampionshipBracketKnockoutProjection,
@@ -9,6 +9,11 @@ import {
   resolveChampionshipBracketQualificationSummary,
   resolveChampionshipBracketSeedPlaceholderLabels,
 } from "@/domain/championship-brackets/championshipBracketKnockoutProjection";
+import {
+  resolveCompetitionPodium,
+  type ChampionshipCompetitionPodium,
+  type ChampionshipPodiumTeam,
+} from "@/lib/championshipPodium";
 import type {
   ChampionshipBracketCompetition,
   ChampionshipBracketKnockoutMatch,
@@ -45,6 +50,8 @@ interface ProjectedKnockoutMatchDisplay {
   start_time: string | null;
   location: string | null;
   court_name: string | null;
+  home_team_id: string | null;
+  away_team_id: string | null;
   home_team_name: string | null;
   away_team_name: string | null;
   winner_team_name: string | null;
@@ -152,6 +159,8 @@ function resolveFallbackKnockoutRounds(
           start_time: knockoutMatch.start_time,
           location: knockoutMatch.location,
           court_name: knockoutMatch.court_name,
+          home_team_id: knockoutMatch.home_team_id,
+          away_team_id: knockoutMatch.away_team_id,
           home_team_name: knockoutMatch.home_team_name,
           away_team_name: knockoutMatch.away_team_name,
           winner_team_name: knockoutMatch.winner_team_name,
@@ -241,6 +250,8 @@ function resolveProjectedKnockoutRounds(
         start_time: knockoutMatch?.start_time ?? null,
         location: knockoutMatch?.location ?? null,
         court_name: knockoutMatch?.court_name ?? null,
+        home_team_id: knockoutMatch?.home_team_id ?? null,
+        away_team_id: knockoutMatch?.away_team_id ?? null,
         home_team_name: knockoutMatch?.home_team_name ?? null,
         away_team_name: knockoutMatch?.away_team_name ?? null,
         winner_team_name: knockoutMatch?.winner_team_name ?? null,
@@ -264,6 +275,8 @@ function resolveProjectedKnockoutRounds(
         start_time: knockoutMatch?.start_time ?? null,
         location: knockoutMatch?.location ?? null,
         court_name: knockoutMatch?.court_name ?? null,
+        home_team_id: knockoutMatch?.home_team_id ?? null,
+        away_team_id: knockoutMatch?.away_team_id ?? null,
         home_team_name: knockoutMatch?.home_team_name ?? null,
         away_team_name: knockoutMatch?.away_team_name ?? null,
         winner_team_name: knockoutMatch?.winner_team_name ?? null,
@@ -480,15 +493,87 @@ function resolveProjectedMatchLocationSummary(projectedMatch: ProjectedKnockoutM
   return `${locationLabel} • ${projectedMatch.court_name}`;
 }
 
+type KnockoutPlacementBadge = "CHAMPION" | "RUNNER_UP" | "THIRD_PLACE";
+
+function doesProjectedTeamMatchPodiumTeam(
+  projectedTeamId: string | null,
+  projectedTeamName: string | null,
+  podiumTeam: ChampionshipPodiumTeam,
+): boolean {
+  if (projectedTeamId && projectedTeamId == podiumTeam.team_id) {
+    return true;
+  }
+
+  return projectedTeamName == podiumTeam.team_name;
+}
+
+function resolveProjectedTeamPlacementBadge(
+  projectedMatch: ProjectedKnockoutMatchDisplay | PlacedBracketMatchDisplay,
+  projectedTeamId: string | null,
+  projectedTeamName: string | null,
+  competitionPodium: ChampionshipCompetitionPodium | null,
+): KnockoutPlacementBadge | null {
+  if (!competitionPodium || !projectedTeamName) {
+    return null;
+  }
+
+  if (
+    projectedMatch.id == competitionPodium.final_match_id &&
+    doesProjectedTeamMatchPodiumTeam(projectedTeamId, projectedTeamName, competitionPodium.champion)
+  ) {
+    return "CHAMPION";
+  }
+
+  if (
+    projectedMatch.id == competitionPodium.final_match_id &&
+    competitionPodium.runner_up &&
+    doesProjectedTeamMatchPodiumTeam(projectedTeamId, projectedTeamName, competitionPodium.runner_up)
+  ) {
+    return "RUNNER_UP";
+  }
+
+  if (
+    competitionPodium.third_place &&
+    projectedMatch.id == competitionPodium.third_place.source_match_id &&
+    doesProjectedTeamMatchPodiumTeam(
+      projectedTeamId,
+      projectedTeamName,
+      competitionPodium.third_place.team,
+    )
+  ) {
+    return "THIRD_PLACE";
+  }
+
+  return null;
+}
+
+function renderPlacementIcon(placementBadge: KnockoutPlacementBadge | null): JSX.Element | null {
+  if (placementBadge == "CHAMPION") {
+    return <Trophy className="h-4 w-4 shrink-0 text-amber-400" />;
+  }
+
+  if (placementBadge == "RUNNER_UP") {
+    return <Medal className="h-4 w-4 shrink-0 text-slate-400" />;
+  }
+
+  if (placementBadge == "THIRD_PLACE") {
+    return <Award className="h-4 w-4 shrink-0 text-orange-400" />;
+  }
+
+  return null;
+}
+
 function BracketMatchCard({
   projectedMatch,
   totalRounds,
+  competitionPodium,
   fixedSize = false,
   fixedWidth = DESKTOP_CARD_WIDTH,
   isFinalCard = false,
 }: {
   projectedMatch: ProjectedKnockoutMatchDisplay | PlacedBracketMatchDisplay;
   totalRounds: number;
+  competitionPodium: ChampionshipCompetitionPodium | null;
   fixedSize?: boolean;
   fixedWidth?: number;
   isFinalCard?: boolean;
@@ -514,6 +599,20 @@ function BracketMatchCard({
     isFinishedFinalMatch &&
     projectedMatch.winner_team_name != null &&
     projectedMatch.winner_team_name == projectedMatch.away_team_name;
+  const homePlacementBadge =
+    resolveProjectedTeamPlacementBadge(
+      projectedMatch,
+      projectedMatch.home_team_id,
+      projectedMatch.home_team_name,
+      competitionPodium,
+    ) ?? (isHomeWinner ? "CHAMPION" : null);
+  const awayPlacementBadge =
+    resolveProjectedTeamPlacementBadge(
+      projectedMatch,
+      projectedMatch.away_team_id,
+      projectedMatch.away_team_name,
+      competitionPodium,
+    ) ?? (isAwayWinner ? "CHAMPION" : null);
 
   return (
     <div
@@ -547,7 +646,7 @@ function BracketMatchCard({
       <div className="mt-3 flex min-h-0 flex-1 flex-col justify-center gap-2.5">
         <div className="app-input-field flex min-h-[44px] items-center justify-center rounded-xl px-3 py-2 text-center">
           <div className="flex max-w-full items-center justify-center gap-2">
-            {isHomeWinner ? <Trophy className="h-4 w-4 shrink-0 text-amber-400" /> : null}
+            {renderPlacementIcon(homePlacementBadge)}
             <p className="max-w-full break-words text-center text-sm font-semibold leading-snug">{resolvedHomeLabel}</p>
           </div>
         </div>
@@ -558,7 +657,7 @@ function BracketMatchCard({
 
         <div className="app-input-field flex min-h-[44px] items-center justify-center rounded-xl px-3 py-2 text-center">
           <div className="flex max-w-full items-center justify-center gap-2">
-            {isAwayWinner ? <Trophy className="h-4 w-4 shrink-0 text-amber-400" /> : null}
+            {renderPlacementIcon(awayPlacementBadge)}
             <p className="max-w-full break-words text-center text-sm font-semibold leading-snug">{resolvedAwayLabel}</p>
           </div>
         </div>
@@ -577,9 +676,11 @@ function BracketMatchCard({
 function DesktopBracketCanvas({
   desktopBracketLayout,
   totalRounds,
+  competitionPodium,
 }: {
   desktopBracketLayout: DesktopBracketLayout;
   totalRounds: number;
+  competitionPodium: ChampionshipCompetitionPodium | null;
 }) {
   const desktopBracketCanvasReference = useRef<HTMLDivElement | null>(null);
   const [desktopBracketScale, setDesktopBracketScale] = useState(1);
@@ -678,6 +779,7 @@ function DesktopBracketCanvas({
                 <BracketMatchCard
                   projectedMatch={projectedMatch}
                   totalRounds={totalRounds}
+                  competitionPodium={competitionPodium}
                   fixedSize
                   fixedWidth={projectedMatch.card_width}
                 />
@@ -698,6 +800,7 @@ function DesktopBracketCanvas({
                 <BracketMatchCard
                   projectedMatch={projectedMatch}
                   totalRounds={totalRounds}
+                  competitionPodium={competitionPodium}
                   fixedSize
                   fixedWidth={projectedMatch.card_width}
                 />
@@ -716,6 +819,7 @@ function DesktopBracketCanvas({
               <BracketMatchCard
                 projectedMatch={desktopBracketLayout.final_match}
                 totalRounds={totalRounds}
+                competitionPodium={competitionPodium}
                 fixedSize
                 fixedWidth={desktopBracketLayout.final_match.card_width}
                 isFinalCard
@@ -734,6 +838,7 @@ function DesktopBracketCanvas({
               <BracketMatchCard
                 projectedMatch={desktopBracketLayout.third_place_match}
                 totalRounds={totalRounds}
+                competitionPodium={competitionPodium}
                 fixedSize
                 fixedWidth={desktopBracketLayout.third_place_match.card_width}
               />
@@ -839,6 +944,7 @@ export function ChampionshipBracketBoard({
 
       {filteredCompetitions.map((competition) => {
         const projectedKnockoutRounds = resolveProjectedKnockoutRounds(competition);
+        const competitionPodium = resolveCompetitionPodium(competition);
         const qualificationSummary = resolveChampionshipBracketQualificationSummary({
           groups_count: competition.groups_count,
           qualifiers_per_group: competition.qualifiers_per_group,
@@ -892,7 +998,11 @@ export function ChampionshipBracketBoard({
             ) : (
               <>
                 {desktopBracketLayout ? (
-                  <DesktopBracketCanvas desktopBracketLayout={desktopBracketLayout} totalRounds={totalRounds} />
+                  <DesktopBracketCanvas
+                    desktopBracketLayout={desktopBracketLayout}
+                    totalRounds={totalRounds}
+                    competitionPodium={competitionPodium}
+                  />
                 ) : null}
 
                 <div className="space-y-4 md:hidden">
@@ -904,6 +1014,7 @@ export function ChampionshipBracketBoard({
                             key={projectedMatch.id}
                             projectedMatch={projectedMatch}
                             totalRounds={totalRounds}
+                            competitionPodium={competitionPodium}
                             isFinalCard={
                               projectedMatch.round_number == totalRounds && !projectedMatch.is_third_place
                             }
@@ -915,7 +1026,11 @@ export function ChampionshipBracketBoard({
 
                   {thirdPlaceMatch ? (
                     <div className="space-y-3">
-                      <BracketMatchCard projectedMatch={thirdPlaceMatch} totalRounds={totalRounds} />
+                      <BracketMatchCard
+                        projectedMatch={thirdPlaceMatch}
+                        totalRounds={totalRounds}
+                        competitionPodium={competitionPodium}
+                      />
                     </div>
                   ) : null}
                 </div>
