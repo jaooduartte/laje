@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { ChampionshipSportTieBreakerRule, MatchNaipe, MatchStatus, TeamDivision } from "@/lib/enums";
+import { ChampionshipThirdPlaceSource } from "@/lib/championshipPodium";
 import type { Match, Standing } from "@/lib/types";
 import {
+  applyOfficialThirdPlacementToStandings,
   aggregateStandingsByTeam,
   applyCorrectedGroupPointsToStanding,
   filterAggregatesByBracketGroupPlacement,
@@ -172,6 +174,55 @@ describe("formatStandingsPoints", () => {
     expect(formatStandingsPoints(9)).toBe("9");
     expect(formatStandingsPoints(4.5)).toBe("4,5");
     expect(formatStandingsPoints(0)).toBe("0");
+  });
+});
+
+describe("applyOfficialThirdPlacementToStandings", () => {
+  it("reposiciona a equipe para 3º e retorna badge quando ela não estava em 3º", () => {
+    const standings = [
+      buildAggregate({ team_id: "team-1", team_name: "Team 1", points: 12 }),
+      buildAggregate({ team_id: "team-2", team_name: "Team 2", points: 11 }),
+      buildAggregate({ team_id: "team-3", team_name: "Team 3", points: 10 }),
+      buildAggregate({ team_id: "team-4", team_name: "Team 4", points: 9 }),
+    ];
+
+    const result = applyOfficialThirdPlacementToStandings(standings, [
+      {
+        team_id: "team-4",
+        division: null,
+        source: ChampionshipThirdPlaceSource.CHAMPION_SEMIFINAL_LOSER,
+      },
+    ]);
+
+    expect(result.adjustedStandings.map((standing) => standing.team_id)).toEqual([
+      "team-1",
+      "team-2",
+      "team-4",
+      "team-3",
+    ]);
+    expect(result.badgeByTeamKey["team-4:WITHOUT_DIVISION"]).toMatchObject({
+      source: ChampionshipThirdPlaceSource.CHAMPION_SEMIFINAL_LOSER,
+      original_position: 4,
+    });
+  });
+
+  it("não retorna badge quando a equipe oficial já está em 3º", () => {
+    const standings = [
+      buildAggregate({ team_id: "team-1", team_name: "Team 1", points: 12 }),
+      buildAggregate({ team_id: "team-2", team_name: "Team 2", points: 11 }),
+      buildAggregate({ team_id: "team-3", team_name: "Team 3", points: 10 }),
+    ];
+
+    const result = applyOfficialThirdPlacementToStandings(standings, [
+      {
+        team_id: "team-3",
+        division: null,
+        source: ChampionshipThirdPlaceSource.THIRD_PLACE_MATCH,
+      },
+    ]);
+
+    expect(result.adjustedStandings.map((standing) => standing.team_id)).toEqual(["team-1", "team-2", "team-3"]);
+    expect(result.badgeByTeamKey["team-3:WITHOUT_DIVISION"]).toBeUndefined();
   });
 });
 

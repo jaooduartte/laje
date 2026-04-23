@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { Award, HelpCircle, Loader2, Medal, Trophy } from "lucide-react";
 import { Header } from "@/components/Header";
 import { MatchCard } from "@/components/MatchCard";
@@ -10,7 +11,6 @@ import { formatStandingsPoints, type TeamStandingAggregate } from "@/lib/standin
 import type { Championship, Match, Sport, Team } from "@/lib/types";
 import type {
   BracketGroupFilterOption,
-  ChampionshipBracketGroupStageOption,
   MatchBracketContext,
 } from "@/lib/championship";
 import type { ChampionshipChampionYearGroup } from "@/lib/championshipHistory";
@@ -34,10 +34,8 @@ interface ChampionshipsPageViewProps {
   standingsYearFilter: string;
   allStandingsSportFilter: string;
   allStandingsNaipeFilter: string;
-  standingsBracketGroupOptions: BracketGroupFilterOption[];
-  standingsPlacementFilter: string;
-  allStandingsPlacementFilter: string;
   filteredStandings: TeamStandingAggregate[];
+  isStandingsNaipeFilterLocked: boolean;
   standingsModalidadeConfig?: ModalidadeConfig;
   teamFilter: string;
   yearFilter: string;
@@ -59,7 +57,6 @@ interface ChampionshipsPageViewProps {
   onStandingsSportFilterChange: (value: string) => void;
   onStandingsNaipeFilterChange: (value: string) => void;
   onStandingsYearFilterChange: (value: string) => void;
-  onStandingsPlacementFilterChange: (value: string) => void;
   onTeamFilterChange: (value: string) => void;
   onYearFilterChange: (value: string) => void;
   onGroupFilterChange: (value: string) => void;
@@ -81,10 +78,8 @@ export function ChampionshipsPageView({
   standingsYearFilter,
   allStandingsSportFilter,
   allStandingsNaipeFilter,
-  standingsBracketGroupOptions,
-  standingsPlacementFilter,
-  allStandingsPlacementFilter,
   filteredStandings,
+  isStandingsNaipeFilterLocked,
   standingsModalidadeConfig,
   teamFilter,
   yearFilter,
@@ -106,7 +101,6 @@ export function ChampionshipsPageView({
   onStandingsSportFilterChange,
   onStandingsNaipeFilterChange,
   onStandingsYearFilterChange,
-  onStandingsPlacementFilterChange,
   onTeamFilterChange,
   onYearFilterChange,
   onGroupFilterChange,
@@ -114,8 +108,30 @@ export function ChampionshipsPageView({
   const firstPlaceTeam = overallPodiumStandings[0] ?? null;
   const secondPlaceTeam = overallPodiumStandings[1] ?? null;
   const thirdPlaceTeam = overallPodiumStandings[2] ?? null;
-  const isStandingsPlacementFilterDisabled =
-    standingsSportFilter == allStandingsSportFilter || standingsNaipeFilter == allStandingsNaipeFilter;
+  const [isStandingsHelpTooltipHoverOpen, setIsStandingsHelpTooltipHoverOpen] = useState(false);
+  const [isStandingsHelpTooltipClickOpen, setIsStandingsHelpTooltipClickOpen] = useState(false);
+  const standingsHelpTooltipTimeoutReference = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isStandingsHelpTooltipOpen = isStandingsHelpTooltipHoverOpen || isStandingsHelpTooltipClickOpen;
+
+  useEffect(() => {
+    return () => {
+      if (standingsHelpTooltipTimeoutReference.current) {
+        clearTimeout(standingsHelpTooltipTimeoutReference.current);
+      }
+    };
+  }, []);
+
+  const handleStandingsHelpClick = () => {
+    if (standingsHelpTooltipTimeoutReference.current) {
+      clearTimeout(standingsHelpTooltipTimeoutReference.current);
+    }
+
+    setIsStandingsHelpTooltipClickOpen(true);
+    standingsHelpTooltipTimeoutReference.current = setTimeout(() => {
+      setIsStandingsHelpTooltipClickOpen(false);
+      standingsHelpTooltipTimeoutReference.current = null;
+    }, 3000);
+  };
 
   if (isLoading) {
     return (
@@ -194,10 +210,14 @@ export function ChampionshipsPageView({
             <section className="glass-panel enter-section space-y-4 p-5">
               <div className="flex items-center justify-center gap-2 sm:justify-start">
                 <h2 className="text-xl font-display font-bold">Classificação</h2>
-                <Tooltip>
+                <Tooltip
+                  open={isStandingsHelpTooltipOpen}
+                  onOpenChange={setIsStandingsHelpTooltipHoverOpen}
+                >
                   <TooltipTrigger asChild>
                     <button
                       type="button"
+                      onClick={handleStandingsHelpClick}
                       className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:text-foreground transition-colors"
                       aria-label="Informação sobre pontuação"
                     >
@@ -212,9 +232,7 @@ export function ChampionshipsPageView({
               </div>
 
               <div
-                className={`grid grid-cols-1 gap-3 ${
-                  standingsBracketGroupOptions.length > 0 ? "sm:grid-cols-2 xl:grid-cols-4" : "sm:grid-cols-3"
-                }`}
+                className="grid grid-cols-1 gap-3 sm:grid-cols-3"
               >
                 <Select value={standingsYearFilter} onValueChange={onStandingsYearFilterChange}>
                   <SelectTrigger className="app-input-field w-full">
@@ -245,7 +263,12 @@ export function ChampionshipsPageView({
                 </Select>
 
                 <Select value={standingsNaipeFilter} onValueChange={onStandingsNaipeFilterChange}>
-                  <SelectTrigger className="app-input-field w-full">
+                  <SelectTrigger
+                    className={`app-input-field w-full ${
+                      isStandingsNaipeFilterLocked ? "cursor-not-allowed opacity-60" : ""
+                    }`}
+                    disabled={isStandingsNaipeFilterLocked}
+                  >
                     <SelectValue placeholder="Filtrar naipe" />
                   </SelectTrigger>
                   <SelectContent>
@@ -255,27 +278,6 @@ export function ChampionshipsPageView({
                     <SelectItem value={MatchNaipe.MISTO}>{MATCH_NAIPE_LABELS[MatchNaipe.MISTO]}</SelectItem>
                   </SelectContent>
                 </Select>
-
-                {standingsBracketGroupOptions.length > 0 ? (
-                  <Select
-                    value={standingsPlacementFilter}
-                    onValueChange={onStandingsPlacementFilterChange}
-                    disabled={isStandingsPlacementFilterDisabled}
-                  >
-                    <SelectTrigger
-                      className={`app-input-field w-full ${
-                        isStandingsPlacementFilterDisabled ? "cursor-not-allowed opacity-60" : ""
-                      }`}
-                    >
-                      <SelectValue placeholder="Posição na chave" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={allStandingsPlacementFilter}>Todas as equipes</SelectItem>
-                      <SelectItem value="first_per_group">1º de cada chave (grupo)</SelectItem>
-                      <SelectItem value="second_per_group">2º de cada chave (grupo)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : null}
               </div>
 
               <TeamStandingsTable

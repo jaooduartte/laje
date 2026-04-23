@@ -1,4 +1,8 @@
-import { formatPointsAverageForStandings, formatStandingsPoints, type TeamStandingAggregate } from "@/lib/standings";
+import {
+  formatPointsAverageForStandings,
+  formatStandingsPoints,
+  type TeamStandingAggregate,
+} from "@/lib/standings";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Shuffle } from "lucide-react";
 import { type ModalidadeConfig, type StandingsColumnKey, STANDINGS_COLUMN_LABELS, STANDINGS_COLUMN_TOOLTIPS } from "@/lib/modalidadeConfig";
