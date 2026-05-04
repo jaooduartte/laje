@@ -13,6 +13,7 @@ interface Props {
   isLoading?: boolean;
   variant?: "full" | "public";
   drawWinners?: Set<string>;
+  groupLabelByTeamId?: Map<string, string>;
 }
 
 function resolveTopPlacementRowClass(position: number): string {
@@ -55,6 +56,7 @@ export function TeamStandingsTable({
   isLoading = false,
   variant = "full",
   drawWinners,
+  groupLabelByTeamId,
 }: Props) {
   if (isLoading) {
     return (
@@ -109,6 +111,8 @@ export function TeamStandingsTable({
             const standingPosition = standingIndex + 1;
             const isDrawWinner = !isPublic && drawWinners?.has(standing.team_id);
 
+            const groupLabel = groupLabelByTeamId?.get(standing.team_id);
+
             return (
               <TableRow
                 key={`${standing.team_id}:${standing.division ?? "WITHOUT_DIVISION"}`}
@@ -120,6 +124,11 @@ export function TeamStandingsTable({
                 <TableCell className="font-display font-semibold">
                   <div className="flex items-center gap-2">
                     {standing.team_name}
+                    {groupLabel && (
+                      <span className="inline-flex items-center rounded-full border border-muted-foreground/20 bg-secondary px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                        {groupLabel}
+                      </span>
+                    )}
                     {isDrawWinner && (
                       <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
                         <Shuffle className="h-3 w-3" />

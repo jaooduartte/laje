@@ -2458,7 +2458,7 @@ export function AdminChampionshipBracketWizardModal({
         const competitionDisplayLabel = competitionOption
           ? `${competitionOption.sport_name} • ${MATCH_NAIPE_LABELS[competitionOption.naipe]}${
               competitionOption.division
-                ? ` • ${competitionOption.division}`
+                ? ` • ${TEAM_DIVISION_LABELS[competitionOption.division]}`
                 : ""
             }`
           : "modalidade selecionada";
@@ -3381,7 +3381,7 @@ export function AdminChampionshipBracketWizardModal({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="flex h-[780px] max-h-[88vh] w-[1120px] max-w-[95vw] flex-col overflow-hidden outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0">
+        <DialogContent className="flex h-[780px] max-h-[88vh] w-[1120px] max-w-[95vw] flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle>
               Hora de configurar o campeonato {selectedChampionship.name}!
@@ -3905,7 +3905,7 @@ export function AdminChampionshipBracketWizardModal({
                             {competitionOption.sport_name} •{" "}
                             {MATCH_NAIPE_LABELS[competitionOption.naipe]}
                             {competitionOption.division
-                              ? ` • ${competitionOption.division}`
+                              ? ` • ${TEAM_DIVISION_LABELS[competitionOption.division]}`
                               : ""}
                           </p>
                           <p className="text-xs text-muted-foreground">
@@ -3932,15 +3932,15 @@ export function AdminChampionshipBracketWizardModal({
                               min={1}
                               value={competitionConfig.groups_count}
                               onChange={(event) => {
-                                const groupsCount = Math.max(
-                                  1,
-                                  Number(event.target.value) || 1,
-                                );
+                                const parsed = parseInt(event.target.value, 10);
+                                if (isNaN(parsed)) return;
+                                const groupsCount = Math.max(1, parsed);
                                 setCompetitionConfigByKey(
                                   (currentCompetitionConfigByKey) => ({
                                     ...currentCompetitionConfigByKey,
                                     [competitionKey]: {
-                                      ...competitionConfig,
+                                      ...(currentCompetitionConfigByKey[competitionKey] ??
+                                        resolveDefaultCompetitionConfig(2)),
                                       groups_count: groupsCount,
                                     },
                                   }),
@@ -4058,7 +4058,7 @@ export function AdminChampionshipBracketWizardModal({
                               {competitionOption.sport_name} •{" "}
                               {MATCH_NAIPE_LABELS[competitionOption.naipe]}
                               {competitionOption.division
-                                ? ` • ${competitionOption.division}`
+                                ? ` • ${TEAM_DIVISION_LABELS[competitionOption.division]}`
                                 : ""}
                             </p>
                             <p className="text-xs text-muted-foreground">
@@ -4748,7 +4748,7 @@ export function AdminChampionshipBracketWizardModal({
                               {competitionOption.sport_name} •{" "}
                               {MATCH_NAIPE_LABELS[competitionOption.naipe]}
                               {competitionOption.division
-                                ? ` • ${competitionOption.division}`
+                                ? ` • ${TEAM_DIVISION_LABELS[competitionOption.division]}`
                                 : ""}
                             </p>
                             <div className="space-y-0.5 text-right text-xs text-muted-foreground">
@@ -4858,7 +4858,7 @@ export function AdminChampionshipBracketWizardModal({
           }
         }}
       >
-        <DialogContent className="max-h-[88vh] w-[1120px] max-w-[95vw] overflow-y-auto outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0">
+        <DialogContent className="max-h-[88vh] w-[1120px] max-w-[95vw] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {isEditingLocationTemplate ? "Editar local" : "Cadastrar local"}
@@ -5060,7 +5060,7 @@ export function AdminChampionshipBracketWizardModal({
           }
         }}
       >
-        <DialogContent className="w-[460px] max-w-[92vw] outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0">
+        <DialogContent className="w-[460px] max-w-[92vw]">
           <DialogHeader>
             <DialogTitle>Apagar local permanentemente</DialogTitle>
             <DialogDescription>

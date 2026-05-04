@@ -201,18 +201,19 @@
     transition: color 180ms ease, background-color 180ms ease;
   }
 
-  .app-pill-option:not([data-state="active"]):not([aria-current="page"]):hover {
+  .app-pill-option:not([data-state="active"]):not([aria-current="page"]):not([aria-selected="true"]):hover {
     color: hsl(var(--foreground));
     background: transparent;
   }
 
-  .app-pill-option:not([data-state="active"]):not([aria-current="page"]):focus-visible {
+  .app-pill-option:not([data-state="active"]):not([aria-current="page"]):not([aria-selected="true"]):focus-visible {
     color: hsl(var(--foreground));
     background: transparent;
   }
 
   .app-pill-option[data-state="active"],
-  .app-pill-option[aria-current="page"] {
+  .app-pill-option[aria-current="page"],
+  .app-pill-option[aria-selected="true"] {
     color: hsl(var(--primary-foreground));
     font-weight: 700;
   }
@@ -478,6 +479,17 @@
   .dark .app-modal-surface {
     border-color: transparent;
     background: hsl(0, 0%, 6%);
+  }
+
+  .app-modal-surface:focus,
+  .app-modal-surface:focus-visible {
+    outline: none;
+    box-shadow: 0 24px 60px hsl(222 22% 16% / 0.28);
+  }
+
+  .dark .app-modal-surface:focus,
+  .dark .app-modal-surface:focus-visible {
+    box-shadow: 0 10px 32px hsl(0 0% 0% / 0.5);
   }
 
   .dark .app-popover-surface {
