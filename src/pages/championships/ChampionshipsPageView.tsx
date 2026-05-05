@@ -226,7 +226,7 @@ export function ChampionshipsPageView({
                   </TooltipTrigger>
                   <TooltipContent side="top" className="max-w-xs text-xs">
                     Algumas pontuações podem aparecer em formato decimal. Isso ocorre quando um multiplicador de 1,5× é
-                    aplicado para equalizar a classificação entre atléticas que jogaram em chaves de tamanhos diferentes.
+                    aplicado para equalização proporcional da classificação entre atléticas que jogaram em chaves de tamanhos diferentes.
                   </TooltipContent>
                 </Tooltip>
               </div>

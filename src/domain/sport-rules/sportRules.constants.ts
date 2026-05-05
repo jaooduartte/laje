@@ -1,8 +1,10 @@
 import { BEACH_SOCCER_RULE } from "@/domain/sport-rules/beachSoccer.rule";
 import { BEACH_TENNIS_RULE } from "@/domain/sport-rules/beachTennis.rule";
 import { BEACH_VOLLEYBALL_RULE } from "@/domain/sport-rules/beachVolleyball.rule";
+import { FUTEBOL_SOCIETY_RULE } from "@/domain/sport-rules/futebolSociety.rule";
 import { FUTEVOLEI_RULE } from "@/domain/sport-rules/futevolei.rule";
 import type { PlatformSportRule } from "@/domain/sport-rules/sportRule.types";
+import { ChampionshipCode } from "@/lib/enums";
 
 export const CLV_PLATFORM_SPORT_RULES: PlatformSportRule[] = [
   BEACH_SOCCER_RULE,
@@ -10,3 +12,10 @@ export const CLV_PLATFORM_SPORT_RULES: PlatformSportRule[] = [
   FUTEVOLEI_RULE,
   BEACH_VOLLEYBALL_RULE,
 ];
+
+export const SOCIETY_PLATFORM_SPORT_RULES: PlatformSportRule[] = [FUTEBOL_SOCIETY_RULE];
+
+export const PLATFORM_SPORT_RULES_BY_CHAMPIONSHIP_CODE: Partial<Record<ChampionshipCode, PlatformSportRule[]>> = {
+  [ChampionshipCode.CLV]: CLV_PLATFORM_SPORT_RULES,
+  [ChampionshipCode.SOCIETY]: SOCIETY_PLATFORM_SPORT_RULES,
+};

@@ -467,6 +467,40 @@ describe("sortTeamStandingAggregatesByRanking — cascatas por modalidade", () =
 
     expect(result[0]?.team_id).toBe("team-b"); // mais vitórias, H2H nem chega a ser avaliado
   });
+
+  it("Futebol Society desempata por cartões quando pontos, H2H, SG e GP são iguais", () => {
+    const aggregates: TeamStandingAggregate[] = [
+      buildAggregate({
+        team_id: "team-a",
+        team_name: "A",
+        points: 4,
+        wins: 1,
+        goal_diff: 2,
+        goals_for: 3,
+        goals_against: 1,
+        yellow_cards: 2,
+        red_cards: 0,
+      }),
+      buildAggregate({
+        team_id: "team-b",
+        team_name: "B",
+        points: 4,
+        wins: 2,
+        goal_diff: 2,
+        goals_for: 3,
+        goals_against: 1,
+        yellow_cards: 0,
+        red_cards: 0,
+      }),
+    ];
+
+    const result = sortTeamStandingAggregatesByRanking(aggregates, {
+      tieBreakerRule: ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY,
+      headToHeadMatches: [],
+    });
+
+    expect(result[0]?.team_id).toBe("team-b");
+  });
 });
 
 describe("filterAggregatesByBracketGroupPlacement", () => {

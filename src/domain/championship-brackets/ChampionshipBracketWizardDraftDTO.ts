@@ -87,8 +87,11 @@ function resolveCompetitionConfigByKey(
         ),
       ),
       should_complete_knockout_with_best_second_placed_teams:
-        (competition_config as ChampionshipBracketCompetitionConfigDraft)
-          .qualifiers_per_group == 1,
+        resolveBooleanValue(
+          (competition_config as ChampionshipBracketCompetitionConfigDraft)
+            .should_complete_knockout_with_best_second_placed_teams,
+          true,
+        ),
     };
 
     return carry;
@@ -450,7 +453,7 @@ export class ChampionshipBracketWizardDraftDTO {
               competition_config.qualifiers_per_group,
             ),
             should_complete_knockout_with_best_second_placed_teams:
-              competition_config.qualifiers_per_group == 1,
+              competition_config.should_complete_knockout_with_best_second_placed_teams,
           };
           return carry;
         },

@@ -73,6 +73,7 @@ export enum ChampionshipSportTieBreakerRule {
   POINTS_AVERAGE = "POINTS_AVERAGE",
   BEACH_SOCCER = "BEACH_SOCCER",
   BEACH_TENNIS = "BEACH_TENNIS",
+  FUTEBOL_SOCIETY = "FUTEBOL_SOCIETY",
 }
 
 export enum ChampionshipSportResultRule {
@@ -138,6 +139,7 @@ export enum LeagueCalendarHolidayDayKind {
 }
 
 export enum AdminPanelTab {
+  BRACKET_SETUP = "bracket_setup",
   MATCHES = "matches",
   CONTROL = "control",
   TEAMS = "teams",

@@ -201,18 +201,19 @@
     transition: color 180ms ease, background-color 180ms ease;
   }
 
-  .app-pill-option:not([data-state="active"]):not([aria-current="page"]):hover {
+  .app-pill-option:not([data-state="active"]):not([aria-current="page"]):not([aria-selected="true"]):hover {
     color: hsl(var(--foreground));
     background: transparent;
   }
 
-  .app-pill-option:not([data-state="active"]):not([aria-current="page"]):focus-visible {
+  .app-pill-option:not([data-state="active"]):not([aria-current="page"]):not([aria-selected="true"]):focus-visible {
     color: hsl(var(--foreground));
     background: transparent;
   }
 
   .app-pill-option[data-state="active"],
-  .app-pill-option[aria-current="page"] {
+  .app-pill-option[aria-current="page"],
+  .app-pill-option[aria-selected="true"] {
     color: hsl(var(--primary-foreground));
     font-weight: 700;
   }
@@ -480,6 +481,17 @@
     background: hsl(0, 0%, 6%);
   }
 
+  .app-modal-surface:focus,
+  .app-modal-surface:focus-visible {
+    outline: none;
+    box-shadow: 0 24px 60px hsl(222 22% 16% / 0.28);
+  }
+
+  .dark .app-modal-surface:focus,
+  .dark .app-modal-surface:focus-visible {
+    box-shadow: 0 10px 32px hsl(0 0% 0% / 0.5);
+  }
+
   .dark .app-popover-surface {
     border-color: transparent;
     background: hsl(0, 0%, 8%);
@@ -580,5 +592,39 @@
 
   .score-text {
     font-variant-numeric: tabular-nums;
+  }
+
+  .app-pill-bracket-config-tab {
+    position: relative;
+  }
+
+  .app-pill-bracket-config-tab::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    padding: 2px;
+    background: repeating-linear-gradient(
+      -45deg,
+      #fbbf24,
+      #fbbf24 8px,
+      #000000 8px,
+      #000000 16px
+    );
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    z-index: 20;
+  }
+
+  .dark .app-pill-bracket-config-tab::before {
+    background: repeating-linear-gradient(
+      -45deg,
+      #f59e0b,
+      #f59e0b 8px,
+      #000000 8px,
+      #000000 16px
+    );
   }
 }

@@ -122,6 +122,7 @@ export const CHAMPIONSHIP_SPORT_TIE_BREAKER_RULE_LABELS: Record<ChampionshipSpor
   [ChampionshipSportTieBreakerRule.POINTS_AVERAGE]: "Pontos Average",
   [ChampionshipSportTieBreakerRule.BEACH_SOCCER]: "Beach Soccer",
   [ChampionshipSportTieBreakerRule.BEACH_TENNIS]: "Beach Tennis",
+  [ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY]: "Futebol Society",
 };
 
 export const CHAMPIONSHIP_SPORT_RESULT_RULE_LABELS: Record<ChampionshipSportResultRule, string> = {

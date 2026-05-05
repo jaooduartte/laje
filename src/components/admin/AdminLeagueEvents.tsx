@@ -198,8 +198,13 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
 
   const filteredLeagueEvents = useMemo(() => {
     const normalizedLeagueEventSearch = leagueEventSearch.trim().toLowerCase();
+    const selectedYearMonth = format(selectedMonthDate, "yyyy-MM");
 
     return leagueEvents.filter((leagueEvent) => {
+      if (!leagueEvent.event_date.startsWith(selectedYearMonth)) {
+        return false;
+      }
+
       if (
         leagueEventTypeFilter != ALL_LEAGUE_EVENT_TYPES_FILTER &&
         leagueEvent.event_type != leagueEventTypeFilter
@@ -227,7 +232,7 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
 
       return leagueEvent.name.toLowerCase().includes(normalizedLeagueEventSearch);
     });
-  }, [leagueEventOrganizerFilter, leagueEventSearch, leagueEventTypeFilter, leagueEvents]);
+  }, [leagueEventOrganizerFilter, leagueEventSearch, leagueEventTypeFilter, leagueEvents, selectedMonthDate]);
 
   const monthControlClassName = "app-input-field h-9 rounded-xl text-secondary-foreground";
 

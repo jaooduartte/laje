@@ -339,6 +339,23 @@ export function AdminStandings({ selectedChampionship, championshipSports, sport
 
   const isLoading = standingsLoading || correctedStandingsLoading || tieBreaksLoading || finishedMatchesLoading;
 
+  const groupLabelByTeamId = useMemo(() => {
+    if (sportFilter == ALL_SPORTS_FILTER || naipeFilter == ALL_NAIPES_FILTER) {
+      return undefined;
+    }
+
+    const map = new Map<string, string>();
+    selectedSeasonGroupOptions
+      .filter((group) => group.sport_id == sportFilter && group.naipe == naipeFilter)
+      .forEach((group) => {
+        group.team_ids.forEach((teamId) => {
+          map.set(teamId, resolveChampionshipGroupLabel(group.group_number));
+        });
+      });
+
+    return map.size > 0 ? map : undefined;
+  }, [naipeFilter, selectedSeasonGroupOptions, sportFilter]);
+
   const activeModalidadeConfig = useMemo(() => {
     if (sportFilter == ALL_SPORTS_FILTER) return undefined;
 
@@ -446,6 +463,7 @@ export function AdminStandings({ selectedChampionship, championshipSports, sport
         isLoading={isLoading}
         variant="full"
         drawWinners={drawWinners}
+        groupLabelByTeamId={groupLabelByTeamId}
       />
     </div>
   );

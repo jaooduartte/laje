@@ -474,6 +474,30 @@ function compareByRule(
     return compareByManualTieBreakOrder(firstStanding, secondStanding, options);
   }
 
+  if (tieBreakerRule == ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY) {
+    if (compareDirectConfrontation != 0) {
+      return compareDirectConfrontation;
+    }
+
+    if (firstStanding.goal_diff != secondStanding.goal_diff) {
+      return secondStanding.goal_diff - firstStanding.goal_diff;
+    }
+
+    if (firstStanding.goals_for != secondStanding.goals_for) {
+      return secondStanding.goals_for - firstStanding.goals_for;
+    }
+
+    if (firstStanding.yellow_cards != secondStanding.yellow_cards) {
+      return firstStanding.yellow_cards - secondStanding.yellow_cards;
+    }
+
+    if (firstStanding.red_cards != secondStanding.red_cards) {
+      return firstStanding.red_cards - secondStanding.red_cards;
+    }
+
+    return compareByManualTieBreakOrder(firstStanding, secondStanding, options);
+  }
+
   if (tieBreakerRule == ChampionshipSportTieBreakerRule.POINTS_AVERAGE) {
     const firstPointsAverage = calculatePointsAverage(firstStanding.goals_for, firstStanding.goals_against);
     const secondPointsAverage = calculatePointsAverage(secondStanding.goals_for, secondStanding.goals_against);
