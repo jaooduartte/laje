@@ -138,6 +138,7 @@ export enum LeagueCalendarHolidayDayKind {
 }
 
 export enum AdminPanelTab {
+  BRACKET_SETUP = "bracket_setup",
   MATCHES = "matches",
   CONTROL = "control",
   TEAMS = "teams",

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -13,7 +13,6 @@ import { useSelectedChampionship } from "@/hooks/useSelectedChampionship";
 import { useChampionshipSelection } from "@/hooks/useChampionshipSelection";
 import { usePendingTieBreaks } from "@/hooks/usePendingTieBreaks";
 import { Header } from "@/components/Header";
-import { AdminChampionshipBracketWizardModal } from "@/components/admin/AdminChampionshipBracketWizardModal";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -63,7 +62,7 @@ export function AdminPage() {
   const { selectedChampionshipCode, setSelectedChampionshipCode } = useSelectedChampionship();
   const [updatingChampionshipStatus, setUpdatingChampionshipStatus] = useState(false);
   const [processingChampionshipStatusFlowAction, setProcessingChampionshipStatusFlowAction] = useState(false);
-  const [showChampionshipBracketWizardModal, setShowChampionshipBracketWizardModal] = useState(false);
+  const [_activeTab, setActiveTab] = useState<string>("");
   const [championshipStatusFlowDialog, setChampionshipStatusFlowDialog] = useState<ChampionshipStatusFlowDialog>(
     ChampionshipStatusFlowDialog.NONE,
   );
@@ -127,6 +126,11 @@ export function AdminPage() {
     await refetchPendingTieBreaks();
   }, [refetchChampionshipBracket, refetchPendingTieBreaks]);
 
+  const handleBracketGenerated = useCallback(async () => {
+    setActiveTab(AdminPanelTab.CONTROL);
+    await Promise.all([refetchMatches(), refetchChampionshipBracket(), refetchChampionships()]);
+  }, [refetchMatches, refetchChampionshipBracket, refetchChampionships]);
+
   const closeChampionshipStatusFlowDialog = () => {
     if (processingChampionshipStatusFlowAction) {
       return;
@@ -134,6 +138,12 @@ export function AdminPage() {
 
     setChampionshipStatusFlowDialog(ChampionshipStatusFlowDialog.NONE);
   };
+
+  useEffect(() => {
+    if (selectedChampionship?.status === ChampionshipStatus.UPCOMING) {
+      setActiveTab(AdminPanelTab.BRACKET_SETUP);
+    }
+  }, [selectedChampionship?.status]);
 
   const resolveIsMobileViewport = () => {
     if (typeof window == "undefined") {
@@ -263,7 +273,7 @@ export function AdminPage() {
     }
 
     setChampionshipStatusFlowDialog(ChampionshipStatusFlowDialog.NONE);
-    setShowChampionshipBracketWizardModal(true);
+    setActiveTab(AdminPanelTab.BRACKET_SETUP);
   };
 
   const handleChampionshipStatusChange = async (value: string) => {
@@ -301,9 +311,6 @@ export function AdminPage() {
         handleOpenMobileChampionshipConfigurationWarning();
         return;
       }
-
-      setShowChampionshipBracketWizardModal(true);
-      return;
     }
 
     await updateChampionshipStatus(value);
@@ -390,6 +397,9 @@ export function AdminPage() {
   const defaultTabValue =
     tabPriority.find((adminPanelTab) => canViewAdminTab(adminPanelTab)) ?? AdminPanelTab.CONTROL;
 
+  const canViewBracketSetupTab = selectedChampionship.status === ChampionshipStatus.UPCOMING;
+  const activeTab = _activeTab || defaultTabValue;
+
   return (
     <>
       <AdminPageView
@@ -420,6 +430,7 @@ export function AdminPage() {
         canViewScoreSheetReviewTab={canViewScoreSheetReviewTab}
         canViewTieBreaksTab={canViewTieBreaksTab}
         canViewChampionshipStatus={canViewChampionshipStatus}
+        canViewBracketSetupTab={canViewBracketSetupTab}
         canManageMatches={canManageMatches}
         canManageChampionshipStatus={canManageChampionshipStatus}
         canManageScoreboard={canManageScoreboard}
@@ -429,7 +440,8 @@ export function AdminPage() {
         canManageUsers={canManageUsers}
         canManageAccount={canManageAccount}
         canManageSettings={canManageSettings}
-        defaultTabValue={defaultTabValue}
+        activeTab={activeTab}
+        onActiveTabChange={setActiveTab}
         updatingChampionshipStatus={updatingChampionshipStatus || processingChampionshipStatusFlowAction}
         onChampionshipCodeChange={handleChampionshipCodeChange}
         onChampionshipStatusChange={handleChampionshipStatusChange}
@@ -437,20 +449,9 @@ export function AdminPage() {
         onRefetchMatches={handleRefetchMatches}
         onRefetchChampionshipBracket={handleRefetchChampionshipBracket}
         onRefetchTeams={refetchTeams}
+        onBracketGenerated={handleBracketGenerated}
         liveMatchesCount={liveMatches.length}
         pendingTieBreaksCount={pendingTieBreaksCount}
-      />
-
-      <AdminChampionshipBracketWizardModal
-        open={showChampionshipBracketWizardModal}
-        onOpenChange={setShowChampionshipBracketWizardModal}
-        selectedChampionship={selectedChampionship}
-        teams={teams}
-        championshipSports={championshipSports}
-        onGenerated={async () => {
-          setShowChampionshipBracketWizardModal(false);
-          await Promise.all([refetchMatches(), refetchChampionshipBracket(), refetchChampionships()]);
-        }}
       />
 
       <Dialog

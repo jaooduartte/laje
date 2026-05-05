@@ -14,6 +14,7 @@ import { AdminPublicAccessSettings } from "@/components/admin/AdminPublicAccessS
 import { AdminAccount } from "@/components/admin/AdminAccount";
 import { AdminUsers } from "@/components/admin/AdminUsers";
 import { AdminStandings } from "@/components/admin/AdminStandings";
+import { AdminChampionshipBracketPage } from "@/components/admin/AdminChampionshipBracketPage";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -21,6 +22,7 @@ import { AdminPanelTab, ChampionshipCode, ChampionshipStatus } from "@/lib/enums
 import type { MatchBracketContext } from "@/lib/championship";
 import { CHAMPIONSHIP_STATUS_LABELS } from "@/lib/championship";
 import type { Championship, ChampionshipBracketView, ChampionshipSport, Match, Sport, Team } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 interface AdminPageViewProps {
   championships: Championship[];
@@ -50,6 +52,7 @@ interface AdminPageViewProps {
   canViewScoreSheetReviewTab: boolean;
   canViewTieBreaksTab: boolean;
   canViewChampionshipStatus: boolean;
+  canViewBracketSetupTab: boolean;
   canManageMatches: boolean;
   canManageChampionshipStatus: boolean;
   canManageScoreboard: boolean;
@@ -59,7 +62,9 @@ interface AdminPageViewProps {
   canManageUsers: boolean;
   canManageAccount: boolean;
   canManageSettings: boolean;
-  defaultTabValue: AdminPanelTab;
+  activeTab: string;
+  onActiveTabChange: (tab: string) => void;
+  onBracketGenerated: () => Promise<void>;
   updatingChampionshipStatus: boolean;
   onChampionshipCodeChange: (value: string) => void;
   onChampionshipStatusChange: (value: string) => void;
@@ -78,6 +83,7 @@ type AdminPageTabValue = AdminPanelTab | typeof SCORE_SHEET_REVIEW_TAB_VALUE | t
 interface AdminTabItem {
   value: AdminPageTabValue;
   label: string;
+  className?: string;
 }
 
 export function AdminPageView({
@@ -108,6 +114,7 @@ export function AdminPageView({
   canViewScoreSheetReviewTab,
   canViewTieBreaksTab,
   canViewChampionshipStatus,
+  canViewBracketSetupTab,
   canManageMatches,
   canManageChampionshipStatus,
   canManageScoreboard,
@@ -117,7 +124,9 @@ export function AdminPageView({
   canManageUsers,
   canManageAccount,
   canManageSettings,
-  defaultTabValue,
+  activeTab,
+  onActiveTabChange,
+  onBracketGenerated,
   updatingChampionshipStatus,
   onChampionshipCodeChange,
   onChampionshipStatusChange,
@@ -179,8 +188,17 @@ export function AdminPageView({
       nextAdminTabItems.push({ value: AdminPanelTab.SETTINGS, label: "Configurações" });
     }
 
+    if (canViewBracketSetupTab) {
+      nextAdminTabItems.unshift({
+        value: AdminPanelTab.BRACKET_SETUP,
+        label: "Configurar Campeonato",
+        className: "app-pill-bracket-config-tab",
+      });
+    }
+
     return nextAdminTabItems;
   }, [
+    canViewBracketSetupTab,
     canViewControlTab,
     canViewEventsTab,
     canViewLogsTab,
@@ -213,7 +231,6 @@ export function AdminPageView({
   const tabsListRef = useRef<HTMLDivElement | null>(null);
   const tabTriggerByValueRef = useRef<Partial<Record<AdminPageTabValue, HTMLButtonElement | null>>>({});
   const refetchMatchesByActiveTabRef = useRef(onRefetchMatches);
-  const [activeTab, setActiveTab] = useState<AdminPageTabValue>(defaultTabValue);
   const [activeIndicatorLeft, setActiveIndicatorLeft] = useState(0);
   const [activeIndicatorWidth, setActiveIndicatorWidth] = useState(0);
   const [showActiveIndicator, setShowActiveIndicator] = useState(false);
@@ -223,9 +240,9 @@ export function AdminPageView({
     const hasActiveTab = adminTabItems.some((adminTabItem) => adminTabItem.value == activeTab);
 
     if (!hasActiveTab) {
-      setActiveTab(defaultTabValue);
+      onActiveTabChange("");
     }
-  }, [activeTab, adminTabItems, defaultTabValue]);
+  }, [activeTab, adminTabItems, onActiveTabChange]);
 
   const updateActiveIndicator = useCallback(() => {
     const tabsListElement = tabsListRef.current;
@@ -235,7 +252,7 @@ export function AdminPageView({
       return;
     }
 
-    const activeTabTriggerElement = tabTriggerByValueRef.current[activeTab];
+    const activeTabTriggerElement = tabTriggerByValueRef.current[activeTab as AdminPageTabValue];
 
     if (!activeTabTriggerElement) {
       setShowActiveIndicator(false);
@@ -246,7 +263,7 @@ export function AdminPageView({
     setActiveIndicatorLeft(activeTabTriggerElement.offsetLeft);
     setActiveIndicatorWidth(activeTabTriggerElement.offsetWidth);
     setShowActiveIndicator(true);
-  }, [activeTab]);
+  }, [activeTab, adminTabItems]);
 
   useLayoutEffect(() => {
     const animationFrameId = requestAnimationFrame(updateActiveIndicator);
@@ -254,7 +271,7 @@ export function AdminPageView({
   }, [updateActiveIndicator]);
 
   useLayoutEffect(() => {
-    const activeTabTriggerElement = tabTriggerByValueRef.current[activeTab];
+    const activeTabTriggerElement = tabTriggerByValueRef.current[activeTab as AdminPageTabValue];
 
     if (!activeTabTriggerElement || typeof ResizeObserver == "undefined") {
       return;
@@ -265,11 +282,12 @@ export function AdminPageView({
     });
 
     resizeObserver.observe(activeTabTriggerElement);
-
-    return () => {
-      resizeObserver.disconnect();
-    };
+    return () => resizeObserver.disconnect();
   }, [activeTab, updateActiveIndicator]);
+
+  useEffect(() => {
+    updateActiveIndicator();
+  }, [adminTabItems, updateActiveIndicator]);
 
   useEffect(() => {
     window.addEventListener("resize", updateActiveIndicator);
@@ -367,7 +385,7 @@ export function AdminPageView({
           <p className="text-sm text-muted-foreground">Perfil atual: {profileName}.</p>
         ) : null}
 
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as AdminPageTabValue)} className="enter-section space-y-6">
+        <Tabs value={activeTab} onValueChange={onActiveTabChange} className="enter-section space-y-6">
           <TabsList
             ref={tabsListRef}
             className="app-pill-container relative flex h-auto w-full items-center justify-start gap-0 overflow-x-auto rounded-xl p-0"
@@ -389,7 +407,10 @@ export function AdminPageView({
                 ref={(triggerElement) => {
                   tabTriggerByValueRef.current[adminTabItem.value] = triggerElement;
                 }}
-                className="app-pill-option relative z-10 flex items-center gap-1.5 whitespace-nowrap rounded-none px-3 py-2.5 text-sm font-medium first:rounded-l-xl last:rounded-r-xl sm:px-4 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                className={cn(
+                  "app-pill-option relative z-10 flex items-center gap-1.5 whitespace-nowrap rounded-none px-3 py-2.5 text-sm font-medium first:rounded-l-xl last:rounded-r-xl sm:px-4 data-[state=active]:bg-transparent data-[state=active]:shadow-none",
+                  adminTabItem.className,
+                )}
               >
                 {adminTabItem.label}
                 {adminTabItem.value === AdminPanelTab.CONTROL && liveMatchesCount > 0 && (
@@ -405,6 +426,17 @@ export function AdminPageView({
               </TabsTrigger>
             ))}
           </TabsList>
+
+          {canViewBracketSetupTab ? (
+            <TabsContent value={AdminPanelTab.BRACKET_SETUP}>
+              <AdminChampionshipBracketPage
+                selectedChampionship={selectedChampionship}
+                teams={teams}
+                championshipSports={championshipSports}
+                onGenerated={onBracketGenerated}
+              />
+            </TabsContent>
+          ) : null}
 
 	          {canViewMatchesTab ? (
 	            <TabsContent value={AdminPanelTab.MATCHES}>
@@ -422,7 +454,7 @@ export function AdminPageView({
                 canManageMatches={canManageMatches}
                 onRefetch={onRefetchMatches}
                 onRefetchChampionshipBracket={onRefetchChampionshipBracket}
-                onOpenTieBreaksTab={() => setActiveTab(TIE_BREAKS_TAB_VALUE)}
+                onOpenTieBreaksTab={() => onActiveTabChange(TIE_BREAKS_TAB_VALUE)}
               />
 	            </TabsContent>
 	          ) : null}
