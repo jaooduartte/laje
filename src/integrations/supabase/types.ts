@@ -208,6 +208,7 @@ export type Database = {
           season_year: number
           status: Database["public"]["Enums"]["bracket_edition_status"]
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           championship_id: string
@@ -218,6 +219,7 @@ export type Database = {
           season_year: number
           status?: Database["public"]["Enums"]["bracket_edition_status"]
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           championship_id?: string
@@ -228,6 +230,7 @@ export type Database = {
           season_year?: number
           status?: Database["public"]["Enums"]["bracket_edition_status"]
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: [
           {
@@ -1093,6 +1096,30 @@ export type Database = {
         Args: { _championship_id: string; _payload: Json }
         Returns: Json
       }
+      get_championship_bracket_draft: {
+        Args: { _championship_id: string; _season_year?: number | null }
+        Returns: {
+          edition_id: string
+          payload_snapshot: Json
+          season_year: number
+          status: Database["public"]["Enums"]["bracket_edition_status"]
+          updated_at: string
+          updated_by: string | null
+          updated_by_name: string | null
+        }[]
+      }
+      save_championship_bracket_draft: {
+        Args: { _championship_id: string; _payload: Json }
+        Returns: {
+          edition_id: string
+          payload_snapshot: Json
+          season_year: number
+          status: Database["public"]["Enums"]["bracket_edition_status"]
+          updated_at: string
+          updated_by: string | null
+          updated_by_name: string | null
+        }[]
+      }
       save_championship_bracket_location_template: {
         Args: { _payload: Json }
         Returns: string
@@ -1306,7 +1333,12 @@ export type Database = {
       championship_code: "CLV" | "SOCIETY" | "INTERLAJE"
       championship_sport_naipe_mode: "MISTO" | "MASCULINO_FEMININO"
       championship_sport_result_rule: "POINTS" | "SETS"
-      championship_sport_tie_breaker_rule: "STANDARD" | "POINTS_AVERAGE" | "BEACH_SOCCER" | "BEACH_TENNIS"
+      championship_sport_tie_breaker_rule:
+        | "STANDARD"
+        | "POINTS_AVERAGE"
+        | "BEACH_SOCCER"
+        | "BEACH_TENNIS"
+        | "FUTEBOL_SOCIETY"
       championship_bracket_tie_break_context_type: "GROUP" | "QUALIFICATION_POOL"
       championship_status: "PLANNING" | "UPCOMING" | "IN_PROGRESS" | "FINISHED"
       league_calendar_holiday_day_kind: "HOLIDAY" | "OPTIONAL"
@@ -1466,7 +1498,13 @@ export const Constants = {
       championship_code: ["CLV", "SOCIETY", "INTERLAJE"],
       championship_sport_naipe_mode: ["MISTO", "MASCULINO_FEMININO"],
       championship_sport_result_rule: ["POINTS", "SETS"],
-      championship_sport_tie_breaker_rule: ["STANDARD", "POINTS_AVERAGE", "BEACH_SOCCER", "BEACH_TENNIS"],
+      championship_sport_tie_breaker_rule: [
+        "STANDARD",
+        "POINTS_AVERAGE",
+        "BEACH_SOCCER",
+        "BEACH_TENNIS",
+        "FUTEBOL_SOCIETY",
+      ],
       championship_status: ["PLANNING", "UPCOMING", "IN_PROGRESS", "FINISHED"],
       league_calendar_holiday_day_kind: ["HOLIDAY", "OPTIONAL"],
       league_calendar_holiday_scope: ["NATIONAL", "JOINVILLE"],

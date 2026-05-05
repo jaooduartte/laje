@@ -63,6 +63,7 @@ import type {
   ChampionshipBracketCompetitionInput,
   ChampionshipBracketLocationTemplate,
   ChampionshipBracketLocationTemplateSaveInput,
+  ChampionshipBracketRemoteDraftMetadata,
   ChampionshipBracketSetupFormValues,
   ChampionshipBracketLocationInput,
   ChampionshipBracketParticipantInput,
@@ -164,7 +165,30 @@ const WIZARD_STEP_LABELS = [
 ] as const;
 
 const SQUARE_CHECKBOX_CLASS_NAME = "h-4 w-4 rounded-[3px]";
-const QUALIFIERS_PER_GROUP_OPTIONS = [1, 2] as const;
+type QualificationModeOption = "FIRST_ONLY_SMART" | "FIRST_ONLY_EXPANDED" | "TOP_TWO";
+
+const QUALIFICATION_MODE_OPTIONS: Array<{
+  value: QualificationModeOption;
+  label: string;
+  helper: string;
+}> = [
+  {
+    value: "FIRST_ONLY_SMART",
+    label: "Só 1º por grupo (completa só se precisar)",
+    helper:
+      "Ex.: 4 grupos = 4 vagas (4 melhores 1º). Se forem 3 grupos, fecha 4 vagas com 3 melhores 1º + 1 melhor 2º.",
+  },
+  {
+    value: "FIRST_ONLY_EXPANDED",
+    label: "1º por grupo + melhores 2º",
+    helper: "Ex.: 4 grupos = 8 vagas (4 melhores 1º + 4 melhores 2º).",
+  },
+  {
+    value: "TOP_TWO",
+    label: "1º e 2º por grupo",
+    helper: "Ex.: 4 grupos = 8 vagas (1º e 2º de cada grupo).",
+  },
+];
 const WIZARD_NAIPE_TAB_DEFAULT_ORDER = [
   MatchNaipe.MASCULINO,
   MatchNaipe.FEMININO,
@@ -583,7 +607,36 @@ function resolveDefaultCompetitionConfig(
   return {
     groups_count: safe_group_count,
     qualifiers_per_group: CHAMPIONSHIP_BRACKET_DEFAULT_QUALIFIERS_PER_GROUP,
-    should_complete_knockout_with_best_second_placed_teams: false,
+    should_complete_knockout_with_best_second_placed_teams: true,
+  };
+}
+
+function resolveQualificationModeOption(config: CompetitionConfig): QualificationModeOption {
+  if (config.qualifiers_per_group == 2) {
+    return "TOP_TWO";
+  }
+
+  return config.should_complete_knockout_with_best_second_placed_teams
+    ? "FIRST_ONLY_EXPANDED"
+    : "FIRST_ONLY_SMART";
+}
+
+function resolveCompetitionConfigByQualificationMode(
+  currentConfig: CompetitionConfig,
+  mode: QualificationModeOption,
+): CompetitionConfig {
+  if (mode == "TOP_TWO") {
+    return {
+      ...currentConfig,
+      qualifiers_per_group: 2,
+      should_complete_knockout_with_best_second_placed_teams: false,
+    };
+  }
+
+  return {
+    ...currentConfig,
+    qualifiers_per_group: 1,
+    should_complete_knockout_with_best_second_placed_teams: mode == "FIRST_ONLY_EXPANDED",
   };
 }
 
@@ -773,6 +826,8 @@ export function AdminChampionshipBracketPage({
   const [competitionConfigByKey, setCompetitionConfigByKey] = useState<
     Record<string, CompetitionConfig>
   >({});
+  const [groupCountInputByCompetitionKey, setGroupCountInputByCompetitionKey] =
+    useState<Record<string, string>>({});
   const [
     groupAssignmentsByCompetitionKey,
     setGroupAssignmentsByCompetitionKey,
@@ -817,6 +872,8 @@ export function AdminChampionshipBracketPage({
   const [saving, setSaving] = useState(false);
   const [saveErrorBannerData, setSaveErrorBannerData] =
     useState<SaveErrorBannerData | null>(null);
+  const [remoteDraftMetadata, setRemoteDraftMetadata] =
+    useState<ChampionshipBracketRemoteDraftMetadata | null>(null);
   const [hasResolvedInitialDraftSnapshot, setHasResolvedInitialDraftSnapshot] =
     useState(false);
   const [lastSavedEditableDraftSnapshot, setLastSavedEditableDraftSnapshot] =
@@ -886,6 +943,7 @@ export function AdminChampionshipBracketPage({
         draft_form_values.should_replicate_previous_schedule_day,
       );
       setCompetitionConfigByKey(draft_form_values.competition_config_by_key);
+      setGroupCountInputByCompetitionKey({});
       setGroupAssignmentsByCompetitionKey(
         draft_form_values.group_assignments_by_competition_key,
       );
@@ -978,7 +1036,7 @@ export function AdminChampionshipBracketPage({
               groups_count: competition_config.groups_count,
               qualifiers_per_group: competition_config.qualifiers_per_group,
               should_complete_knockout_with_best_second_placed_teams:
-                competition_config.qualifiers_per_group == 1,
+                competition_config.should_complete_knockout_with_best_second_placed_teams,
             };
             return carry;
           },
@@ -1041,20 +1099,61 @@ export function AdminChampionshipBracketPage({
     !hasResolvedInitialDraftSnapshot ||
     currentEditableDraftSnapshot == lastSavedEditableDraftSnapshot;
 
-  useEffect(() => {
-    void loadLocationTemplates();
-
-    const stored_draft = fetchChampionshipBracketWizardDraft(
-      selectedChampionship.id,
-    );
-
-    if (stored_draft) {
-      applyWizardDraft(stored_draft);
-      toast.success("Rascunho restaurado com sucesso.");
-      return;
+  const draftLastUpdatedLabel = useMemo(() => {
+    if (!remoteDraftMetadata?.updated_at) {
+      return null;
     }
 
-    resetWizardState();
+    const parsedUpdatedAt = new Date(remoteDraftMetadata.updated_at);
+    if (Number.isNaN(parsedUpdatedAt.getTime())) {
+      return null;
+    }
+
+    const formattedDate = parsedUpdatedAt.toLocaleString("pt-BR", {
+      dateStyle: "short",
+      timeStyle: "short",
+    });
+
+    if (remoteDraftMetadata.updated_by_name) {
+      return `Última atualização: ${formattedDate} por ${remoteDraftMetadata.updated_by_name}`;
+    }
+
+    return `Última atualização: ${formattedDate}`;
+  }, [remoteDraftMetadata]);
+
+  useEffect(() => {
+    void loadLocationTemplates();
+    let isMounted = true;
+
+    const loadDraft = async () => {
+      const storedDraftResult = await fetchChampionshipBracketWizardDraft(
+        selectedChampionship.id,
+      );
+
+      if (!isMounted) {
+        return;
+      }
+
+      setRemoteDraftMetadata(storedDraftResult.metadata);
+
+      if (storedDraftResult.draft_form_values) {
+        applyWizardDraft(storedDraftResult.draft_form_values);
+        toast.success(
+          storedDraftResult.source == "local"
+            ? "Rascunho local restaurado e sincronizado com sucesso."
+            : "Rascunho restaurado com sucesso.",
+        );
+        return;
+      }
+
+      resetWizardState();
+    };
+
+    void loadDraft();
+
+    return () => {
+      isMounted = false;
+    };
   }, [
     applyWizardDraft,
     loadLocationTemplates,
@@ -2411,7 +2510,13 @@ export function AdminChampionshipBracketPage({
 
     // Auto-save silencioso para garantir persistência dos resultados do sorteio
     const currentDraft = resolveWizardDraftFormValues();
-    saveChampionshipBracketWizardDraft(selectedChampionship.id, currentDraft);
+    void saveChampionshipBracketWizardDraft(selectedChampionship.id, currentDraft).then(
+      (response) => {
+        if (!response.error && response.metadata) {
+          setRemoteDraftMetadata(response.metadata);
+        }
+      },
+    );
     setLastSavedEditableDraftSnapshot(
       resolveEditableDraftSnapshot(currentDraft),
     );
@@ -2671,7 +2776,7 @@ export function AdminChampionshipBracketPage({
     return true;
   };
 
-  const handleNextStep = () => {
+  const handleNextStep = async () => {
     if (!validateCurrentStep()) {
       return;
     }
@@ -2685,10 +2790,20 @@ export function AdminChampionshipBracketPage({
       current_step_index: next_step_index,
     };
 
-    saveChampionshipBracketWizardDraft(
+    const draftSaveResponse = await saveChampionshipBracketWizardDraft(
       selectedChampionship.id,
       next_draft_form_values,
     );
+
+    if (draftSaveResponse.error) {
+      toast.error(draftSaveResponse.error.message);
+      return;
+    }
+
+    if (draftSaveResponse.metadata) {
+      setRemoteDraftMetadata(draftSaveResponse.metadata);
+    }
+
     setLastSavedEditableDraftSnapshot(
       resolveEditableDraftSnapshot(next_draft_form_values),
     );
@@ -2699,11 +2814,21 @@ export function AdminChampionshipBracketPage({
     setCurrentStepIndex((currentStep) => Math.max(currentStep - 1, 0));
   };
 
-  const handleSaveDraft = () => {
-    saveChampionshipBracketWizardDraft(
+  const handleSaveDraft = async () => {
+    const draftSaveResponse = await saveChampionshipBracketWizardDraft(
       selectedChampionship.id,
       currentWizardDraftFormValues,
     );
+
+    if (draftSaveResponse.error) {
+      toast.error(draftSaveResponse.error.message);
+      return;
+    }
+
+    if (draftSaveResponse.metadata) {
+      setRemoteDraftMetadata(draftSaveResponse.metadata);
+    }
+
     setLastSavedEditableDraftSnapshot(
       resolveEditableDraftSnapshot(currentWizardDraftFormValues),
     );
@@ -2767,7 +2892,7 @@ export function AdminChampionshipBracketPage({
           groups_count: competitionConfig.groups_count,
           qualifiers_per_group: competitionConfig.qualifiers_per_group,
           should_complete_knockout_with_best_second_placed_teams:
-            competitionConfig.qualifiers_per_group == 1,
+            competitionConfig.should_complete_knockout_with_best_second_placed_teams,
           third_place_mode: BracketThirdPlaceMode.CHAMPION_SEMIFINAL_LOSER,
           groups,
         };
@@ -4013,20 +4138,62 @@ export function AdminChampionshipBracketPage({
                                   min={1}
                                   max={16}
                                   className="h-10 bg-background/50 border-border/40 focus:border-primary/40 focus:ring-primary/20"
-                                  value={competitionConfig.groups_count}
+                                  value={
+                                    groupCountInputByCompetitionKey[competitionKey] ??
+                                    String(competitionConfig.groups_count)
+                                  }
                                   onChange={(e) => {
-                                    const value = parseInt(e.target.value);
-                                    if (!isNaN(value)) {
-                                      setCompetitionConfigByKey(
-                                        (prev) => ({
-                                          ...prev,
-                                          [competitionKey]: {
-                                            ...prev[competitionKey],
-                                            groups_count: value,
-                                          },
-                                        }),
-                                      );
+                                    const nextRawValue = e.target.value;
+
+                                    setGroupCountInputByCompetitionKey((previousInputs) => ({
+                                      ...previousInputs,
+                                      [competitionKey]: nextRawValue,
+                                    }));
+
+                                    if (nextRawValue.trim() == "") {
+                                      return;
                                     }
+
+                                    const parsedValue = parseInt(nextRawValue, 10);
+
+                                    if (isNaN(parsedValue)) {
+                                      return;
+                                    }
+
+                                    setCompetitionConfigByKey((prev) => ({
+                                      ...prev,
+                                      [competitionKey]: {
+                                        ...prev[competitionKey],
+                                        groups_count: parsedValue,
+                                      },
+                                    }));
+                                  }}
+                                  onBlur={() => {
+                                    const rawValue = groupCountInputByCompetitionKey[competitionKey];
+
+                                    if (rawValue == null) {
+                                      return;
+                                    }
+
+                                    if (rawValue.trim() == "") {
+                                      setGroupCountInputByCompetitionKey((previousInputs) => {
+                                        const nextInputs = { ...previousInputs };
+                                        delete nextInputs[competitionKey];
+                                        return nextInputs;
+                                      });
+                                      return;
+                                    }
+
+                                    const parsedValue = parseInt(rawValue, 10);
+
+                                    setGroupCountInputByCompetitionKey((previousInputs) => ({
+                                      ...previousInputs,
+                                      [competitionKey]: String(
+                                        isNaN(parsedValue)
+                                          ? competitionConfig.groups_count
+                                          : parsedValue,
+                                      ),
+                                    }));
                                   }}
                                 />
                               </div>
@@ -4036,39 +4203,38 @@ export function AdminChampionshipBracketPage({
                                   Classificados por grupo
                                 </Label>
                                 <RadioGroup
-                                  value={String(
-                                    competitionConfig.qualifiers_per_group,
-                                  )}
+                                  value={resolveQualificationModeOption(competitionConfig)}
                                   onValueChange={(value) =>
                                     setCompetitionConfigByKey(
                                       (prev) => ({
                                         ...prev,
-                                        [competitionKey]: {
-                                          ...prev[competitionKey],
-                                          qualifiers_per_group: parseInt(value),
-                                        },
+                                        [competitionKey]: resolveCompetitionConfigByQualificationMode(
+                                          prev[competitionKey] ?? resolveDefaultCompetitionConfig(2),
+                                          value as QualificationModeOption,
+                                        ),
                                       }),
                                     )
                                   }
                                   className="flex flex-col gap-2"
                                 >
-                                  {QUALIFIERS_PER_GROUP_OPTIONS.map((option) => (
+                                  {QUALIFICATION_MODE_OPTIONS.map((option) => (
                                     <label
-                                      key={option}
+                                      key={option.value}
                                       className={cn(
-                                        "flex items-center gap-3 rounded-lg border p-2.5 transition-all cursor-pointer",
-                                        competitionConfig.qualifiers_per_group == option
+                                        "flex items-start gap-3 rounded-lg border p-2.5 transition-all cursor-pointer",
+                                        resolveQualificationModeOption(competitionConfig) == option.value
                                           ? "border-primary/40 bg-primary/5 ring-1 ring-primary/10"
                                           : "border-border/40 bg-background/20 hover:bg-background/40"
                                       )}
                                     >
                                       <RadioGroupItem
-                                        value={String(option)}
-                                        id={`qpg-${competitionKey}-${option}`}
+                                        value={option.value}
+                                        id={`qpg-${competitionKey}-${option.value}`}
                                       />
-                                      <span className="text-xs font-semibold">
-                                        {option} {option == 1 ? "classificado" : "classificados"}
-                                      </span>
+                                      <div className="space-y-1">
+                                        <p className="text-xs font-semibold">{option.label}</p>
+                                        <p className="text-[11px] leading-relaxed text-muted-foreground">{option.helper}</p>
+                                      </div>
                                     </label>
                                   ))}
                                 </RadioGroup>
@@ -4728,15 +4894,24 @@ export function AdminChampionshipBracketPage({
             </div>
 
             <div className="flex items-center justify-between gap-4 mt-8 bg-background/40 p-4 rounded-2xl backdrop-blur-md shadow-lg">
-              <Button
-                variant="outline"
-                size="lg"
-                className="px-8 border-border/40 bg-background/40 hover:bg-background/60 font-bold transition-all"
-                onClick={handleSaveDraft}
-                disabled={isDraftSaveDisabled}
-              >
-                Salvar rascunho
-              </Button>
+              <div className="flex flex-col gap-1">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="px-8 border-border/40 bg-background/40 hover:bg-background/60 font-bold transition-all"
+                  onClick={() => {
+                    void handleSaveDraft();
+                  }}
+                  disabled={isDraftSaveDisabled}
+                >
+                  Salvar rascunho
+                </Button>
+                {draftLastUpdatedLabel ? (
+                  <p className="text-[11px] text-muted-foreground">
+                    {draftLastUpdatedLabel}
+                  </p>
+                ) : null}
+              </div>
 
               <div className="flex items-center gap-3">
                 <Button
@@ -4753,7 +4928,9 @@ export function AdminChampionshipBracketPage({
                   <Button 
                     size="lg"
                     className="px-10 bg-primary hover:bg-primary/90 text-white font-bold shadow-xl shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
-                    onClick={handleNextStep} 
+                    onClick={() => {
+                      void handleNextStep();
+                    }} 
                     disabled={saving}
                   >
                     Próximo

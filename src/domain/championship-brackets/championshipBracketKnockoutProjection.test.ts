@@ -2,9 +2,51 @@ import { describe, expect, it } from "vitest";
 import {
   resolveBracketPairingByMode,
   resolveChampionshipBracketFirstRoundSeedIndexes,
+  resolveChampionshipBracketKnockoutProjection,
   resolveChampionshipBracketSeedPlaceholderLabels,
   resolveStandardBalancedBracketSeedOrder,
 } from "./championshipBracketKnockoutProjection";
+
+describe("resolveChampionshipBracketKnockoutProjection", () => {
+  it("usa apenas melhores 1º quando a quantidade de grupos já fecha chave", () => {
+    const projection = resolveChampionshipBracketKnockoutProjection({
+      groups_count: 4,
+      qualifiers_per_group: 1,
+      should_complete_knockout_with_best_second_placed_teams: false,
+    });
+
+    expect(projection.direct_qualified_team_count).toBe(4);
+    expect(projection.projected_bracket_size).toBe(4);
+    expect(projection.best_second_placed_team_count).toBe(0);
+    expect(projection.uses_best_second_placed_teams).toBe(false);
+  });
+
+  it("completa com melhores 2º no mínimo necessário quando não fecha chave", () => {
+    const projection = resolveChampionshipBracketKnockoutProjection({
+      groups_count: 3,
+      qualifiers_per_group: 1,
+      should_complete_knockout_with_best_second_placed_teams: false,
+    });
+
+    expect(projection.direct_qualified_team_count).toBe(3);
+    expect(projection.projected_bracket_size).toBe(4);
+    expect(projection.best_second_placed_team_count).toBe(1);
+    expect(projection.uses_best_second_placed_teams).toBe(true);
+  });
+
+  it("mantém modo expandido: sempre sobe para a próxima chave com melhores 2º", () => {
+    const projection = resolveChampionshipBracketKnockoutProjection({
+      groups_count: 4,
+      qualifiers_per_group: 1,
+      should_complete_knockout_with_best_second_placed_teams: true,
+    });
+
+    expect(projection.direct_qualified_team_count).toBe(4);
+    expect(projection.projected_bracket_size).toBe(8);
+    expect(projection.best_second_placed_team_count).toBe(4);
+    expect(projection.uses_best_second_placed_teams).toBe(true);
+  });
+});
 
 describe("resolveStandardBalancedBracketSeedOrder", () => {
   it("returns an empty array when bracket size is below 2", () => {

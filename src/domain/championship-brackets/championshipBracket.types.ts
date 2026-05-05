@@ -199,6 +199,20 @@ export interface ChampionshipBracketWizardDraftFormValues {
   schedule_days: ChampionshipBracketScheduleDayDraft[];
 }
 
+export interface ChampionshipBracketRemoteDraftMetadata {
+  edition_id: string;
+  season_year: number;
+  updated_at: string;
+  updated_by: string | null;
+  updated_by_name: string | null;
+}
+
+export interface ChampionshipBracketWizardDraftFetchResult {
+  draft_form_values: ChampionshipBracketWizardDraftFormValues | null;
+  metadata: ChampionshipBracketRemoteDraftMetadata | null;
+  source: "remote" | "local" | "none";
+}
+
 export interface MatchSetInput {
   set_number: number;
   home_points: number;

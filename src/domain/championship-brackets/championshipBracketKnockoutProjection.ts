@@ -16,6 +16,14 @@ export interface ChampionshipBracketKnockoutProjection {
   uses_best_second_placed_teams: boolean;
 }
 
+function resolveIsPowerOfTwo(value: number): boolean {
+  if (value < 2) {
+    return false;
+  }
+
+  return (value & (value - 1)) == 0;
+}
+
 function resolveOrdinalPlacementLabel(position: number): string {
   return `${position}º`;
 }
@@ -93,12 +101,12 @@ export function resolveChampionshipBracketKnockoutProjection(
   const groups_count = Math.max(0, input.groups_count);
   const qualifiers_per_group = Math.max(1, input.qualifiers_per_group);
   const direct_qualified_team_count = groups_count * qualifiers_per_group;
-  const uses_best_second_placed_teams =
+  const should_expand_with_best_second_placed_teams =
     qualifiers_per_group == 1 &&
     input.should_complete_knockout_with_best_second_placed_teams == true;
   let projected_bracket_size = resolveProjectedBracketSize(direct_qualified_team_count);
 
-  if (uses_best_second_placed_teams && direct_qualified_team_count >= 2) {
+  if (should_expand_with_best_second_placed_teams && direct_qualified_team_count >= 2) {
     projected_bracket_size = 2;
 
     while (projected_bracket_size <= direct_qualified_team_count) {
@@ -106,9 +114,17 @@ export function resolveChampionshipBracketKnockoutProjection(
     }
   }
 
-  const best_second_placed_team_count = uses_best_second_placed_teams
-    ? Math.max(0, projected_bracket_size - direct_qualified_team_count)
-    : 0;
+  const best_second_placed_team_count =
+    qualifiers_per_group == 1 && direct_qualified_team_count >= 2
+      ? Math.max(0, projected_bracket_size - direct_qualified_team_count)
+      : 0;
+  const uses_best_second_placed_teams =
+    qualifiers_per_group == 1 &&
+    best_second_placed_team_count > 0 &&
+    (
+      should_expand_with_best_second_placed_teams ||
+      !resolveIsPowerOfTwo(direct_qualified_team_count)
+    );
   const total_qualified_team_count =
     direct_qualified_team_count + best_second_placed_team_count;
   const bye_count = Math.max(

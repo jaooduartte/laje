@@ -9,7 +9,7 @@ import {
   CHAMPIONSHIP_SPORT_RESULT_RULE_LABELS,
   CHAMPIONSHIP_SPORT_NAIPE_MODE_LABELS,
 } from "@/lib/championship";
-import { CLV_PLATFORM_SPORT_RULES } from "@/domain/sport-rules/sportRules.constants";
+import { PLATFORM_SPORT_RULES_BY_CHAMPIONSHIP_CODE } from "@/domain/sport-rules/sportRules.constants";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 interface Props {
@@ -57,6 +57,16 @@ export function AdminSports({
 
     return map;
   }, [championshipSports]);
+
+  const championshipPlatformSportRules = useMemo(() => {
+    return PLATFORM_SPORT_RULES_BY_CHAMPIONSHIP_CODE[selectedChampionship.code] ?? [];
+  }, [selectedChampionship.code]);
+
+  const championshipNameByCode: Record<ChampionshipCode, string> = {
+    [ChampionshipCode.CLV]: "Copa Laje de Verão",
+    [ChampionshipCode.SOCIETY]: "Copa Laje Society",
+    [ChampionshipCode.INTERLAJE]: "Interlaje",
+  };
 
   useEffect(() => {
     const nextOptimisticEstimatedStartTimeBySportId = championshipSports.reduce<
@@ -111,13 +121,13 @@ export function AdminSports({
     toast.success("Configuração de horário estimado atualizada.");
   };
 
-  if (selectedChampionship.code != ChampionshipCode.CLV) {
+  if (championshipPlatformSportRules.length == 0) {
     return (
       <div className="space-y-6">
         <div className="enter-section space-y-3 glass-card p-4">
           <h2 className="text-2xl font-display font-bold">Modalidades oficiais</h2>
           <p className="text-sm text-muted-foreground">
-            As regras padronizadas foram definidas para a Copa Laje de Verão (CLV). Selecione o campeonato CLV para visualizar.
+            Não há regras oficiais configuradas para este campeonato.
           </p>
         </div>
       </div>
@@ -127,13 +137,15 @@ export function AdminSports({
   return (
     <div className="space-y-6">
       <div className="enter-section space-y-5 glass-card p-4">
-        <h2 className="text-2xl font-display font-bold">Modalidades oficiais da Copa Laje de Verão</h2>
+        <h2 className="text-2xl font-display font-bold">
+          Modalidades oficiais da {championshipNameByCode[selectedChampionship.code]}
+        </h2>
         <p className="text-sm text-muted-foreground">
           Configuração fixa conforme regulamento: naipe, pontuação e critérios de desempate.
         </p>
 
         <div className="space-y-2">
-          {CLV_PLATFORM_SPORT_RULES.map((platformSportRule) => {
+          {championshipPlatformSportRules.map((platformSportRule) => {
             const sport = sportsByNormalizedName.get(normalizeSportName(platformSportRule.sportName));
             const championshipSport = sport ? championshipSportBySportId.get(sport.id) : undefined;
             const isLinkedToChampionship = !!championshipSport;

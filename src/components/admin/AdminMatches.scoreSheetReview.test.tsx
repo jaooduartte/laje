@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { AdminMatches } from "@/components/admin/AdminMatches";
@@ -116,6 +116,7 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
   DropdownMenu: ({ children }: { children: ReactNode }) => <div data-testid="dropdown-menu-root-mock">{children}</div>,
   DropdownMenuTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
   DropdownMenuContent: ({ children }: { children: ReactNode }) => <div data-testid="dropdown-menu-content-mock">{children}</div>,
+  DropdownMenuSeparator: () => <hr data-testid="dropdown-menu-separator-mock" />,
   DropdownMenuItem: ({
     children,
     onSelect,
@@ -391,6 +392,22 @@ function renderAdminMatches(params: {
   };
 }
 
+function getMatchCardContainerByTeamName(teamName: string): HTMLElement {
+  const cardTitle = screen.getByText(teamName);
+  const cardContainer = cardTitle.closest(".list-item-card");
+
+  if (!cardContainer) {
+    throw new Error(`Card do jogo não encontrado para o time ${teamName}.`);
+  }
+
+  return cardContainer as HTMLElement;
+}
+
+function clickFirstMenuItemInMatchCard(matchCardContainer: HTMLElement, itemName: string) {
+  const menuItems = within(matchCardContainer).getAllByRole("menuitem", { name: itemName });
+  fireEvent.click(menuItems[0]);
+}
+
 describe("AdminMatches score sheet review", () => {
   beforeEach(() => {
     vi.stubGlobal("scrollTo", vi.fn());
@@ -549,7 +566,30 @@ describe("AdminMatches score sheet review", () => {
     expect(screen.getByText("PENDENTE CASA")).toBeInTheDocument();
   });
 
-  it("marca um jogo como revisado ao usar o checkbox do card", async () => {
+  it("abre revisão de súmula e salva premiações antes de marcar como revisado", async () => {
+    supabaseRpcResponses.push(
+      { data: null, error: null },
+      {
+        data: {
+          match_id: "match-1",
+          home_team_id: "team-1-home",
+          away_team_id: "team-1-away",
+          required_home_goals: 0,
+          required_away_goals: 0,
+          is_walkover: false,
+          home_players: [{ id: "home-player-1", name: "Goleiro Casa" }],
+          away_players: [{ id: "away-player-1", name: "Goleiro Visitante" }],
+          home_goals: [],
+          away_goals: [],
+          home_goalkeeper: null,
+          away_goalkeeper: null,
+        },
+        error: null,
+      },
+      { data: null, error: null },
+      { data: null, error: null },
+    );
+
     renderAdminMatches({
       viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
       matches: [
@@ -564,28 +604,31 @@ describe("AdminMatches score sheet review", () => {
       ],
     });
 
-    const card = await screen.findByText("CASA 1");
-    const cardContainer = card.closest(".list-item-card");
-    expect(cardContainer).not.toBeNull();
+    const actionsButton = await screen.findByLabelText("Ações do jogo CASA 1 x VISITANTE 1");
+    fireEvent.pointerDown(actionsButton);
 
-    const reviewLabel = within(cardContainer as HTMLElement).getByText("Conferido com súmula");
-    const reviewCheckboxButton = reviewLabel.parentElement?.querySelector<HTMLElement>('[role="checkbox"]');
-    expect(reviewCheckboxButton).not.toBeNull();
+    const matchCardContainer = getMatchCardContainerByTeamName("CASA 1");
+    clickFirstMenuItemInMatchCard(matchCardContainer, "Revisar súmula e premiações");
 
-    fireEvent.click(reviewCheckboxButton as HTMLElement);
+    expect(await screen.findByText("Revisão de súmula e premiações")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Goleiro - CASA 1" }));
+    fireEvent.click(screen.getByText("Goleiro Casa"));
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Goleiro - VISITANTE 1" }));
+    fireEvent.click(screen.getByText("Goleiro Visitante"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Salvar revisão" }));
 
     await waitFor(() => {
-      expect(supabaseUpdateCalls.length).toBeGreaterThan(0);
+      expect(
+        supabaseRpcCalls.some(
+          (rpcCall) => rpcCall.functionName == "save_match_score_sheet_awards" && rpcCall.payload._match_id == "match-1",
+        ),
+      ).toBe(true);
     });
 
-    expect(supabaseUpdateCalls[0]).toMatchObject({
-      table: "matches",
-      method: "eq",
-      ids: ["match-1"],
-      payload: {
-        is_score_sheet_reviewed: true,
-      },
-    });
+    expect(supabaseUpdateCalls).toHaveLength(0);
   });
 
   it("marca em lote somente os jogos filtrados ao selecionar todos filtrados", async () => {
@@ -596,6 +639,7 @@ describe("AdminMatches score sheet review", () => {
           id: "match-filter-1",
           sport_id: "sport-1",
           status: MatchStatus.FINISHED,
+          is_walkover: true,
           home_team: buildTeam({ id: "team-filter-1-home", name: "FILTER A" }),
           away_team: buildTeam({ id: "team-filter-1-away", name: "FILTER B" }),
         }),
@@ -603,6 +647,7 @@ describe("AdminMatches score sheet review", () => {
           id: "match-filter-2",
           sport_id: "sport-1",
           status: MatchStatus.FINISHED,
+          is_walkover: true,
           home_team: buildTeam({ id: "team-filter-2-home", name: "FILTER C" }),
           away_team: buildTeam({ id: "team-filter-2-away", name: "FILTER D" }),
         }),
@@ -729,9 +774,10 @@ describe("AdminMatches score sheet review", () => {
 
     fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo MENU CASA x MENU VISITANTE"));
 
-    expect(await screen.findByRole("menuitem", { name: "Editar" })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: "Trocar jogo" })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: "Apagar" })).toBeInTheDocument();
+    const matchCardContainer = getMatchCardContainerByTeamName("MENU CASA");
+    expect(within(matchCardContainer).getAllByRole("menuitem", { name: "Editar" }).length).toBeGreaterThan(0);
+    expect(within(matchCardContainer).getAllByRole("menuitem", { name: "Trocar jogo" }).length).toBeGreaterThan(0);
+    expect(within(matchCardContainer).getAllByRole("menuitem", { name: "Apagar" }).length).toBeGreaterThan(0);
   });
 
   it("mantém menu restrito no modo de conferência sem trocar/apagar", async () => {
@@ -750,9 +796,10 @@ describe("AdminMatches score sheet review", () => {
 
     fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo REVIEW CASA x REVIEW VISITANTE"));
 
-    expect(await screen.findByRole("menuitem", { name: "Editar" })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: "Trocar jogo" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: "Apagar" })).not.toBeInTheDocument();
+    const matchCardContainer = getMatchCardContainerByTeamName("REVIEW CASA");
+    expect(within(matchCardContainer).getAllByRole("menuitem", { name: "Editar" }).length).toBeGreaterThan(0);
+    expect(within(matchCardContainer).queryAllByRole("menuitem", { name: "Trocar jogo" })).toHaveLength(0);
+    expect(within(matchCardContainer).queryAllByRole("menuitem", { name: "Apagar" })).toHaveLength(0);
   });
 
   it("abre modal de troca e chama RPC para swap de fila", async () => {
@@ -815,15 +862,15 @@ describe("AdminMatches score sheet review", () => {
     expect(sourceCardContainer).not.toBeNull();
 
     fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo ORIGEM CASA x ORIGEM VISITANTE"));
-    fireEvent.click(within(sourceCardContainer as HTMLElement).getByRole("menuitem", { name: "Trocar jogo" }));
+    clickFirstMenuItemInMatchCard(sourceCardContainer as HTMLElement, "Trocar jogo");
 
     expect(await screen.findByText("Trocar jogo na fila")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("combobox", { name: "Selecionar jogo para troca de fila" }));
-    expect(await screen.findByText("Jogo 2 • CANDIDATO CASA x CANDIDATO VISITANTE")).toBeInTheDocument();
+    expect((await screen.findAllByText("Jogo 2 • CANDIDATO CASA x CANDIDATO VISITANTE")).length).toBeGreaterThan(0);
     expect(screen.queryByText("Jogo 3 • OUTRO CASA x OUTRO VISITANTE")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("Jogo 2 • CANDIDATO CASA x CANDIDATO VISITANTE"));
+    fireEvent.click((await screen.findAllByText("Jogo 2 • CANDIDATO CASA x CANDIDATO VISITANTE"))[0]);
 
     onRefetch.mockClear();
     onRefetchChampionshipBracket.mockClear();
@@ -865,7 +912,8 @@ describe("AdminMatches score sheet review", () => {
 
     const actionsButton = await screen.findByLabelText("Ações do jogo EDIT CASA x EDIT VISITANTE");
     fireEvent.pointerDown(actionsButton);
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Editar" }));
+    const matchCardContainer = getMatchCardContainerByTeamName("EDIT CASA");
+    clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
 
     fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
 
@@ -882,8 +930,27 @@ describe("AdminMatches score sheet review", () => {
     });
   });
 
-  it("mostra loading no card ao salvar revisão da súmula", async () => {
-    shouldDelaySupabaseUpdate.value = true;
+  it("exige preencher autores dos gols antes de salvar a revisão", async () => {
+    supabaseRpcResponses.push(
+      { data: null, error: null },
+      {
+        data: {
+          match_id: "review-loader-match",
+          home_team_id: "team-review-loader-home",
+          away_team_id: "team-review-loader-away",
+          required_home_goals: 1,
+          required_away_goals: 0,
+          is_walkover: false,
+          home_players: [{ id: "home-player-2", name: "Atacante Casa" }],
+          away_players: [{ id: "away-player-2", name: "Goleira Visitante" }],
+          home_goals: [],
+          away_goals: [],
+          home_goalkeeper: null,
+          away_goalkeeper: null,
+        },
+        error: null,
+      },
+    );
 
     renderAdminMatches({
       viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
@@ -903,20 +970,14 @@ describe("AdminMatches score sheet review", () => {
     const cardContainer = card.closest(".list-item-card");
     expect(cardContainer).not.toBeNull();
 
-    const reviewLabel = within(cardContainer as HTMLElement).getByText("Conferido com súmula");
-    const reviewCheckboxButton = reviewLabel.parentElement?.querySelector<HTMLElement>('[role="checkbox"]');
-    expect(reviewCheckboxButton).not.toBeNull();
+    fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo LOADER CASA x LOADER VISITANTE"));
+    clickFirstMenuItemInMatchCard(cardContainer as HTMLElement, "Revisar súmula e premiações");
 
-    fireEvent.click(reviewCheckboxButton as HTMLElement);
-
-    expect(await screen.findByLabelText("Salvando revisão da súmula")).toBeInTheDocument();
-
-    await act(async () => {
-      resolveDelayedSupabaseUpdate.current?.();
-    });
+    expect(await screen.findByText("Revisão de súmula e premiações")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Salvar revisão" }));
 
     await waitFor(() => {
-      expect(screen.queryByLabelText("Salvando revisão da súmula")).not.toBeInTheDocument();
+      expect(toastErrorMock).toHaveBeenCalledWith("Preencha os autores de todos os gols antes de salvar.");
     });
   });
 
@@ -1365,7 +1426,8 @@ describe("AdminMatches score sheet review", () => {
     });
 
     fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo CASA SLOT x VISITANTE SLOT"));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Editar" }));
+    const matchCardContainer = getMatchCardContainerByTeamName("CASA SLOT");
+    clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
 
     // Seleciona "Jogo 3" (disponível pois posição atual é 5 → dropdown mostra 1-5)
     fireEvent.click(screen.getByRole("combobox", { name: "Número do jogo" }));
@@ -1399,7 +1461,8 @@ describe("AdminMatches score sheet review", () => {
     });
 
     fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo CASA SLOT CLEAR x VISITANTE SLOT CLEAR"));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Editar" }));
+    const matchCardContainer = getMatchCardContainerByTeamName("CASA SLOT CLEAR");
+    clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
 
     fireEvent.click(screen.getByRole("combobox", { name: "Número do jogo" }));
     fireEvent.click(await screen.findByText("Nenhum"));
@@ -1470,7 +1533,8 @@ describe("AdminMatches score sheet review", () => {
     });
 
     fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo TIME CASA x TIME VISITANTE"));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Editar" }));
+    const matchCardContainer = getMatchCardContainerByTeamName("TIME CASA");
+    clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
 
     expect(await screen.findByText(/Casa: Origem da vaga/)).toBeInTheDocument();
     expect(screen.getByText(/1º melhor 1º/)).toBeInTheDocument();

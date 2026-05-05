@@ -73,6 +73,11 @@ const BEACH_SOCCER_CASCADE: TieBreakCriterion[] = [
   "GOALS_AGAINST_ASC", "YELLOW_CARDS_ASC", "RED_CARDS_ASC", "MANUAL_DRAW",
 ];
 
+const FUTEBOL_SOCIETY_COLUMNS: StandingsColumnKey[] = ["J", "V", "E", "D", "CA", "CV", "GP", "GC", "SG"];
+const FUTEBOL_SOCIETY_CASCADE: TieBreakCriterion[] = [
+  "POINTS", "HEAD_TO_HEAD", "GOAL_DIFF", "GOALS_FOR", "YELLOW_CARDS_ASC", "RED_CARDS_ASC", "MANUAL_DRAW",
+];
+
 const BEACH_TENNIS_COLUMNS: StandingsColumnKey[] = ["J", "V", "E", "D", "GP", "GC", "SG"];
 const BEACH_TENNIS_CASCADE: TieBreakCriterion[] = [
   "POINTS", "WINS", "HEAD_TO_HEAD", "GOAL_DIFF", "GOALS_FOR", "MANUAL_DRAW",
@@ -103,6 +108,26 @@ const MODALIDADE_CONFIGS: ModalidadeConfig[] = [
     uses_cards: true,
     knockout_pairing_mode: "BEACH_SOCCER_FEM_DIRECT_SEMI",
     legacy_tie_breaker_rule: ChampionshipSportTieBreakerRule.BEACH_SOCCER,
+  },
+  {
+    sport_code: "FUTEBOL_SOCIETY",
+    naipe: "MASCULINO" as MatchNaipe,
+    display_columns: FUTEBOL_SOCIETY_COLUMNS,
+    tie_breaker_cascade: FUTEBOL_SOCIETY_CASCADE,
+    uses_points_average: false,
+    uses_cards: true,
+    knockout_pairing_mode: "LINEAR",
+    legacy_tie_breaker_rule: ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY,
+  },
+  {
+    sport_code: "FUTEBOL_SOCIETY",
+    naipe: "FEMININO" as MatchNaipe,
+    display_columns: FUTEBOL_SOCIETY_COLUMNS,
+    tie_breaker_cascade: FUTEBOL_SOCIETY_CASCADE,
+    uses_points_average: false,
+    uses_cards: true,
+    knockout_pairing_mode: "LINEAR",
+    legacy_tie_breaker_rule: ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY,
   },
   {
     sport_code: "BEACH_TENNIS",
@@ -194,6 +219,8 @@ export function resolveCascadeForLegacyRule(rule: ChampionshipSportTieBreakerRul
       return BEACH_SOCCER_CASCADE;
     case ChampionshipSportTieBreakerRule.BEACH_TENNIS:
       return BEACH_TENNIS_CASCADE;
+    case ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY:
+      return FUTEBOL_SOCIETY_CASCADE;
     case ChampionshipSportTieBreakerRule.POINTS_AVERAGE:
       return POINTS_AVERAGE_CASCADE;
     default:
