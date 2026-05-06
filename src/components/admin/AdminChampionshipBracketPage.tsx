@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Laptop2, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -872,6 +872,9 @@ export function AdminChampionshipBracketPage({
   const [saving, setSaving] = useState(false);
   const [saveErrorBannerData, setSaveErrorBannerData] =
     useState<SaveErrorBannerData | null>(null);
+  const [isCompactViewport, setIsCompactViewport] = useState(false);
+  const [hasShownRemoteDraftWarning, setHasShownRemoteDraftWarning] =
+    useState(false);
   const [remoteDraftMetadata, setRemoteDraftMetadata] =
     useState<ChampionshipBracketRemoteDraftMetadata | null>(null);
   const [hasResolvedInitialDraftSnapshot, setHasResolvedInitialDraftSnapshot] =
@@ -1098,6 +1101,20 @@ export function AdminChampionshipBracketPage({
     saving ||
     !hasResolvedInitialDraftSnapshot ||
     currentEditableDraftSnapshot == lastSavedEditableDraftSnapshot;
+
+  useEffect(() => {
+    const mediaQueryList = window.matchMedia("(max-width: 1023px)");
+    const handleViewportChange = () => {
+      setIsCompactViewport(mediaQueryList.matches);
+    };
+
+    handleViewportChange();
+    mediaQueryList.addEventListener("change", handleViewportChange);
+
+    return () => {
+      mediaQueryList.removeEventListener("change", handleViewportChange);
+    };
+  }, []);
 
   const draftLastUpdatedLabel = useMemo(() => {
     if (!remoteDraftMetadata?.updated_at) {
@@ -2796,12 +2813,17 @@ export function AdminChampionshipBracketPage({
     );
 
     if (draftSaveResponse.error) {
-      toast.error(draftSaveResponse.error.message);
-      return;
+      if (!hasShownRemoteDraftWarning) {
+        toast.warning(
+          "Rascunho salvo localmente. A sincronização com o banco falhou nesta tentativa.",
+        );
+        setHasShownRemoteDraftWarning(true);
+      }
     }
 
     if (draftSaveResponse.metadata) {
       setRemoteDraftMetadata(draftSaveResponse.metadata);
+      setHasShownRemoteDraftWarning(false);
     }
 
     setLastSavedEditableDraftSnapshot(
@@ -2821,12 +2843,15 @@ export function AdminChampionshipBracketPage({
     );
 
     if (draftSaveResponse.error) {
-      toast.error(draftSaveResponse.error.message);
+      toast.warning(
+        "Rascunho salvo localmente. A sincronização com o banco falhou nesta tentativa.",
+      );
       return;
     }
 
     if (draftSaveResponse.metadata) {
       setRemoteDraftMetadata(draftSaveResponse.metadata);
+      setHasShownRemoteDraftWarning(false);
     }
 
     setLastSavedEditableDraftSnapshot(
@@ -3565,6 +3590,20 @@ export function AdminChampionshipBracketPage({
     locationTemplateDeletionTarget,
     locationTemplateModalTarget,
   ]);
+
+  if (isCompactViewport) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-10">
+        <Alert className="border-primary/30 bg-primary/5">
+          <Laptop2 className="h-4 w-4" />
+          <AlertTitle>Configuração disponível apenas em telas maiores</AlertTitle>
+          <AlertDescription>
+            Para configurar o campeonato, acesse esta área em desktop ou tablet.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -4462,7 +4501,7 @@ export function AdminChampionshipBracketPage({
                                                   size="icon"
                                                   variant="ghost"
                                                   data-testid={`${competitionKey}-group-${groupColumn.group_number}-slot-${slotIndex}-remove`}
-                                                  className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover/slot:opacity-100 transition-opacity"
+                                                  className="h-9 w-9 shrink-0 text-destructive/75 hover:text-destructive hover:bg-destructive/10 opacity-100 dark:text-destructive/85"
                                                   onClick={() => {
                                                     if (slot.team_id) {
                                                       handleRemoveCompetitionGroupTeam(

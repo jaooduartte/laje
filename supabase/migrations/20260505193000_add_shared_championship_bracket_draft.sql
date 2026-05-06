@@ -52,10 +52,11 @@ BEGIN
   INTO target_season_year
   FROM public.championships AS championships_table
   WHERE championships_table.id = _championship_id
+    AND championships_table.status = 'UPCOMING'::public.championship_status
   LIMIT 1;
 
   IF target_season_year IS NULL THEN
-    RETURN;
+    RAISE EXCEPTION 'Campeonato inválido ou fora do status Configurando campeonato.';
   END IF;
 
   target_season_year := COALESCE(_season_year, target_season_year);
@@ -100,6 +101,8 @@ AS $func$
 DECLARE
   draft_edition_id uuid;
   championship_current_season_year integer;
+  previous_payload_snapshot jsonb;
+  is_new_draft boolean := false;
 BEGIN
   IF NOT public.has_admin_tab_access('matches'::public.admin_panel_tab, true) THEN
     RAISE EXCEPTION 'Usuário sem permissão para salvar rascunho do chaveamento.';
@@ -109,11 +112,11 @@ BEGIN
   INTO championship_current_season_year
   FROM public.championships AS championships_table
   WHERE championships_table.id = _championship_id
-    AND championships_table.status = 'PLANNING'::public.championship_status
+    AND championships_table.status = 'UPCOMING'::public.championship_status
   LIMIT 1;
 
   IF championship_current_season_year IS NULL THEN
-    RAISE EXCEPTION 'Campeonato inválido ou fora do status Em breve.';
+    RAISE EXCEPTION 'Campeonato inválido ou fora do status Configurando campeonato.';
   END IF;
 
   SELECT editions_table.id
@@ -143,7 +146,14 @@ BEGIN
       auth.uid()
     )
     RETURNING id INTO draft_edition_id;
+    is_new_draft := true;
   ELSE
+    SELECT editions_table.payload_snapshot
+    INTO previous_payload_snapshot
+    FROM public.championship_bracket_editions AS editions_table
+    WHERE editions_table.id = draft_edition_id
+    LIMIT 1;
+
     UPDATE public.championship_bracket_editions AS editions_table
     SET
       payload_snapshot = COALESCE(_payload, '{}'::jsonb),
@@ -151,6 +161,29 @@ BEGIN
       updated_by = auth.uid()
     WHERE editions_table.id = draft_edition_id;
   END IF;
+
+  PERFORM public.log_admin_action(
+    CASE
+      WHEN is_new_draft THEN 'INSERT'::public.admin_action_type
+      ELSE 'UPDATE'::public.admin_action_type
+    END,
+    'championship_bracket_editions',
+    draft_edition_id::text,
+    CASE
+      WHEN is_new_draft THEN 'Rascunho compartilhado do chaveamento criado.'
+      ELSE 'Rascunho compartilhado do chaveamento atualizado.'
+    END,
+    CASE
+      WHEN is_new_draft THEN NULL
+      ELSE COALESCE(previous_payload_snapshot, '{}'::jsonb)
+    END,
+    COALESCE(_payload, '{}'::jsonb),
+    jsonb_build_object(
+      'championship_id', _championship_id,
+      'season_year', championship_current_season_year,
+      'source', 'save_championship_bracket_draft'
+    )
+  );
 
   RETURN QUERY
   SELECT
