@@ -164,15 +164,6 @@ export function resolveGroupEditorColumns({
       });
     });
 
-    if (slots.length == 0) {
-      slots.push({
-        slot_id: `empty::${group_number}`,
-        team_id: null,
-        available_team_ids,
-        is_removable: false,
-      });
-    }
-
     return {
       group_number,
       available_team_ids,
