@@ -4,8 +4,19 @@ import { ptBR } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, Flag, Loader2, Search } from "lucide-react";
 import { Header } from "@/components/Header";
 import { AppBadge } from "@/components/ui/app-badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import {
   Dialog,
   DialogContent,
@@ -15,8 +26,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsNavigationList, TabsNavigationTrigger } from "@/components/ui/tabs";
 import { LeagueCalendarHolidayDayKind, LeagueEventType } from "@/lib/enums";
-import type { LeagueCalendarHoliday, LeagueEvent } from "@/lib/types";
+import type { LeagueCalendarHoliday, LeagueEvent, Team } from "@/lib/types";
 import {
   LEAGUE_EVENT_LEGEND_ORDER,
   LEAGUE_EVENT_TYPE_BADGE_TONES,
@@ -25,6 +37,7 @@ import {
   LEAGUE_EVENT_TYPE_LABELS,
   LEAGUE_EVENT_TYPE_META_TEXT_CLASS_NAMES,
 } from "@/domain/league-events/leagueEvent.constants";
+import type { LeagueEventReservationRequestFormValues } from "@/domain/league-events/leagueEventReservation.types";
 import { resolveLeagueEventOrganizerName, resolveUniqueLeagueEventTypes } from "@/domain/league-events/leagueEvent.helpers";
 import {
   LEAGUE_CALENDAR_HOLIDAY_DAY_KIND_DOT_CLASS_NAMES,
@@ -38,6 +51,7 @@ interface AthleticFilterOption {
 }
 
 interface LeagueCalendarPageViewProps {
+  activeTab: string;
   loading: boolean;
   monthDate: Date;
   selectedDate: Date | null;
@@ -60,6 +74,11 @@ interface LeagueCalendarPageViewProps {
   optionalOnlyHolidayFilter: string;
   eventSearch: string;
   hasActiveFilters: boolean;
+  teams: Team[];
+  reservationFormValues: LeagueEventReservationRequestFormValues;
+  submittingReservationRequest: boolean;
+  pendingReservationRequestConflicts: LeagueEvent[] | null;
+  onActiveTabChange: (value: string) => void;
   onPreviousMonth: () => void;
   onNextMonth: () => void;
   onSelectedDateChange: (date: Date) => void;
@@ -67,6 +86,13 @@ interface LeagueCalendarPageViewProps {
   onEventTypeFilterChange: (value: string) => void;
   onHolidayFilterChange: (value: string) => void;
   onEventSearchChange: (value: string) => void;
+  onReservationFieldChange: <FieldName extends keyof LeagueEventReservationRequestFormValues>(
+    fieldName: FieldName,
+    value: LeagueEventReservationRequestFormValues[FieldName],
+  ) => void;
+  onSubmitReservationRequest: () => void;
+  onConfirmReservationRequestDespiteConflict: () => void;
+  onDismissReservationConflict: () => void;
 }
 
 const WEEK_DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -77,6 +103,20 @@ const LEAGUE_EVENT_TYPE_MOBILE_LIGHT_CARD_CLASS_NAMES = {
   [LeagueEventType.CHAMPIONSHIP]: "!bg-blue-100/80 text-blue-900 dark:!bg-blue-900/40 dark:text-blue-100",
   [LeagueEventType.LAJE_EVENT]: "!bg-red-100/80 text-red-900 dark:!bg-red-900/40 dark:text-red-100",
 } as const;
+
+function formatPhoneMask(value: string): string {
+  const numericValue = value.replace(/\D/g, "").slice(0, 11);
+
+  if (numericValue.length <= 2) {
+    return numericValue.length > 0 ? `(${numericValue}` : "";
+  }
+
+  if (numericValue.length <= 7) {
+    return `(${numericValue.slice(0, 2)})${numericValue.slice(2)}`;
+  }
+
+  return `(${numericValue.slice(0, 2)})${numericValue.slice(2, 7)}-${numericValue.slice(7)}`;
+}
 
 function LeagueEventMiniCard({ leagueEvent, onClick }: { leagueEvent: LeagueEvent; onClick: () => void }) {
   return (
@@ -89,9 +129,6 @@ function LeagueEventMiniCard({ leagueEvent, onClick }: { leagueEvent: LeagueEven
       className={`w-full rounded-xl border-transparent px-2 py-1.5 text-left backdrop-blur-md transition-all hover:scale-[1.01] hover:shadow-sm dark:shadow-none ${LEAGUE_EVENT_TYPE_GLASS_CARD_CLASS_NAMES[leagueEvent.event_type]}`}
     >
       <p className="truncate text-[11px] font-semibold">{leagueEvent.name}</p>
-      <p className={`truncate text-[10px] ${LEAGUE_EVENT_TYPE_META_TEXT_CLASS_NAMES[leagueEvent.event_type]}`}>
-        {leagueEvent.location}
-      </p>
       <p className={`truncate text-[10px] ${LEAGUE_EVENT_TYPE_META_TEXT_CLASS_NAMES[leagueEvent.event_type]}`}>
         {resolveLeagueEventOrganizerName(leagueEvent)}
       </p>
@@ -126,6 +163,7 @@ function LeagueHolidayListBadge({ leagueHoliday }: { leagueHoliday: LeagueCalend
 }
 
 export function LeagueCalendarPageView({
+  activeTab,
   loading,
   monthDate,
   selectedDate,
@@ -148,6 +186,11 @@ export function LeagueCalendarPageView({
   optionalOnlyHolidayFilter,
   eventSearch,
   hasActiveFilters,
+  teams,
+  reservationFormValues,
+  submittingReservationRequest,
+  pendingReservationRequestConflicts,
+  onActiveTabChange,
   onPreviousMonth,
   onNextMonth,
   onSelectedDateChange,
@@ -155,6 +198,10 @@ export function LeagueCalendarPageView({
   onEventTypeFilterChange,
   onHolidayFilterChange,
   onEventSearchChange,
+  onReservationFieldChange,
+  onSubmitReservationRequest,
+  onConfirmReservationRequestDespiteConflict,
+  onDismissReservationConflict,
 }: LeagueCalendarPageViewProps) {
   const [openedLeagueEvent, setOpenedLeagueEvent] = useState<LeagueEvent | null>(null);
   const [openedDayDetails, setOpenedDayDetails] = useState<{
@@ -212,6 +259,13 @@ export function LeagueCalendarPageView({
           </div>
         </section>
 
+        <Tabs value={activeTab} onValueChange={onActiveTabChange} className="space-y-4">
+          <TabsNavigationList className="grid w-full grid-cols-2 animate-in fade-in-0 slide-in-from-bottom-2 duration-500">
+            <TabsNavigationTrigger value="CALENDAR">Calendário e agenda</TabsNavigationTrigger>
+            <TabsNavigationTrigger value="RESERVATION">Reservar uma data</TabsNavigationTrigger>
+          </TabsNavigationList>
+
+          <TabsContent value="CALENDAR" className="mt-0 space-y-4">
         <section className={`${glassPanelClassName} animate-in fade-in-0 slide-in-from-bottom-2 duration-500`}>
           <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_220px_220px_240px]">
             <div className="relative">
@@ -362,9 +416,6 @@ export function LeagueCalendarPageView({
                             </span>
                           </div>
                           <p className="truncate text-sm font-semibold">{leagueEvent.name}</p>
-                          <p className={`mt-1 truncate text-xs ${LEAGUE_EVENT_TYPE_META_TEXT_CLASS_NAMES[leagueEvent.event_type]}`}>
-                            {leagueEvent.location}
-                          </p>
                           <p className={`truncate text-xs ${LEAGUE_EVENT_TYPE_META_TEXT_CLASS_NAMES[leagueEvent.event_type]}`}>
                             {resolveLeagueEventOrganizerName(leagueEvent)}
                           </p>
@@ -560,9 +611,6 @@ export function LeagueCalendarPageView({
                         ) : null}
                         <p className="truncate text-[11px] font-semibold">{leagueEvent.name}</p>
                         <p className={`truncate text-[10px] ${LEAGUE_EVENT_TYPE_META_TEXT_CLASS_NAMES[leagueEvent.event_type]}`}>
-                          {leagueEvent.location}
-                        </p>
-                        <p className={`truncate text-[10px] ${LEAGUE_EVENT_TYPE_META_TEXT_CLASS_NAMES[leagueEvent.event_type]}`}>
                           {resolveLeagueEventOrganizerName(leagueEvent)}
                         </p>
                       </div>
@@ -573,6 +621,98 @@ export function LeagueCalendarPageView({
             </section>
           </>
         )}
+          </TabsContent>
+          <TabsContent value="RESERVATION" className="mt-0 space-y-4">
+            <section className={`${glassPanelClassName} animate-in fade-in-0 slide-in-from-bottom-2 duration-500`}>
+              <div className="mx-auto max-w-3xl space-y-3">
+                <div className="space-y-1 text-center">
+                  <h2 className="text-xl font-display font-semibold">Solicitar reserva no calendário</h2>
+                  <p className="text-sm text-muted-foreground">
+                    A atlética escolhe a data desejada e o pedido segue para aprovação no admin da liga.
+                  </p>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <Select
+                    value={reservationFormValues.teamId || undefined}
+                    onValueChange={(value) => onReservationFieldChange("teamId", value)}
+                  >
+                    <SelectTrigger className={filtersFieldClassName}>
+                      <SelectValue placeholder="Selecione a atlética" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {teams.map((team) => (
+                        <SelectItem key={team.id} value={team.id}>
+                          {team.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Select
+                    value={reservationFormValues.eventType ?? undefined}
+                    onValueChange={(value) => {
+                      if (
+                        value == LeagueEventType.HH ||
+                        value == LeagueEventType.OPEN_BAR ||
+                        value == LeagueEventType.CHAMPIONSHIP
+                      ) {
+                        onReservationFieldChange("eventType", value);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className={filtersFieldClassName}>
+                      <SelectValue placeholder="Selecione o tipo do evento" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={LeagueEventType.HH}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.HH]}</SelectItem>
+                      <SelectItem value={LeagueEventType.OPEN_BAR}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.OPEN_BAR]}</SelectItem>
+                      <SelectItem value={LeagueEventType.CHAMPIONSHIP}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.CHAMPIONSHIP]}</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Input
+                    value={reservationFormValues.eventName}
+                    onChange={(event) => onReservationFieldChange("eventName", event.target.value)}
+                    placeholder="Nome do evento"
+                    className={filtersFieldClassName}
+                  />
+
+                  <DateTimePicker
+                    value={reservationFormValues.eventDate}
+                    onChange={(value) => onReservationFieldChange("eventDate", value)}
+                    placeholder="Data desejada"
+                    showTime={false}
+                  />
+
+                  <Input
+                    value={reservationFormValues.requesterName}
+                    onChange={(event) => onReservationFieldChange("requesterName", event.target.value)}
+                    placeholder="Seu nome"
+                    className={filtersFieldClassName}
+                  />
+
+                  <Input
+                    value={reservationFormValues.requesterContact}
+                    onChange={(event) => onReservationFieldChange("requesterContact", formatPhoneMask(event.target.value))}
+                    placeholder="(00)00000-0000"
+                    className={filtersFieldClassName}
+                    type="tel"
+                    inputMode="numeric"
+                    autoComplete="tel-national"
+                  />
+                </div>
+
+                <div className="flex justify-center">
+                  <Button type="button" onClick={onSubmitReservationRequest} disabled={submittingReservationRequest}>
+                    {submittingReservationRequest ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Solicitar reserva
+                  </Button>
+                </div>
+              </div>
+            </section>
+          </TabsContent>
+        </Tabs>
       </main>
 
       <Dialog
@@ -606,11 +746,6 @@ export function LeagueCalendarPageView({
                   <p className="text-muted-foreground">Organização</p>
                   <p className="font-medium">{resolveLeagueEventOrganizerName(openedLeagueEvent)}</p>
                 </div>
-
-                <div className="space-y-1">
-                  <p className="text-muted-foreground">Local</p>
-                  <p className="font-medium">{openedLeagueEvent.location}</p>
-                </div>
               </div>
             </>
           ) : openedDayDetails ? (
@@ -637,9 +772,6 @@ export function LeagueCalendarPageView({
                     <p className={`truncate text-xs ${LEAGUE_EVENT_TYPE_META_TEXT_CLASS_NAMES[leagueEvent.event_type]}`}>
                       Organização: {resolveLeagueEventOrganizerName(leagueEvent)}
                     </p>
-                    <p className={`truncate text-xs ${LEAGUE_EVENT_TYPE_META_TEXT_CLASS_NAMES[leagueEvent.event_type]}`}>
-                      Local: {leagueEvent.location}
-                    </p>
                   </div>
                 ))}
               </div>
@@ -647,6 +779,54 @@ export function LeagueCalendarPageView({
           ) : null}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={pendingReservationRequestConflicts != null}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            onDismissReservationConflict();
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Já existe evento cadastrado nessa data</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você pode escolher outra data ou enviar mesmo assim. Nesse caso, o pedido ainda pode ser recusado pela
+              liga por conta do conflito.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {pendingReservationRequestConflicts ? (
+            <div className="space-y-2 rounded-2xl border border-border/50 bg-muted/20 p-3">
+              {pendingReservationRequestConflicts.map((leagueEvent) => (
+                <div key={leagueEvent.id} className="rounded-xl border border-border/40 bg-background p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-foreground">{leagueEvent.name}</p>
+                    <AppBadge tone={LEAGUE_EVENT_TYPE_BADGE_TONES[leagueEvent.event_type]}>
+                      {LEAGUE_EVENT_TYPE_LABELS[leagueEvent.event_type]}
+                    </AppBadge>
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Organizado por {resolveLeagueEventOrganizerName(leagueEvent)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={submittingReservationRequest}>Escolher outra data</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={onConfirmReservationRequestDespiteConflict}
+              disabled={submittingReservationRequest}
+            >
+              {submittingReservationRequest ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Reservar mesmo assim
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

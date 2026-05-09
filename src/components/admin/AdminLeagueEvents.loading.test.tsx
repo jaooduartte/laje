@@ -54,6 +54,17 @@ vi.mock("@/components/ui/select", () => ({
   SelectItem: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
+vi.mock("@/components/ui/dropdown-menu", () => ({
+  DropdownMenu: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DropdownMenuTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
+  DropdownMenuContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DropdownMenuItem: ({ children, onSelect, ...props }: { children: ReactNode; onSelect?: () => void }) => (
+    <button type="button" onClick={() => onSelect?.()} {...props}>
+      {children}
+    </button>
+  ),
+}));
+
 vi.mock("@/hooks/useLeagueEvents", () => ({
   useLeagueEvents: () => ({
     leagueEvents: mockedLeagueEvents.current,
@@ -63,11 +74,22 @@ vi.mock("@/hooks/useLeagueEvents", () => ({
   }),
 }));
 
+vi.mock("@/hooks/useLeagueEventYears", () => ({
+  useLeagueEventYears: () => ({
+    years: [2026, 2025],
+  }),
+}));
+
 vi.mock("@/domain/league-events/leagueEvent.repository", () => ({
   createLeagueEvent: (...args: unknown[]) => createLeagueEventMock(...args),
   updateLeagueEvent: (...args: unknown[]) => updateLeagueEventMock(...args),
   deleteLeagueEvent: (...args: unknown[]) => deleteLeagueEventMock(...args),
   fetchLeagueEventsByDateRange: (...args: unknown[]) => fetchLeagueEventsByDateRangeMock(...args),
+}));
+
+vi.mock("@/domain/league-events/leagueEventReservation.repository", () => ({
+  fetchLeagueEventReservationRequests: vi.fn().mockResolvedValue({ data: [], error: null }),
+  reviewLeagueEventReservationRequest: vi.fn(),
 }));
 
 vi.mock("@/domain/league-events/LeagueEventSaveDTO", () => ({
@@ -82,8 +104,7 @@ vi.mock("@/domain/league-events/LeagueEventSaveDTO", () => ({
         event_type: LeagueEventType.LAJE_EVENT,
         organizer_type: LeagueEventOrganizerType.LAJE,
         organizer_team_id: null,
-        location: "Praia de Piçarras",
-        event_date: "2026-04-12",
+        event_date: "2026-05-12",
       };
     }
 
@@ -110,10 +131,9 @@ function buildLeagueEvent(overrides: Partial<LeagueEvent> & Pick<LeagueEvent, "i
     event_type: overrides.event_type ?? LeagueEventType.LAJE_EVENT,
     organizer_type: overrides.organizer_type ?? LeagueEventOrganizerType.LAJE,
     organizer_team_id: overrides.organizer_team_id ?? null,
-    location: overrides.location ?? "Praia de Piçarras",
-    event_date: overrides.event_date ?? "2026-04-12",
-    created_at: overrides.created_at ?? "2026-04-12T00:00:00.000Z",
-    updated_at: overrides.updated_at ?? "2026-04-12T00:00:00.000Z",
+    event_date: overrides.event_date ?? "2026-05-12",
+    created_at: overrides.created_at ?? "2026-05-12T00:00:00.000Z",
+    updated_at: overrides.updated_at ?? "2026-05-12T00:00:00.000Z",
     organizer_team: overrides.organizer_team ?? null,
     organizer_teams: overrides.organizer_teams ?? [],
   };
@@ -225,10 +245,8 @@ describe("AdminLeagueEvents loading states", () => {
     updateDelay.value = true;
     renderAdminLeagueEvents();
 
-    const editIcon = document.querySelector(".lucide-pencil");
-    const editButton = editIcon?.closest("button");
-    expect(editButton).not.toBeNull();
-    fireEvent.click(editButton as HTMLButtonElement);
+    fireEvent.click(screen.getByRole("button", { name: "Ações do evento Evento 1" }));
+    fireEvent.click(await screen.findByText("Editar"));
 
     const saveButton = await screen.findByRole("button", { name: "Salvar alterações" });
     fireEvent.click(saveButton);
@@ -250,20 +268,18 @@ describe("AdminLeagueEvents loading states", () => {
     deleteDelay.value = true;
     renderAdminLeagueEvents();
 
-    const deleteIcon = document.querySelector(".lucide-trash2, .lucide-trash-2");
-    const deleteButton = deleteIcon?.closest("button");
-    expect(deleteButton).not.toBeNull();
+    const actionsButton = screen.getByRole("button", { name: "Ações do evento Evento 1" });
+    fireEvent.click(actionsButton);
+    fireEvent.click(await screen.findByText("Apagar"));
 
-    fireEvent.click(deleteButton as HTMLButtonElement);
-
-    expect((deleteButton as HTMLButtonElement).querySelector("svg.animate-spin")).not.toBeNull();
+    expect(actionsButton.querySelector("svg.animate-spin")).not.toBeNull();
 
     await act(async () => {
       deleteResolver.current?.();
     });
 
     await waitFor(() => {
-      expect((deleteButton as HTMLButtonElement).querySelector("svg.animate-spin")).toBeNull();
+      expect(actionsButton.querySelector("svg.animate-spin")).toBeNull();
       expect(removeLeagueEventMock).toHaveBeenCalledWith("league-event-1");
     });
   });

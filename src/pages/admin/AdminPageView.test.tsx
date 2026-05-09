@@ -165,16 +165,25 @@ describe("AdminPageView tabs", () => {
         selectedChampionship={championship}
         selectedChampionshipCode={championship.code}
         matches={[match]}
+        matchesTabMatches={[match]}
         teams={[match.home_team!, match.away_team!]}
         sports={[match.sports!]}
         championshipSports={[buildChampionshipSport()]}
         liveAndScheduledMatches={[match]}
         championshipBracketView={buildBracketView()}
+        matchesTabChampionshipBracketView={buildBracketView()}
         loadingChampionshipBracket={false}
+        loadingMatchesTabChampionshipBracket={false}
         matchBracketContextByMatchId={{}}
+        matchesTabMatchBracketContextByMatchId={{}}
         matchRepresentationByMatchId={{}}
+        matchesTabMatchRepresentationByMatchId={{}}
         estimatedStartTimeByMatchId={{}}
+        matchesTabEstimatedStartTimeByMatchId={{}}
         matchesFetching={false}
+        matchesTabFetching={false}
+        availableMatchSeasonYears={[2026]}
+        selectedMatchesSeasonYear={2026}
         profileName="Admin"
         canViewMatchesTab
         canViewControlTab
@@ -188,6 +197,7 @@ describe("AdminPageView tabs", () => {
         canViewScoreSheetReviewTab
         canViewTieBreaksTab
         canViewChampionshipStatus={false}
+        canViewBracketSetupTab={false}
         canManageMatches
         canManageChampionshipStatus={false}
         canManageScoreboard
@@ -197,14 +207,20 @@ describe("AdminPageView tabs", () => {
         canManageUsers={false}
         canManageAccount={false}
         canManageSettings={false}
-        defaultTabValue={AdminPanelTab.MATCHES}
+        activeTab={AdminPanelTab.MATCHES}
+        onActiveTabChange={() => undefined}
+        onBracketGenerated={async () => undefined}
         updatingChampionshipStatus={false}
         onChampionshipCodeChange={() => undefined}
         onChampionshipStatusChange={() => undefined}
+        onSelectedMatchesSeasonYearChange={() => undefined}
         onSignOut={() => undefined}
         onRefetchMatches={() => undefined}
         onRefetchChampionshipBracket={() => undefined}
         onRefetchTeams={() => undefined}
+        liveMatchesCount={0}
+        pendingLeagueEventReservationsCount={0}
+        pendingTieBreaksCount={0}
       />,
     );
 
@@ -217,5 +233,4 @@ describe("AdminPageView tabs", () => {
     expect(conferenciaTabIndex).toBeGreaterThan(jogosTabIndex);
     expect(sorteiosTabIndex).toBeGreaterThan(conferenciaTabIndex);
   });
-
 });

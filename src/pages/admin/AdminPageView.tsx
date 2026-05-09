@@ -29,16 +29,25 @@ interface AdminPageViewProps {
   selectedChampionship: Championship;
   selectedChampionshipCode: ChampionshipCode;
   matches: Match[];
+  matchesTabMatches: Match[];
   teams: Team[];
   sports: Sport[];
   championshipSports: ChampionshipSport[];
   liveAndScheduledMatches: Match[];
   championshipBracketView: ChampionshipBracketView;
+  matchesTabChampionshipBracketView: ChampionshipBracketView;
   loadingChampionshipBracket: boolean;
+  loadingMatchesTabChampionshipBracket: boolean;
   matchBracketContextByMatchId: Record<string, MatchBracketContext>;
+  matchesTabMatchBracketContextByMatchId: Record<string, MatchBracketContext>;
   matchRepresentationByMatchId: Record<string, string>;
+  matchesTabMatchRepresentationByMatchId: Record<string, string>;
   estimatedStartTimeByMatchId: Record<string, string>;
+  matchesTabEstimatedStartTimeByMatchId: Record<string, string>;
   matchesFetching: boolean;
+  matchesTabFetching: boolean;
+  availableMatchSeasonYears: number[];
+  selectedMatchesSeasonYear: number | null;
   profileName: string | null;
   canViewMatchesTab: boolean;
   canViewControlTab: boolean;
@@ -68,11 +77,13 @@ interface AdminPageViewProps {
   updatingChampionshipStatus: boolean;
   onChampionshipCodeChange: (value: string) => void;
   onChampionshipStatusChange: (value: string) => void;
+  onSelectedMatchesSeasonYearChange: (seasonYear: number) => void;
   onSignOut: () => void;
   onRefetchMatches: (options?: { showLoading?: boolean; showFetching?: boolean }) => void | Promise<void>;
   onRefetchChampionshipBracket: () => void;
   onRefetchTeams: () => void;
   liveMatchesCount: number;
+  pendingLeagueEventReservationsCount: number;
   pendingTieBreaksCount: number;
 }
 
@@ -91,16 +102,25 @@ export function AdminPageView({
   selectedChampionship,
   selectedChampionshipCode,
   matches,
+  matchesTabMatches,
   teams,
   sports,
   championshipSports,
   liveAndScheduledMatches,
   championshipBracketView,
+  matchesTabChampionshipBracketView,
   loadingChampionshipBracket,
+  loadingMatchesTabChampionshipBracket,
   matchBracketContextByMatchId,
+  matchesTabMatchBracketContextByMatchId,
   matchRepresentationByMatchId,
+  matchesTabMatchRepresentationByMatchId,
   estimatedStartTimeByMatchId,
+  matchesTabEstimatedStartTimeByMatchId,
   matchesFetching,
+  matchesTabFetching,
+  availableMatchSeasonYears,
+  selectedMatchesSeasonYear,
   profileName,
   canViewMatchesTab,
   canViewControlTab,
@@ -130,11 +150,13 @@ export function AdminPageView({
   updatingChampionshipStatus,
   onChampionshipCodeChange,
   onChampionshipStatusChange,
+  onSelectedMatchesSeasonYearChange,
   onSignOut,
   onRefetchMatches,
   onRefetchChampionshipBracket,
   onRefetchTeams,
   liveMatchesCount,
+  pendingLeagueEventReservationsCount,
   pendingTieBreaksCount,
 }: AdminPageViewProps) {
   const adminTabItems = useMemo(() => {
@@ -423,6 +445,11 @@ export function AdminPageView({
                     {pendingTieBreaksCount}
                   </span>
                 )}
+                {adminTabItem.value === AdminPanelTab.EVENTS && pendingLeagueEventReservationsCount > 0 && (
+                  <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground shadow-sm">
+                    {pendingLeagueEventReservationsCount}
+                  </span>
+                )}
               </TabsTrigger>
             ))}
           </TabsList>
@@ -441,17 +468,20 @@ export function AdminPageView({
 	          {canViewMatchesTab ? (
 	            <TabsContent value={AdminPanelTab.MATCHES}>
               <AdminMatches
-                matches={matches}
+                matches={matchesTabMatches}
                 teams={teams}
                 championshipSports={championshipSports}
                 selectedChampionship={selectedChampionship}
-                championshipBracketView={championshipBracketView}
-                loadingChampionshipBracket={loadingChampionshipBracket}
-                matchBracketContextByMatchId={matchBracketContextByMatchId}
-                matchRepresentationByMatchId={matchRepresentationByMatchId}
-                estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
-                isFetchingMatches={matchesFetching}
+                championshipBracketView={matchesTabChampionshipBracketView}
+                loadingChampionshipBracket={loadingMatchesTabChampionshipBracket}
+                matchBracketContextByMatchId={matchesTabMatchBracketContextByMatchId}
+                matchRepresentationByMatchId={matchesTabMatchRepresentationByMatchId}
+                estimatedStartTimeByMatchId={matchesTabEstimatedStartTimeByMatchId}
+                isFetchingMatches={matchesTabFetching}
                 canManageMatches={canManageMatches}
+                availableSeasonYears={availableMatchSeasonYears}
+                selectedSeasonYear={selectedMatchesSeasonYear}
+                onSeasonYearChange={onSelectedMatchesSeasonYearChange}
                 onRefetch={onRefetchMatches}
                 onRefetchChampionshipBracket={onRefetchChampionshipBracket}
                 onOpenTieBreaksTab={() => onActiveTabChange(TIE_BREAKS_TAB_VALUE)}
@@ -526,6 +556,7 @@ export function AdminPageView({
                 championshipSports={championshipSports}
                 sports={sports}
                 championshipBracketView={championshipBracketView}
+                availableSeasonYears={availableMatchSeasonYears}
               />
             </TabsContent>
           ) : null}
