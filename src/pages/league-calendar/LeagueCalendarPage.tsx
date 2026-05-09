@@ -6,12 +6,13 @@ import { useTeams } from "@/hooks/useTeams";
 import { LeagueCalendarPageView } from "@/pages/league-calendar/LeagueCalendarPageView";
 import { isLeagueEventType } from "@/domain/league-events/leagueEvent.constants";
 import { leagueEventHasOrganizerTeam, resolveLeagueEventOrganizerTeams } from "@/domain/league-events/leagueEvent.helpers";
-import { bindLeagueEventReservationRequestPayload, createLeagueEventReservationRequest } from "@/domain/league-events/leagueEventReservation.repository";
+import { supabase } from "@/integrations/supabase/client";
+import { bindLeagueEventReservationRequestPayload, createLeagueEventReservationRequest, fetchPendingReservationRequestsByDate } from "@/domain/league-events/leagueEventReservation.repository";
 import type { LeagueEventReservationRequestFormValues } from "@/domain/league-events/leagueEventReservation.types";
 import { fetchLeagueEventsByDateRange } from "@/domain/league-events/leagueEvent.repository";
 import { fetchLeagueCalendarHolidaysByDateRange, ensureLeagueCalendarHolidaysYear } from "@/domain/league-events/leagueCalendarHoliday.repository";
 import { LeagueCalendarHolidayDayKind } from "@/lib/enums";
-import type { LeagueCalendarHoliday, LeagueEvent } from "@/lib/types";
+import type { LeagueCalendarHoliday, LeagueEvent, LeagueEventReservationRequest } from "@/lib/types";
 
 const ALL_ATHLETICS_FILTER = "ALL_ATHLETICS";
 const ALL_EVENT_TYPES_FILTER = "ALL_EVENT_TYPES";
@@ -29,7 +30,7 @@ function resolveInitialReservationFormValues(): LeagueEventReservationRequestFor
     eventType: null,
     eventDate: null,
     requesterName: "",
-    requesterContact: "",
+    requesterEmail: "",
   };
 }
 
@@ -54,6 +55,8 @@ export function LeagueCalendarPage() {
   );
   const [submittingReservationRequest, setSubmittingReservationRequest] = useState(false);
   const [pendingReservationRequestConflicts, setPendingReservationRequestConflicts] = useState<LeagueEvent[] | null>(null);
+  const [pendingQueueConflicts, setPendingQueueConflicts] = useState<LeagueEventReservationRequest[] | null>(null);
+  const [showReservationSuccessModal, setShowReservationSuccessModal] = useState(false);
   const [yearLeagueEvents, setYearLeagueEvents] = useState<LeagueEvent[]>([]);
   const [yearLeagueHolidays, setYearLeagueHolidays] = useState<LeagueCalendarHoliday[]>([]);
   const [loadingYearLeagueEvents, setLoadingYearLeagueEvents] = useState(false);
@@ -297,7 +300,7 @@ export function LeagueCalendarPage() {
     }));
   };
 
-  const submitReservationRequest = async (shouldIgnoreDateConflict: boolean) => {
+  const submitReservationRequest = async (shouldIgnoreDateConflict: boolean, shouldIgnoreQueueConflict: boolean) => {
     try {
       const payload = bindLeagueEventReservationRequestPayload(reservationFormValues);
 
@@ -317,6 +320,19 @@ export function LeagueCalendarPage() {
         }
       }
 
+      if (!shouldIgnoreQueueConflict) {
+        const queueConflictsResponse = await fetchPendingReservationRequestsByDate(payload.event_date);
+
+        if (queueConflictsResponse.error) {
+          throw new Error("Não foi possível verificar pedidos em fila para essa data.");
+        }
+
+        if ((queueConflictsResponse.data ?? []).length > 0) {
+          setPendingQueueConflicts(queueConflictsResponse.data as unknown as LeagueEventReservationRequest[]);
+          return;
+        }
+      }
+
       setSubmittingReservationRequest(true);
 
       const { error } = await createLeagueEventReservationRequest(payload);
@@ -328,10 +344,25 @@ export function LeagueCalendarPage() {
         return;
       }
 
-      toast.success("Solicitação de reserva enviada para aprovação.");
+      const teamName = teams.find((team) => team.id === payload.team_id)?.name ?? "";
+
+      void supabase.functions.invoke("send-reservation-email", {
+        body: {
+          type: "PENDING",
+          requesterEmail: payload.requester_email,
+          requesterName: payload.requester_name,
+          teamName,
+          eventName: payload.event_name,
+          eventType: payload.event_type,
+          eventDate: payload.event_date,
+        },
+      });
+
       setPendingReservationRequestConflicts(null);
+      setPendingQueueConflicts(null);
       setReservationFormValues(resolveInitialReservationFormValues());
       setActiveTab(CALENDAR_VIEW_TAB);
+      setShowReservationSuccessModal(true);
     } catch (error) {
       setSubmittingReservationRequest(false);
       toast.error(error instanceof Error ? error.message : "Não foi possível enviar a solicitação.");
@@ -376,9 +407,14 @@ export function LeagueCalendarPage() {
       onHolidayFilterChange={handleHolidayFilterChange}
       onEventSearchChange={setEventSearch}
       onReservationFieldChange={handleReservationFieldChange}
-      onSubmitReservationRequest={() => void submitReservationRequest(false)}
-      onConfirmReservationRequestDespiteConflict={() => void submitReservationRequest(true)}
+      pendingQueueConflicts={pendingQueueConflicts}
+      onSubmitReservationRequest={() => void submitReservationRequest(false, false)}
+      onConfirmReservationRequestDespiteConflict={() => void submitReservationRequest(true, false)}
       onDismissReservationConflict={() => setPendingReservationRequestConflicts(null)}
+      onConfirmReservationRequestDespiteQueueConflict={() => void submitReservationRequest(true, true)}
+      onDismissReservationQueueConflict={() => setPendingQueueConflicts(null)}
+      showReservationSuccessModal={showReservationSuccessModal}
+      onDismissReservationSuccessModal={() => setShowReservationSuccessModal(false)}
     />
   );
 }

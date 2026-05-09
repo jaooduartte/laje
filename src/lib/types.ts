@@ -154,7 +154,7 @@ export interface LeagueEventReservationRequest {
   event_type: LeagueEventType;
   event_date: string;
   requester_name: string;
-  requester_contact: string;
+  requester_email: string;
   status: LeagueEventReservationRequestStatus;
   approved_league_event_id: string | null;
   review_notes: string | null;

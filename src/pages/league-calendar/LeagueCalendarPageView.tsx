@@ -28,7 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsNavigationList, TabsNavigationTrigger } from "@/components/ui/tabs";
 import { LeagueCalendarHolidayDayKind, LeagueEventType } from "@/lib/enums";
-import type { LeagueCalendarHoliday, LeagueEvent, Team } from "@/lib/types";
+import type { LeagueCalendarHoliday, LeagueEvent, LeagueEventReservationRequest, Team } from "@/lib/types";
 import {
   LEAGUE_EVENT_LEGEND_ORDER,
   LEAGUE_EVENT_TYPE_BADGE_TONES,
@@ -78,6 +78,7 @@ interface LeagueCalendarPageViewProps {
   reservationFormValues: LeagueEventReservationRequestFormValues;
   submittingReservationRequest: boolean;
   pendingReservationRequestConflicts: LeagueEvent[] | null;
+  pendingQueueConflicts: LeagueEventReservationRequest[] | null;
   onActiveTabChange: (value: string) => void;
   onPreviousMonth: () => void;
   onNextMonth: () => void;
@@ -93,6 +94,10 @@ interface LeagueCalendarPageViewProps {
   onSubmitReservationRequest: () => void;
   onConfirmReservationRequestDespiteConflict: () => void;
   onDismissReservationConflict: () => void;
+  onConfirmReservationRequestDespiteQueueConflict: () => void;
+  onDismissReservationQueueConflict: () => void;
+  showReservationSuccessModal: boolean;
+  onDismissReservationSuccessModal: () => void;
 }
 
 const WEEK_DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -104,19 +109,6 @@ const LEAGUE_EVENT_TYPE_MOBILE_LIGHT_CARD_CLASS_NAMES = {
   [LeagueEventType.LAJE_EVENT]: "!bg-red-100/80 text-red-900 dark:!bg-red-900/40 dark:text-red-100",
 } as const;
 
-function formatPhoneMask(value: string): string {
-  const numericValue = value.replace(/\D/g, "").slice(0, 11);
-
-  if (numericValue.length <= 2) {
-    return numericValue.length > 0 ? `(${numericValue}` : "";
-  }
-
-  if (numericValue.length <= 7) {
-    return `(${numericValue.slice(0, 2)})${numericValue.slice(2)}`;
-  }
-
-  return `(${numericValue.slice(0, 2)})${numericValue.slice(2, 7)}-${numericValue.slice(7)}`;
-}
 
 function LeagueEventMiniCard({ leagueEvent, onClick }: { leagueEvent: LeagueEvent; onClick: () => void }) {
   return (
@@ -190,6 +182,7 @@ export function LeagueCalendarPageView({
   reservationFormValues,
   submittingReservationRequest,
   pendingReservationRequestConflicts,
+  pendingQueueConflicts,
   onActiveTabChange,
   onPreviousMonth,
   onNextMonth,
@@ -202,6 +195,10 @@ export function LeagueCalendarPageView({
   onSubmitReservationRequest,
   onConfirmReservationRequestDespiteConflict,
   onDismissReservationConflict,
+  onConfirmReservationRequestDespiteQueueConflict,
+  onDismissReservationQueueConflict,
+  showReservationSuccessModal,
+  onDismissReservationSuccessModal,
 }: LeagueCalendarPageViewProps) {
   const [openedLeagueEvent, setOpenedLeagueEvent] = useState<LeagueEvent | null>(null);
   const [openedDayDetails, setOpenedDayDetails] = useState<{
@@ -693,13 +690,12 @@ export function LeagueCalendarPageView({
                   />
 
                   <Input
-                    value={reservationFormValues.requesterContact}
-                    onChange={(event) => onReservationFieldChange("requesterContact", formatPhoneMask(event.target.value))}
-                    placeholder="(00)00000-0000"
+                    value={reservationFormValues.requesterEmail}
+                    onChange={(event) => onReservationFieldChange("requesterEmail", event.target.value)}
+                    placeholder="seu@email.com"
                     className={filtersFieldClassName}
-                    type="tel"
-                    inputMode="numeric"
-                    autoComplete="tel-national"
+                    type="email"
+                    autoComplete="email"
                   />
                 </div>
 
@@ -827,6 +823,71 @@ export function LeagueCalendarPageView({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog
+        open={pendingQueueConflicts != null}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            onDismissReservationQueueConflict();
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Já há um ou mais pedidos de reserva em análise para essa data</AlertDialogTitle>
+            <AlertDialogDescription>
+              Existe um ou mais pedidos de reserva em análise para a mesma data. Você pode escolher outra data ou enviar
+              mesmo assim — a C.O. decidirá qual pedido aprovar.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {pendingQueueConflicts ? (
+            <div className="space-y-2 rounded-2xl border border-border/50 bg-muted/20 p-3">
+              {pendingQueueConflicts.map((request) => (
+                <div key={request.id} className="rounded-xl border border-border/40 bg-background p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-foreground">{request.event_name}</p>
+                    <AppBadge tone={LEAGUE_EVENT_TYPE_BADGE_TONES[request.event_type]}>
+                      {LEAGUE_EVENT_TYPE_LABELS[request.event_type]}
+                    </AppBadge>
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {request.team?.name ?? "—"}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {format(new Date(`${request.event_date}T12:00:00`), "dd/MM/yyyy")} · Em análise
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={submittingReservationRequest}>Escolher outra data</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={onConfirmReservationRequestDespiteQueueConflict}
+              disabled={submittingReservationRequest}
+            >
+              {submittingReservationRequest ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Solicitar mesmo assim
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={showReservationSuccessModal} onOpenChange={(open) => { if (!open) onDismissReservationSuccessModal(); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Solicitação enviada!</DialogTitle>
+            <DialogDescription className="pt-1">
+              Sua solicitação de reserva foi enviada para análise. Você receberá um email na caixa de entrada ou na caixa de spam com o resultado da análise.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-center pt-2">
+            <Button onClick={onDismissReservationSuccessModal}>OK</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

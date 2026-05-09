@@ -499,7 +499,7 @@ export type Database = {
           event_name: string
           event_type: Database["public"]["Enums"]["league_event_type"]
           id: string
-          requester_contact: string
+          requester_email: string
           requester_name: string
           review_notes: string | null
           reviewed_at: string | null
@@ -515,7 +515,7 @@ export type Database = {
           event_name: string
           event_type: Database["public"]["Enums"]["league_event_type"]
           id?: string
-          requester_contact: string
+          requester_email: string
           requester_name: string
           review_notes?: string | null
           reviewed_at?: string | null
@@ -531,7 +531,7 @@ export type Database = {
           event_name?: string
           event_type?: Database["public"]["Enums"]["league_event_type"]
           id?: string
-          requester_contact?: string
+          requester_email?: string
           requester_name?: string
           review_notes?: string | null
           reviewed_at?: string | null

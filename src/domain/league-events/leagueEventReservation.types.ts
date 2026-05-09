@@ -6,7 +6,7 @@ export interface LeagueEventReservationRequestFormValues {
   eventType: LeagueEventType | null;
   eventDate: Date | null;
   requesterName: string;
-  requesterContact: string;
+  requesterEmail: string;
 }
 
 export const LEAGUE_EVENT_RESERVATION_REQUEST_STATUS_LABELS: Record<

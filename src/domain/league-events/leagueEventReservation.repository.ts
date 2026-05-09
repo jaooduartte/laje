@@ -85,6 +85,14 @@ export async function reviewLeagueEventReservationRequest({
   };
 }
 
+export async function fetchPendingReservationRequestsByDate(date: string) {
+  return supabase
+    .from("league_event_reservation_requests")
+    .select(resolveReservationRequestSelectQuery())
+    .eq("event_date", date)
+    .eq("status", LeagueEventReservationRequestStatus.PENDING);
+}
+
 export async function fetchPendingLeagueEventReservationRequestCount() {
   return supabase
     .from("league_event_reservation_requests")
@@ -98,11 +106,11 @@ export function bindLeagueEventReservationRequestPayload(formValues: {
   eventType: string | null;
   eventDate: Date | null;
   requesterName: string;
-  requesterContact: string;
+  requesterEmail: string;
 }): TablesInsert<"league_event_reservation_requests"> {
   const normalizedEventName = formValues.eventName.trim();
   const normalizedRequesterName = formValues.requesterName.trim();
-  const normalizedRequesterContact = formValues.requesterContact.replace(/\D/g, "");
+  const normalizedRequesterEmail = formValues.requesterEmail.trim().toLowerCase();
 
   if (!formValues.teamId) {
     throw new Error("Selecione a atlética responsável pela reserva.");
@@ -124,12 +132,12 @@ export function bindLeagueEventReservationRequestPayload(formValues: {
     throw new Error("Informe o nome do solicitante.");
   }
 
-  if (!normalizedRequesterContact) {
-    throw new Error("Informe um contato do solicitante.");
+  if (!normalizedRequesterEmail) {
+    throw new Error("Informe o email do solicitante.");
   }
 
-  if (normalizedRequesterContact.length < 10) {
-    throw new Error("Informe um contato válido com DDD.");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedRequesterEmail)) {
+    throw new Error("Informe um email válido.");
   }
 
   return {
@@ -138,7 +146,7 @@ export function bindLeagueEventReservationRequestPayload(formValues: {
     event_type: formValues.eventType,
     event_date: format(formValues.eventDate, "yyyy-MM-dd"),
     requester_name: normalizedRequesterName,
-    requester_contact: normalizedRequesterContact,
+    requester_email: normalizedRequesterEmail,
     status: LeagueEventReservationRequestStatus.PENDING,
   };
 }
