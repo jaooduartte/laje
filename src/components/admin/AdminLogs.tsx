@@ -159,9 +159,12 @@ const ADMIN_LOG_RESOURCE_FIELD_LABELS: Partial<Record<AdminLogResourceTable, Rec
     event_name: "Nome do evento",
     event_date: "Data reservada",
     requester_name: "Solicitante",
-    requester_contact: "Contato do solicitante",
+    requester_contact: "E-mail do solicitante",
+    requester_email: "E-mail do solicitante",
     approved_league_event_id: "Evento aprovado",
     review_notes: "Observação da revisão",
+    reviewed_at: "Revisado em",
+    reviewed_by: "Revisado por",
   },
   [AdminLogResourceTable.LEAGUE_EVENT_ORGANIZER_TEAMS]: {
     event_id: "Evento",
@@ -184,6 +187,8 @@ const ADMIN_LOG_IGNORED_FIELDS = new Set([
   "id",
   "created_at",
   "updated_at",
+  "reviewed_at",
+  "reviewed_by",
   "encrypted_password",
   "raw_app_meta_data",
   "raw_user_meta_data",
@@ -391,8 +396,12 @@ function resolveFieldValueText(fieldName: string, value: unknown, teamNameById: 
       return "item vinculado";
     }
 
-    if (fieldName == "event_date" || fieldName == "start_time" || fieldName == "end_time") {
+    if (fieldName == "event_date" || fieldName == "start_time" || fieldName == "end_time" || fieldName == "reviewed_at") {
       return resolveDateText(value);
+    }
+
+    if (fieldName == "reviewed_by") {
+      return "administrador";
     }
 
     if (fieldName == "event_type" && isLeagueEventTypeValue(value)) {
