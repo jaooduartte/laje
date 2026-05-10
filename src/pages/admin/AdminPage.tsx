@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -9,8 +9,10 @@ import { useSports } from "@/hooks/useSports";
 import { useTeams } from "@/hooks/useTeams";
 import { useChampionships } from "@/hooks/useChampionships";
 import { useChampionshipBracket } from "@/hooks/useChampionshipBracket";
+import { useChampionshipSeasonYears } from "@/hooks/useChampionshipSeasonYears";
 import { useSelectedChampionship } from "@/hooks/useSelectedChampionship";
 import { useChampionshipSelection } from "@/hooks/useChampionshipSelection";
+import { usePendingLeagueEventReservationRequests } from "@/hooks/usePendingLeagueEventReservationRequests";
 import { usePendingTieBreaks } from "@/hooks/usePendingTieBreaks";
 import { Header } from "@/components/Header";
 import {
@@ -37,6 +39,7 @@ import {
   isChampionshipStatus,
   resolveMatchBracketContextByMatchId,
 } from "@/lib/championship";
+import { resolvePreferredAdminChampionshipCode } from "@/pages/admin/adminPage.helpers";
 import { AdminPageView } from "@/pages/admin/AdminPageView";
 
 enum ChampionshipStatusFlowDialog {
@@ -63,9 +66,12 @@ export function AdminPage() {
   const [updatingChampionshipStatus, setUpdatingChampionshipStatus] = useState(false);
   const [processingChampionshipStatusFlowAction, setProcessingChampionshipStatusFlowAction] = useState(false);
   const [_activeTab, setActiveTab] = useState<string>("");
+  const [matchesSeasonYear, setMatchesSeasonYear] = useState<number | null>(null);
   const [championshipStatusFlowDialog, setChampionshipStatusFlowDialog] = useState<ChampionshipStatusFlowDialog>(
     ChampionshipStatusFlowDialog.NONE,
   );
+  const hasAppliedInitialAdminChampionshipSelectionRef = useRef(false);
+  const lastChampionshipSelectionSignatureRef = useRef<string | null>(null);
 
   const { selectedChampionship, selectedChampionshipId, handleChampionshipCodeChange } = useChampionshipSelection({
     championships,
@@ -73,63 +79,114 @@ export function AdminPage() {
     setSelectedChampionshipCode,
   });
   const selectedChampionshipSeasonYear = selectedChampionship?.current_season_year ?? null;
+  const { seasonYears: availableMatchSeasonYears } = useChampionshipSeasonYears({
+    championshipId: selectedChampionshipId,
+    currentSeasonYear: selectedChampionshipSeasonYear,
+  });
+  const resolvedMatchesSeasonYear = matchesSeasonYear ?? selectedChampionshipSeasonYear;
 
   const {
-    matches,
-    matchRepresentationByMatchId,
-    estimatedStartTimeByMatchId,
-    isFetching: matchesFetching,
-    refetch: refetchMatches,
+    matches: operationalMatches,
+    matchRepresentationByMatchId: operationalMatchRepresentationByMatchId,
+    estimatedStartTimeByMatchId: operationalEstimatedStartTimeByMatchId,
+    isFetching: operationalMatchesFetching,
+    refetch: refetchOperationalMatches,
   } = useMatches({
     championshipId: selectedChampionshipId,
     seasonYear: selectedChampionshipSeasonYear,
   });
   const {
-    championshipBracketView,
-    loading: loadingChampionshipBracket,
-    refetch: refetchChampionshipBracket,
+    championshipBracketView: operationalChampionshipBracketView,
+    loading: loadingOperationalChampionshipBracket,
+    refetch: refetchOperationalChampionshipBracket,
   } = useChampionshipBracket({
     championshipId: selectedChampionshipId,
     seasonYear: selectedChampionshipSeasonYear,
+  });
+  const {
+    matches: matchesTabMatches,
+    matchRepresentationByMatchId: matchesTabMatchRepresentationByMatchId,
+    estimatedStartTimeByMatchId: matchesTabEstimatedStartTimeByMatchId,
+    isFetching: matchesTabFetching,
+    refetch: refetchMatchesTabMatches,
+  } = useMatches({
+    championshipId: selectedChampionshipId,
+    seasonYear: resolvedMatchesSeasonYear,
+  });
+  const {
+    championshipBracketView: matchesTabChampionshipBracketView,
+    loading: loadingMatchesTabChampionshipBracket,
+    refetch: refetchMatchesTabChampionshipBracket,
+  } = useChampionshipBracket({
+    championshipId: selectedChampionshipId,
+    seasonYear: resolvedMatchesSeasonYear,
   });
   const { teams, refetch: refetchTeams } = useTeams();
   const { sports } = useSports();
   const { championshipSports } = useSports({
     championshipId: selectedChampionshipId,
   });
-  const liveMatches = matches.filter((match) => match.status == MatchStatus.LIVE);
-  const liveAndScheduledMatches = matches.filter(
+  const liveMatches = operationalMatches.filter((match) => match.status == MatchStatus.LIVE);
+  const liveAndScheduledMatches = operationalMatches.filter(
     (match) => match.status == MatchStatus.LIVE || match.status == MatchStatus.SCHEDULED,
   );
-  
+  const { count: pendingLeagueEventReservationRequestsCount } = usePendingLeagueEventReservationRequests();
   const { count: pendingTieBreaksCount, refetch: refetchPendingTieBreaks } = usePendingTieBreaks({
     championshipId: selectedChampionshipId,
   });
-  const visibleChampionshipBracketView = useMemo(() => {
-    if (matches.length == 0) {
+  const visibleOperationalChampionshipBracketView = useMemo(() => {
+    if (operationalMatches.length == 0) {
       return EMPTY_CHAMPIONSHIP_BRACKET_VIEW;
     }
 
-    return championshipBracketView;
-  }, [championshipBracketView, matches.length]);
-  const matchBracketContextByMatchId = useMemo(() => {
-    return resolveMatchBracketContextByMatchId(visibleChampionshipBracketView);
-  }, [visibleChampionshipBracketView]);
+    return operationalChampionshipBracketView;
+  }, [operationalChampionshipBracketView, operationalMatches.length]);
+  const operationalMatchBracketContextByMatchId = useMemo(() => {
+    return resolveMatchBracketContextByMatchId(visibleOperationalChampionshipBracketView);
+  }, [visibleOperationalChampionshipBracketView]);
+  const visibleMatchesTabChampionshipBracketView = useMemo(() => {
+    if (matchesTabMatches.length == 0) {
+      return EMPTY_CHAMPIONSHIP_BRACKET_VIEW;
+    }
+
+    return matchesTabChampionshipBracketView;
+  }, [matchesTabChampionshipBracketView, matchesTabMatches.length]);
+  const matchesTabMatchBracketContextByMatchId = useMemo(() => {
+    return resolveMatchBracketContextByMatchId(visibleMatchesTabChampionshipBracketView);
+  }, [visibleMatchesTabChampionshipBracketView]);
 
   const handleRefetchMatches = useCallback(async (options?: { showLoading?: boolean; showFetching?: boolean }) => {
-    await refetchMatches(options);
+    await Promise.all([
+      refetchOperationalMatches(options),
+      refetchMatchesTabMatches(options),
+    ]);
     await refetchPendingTieBreaks();
-  }, [refetchMatches, refetchPendingTieBreaks]);
+  }, [refetchMatchesTabMatches, refetchOperationalMatches, refetchPendingTieBreaks]);
 
   const handleRefetchChampionshipBracket = useCallback(async () => {
-    await refetchChampionshipBracket();
+    await Promise.all([
+      refetchOperationalChampionshipBracket(),
+      refetchMatchesTabChampionshipBracket(),
+    ]);
     await refetchPendingTieBreaks();
-  }, [refetchChampionshipBracket, refetchPendingTieBreaks]);
+  }, [refetchMatchesTabChampionshipBracket, refetchOperationalChampionshipBracket, refetchPendingTieBreaks]);
 
   const handleBracketGenerated = useCallback(async () => {
     setActiveTab(AdminPanelTab.CONTROL);
-    await Promise.all([refetchMatches(), refetchChampionshipBracket(), refetchChampionships()]);
-  }, [refetchMatches, refetchChampionshipBracket, refetchChampionships]);
+    await Promise.all([
+      refetchOperationalMatches(),
+      refetchMatchesTabMatches(),
+      refetchOperationalChampionshipBracket(),
+      refetchMatchesTabChampionshipBracket(),
+      refetchChampionships(),
+    ]);
+  }, [
+    refetchChampionships,
+    refetchMatchesTabChampionshipBracket,
+    refetchMatchesTabMatches,
+    refetchOperationalChampionshipBracket,
+    refetchOperationalMatches,
+  ]);
 
   const closeChampionshipStatusFlowDialog = () => {
     if (processingChampionshipStatusFlowAction) {
@@ -144,6 +201,42 @@ export function AdminPage() {
       setActiveTab(AdminPanelTab.BRACKET_SETUP);
     }
   }, [selectedChampionship?.status]);
+
+  useEffect(() => {
+    if (!selectedChampionshipId) {
+      setMatchesSeasonYear(null);
+      return;
+    }
+
+    setMatchesSeasonYear(selectedChampionshipSeasonYear);
+  }, [selectedChampionshipId, selectedChampionshipSeasonYear]);
+
+  useEffect(() => {
+    if (championships.length == 0) {
+      return;
+    }
+
+    const championshipSelectionSignature = championships
+      .map((championship) => `${championship.code}:${championship.current_season_year}:${championship.status}`)
+      .join("|");
+    const preferredChampionshipCode = resolvePreferredAdminChampionshipCode(championships);
+    const hasChampionshipSelectionSignatureChanged =
+      lastChampionshipSelectionSignatureRef.current != null &&
+      lastChampionshipSelectionSignatureRef.current != championshipSelectionSignature;
+    const shouldResetToClvAfterSeasonRollover =
+      hasChampionshipSelectionSignatureChanged &&
+      preferredChampionshipCode == ChampionshipCode.CLV &&
+      championships.every((championship) => championship.status == ChampionshipStatus.PLANNING);
+    const shouldApplyPreferredChampionshipSelection =
+      !hasAppliedInitialAdminChampionshipSelectionRef.current || shouldResetToClvAfterSeasonRollover;
+
+    if (shouldApplyPreferredChampionshipSelection && selectedChampionshipCode != preferredChampionshipCode) {
+      setSelectedChampionshipCode(preferredChampionshipCode);
+    }
+
+    hasAppliedInitialAdminChampionshipSelectionRef.current = true;
+    lastChampionshipSelectionSignatureRef.current = championshipSelectionSignature;
+  }, [championships, selectedChampionshipCode, setSelectedChampionshipCode]);
 
   const resolveIsMobileViewport = () => {
     if (typeof window == "undefined") {
@@ -208,7 +301,12 @@ export function AdminPage() {
       return false;
     }
 
-    await Promise.all([refetchMatches(), refetchChampionshipBracket()]);
+    await Promise.all([
+      refetchOperationalMatches(),
+      refetchMatchesTabMatches(),
+      refetchOperationalChampionshipBracket(),
+      refetchMatchesTabChampionshipBracket(),
+    ]);
     toast.success("Jogos e chaveamento atual removidos.");
     return true;
   };
@@ -293,7 +391,7 @@ export function AdminPage() {
       return;
     }
 
-    if (value == ChampionshipStatus.PLANNING && matches.length > 0) {
+    if (value == ChampionshipStatus.PLANNING && operationalMatches.length > 0) {
       setChampionshipStatusFlowDialog(ChampionshipStatusFlowDialog.RETURN_TO_PLANNING_WITH_GAMES);
       return;
     }
@@ -302,7 +400,7 @@ export function AdminPage() {
       selectedChampionship.status == ChampionshipStatus.PLANNING &&
       value == ChampionshipStatus.UPCOMING
     ) {
-      if (matches.length > 0) {
+      if (operationalMatches.length > 0) {
         setChampionshipStatusFlowDialog(ChampionshipStatusFlowDialog.MOVE_TO_UPCOMING_WITH_GAMES);
         return;
       }
@@ -406,17 +504,26 @@ export function AdminPage() {
         championships={championships}
         selectedChampionship={selectedChampionship}
         selectedChampionshipCode={selectedChampionshipCode}
-        matches={matches}
+        matches={operationalMatches}
+        matchesTabMatches={matchesTabMatches}
         teams={teams}
         sports={sports}
         championshipSports={championshipSports}
         liveAndScheduledMatches={liveAndScheduledMatches}
-        championshipBracketView={visibleChampionshipBracketView}
-        loadingChampionshipBracket={loadingChampionshipBracket}
-        matchBracketContextByMatchId={matchBracketContextByMatchId}
-        matchRepresentationByMatchId={matchRepresentationByMatchId}
-        estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
-        matchesFetching={matchesFetching}
+        championshipBracketView={visibleOperationalChampionshipBracketView}
+        matchesTabChampionshipBracketView={visibleMatchesTabChampionshipBracketView}
+        loadingChampionshipBracket={loadingOperationalChampionshipBracket}
+        loadingMatchesTabChampionshipBracket={loadingMatchesTabChampionshipBracket}
+        matchBracketContextByMatchId={operationalMatchBracketContextByMatchId}
+        matchesTabMatchBracketContextByMatchId={matchesTabMatchBracketContextByMatchId}
+        matchRepresentationByMatchId={operationalMatchRepresentationByMatchId}
+        matchesTabMatchRepresentationByMatchId={matchesTabMatchRepresentationByMatchId}
+        estimatedStartTimeByMatchId={operationalEstimatedStartTimeByMatchId}
+        matchesTabEstimatedStartTimeByMatchId={matchesTabEstimatedStartTimeByMatchId}
+        matchesFetching={operationalMatchesFetching}
+        matchesTabFetching={matchesTabFetching}
+        availableMatchSeasonYears={availableMatchSeasonYears}
+        selectedMatchesSeasonYear={resolvedMatchesSeasonYear}
         profileName={profileName}
         canViewMatchesTab={canViewMatchesTab}
         canViewControlTab={canViewControlTab}
@@ -445,12 +552,14 @@ export function AdminPage() {
         updatingChampionshipStatus={updatingChampionshipStatus || processingChampionshipStatusFlowAction}
         onChampionshipCodeChange={handleChampionshipCodeChange}
         onChampionshipStatusChange={handleChampionshipStatusChange}
+        onSelectedMatchesSeasonYearChange={setMatchesSeasonYear}
         onSignOut={signOut}
         onRefetchMatches={handleRefetchMatches}
         onRefetchChampionshipBracket={handleRefetchChampionshipBracket}
         onRefetchTeams={refetchTeams}
         onBracketGenerated={handleBracketGenerated}
         liveMatchesCount={liveMatches.length}
+        pendingLeagueEventReservationsCount={pendingLeagueEventReservationRequestsCount}
         pendingTieBreaksCount={pendingTieBreaksCount}
       />
 

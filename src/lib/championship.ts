@@ -585,13 +585,6 @@ export function resolveEstimatedStartTimeByMatchId(params: {
       return carry;
     }
 
-    if (
-      resolveNormalizedSportName(match.sports?.name) !=
-      NORMALIZED_BEACH_SOCCER_NAME
-    ) {
-      return carry;
-    }
-
     const championshipSport =
       championshipSportByChampionshipAndSportKey[
         `${match.championship_id}:${match.sport_id}`

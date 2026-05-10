@@ -158,7 +158,6 @@ export function AdminSports({
             const resolvedResultRule = championshipSport?.result_rule ?? platformSportRule.resultRule;
             const resolvedDefaultMatchDurationMinutes =
               championshipSport?.default_match_duration_minutes ?? platformSportRule.defaultMatchDurationMinutes;
-            const isBeachSoccer = normalizeSportName(platformSportRule.sportName) == "beach soccer";
             const shouldShowEstimatedStartTimeOnCards =
               optimisticEstimatedStartTimeBySportId[sport?.id ?? ""] ??
               championshipSport?.show_estimated_start_time_on_cards ??
@@ -211,55 +210,53 @@ export function AdminSports({
                   </ol>
                 </div>
 
-                {isBeachSoccer ? (
-                  <div className="app-card-muted space-y-2 px-3 py-2">
-                    <p className="text-xs font-medium text-muted-foreground">Horário estimado nos cards (Beach Soccer)</p>
-                    <RadioGroup
-                      value={shouldShowEstimatedStartTimeOnCards ? "YES" : "NO"}
-                      onValueChange={(value) => {
-                        if (!championshipSport) {
-                          return;
-                        }
+                <div className="app-card-muted space-y-2 px-3 py-2">
+                  <p className="text-xs font-medium text-muted-foreground">Horário estimado nos cards</p>
+                  <RadioGroup
+                    value={shouldShowEstimatedStartTimeOnCards ? "YES" : "NO"}
+                    onValueChange={(value) => {
+                      if (!championshipSport) {
+                        return;
+                      }
 
-                        const nextShouldShowEstimatedStartTimeOnCards = value == "YES";
+                      const nextShouldShowEstimatedStartTimeOnCards = value == "YES";
 
-                        if (
-                          nextShouldShowEstimatedStartTimeOnCards ==
-                          championshipSport.show_estimated_start_time_on_cards
-                        ) {
-                          return;
-                        }
+                      if (
+                        nextShouldShowEstimatedStartTimeOnCards ==
+                        championshipSport.show_estimated_start_time_on_cards
+                      ) {
+                        return;
+                      }
 
-                        void handleToggleEstimatedStartTimeOnCards(
-                          championshipSport,
-                          nextShouldShowEstimatedStartTimeOnCards,
-                        );
-                      }}
-                      className="flex items-center gap-4"
-                    >
-                      <label className="flex items-center gap-2 text-sm">
-                        <RadioGroupItem value="YES" disabled={!canManageSports || !championshipSport || isSavingSport} />
-                        Sim
-                      </label>
-                      <label className="flex items-center gap-2 text-sm">
-                        <RadioGroupItem value="NO" disabled={!canManageSports || !championshipSport || isSavingSport} />
-                        Não
-                      </label>
-                    </RadioGroup>
+                      void handleToggleEstimatedStartTimeOnCards(
+                        championshipSport,
+                        nextShouldShowEstimatedStartTimeOnCards,
+                      );
+                    }}
+                    className="flex items-center gap-4"
+                  >
+                    <label className="flex items-center gap-2 text-sm">
+                      <RadioGroupItem value="YES" disabled={!canManageSports || !championshipSport || isSavingSport} />
+                      Sim
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <RadioGroupItem value="NO" disabled={!canManageSports || !championshipSport || isSavingSport} />
+                      Não
+                    </label>
+                  </RadioGroup>
 
-                    {!championshipSport ? (
-                      <p className="text-xs text-muted-foreground">
-                        Vincule Beach Soccer ao campeonato para editar esta configuração.
-                      </p>
-                    ) : null}
+                  {!championshipSport ? (
+                    <p className="text-xs text-muted-foreground">
+                      Vincule a modalidade ao campeonato para editar esta configuração.
+                    </p>
+                  ) : null}
 
-                    {!canManageSports ? (
-                      <p className="text-xs text-muted-foreground">
-                        Perfil em visualização: sem permissão para editar a aba de modalidades.
-                      </p>
-                    ) : null}
-                  </div>
-                ) : null}
+                  {!canManageSports ? (
+                    <p className="text-xs text-muted-foreground">
+                      Perfil em visualização: sem permissão para editar a aba de modalidades.
+                    </p>
+                  ) : null}
+                </div>
               </div>
             );
           })}

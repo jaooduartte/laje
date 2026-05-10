@@ -34,13 +34,20 @@ interface Props {
   championshipSports: ChampionshipSport[];
   sports: Sport[];
   championshipBracketView: ChampionshipBracketView;
+  availableSeasonYears?: number[];
 }
 
 const ALL_SPORTS_FILTER = "all";
 const ALL_NAIPES_FILTER = "all";
 const ALL_GROUPS_FILTER = "all";
 
-export function AdminStandings({ selectedChampionship, championshipSports, sports, championshipBracketView }: Props) {
+export function AdminStandings({
+  selectedChampionship,
+  championshipSports,
+  sports,
+  championshipBracketView,
+  availableSeasonYears = [],
+}: Props) {
   const [sportFilter, setSportFilter] = useState<string>(ALL_SPORTS_FILTER);
   const [naipeFilter, setNaipeFilter] = useState<string>(ALL_NAIPES_FILTER);
   const [groupFilter, setGroupFilter] = useState<string>(ALL_GROUPS_FILTER);
@@ -89,9 +96,34 @@ export function AdminStandings({ selectedChampionship, championshipSports, sport
   }, [selectedSeasonBracketView]);
 
   const historyYears = useMemo(() => {
-    return [...new Set(championshipBracketSeasonViews.map((championshipBracketSeasonView) => championshipBracketSeasonView.season_year))]
-      .sort((firstYear, secondYear) => secondYear - firstYear);
-  }, [championshipBracketSeasonViews]);
+    return [...new Set([
+      ...availableSeasonYears,
+      ...championshipBracketSeasonViews.map((championshipBracketSeasonView) => championshipBracketSeasonView.season_year),
+    ])].sort((firstYear, secondYear) => secondYear - firstYear);
+  }, [availableSeasonYears, championshipBracketSeasonViews]);
+
+  useEffect(() => {
+    if (selectedChampionshipSeasonYear == null) {
+      return;
+    }
+
+    if (yearFilter == "all") {
+      return;
+    }
+
+    const parsedYearFilter = Number(yearFilter);
+    if (!Number.isFinite(parsedYearFilter)) {
+      setYearFilter(String(selectedChampionshipSeasonYear));
+      return;
+    }
+
+    if (
+      parsedYearFilter != selectedChampionshipSeasonYear &&
+      !historyYears.includes(parsedYearFilter)
+    ) {
+      setYearFilter(String(selectedChampionshipSeasonYear));
+    }
+  }, [historyYears, selectedChampionshipSeasonYear, yearFilter]);
 
   const { standings, loading: standingsLoading } = useStandings({
     championshipId: selectedChampionship.id,

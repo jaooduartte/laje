@@ -1,13 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isSameDay, startOfMonth, startOfWeek, subMonths } from "date-fns";
+import { toast } from "sonner";
 import { useLeagueEvents } from "@/hooks/useLeagueEvents";
+import { useTeams } from "@/hooks/useTeams";
 import { LeagueCalendarPageView } from "@/pages/league-calendar/LeagueCalendarPageView";
 import { isLeagueEventType } from "@/domain/league-events/leagueEvent.constants";
 import { leagueEventHasOrganizerTeam, resolveLeagueEventOrganizerTeams } from "@/domain/league-events/leagueEvent.helpers";
+import { supabase } from "@/integrations/supabase/client";
+import { bindLeagueEventReservationRequestPayload, createLeagueEventReservationRequest, fetchPendingReservationRequestsByDate } from "@/domain/league-events/leagueEventReservation.repository";
+import type { LeagueEventReservationRequestFormValues } from "@/domain/league-events/leagueEventReservation.types";
 import { fetchLeagueEventsByDateRange } from "@/domain/league-events/leagueEvent.repository";
 import { fetchLeagueCalendarHolidaysByDateRange, ensureLeagueCalendarHolidaysYear } from "@/domain/league-events/leagueCalendarHoliday.repository";
 import { LeagueCalendarHolidayDayKind } from "@/lib/enums";
-import type { LeagueCalendarHoliday, LeagueEvent } from "@/lib/types";
+import type { LeagueCalendarHoliday, LeagueEvent, LeagueEventReservationRequest } from "@/lib/types";
 
 const ALL_ATHLETICS_FILTER = "ALL_ATHLETICS";
 const ALL_EVENT_TYPES_FILTER = "ALL_EVENT_TYPES";
@@ -15,6 +20,19 @@ const HOLIDAY_FILTER_ALL = "ALL";
 const HOLIDAY_FILTER_EVENTS_ONLY = "EVENTS_ONLY";
 const HOLIDAY_FILTER_HOLIDAYS_ONLY = "HOLIDAYS_ONLY";
 const HOLIDAY_FILTER_OPTIONAL_ONLY = "OPTIONAL_ONLY";
+const CALENDAR_VIEW_TAB = "CALENDAR";
+const RESERVATION_VIEW_TAB = "RESERVATION";
+
+function resolveInitialReservationFormValues(): LeagueEventReservationRequestFormValues {
+  return {
+    teamId: "",
+    eventName: "",
+    eventType: null,
+    eventDate: null,
+    requesterName: "",
+    requesterEmail: "",
+  };
+}
 
 type HolidayFilterMode =
   | typeof HOLIDAY_FILTER_ALL
@@ -23,13 +41,22 @@ type HolidayFilterMode =
   | typeof HOLIDAY_FILTER_OPTIONAL_ONLY;
 
 export function LeagueCalendarPage() {
+  const [activeTab, setActiveTab] = useState<typeof CALENDAR_VIEW_TAB | typeof RESERVATION_VIEW_TAB>(CALENDAR_VIEW_TAB);
   const [monthDate, setMonthDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const { leagueEvents, loading } = useLeagueEvents({ monthDate });
+  const { teams } = useTeams();
   const [athleticFilter, setAthleticFilter] = useState<string>(ALL_ATHLETICS_FILTER);
   const [eventTypeFilter, setEventTypeFilter] = useState<string>(ALL_EVENT_TYPES_FILTER);
   const [holidayFilter, setHolidayFilter] = useState<HolidayFilterMode>(HOLIDAY_FILTER_ALL);
   const [eventSearch, setEventSearch] = useState("");
+  const [reservationFormValues, setReservationFormValues] = useState<LeagueEventReservationRequestFormValues>(
+    resolveInitialReservationFormValues(),
+  );
+  const [submittingReservationRequest, setSubmittingReservationRequest] = useState(false);
+  const [pendingReservationRequestConflicts, setPendingReservationRequestConflicts] = useState<LeagueEvent[] | null>(null);
+  const [pendingQueueConflicts, setPendingQueueConflicts] = useState<LeagueEventReservationRequest[] | null>(null);
+  const [showReservationSuccessModal, setShowReservationSuccessModal] = useState(false);
   const [yearLeagueEvents, setYearLeagueEvents] = useState<LeagueEvent[]>([]);
   const [yearLeagueHolidays, setYearLeagueHolidays] = useState<LeagueCalendarHoliday[]>([]);
   const [loadingYearLeagueEvents, setLoadingYearLeagueEvents] = useState(false);
@@ -259,8 +286,92 @@ export function LeagueCalendarPage() {
     }
   };
 
+  const orderedTeams = useMemo(() => {
+    return [...teams].sort((firstTeam, secondTeam) => firstTeam.name.localeCompare(secondTeam.name));
+  }, [teams]);
+
+  const handleReservationFieldChange = <FieldName extends keyof LeagueEventReservationRequestFormValues>(
+    fieldName: FieldName,
+    value: LeagueEventReservationRequestFormValues[FieldName],
+  ) => {
+    setReservationFormValues((currentReservationFormValues) => ({
+      ...currentReservationFormValues,
+      [fieldName]: value,
+    }));
+  };
+
+  const submitReservationRequest = async (shouldIgnoreDateConflict: boolean, shouldIgnoreQueueConflict: boolean) => {
+    try {
+      const payload = bindLeagueEventReservationRequestPayload(reservationFormValues);
+
+      if (!shouldIgnoreDateConflict) {
+        const conflictingEventsResponse = await fetchLeagueEventsByDateRange({
+          startDate: payload.event_date,
+          endDate: payload.event_date,
+        });
+
+        if (conflictingEventsResponse.error) {
+          throw new Error("Não foi possível validar conflito de data no calendário.");
+        }
+
+        if ((conflictingEventsResponse.data ?? []).length > 0) {
+          setPendingReservationRequestConflicts(conflictingEventsResponse.data as LeagueEvent[]);
+          return;
+        }
+      }
+
+      if (!shouldIgnoreQueueConflict) {
+        const queueConflictsResponse = await fetchPendingReservationRequestsByDate(payload.event_date);
+
+        if (queueConflictsResponse.error) {
+          throw new Error("Não foi possível verificar pedidos em fila para essa data.");
+        }
+
+        if ((queueConflictsResponse.data ?? []).length > 0) {
+          setPendingQueueConflicts(queueConflictsResponse.data as unknown as LeagueEventReservationRequest[]);
+          return;
+        }
+      }
+
+      setSubmittingReservationRequest(true);
+
+      const { error } = await createLeagueEventReservationRequest(payload);
+
+      setSubmittingReservationRequest(false);
+
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+
+      const teamName = teams.find((team) => team.id === payload.team_id)?.name ?? "";
+
+      void supabase.functions.invoke("send-reservation-email", {
+        body: {
+          type: "PENDING",
+          requesterEmail: payload.requester_email,
+          requesterName: payload.requester_name,
+          teamName,
+          eventName: payload.event_name,
+          eventType: payload.event_type,
+          eventDate: payload.event_date,
+        },
+      });
+
+      setPendingReservationRequestConflicts(null);
+      setPendingQueueConflicts(null);
+      setReservationFormValues(resolveInitialReservationFormValues());
+      setActiveTab(CALENDAR_VIEW_TAB);
+      setShowReservationSuccessModal(true);
+    } catch (error) {
+      setSubmittingReservationRequest(false);
+      toast.error(error instanceof Error ? error.message : "Não foi possível enviar a solicitação.");
+    }
+  };
+
   return (
     <LeagueCalendarPageView
+      activeTab={activeTab}
       loading={loadingWithFilters}
       monthDate={monthDate}
       selectedDate={selectedDate}
@@ -283,6 +394,11 @@ export function LeagueCalendarPage() {
       optionalOnlyHolidayFilter={HOLIDAY_FILTER_OPTIONAL_ONLY}
       eventSearch={eventSearch}
       hasActiveFilters={hasActiveFilters}
+      teams={orderedTeams}
+      reservationFormValues={reservationFormValues}
+      submittingReservationRequest={submittingReservationRequest}
+      pendingReservationRequestConflicts={pendingReservationRequestConflicts}
+      onActiveTabChange={setActiveTab}
       onPreviousMonth={handlePreviousMonth}
       onNextMonth={handleNextMonth}
       onSelectedDateChange={handleSelectedDateChange}
@@ -290,6 +406,15 @@ export function LeagueCalendarPage() {
       onEventTypeFilterChange={handleEventTypeFilterChange}
       onHolidayFilterChange={handleHolidayFilterChange}
       onEventSearchChange={setEventSearch}
+      onReservationFieldChange={handleReservationFieldChange}
+      pendingQueueConflicts={pendingQueueConflicts}
+      onSubmitReservationRequest={() => void submitReservationRequest(false, false)}
+      onConfirmReservationRequestDespiteConflict={() => void submitReservationRequest(true, false)}
+      onDismissReservationConflict={() => setPendingReservationRequestConflicts(null)}
+      onConfirmReservationRequestDespiteQueueConflict={() => void submitReservationRequest(true, true)}
+      onDismissReservationQueueConflict={() => setPendingQueueConflicts(null)}
+      showReservationSuccessModal={showReservationSuccessModal}
+      onDismissReservationSuccessModal={() => setShowReservationSuccessModal(false)}
     />
   );
 }

@@ -128,6 +128,12 @@ export enum LeagueEventOrganizerType {
   LAJE = "LAJE",
 }
 
+export enum LeagueEventReservationRequestStatus {
+  PENDING = "PENDING",
+  APPROVED = "APPROVED",
+  REJECTED = "REJECTED",
+}
+
 export enum LeagueCalendarHolidayScope {
   NATIONAL = "NATIONAL",
   JOINVILLE = "JOINVILLE",
@@ -200,7 +206,9 @@ export enum AdminLogResourceTable {
   TEAMS = "public.teams",
   MATCHES = "public.matches",
   LEAGUE_EVENTS = "public.league_events",
+  LEAGUE_EVENT_RESERVATION_REQUESTS = "public.league_event_reservation_requests",
   LEAGUE_EVENT_ORGANIZER_TEAMS = "public.league_event_organizer_teams",
+  CHAMPIONSHIP_BRACKET_WORKFLOW = "public.championship_bracket_workflow",
   AUTH_USERS = "auth.users",
   PUBLIC_PAGE_ACCESS_SETTINGS = "public.public_page_access_settings",
 }

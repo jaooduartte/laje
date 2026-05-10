@@ -11,6 +11,7 @@ import {
   ChampionshipSportTieBreakerRule,
   ChampionshipStatus,
   LeagueEventOrganizerType,
+  LeagueEventReservationRequestStatus,
   LeagueEventType,
   MatchNaipe,
   MatchStatus,
@@ -24,6 +25,7 @@ import {
 } from "@/lib/championship";
 import { isAdminUserPasswordStatus, resolveAdminUserPasswordStatusLabel } from "@/lib/adminUsers";
 import { LEAGUE_EVENT_ORGANIZER_LABELS, LEAGUE_EVENT_TYPE_LABELS } from "@/domain/league-events/leagueEvent.constants";
+import { LEAGUE_EVENT_RESERVATION_REQUEST_STATUS_LABELS } from "@/domain/league-events/leagueEventReservation.types";
 import type { AdminActionLog } from "@/lib/types";
 import { AppBadge } from "@/components/ui/app-badge";
 import {
@@ -77,7 +79,9 @@ const ADMIN_LOG_RESOURCE_LABELS: Record<AdminLogResourceTable, string> = {
   [AdminLogResourceTable.TEAMS]: "Atléticas",
   [AdminLogResourceTable.MATCHES]: "Jogos",
   [AdminLogResourceTable.LEAGUE_EVENTS]: "Eventos da Liga",
+  [AdminLogResourceTable.LEAGUE_EVENT_RESERVATION_REQUESTS]: "Reservas do Calendário da Liga",
   [AdminLogResourceTable.LEAGUE_EVENT_ORGANIZER_TEAMS]: "Organização de eventos",
+  [AdminLogResourceTable.CHAMPIONSHIP_BRACKET_WORKFLOW]: "Configuração de Campeonato",
   [AdminLogResourceTable.AUTH_USERS]: "Usuários administrativos",
   [AdminLogResourceTable.PUBLIC_PAGE_ACCESS_SETTINGS]: "Configurações públicas",
 };
@@ -88,7 +92,9 @@ const ADMIN_LOG_RESOURCE_ENTITY_LABELS: Record<AdminLogResourceTable, string> = 
   [AdminLogResourceTable.TEAMS]: "atlética",
   [AdminLogResourceTable.MATCHES]: "jogo",
   [AdminLogResourceTable.LEAGUE_EVENTS]: "evento da liga",
+  [AdminLogResourceTable.LEAGUE_EVENT_RESERVATION_REQUESTS]: "reserva do calendário da liga",
   [AdminLogResourceTable.LEAGUE_EVENT_ORGANIZER_TEAMS]: "vínculo de organização do evento",
+  [AdminLogResourceTable.CHAMPIONSHIP_BRACKET_WORKFLOW]: "configuração de campeonato",
   [AdminLogResourceTable.AUTH_USERS]: "usuário administrativo",
   [AdminLogResourceTable.PUBLIC_PAGE_ACCESS_SETTINGS]: "configuração pública",
 };
@@ -147,6 +153,15 @@ const ADMIN_LOG_RESOURCE_FIELD_LABELS: Partial<Record<AdminLogResourceTable, Rec
   },
   [AdminLogResourceTable.LEAGUE_EVENTS]: {
     organizer_team_id: "Atlética organizadora principal",
+  },
+  [AdminLogResourceTable.LEAGUE_EVENT_RESERVATION_REQUESTS]: {
+    team_id: "Atlética solicitante",
+    event_name: "Nome do evento",
+    event_date: "Data reservada",
+    requester_name: "Solicitante",
+    requester_contact: "Contato do solicitante",
+    approved_league_event_id: "Evento aprovado",
+    review_notes: "Observação da revisão",
   },
   [AdminLogResourceTable.LEAGUE_EVENT_ORGANIZER_TEAMS]: {
     event_id: "Evento",
@@ -230,7 +245,9 @@ function isAdminLogResourceTable(value: string): value is AdminLogResourceTable 
     value == AdminLogResourceTable.TEAMS ||
     value == AdminLogResourceTable.MATCHES ||
     value == AdminLogResourceTable.LEAGUE_EVENTS ||
+    value == AdminLogResourceTable.LEAGUE_EVENT_RESERVATION_REQUESTS ||
     value == AdminLogResourceTable.LEAGUE_EVENT_ORGANIZER_TEAMS ||
+    value == AdminLogResourceTable.CHAMPIONSHIP_BRACKET_WORKFLOW ||
     value == AdminLogResourceTable.AUTH_USERS ||
     value == AdminLogResourceTable.PUBLIC_PAGE_ACCESS_SETTINGS
   );
@@ -271,6 +288,16 @@ function isLeagueEventTypeValue(value: string): value is LeagueEventType {
     value == LeagueEventType.OPEN_BAR ||
     value == LeagueEventType.CHAMPIONSHIP ||
     value == LeagueEventType.LAJE_EVENT
+  );
+}
+
+function isLeagueEventReservationRequestStatusValue(
+  value: string,
+): value is LeagueEventReservationRequestStatus {
+  return (
+    value == LeagueEventReservationRequestStatus.PENDING ||
+    value == LeagueEventReservationRequestStatus.APPROVED ||
+    value == LeagueEventReservationRequestStatus.REJECTED
   );
 }
 
@@ -374,6 +401,10 @@ function resolveFieldValueText(fieldName: string, value: unknown, teamNameById: 
 
     if (fieldName == "organizer_type" && isLeagueEventOrganizerTypeValue(value)) {
       return LEAGUE_EVENT_ORGANIZER_LABELS[value];
+    }
+
+    if (fieldName == "status" && isLeagueEventReservationRequestStatusValue(value)) {
+      return LEAGUE_EVENT_RESERVATION_REQUEST_STATUS_LABELS[value];
     }
 
     if (fieldName == "naipe" && isMatchNaipeValue(value)) {
@@ -502,6 +533,19 @@ function resolveMatchContextDetails(log: AdminActionLog, teamNameById: TeamNameB
 }
 
 function resolveChangedFields(log: AdminActionLog, teamNameById: TeamNameById): string[] {
+  if (log.resource_table == AdminLogResourceTable.CHAMPIONSHIP_BRACKET_WORKFLOW) {
+    const metadata = resolveRecordValue(log.metadata);
+    const changedFields = metadata?.changed_fields;
+
+    if (Array.isArray(changedFields)) {
+      return changedFields
+        .filter((changedField): changedField is string => typeof changedField == "string" && changedField.trim().length > 0)
+        .slice(0, MAXIMUM_LOG_CHANGES);
+    }
+
+    return [];
+  }
+
   if (log.action_type != AdminActionType.UPDATE) {
     return [];
   }
@@ -602,8 +646,16 @@ function resolvePrimaryName(log: AdminActionLog): string | null {
     return nextValues.name;
   }
 
+  if (nextValues?.event_name && typeof nextValues.event_name == "string") {
+    return nextValues.event_name;
+  }
+
   if (previousValues?.name && typeof previousValues.name == "string") {
     return previousValues.name;
+  }
+
+  if (previousValues?.event_name && typeof previousValues.event_name == "string") {
+    return previousValues.event_name;
   }
 
   if (metadata?.target_user_name && typeof metadata.target_user_name == "string") {
@@ -615,6 +667,24 @@ function resolvePrimaryName(log: AdminActionLog): string | null {
 
 function resolveHeadline(log: AdminActionLog): string {
   const primaryName = resolvePrimaryName(log);
+  const metadata = resolveRecordValue(log.metadata);
+
+  if (log.resource_table == AdminLogResourceTable.CHAMPIONSHIP_BRACKET_WORKFLOW) {
+    const stepLabel =
+      metadata?.step && typeof metadata.step == "string"
+        ? metadata.step
+        : "Fluxo de configuração";
+
+    if (metadata?.workflow_action == "BRACKET_GENERATED") {
+      return "Gerou a configuração final do campeonato";
+    }
+
+    if (metadata?.workflow_action == "STEP_ADVANCED") {
+      return `Avançou a etapa ${stepLabel}`;
+    }
+
+    return `Salvou a etapa ${stepLabel}`;
+  }
 
   if (log.action_type == AdminActionType.LOGIN) {
     return primaryName ? `Acessou a plataforma: ${primaryName}` : "Acessou a plataforma";
@@ -642,6 +712,20 @@ function resolveHeadline(log: AdminActionLog): string {
 
 function resolveFallbackDetail(log: AdminActionLog): string {
   const primaryName = resolvePrimaryName(log);
+
+  if (log.resource_table == AdminLogResourceTable.CHAMPIONSHIP_BRACKET_WORKFLOW) {
+    const metadata = resolveRecordValue(log.metadata);
+    const changedFields = metadata?.changed_fields;
+
+    if (Array.isArray(changedFields)) {
+      const changedFieldsCount = changedFields.filter((changedField) => typeof changedField == "string" && changedField.trim().length > 0).length;
+      if (changedFieldsCount > 0) {
+        return `${changedFieldsCount} alteração(ões) registrada(s) nesta etapa.`;
+      }
+    }
+
+    return log.description ?? "Registro do fluxo de configuração do campeonato.";
+  }
 
   if (log.action_type == AdminActionType.LOGIN) {
     return "Login administrativo registrado.";

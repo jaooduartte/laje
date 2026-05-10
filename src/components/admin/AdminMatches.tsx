@@ -323,6 +323,9 @@ interface Props {
   estimatedStartTimeByMatchId?: Record<string, string>;
   isFetchingMatches?: boolean;
   canManageMatches?: boolean;
+  availableSeasonYears?: number[];
+  selectedSeasonYear?: number | null;
+  onSeasonYearChange?: (seasonYear: number) => void;
   viewMode?: AdminMatchesViewMode;
   onOpenTieBreaksTab?: () => void;
   onRefetch: (options?: { showLoading?: boolean; showFetching?: boolean }) => void | Promise<void>;
@@ -643,7 +646,10 @@ export function AdminMatches({
   matchRepresentationByMatchId = {},
   estimatedStartTimeByMatchId = {},
   isFetchingMatches = false,
-  canManageMatches = true,
+  canManageMatches: canManageMatchesProp = true,
+  availableSeasonYears = [],
+  selectedSeasonYear = null,
+  onSeasonYearChange,
   viewMode = AdminMatchesViewMode.DEFAULT,
   onOpenTieBreaksTab,
   onRefetch,
@@ -651,6 +657,13 @@ export function AdminMatches({
 }: Props) {
   const isScoreSheetReviewMode = viewMode == AdminMatchesViewMode.SCORE_SHEET_REVIEW;
   const isTieBreaksMode = viewMode == AdminMatchesViewMode.TIE_BREAKS;
+  const isHistoricalSeasonView =
+    !isScoreSheetReviewMode &&
+    !isTieBreaksMode &&
+    selectedSeasonYear != null &&
+    selectedChampionship.current_season_year != null &&
+    selectedSeasonYear != selectedChampionship.current_season_year;
+  const canManageMatches = canManageMatchesProp && !isHistoricalSeasonView;
   const defaultMatchesStatusFilter = isScoreSheetReviewMode ? MATCHES_STATUS_FILTER_FINISHED : ALL_MATCHES_STATUS_FILTER;
   const [naipe, setNaipe] = useState<MatchNaipe>(MatchNaipe.MASCULINO);
   const [sportId, setSportId] = useState("");
@@ -3308,6 +3321,16 @@ export function AdminMatches({
         </div>
       ) : null}
 
+      {isHistoricalSeasonView ? (
+        <div className="glass-card enter-section border border-border/60 p-4">
+          <p className="text-sm font-medium">Histórico em visualização</p>
+          <p className="text-xs text-muted-foreground">
+            Os dados de {selectedSeasonYear} ficam somente para consulta nesta aba. Alterações continuam restritas ao
+            ano atual.
+          </p>
+        </div>
+      ) : null}
+
       <div className="enter-section space-y-3">
         <SportFilter
           sports={sportsForMatchesFilter}
@@ -3316,7 +3339,35 @@ export function AdminMatches({
         />
 
         <div className="glass-card enter-section space-y-3 p-4">
-		          <div className={`grid grid-cols-1 gap-3 xl:items-center ${isScoreSheetReviewMode ? "xl:grid-cols-4" : "xl:grid-cols-6"}`}>
+		          <div className={`grid grid-cols-1 gap-3 xl:items-center ${isScoreSheetReviewMode ? "xl:grid-cols-4" : "xl:grid-cols-7"}`}>
+                {!isScoreSheetReviewMode && !isTieBreaksMode ? (
+                  <div className="xl:min-w-0">
+                    <Select
+                      value={selectedSeasonYear != null ? String(selectedSeasonYear) : ""}
+                      onValueChange={(value) => {
+                        const parsedSeasonYear = Number(value);
+
+                        if (!Number.isFinite(parsedSeasonYear) || !onSeasonYearChange) {
+                          return;
+                        }
+
+                        onSeasonYearChange(parsedSeasonYear);
+                      }}
+                    >
+                      <SelectTrigger className="app-input-field w-full">
+                        <SelectValue placeholder="Ano" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableSeasonYears.map((seasonYear) => (
+                          <SelectItem key={seasonYear} value={String(seasonYear)}>
+                            {seasonYear}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
+
 		            {!isScoreSheetReviewMode ? (
 		              <div className="xl:min-w-0">
 		                <Select value={matchesStatusFilter} onValueChange={setMatchesStatusFilter}>

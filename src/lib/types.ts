@@ -8,6 +8,7 @@ import type {
   LeagueCalendarHolidayDayKind,
   LeagueCalendarHolidayScope,
   LeagueEventOrganizerType,
+  LeagueEventReservationRequestStatus,
   LeagueEventType,
   ChampionshipCode,
   ChampionshipSportNaipeMode,
@@ -139,12 +140,30 @@ export interface LeagueEvent {
   event_type: LeagueEventType;
   organizer_type: LeagueEventOrganizerType;
   organizer_team_id: string | null;
-  location: string;
   event_date: string;
   created_at: string;
   updated_at: string;
   organizer_team?: Team | null;
   organizer_teams?: Team[];
+}
+
+export interface LeagueEventReservationRequest {
+  id: string;
+  team_id: string;
+  event_name: string;
+  event_type: LeagueEventType;
+  event_date: string;
+  requester_name: string;
+  requester_email: string;
+  status: LeagueEventReservationRequestStatus;
+  approved_league_event_id: string | null;
+  review_notes: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  created_at: string;
+  updated_at: string;
+  team?: Team | null;
+  approved_league_event?: LeagueEvent | null;
 }
 
 export interface LeagueCalendarHoliday {
@@ -233,6 +252,59 @@ export interface CurrentAdminAccount {
   password_status: AdminUserPasswordStatus;
   profile_id: string | null;
   profile_name: string | null;
+}
+
+export interface HomeDashboardRankedMetricItem {
+  team_id: string;
+  team_name: string;
+  value: number;
+  secondary_value: number;
+}
+
+export interface HomeDashboardChampionshipDominanceItem {
+  championship_code: string;
+  team_id: string;
+  team_name: string;
+  titles_count: number;
+}
+
+export interface HomeDashboardSeasonInsightItem {
+  id: string;
+  label: string;
+  team_name: string | null;
+  value: number | null;
+  unit: string | null;
+  season_year?: number | null;
+  championship_code?: ChampionshipCode | null;
+}
+
+export interface HomeDashboardNextEventDay {
+  event_date: string;
+  events: Array<{
+    name: string;
+    event_type: LeagueEventType;
+    organizer_name: string;
+  }>;
+}
+
+export interface HomeDashboardNextEventItem {
+  event_date: string;
+  name: string;
+  event_type: LeagueEventType;
+  organizer_name: string;
+}
+
+export interface HomeDashboardMetrics {
+  season_year: number;
+  top_performance: HomeDashboardRankedMetricItem[];
+  most_matches: HomeDashboardRankedMetricItem[];
+  most_appearances: HomeDashboardRankedMetricItem[];
+  season_highlights: HomeDashboardRankedMetricItem[];
+  championship_dominance: HomeDashboardChampionshipDominanceItem[];
+  modality_participation: HomeDashboardRankedMetricItem[];
+  season_insights: HomeDashboardSeasonInsightItem[];
+  next_event_day: HomeDashboardNextEventDay | null;
+  next_events: HomeDashboardNextEventItem[];
 }
 
 export interface ChampionshipBracketEdition {

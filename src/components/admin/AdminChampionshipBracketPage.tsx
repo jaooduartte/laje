@@ -47,6 +47,7 @@ import {
 } from "@/domain/championship-brackets/championshipBracketKnockoutProjection";
 import { ChampionshipBracketSetupDTO } from "@/domain/championship-brackets/ChampionshipBracketSetupDTO";
 import { ChampionshipBracketWizardDraftDTO } from "@/domain/championship-brackets/ChampionshipBracketWizardDraftDTO";
+import { sanitizeChampionshipBracketWizardDraft } from "@/domain/championship-brackets/championshipBracketWizardSync";
 import {
   clearChampionshipBracketWizardDraft,
   fetchChampionshipBracketWizardDraft,
@@ -790,6 +791,22 @@ function resolveEditableDraftSnapshot(
   });
 }
 
+function resolveSnapshotDraftFormValues(
+  snapshot: string,
+): ChampionshipBracketWizardDraftFormValues | null {
+  try {
+    const parsedSnapshot = JSON.parse(snapshot);
+
+    if (typeof parsedSnapshot != "object" || parsedSnapshot == null) {
+      return null;
+    }
+
+    return parsedSnapshot as ChampionshipBracketWizardDraftFormValues;
+  } catch {
+    return null;
+  }
+}
+
 function resolveCompetitionGroupSlotSelectionKey(
   competitionKey: string,
   groupNumber: number,
@@ -894,8 +911,24 @@ export function AdminChampionshipBracketPage({
     slotId: string;
   } | null>(null);
 
+  const sanitizeDraftFormValues = useCallback(
+    (draftFormValues: ChampionshipBracketWizardDraftFormValues) => {
+      return sanitizeChampionshipBracketWizardDraft({
+        draftFormValues,
+        teams,
+        championshipSports,
+        usesDivisions: selectedChampionship.uses_divisions,
+      });
+    },
+    [championshipSports, selectedChampionship.uses_divisions, teams],
+  );
+
   const applyWizardDraft = useCallback(
-    (draft_form_values: ChampionshipBracketWizardDraftFormValues) => {
+    (
+      draft_form_values: ChampionshipBracketWizardDraftFormValues,
+      options: { persistAsSavedSnapshot?: boolean } = {},
+    ) => {
+      const sanitizedDraftFormValues = sanitizeDraftFormValues(draft_form_values);
       const defaultShowEstimatedStartTimeOnCardsBySportId = championshipSports.reduce<Record<string, boolean>>(
         (carry, championshipSport) => {
           carry[championshipSport.sport_id] = championshipSport.show_estimated_start_time_on_cards;
@@ -906,18 +939,18 @@ export function AdminChampionshipBracketPage({
       const nextCurrentStepIndex = Math.max(
         0,
         Math.min(
-          draft_form_values.current_step_index,
+          sanitizedDraftFormValues.current_step_index,
           WIZARD_STEP_LABELS.length - 1,
         ),
       );
       const resolvedScheduleDays =
-        draft_form_values.schedule_days.length > 0
-          ? draft_form_values.schedule_days.map((schedule_day) =>
+        sanitizedDraftFormValues.schedule_days.length > 0
+          ? sanitizedDraftFormValues.schedule_days.map((schedule_day) =>
               resolveScheduleDayClone(schedule_day),
             )
           : [resolveInitialScheduleDay()];
       const appliedDraftFormValues: ChampionshipBracketWizardDraftFormValues = {
-        ...draft_form_values,
+        ...sanitizedDraftFormValues,
         current_step_index: nextCurrentStepIndex,
         schedule_days: resolvedScheduleDays.map((schedule_day) =>
           resolveScheduleDayClone(schedule_day),
@@ -925,33 +958,33 @@ export function AdminChampionshipBracketPage({
       };
 
       setCurrentStepIndex(nextCurrentStepIndex);
-      setSelectedTeamIds(draft_form_values.selected_team_ids);
+      setSelectedTeamIds(appliedDraftFormValues.selected_team_ids);
       setSelectedSportIdsByTeamId(
-        draft_form_values.selected_sport_ids_by_team_id,
+        appliedDraftFormValues.selected_sport_ids_by_team_id,
       );
       setShowEstimatedStartTimeOnCardsBySportId({
         ...defaultShowEstimatedStartTimeOnCardsBySportId,
-        ...draft_form_values.show_estimated_start_time_on_cards_by_sport_id,
+        ...appliedDraftFormValues.show_estimated_start_time_on_cards_by_sport_id,
       });
       setSelectedCompetitionKeysByTeamId(
-        draft_form_values.selected_competition_keys_by_team_id,
+        appliedDraftFormValues.selected_competition_keys_by_team_id,
       );
       setShouldApplyModalitiesToAllTeams(
-        draft_form_values.should_apply_modalities_to_all_teams,
+        appliedDraftFormValues.should_apply_modalities_to_all_teams,
       );
       setShouldApplyNaipesToAllTeams(
-        draft_form_values.should_apply_naipes_to_all_teams,
+        appliedDraftFormValues.should_apply_naipes_to_all_teams,
       );
       setShouldReplicatePreviousScheduleDay(
-        draft_form_values.should_replicate_previous_schedule_day,
+        appliedDraftFormValues.should_replicate_previous_schedule_day,
       );
-      setCompetitionConfigByKey(draft_form_values.competition_config_by_key);
+      setCompetitionConfigByKey(appliedDraftFormValues.competition_config_by_key);
       setGroupCountInputByCompetitionKey({});
       setGroupAssignmentsByCompetitionKey(
-        draft_form_values.group_assignments_by_competition_key,
+        appliedDraftFormValues.group_assignments_by_competition_key,
       );
       setGroupOrderByCompetitionKey(
-        draft_form_values.group_order_by_competition_key,
+        appliedDraftFormValues.group_order_by_competition_key,
       );
       setAutoOpenCompetitionGroupSlotKey(null);
       setActiveNaipeTabBySportId({});
@@ -965,12 +998,14 @@ export function AdminChampionshipBracketPage({
       setLocationTemplateDeletionTarget(null);
       setScheduleDays(resolvedScheduleDays);
       setSaveErrorBannerData(null);
-      setLastSavedEditableDraftSnapshot(
-        resolveEditableDraftSnapshot(appliedDraftFormValues),
-      );
+      if (options.persistAsSavedSnapshot !== false) {
+        setLastSavedEditableDraftSnapshot(
+          resolveEditableDraftSnapshot(appliedDraftFormValues),
+        );
+      }
       setHasResolvedInitialDraftSnapshot(true);
     },
-    [championshipSports],
+    [championshipSports, sanitizeDraftFormValues],
   );
 
   const resetWizardState = useCallback(() => {
@@ -1093,6 +1128,10 @@ export function AdminChampionshipBracketPage({
     return resolveWizardDraftFormValues();
   }, [resolveWizardDraftFormValues]);
 
+  const sanitizedCurrentWizardDraftFormValues = useMemo(() => {
+    return sanitizeDraftFormValues(currentWizardDraftFormValues);
+  }, [currentWizardDraftFormValues, sanitizeDraftFormValues]);
+
   const currentEditableDraftSnapshot = useMemo(() => {
     return resolveEditableDraftSnapshot(currentWizardDraftFormValues);
   }, [currentWizardDraftFormValues]);
@@ -1137,6 +1176,144 @@ export function AdminChampionshipBracketPage({
 
     return `Última atualização: ${formattedDate}`;
   }, [remoteDraftMetadata]);
+
+  const writeWorkflowLog = useCallback(
+    async ({
+      actionType,
+      stepIndex,
+      description,
+      workflowAction,
+      changedFields,
+    }: {
+      actionType: "INSERT" | "UPDATE";
+      stepIndex: number;
+      description: string;
+      workflowAction: string;
+      changedFields?: string[];
+    }) => {
+      const { error } = await supabase.rpc(
+        "write_championship_bracket_workflow_log",
+        {
+          _action_type: actionType,
+          _step: WIZARD_STEP_LABELS[stepIndex] ?? "Fluxo de configuração",
+          _description: description,
+          _metadata: {
+            workflow_action: workflowAction,
+            championship_id: selectedChampionship.id,
+            season_year: selectedChampionship.current_season_year,
+            changed_fields: changedFields ?? [],
+          },
+        },
+      );
+
+      if (error) {
+        console.error(
+          "Erro ao registrar log do fluxo de configuração:",
+          error.message,
+        );
+      }
+    },
+    [selectedChampionship.current_season_year, selectedChampionship.id],
+  );
+
+  const resolveWorkflowChangedFields = useCallback(
+    (
+      previousSnapshot: string,
+      nextDraftFormValues: ChampionshipBracketWizardDraftFormValues,
+      stepIndex: number,
+    ): string[] => {
+      const previousDraftFormValues =
+        resolveSnapshotDraftFormValues(previousSnapshot);
+
+      if (!previousDraftFormValues) {
+        return [];
+      }
+
+      if (stepIndex == 0) {
+        const previousSelectedTeams = previousDraftFormValues.selected_team_ids.length;
+        const nextSelectedTeams = nextDraftFormValues.selected_team_ids.length;
+
+        if (previousSelectedTeams != nextSelectedTeams) {
+          return [
+            `Participantes selecionados: ${previousSelectedTeams} para ${nextSelectedTeams}`,
+          ];
+        }
+
+        return [];
+      }
+
+      if (stepIndex == 3) {
+        const previousConfigByKey = previousDraftFormValues.competition_config_by_key;
+        const nextConfigByKey = nextDraftFormValues.competition_config_by_key;
+        const competitionKeys = [
+          ...new Set([
+            ...Object.keys(previousConfigByKey),
+            ...Object.keys(nextConfigByKey),
+          ]),
+        ];
+        const changeLines: string[] = [];
+
+        competitionKeys.forEach((competitionKey) => {
+          const previousConfig = previousConfigByKey[competitionKey];
+          const nextConfig = nextConfigByKey[competitionKey];
+          const parsedCompetitionKey = parseCompetitionKey(competitionKey);
+          const sportName =
+            championshipSports.find(
+              (championshipSport) =>
+                championshipSport.sport_id == parsedCompetitionKey.sport_id,
+            )?.sports?.name ?? "Modalidade";
+          const competitionLabel = `${sportName} • ${
+            MATCH_NAIPE_LABELS[parsedCompetitionKey.naipe]
+          }${
+            parsedCompetitionKey.division
+              ? ` • ${TEAM_DIVISION_LABELS[parsedCompetitionKey.division]}`
+              : ""
+          }`;
+
+          if (!previousConfig || !nextConfig) {
+            return;
+          }
+
+          if (previousConfig.groups_count != nextConfig.groups_count) {
+            changeLines.push(
+              `${competitionLabel}: grupos de ${previousConfig.groups_count} para ${nextConfig.groups_count}`,
+            );
+          }
+
+          if (previousConfig.qualifiers_per_group != nextConfig.qualifiers_per_group) {
+            changeLines.push(
+              `${competitionLabel}: classificados por grupo de ${previousConfig.qualifiers_per_group} para ${nextConfig.qualifiers_per_group}`,
+            );
+          }
+
+          if (
+            previousConfig.should_complete_knockout_with_best_second_placed_teams !=
+            nextConfig.should_complete_knockout_with_best_second_placed_teams
+          ) {
+            changeLines.push(
+              `${competitionLabel}: completar chave com melhores 2º ${
+                nextConfig.should_complete_knockout_with_best_second_placed_teams ? "ativado" : "desativado"
+              }`,
+            );
+          }
+        });
+
+        return changeLines.slice(0, 10);
+      }
+
+      if (stepIndex == 5) {
+        const previousScheduleDays = previousDraftFormValues.schedule_days.length;
+        const nextScheduleDays = nextDraftFormValues.schedule_days.length;
+
+        if (previousScheduleDays != nextScheduleDays) {
+          return [`Dias de agenda: ${previousScheduleDays} para ${nextScheduleDays}`];
+        }
+      }
+
+      return [];
+    },
+    [championshipSports],
+  );
 
   useEffect(() => {
     void loadLocationTemplates();
@@ -1203,6 +1380,32 @@ export function AdminChampionshipBracketPage({
       document.removeEventListener("mousedown", handlePointerDown);
     };
   }, [saveErrorBannerData]);
+
+  useEffect(() => {
+    if (!hasResolvedInitialDraftSnapshot) {
+      return;
+    }
+
+    const currentSnapshot = resolveEditableDraftSnapshot(
+      currentWizardDraftFormValues,
+    );
+    const sanitizedSnapshot = resolveEditableDraftSnapshot(
+      sanitizedCurrentWizardDraftFormValues,
+    );
+
+    if (currentSnapshot == sanitizedSnapshot) {
+      return;
+    }
+
+    applyWizardDraft(sanitizedCurrentWizardDraftFormValues, {
+      persistAsSavedSnapshot: false,
+    });
+  }, [
+    applyWizardDraft,
+    currentWizardDraftFormValues,
+    hasResolvedInitialDraftSnapshot,
+    sanitizedCurrentWizardDraftFormValues,
+  ]);
 
   const resolveSaveErrorSuggestion = useCallback(
     (errorMessage: string): string => {
@@ -2802,10 +3005,10 @@ export function AdminChampionshipBracketPage({
       currentStepIndex + 1,
       WIZARD_STEP_LABELS.length - 1,
     );
-    const next_draft_form_values = {
-      ...currentWizardDraftFormValues,
+    const next_draft_form_values = sanitizeDraftFormValues({
+      ...sanitizedCurrentWizardDraftFormValues,
       current_step_index: next_step_index,
-    };
+    });
 
     const draftSaveResponse = await saveChampionshipBracketWizardDraft(
       selectedChampionship.id,
@@ -2830,6 +3033,19 @@ export function AdminChampionshipBracketPage({
       resolveEditableDraftSnapshot(next_draft_form_values),
     );
     setCurrentStepIndex(next_step_index);
+    const changedFields = resolveWorkflowChangedFields(
+      lastSavedEditableDraftSnapshot,
+      next_draft_form_values,
+      currentStepIndex,
+    );
+
+    await writeWorkflowLog({
+      actionType: "UPDATE",
+      stepIndex: next_step_index,
+      description: `Etapa "${WIZARD_STEP_LABELS[next_step_index]}" atualizada e avançada.`,
+      workflowAction: "STEP_ADVANCED",
+      changedFields,
+    });
   };
 
   const handlePreviousStep = () => {
@@ -2837,9 +3053,13 @@ export function AdminChampionshipBracketPage({
   };
 
   const handleSaveDraft = async () => {
+    const nextDraftFormValues = sanitizeDraftFormValues(
+      sanitizedCurrentWizardDraftFormValues,
+    );
+
     const draftSaveResponse = await saveChampionshipBracketWizardDraft(
       selectedChampionship.id,
-      currentWizardDraftFormValues,
+      nextDraftFormValues,
     );
 
     if (draftSaveResponse.error) {
@@ -2855,8 +3075,21 @@ export function AdminChampionshipBracketPage({
     }
 
     setLastSavedEditableDraftSnapshot(
-      resolveEditableDraftSnapshot(currentWizardDraftFormValues),
+      resolveEditableDraftSnapshot(nextDraftFormValues),
     );
+    applyWizardDraft(nextDraftFormValues);
+    const changedFields = resolveWorkflowChangedFields(
+      lastSavedEditableDraftSnapshot,
+      nextDraftFormValues,
+      currentStepIndex,
+    );
+    await writeWorkflowLog({
+      actionType: "UPDATE",
+      stepIndex: currentStepIndex,
+      description: `Rascunho salvo na etapa "${WIZARD_STEP_LABELS[currentStepIndex]}".`,
+      workflowAction: "DRAFT_SAVED",
+      changedFields,
+    });
     toast.success("Rascunho salvo.");
   };
 
@@ -3019,6 +3252,12 @@ export function AdminChampionshipBracketPage({
       }
 
       clearChampionshipBracketWizardDraft(selectedChampionship.id);
+      await writeWorkflowLog({
+        actionType: "INSERT",
+        stepIndex: currentStepIndex,
+        description: "Configuração do campeonato concluída e chave gerada.",
+        workflowAction: "BRACKET_GENERATED",
+      });
       await onGenerated();
       toast.success("Grupos e jogos da fase de grupos gerados com sucesso.");
     } catch (error) {
@@ -3595,11 +3834,17 @@ export function AdminChampionshipBracketPage({
     return (
       <div className="max-w-2xl mx-auto px-4 py-10">
         <Alert className="border-primary/30 bg-primary/5">
-          <Laptop2 className="h-4 w-4" />
-          <AlertTitle>Configuração disponível apenas em telas maiores</AlertTitle>
-          <AlertDescription>
-            Para configurar o campeonato, acesse esta área em desktop ou tablet.
-          </AlertDescription>
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10">
+              <Laptop2 className="h-4 w-4" />
+            </div>
+            <div className="space-y-1">
+              <AlertTitle>Configuração disponível apenas em telas maiores</AlertTitle>
+              <AlertDescription>
+                Para configurar o campeonato, acesse esta área em desktop ou tablet.
+              </AlertDescription>
+            </div>
+          </div>
         </Alert>
       </div>
     );

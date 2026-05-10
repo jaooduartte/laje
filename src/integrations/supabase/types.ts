@@ -423,7 +423,6 @@ export type Database = {
           event_date: string
           event_type: Database["public"]["Enums"]["league_event_type"]
           id: string
-          location: string
           name: string
           organizer_team_id: string | null
           organizer_type: Database["public"]["Enums"]["league_event_organizer_type"]
@@ -434,7 +433,6 @@ export type Database = {
           event_date: string
           event_type: Database["public"]["Enums"]["league_event_type"]
           id?: string
-          location: string
           name: string
           organizer_team_id?: string | null
           organizer_type: Database["public"]["Enums"]["league_event_organizer_type"]
@@ -445,7 +443,6 @@ export type Database = {
           event_date?: string
           event_type?: Database["public"]["Enums"]["league_event_type"]
           id?: string
-          location?: string
           name?: string
           organizer_team_id?: string | null
           organizer_type?: Database["public"]["Enums"]["league_event_organizer_type"]
@@ -487,6 +484,72 @@ export type Database = {
           },
           {
             foreignKeyName: "league_event_organizer_teams_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      league_event_reservation_requests: {
+        Row: {
+          approved_league_event_id: string | null
+          created_at: string
+          event_date: string
+          event_name: string
+          event_type: Database["public"]["Enums"]["league_event_type"]
+          id: string
+          requester_email: string
+          requester_name: string
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: Database["public"]["Enums"]["league_event_reservation_request_status"]
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          approved_league_event_id?: string | null
+          created_at?: string
+          event_date: string
+          event_name: string
+          event_type: Database["public"]["Enums"]["league_event_type"]
+          id?: string
+          requester_email: string
+          requester_name: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["league_event_reservation_request_status"]
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          approved_league_event_id?: string | null
+          created_at?: string
+          event_date?: string
+          event_name?: string
+          event_type?: Database["public"]["Enums"]["league_event_type"]
+          id?: string
+          requester_email?: string
+          requester_name?: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["league_event_reservation_request_status"]
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "league_event_reservation_requests_approved_league_event_id_fkey"
+            columns: ["approved_league_event_id"]
+            isOneToOne: false
+            referencedRelation: "league_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "league_event_reservation_requests_team_id_fkey"
             columns: ["team_id"]
             isOneToOne: false
             referencedRelation: "teams"
@@ -1231,9 +1294,26 @@ export type Database = {
           updated_at: string
         }[]
       }
+      get_home_dashboard_metrics: {
+        Args: {
+          _championship_code?:
+            | Database["public"]["Enums"]["championship_code"]
+            | null
+          _season_year?: number | null
+        }
+        Returns: Json
+      }
       sync_championship_season_rollover: {
         Args: never
         Returns: undefined
+      }
+      review_league_event_reservation_request: {
+        Args: {
+          _decision: Database["public"]["Enums"]["league_event_reservation_request_status"]
+          _request_id: string
+          _review_notes?: string | null
+        }
+        Returns: Json
       }
       swap_match_queue_slots: {
         Args: { _source_match_id: string; _target_match_id: string }
@@ -1280,6 +1360,15 @@ export type Database = {
           login_identifier: string
           password_status: Database["public"]["Enums"]["admin_user_password_status"]
         }[]
+      }
+      write_championship_bracket_workflow_log: {
+        Args: {
+          _action_type: Database["public"]["Enums"]["admin_action_type"]
+          _description?: string | null
+          _metadata?: Json
+          _step: string
+        }
+        Returns: undefined
       }
       upsert_admin_profile: {
         Args: {
@@ -1344,6 +1433,7 @@ export type Database = {
       league_calendar_holiday_day_kind: "HOLIDAY" | "OPTIONAL"
       league_calendar_holiday_scope: "NATIONAL" | "JOINVILLE"
       league_event_organizer_type: "ATHLETIC" | "LAJE"
+      league_event_reservation_request_status: "PENDING" | "APPROVED" | "REJECTED"
       league_event_type: "HH" | "OPEN_BAR" | "CHAMPIONSHIP" | "LAJE_EVENT"
       match_naipe: "MASCULINO" | "FEMININO" | "MISTO"
       match_status: "SCHEDULED" | "LIVE" | "FINISHED"
@@ -1509,6 +1599,7 @@ export const Constants = {
       league_calendar_holiday_day_kind: ["HOLIDAY", "OPTIONAL"],
       league_calendar_holiday_scope: ["NATIONAL", "JOINVILLE"],
       league_event_organizer_type: ["ATHLETIC", "LAJE"],
+      league_event_reservation_request_status: ["PENDING", "APPROVED", "REJECTED"],
       league_event_type: ["HH", "OPEN_BAR", "CHAMPIONSHIP", "LAJE_EVENT"],
       match_naipe: ["MASCULINO", "FEMININO", "MISTO"],
       match_status: ["SCHEDULED", "LIVE", "FINISHED"],
