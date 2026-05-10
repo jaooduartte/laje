@@ -685,14 +685,14 @@ export function LeagueCalendarPageView({
                   <Input
                     value={reservationFormValues.requesterName}
                     onChange={(event) => onReservationFieldChange("requesterName", event.target.value)}
-                    placeholder="Seu nome"
+                    placeholder="Nome do solicitante"
                     className={filtersFieldClassName}
                   />
 
                   <Input
                     value={reservationFormValues.requesterEmail}
                     onChange={(event) => onReservationFieldChange("requesterEmail", event.target.value)}
-                    placeholder="seu@email.com"
+                    placeholder="Email da atlética"
                     className={filtersFieldClassName}
                     type="email"
                     autoComplete="email"
