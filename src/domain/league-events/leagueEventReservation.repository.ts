@@ -36,9 +36,7 @@ export async function createLeagueEventReservationRequest(
 ) {
   return supabase
     .from("league_event_reservation_requests")
-    .insert(payload)
-    .select(resolveReservationRequestSelectQuery())
-    .single();
+    .insert(payload);
 }
 
 export async function reviewLeagueEventReservationRequest({
