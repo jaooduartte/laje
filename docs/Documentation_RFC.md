@@ -27,7 +27,7 @@
 
 O LAJE App é uma aplicação web voltada à gestão operacional e à divulgação pública de campeonatos universitários organizados pela Liga das Atléticas de Joinville (LAJE). A proposta do projeto consiste em centralizar, em um único sistema, a administração de jogos, classificações, chaveamentos, agenda e eventos institucionais, além de disponibilizar essas informações ao público de forma estruturada e atualizada em tempo quase real.
 
-Atualmente, o projeto já possui base funcional implementada no repositório, bem como documentação técnica organizada em `README`, diretório `docs/` e Wiki do GitHub. No estado atual, a aplicação opera com frontend React integrado ao ecossistema Supabase, utilizando autenticação, persistência e atualização em tempo real por meio da plataforma. Para fins de Portfólio, esta RFC passa a documentar o **estado-alvo da entrega**, e não apenas a implementação atual. Isso significa que a solução passa a ser descrita como uma aplicação web completa com frontend desacoplado, backend dedicado em `laje-api`, banco relacional PostgreSQL e hospedagem pública em AWS.
+Atualmente, o projeto já possui base funcional implementada no repositório, bem como documentação técnica organizada em `README`, diretório `docs/` e Wiki do GitHub. No estado atual, a aplicação opera com frontend React integrado ao ecossistema Supabase, utilizando autenticação, persistência e atualização em tempo real por meio da plataforma. Para fins de Portfólio, esta RFC passa a documentar também o **estado-alvo da entrega**, que será alcançado por meio de refatoração arquitetural da solução atual. Isso significa que a evolução planejada passa a ser descrita como uma aplicação web completa com frontend desacoplado, backend dedicado em `laje-api`, banco relacional PostgreSQL e infraestrutura pública compatível com as diretrizes da linha de Web Apps, tendo AWS apenas como referência inicial de estado-alvo.
 
 ---
 
@@ -77,7 +77,7 @@ O LAJE App propõe uma solução integrada, com base única de dados e fluxos au
 - frontend web consumindo API dedicada;
 - backend próprio em `Node.js + Express` no repositório `laje-api`;
 - banco relacional `PostgreSQL` como fonte principal de persistência;
-- hospedagem pública em `AWS`, com infraestrutura alinhada às diretrizes da linha de Web Apps;
+- infraestrutura pública compatível com a linha de Web Apps, tendo `AWS` como referência inicial de estado-alvo;
 - pipeline CI/CD, análise estática, observabilidade e estratégia de testes alinhadas ao Portfólio.
 
 ---
@@ -117,25 +117,25 @@ Além da análise do domínio e da modelagem funcional já implementada, foram o
 
 Alguns feedbacks espontâneos registrados incluem:
 
-> "fui tudo q eu pedi uma tabela decente"  
-> "ficou muito bom"  
-> "Caraca top"
+![Feedback 1](./assets/reviews/Imagem1.png)
+![Feedback 2](./assets/reviews/Imagem2.png)
+![Feedback 3](./assets/reviews/Imagem3.png)
 
 Essas manifestações indicam percepção imediata de valor na organização e visualização das informações, especialmente em relação a tabelas, classificação e estruturação dos dados.
 
 Também houve validação funcional direta de necessidades do sistema:
 
-> "tem como fazer pontuação?"
+![Feedback 4](./assets/reviews/Imagem4.png)
 
 Esse tipo de questionamento reforça que funcionalidades centrais do domínio fazem parte do problema real.
 
 Além disso, foi observada percepção de potencial de expansão do produto:
 
-> "vamos vender isso pra outras ligas"
+![Feedback 5](./assets/reviews/Imagem5.png)
 
 Como ponto de melhoria inicial identificado:
 
-> "dps me ensinem a usar"
+![Feedback 6](./assets/reviews/Imagem6.png)
 
 Esse feedback evidencia necessidade de evolução em usabilidade, onboarding ou documentação para operadores.
 
@@ -184,7 +184,7 @@ O diferencial do LAJE App não está em reinventar funcionalidades básicas de t
 - calendário institucional que vai além das partidas;
 - base única de dados para reduzir divergência entre operação interna e experiência pública.
 
-Além do diferencial de domínio, a entrega final também buscará diferencial técnico, com arquitetura controlada pelo próprio projeto, backend dedicado, banco relacional explícito e infraestrutura pública em AWS, aderente à linha de Web Apps do Portfólio.
+Além do diferencial de domínio, a entrega final também buscará diferencial técnico, com arquitetura controlada pelo próprio projeto, backend dedicado, banco relacional explícito e infraestrutura pública compatível com a linha de Web Apps do Portfólio, tendo AWS como referência inicial para essa transição arquitetural.
 
 ---
 
@@ -229,7 +229,7 @@ Desenvolver uma aplicação web capaz de centralizar a gestão operacional e a d
 2. Operar partidas ao vivo com atualização em tempo real para público e equipe administrativa.
 3. Automatizar a classificação e a progressão de chaveamento com base no estado persistido das partidas e nas regras configuradas.
 4. Disponibilizar uma experiência pública clara para consulta de agenda, campeonatos, resultados, classificações, chaveamentos e calendário institucional.
-5. Estruturar a solução-alvo com backend dedicado em `laje-api`, banco PostgreSQL e deploy em AWS, aderindo às diretrizes da linha de Web Apps.
+5. Estruturar a solução-alvo com backend dedicado em `laje-api`, banco PostgreSQL e infraestrutura de hospedagem compatível com a linha de Web Apps, mantendo AWS como referência inicial dessa evolução.
 6. Garantir controle de acesso administrativo, rastreabilidade das alterações e base técnica para evolução contínua do produto conforme as diretrizes do Portfólio.
 
 ---
@@ -255,16 +255,16 @@ As métricas de sucesso do projeto devem combinar impacto funcional, experiênci
 ### KPIs de entrega técnica
 
 5. **Disponibilidade de ambiente acessível publicamente**  
-   O sistema deve possuir ambiente público funcional e acessível, com hospedagem estável em infraestrutura aderente à linha de Web Apps.
+   Na entrega-alvo, o sistema deve possuir ambiente público funcional e acessível, com hospedagem estável em infraestrutura aderente à linha de Web Apps.
 
 6. **Banco relacional aderente ao desenho arquitetural**  
-   A solução-alvo deve operar com `PostgreSQL` como banco principal, substituindo a dependência de plataforma gerenciada anterior.
+   Ao final da refatoração arquitetural planejada, a solução-alvo deve operar com `PostgreSQL` como banco principal, reduzindo a dependência da plataforma gerenciada utilizada no estado atual.
 
 7. **Pipeline e qualidade contínua**  
-   O projeto deverá incorporar `GitHub Actions`, análise estática de código e segurança, e fluxo de deploy contínuo para frontend e backend.
+   Como evolução da entrega técnica, o projeto deverá incorporar `GitHub Actions`, análise estática de código e segurança, e fluxo de deploy contínuo para frontend e backend.
 
 8. **Observabilidade e monitoramento**  
-   A solução deverá incorporar ferramentas de logs, métricas e visibilidade operacional do ambiente implantado.
+   Como parte do estado-alvo, a solução deverá incorporar ferramentas de logs, métricas e visibilidade operacional do ambiente implantado.
 
 9. **Evolução de testes alinhada ao Portfólio**  
    A meta futura é amadurecer a estratégia de testes em direção aos percentuais esperados pela linha de Web Apps, com expansão progressiva da cobertura unitária e fortalecimento da abordagem orientada por testes.
@@ -275,9 +275,9 @@ Para tornar os indicadores mais objetivos já nesta etapa, o projeto adota como 
 
 - refletir atualizações operacionais críticas na interface pública em até **5 segundos** após persistência do dado;
 - manter ao menos **3 fluxos de negócio completos** documentados e utilizáveis na entrega atual;
-- manter **build**, **lint** e **testes automatizados** executáveis no repositório principal;
-- evoluir a cobertura de testes unitários para um patamar mínimo inicial de **30%**, com crescimento progressivo nas próximas etapas;
-- disponibilizar uma **URL pública funcional** da solução durante a fase de demonstração e validação.
+- manter, no estado atual, **build**, **lint** e **testes automatizados** executáveis no repositório principal;
+- evoluir a cobertura de testes unitários para um patamar mínimo inicial de **30%** nas próximas etapas da refatoração arquitetural;
+- disponibilizar ou preservar uma **URL pública funcional** da solução durante a fase de demonstração e validação.
 
 Essas metas não substituem os critérios formais futuros da linha de Web Apps, mas ajudam a tornar o acompanhamento do projeto mais objetivo e verificável desde a primeira entrega.
 
@@ -286,10 +286,609 @@ Essas metas não substituem os critérios formais futuros da linha de Web Apps, 
 Nem todos os indicadores acima estão plenamente comprovados nesta fase. Alguns já podem ser avaliados pela base funcional e documental existente; outros dependem de deploy público definitivo, instrumentação técnica e coleta estruturada de feedback com usuários reais. Por isso, esta RFC registra os KPIs em dois horizontes:
 
 - **estado atual:** base funcional, documentação consolidada e fluxos centrais implementados;
-- **direcionamento futuro:** backend `Express`, banco `PostgreSQL`, deploy em `AWS`, CI/CD, observabilidade, análise estática e evolução formal da cobertura de testes.
+- **direcionamento futuro:** backend `Express`, banco `PostgreSQL`, infraestrutura de hospedagem compatível com o Portfólio tendo AWS como referência inicial, CI/CD, observabilidade, análise estática e evolução formal da cobertura de testes.
 
 ---
 
 ## Nota de Situação da RFC nesta Etapa
 
-O projeto já possui base funcional implementada e documentação suficiente para sustentar a formulação inicial da RFC. Entretanto, parte das evidências de validação com usuários ainda será coletada na próxima etapa, por meio de testes com a versão de demonstração do sistema. Além disso, requisitos técnicos adicionais recomendados ou obrigatórios pelo Playbook — como backend dedicado, banco relacional explícito, deploy em AWS, maturidade de CI/CD, observabilidade, análise estática e metas formais de testes — estão registrados nesta documentação como evolução planejada para as próximas entregas, e não como itens já concluídos.
+O projeto já possui base funcional implementada e documentação suficiente para sustentar a formulação inicial da RFC. Entretanto, parte das evidências de validação com usuários ainda será coletada na próxima etapa, por meio de testes com a versão de demonstração do sistema. Além disso, requisitos técnicos adicionais recomendados ou obrigatórios pelo Playbook — como backend dedicado, banco relacional explícito, infraestrutura de hospedagem compatível com o Portfólio, maturidade de CI/CD, observabilidade, análise estática e metas formais de testes — estão registrados nesta documentação como evolução planejada para as próximas entregas, e não como itens já concluídos.
+
+---
+
+# 2. Engenharia de Requisitos
+
+Esta seção consolida os requisitos do LAJE App com base no comportamento já implementado no repositório, na Wiki do projeto e no direcionamento técnico registrado para o Portfólio. Sempre que necessário, a redação distingue explicitamente o **estado atual** do sistema e o **estado-alvo** da entrega.
+
+## 2.1 Personas
+
+### Persona 1 — Mariana, organizadora da LAJE
+
+- **Contexto:** Mariana participa da organização dos campeonatos da liga e precisa administrar calendário, jogos, modalidades, usuários e visibilidade pública das informações.
+- **Objetivos:** manter os campeonatos organizados, reduzir retrabalho operacional, garantir que o público visualize informações corretas e manter controle sobre quem altera o sistema.
+- **Principais dificuldades:** dispersão de dados em planilhas e mensagens, demora para atualizar resultados, falta de rastreabilidade administrativa e dificuldade para coordenar várias frentes operacionais ao mesmo tempo.
+- **Como o LAJE App ajuda:** centraliza campeonatos, jogos, eventos, permissões e logs em um único painel administrativo, reduzindo dependência de processos paralelos e melhorando a governança da operação.
+
+### Persona 2 — Lucas, operador de mesa
+
+- **Contexto:** Lucas atua durante os jogos atualizando placar, sets, cartões e status de partida em ritmo operacional rápido.
+- **Objetivos:** registrar o andamento da partida com agilidade, evitar erros de atualização e refletir as mudanças para o público quase em tempo real.
+- **Principais dificuldades:** pressão durante partidas ao vivo, risco de inconsistência ao atualizar placar manualmente e necessidade de interface simples, responsiva e segura.
+- **Como o LAJE App ajuda:** oferece uma aba de Controle ao Vivo com permissões específicas, suporte a placar por pontos ou sets, registro de cartões e propagação automática das alterações para páginas públicas.
+
+### Persona 3 — Beatriz, atleta e torcedora
+
+- **Contexto:** Beatriz acompanha campeonatos da LAJE para consultar agenda, resultados, classificação, chaveamento e eventos da liga por desktop ou celular.
+- **Objetivos:** saber quando acontecem os jogos, acompanhar partidas em andamento e entender rapidamente a situação do campeonato.
+- **Principais dificuldades:** informações espalhadas, atraso na atualização dos resultados e dificuldade para encontrar calendário, classificação e chave em um fluxo único.
+- **Como o LAJE App ajuda:** reúne páginas públicas para Ao Vivo, Campeonatos, Agenda e Calendário da Liga, com navegação centralizada e atualização das informações conforme o estado persistido do sistema.
+
+## 2.2 Casos de Uso Principais
+
+Os principais casos de uso identificados no projeto são:
+
+- acessar o painel administrativo;
+- autenticar usuário administrativo e tratar primeiro acesso com senha pendente;
+- gerenciar campeonatos, temporadas e status operacionais;
+- gerenciar modalidades e suas regras por campeonato;
+- gerenciar atléticas, times e divisões;
+- cadastrar, editar e excluir jogos;
+- operar partida ao vivo;
+- atualizar placar, sets, cartões e status da partida;
+- consultar classificação automática;
+- visualizar chaveamento da fase de grupos e do mata-mata;
+- consultar agenda pública de jogos;
+- consultar calendário institucional da liga;
+- gerenciar usuários administrativos e permissões por aba;
+- consultar logs administrativos e auditoria;
+- controlar bloqueio público por página ou globalmente.
+
+```mermaid
+flowchart LR
+  Visitante([Visitante])
+  Operador([Administrador ou Operador])
+
+  subgraph AreaPublica[Area publica]
+    ConsultarJogos[Consultar jogos]
+    ConsultarClassificacao[Consultar classificacao]
+    ConsultarChaveamento[Visualizar chaveamento]
+    ConsultarAgenda[Consultar agenda]
+    ConsultarCalendario[Consultar calendario da liga]
+  end
+
+  subgraph AreaAdmin[Area administrativa]
+    AcessarPainel[Acessar painel administrativo]
+    GerenciarCampeonatos[Gerenciar campeonatos e modalidades]
+    GerenciarJogos[Gerenciar jogos]
+    OperarPartida[Operar partida ao vivo]
+    GerenciarAcessos[Gerenciar usuarios e permissoes]
+    ConsultarAuditoria[Consultar logs]
+  end
+
+  Visitante --> ConsultarJogos
+  Visitante --> ConsultarClassificacao
+  Visitante --> ConsultarChaveamento
+  Visitante --> ConsultarAgenda
+  Visitante --> ConsultarCalendario
+
+  Operador --> AcessarPainel
+  Operador --> GerenciarCampeonatos
+  Operador --> GerenciarJogos
+  Operador --> OperarPartida
+  Operador --> GerenciarAcessos
+  Operador --> ConsultarAuditoria
+  OperarPartida --> ConsultarJogos
+  GerenciarJogos --> ConsultarAgenda
+```
+
+## 2.3 Requisitos Funcionais
+
+Os requisitos funcionais a seguir foram sintetizados a partir do comportamento já documentado e da estrutura real do sistema:
+
+- **RF01** — O sistema deve permitir que o usuário administrativo informe seu identificador de acesso antes da senha, para que o sistema resolva o estado da conta.
+- **RF02** — O sistema deve permitir que o usuário administrativo com senha ativa realize autenticação e acesse o painel conforme suas permissões.
+- **RF03** — O sistema deve permitir que o usuário administrativo com senha pendente defina uma nova senha no primeiro acesso antes de entrar no painel.
+- **RF04** — O sistema deve permitir que administradores gerenciem campeonatos com código, nome, temporada, local padrão e status operacional.
+- **RF05** — O sistema deve permitir que administradores alterem o status do campeonato entre planejamento, em breve, em andamento e encerrado.
+- **RF06** — O sistema deve permitir que administradores gerenciem modalidades por campeonato, incluindo regra de resultado, desempate, pontuação, cartões e duração padrão de partida.
+- **RF07** — O sistema deve permitir que administradores gerenciem atléticas e times com nome, cidade e divisão quando aplicável.
+- **RF08** — O sistema deve permitir que administradores cadastrem, editem e excluam jogos com campeonato, temporada, modalidade, naipe, times, local, quadra, data, horário e status.
+- **RF09** — O sistema deve permitir que usuários com permissão de edição na aba de controle iniciem, atualizem e encerrem partidas ao vivo.
+- **RF10** — O sistema deve permitir que o operador atualize placar por pontos ou por sets, conforme a regra da modalidade.
+- **RF11** — O sistema deve permitir que o operador registre cartões por time quando a modalidade suportar essa regra.
+- **RF12** — O sistema deve calcular automaticamente a classificação a partir dos jogos concluídos, segmentando o resultado por campeonato, temporada, modalidade, naipe e divisão.
+- **RF13** — O sistema deve ordenar a classificação com base nas regras de desempate configuradas para a modalidade no contexto do campeonato.
+- **RF14** — O sistema deve permitir a geração de fase de grupos por assistente de chaveamento com participantes, grupos, agenda e revisão.
+- **RF15** — O sistema deve permitir a distribuição manual de times nos grupos antes da confirmação da estrutura de chaveamento.
+- **RF16** — O sistema deve gerar o mata-mata a partir da classificação dos grupos quando os pré-requisitos do chaveamento estiverem satisfeitos.
+- **RF17** — O sistema deve permitir que o visitante consulte páginas públicas de Ao Vivo, Campeonatos, Agenda e Calendário da Liga.
+- **RF18** — O sistema deve permitir que o visitante visualize classificação, chaveamento, jogos e eventos da liga nas páginas públicas compatíveis com o contexto selecionado.
+- **RF19** — O sistema deve permitir que administradores configurem bloqueio global ou por página das áreas públicas e definam mensagem de manutenção.
+- **RF20** — O sistema deve permitir que administradores gerenciem usuários, perfis e permissões por aba do painel administrativo.
+- **RF21** — O sistema deve permitir que administradores consultem logs de auditoria com tipo de ação, recurso afetado, ator e período.
+- **RF22** — O sistema deve refletir alterações operacionais relevantes nas páginas públicas em tempo quase real no estado atual apoiado por Supabase Realtime.
+- **RF23** — O sistema deve manter rotas públicas principais para Home, Ao Vivo, Campeonatos, Agenda e Calendário da Liga, além das rotas administrativas de login e painel.
+- **RF24** — O sistema deve, no estado-alvo, expor essas capacidades por meio de uma API dedicada em `laje-api`, preservando os contratos funcionais já consolidados no frontend.
+
+## 2.4 Requisitos Não Funcionais
+
+- **RNF01** — O sistema deve utilizar autenticação segura para acesso administrativo, com tratamento adequado de credenciais e sessão.
+- **RNF02** — O sistema deve aplicar autorização por perfil e por aba do painel administrativo, impedindo edição sem permissão adequada.
+- **RNF03** — O sistema deve manter interface responsiva para uso em desktop e dispositivos móveis.
+- **RNF04** — O sistema deve fornecer feedback visual claro para carregamento, erro, confirmação e estados vazios.
+- **RNF05** — O sistema deve buscar disponibilidade suficiente para uso operacional durante campeonatos e eventos da liga.
+- **RNF06** — O sistema deve refletir atualizações críticas em janela compatível com uso real, com meta inicial de até cinco segundos após persistência do dado.
+- **RNF07** — O sistema deve manter organização modular do código, separando páginas, componentes, hooks, domínio, repositórios e integrações.
+- **RNF08** — O sistema deve versionar alterações de banco por migrations.
+- **RNF09** — O sistema deve proteger variáveis de ambiente e segredos fora do código-fonte versionado.
+- **RNF10** — O sistema deve manter, no estado atual, uma base mínima de qualidade com `build`, `lint` e testes automatizados executáveis no repositório principal.
+- **RNF11** — O sistema deve evoluir para CI/CD estruturado no estado-alvo, preferencialmente com GitHub Actions e deploy controlado.
+- **RNF12** — O sistema deve evoluir para observabilidade mais robusta no estado-alvo, com logs, métricas e visibilidade operacional do ambiente.
+- **RNF13** — O sistema deve preservar manutenibilidade por meio de tipagem estática, centralização de enums e regras e documentação técnica alinhada ao produto.
+- **RNF14** — O sistema deve preservar compatibilidade com estratégia de atualização quase em tempo real tanto no estado atual quanto no estado-alvo.
+- **RNF15** — O sistema deve ser escalável para absorver novos módulos administrativos, novos campeonatos e futura expansão para outras ligas, sem comprometer a organização do domínio.
+
+Observação de aderência:
+
+- **Estado atual comprovado:** frontend React 18 + TypeScript + Vite, Tailwind, shadcn/ui, Supabase Auth, Postgres, funções SQL, Realtime e migrations.
+- **Estado-alvo planejado:** backend dedicado `Node.js + Express`, PostgreSQL como persistência principal do desenho final, infraestrutura de hospedagem compatível com o Portfólio tendo AWS como referência inicial, CI/CD formal, análise estática e observabilidade ampliada.
+
+## 2.5 Regras de Negócio
+
+- Um campeonato possui status operacional e esse status influencia contexto padrão, visibilidade e ações disponíveis no sistema.
+- Jogos pertencem a um campeonato, uma temporada, uma modalidade e um contexto competitivo que pode incluir naipe e divisão.
+- A classificação é derivada dos jogos concluídos e não deve ser tratada como cadastro manual.
+- As regras de pontuação, desempate, cartões e formato de placar dependem da configuração da modalidade no contexto do campeonato.
+- O chaveamento depende de configuração prévia da edição, da distribuição dos grupos e dos resultados persistidos.
+- O mata-mata só deve avançar quando existirem resultados definidos e, quando necessário, desempates resolvidos.
+- Permissões administrativas controlam o acesso por aba do painel e distinguem pelo menos os níveis nenhum, visualizar e editar.
+- Ações administrativas sensíveis devem gerar logs de auditoria.
+- Páginas públicas podem ser bloqueadas globalmente ou individualmente por configuração administrativa.
+- Eventos da liga são entidades próprias e independentes dos jogos, embora compartilhem o mesmo contexto institucional.
+- Feriados e datas especiais, quando utilizados, são tratados em estrutura específica de calendário, distinta dos eventos da liga.
+- Administradores autenticados podem contornar bloqueios públicos para fins operacionais e de revisão.
+
+## 2.6 Fora do Escopo
+
+Neste ciclo, não fazem parte do escopo principal:
+
+- aplicativo mobile nativo;
+- pagamentos;
+- inscrição automática de atletas;
+- streaming de jogos;
+- módulo disciplinar completo;
+- gestão financeira;
+- marketplace;
+- IA generativa como funcionalidade central do produto;
+- integração com federações externas;
+- automação completa de regulamentos esportivos específicos além das regras já refletidas no domínio atual.
+
+---
+
+# 3. Fluxos e Comportamento do Sistema
+
+## 3.1 Fluxo Principal do Usuário
+
+### Contexto 1 — Usuário público
+
+O usuário público acessa a página inicial, navega para as páginas de Ao Vivo, Campeonatos, Agenda ou Calendário da Liga e consome informações que refletem o estado operacional persistido do sistema. Quando a página não está bloqueada, o visitante pode acompanhar resultados, classificação, chaveamento e eventos sem necessidade de treinamento prévio.
+
+### Contexto 2 — Administrador ou operador
+
+O administrador ou operador também pode navegar pelas páginas públicas do sistema. Quando precisa atuar na operação interna, acessa a rota de login, informa seu identificador, autentica-se conforme o estado da conta, entra no painel administrativo e executa ações compatíveis com seu perfil e com as permissões da aba selecionada. Entre essas ações estão gestão de jogos, controle ao vivo, conferência de súmula, sorteios, eventos da liga, usuários, logs, status do campeonato, conta e configurações. No fluxo crítico de operação ao vivo, seleciona um jogo, atualiza placar, sets e cartões, e o sistema persiste os dados, recalcula derivados quando necessário e reflete o resultado para as páginas públicas.
+
+```mermaid
+flowchart TD
+  Inicio([Inicio]) --> NavegacaoPublica[Abre area publica]
+  NavegacaoPublica --> EscolhaPublica[Escolhe pagina publica]
+  EscolhaPublica --> AoVivo[Consulta Ao Vivo]
+  EscolhaPublica --> Campeonatos[Consulta Campeonatos]
+  EscolhaPublica --> Agenda[Consulta Agenda]
+  EscolhaPublica --> Calendario[Consulta Calendario]
+
+  Inicio --> AcessoAdmin{Precisa operar area administrativa}
+  AcessoAdmin -->|Sim| Login[Abre Login]
+  AcessoAdmin -->|Nao| NavegacaoPublica
+  Login --> Identificador[Informa identificador]
+  Identificador --> Autenticacao[Autentica conta]
+  Autenticacao --> Painel[Painel Administrativo]
+  Painel --> Abas[Seleciona aba permitida]
+  Abas --> Jogos[Jogos]
+  Abas --> Controle[Controle ao Vivo]
+  Abas --> Sumula[Conferencia de Sumula]
+  Abas --> Sorteios[Sorteios]
+  Abas --> Eventos[Eventos da Liga]
+  Abas --> Usuarios[Usuarios]
+  Abas --> Logs[Logs]
+  Abas --> Status[Status do campeonato]
+  Abas --> Conta[Minha conta]
+  Abas --> Configuracoes[Configuracoes]
+  Controle --> SelecionaJogo[Seleciona jogo]
+  SelecionaJogo --> AtualizaPartida[Atualiza placar sets e cartoes]
+  AtualizaPartida --> Persistencia[Persiste alteracoes]
+  Persistencia --> Publicacao[Atualiza visao publica]
+```
+
+## 3.2 Fluxos Alternativos
+
+- **Usuário sem permissão tenta acessar o painel:** o sistema redireciona para login ou bloqueia o acesso após autenticação sem perfil válido.
+- **Visitante acessa página bloqueada:** o sistema exibe mensagem de manutenção quando houver bloqueio global ou bloqueio específico da rota.
+- **Jogo ainda não possui resultado:** a classificação e a progressão da chave permanecem dependentes de conclusão da partida.
+- **Empate pendente impede geração do mata-mata:** o fluxo de chaveamento exige resolução prévia do contexto de desempate quando aplicável.
+- **Erro ao salvar placar:** o sistema deve informar falha operacional e evitar que a interface assuma persistência bem-sucedida sem confirmação.
+- **Falha de autenticação:** o sistema exibe mensagem de erro e mantém o usuário fora do painel.
+- **Ausência de campeonato ativo ou priorizado:** as páginas públicas e administrativas devem recorrer ao contexto disponível sem inventar um campeonato padrão inexistente.
+
+---
+
+# 4. Mockups e Experiência do Usuário
+
+Como já existem telas implementadas no repositório, esta seção utiliza as telas atuais como base de mockup funcional da solução. Os pontos abaixo documentam a navegação e reservam espaço para inclusão de prints em revisão posterior.
+
+## 4.1 Fluxo de Navegação
+
+A navegação principal do projeto está organizada em duas áreas:
+
+- **Área pública:** `/`, `/ao-vivo`, `/campeonatos`, `/agenda`, `/calendario-da-liga`.
+- **Área administrativa:** `/login` e `/admin`.
+
+O sistema também mantém redirecionamentos para rotas legadas de páginas públicas.
+
+```mermaid
+flowchart LR
+  Inicio[Home] --> AoVivo[Ao Vivo]
+  Inicio --> Campeonatos[Campeonatos]
+  Inicio --> Agenda[Agenda]
+  Inicio --> Calendario[Calendario da Liga]
+  Inicio --> Login[Login]
+
+  Login --> Painel[Painel Administrativo]
+  Painel --> Controle[Controle ao Vivo]
+  Painel --> Jogos[Jogos]
+  Painel --> Chaveamento[Chaveamento]
+  Painel --> Eventos[Eventos da Liga]
+  Painel --> Usuarios[Usuarios]
+  Painel --> Logs[Logs]
+  Painel --> Configuracoes[Configuracoes]
+
+  Controle --> AoVivo
+  Jogos --> Agenda
+  Chaveamento --> Campeonatos
+  Eventos --> Calendario
+```
+
+## 4.2 Wireframes ou Mockups das Telas
+
+![Tela Ao Vivo](./assets/tela-ao-vivo.png)
+
+- **Finalidade:** concentrar jogos em andamento, jogos em breve, jogos finalizados e contexto competitivo associado.
+- **Ações principais do usuário:** acompanhar partidas, consultar classificação, visualizar chaveamento e filtrar informações por contexto.
+- **Tipo de usuário:** público geral, atletas, representantes de atlética e operadores em conferência.
+
+![Tela Campeonatos](./assets/tela-campeonatos.png)
+
+- **Finalidade:** apresentar visão histórica e institucional dos campeonatos por temporada.
+- **Ações principais do usuário:** selecionar campeonato, trocar temporada, consultar tabela e visualizar a chave.
+- **Tipo de usuário:** público geral e organização da liga.
+
+![Tela Agenda](./assets/tela-agenda.png)
+
+- **Finalidade:** organizar os jogos agendados por data e contexto esportivo.
+- **Ações principais do usuário:** consultar partidas futuras, filtrar por campeonato e modalidade e verificar local e horário.
+- **Tipo de usuário:** público geral, atletas e organização.
+
+![Tela Calendário da Liga](./assets/tela-calendario-da-liga.png)
+
+- **Finalidade:** consolidar eventos institucionais da liga além dos jogos.
+- **Ações principais do usuário:** consultar eventos por mês, pesquisar e filtrar por tipo ou organização.
+- **Tipo de usuário:** público geral, representantes de atlética e administradores.
+
+![Tela Painel Admin](./assets/tela-painel-admin.png)
+
+- **Finalidade:** centralizar a operação administrativa do sistema.
+- **Ações principais do usuário:** navegar por abas, gerenciar dados, revisar permissões e acompanhar indicadores operacionais.
+- **Tipo de usuário:** administradores e operadores autorizados.
+
+![Tela Controle ao Vivo](./assets/tela-controle-ao-vivo.png)
+
+- **Finalidade:** operar partidas em andamento com atualização rápida de status e placar.
+- **Ações principais do usuário:** iniciar jogo, atualizar placar, registrar sets e cartões e encerrar a partida.
+- **Tipo de usuário:** operador de mesa e administrador com permissão de edição.
+
+![Tela Chaveamento](./assets/tela-chaveamento.png)
+
+- **Finalidade:** visualizar fase de grupos e mata-mata com contexto de progressão.
+- **Ações principais do usuário:** acompanhar grupos, confrontos e vencedores por temporada.
+- **Tipo de usuário:** público geral e organização esportiva.
+
+![Tela Eventos da Liga](./assets/tela-eventos-da-liga.png)
+
+- **Finalidade:** representar a gestão e a consulta dos eventos institucionais no calendário.
+- **Ações principais do usuário:** cadastrar ou consultar eventos, local e organização responsável.
+- **Tipo de usuário:** administradores e visitantes da área pública.
+
+## 4.3 Fluxo de Interação do Usuário
+
+Foi selecionado o fluxo de **operação de partida ao vivo**, por ser um dos cenários mais críticos do sistema.
+
+### Sequência textual
+
+1. O usuário administrativo acessa o login administrativo.
+2. O sistema resolve o estado da conta, autentica o usuário e valida seu perfil.
+3. O usuário entra no painel administrativo e seleciona a aba de Controle ao Vivo.
+4. O sistema carrega as partidas do contexto selecionado, com base em campeonato, temporada e filtros disponíveis.
+5. O operador seleciona a partida e inicia a operação do jogo.
+6. Durante a partida, o operador atualiza placar, sets, cartões e status conforme a modalidade.
+7. O sistema valida e persiste as alterações no ambiente atual de dados.
+8. Após a persistência, o sistema reflete o novo estado nas páginas públicas e atualiza dados derivados, como classificação e chaveamento, quando aplicável.
+
+```mermaid
+flowchart TD
+  Inicio([Inicio do fluxo]) --> Login[Usuario acessa login administrativo]
+  Login --> Autenticacao[Sistema autentica conta e valida perfil]
+  Autenticacao --> Painel[Painel administrativo liberado]
+  Painel --> Controle[Usuario seleciona a aba Controle ao Vivo]
+  Controle --> Contexto[Sistema carrega partidas do contexto selecionado]
+  Contexto --> Partida[Operador seleciona a partida]
+  Partida --> Atualizacao[Operador atualiza placar sets cartoes e status]
+  Atualizacao --> Validacao[Sistema valida alteracoes da partida]
+  Validacao --> Persistencia[Sistema persiste as alteracoes]
+  Persistencia --> Derivados[Atualiza classificacao e chaveamento quando aplicavel]
+  Persistencia --> Publicacao[Atualiza paginas publicas]
+```
+
+## 4.4 Feedback Inicial de Usuários
+
+As evidências já registradas na etapa 1 desta RFC indicam validação inicial de valor por parte de participantes da LAJE durante interações reais em 2026. Os principais sinais documentados foram:
+
+- percepção positiva sobre tabela e organização das informações;
+- comentários espontâneos indicando boa aceitação da proposta;
+- questionamento direto sobre funcionalidade de pontuação, evidenciando aderência ao problema real;
+- percepção de potencial de expansão da solução para outras ligas;
+- necessidade de onboarding ou melhor apoio inicial ao uso administrativo, refletida na observação de que seria necessário ensinar o uso da ferramenta.
+
+Nesta etapa, esses elementos são tratados como **feedback inicial qualitativo**, ainda sem substituir uma rodada formal de avaliação com usuários e sem ampliar as evidências além do que já está documentado.
+
+---
+
+# 5. Arquitetura do Sistema
+
+## 5.1 Diagrama C4
+
+Para evitar ambiguidade entre a arquitetura já implementada e a arquitetura pretendida para aderência ao Portfólio, esta subseção adota a seguinte convenção:
+
+- **estado atual:** o sistema opera com frontend React/Vite integrado ao ecossistema Supabase, que hoje concentra autenticação, persistência relacional, funções SQL e atualização quase em tempo real;
+- **estado-alvo:** os diagramas de containers e componentes representam a evolução arquitetural prevista para o TCC/Portfólio, com frontend web consumindo backend dedicado e banco PostgreSQL em infraestrutura de hospedagem compatível com as diretrizes da linha de Web Apps.
+
+### Nível 1 — Contexto
+
+O diagrama de contexto mostra o LAJE App como ponte entre a operação administrativa da liga e a visualização pública de campeonatos, jogos e eventos, deixando explícita a plataforma atualmente utilizada.
+
+```mermaid
+flowchart TD
+  Publico([Usuario publico])
+  Admin([Administrador ou operador])
+  Sistema[Sistema LAJE App]
+  Supabase[Supabase plataforma atual]
+
+  Publico --> Sistema
+  Admin --> Sistema
+  Sistema --> Supabase
+```
+
+### Nível 2 — Containers
+
+O diagrama de containers abaixo representa o **estado-alvo** da solução, no qual o frontend web passa a consumir backend dedicado e banco PostgreSQL. A decisão de hospedagem permanece descrita no texto da RFC, tendo AWS como referência inicial registrada na etapa 1, sem transformar a infraestrutura em container funcional do sistema.
+
+```mermaid
+flowchart LR
+  Usuario([Usuarios])
+  FE[Frontend web React Vite]
+  API[API backend Node Express]
+  DB[(PostgreSQL)]
+
+  Usuario --> FE
+  FE --> API
+  API --> DB
+```
+
+### Nível 3 — Componentes
+
+O nível de componentes abaixo representa uma **arquitetura-alvo de referência** para o backend `laje-api`, organizada a partir dos módulos funcionais já evidenciados pelo domínio atual do projeto. Como o backend dedicado ainda não está implementado neste repositório, o diagrama deve ser lido como decomposição lógica prevista, e não como reflexo literal de arquivos já existentes.
+
+```mermaid
+flowchart TD
+  APIEntrada[API Backend]
+  Auth[Autenticacao e permissoes]
+  Campeonatos[Campeonatos e modalidades]
+  Jogos[Jogos e controle ao vivo]
+  Classificacao[Classificacao]
+  Chaveamento[Chaveamento]
+  Eventos[Eventos da liga]
+  Administracao[Usuarios e auditoria]
+  Repositorios[Repositorios]
+  Banco[(PostgreSQL)]
+
+  APIEntrada --> Auth
+  APIEntrada --> Campeonatos
+  APIEntrada --> Jogos
+  APIEntrada --> Classificacao
+  APIEntrada --> Chaveamento
+  APIEntrada --> Eventos
+  APIEntrada --> Administracao
+
+  Auth --> Repositorios
+  Campeonatos --> Repositorios
+  Jogos --> Repositorios
+  Classificacao --> Repositorios
+  Chaveamento --> Repositorios
+  Eventos --> Repositorios
+  Administracao --> Repositorios
+  Repositorios --> Banco
+```
+
+## 5.2 Modelo de Dados
+
+O modelo de dados atual é relacional e já evidencia entidades centrais do domínio esportivo. A seguir, estão destacadas as principais estruturas identificadas no schema tipado do Supabase e na documentação:
+
+- `championships`
+- `championship_sports`
+- `matches`
+- `standings`
+- `championship_bracket_editions`
+- `championship_bracket_groups`
+- `championship_bracket_matches`
+- `teams`
+- `sports`
+- `league_events`
+- `league_event_organizer_teams`
+- `admin_profiles`
+- `admin_profile_permissions`
+- `admin_user_profiles`
+- `admin_action_logs`
+- `public_page_access_settings`
+
+```mermaid
+erDiagram
+  championships ||--o{ championship_sports : has
+  championships ||--o{ matches : has
+  championships ||--o{ standings : has
+  championships ||--o{ championship_bracket_editions : has
+
+  sports ||--o{ championship_sports : configures
+  sports ||--o{ matches : classifies
+  sports ||--o{ standings : classifies
+
+  teams ||--o{ matches : home_team
+  teams ||--o{ matches : away_team
+  teams ||--o{ standings : appears
+  teams ||--o{ league_events : organizer_team
+  teams ||--o{ league_event_organizer_teams : organizes
+
+  championship_bracket_editions ||--o{ championship_bracket_groups : contains
+  championship_bracket_editions ||--o{ championship_bracket_matches : contains
+  matches ||--o{ championship_bracket_matches : links
+
+  league_events ||--o{ league_event_organizer_teams : has
+
+  admin_profiles ||--o{ admin_profile_permissions : defines
+  admin_profiles ||--o{ admin_user_profiles : assigned_to
+
+  public_page_access_settings {
+    uuid id
+  }
+
+  admin_action_logs {
+    uuid id
+  }
+```
+
+Em leitura funcional:
+
+- `championships`, `championship_sports`, `sports` e `teams` formam a base configurável dos campeonatos.
+- `matches` é a entidade operacional central.
+- `standings` representa dado derivado a partir dos resultados persistidos.
+- `championship_bracket_editions`, `championship_bracket_groups` e `championship_bracket_matches` sustentam a estrutura da chave.
+- `league_events` e `league_event_organizer_teams` representam o calendário institucional da liga.
+- `admin_profiles`, `admin_profile_permissions` e `admin_user_profiles` sustentam autorização por perfil e por aba.
+- `admin_action_logs` registra auditoria de ações sensíveis.
+- `public_page_access_settings` controla disponibilidade pública global e por rota.
+
+Compatibilidade com o código e com o schema atual:
+
+- a existência de `championships`, `matches`, `championship_bracket_editions` e das rotas públicas/admin é sustentada diretamente pelo uso dessas tabelas no frontend atual;
+- `league_events`, `teams`, `sports`, `standings` e `championship_sports` também aparecem em hooks e repositórios reais do projeto;
+- no schema tipado, `admin_profile_permissions.profile_id` e `admin_user_profiles.profile_id` referenciam `admin_profiles.id`, então a parte administrativa do diagrama é compatível com o modelo atual;
+- `league_event_organizer_teams` referencia tanto `league_events` quanto `teams`, e `league_events` ainda possui um `organizer_team_id` opcional, por isso a relação com `teams` não pode ser omitida;
+- `admin_action_logs` e `public_page_access_settings` existem como estruturas relevantes, mas não aparecem no schema tipado com relacionamentos fortes para outras tabelas; por isso ficam como entidades mais isoladas neste ER simplificado.
+
+## 5.3 Principais Componentes
+
+### Frontend público
+
+Responsável por Home, Ao Vivo, Campeonatos, Agenda e Calendário da Liga, com foco em navegação, consulta e atualização da informação consumida pelo público.
+
+### Painel administrativo
+
+Centraliza jogos, controle ao vivo, modalidades, times, eventos, usuários, logs, conta, configurações e demais abas disponíveis conforme perfil.
+
+### Backend API
+
+No estado-alvo, concentrará autenticação, autorização, regras de negócio, contratos do sistema e orquestração de persistência, reduzindo acoplamento da lógica crítica ao frontend.
+
+### Autenticação e autorização
+
+No estado atual, é apoiada por Supabase Auth, perfis administrativos, permissões por aba e validações server-side ou no banco. No estado-alvo, a mesma responsabilidade deve ser preservada em backend dedicado.
+
+### Controle ao vivo
+
+Abrange o fluxo operacional de atualização de status da partida, placar, sets, cartões e publicação quase em tempo real para as páginas públicas.
+
+### Classificação
+
+Componente derivado que recalcula estatísticas e ordenação a partir dos resultados das partidas, respeitando regra esportiva e critérios de desempate.
+
+### Chaveamento
+
+Abrange geração de grupos, distribuição de times, agenda inicial, formação do mata-mata e progressão automática dos confrontos.
+
+### Eventos e calendário
+
+Gerencia eventos institucionais da liga, filtragem pública e associação de atléticas organizadoras, mantendo separação conceitual em relação aos jogos.
+
+### Auditoria
+
+Registra ações administrativas relevantes para rastreabilidade, incluindo alterações de dados sensíveis e eventos de login.
+
+### Persistência
+
+No estado atual, utiliza Supabase Postgres, schema versionado e funções SQL. No estado-alvo, o desenho final continua relacional, com PostgreSQL como pilar principal da persistência.
+
+### Tempo quase real
+
+No estado atual, utiliza recursos de Realtime e Presence do ecossistema Supabase. No estado-alvo, essa capacidade permanece obrigatória do ponto de vista funcional, ainda que a tecnologia definitiva possa evoluir.
+
+## 5.4 Stack Tecnológica
+
+### Estado atual
+
+**React 18**  
+Escolhido para estruturar a interface web em componentes reutilizáveis, tanto no domínio público quanto no painel administrativo.
+
+**TypeScript**  
+Escolhido para reforçar tipagem estática, consistência de contratos e manutenção do código do frontend.
+
+**Vite**  
+Escolhido como bundler e ambiente de desenvolvimento rápido para a aplicação web.
+
+**Tailwind CSS**  
+Escolhido para composição utilitária da interface e aceleração do desenvolvimento visual.
+
+**shadcn/ui**  
+Escolhido como base de componentes reutilizáveis, em conjunto com Radix UI, para consistência de interface e produtividade.
+
+**Supabase**  
+Escolhido no estado atual como base de autenticação, persistência relacional, funções SQL, Realtime e Presence, sustentando a operação já implementada.
+
+### Estado-alvo
+
+**React 18 + TypeScript**  
+Mantidos pela aderência já comprovada à construção da interface e pela boa separação entre estado de UI, rotas e domínio.
+
+**Node.js + Express**  
+Previstos para o backend dedicado `laje-api`, concentrando autenticação, autorização, regras de negócio e contratos do sistema em camada própria.
+
+**PostgreSQL**  
+Previsto como banco relacional principal do desenho final por oferecer integridade de dados, consultas estruturadas e aderência ao domínio transacional do projeto.
+
+**Infraestrutura de hospedagem compatível com o Portfólio**  
+Prevista para sustentar frontend, backend e banco relacional fora do Supabase. A etapa 1 registra AWS como referência de estado-alvo, mas a escolha final deve permanecer dentro dos provedores e modelos de hospedagem permitidos pelas diretrizes do Portfólio.
+
+**GitHub Actions**  
+Previsto para estruturar CI/CD, reforçando build, lint, testes e automação de deploy nas próximas etapas.
+
+**Ferramenta de análise estática**  
+Prevista para reforçar qualidade contínua, padronização e prevenção de regressões técnicas. Nesta etapa, o repositório já possui lint local, mas a formalização dessa esteira ainda é evolução planejada.
+
+**Ferramenta de observabilidade**  
+Prevista para ampliar logs, métricas e monitoramento do ambiente implantado, especialmente em cenários de operação ao vivo e suporte.
