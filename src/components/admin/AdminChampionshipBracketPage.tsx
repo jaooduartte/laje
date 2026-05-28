@@ -1410,10 +1410,10 @@ export function AdminChampionshipBracketPage({
   const resolveSaveErrorSuggestion = useCallback(
     (errorMessage: string): string => {
       if (errorMessage.includes("local compatível")) {
-        return "Sugestão: revise os locais da etapa de agenda e confirme se cada modalidade tem ao menos um local compatível.";
+        return "Sugestão: Revise os locais da etapa de agenda e confirme se cada modalidade tem ao menos um local compatível.";
       }
 
-      return "Sugestão: revise as configurações das etapas anteriores e tente novamente.";
+      return "Sugestão: Revise as configurações das etapas anteriores e tente novamente.";
     },
     [],
   );

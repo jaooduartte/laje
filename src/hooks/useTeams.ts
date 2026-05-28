@@ -31,7 +31,7 @@ export function useTeams() {
 
   useEffect(() => {
     fetchTeams();
-  }, []);
+  }, [fetchTeams]);
 
   return { teams, loading, refetch: fetchTeams };
 }

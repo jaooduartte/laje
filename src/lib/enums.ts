@@ -222,3 +222,8 @@ export enum RealtimePresenceChannel {
   SITE_TOTAL = "presence:site-visitors",
   LIVE_PAGE = "presence:live-page-visitors",
 }
+
+export enum ChampionshipAwardType {
+  TOP_SCORER = "TOP_SCORER",
+  BEST_GOALKEEPER = "BEST_GOALKEEPER",
+}

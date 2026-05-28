@@ -872,8 +872,11 @@ Escolhido no estado atual como base de autenticação, persistência relacional,
 
 ### Estado-alvo
 
-**React 18 + TypeScript**  
-Mantidos pela aderência já comprovada à construção da interface e pela boa separação entre estado de UI, rotas e domínio.
+**React 18 + TypeScript + Vite**  
+Mantidos pela aderência já comprovada à construção da interface e pela boa separação entre estado de UI, rotas e domínio. O Vite permanece como bundler e ambiente de desenvolvimento rápido do frontend, sem alteração em relação ao estado atual.
+
+**Tailwind CSS + shadcn/ui**  
+Mantidos no estado-alvo. A camada visual da aplicação — composição utilitária de estilos e biblioteca de componentes baseada em Radix UI — não sofre alteração com a migração arquitetural do backend. A transição de Supabase para `laje-api` é transparente para a stack de UI.
 
 **Node.js + Express**  
 Previstos para o backend dedicado `laje-api`, concentrando autenticação, autorização, regras de negócio e contratos do sistema em camada própria.

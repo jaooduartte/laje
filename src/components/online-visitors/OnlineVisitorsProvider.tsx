@@ -31,6 +31,7 @@ export function OnlineVisitorsProvider({ children }: OnlineVisitorsProviderProps
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useOnlineVisitorsProviderContext() {
   const onlineVisitorsProviderContext = useContext(OnlineVisitorsProviderContext);
 

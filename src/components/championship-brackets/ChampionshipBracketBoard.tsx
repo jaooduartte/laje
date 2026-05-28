@@ -47,6 +47,7 @@ interface ProjectedKnockoutMatchDisplay {
   status: ChampionshipBracketKnockoutMatch["status"];
   scheduled_date: string | null;
   queue_position: number | null;
+  scheduled_slot?: number | null;
   start_time: string | null;
   location: string | null;
   court_name: string | null;
@@ -156,6 +157,7 @@ function resolveFallbackKnockoutRounds(
           status: knockoutMatch.status,
           scheduled_date: knockoutMatch.scheduled_date,
           queue_position: knockoutMatch.queue_position,
+          scheduled_slot: knockoutMatch.scheduled_slot,
           start_time: knockoutMatch.start_time,
           location: knockoutMatch.location,
           court_name: knockoutMatch.court_name,
@@ -247,6 +249,7 @@ function resolveProjectedKnockoutRounds(
         status: knockoutMatch?.status ?? null,
         scheduled_date: knockoutMatch?.scheduled_date ?? null,
         queue_position: knockoutMatch?.queue_position ?? null,
+        scheduled_slot: knockoutMatch?.scheduled_slot ?? null,
         start_time: knockoutMatch?.start_time ?? null,
         location: knockoutMatch?.location ?? null,
         court_name: knockoutMatch?.court_name ?? null,
@@ -272,6 +275,7 @@ function resolveProjectedKnockoutRounds(
         status: knockoutMatch?.status ?? null,
         scheduled_date: knockoutMatch?.scheduled_date ?? null,
         queue_position: knockoutMatch?.queue_position ?? null,
+        scheduled_slot: knockoutMatch?.scheduled_slot ?? null,
         start_time: knockoutMatch?.start_time ?? null,
         location: knockoutMatch?.location ?? null,
         court_name: knockoutMatch?.court_name ?? null,

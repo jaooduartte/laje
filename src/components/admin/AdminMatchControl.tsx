@@ -71,9 +71,6 @@ interface MatchSetEditDraft {
   awayPoints: number;
 }
 
-interface WalkoverRule {
-  winnerPoints: number;
-}
 
 type SaveStatus = "saving" | "saved" | "error";
 type MatchSide = "home" | "away";
@@ -106,12 +103,6 @@ const WALKOVER_NONE_OPTION_VALUE = "__WALKOVER_NONE_OPTION__";
 const SCORE_INPUT_CLASS_NAME =
   "score-text h-12 w-16 min-w-16 app-input-field px-1 text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
 
-const WALKOVER_RULE_BY_NORMALIZED_SPORT_NAME: Record<string, WalkoverRule> = {
-  "beach soccer": { winnerPoints: 3 },
-  "volei de praia": { winnerPoints: 21 },
-  "beach tennis": { winnerPoints: 6 },
-  futevolei: { winnerPoints: 18 },
-};
 
 interface PersistedMatchControlDraftEntry {
   draft: MatchControlDraft;
@@ -238,22 +229,13 @@ function parseNonNegativeNumber(value: string): number {
   return Math.max(0, parsedValue);
 }
 
-function normalizeSportName(value: string | null | undefined): string {
-  return (value ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase();
-}
 
-function resolveWalkoverRule(match: Pick<Match, "sports">): WalkoverRule | null {
-  const normalizedSportName = normalizeSportName(match.sports?.name ?? null);
-
-  if (!normalizedSportName) {
-    return null;
-  }
-
-  return WALKOVER_RULE_BY_NORMALIZED_SPORT_NAME[normalizedSportName] ?? null;
+function resolveWalkoverWinnerPoints(
+  match: Pick<Match, "sport_id">,
+  championshipSports: ChampionshipSport[],
+): number | null {
+  const cs = championshipSports.find((s) => s.sport_id === match.sport_id);
+  return cs?.walkover_winner_points ?? null;
 }
 
 function resolveMatchUpdatePayload(
@@ -1403,16 +1385,15 @@ export function AdminMatchControl({
       return;
     }
 
-    const walkoverRule = resolveWalkoverRule(match);
+    const winnerPoints = resolveWalkoverWinnerPoints(match, championshipSports);
 
-    if (!walkoverRule) {
+    if (winnerPoints == null) {
       toast.error("Modalidade sem configuração de W.O. para pontuação máxima.");
       return;
     }
 
     const isSetMatch = isSetRuleMatch(match);
     const winnerSide: MatchSide = walkoverLoserTeamId == match.home_team_id ? "away" : "home";
-    const winnerPoints = walkoverRule.winnerPoints;
     const now = new Date().toISOString();
     let resolvedHomeScore = winnerSide == "home" ? winnerPoints : 0;
     let resolvedAwayScore = winnerSide == "away" ? winnerPoints : 0;
@@ -1626,6 +1607,9 @@ export function AdminMatchControl({
           return firstScheduledDate.localeCompare(secondScheduledDate);
         }
 
+        const firstSlot = firstMatch.scheduled_slot ?? firstMatch.queue_position ?? Number.MAX_SAFE_INTEGER;
+        const secondSlot = secondMatch.scheduled_slot ?? secondMatch.queue_position ?? Number.MAX_SAFE_INTEGER;
+        if (firstSlot != secondSlot) return firstSlot - secondSlot;
         return (firstMatch.queue_position ?? Number.MAX_SAFE_INTEGER) - (secondMatch.queue_position ?? Number.MAX_SAFE_INTEGER);
       }
 
@@ -1723,7 +1707,7 @@ export function AdminMatchControl({
             const liveMatchesCount = sportAndDateKey ? liveMatchesCountBySportAndDateKey[sportAndDateKey] ?? 0 : 0;
             const isMatchStartBlocked =
               match.status == MatchStatus.SCHEDULED && availableCourtsCount > 0 && liveMatchesCount >= availableCourtsCount;
-            const queueLabel = resolveMatchQueueLabel(match.queue_position);
+            const queueLabel = resolveMatchQueueLabel(match.scheduled_slot ?? match.queue_position);
             const queueSummary = scheduledDateValue
               ? `${format(new Date(`${scheduledDateValue}T12:00:00`), "dd/MM", { locale: ptBR })} • ${queueLabel}`
               : queueLabel;

@@ -561,7 +561,7 @@ export function resolveEstimatedStartTimeByMatchId(params: {
       return carry;
     }
 
-    const rawSlotPosition = Math.trunc(resolveMatchDisplaySlotValue(match));
+    const rawSlotPosition = Math.trunc(match.scheduled_slot ?? match.queue_position ?? Number.MAX_SAFE_INTEGER);
 
     if (!Number.isFinite(rawSlotPosition) || rawSlotPosition <= 0) {
       return carry;
@@ -620,7 +620,7 @@ export function resolveEstimatedStartTimeByMatchId(params: {
       return carry;
     }
 
-    const rawSlotPosition = Math.trunc(resolveMatchDisplaySlotValue(match));
+    const rawSlotPosition = Math.trunc(match.scheduled_slot ?? match.queue_position ?? Number.MAX_SAFE_INTEGER);
 
     if (!Number.isFinite(rawSlotPosition) || rawSlotPosition <= 0) {
       return carry;

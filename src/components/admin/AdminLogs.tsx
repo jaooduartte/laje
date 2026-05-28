@@ -782,6 +782,11 @@ function resolveOrSearchValue(searchText: string): string {
     `actor_name.ilike.%${normalizedSearchText}%`,
     `actor_email.ilike.%${normalizedSearchText}%`,
     `record_id.ilike.%${normalizedSearchText}%`,
+    `new_data->>name.ilike.%${normalizedSearchText}%`,
+    `new_data->>event_name.ilike.%${normalizedSearchText}%`,
+    `old_data->>name.ilike.%${normalizedSearchText}%`,
+    `old_data->>event_name.ilike.%${normalizedSearchText}%`,
+    `metadata->>target_user_name.ilike.%${normalizedSearchText}%`,
   ].join(",");
 }
 
@@ -1105,7 +1110,7 @@ export function AdminLogs() {
 
         {!loading && totalCount > 0 ? (
           <div className="space-y-2">
-            <p className="text-center text-xs text-muted-foreground">Total de itens: {totalCount}</p>
+            <p className="mt-4 text-center text-xs text-muted-foreground">Total de itens: {totalCount}</p>
             <AppPaginationControls
               currentPage={currentPage}
               totalPages={totalPages}
