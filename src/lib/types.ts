@@ -62,6 +62,9 @@ export interface ChampionshipSport {
   points_draw: number;
   points_loss: number;
   created_at: string;
+  walkover_winner_points: number | null;
+  awards_include_knockout_phase: boolean;
+  supports_individual_awards: boolean;
   // Joined
   championships?: Championship;
   sports?: Sport;
@@ -362,6 +365,7 @@ export interface ChampionshipBracketKnockoutMatch {
   status: MatchStatus | null;
   scheduled_date: string | null;
   queue_position: number | null;
+  scheduled_slot?: number | null;
   start_time: string | null;
   end_time: string | null;
   location: string | null;

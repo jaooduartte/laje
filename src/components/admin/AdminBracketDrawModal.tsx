@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   MATCH_NAIPE_LABELS,
@@ -44,6 +44,8 @@ export function AdminBracketDrawModal({
   const [showResult, setShowResult] = useState(false);
   const [showConfirmButton, setShowConfirmButton] = useState(false);
   const [lastAnimatedTeamId, setLastAnimatedTeamId] = useState<string | null>(null);
+  const onResultReadyRef = useRef(onResultReady);
+  onResultReadyRef.current = onResultReady;
 
   useEffect(() => {
     if (!open || !drawnTeamId || drawingTeamIds.length === 0) {
@@ -81,7 +83,7 @@ export function AdminBracketDrawModal({
         setLastAnimatedTeamId(drawnTeamId);
         
         // Notifica que o resultado está pronto para posicionamento imediato
-        onResultReady?.();
+        onResultReadyRef.current?.();
         
         // Atrasa a exibição do botão para sincronizar com as badges
         setTimeout(() => {
@@ -97,12 +99,15 @@ export function AdminBracketDrawModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[640px] overflow-hidden border-none bg-transparent p-0 shadow-none sm:max-w-[720px]">
-        <div className="relative flex min-h-[420px] flex-col items-center justify-center overflow-hidden rounded-[2.5rem] bg-[#0c0c0e] p-10 text-center shadow-2xl border border-white/5">
+      <DialogContent
+        style={{ background: 'transparent', border: 'none', boxShadow: 'none' }}
+        className="max-w-[640px] p-0 sm:max-w-[720px]"
+      >
+        <div className="relative flex min-h-[420px] flex-col items-center justify-center overflow-hidden rounded-[2.5rem] bg-white dark:bg-[#0c0c0e] p-10 text-center shadow-2xl border border-gray-200 dark:border-white/5">
           {/* Background Decorative Elements */}
           <div className="absolute inset-0 z-0">
             <div className="absolute -left-1/4 -top-1/4 h-1/2 w-1/2 rounded-full bg-primary/10 blur-[120px] animate-pulse" />
-            <div className="absolute -right-1/4 -bottom-1/4 h-1/2 w-1/2 rounded-full bg-red-900/10 blur-[120px] animate-pulse" />
+            <div className="absolute -right-1/4 -bottom-1/4 h-1/2 w-1/2 rounded-full bg-red-500/5 dark:bg-red-900/10 blur-[120px] animate-pulse" />
           </div>
 
           <DialogHeader className="sr-only">
@@ -113,13 +118,13 @@ export function AdminBracketDrawModal({
           <div className="relative z-10 flex w-full flex-col items-center gap-8">
             <div className="space-y-2">
               <p className={cn(
-                "text-xs font-black uppercase tracking-[0.3em] text-white transition-colors duration-500",
+                "text-xs font-black uppercase tracking-[0.3em] text-gray-500 dark:text-white transition-colors duration-500",
               )}>
                 {showResult ? "Atlética Sorteada" : "Sorteando Atlética"}
               </p>
               <div className={cn(
                 "h-1 w-12 rounded-full mx-auto transition-colors duration-500",
-                showResult ? "bg-primary/40" : "bg-white/40"
+                showResult ? "bg-primary/40" : "bg-gray-300 dark:bg-white/40"
               )} />
             </div>
 
@@ -127,9 +132,9 @@ export function AdminBracketDrawModal({
               <h2
                 className={cn(
                   "text-5xl font-black leading-tight tracking-tighter sm:text-7xl lg:text-8xl transition-all duration-150",
-                  isAnimating 
-                    ? "scale-95 blur-[4px] opacity-40 text-white" 
-                    : "scale-100 blur-0 opacity-100 bg-gradient-to-br from-white via-white to-slate-400 bg-clip-text text-transparent animate-in zoom-in-95 duration-500"
+                  isAnimating
+                    ? "scale-95 blur-[4px] opacity-40 text-gray-400 dark:text-white"
+                    : "scale-100 blur-0 opacity-100 bg-gradient-to-br from-gray-900 via-gray-700 to-gray-500 dark:from-white dark:via-white dark:to-slate-400 bg-clip-text text-transparent animate-in zoom-in-95 duration-500"
                 )}
               >
                 {displayedTeamName}
@@ -139,9 +144,9 @@ export function AdminBracketDrawModal({
             {showResult && groupNumber != null && competitionOption && (
               <div className="flex flex-col items-center gap-6 animate-in fade-in zoom-in-95 slide-in-from-bottom-8 duration-700 delay-300">
                 <div className="flex items-center gap-3">
-                  <div className="h-px w-8 bg-slate-800" />
-                  <span className="text-sm font-medium text-slate-400">Distribuída para</span>
-                  <div className="h-px w-8 bg-slate-800" />
+                  <div className="h-px w-8 bg-gray-200 dark:bg-slate-800" />
+                  <span className="text-sm font-medium text-gray-400 dark:text-slate-400">Distribuída para</span>
+                  <div className="h-px w-8 bg-gray-200 dark:bg-slate-800" />
                 </div>
 
                 <div className="flex flex-wrap justify-center gap-2.5">
@@ -149,14 +154,14 @@ export function AdminBracketDrawModal({
                     {resolveChampionshipGroupLabel(groupNumber)}
                   </Badge>
                   {competitionOption.division ? (
-                    <Badge variant="outline" className="border-slate-700 bg-slate-900/50 px-3 py-1 text-sm text-slate-200">
+                    <Badge variant="outline" className="border-gray-200 bg-gray-100 dark:border-slate-700 dark:bg-slate-900/50 px-3 py-1 text-sm text-gray-700 dark:text-slate-200">
                       {TEAM_DIVISION_LABELS[competitionOption.division]}
                     </Badge>
                   ) : null}
-                  <Badge variant="outline" className="border-slate-700 bg-slate-900/50 px-3 py-1 text-sm text-slate-200">
+                  <Badge variant="outline" className="border-gray-200 bg-gray-100 dark:border-slate-700 dark:bg-slate-900/50 px-3 py-1 text-sm text-gray-700 dark:text-slate-200">
                     {MATCH_NAIPE_LABELS[competitionOption.naipe]}
                   </Badge>
-                  <Badge variant="outline" className="border-slate-700 bg-slate-900/50 px-3 py-1 text-sm text-slate-200">
+                  <Badge variant="outline" className="border-gray-200 bg-gray-100 dark:border-slate-700 dark:bg-slate-900/50 px-3 py-1 text-sm text-gray-700 dark:text-slate-200">
                     {competitionOption.sport_name}
                   </Badge>
                 </div>

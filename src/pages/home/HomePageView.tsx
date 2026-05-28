@@ -169,18 +169,27 @@ export function HomePageView({ items: _items, maintenanceItems, metrics }: HomeP
       <main className="container space-y-5 py-8">
         {maintenanceItems.length > 0 ? (
           <section className="glass-panel rounded-[2rem] p-4 sm:p-5">
-            <div className="mb-3 flex items-center gap-2">
-              <ShieldAlert className="h-5 w-5 text-primary" />
-              <h2 className="text-xl font-display font-semibold">Páginas em manutenção</h2>
-            </div>
-
-            <div className="space-y-3">
-              {maintenanceItems.map((maintenanceItem) => (
-                <div key={maintenanceItem.label} className="rounded-2xl border border-border/50 bg-muted/20 p-4">
-                  <p className="font-semibold text-foreground">{maintenanceItem.label}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{maintenanceItem.reason}</p>
+            <div className="flex items-start gap-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10">
+                <ShieldAlert className="h-5 w-5 text-primary" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="font-display text-lg font-semibold">Páginas em manutenção</h2>
+                {maintenanceItems[0]?.reason ? (
+                  <p className="mt-0.5 text-sm text-muted-foreground">{maintenanceItems[0].reason}</p>
+                ) : null}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {maintenanceItems.map((item) => (
+                    <span
+                      key={item.label}
+                      className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-sm font-medium text-primary"
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-primary/60" />
+                      {item.label}
+                    </span>
+                  ))}
                 </div>
-              ))}
+              </div>
             </div>
           </section>
         ) : null}

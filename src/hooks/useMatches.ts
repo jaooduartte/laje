@@ -414,8 +414,7 @@ export function useMatches({
           .select(
             "*, championships(*), sports(*), home_team:teams!matches_home_team_id_fkey(*), away_team:teams!matches_away_team_id_fkey(*)",
             { count: "exact" },
-          )
-          .order("created_at", { ascending: true });
+          );
 
         query = applyMatchFilters(query);
         query = applyMatchSort(query);

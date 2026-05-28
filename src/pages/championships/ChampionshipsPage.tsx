@@ -10,6 +10,7 @@ import { useChampionshipBracketResolvedTieBreakOrders } from "@/hooks/useChampio
 import { useChampionshipCorrectedGroupStandings } from "@/hooks/useChampionshipCorrectedGroupStandings";
 import { useSelectedChampionship } from "@/hooks/useSelectedChampionship";
 import { useChampionshipSelection } from "@/hooks/useChampionshipSelection";
+import { useChampionshipAwardsRankings, type ChampionshipAwardsRankings } from "@/hooks/useChampionshipAwardsRankings";
 import type { ChampionshipBracketResolvedTieBreakOrderContext } from "@/domain/championship-brackets/championshipBracket.types";
 import type { MatchBracketContext } from "@/lib/championship";
 import {
@@ -19,6 +20,7 @@ import {
   ChampionshipStatus,
   MatchNaipe,
   MatchStatus,
+  TeamDivision,
 } from "@/lib/enums";
 import { resolveModalidadeConfigBySportId, type ModalidadeConfig } from "@/lib/modalidadeConfig";
 import type { Team, Match } from "@/lib/types";
@@ -52,6 +54,7 @@ const ALL_YEAR_FILTER = "ALL_YEARS";
 const ALL_GROUP_FILTER = "ALL_GROUPS";
 const ALL_STANDINGS_SPORT_FILTER = "ALL_STANDINGS_SPORTS";
 const ALL_STANDINGS_NAIPE_FILTER = "ALL_STANDINGS_NAIPES";
+const ALL_STANDINGS_DIVISION_FILTER = "ALL_STANDINGS_DIVISIONS";
 const DEFAULT_NEXT_MATCHES_LIMIT = 6;
 
 export function ChampionshipsPage() {
@@ -67,12 +70,13 @@ export function ChampionshipsPage() {
   const selectedChampionshipIsFinished = selectedChampionship?.status == ChampionshipStatus.FINISHED;
   const selectedChampionshipSeasonYear = selectedChampionship?.current_season_year ?? null;
 
-  const standingsDivisionFilter = selectedChampionshipHasDivisions ? undefined : null;
+  const standingsDbDivisionFilter = undefined;
   const [teamFilter, setTeamFilter] = useState<string>(ALL_TEAM_FILTER);
   const [yearFilter, setYearFilter] = useState<string>(ALL_YEAR_FILTER);
   const [groupFilter, setGroupFilter] = useState<string>(ALL_GROUP_FILTER);
   const [standingsSportFilter, setStandingsSportFilter] = useState<string>(ALL_STANDINGS_SPORT_FILTER);
   const [standingsNaipeFilter, setStandingsNaipeFilter] = useState<string>(ALL_STANDINGS_NAIPE_FILTER);
+  const [standingsDivisionFilter, setStandingsDivisionFilter] = useState<string>(ALL_STANDINGS_DIVISION_FILTER);
   const [standingsYearFilter, setStandingsYearFilter] = useState<string>(
     selectedChampionshipSeasonYear != null ? String(selectedChampionshipSeasonYear) : ALL_YEAR_FILTER,
   );
@@ -80,7 +84,7 @@ export function ChampionshipsPage() {
   const { standings, loading: standingsLoading } = useStandings({
     championshipId: selectedChampionshipId,
     seasonYear: standingsYearFilter == ALL_YEAR_FILTER ? null : Number(standingsYearFilter),
-    division: standingsDivisionFilter,
+    division: standingsDbDivisionFilter,
   });
   const standingsCorrectedSeasonYear = standingsYearFilter == ALL_YEAR_FILTER ? null : Number(standingsYearFilter);
   const shouldUseCorrectedPointsOnStandings =
@@ -91,6 +95,10 @@ export function ChampionshipsPage() {
     enabled: shouldUseCorrectedPointsOnStandings,
   });
   const { sports, championshipSports } = useSports({ championshipId: selectedChampionshipId });
+  const { rankings: awardsRankings } = useChampionshipAwardsRankings({
+    championshipId: selectedChampionshipId,
+    seasonYear: selectedChampionshipSeasonYear,
+  });
   const { teams } = useTeams();
 
   useEffect(() => {
@@ -99,6 +107,7 @@ export function ChampionshipsPage() {
     setGroupFilter(ALL_GROUP_FILTER);
     setStandingsSportFilter(ALL_STANDINGS_SPORT_FILTER);
     setStandingsNaipeFilter(ALL_STANDINGS_NAIPE_FILTER);
+    setStandingsDivisionFilter(ALL_STANDINGS_DIVISION_FILTER);
     setStandingsYearFilter(selectedChampionshipSeasonYear != null ? String(selectedChampionshipSeasonYear) : ALL_YEAR_FILTER);
   }, [selectedChampionshipCode, selectedChampionshipSeasonYear]);
 
@@ -172,12 +181,17 @@ export function ChampionshipsPage() {
         return false;
       }
 
+      if (standingsDivisionFilter != ALL_STANDINGS_DIVISION_FILTER && standing.division != standingsDivisionFilter) {
+        return false;
+      }
+
       return true;
     });
   }, [
     standingsWithCorrectedPoints,
     standingsNaipeFilter,
     standingsSportFilter,
+    standingsDivisionFilter,
   ]);
 
   const overallPodiumStandings = useMemo(() => {
@@ -421,8 +435,14 @@ export function ChampionshipsPage() {
       championshipChampionHistory={championshipChampionHistory}
       overallPodiumStandings={overallPodiumStandings}
       onSelectChampionshipCode={setSelectedChampionshipCode}
+      standingsDivisionFilter={standingsDivisionFilter}
+      allStandingsDivisionFilter={ALL_STANDINGS_DIVISION_FILTER}
+      selectedChampionshipHasDivisions={standings.some((s) => s.division != null)}
+      awardsRankings={awardsRankings}
+      awardsSeasonYear={selectedChampionshipSeasonYear}
       onStandingsSportFilterChange={setStandingsSportFilter}
       onStandingsNaipeFilterChange={setStandingsNaipeFilter}
+      onStandingsDivisionFilterChange={setStandingsDivisionFilter}
       onStandingsYearFilterChange={setStandingsYearFilter}
       onTeamFilterChange={setTeamFilter}
       onYearFilterChange={setYearFilter}

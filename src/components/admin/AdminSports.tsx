@@ -11,6 +11,8 @@ import {
 } from "@/lib/championship";
 import { PLATFORM_SPORT_RULES_BY_CHAMPIONSHIP_CODE } from "@/domain/sport-rules/sportRules.constants";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface Props {
   sports: Sport[];
@@ -35,6 +37,13 @@ export function AdminSports({
 }: Props) {
   const [savingSportIdById, setSavingSportIdById] = useState<Record<string, boolean>>({});
   const [optimisticEstimatedStartTimeBySportId, setOptimisticEstimatedStartTimeBySportId] = useState<
+    Record<string, boolean | undefined>
+  >({});
+  const [walkoverDraftBySportId, setWalkoverDraftBySportId] = useState<Record<string, string>>({});
+  const [optimisticAwardsIncludeKnockoutBySportId, setOptimisticAwardsIncludeKnockoutBySportId] = useState<
+    Record<string, boolean | undefined>
+  >({});
+  const [optimisticSupportsIndividualAwardsBySportId, setOptimisticSupportsIndividualAwardsBySportId] = useState<
     Record<string, boolean | undefined>
   >({});
 
@@ -77,6 +86,37 @@ export function AdminSports({
     }, {});
 
     setOptimisticEstimatedStartTimeBySportId(nextOptimisticEstimatedStartTimeBySportId);
+
+    const nextWalkoverDraftBySportId = championshipSports.reduce<Record<string, string>>(
+      (carry, championshipSport) => {
+        carry[championshipSport.sport_id] =
+          championshipSport.walkover_winner_points != null
+            ? String(championshipSport.walkover_winner_points)
+            : "";
+        return carry;
+      },
+      {},
+    );
+
+    setWalkoverDraftBySportId(nextWalkoverDraftBySportId);
+
+    const nextOptimisticAwardsIncludeKnockoutBySportId = championshipSports.reduce<
+      Record<string, boolean | undefined>
+    >((carry, championshipSport) => {
+      carry[championshipSport.sport_id] = championshipSport.awards_include_knockout_phase;
+      return carry;
+    }, {});
+
+    setOptimisticAwardsIncludeKnockoutBySportId(nextOptimisticAwardsIncludeKnockoutBySportId);
+
+    const nextOptimisticSupportsIndividualAwardsBySportId = championshipSports.reduce<
+      Record<string, boolean | undefined>
+    >((carry, championshipSport) => {
+      carry[championshipSport.sport_id] = championshipSport.supports_individual_awards;
+      return carry;
+    }, {});
+
+    setOptimisticSupportsIndividualAwardsBySportId(nextOptimisticSupportsIndividualAwardsBySportId);
   }, [championshipSports]);
 
   const handleToggleEstimatedStartTimeOnCards = async (
@@ -119,6 +159,104 @@ export function AdminSports({
     }
 
     toast.success("Configuração de horário estimado atualizada.");
+  };
+
+  const handleSaveWalkoverWinnerPoints = async (championshipSport: ChampionshipSport, sportId: string) => {
+    if (!canManageSports) {
+      return;
+    }
+
+    const draftValue = walkoverDraftBySportId[sportId] ?? "";
+    const parsedValue = draftValue.trim() === "" ? null : parseInt(draftValue, 10);
+
+    if (parsedValue !== null && (isNaN(parsedValue) || parsedValue <= 0)) {
+      toast.error("Informe um número inteiro positivo ou deixe vazio para desabilitar o W.O.");
+      return;
+    }
+
+    setSavingSportIdById((current) => ({ ...current, [championshipSport.id]: true }));
+
+    const { error } = await supabase
+      .from("championship_sports")
+      .update({ walkover_winner_points: parsedValue })
+      .eq("id", championshipSport.id);
+
+    setSavingSportIdById((current) => ({ ...current, [championshipSport.id]: false }));
+
+    if (error) {
+      toast.error(error.message || "Não foi possível salvar a configuração de W.O.");
+      return;
+    }
+
+    toast.success(parsedValue != null ? "Pontuação de W.O. atualizada." : "W.O. desabilitado para esta modalidade.");
+  };
+
+  const handleToggleSupportsIndividualAwards = async (
+    championshipSport: ChampionshipSport,
+    shouldSupport: boolean,
+  ) => {
+    if (!canManageSports) {
+      return;
+    }
+
+    setSavingSportIdById((current) => ({ ...current, [championshipSport.id]: true }));
+
+    setOptimisticSupportsIndividualAwardsBySportId((current) => ({
+      ...current,
+      [championshipSport.sport_id]: shouldSupport,
+    }));
+
+    const { error } = await supabase
+      .from("championship_sports")
+      .update({ supports_individual_awards: shouldSupport })
+      .eq("id", championshipSport.id);
+
+    setSavingSportIdById((current) => ({ ...current, [championshipSport.id]: false }));
+
+    if (error) {
+      setOptimisticSupportsIndividualAwardsBySportId((current) => ({
+        ...current,
+        [championshipSport.sport_id]: championshipSport.supports_individual_awards,
+      }));
+      toast.error(error.message || "Não foi possível salvar a configuração de artilharia e goleiro.");
+      return;
+    }
+
+    toast.success("Configuração de artilharia e goleiro atualizada.");
+  };
+
+  const handleToggleAwardsIncludeKnockout = async (
+    championshipSport: ChampionshipSport,
+    shouldIncludeKnockout: boolean,
+  ) => {
+    if (!canManageSports) {
+      return;
+    }
+
+    setSavingSportIdById((current) => ({ ...current, [championshipSport.id]: true }));
+
+    setOptimisticAwardsIncludeKnockoutBySportId((current) => ({
+      ...current,
+      [championshipSport.sport_id]: shouldIncludeKnockout,
+    }));
+
+    const { error } = await supabase
+      .from("championship_sports")
+      .update({ awards_include_knockout_phase: shouldIncludeKnockout })
+      .eq("id", championshipSport.id);
+
+    setSavingSportIdById((current) => ({ ...current, [championshipSport.id]: false }));
+
+    if (error) {
+      setOptimisticAwardsIncludeKnockoutBySportId((current) => ({
+        ...current,
+        [championshipSport.sport_id]: championshipSport.awards_include_knockout_phase,
+      }));
+      toast.error(error.message || "Não foi possível salvar a configuração de prêmios.");
+      return;
+    }
+
+    toast.success("Configuração de contabilização de prêmios atualizada.");
   };
 
   if (championshipPlatformSportRules.length == 0) {
@@ -165,6 +303,14 @@ export function AdminSports({
             const isSavingSport = championshipSport
               ? savingSportIdById[championshipSport.id] == true
               : false;
+            const awardsIncludeKnockout =
+              optimisticAwardsIncludeKnockoutBySportId[sport?.id ?? ""] ??
+              championshipSport?.awards_include_knockout_phase ??
+              false;
+            const supportsIndividualAwards =
+              optimisticSupportsIndividualAwardsBySportId[sport?.id ?? ""] ??
+              championshipSport?.supports_individual_awards ??
+              false;
 
             return (
               <div key={platformSportRule.sportName} className="list-item-card space-y-3 p-4">
@@ -242,6 +388,132 @@ export function AdminSports({
                     <label className="flex items-center gap-2 text-sm">
                       <RadioGroupItem value="NO" disabled={!canManageSports || !championshipSport || isSavingSport} />
                       Não
+                    </label>
+                  </RadioGroup>
+
+                  {!championshipSport ? (
+                    <p className="text-xs text-muted-foreground">
+                      Vincule a modalidade ao campeonato para editar esta configuração.
+                    </p>
+                  ) : null}
+
+                  {!canManageSports ? (
+                    <p className="text-xs text-muted-foreground">
+                      Perfil em visualização: sem permissão para editar a aba de modalidades.
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="app-card-muted space-y-2 px-3 py-2">
+                  <p className="text-xs font-medium text-muted-foreground">Pontuação máxima (W.O.)</p>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min={1}
+                      placeholder="Desabilitado"
+                      className="h-8 w-32 text-sm"
+                      disabled={!canManageSports || !championshipSport || isSavingSport}
+                      value={sport ? (walkoverDraftBySportId[sport.id] ?? "") : ""}
+                      onChange={(e) => {
+                        if (!sport) return;
+                        setWalkoverDraftBySportId((current) => ({
+                          ...current,
+                          [sport.id]: e.target.value,
+                        }));
+                      }}
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!canManageSports || !championshipSport || isSavingSport}
+                      onClick={() => {
+                        if (!championshipSport || !sport) return;
+                        void handleSaveWalkoverWinnerPoints(championshipSport, sport.id);
+                      }}
+                    >
+                      {isSavingSport ? "Salvando…" : "Salvar"}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {sport && walkoverDraftBySportId[sport.id]
+                      ? `Vencedor recebe ${walkoverDraftBySportId[sport.id]} ponto(s) em caso de W.O.`
+                      : "W.O. desabilitado — deixe o campo vazio para desabilitar."}
+                  </p>
+                  {!championshipSport ? (
+                    <p className="text-xs text-muted-foreground">
+                      Vincule a modalidade ao campeonato para editar esta configuração.
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="app-card-muted space-y-2 px-3 py-2">
+                  <p className="text-xs font-medium text-muted-foreground">Cadastro de artilheiros e goleiros na súmula</p>
+                  <RadioGroup
+                    value={supportsIndividualAwards ? "YES" : "NO"}
+                    onValueChange={(value) => {
+                      if (!championshipSport) {
+                        return;
+                      }
+
+                      const nextValue = value == "YES";
+
+                      if (nextValue == championshipSport.supports_individual_awards) {
+                        return;
+                      }
+
+                      void handleToggleSupportsIndividualAwards(championshipSport, nextValue);
+                    }}
+                    className="flex items-center gap-4"
+                  >
+                    <label className="flex items-center gap-2 text-sm">
+                      <RadioGroupItem value="NO" disabled={!canManageSports || !championshipSport || isSavingSport} />
+                      Desabilitado
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <RadioGroupItem value="YES" disabled={!canManageSports || !championshipSport || isSavingSport} />
+                      Habilitado
+                    </label>
+                  </RadioGroup>
+
+                  {!championshipSport ? (
+                    <p className="text-xs text-muted-foreground">
+                      Vincule a modalidade ao campeonato para editar esta configuração.
+                    </p>
+                  ) : null}
+
+                  {!canManageSports ? (
+                    <p className="text-xs text-muted-foreground">
+                      Perfil em visualização: sem permissão para editar a aba de modalidades.
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="app-card-muted space-y-2 px-3 py-2">
+                  <p className="text-xs font-medium text-muted-foreground">Contabilização de prêmios (artilheiro e goleiro)</p>
+                  <RadioGroup
+                    value={awardsIncludeKnockout ? "YES" : "NO"}
+                    onValueChange={(value) => {
+                      if (!championshipSport) {
+                        return;
+                      }
+
+                      const nextValue = value == "YES";
+
+                      if (nextValue == championshipSport.awards_include_knockout_phase) {
+                        return;
+                      }
+
+                      void handleToggleAwardsIncludeKnockout(championshipSport, nextValue);
+                    }}
+                    className="flex items-center gap-4"
+                  >
+                    <label className="flex items-center gap-2 text-sm">
+                      <RadioGroupItem value="NO" disabled={!canManageSports || !championshipSport || isSavingSport} />
+                      Somente fase de grupos
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <RadioGroupItem value="YES" disabled={!canManageSports || !championshipSport || isSavingSport} />
+                      Fase de grupos + Eliminatória
                     </label>
                   </RadioGroup>
 

@@ -14,7 +14,8 @@ import type {
   MatchBracketContext,
 } from "@/lib/championship";
 import type { ChampionshipChampionYearGroup } from "@/lib/championshipHistory";
-import { ChampionshipCode, MatchNaipe } from "@/lib/enums";
+import type { ChampionshipAwardsRankings } from "@/hooks/useChampionshipAwardsRankings";
+import { ChampionshipCode, MatchNaipe, TeamDivision } from "@/lib/enums";
 import { MATCH_NAIPE_LABELS, TEAM_DIVISION_LABELS } from "@/lib/championship";
 import type { ModalidadeConfig } from "@/lib/modalidadeConfig";
 
@@ -32,8 +33,11 @@ interface ChampionshipsPageViewProps {
   standingsSportFilter: string;
   standingsNaipeFilter: string;
   standingsYearFilter: string;
+  standingsDivisionFilter: string;
   allStandingsSportFilter: string;
   allStandingsNaipeFilter: string;
+  allStandingsDivisionFilter: string;
+  selectedChampionshipHasDivisions: boolean;
   filteredStandings: TeamStandingAggregate[];
   isStandingsNaipeFilterLocked: boolean;
   standingsModalidadeConfig?: ModalidadeConfig;
@@ -50,12 +54,15 @@ interface ChampionshipsPageViewProps {
   isHistoryMatchesFetching: boolean;
   championshipChampionHistory: ChampionshipChampionYearGroup[];
   overallPodiumStandings: TeamStandingAggregate[];
+  awardsRankings: ChampionshipAwardsRankings | null;
+  awardsSeasonYear: number | null;
   matchBracketContextByMatchId: Record<string, MatchBracketContext>;
   matchRepresentationByMatchId: Record<string, string>;
   estimatedStartTimeByMatchId: Record<string, string>;
   onSelectChampionshipCode: (value: ChampionshipCode) => void;
   onStandingsSportFilterChange: (value: string) => void;
   onStandingsNaipeFilterChange: (value: string) => void;
+  onStandingsDivisionFilterChange: (value: string) => void;
   onStandingsYearFilterChange: (value: string) => void;
   onTeamFilterChange: (value: string) => void;
   onYearFilterChange: (value: string) => void;
@@ -76,8 +83,11 @@ export function ChampionshipsPageView({
   standingsSportFilter,
   standingsNaipeFilter,
   standingsYearFilter,
+  standingsDivisionFilter,
   allStandingsSportFilter,
   allStandingsNaipeFilter,
+  allStandingsDivisionFilter,
+  selectedChampionshipHasDivisions,
   filteredStandings,
   isStandingsNaipeFilterLocked,
   standingsModalidadeConfig,
@@ -94,12 +104,15 @@ export function ChampionshipsPageView({
   isHistoryMatchesFetching,
   championshipChampionHistory,
   overallPodiumStandings,
+  awardsRankings,
+  awardsSeasonYear,
   matchBracketContextByMatchId,
   matchRepresentationByMatchId,
   estimatedStartTimeByMatchId,
   onSelectChampionshipCode,
   onStandingsSportFilterChange,
   onStandingsNaipeFilterChange,
+  onStandingsDivisionFilterChange,
   onStandingsYearFilterChange,
   onTeamFilterChange,
   onYearFilterChange,
@@ -232,7 +245,7 @@ export function ChampionshipsPageView({
               </div>
 
               <div
-                className="grid grid-cols-1 gap-3 sm:grid-cols-3"
+                className={`grid grid-cols-1 gap-3 ${selectedChampionshipHasDivisions ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}
               >
                 <Select value={standingsYearFilter} onValueChange={onStandingsYearFilterChange}>
                   <SelectTrigger className="app-input-field w-full">
@@ -278,6 +291,19 @@ export function ChampionshipsPageView({
                     <SelectItem value={MatchNaipe.MISTO}>{MATCH_NAIPE_LABELS[MatchNaipe.MISTO]}</SelectItem>
                   </SelectContent>
                 </Select>
+
+                {selectedChampionshipHasDivisions ? (
+                  <Select value={standingsDivisionFilter} onValueChange={onStandingsDivisionFilterChange}>
+                    <SelectTrigger className="app-input-field w-full">
+                      <SelectValue placeholder="Filtrar divisão" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={allStandingsDivisionFilter}>Todas as divisões</SelectItem>
+                      <SelectItem value={TeamDivision.DIVISAO_PRINCIPAL}>{TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_PRINCIPAL]}</SelectItem>
+                      <SelectItem value={TeamDivision.DIVISAO_ACESSO}>{TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_ACESSO]}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : null}
               </div>
 
               <TeamStandingsTable
@@ -353,7 +379,51 @@ export function ChampionshipsPageView({
                     ) : null}
 
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      {championshipChampionYearGroup.champions.map((championshipChampion) => (
+                      {championshipChampionYearGroup.champions.map((championshipChampion) => {
+                        const isCurrentYear = String(awardsSeasonYear) === championshipChampionYearGroup.year;
+                        const awardsReady = isCurrentYear && awardsRankings != null && awardsRankings.pending_matches_count === 0;
+                        const scorerDrawResult = awardsRankings?.award_draw_results?.find(
+                          (r) =>
+                            r.award_type === "TOP_SCORER" &&
+                            r.naipe === championshipChampion.naipe &&
+                            r.division === (championshipChampion.division ?? null)
+                        ) ?? null;
+                        const goalkeeperDrawResult = awardsRankings?.award_draw_results?.find(
+                          (r) =>
+                            r.award_type === "BEST_GOALKEEPER" &&
+                            r.naipe === championshipChampion.naipe &&
+                            r.division === (championshipChampion.division ?? null)
+                        ) ?? null;
+
+                        const filteredScorers = isCurrentYear
+                          ? [...(awardsRankings?.top_scorers ?? [])].filter(
+                              (s) => s.naipe === championshipChampion.naipe && s.division === championshipChampion.division
+                            )
+                          : [];
+                        const topScorer = isCurrentYear
+                          ? (scorerDrawResult
+                              ? filteredScorers.find((s) => s.player_id === scorerDrawResult.winner_player_id) ??
+                                filteredScorers.sort((a, b) => b.goals - a.goals)[0]
+                              : filteredScorers.sort((a, b) => b.goals - a.goals)[0]) ?? null
+                          : null;
+
+                        const filteredGoalkeepers = isCurrentYear
+                          ? [...(awardsRankings?.best_goalkeepers ?? [])].filter(
+                              (g) => g.naipe === championshipChampion.naipe && g.division === championshipChampion.division
+                            )
+                          : [];
+                        const bestGoalkeeper = isCurrentYear
+                          ? (goalkeeperDrawResult
+                              ? filteredGoalkeepers.find((g) => g.player_id === goalkeeperDrawResult.winner_player_id) ??
+                                filteredGoalkeepers.sort(
+                                  (a, b) => a.goals_against - b.goals_against || b.matches_count - a.matches_count
+                                )[0]
+                              : filteredGoalkeepers.sort(
+                                  (a, b) => a.goals_against - b.goals_against || b.matches_count - a.matches_count
+                                )[0]) ?? null
+                          : null;
+
+                        return (
                         <div
                           key={championshipChampion.match_id}
                           className="rounded-2xl app-card-emphasis p-4 text-center shadow-lg"
@@ -407,8 +477,41 @@ export function ChampionshipsPageView({
                               </div>
                             ) : null}
                           </div>
+
+                          {isCurrentYear ? (
+                            <div className="mt-3 border-t border-border/40 pt-3 space-y-1.5">
+                              <div className="flex items-center justify-between gap-2 text-xs">
+                                <span className="text-muted-foreground shrink-0">Artilheiro</span>
+                                {awardsReady && topScorer ? (
+                                  <span className="truncate text-right font-medium">
+                                    {topScorer.player_name}
+                                    <span className="ml-1 text-muted-foreground">
+                                      • {topScorer.team_name} • {topScorer.goals} {topScorer.goals === 1 ? "gol" : "gols"}
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
+                              </div>
+                              <div className="flex items-center justify-between gap-2 text-xs">
+                                <span className="text-muted-foreground shrink-0">Melhor goleiro</span>
+                                {awardsReady && bestGoalkeeper ? (
+                                  <span className="truncate text-right font-medium">
+                                    {bestGoalkeeper.player_name}
+                                    <span className="ml-1 text-muted-foreground">
+                                      • {bestGoalkeeper.team_name} • {bestGoalkeeper.goals_against}{" "}
+                                      {bestGoalkeeper.goals_against === 1 ? "gol sofrido" : "gols sofridos"}
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
+                              </div>
+                            </div>
+                          ) : null}
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 ))}

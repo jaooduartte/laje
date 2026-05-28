@@ -20,6 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AdminPanelTab, ChampionshipCode, ChampionshipStatus } from "@/lib/enums";
 import type { MatchBracketContext } from "@/lib/championship";
+import type { AwardDrawPendingContext } from "@/hooks/usePendingAwardDraws";
 import { CHAMPIONSHIP_STATUS_LABELS } from "@/lib/championship";
 import type { Championship, ChampionshipBracketView, ChampionshipSport, Match, Sport, Team } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -85,6 +86,9 @@ interface AdminPageViewProps {
   liveMatchesCount: number;
   pendingLeagueEventReservationsCount: number;
   pendingTieBreaksCount: number;
+  pendingAwardDrawContexts: AwardDrawPendingContext[];
+  loadingPendingAwardDraws: boolean;
+  refetchPendingAwardDraws: () => void | Promise<void>;
 }
 
 const SCORE_SHEET_REVIEW_TAB_VALUE = "score_sheet_review";
@@ -158,7 +162,12 @@ export function AdminPageView({
   liveMatchesCount,
   pendingLeagueEventReservationsCount,
   pendingTieBreaksCount,
+  pendingAwardDrawContexts,
+  loadingPendingAwardDraws,
+  refetchPendingAwardDraws,
 }: AdminPageViewProps) {
+  const totalSorteiosCount = pendingTieBreaksCount + pendingAwardDrawContexts.length;
+
   const adminTabItems = useMemo(() => {
     const nextAdminTabItems: AdminTabItem[] = [];
 
@@ -285,7 +294,7 @@ export function AdminPageView({
     setActiveIndicatorLeft(activeTabTriggerElement.offsetLeft);
     setActiveIndicatorWidth(activeTabTriggerElement.offsetWidth);
     setShowActiveIndicator(true);
-  }, [activeTab, adminTabItems]);
+  }, [activeTab]);
 
   useLayoutEffect(() => {
     const animationFrameId = requestAnimationFrame(updateActiveIndicator);
@@ -440,9 +449,9 @@ export function AdminPageView({
                     {liveMatchesCount}
                   </span>
                 )}
-                {adminTabItem.value === TIE_BREAKS_TAB_VALUE && pendingTieBreaksCount > 0 && (
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground shadow-sm">
-                    {pendingTieBreaksCount}
+                {adminTabItem.value === TIE_BREAKS_TAB_VALUE && totalSorteiosCount > 0 && (
+                  <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground shadow-sm">
+                    {totalSorteiosCount}
                   </span>
                 )}
                 {adminTabItem.value === AdminPanelTab.EVENTS && pendingLeagueEventReservationsCount > 0 && (
@@ -527,6 +536,9 @@ export function AdminPageView({
                 viewMode={AdminMatchesViewMode.TIE_BREAKS}
                 onRefetch={onRefetchMatches}
                 onRefetchChampionshipBracket={onRefetchChampionshipBracket}
+                externalPendingAwardDrawContexts={pendingAwardDrawContexts}
+                externalLoadingPendingAwardDraws={loadingPendingAwardDraws}
+                externalRefetchPendingAwardDraws={refetchPendingAwardDraws}
               />
             </TabsContent>
           ) : null}

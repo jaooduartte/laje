@@ -34,6 +34,10 @@ export function useOnlineVisitors(context: OnlineVisitorsContext = OnlineVisitor
   const [onlineVisitorsCount, setOnlineVisitorsCount] = useState(0);
   const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
   const visitorSessionIdReference = useRef<string | null>(null);
+  // Refs para evitar que a mudança de user?.id destrua e recrie o canal
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  const isChannelSubscribedRef = useRef(false);
+  const userIdRef = useRef<string | undefined>(user?.id);
 
   const resolveOrCreateVisitorSessionId = useCallback(() => {
     if (visitorSessionIdReference.current) {
@@ -45,10 +49,18 @@ export function useOnlineVisitors(context: OnlineVisitorsContext = OnlineVisitor
     return visitorSessionId;
   }, []);
 
+  // Mantém o ref do userId sempre atualizado sem recriar o canal
+  useEffect(() => {
+    userIdRef.current = user?.id;
+  }, [user?.id]);
+
+  // Effect principal: cria o canal UMA vez por context.
+  // Não depende de user?.id — isso evita que o canal seja destruído e recriado
+  // toda vez que a sessão é resolvida (undefined → UUID), o que gerava estado
+  // permanentemente 0 por conflito de nomes de canal no Supabase JS.
   useEffect(() => {
     const visitorSessionId = resolveOrCreateVisitorSessionId();
     const presenceChannel = PRESENCE_CHANNEL_BY_CONTEXT[context];
-    let isChannelSubscribed = false;
 
     const realtimeChannel: RealtimeChannel = supabase.channel(presenceChannel, {
       config: {
@@ -57,6 +69,9 @@ export function useOnlineVisitors(context: OnlineVisitorsContext = OnlineVisitor
         },
       },
     });
+
+    channelRef.current = realtimeChannel;
+    isChannelSubscribedRef.current = false;
 
     const syncPresenceState = () => {
       const presenceState = realtimeChannel.presenceState<OnlineVisitorPresenceState>();
@@ -75,14 +90,15 @@ export function useOnlineVisitors(context: OnlineVisitorsContext = OnlineVisitor
     };
 
     const trackCurrentPresence = async () => {
-      if (!isChannelSubscribed) {
+      if (!isChannelSubscribedRef.current) {
         return;
       }
 
       try {
         await realtimeChannel.track({
           connected_at: new Date().toISOString(),
-          user_id: user?.id ?? null,
+          // Usa o ref para pegar o user_id mais atual sem recriar o canal
+          user_id: userIdRef.current ?? null,
         });
         syncPresenceState();
       } catch (error) {
@@ -104,13 +120,13 @@ export function useOnlineVisitors(context: OnlineVisitorsContext = OnlineVisitor
       .on("presence", { event: "leave" }, syncPresenceState)
       .subscribe((status) => {
         if (status == "SUBSCRIBED") {
-          isChannelSubscribed = true;
+          isChannelSubscribedRef.current = true;
           void trackCurrentPresence();
           return;
         }
 
         if (status == "CLOSED" || status == "CHANNEL_ERROR" || status == "TIMED_OUT") {
-          isChannelSubscribed = false;
+          isChannelSubscribedRef.current = false;
         }
       });
 
@@ -122,9 +138,35 @@ export function useOnlineVisitors(context: OnlineVisitorsContext = OnlineVisitor
       window.removeEventListener("focus", handleReconnectSync);
       window.removeEventListener("online", handleReconnectSync);
       document.removeEventListener("visibilitychange", handleReconnectSync);
+      isChannelSubscribedRef.current = false;
+      channelRef.current = null;
       supabase.removeChannel(realtimeChannel);
     };
-  }, [context, resolveOrCreateVisitorSessionId, user?.id]);
+  }, [context, resolveOrCreateVisitorSessionId]);
+  // ↑ user?.id removido das dependências: o user_id é lido via ref dentro de trackCurrentPresence
+
+  // Effect secundário: quando o user?.id muda (login/logout), refaz o track
+  // para atualizar o user_id no payload de presença — sem recriar o canal.
+  useEffect(() => {
+    if (!isChannelSubscribedRef.current || !channelRef.current) {
+      return;
+    }
+
+    const channel = channelRef.current;
+
+    const retrackeCurrentUser = async () => {
+      try {
+        await channel.track({
+          connected_at: new Date().toISOString(),
+          user_id: user?.id ?? null,
+        });
+      } catch (error) {
+        console.error("Erro ao reatualizar presença do usuário:", error);
+      }
+    };
+
+    void retrackeCurrentUser();
+  }, [user?.id]);
 
   return {
     onlineVisitorsCount,

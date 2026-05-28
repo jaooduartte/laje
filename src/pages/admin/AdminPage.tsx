@@ -14,6 +14,7 @@ import { useSelectedChampionship } from "@/hooks/useSelectedChampionship";
 import { useChampionshipSelection } from "@/hooks/useChampionshipSelection";
 import { usePendingLeagueEventReservationRequests } from "@/hooks/usePendingLeagueEventReservationRequests";
 import { usePendingTieBreaks } from "@/hooks/usePendingTieBreaks";
+import { usePendingAwardDraws } from "@/hooks/usePendingAwardDraws";
 import { Header } from "@/components/Header";
 import {
   AlertDialog,
@@ -134,6 +135,14 @@ export function AdminPage() {
   const { count: pendingTieBreaksCount, refetch: refetchPendingTieBreaks } = usePendingTieBreaks({
     championshipId: selectedChampionshipId,
   });
+  const {
+    pendingContexts: pendingAwardDrawContexts,
+    loading: loadingPendingAwardDraws,
+    refetch: refetchPendingAwardDraws,
+  } = usePendingAwardDraws({
+    championshipId: selectedChampionshipId,
+    seasonYear: selectedChampionshipSeasonYear,
+  });
   const visibleOperationalChampionshipBracketView = useMemo(() => {
     if (operationalMatches.length == 0) {
       return EMPTY_CHAMPIONSHIP_BRACKET_VIEW;
@@ -197,10 +206,10 @@ export function AdminPage() {
   };
 
   useEffect(() => {
-    if (selectedChampionship?.status === ChampionshipStatus.UPCOMING) {
+    if (selectedChampionship?.status === ChampionshipStatus.UPCOMING && operationalMatches.length === 0) {
       setActiveTab(AdminPanelTab.BRACKET_SETUP);
     }
-  }, [selectedChampionship?.status]);
+  }, [selectedChampionship?.status, operationalMatches.length]);
 
   useEffect(() => {
     if (!selectedChampionshipId) {
@@ -495,7 +504,7 @@ export function AdminPage() {
   const defaultTabValue =
     tabPriority.find((adminPanelTab) => canViewAdminTab(adminPanelTab)) ?? AdminPanelTab.CONTROL;
 
-  const canViewBracketSetupTab = selectedChampionship.status === ChampionshipStatus.UPCOMING;
+  const canViewBracketSetupTab = selectedChampionship.status === ChampionshipStatus.UPCOMING && operationalMatches.length === 0;
   const activeTab = _activeTab || defaultTabValue;
 
   return (
@@ -561,6 +570,9 @@ export function AdminPage() {
         liveMatchesCount={liveMatches.length}
         pendingLeagueEventReservationsCount={pendingLeagueEventReservationRequestsCount}
         pendingTieBreaksCount={pendingTieBreaksCount}
+        pendingAwardDrawContexts={pendingAwardDrawContexts}
+        loadingPendingAwardDraws={loadingPendingAwardDraws}
+        refetchPendingAwardDraws={refetchPendingAwardDraws}
       />
 
       <Dialog

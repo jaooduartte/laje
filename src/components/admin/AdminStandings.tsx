@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
+import { Award, Medal, Shuffle, Trophy } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AppBadge } from "@/components/ui/app-badge";
 import { useStandings } from "@/hooks/useStandings";
 import { useMatches } from "@/hooks/useMatches";
 import { useChampionshipBracketResolvedTieBreakOrders } from "@/hooks/useChampionshipBracketResolvedTieBreakOrders";
 import { useChampionshipCorrectedGroupStandings } from "@/hooks/useChampionshipCorrectedGroupStandings";
 import { useChampionshipBracketHistory } from "@/hooks/useChampionshipBracketHistory";
+import { useChampionshipAwardsRankings } from "@/hooks/useChampionshipAwardsRankings";
 import { resolveChampionshipCompetitionPodiums } from "@/lib/championshipPodium";
 import {
   applyOfficialThirdPlacementToStandings,
@@ -14,11 +17,15 @@ import {
   resolveCorrectedStandingKey,
   resolveManualTieBreakWinnerTeamIdByPairKey,
 } from "@/lib/standings";
-import { ChampionshipSportTieBreakerRule, MatchNaipe, MatchStatus, TeamDivision } from "@/lib/enums";
+import { ChampionshipAwardType, ChampionshipCode, ChampionshipSportTieBreakerRule, MatchNaipe, MatchStatus, TeamDivision } from "@/lib/enums";
 import { resolveModalidadeConfigBySportId } from "@/lib/modalidadeConfig";
 import {
+  MATCH_NAIPE_LABELS,
+  TEAM_DIVISION_BADGE_TONES,
+  TEAM_DIVISION_LABELS,
   resolveChampionshipBracketGroupStageOptions,
   resolveChampionshipGroupLabel,
+  resolveMatchNaipeBadgeTone,
 } from "@/lib/championship";
 import { TeamStandingsTable } from "@/components/TeamStandingsTable";
 import type {
@@ -371,6 +378,36 @@ export function AdminStandings({
 
   const isLoading = standingsLoading || correctedStandingsLoading || tieBreaksLoading || finishedMatchesLoading;
 
+  const awardsSeasonYear = correctedYearFilter ?? selectedChampionshipSeasonYear;
+  const { rankings: awardsRankings } = useChampionshipAwardsRankings({
+    championshipId: selectedChampionship.id,
+    seasonYear: awardsSeasonYear,
+  });
+
+  const filteredAwardsGroupKeys = useMemo(() => {
+    if (!awardsRankings) return [];
+
+    const allGroupKeys = Array.from(new Set([
+      ...awardsRankings.top_scorers.map((s) => `${s.naipe}:${s.division ?? "NULL"}`),
+      ...awardsRankings.best_goalkeepers.map((g) => `${g.naipe}:${g.division ?? "NULL"}`),
+    ])).sort();
+
+    return allGroupKeys.filter((groupKey) => {
+      const [groupNaipe, groupDivisionRaw] = groupKey.split(":");
+      const groupDivision = groupDivisionRaw === "NULL" ? null : groupDivisionRaw as TeamDivision;
+
+      if (naipeFilter !== ALL_NAIPES_FILTER && groupNaipe !== naipeFilter) {
+        return false;
+      }
+
+      if (selectedChampionship.uses_divisions && groupDivision !== divisionFilter) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [awardsRankings, divisionFilter, naipeFilter, selectedChampionship.uses_divisions]);
+
   const groupLabelByTeamId = useMemo(() => {
     if (sportFilter == ALL_SPORTS_FILTER || naipeFilter == ALL_NAIPES_FILTER) {
       return undefined;
@@ -462,8 +499,8 @@ export function AdminStandings({
                 <SelectValue placeholder="Selecione a divisão" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={TeamDivision.DIVISAO_PRINCIPAL}>Série A</SelectItem>
-                <SelectItem value={TeamDivision.DIVISAO_ACESSO}>Série B</SelectItem>
+                <SelectItem value={TeamDivision.DIVISAO_PRINCIPAL}>Divisão Principal</SelectItem>
+                <SelectItem value={TeamDivision.DIVISAO_ACESSO}>Divisão de Acesso</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -497,6 +534,161 @@ export function AdminStandings({
         drawWinners={drawWinners}
         groupLabelByTeamId={groupLabelByTeamId}
       />
+
+      {awardsRankings && selectedChampionship.code === ChampionshipCode.SOCIETY ? (
+        <div className="glass-card enter-section space-y-3 p-4">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-foreground">Premiações individuais</p>
+            <p className="text-xs text-muted-foreground">
+              Pendências: <span className="font-semibold text-foreground">{awardsRankings.pending_matches_count}</span>
+            </p>
+          </div>
+
+          {filteredAwardsGroupKeys.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Sem dados de premiações registrados até o momento.</p>
+          ) : (
+            <div className="space-y-3">
+              {filteredAwardsGroupKeys.map((groupKey) => {
+                const [groupNaipe, groupDivisionRaw] = groupKey.split(":");
+                const groupDivision = groupDivisionRaw === "NULL" ? null : groupDivisionRaw as TeamDivision;
+                const naipe = groupNaipe as MatchNaipe;
+
+                const scorerDrawResult = awardsRankings.award_draw_results?.find(
+                  (r) => r.award_type === ChampionshipAwardType.TOP_SCORER && r.naipe === naipe && (r.division ?? "NULL") === (groupDivision ?? "NULL"),
+                );
+                const goalkeeperDrawResult = awardsRankings.award_draw_results?.find(
+                  (r) => r.award_type === ChampionshipAwardType.BEST_GOALKEEPER && r.naipe === naipe && (r.division ?? "NULL") === (groupDivision ?? "NULL"),
+                );
+
+                const groupScorers = [...awardsRankings.top_scorers]
+                  .filter((s) => s.naipe === naipe && (s.division ?? "NULL") === (groupDivision ?? "NULL"))
+                  .sort((a, b) => {
+                    const goalsDiff = b.goals - a.goals;
+                    if (goalsDiff !== 0) return goalsDiff;
+                    // Empate nos gols: vencedor do sorteio aparece primeiro
+                    const aIsWinner = scorerDrawResult?.winner_player_id === a.player_id;
+                    const bIsWinner = scorerDrawResult?.winner_player_id === b.player_id;
+                    if (aIsWinner && !bIsWinner) return -1;
+                    if (!aIsWinner && bIsWinner) return 1;
+                    return a.player_name.localeCompare(b.player_name);
+                  })
+                  .slice(0, 3);
+
+                const groupGoalkeepers = [...awardsRankings.best_goalkeepers]
+                  .filter((g) => g.naipe === naipe && (g.division ?? "NULL") === (groupDivision ?? "NULL"))
+                  .sort((a, b) => {
+                    const goalsDiff = a.goals_against - b.goals_against;
+                    if (goalsDiff !== 0) return goalsDiff;
+                    // Mesmo número de gols sofridos: vencedor do sorteio tem prioridade máxima
+                    const aIsWinner = goalkeeperDrawResult?.winner_player_id === a.player_id;
+                    const bIsWinner = goalkeeperDrawResult?.winner_player_id === b.player_id;
+                    if (aIsWinner && !bIsWinner) return -1;
+                    if (!aIsWinner && bIsWinner) return 1;
+                    const matchesDiff = b.matches_count - a.matches_count;
+                    if (matchesDiff !== 0) return matchesDiff;
+                    return a.player_name.localeCompare(b.player_name);
+                  })
+                  .slice(0, 3);
+
+                const medalIcon = (index: number) => index === 0
+                  ? <Trophy className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                  : index === 1
+                  ? <Medal className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                  : <Award className="h-3.5 w-3.5 shrink-0 text-orange-400" />;
+
+                return (
+                  <div key={groupKey} className="app-card-muted space-y-3 p-3">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <AppBadge tone={resolveMatchNaipeBadgeTone(naipe)}>
+                        {MATCH_NAIPE_LABELS[naipe]}
+                      </AppBadge>
+                      {groupDivision ? (
+                        <AppBadge tone={TEAM_DIVISION_BADGE_TONES[groupDivision]}>
+                          {TEAM_DIVISION_LABELS[groupDivision]}
+                        </AppBadge>
+                      ) : null}
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="space-y-1.5">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Artilheiros</p>
+                        {groupScorers.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">Sem gols registrados.</p>
+                        ) : (
+                          <ol className="space-y-1.5">
+                            {(() => {
+                              const winnerScorerGoals = groupScorers.find((s) => s.player_id === scorerDrawResult?.winner_player_id)?.goals;
+                              return groupScorers.map((scorer, i) => {
+                                const isDrawWinner = scorerDrawResult?.winner_player_id === scorer.player_id;
+                                const isInDraw = !!scorerDrawResult && winnerScorerGoals !== undefined && scorer.goals === winnerScorerGoals;
+                                return (
+                                  <li key={`${scorer.player_id}:${scorer.naipe}:${scorer.division ?? "NULL"}`} className="flex items-center gap-2 text-sm">
+                                    <span className="flex min-w-0 flex-1 items-center gap-2">
+                                      {medalIcon(i)}
+                                      <span className="min-w-0 truncate font-medium">{scorer.player_name}</span>
+                                      {isInDraw && (
+                                        <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${isDrawWinner ? "border-primary/30 bg-primary/10 text-primary" : "border-muted-foreground/20 bg-secondary text-muted-foreground"}`}>
+                                          <Shuffle className="h-3 w-3" />
+                                          {isDrawWinner ? "Vencedor do sorteio" : "Sorteio"}
+                                        </span>
+                                      )}
+                                    </span>
+                                    <span className="flex-1 text-center text-xs text-muted-foreground">{scorer.team_name}</span>
+                                    <span className="flex-1 text-right text-xs font-semibold tabular-nums">
+                                      {scorer.goals} {scorer.goals === 1 ? "gol" : "gols"}
+                                    </span>
+                                  </li>
+                                );
+                              });
+                            })()}
+                          </ol>
+                        )}
+                      </div>
+
+                      <hr className="border-border" />
+
+                      <div className="space-y-1.5">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Melhores goleiros</p>
+                        {groupGoalkeepers.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">Sem registros elegíveis.</p>
+                        ) : (
+                          <ol className="space-y-1.5">
+                            {(() => {
+                              const winnerGoalkeeperGoalsAgainst = groupGoalkeepers.find((g) => g.player_id === goalkeeperDrawResult?.winner_player_id)?.goals_against;
+                              return groupGoalkeepers.map((goalkeeper, i) => {
+                                const isDrawWinner = goalkeeperDrawResult?.winner_player_id === goalkeeper.player_id;
+                                const isInDraw = !!goalkeeperDrawResult && winnerGoalkeeperGoalsAgainst !== undefined && goalkeeper.goals_against === winnerGoalkeeperGoalsAgainst;
+                                return (
+                                  <li key={`${goalkeeper.player_id}:${goalkeeper.naipe}:${goalkeeper.division ?? "NULL"}`} className="flex items-center gap-2 text-sm">
+                                    <span className="flex min-w-0 flex-1 items-center gap-2">
+                                      {medalIcon(i)}
+                                      <span className="min-w-0 truncate font-medium">{goalkeeper.player_name}</span>
+                                      {isInDraw && (
+                                        <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${isDrawWinner ? "border-primary/30 bg-primary/10 text-primary" : "border-muted-foreground/20 bg-secondary text-muted-foreground"}`}>
+                                          <Shuffle className="h-3 w-3" />
+                                          {isDrawWinner ? "Vencedor do sorteio" : "Sorteio"}
+                                        </span>
+                                      )}
+                                    </span>
+                                    <span className="flex-1 text-center text-xs text-muted-foreground">{goalkeeper.team_name}</span>
+                                    <span className="flex-1 text-right text-xs font-semibold tabular-nums">
+                                      {goalkeeper.goals_against} {goalkeeper.goals_against === 1 ? "gol sofrido" : "gols sofridos"}
+                                    </span>
+                                  </li>
+                                );
+                              });
+                            })()}
+                          </ol>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

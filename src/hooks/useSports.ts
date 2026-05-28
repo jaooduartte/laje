@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { ChampionshipSport, Sport } from "@/lib/types";
 
@@ -11,7 +11,7 @@ export function useSports({ championshipId }: UseSportsOptions = {}) {
   const [championshipSports, setChampionshipSports] = useState<ChampionshipSport[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchSports = async () => {
+  const fetchSports = useCallback(async () => {
     if (championshipId === null) {
       setSports([]);
       setChampionshipSports([]);
@@ -74,7 +74,7 @@ export function useSports({ championshipId }: UseSportsOptions = {}) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [championshipId]);
 
   useEffect(() => {
     if (championshipId === null) {
@@ -99,7 +99,7 @@ export function useSports({ championshipId }: UseSportsOptions = {}) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [championshipId]);
+  }, [championshipId, fetchSports]);
 
   return { sports, championshipSports, loading, refetch: fetchSports };
 }

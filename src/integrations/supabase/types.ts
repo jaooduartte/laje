@@ -150,6 +150,9 @@ export type Database = {
           points_loss: number
           points_win: number
           sport_id: string
+          walkover_winner_points: number | null
+          awards_include_knockout_phase: boolean
+          supports_individual_awards: boolean
         }
         Insert: {
           championship_id: string
@@ -165,6 +168,9 @@ export type Database = {
           points_loss?: number
           points_win?: number
           sport_id: string
+          walkover_winner_points?: number | null
+          awards_include_knockout_phase?: boolean
+          supports_individual_awards?: boolean
         }
         Update: {
           championship_id?: string
@@ -180,6 +186,9 @@ export type Database = {
           points_loss?: number
           points_win?: number
           sport_id?: string
+          walkover_winner_points?: number | null
+          awards_include_knockout_phase?: boolean
+          supports_individual_awards?: boolean
         }
         Relationships: [
           {

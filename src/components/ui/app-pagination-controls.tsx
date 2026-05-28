@@ -4,6 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 const VISIBLE_PAGE_BUTTONS = 5;
 
 export const DEFAULT_PAGINATION_ITEMS_PER_PAGE = 15;
+// eslint-disable-next-line react-refresh/only-export-components
 export const PAGINATION_ITEMS_PER_PAGE_OPTIONS = [15, 30, 60, 120] as const;
 
 function resolveVisiblePages(currentPage: number, totalPages: number): number[] {
