@@ -144,7 +144,7 @@ export function AppPaginationControls({
             </button>
           ) : null}
 
-          <span className="app-pill-option inline-flex h-8 min-w-8 items-center justify-center rounded-xl px-2 text-xs font-bold app-pill-active-indicator text-primary-foreground md:hidden">
+          <span aria-current="page" className="app-pill-option inline-flex h-8 min-w-8 items-center justify-center rounded-xl px-2 text-xs font-bold app-pill-active-indicator text-primary-foreground md:hidden">
             {currentPage}
           </span>
 

@@ -673,45 +673,6 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
           <p className="text-sm font-medium">Eventos da Liga</p>
           <p className="text-xs text-muted-foreground">Gestão anual dos eventos públicos da liga.</p>
         </div>
-
-        <div className="flex w-full items-center justify-center gap-2 sm:w-auto sm:justify-end">
-          <Select value={String(selectedYear)} onValueChange={handleYearChange}>
-            <SelectTrigger className={`${monthControlClassName} min-w-24`}>
-              <SelectValue placeholder="Ano" />
-            </SelectTrigger>
-            <SelectContent>
-              {availableEventYears.map((year) => (
-                <SelectItem key={year} value={String(year)}>
-                  {year}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            variant="outline"
-            size="icon"
-            className={`${monthControlClassName} w-9 shrink-0`}
-            aria-label="Mês anterior"
-            onClick={() => setSelectedMonthDate((date) => subMonths(date, 1))}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Badge
-            variant="outline"
-            className={`${monthControlClassName} min-w-40 justify-center px-4 text-sm font-medium capitalize`}
-          >
-            {format(selectedMonthDate, "MMMM 'de' yyyy", { locale: ptBR })}
-          </Badge>
-          <Button
-            variant="outline"
-            size="icon"
-            className={`${monthControlClassName} w-9 shrink-0`}
-            aria-label="Próximo mês"
-            onClick={() => setSelectedMonthDate((date) => addMonths(date, 1))}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
       </div>
 
       <div className="glass-card enter-section flex flex-col gap-3 p-4 xl:flex-row xl:items-center xl:justify-between">
@@ -760,6 +721,47 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
             Criar evento
           </Button>
         ) : null}
+      </div>
+
+      <div className="enter-section flex w-full flex-col gap-2 glass-card px-4 py-3 sm:flex-row sm:items-center sm:justify-end">
+        <Select value={String(selectedYear)} onValueChange={handleYearChange}>
+          <SelectTrigger className={`${monthControlClassName} w-full sm:min-w-24 sm:w-auto`}>
+            <SelectValue placeholder="Ano" />
+          </SelectTrigger>
+          <SelectContent>
+            {availableEventYears.map((year) => (
+              <SelectItem key={year} value={String(year)}>
+                {year}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="flex items-center justify-center gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            className={`${monthControlClassName} w-9 shrink-0`}
+            aria-label="Mês anterior"
+            onClick={() => setSelectedMonthDate((date) => subMonths(date, 1))}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Badge
+            variant="outline"
+            className={`${monthControlClassName} min-w-40 flex-1 justify-center px-4 text-sm font-medium capitalize sm:flex-none`}
+          >
+            {format(selectedMonthDate, "MMMM 'de' yyyy", { locale: ptBR })}
+          </Badge>
+          <Button
+            variant="outline"
+            size="icon"
+            className={`${monthControlClassName} w-9 shrink-0`}
+            aria-label="Próximo mês"
+            onClick={() => setSelectedMonthDate((date) => addMonths(date, 1))}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {!canManageLeagueEvents ? (

@@ -110,7 +110,7 @@ const LEAGUE_EVENT_TYPE_MOBILE_LIGHT_CARD_CLASS_NAMES = {
 } as const;
 
 
-function LeagueEventMiniCard({ leagueEvent, onClick }: { leagueEvent: LeagueEvent; onClick: () => void }) {
+function LeagueEventMiniCard({ leagueEvent, onClick, isPast }: { leagueEvent: LeagueEvent; onClick: () => void; isPast?: boolean }) {
   return (
     <button
       type="button"
@@ -118,7 +118,7 @@ function LeagueEventMiniCard({ leagueEvent, onClick }: { leagueEvent: LeagueEven
         event.stopPropagation();
         onClick();
       }}
-      className={`w-full rounded-xl border-transparent px-2 py-1.5 text-left backdrop-blur-md transition-all hover:scale-[1.01] hover:shadow-sm dark:shadow-none ${LEAGUE_EVENT_TYPE_GLASS_CARD_CLASS_NAMES[leagueEvent.event_type]}`}
+      className={`w-full rounded-xl border-transparent px-2 py-1.5 text-left backdrop-blur-md transition-all hover:scale-[1.01] hover:shadow-sm dark:shadow-none ${LEAGUE_EVENT_TYPE_GLASS_CARD_CLASS_NAMES[leagueEvent.event_type]} ${isPast ? "opacity-50" : ""}`}
     >
       <p className="truncate text-[11px] font-semibold">{leagueEvent.name}</p>
       <p className={`truncate text-[10px] ${LEAGUE_EVENT_TYPE_META_TEXT_CLASS_NAMES[leagueEvent.event_type]}`}>
@@ -128,11 +128,11 @@ function LeagueEventMiniCard({ leagueEvent, onClick }: { leagueEvent: LeagueEven
   );
 }
 
-function LeagueHolidayMiniBadge({ leagueHoliday }: { leagueHoliday: LeagueCalendarHoliday }) {
+function LeagueHolidayMiniBadge({ leagueHoliday, isPast }: { leagueHoliday: LeagueCalendarHoliday; isPast?: boolean }) {
   return (
     <Badge
       variant="outline"
-      className="h-5 max-w-full gap-1 rounded-md border-transparent bg-slate-200/90 px-1.5 text-[10px] font-semibold text-slate-700 dark:bg-slate-700/55 dark:text-slate-100"
+      className={`h-5 max-w-full gap-1 rounded-md border-transparent bg-slate-200/90 px-1.5 text-[10px] font-semibold text-slate-700 dark:bg-slate-700/55 dark:text-slate-100 transition-opacity ${isPast ? "opacity-50" : ""}`}
     >
       <Flag className="h-3 w-3 shrink-0" />
       <span className="truncate">{leagueHoliday.name}</span>
@@ -140,11 +140,11 @@ function LeagueHolidayMiniBadge({ leagueHoliday }: { leagueHoliday: LeagueCalend
   );
 }
 
-function LeagueHolidayListBadge({ leagueHoliday }: { leagueHoliday: LeagueCalendarHoliday }) {
+function LeagueHolidayListBadge({ leagueHoliday, isPast }: { leagueHoliday: LeagueCalendarHoliday; isPast?: boolean }) {
   return (
     <Badge
       variant="outline"
-      className="h-auto max-w-full gap-1.5 whitespace-normal rounded-md border-transparent bg-slate-200/90 px-2 py-1 text-left text-[11px] font-medium text-slate-700 dark:bg-slate-700/55 dark:text-slate-100"
+      className={`h-auto max-w-full gap-1.5 whitespace-normal rounded-md border-transparent bg-slate-200/90 px-2 py-1 text-left text-[11px] font-medium text-slate-700 dark:bg-slate-700/55 dark:text-slate-100 transition-opacity ${isPast ? "opacity-50" : ""}`}
     >
       <Flag className="h-3 w-3 shrink-0" />
       <span className="truncate">
@@ -223,6 +223,7 @@ export function LeagueCalendarPageView({
     ? `${totalFilteredItems} evento(s) no ano`
     : `${leagueEvents.length + leagueHolidays.length} evento(s) no ano`;
   const today = new Date();
+  const todayKey = format(today, "yyyy-MM-dd");
   const handleOpenLeagueEvent = (leagueEvent: LeagueEvent) => {
     if (typeof window != "undefined" && window.matchMedia("(max-width: 767px)").matches) {
       return;
@@ -386,7 +387,7 @@ export function LeagueCalendarPageView({
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Feriados</p>
                     <div className="flex flex-wrap gap-2">
                       {filteredLeagueHolidays.map((leagueHoliday) => (
-                        <LeagueHolidayListBadge key={leagueHoliday.id} leagueHoliday={leagueHoliday} />
+                        <LeagueHolidayListBadge key={leagueHoliday.id} leagueHoliday={leagueHoliday} isPast={leagueHoliday.holiday_date < todayKey} />
                       ))}
                     </div>
                   </div>
@@ -396,12 +397,14 @@ export function LeagueCalendarPageView({
                   <div className="space-y-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Eventos</p>
                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                      {filteredLeagueEvents.map((leagueEvent, leagueEventIndex) => (
+                      {filteredLeagueEvents.map((leagueEvent, leagueEventIndex) => {
+                        const isPast = leagueEvent.event_date < todayKey;
+                        return (
                         <button
                           key={leagueEvent.id}
                           type="button"
                           onClick={() => handleOpenLeagueEvent(leagueEvent)}
-                          className={`app-card-muted rounded-2xl border-transparent p-3 text-left transition-all hover:scale-[1.01] ${LEAGUE_EVENT_TYPE_GLASS_CARD_CLASS_NAMES[leagueEvent.event_type]} animate-in fade-in-0 slide-in-from-bottom-2 duration-300`}
+                          className={`app-card-muted rounded-2xl border-transparent p-3 text-left transition-all hover:scale-[1.01] ${LEAGUE_EVENT_TYPE_GLASS_CARD_CLASS_NAMES[leagueEvent.event_type]} animate-in fade-in-0 slide-in-from-bottom-2 duration-300 ${isPast ? "opacity-50" : ""}`}
                           style={{ animationDelay: `${leagueEventIndex * 35}ms` }}
                         >
                           <div className="mb-2 flex items-center justify-between gap-2">
@@ -417,7 +420,8 @@ export function LeagueCalendarPageView({
                             {resolveLeagueEventOrganizerName(leagueEvent)}
                           </p>
                         </button>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 ) : null}
@@ -477,7 +481,7 @@ export function LeagueCalendarPageView({
 
                       <div className="mt-7 space-y-1.5 pr-1">
                         {dayHolidays.slice(0, 1).map((leagueHoliday) => (
-                          <LeagueHolidayMiniBadge key={leagueHoliday.id} leagueHoliday={leagueHoliday} />
+                          <LeagueHolidayMiniBadge key={leagueHoliday.id} leagueHoliday={leagueHoliday} isPast={leagueHoliday.holiday_date < todayKey} />
                         ))}
 
                         {dayHolidays.length > 1 ? (
@@ -491,6 +495,7 @@ export function LeagueCalendarPageView({
                             key={leagueEvent.id}
                             leagueEvent={leagueEvent}
                             onClick={() => handleOpenLeagueEvent(leagueEvent)}
+                            isPast={leagueEvent.event_date < todayKey}
                           />
                         ))}
 
@@ -514,74 +519,89 @@ export function LeagueCalendarPageView({
             </section>
 
             <section className={`${glassPanelClassName} md:hidden animate-in fade-in-0 slide-in-from-bottom-2 duration-500`}>
-              <div className="app-calendar-weekdays-bar mb-2 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase text-muted-foreground">
-                {WEEK_DAYS.map((weekDay) => (
-                  <div key={weekDay} className="py-1">
-                    {weekDay}
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-7 gap-1">
-                {calendarDays.map((calendarDay) => {
-                  const dayKey = format(calendarDay, "yyyy-MM-dd");
-                  const dayEvents = leagueEventsByDate[dayKey] ?? [];
-                  const dayHolidays = leagueHolidaysByDate[dayKey] ?? [];
-                  const isToday = isSameDay(calendarDay, today);
-                  const isSelectedDay = selectedDate != null && isSameDay(calendarDay, selectedDate);
-                  const dayEventTypes = resolveUniqueLeagueEventTypes(dayEvents);
-                  const dayHasHoliday = dayHolidays.length > 0;
-
-                  const dayBaseClassName =
-                    "app-card-muted relative h-16 rounded-xl px-1 py-1 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50";
-                  const dayStateClassName = isToday
-                    ? "!bg-primary/10 ring-1 !ring-primary/20 hover:!bg-primary/15 dark:!bg-primary/20 dark:!ring-primary/40 dark:hover:!bg-primary/25"
-                    : isSelectedDay
-                      ? "!bg-slate-200/70 ring-1 !ring-slate-300/80 hover:!bg-slate-200/90 dark:!bg-[hsl(0_0%_100%/0.10)] dark:!ring-white/10 dark:hover:!bg-[hsl(0_0%_100%/0.15)]"
-                      : "hover:!bg-background/70 dark:hover:!bg-[hsl(0_0%_10%)]";
-
-                  return (
-                    <button
-                      key={dayKey}
-                      type="button"
-                      onClick={() => onSelectedDateChange(calendarDay)}
-                      className={`${dayBaseClassName} ${dayStateClassName}`}
-                    >
-                      <div className="absolute left-1.5 right-1.5 top-1 flex items-start justify-between">
-                        <div className="flex flex-col items-start gap-0.5">
-                          <span
-                            className={`text-xs font-semibold ${
-                              isSameMonth(calendarDay, monthDate) ? "text-foreground" : "text-muted-foreground/40"
-                            }`}
-                          >
-                            {format(calendarDay, "d")}
-                          </span>
-                        </div>
-                        {dayEventTypes.length > 0 || dayHasHoliday ? (
-                          <div className="mt-0.5 flex flex-col items-end gap-1">
-                            {dayHasHoliday ? (
-                              <span className={`block h-2 w-2 rounded-full ${LEAGUE_CALENDAR_HOLIDAY_DAY_KIND_DOT_CLASS_NAMES[LeagueCalendarHolidayDayKind.HOLIDAY]}`} />
-                            ) : null}
-                            {dayEventTypes.map((leagueEventType) => (
-                              <span
-                                key={`${dayKey}-${leagueEventType}`}
-                                className={`block h-2 w-2 rounded-full ${LEAGUE_EVENT_TYPE_DOT_CLASS_NAMES[leagueEventType]}`}
-                              />
-                            ))}
-                          </div>
-                        ) : null}
+              {!selectedDateHasItems ? (
+                <>
+                  <div className="app-calendar-weekdays-bar mb-2 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase text-muted-foreground">
+                    {WEEK_DAYS.map((weekDay) => (
+                      <div key={weekDay} className="py-1">
+                        {weekDay}
                       </div>
-                    </button>
-                  );
-                })}
-              </div>
+                    ))}
+                  </div>
 
-              <div className="app-card-muted mt-3 space-y-2 rounded-xl p-3">
-                <p className="text-xs font-semibold text-muted-foreground">
-                  {selectedDateHasItems && selectedDate
-                    ? format(selectedDate, "EEEE, dd 'de' MMMM", { locale: ptBR })
-                    : `Eventos de ${format(monthDate, "MMMM 'de' yyyy", { locale: ptBR })}`}
-                </p>
+                  <div className="grid grid-cols-7 gap-1">
+                    {calendarDays.map((calendarDay) => {
+                      const dayKey = format(calendarDay, "yyyy-MM-dd");
+                      const dayEvents = leagueEventsByDate[dayKey] ?? [];
+                      const dayHolidays = leagueHolidaysByDate[dayKey] ?? [];
+                      const isToday = isSameDay(calendarDay, today);
+                      const isSelectedDay = selectedDate != null && isSameDay(calendarDay, selectedDate);
+                      const dayEventTypes = resolveUniqueLeagueEventTypes(dayEvents);
+                      const dayHasHoliday = dayHolidays.length > 0;
+
+                      const dayBaseClassName =
+                        "app-card-muted relative h-16 rounded-xl px-1 py-1 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50";
+                      const dayStateClassName = isToday
+                        ? "!bg-primary/10 ring-1 !ring-primary/20 hover:!bg-primary/15 dark:!bg-primary/20 dark:!ring-primary/40 dark:hover:!bg-primary/25"
+                        : isSelectedDay
+                          ? "!bg-slate-200/70 ring-1 !ring-slate-300/80 hover:!bg-slate-200/90 dark:!bg-[hsl(0_0%_100%/0.10)] dark:!ring-white/10 dark:hover:!bg-[hsl(0_0%_100%/0.15)]"
+                          : "hover:!bg-background/70 dark:hover:!bg-[hsl(0_0%_10%)]";
+
+                      return (
+                        <button
+                          key={dayKey}
+                          type="button"
+                          onClick={() => onSelectedDateChange(calendarDay)}
+                          className={`${dayBaseClassName} ${dayStateClassName}`}
+                        >
+                          <div className="absolute left-1.5 right-1.5 top-1 flex items-start justify-between">
+                            <div className="flex flex-col items-start gap-0.5">
+                              <span
+                                className={`text-xs font-semibold ${
+                                  isSameMonth(calendarDay, monthDate) ? "text-foreground" : "text-muted-foreground/40"
+                                }`}
+                              >
+                                {format(calendarDay, "d")}
+                              </span>
+                            </div>
+                            {dayEventTypes.length > 0 || dayHasHoliday ? (
+                              <div className="mt-0.5 flex flex-col items-end gap-1">
+                                {dayHasHoliday ? (
+                                  <span className={`block h-2 w-2 rounded-full ${LEAGUE_CALENDAR_HOLIDAY_DAY_KIND_DOT_CLASS_NAMES[LeagueCalendarHolidayDayKind.HOLIDAY]}`} />
+                                ) : null}
+                                {dayEventTypes.map((leagueEventType) => (
+                                  <span
+                                    key={`${dayKey}-${leagueEventType}`}
+                                    className={`block h-2 w-2 rounded-full ${LEAGUE_EVENT_TYPE_DOT_CLASS_NAMES[leagueEventType]}`}
+                                  />
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : null}
+
+              <div className={`app-card-muted space-y-2 rounded-xl p-3 ${!selectedDateHasItems ? "mt-3" : ""}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-muted-foreground">
+                    {selectedDateHasItems && selectedDate
+                      ? format(selectedDate, "EEEE, dd 'de' MMMM", { locale: ptBR })
+                      : `Eventos de ${format(monthDate, "MMMM 'de' yyyy", { locale: ptBR })}`}
+                  </p>
+                  {selectedDateHasItems && selectedDate ? (
+                    <button
+                      type="button"
+                      onClick={() => onSelectedDateChange(selectedDate)}
+                      className="shrink-0 text-[11px] font-medium text-primary hover:underline"
+                    >
+                      Ver calendário
+                    </button>
+                  ) : null}
+                </div>
                 {mobileVisibleEvents.length == 0 && mobileVisibleHolidays.length == 0 ? (
                   <div className="flex min-h-20 items-center justify-center">
                     <p className="text-sm text-muted-foreground">Nenhum item neste período.</p>
@@ -591,27 +611,30 @@ export function LeagueCalendarPageView({
                     {mobileVisibleHolidays.length > 0 ? (
                       <div className="flex flex-wrap gap-2">
                         {mobileVisibleHolidays.map((leagueHoliday) => (
-                          <LeagueHolidayListBadge key={leagueHoliday.id} leagueHoliday={leagueHoliday} />
+                          <LeagueHolidayListBadge key={leagueHoliday.id} leagueHoliday={leagueHoliday} isPast={leagueHoliday.holiday_date < todayKey} />
                         ))}
                       </div>
                     ) : null}
 
-                    {mobileVisibleEvents.map((leagueEvent) => (
-                      <div
-                        key={leagueEvent.id}
-                        className={`app-card-muted rounded-xl border-transparent px-2 py-1.5 text-left ${LEAGUE_EVENT_TYPE_MOBILE_LIGHT_CARD_CLASS_NAMES[leagueEvent.event_type]}`}
-                      >
-                        {!selectedDateHasItems ? (
-                          <p className={`text-[10px] font-medium ${LEAGUE_EVENT_TYPE_META_TEXT_CLASS_NAMES[leagueEvent.event_type]}`}>
-                            {format(new Date(`${leagueEvent.event_date}T12:00:00`), "dd/MM/yyyy")}
+                    {mobileVisibleEvents.map((leagueEvent) => {
+                      const isPast = leagueEvent.event_date < todayKey;
+                      return (
+                        <div
+                          key={leagueEvent.id}
+                          className={`app-card-muted rounded-xl border-transparent px-2 py-1.5 text-left transition-opacity ${LEAGUE_EVENT_TYPE_MOBILE_LIGHT_CARD_CLASS_NAMES[leagueEvent.event_type]} ${isPast ? "opacity-50" : ""}`}
+                        >
+                          {!selectedDateHasItems ? (
+                            <p className={`text-[10px] font-medium ${LEAGUE_EVENT_TYPE_META_TEXT_CLASS_NAMES[leagueEvent.event_type]}`}>
+                              {format(new Date(`${leagueEvent.event_date}T12:00:00`), "dd/MM/yyyy")}
+                            </p>
+                          ) : null}
+                          <p className="truncate text-[11px] font-semibold">{leagueEvent.name}</p>
+                          <p className={`truncate text-[10px] ${LEAGUE_EVENT_TYPE_META_TEXT_CLASS_NAMES[leagueEvent.event_type]}`}>
+                            {resolveLeagueEventOrganizerName(leagueEvent)}
                           </p>
-                        ) : null}
-                        <p className="truncate text-[11px] font-semibold">{leagueEvent.name}</p>
-                        <p className={`truncate text-[10px] ${LEAGUE_EVENT_TYPE_META_TEXT_CLASS_NAMES[leagueEvent.event_type]}`}>
-                          {resolveLeagueEventOrganizerName(leagueEvent)}
-                        </p>
-                      </div>
-                    ))}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
