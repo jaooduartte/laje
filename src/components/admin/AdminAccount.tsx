@@ -1,18 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
+import { useAutomaticThemeContext } from "@/components/theme/AutomaticThemeProvider";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { AppBadgeTone } from "@/lib/enums";
+import { AppBadgeTone, ThemeMode } from "@/lib/enums";
 import type { CurrentAdminAccount } from "@/lib/types";
 import {
   resolveAdminUserPasswordStatusBadgeTone,
   resolveAdminUserPasswordStatusLabel,
   resolveShouldDisplayInternalAdminUserEmail,
 } from "@/lib/adminUsers";
+import { resolveThemeModeLabel } from "@/lib/theme";
 import {
   AdminUserLoginIdentifierSaveDTO,
   AdminUserNameSaveDTO,
   AdminUserPasswordSaveDTO,
+  AdminUserThemeModePreferenceSaveDTO,
   CurrentAdminAccountDTO,
 } from "@/domain/admin-users/AdminUserDTO";
 import { AppBadge } from "@/components/ui/app-badge";
@@ -25,11 +29,13 @@ interface Props {
 }
 
 export function AdminAccount({ canManageAccount = false }: Props) {
+  const { setPreferredThemeMode } = useAutomaticThemeContext();
   const [currentAdminAccount, setCurrentAdminAccount] = useState<CurrentAdminAccount | null>(null);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
   const [loginIdentifier, setLoginIdentifier] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [themeModePreference, setThemeModePreference] = useState<ThemeMode>(ThemeMode.AUTO);
   const [savingAccount, setSavingAccount] = useState(false);
 
   const fetchCurrentAdminAccount = useCallback(async () => {
@@ -57,9 +63,11 @@ export function AdminAccount({ canManageAccount = false }: Props) {
     setCurrentAdminAccount(normalizedCurrentAdminAccount);
     setName(normalizedCurrentAdminAccount.name);
     setLoginIdentifier(normalizedCurrentAdminAccount.login_identifier);
+    setThemeModePreference(normalizedCurrentAdminAccount.theme_mode_preference);
+    setPreferredThemeMode(normalizedCurrentAdminAccount.theme_mode_preference);
     setNewPassword("");
     setLoading(false);
-  }, []);
+  }, [setPreferredThemeMode]);
 
   useEffect(() => {
     fetchCurrentAdminAccount();
@@ -75,8 +83,9 @@ export function AdminAccount({ canManageAccount = false }: Props) {
       const hasLoginIdentifierChanged =
         loginIdentifier.trim().toLowerCase() != currentAdminAccount.login_identifier.trim().toLowerCase();
       const hasNewPassword = newPassword.trim().length > 0;
+      const hasThemeModePreferenceChanged = themeModePreference != currentAdminAccount.theme_mode_preference;
 
-      if (!hasNameChanged && !hasLoginIdentifierChanged && !hasNewPassword) {
+      if (!hasNameChanged && !hasLoginIdentifierChanged && !hasNewPassword && !hasThemeModePreferenceChanged) {
         return;
       }
 
@@ -96,6 +105,11 @@ export function AdminAccount({ canManageAccount = false }: Props) {
         ? AdminUserPasswordSaveDTO.fromFormValues({
             target_user_id: currentAdminAccount.user_id,
             new_password: newPassword,
+          }).bindToSave()
+        : null;
+      const themeModePreferencePayload = hasThemeModePreferenceChanged
+        ? AdminUserThemeModePreferenceSaveDTO.fromFormValues({
+            theme_mode_preference: themeModePreference,
           }).bindToSave()
         : null;
 
@@ -134,6 +148,22 @@ export function AdminAccount({ canManageAccount = false }: Props) {
         }
       }
 
+      if (themeModePreferencePayload) {
+        const { error } = await supabase.rpc(
+          "admin_update_current_user_theme_mode_preference",
+          themeModePreferencePayload,
+        );
+
+        if (error) {
+          setSavingAccount(false);
+          await fetchCurrentAdminAccount();
+          toast.error(error.message);
+          return;
+        }
+
+        setPreferredThemeMode(themeModePreference);
+      }
+
       setSavingAccount(false);
       toast.success("Alterações salvas com sucesso.");
       fetchCurrentAdminAccount();
@@ -159,7 +189,9 @@ export function AdminAccount({ canManageAccount = false }: Props) {
   const hasLoginIdentifierChanged =
     loginIdentifier.trim().toLowerCase() != currentAdminAccount.login_identifier.trim().toLowerCase();
   const hasNewPassword = newPassword.trim().length > 0;
-  const hasPendingChanges = hasNameChanged || hasLoginIdentifierChanged || hasNewPassword;
+  const hasThemeModePreferenceChanged = themeModePreference != currentAdminAccount.theme_mode_preference;
+  const hasPendingChanges =
+    hasNameChanged || hasLoginIdentifierChanged || hasNewPassword || hasThemeModePreferenceChanged;
 
   return (
     <div className="space-y-4">
@@ -185,7 +217,7 @@ export function AdminAccount({ canManageAccount = false }: Props) {
           </div>
         </div>
 
-        <div className="grid gap-3 xl:grid-cols-3">
+        <div className="grid gap-3 xl:grid-cols-4">
           <div className="space-y-2 rounded-2xl app-card-muted p-3">
             <Label htmlFor="admin-account-name-input">Nome</Label>
             <Input
@@ -224,6 +256,24 @@ export function AdminAccount({ canManageAccount = false }: Props) {
               autoComplete="new-password"
               disabled={!canManageAccount}
             />
+          </div>
+
+          <div className="space-y-2 rounded-2xl app-card-muted p-3">
+            <Label htmlFor="admin-account-theme-mode-select">Tema do sistema</Label>
+            <Select
+              value={themeModePreference}
+              onValueChange={(value) => setThemeModePreference(value as ThemeMode)}
+              disabled={!canManageAccount}
+            >
+              <SelectTrigger id="admin-account-theme-mode-select" className="app-input-field">
+                <SelectValue placeholder="Selecione um tema" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ThemeMode.AUTO}>{resolveThemeModeLabel(ThemeMode.AUTO)}</SelectItem>
+                <SelectItem value={ThemeMode.LIGHT}>{resolveThemeModeLabel(ThemeMode.LIGHT)}</SelectItem>
+                <SelectItem value={ThemeMode.DARK}>{resolveThemeModeLabel(ThemeMode.DARK)}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 

@@ -15,10 +15,12 @@ const DEFAULT_ADMIN_TAB_PERMISSIONS: AdminTabPermissionByTab = {
   [AdminPanelTab.LOGS]: AdminPanelPermissionLevel.NONE,
   [AdminPanelTab.USERS]: AdminPanelPermissionLevel.NONE,
   [AdminPanelTab.ACCOUNT]: AdminPanelPermissionLevel.NONE,
+  [AdminPanelTab.STANDINGS]: AdminPanelPermissionLevel.NONE,
   [AdminPanelTab.CHAMPIONSHIP_STATUS]: AdminPanelPermissionLevel.NONE,
   [AdminPanelTab.SETTINGS]: AdminPanelPermissionLevel.NONE,
   [AdminPanelTab.SCORE_SHEET_REVIEW]: AdminPanelPermissionLevel.NONE,
   [AdminPanelTab.TIE_BREAKS]: AdminPanelPermissionLevel.NONE,
+  [AdminPanelTab.CHAMPIONSHIP_SCHEDULE]: AdminPanelPermissionLevel.NONE,
 };
 
 function isAdminPanelRole(value: string | null): value is AdminPanelRole {
@@ -43,11 +45,12 @@ function resolveAdminTabPermissionsFromContext(context: CurrentUserAdminContext 
     : isAdminPanelPermissionLevel(context.settings_permission)
       ? context.settings_permission
       : AdminPanelPermissionLevel.NONE;
+  const fallbackMatchesPermission = isAdminPanelPermissionLevel(context.matches_permission)
+    ? context.matches_permission
+    : AdminPanelPermissionLevel.NONE;
 
   return {
-    [AdminPanelTab.MATCHES]: isAdminPanelPermissionLevel(context.matches_permission)
-      ? context.matches_permission
-      : AdminPanelPermissionLevel.NONE,
+    [AdminPanelTab.MATCHES]: fallbackMatchesPermission,
     [AdminPanelTab.CONTROL]: isAdminPanelPermissionLevel(context.control_permission)
       ? context.control_permission
       : AdminPanelPermissionLevel.NONE,
@@ -69,6 +72,9 @@ function resolveAdminTabPermissionsFromContext(context: CurrentUserAdminContext 
     [AdminPanelTab.ACCOUNT]: isAdminPanelPermissionLevel(context.account_permission)
       ? context.account_permission
       : AdminPanelPermissionLevel.NONE,
+    [AdminPanelTab.STANDINGS]: isAdminPanelPermissionLevel(context.standings_permission ?? null)
+      ? context.standings_permission!
+      : fallbackMatchesPermission,
     [AdminPanelTab.CHAMPIONSHIP_STATUS]: fallbackChampionshipStatusPermission,
     [AdminPanelTab.SETTINGS]: isAdminPanelPermissionLevel(context.settings_permission)
       ? context.settings_permission
@@ -79,6 +85,9 @@ function resolveAdminTabPermissionsFromContext(context: CurrentUserAdminContext 
     [AdminPanelTab.TIE_BREAKS]: isAdminPanelPermissionLevel(context.tie_breaks_permission)
       ? context.tie_breaks_permission
       : AdminPanelPermissionLevel.NONE,
+    [AdminPanelTab.CHAMPIONSHIP_SCHEDULE]: isAdminPanelPermissionLevel(context.championship_schedule_permission ?? null)
+      ? context.championship_schedule_permission!
+      : fallbackMatchesPermission,
   };
 }
 

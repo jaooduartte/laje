@@ -12,7 +12,6 @@ export const BEACH_SOCCER_RULE: PlatformSportRule = {
   pointsDraw: 1,
   pointsLoss: 0,
   resultRule: ChampionshipSportResultRule.POINTS,
-  defaultMatchDurationMinutes: 30,
   tieBreakerRule: ChampionshipSportTieBreakerRule.BEACH_SOCCER,
   supportsCards: true,
   tieBreakerPriority: [

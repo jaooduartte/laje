@@ -34,12 +34,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AdminPanelTab, AppRoutePath, ChampionshipStatus, MatchStatus } from "@/lib/enums";
+import { AdminPanelTab, AppRoutePath, BracketEditionStatus, ChampionshipStatus, MatchStatus } from "@/lib/enums";
 import {
   EMPTY_CHAMPIONSHIP_BRACKET_VIEW,
   isChampionshipStatus,
   resolveMatchBracketContextByMatchId,
 } from "@/lib/championship";
+import { resolveCanViewBracketSetupTab } from "@/pages/admin/adminPageVisibility";
 import { resolvePreferredAdminChampionshipCode } from "@/pages/admin/adminPage.helpers";
 import { AdminPageView } from "@/pages/admin/AdminPageView";
 
@@ -205,11 +206,21 @@ export function AdminPage() {
     setChampionshipStatusFlowDialog(ChampionshipStatusFlowDialog.NONE);
   };
 
+  const hasFinishedLoadingOperationalState =
+    !operationalMatchesFetching && !loadingOperationalChampionshipBracket;
+  const operationalBracketEditionStatus = operationalChampionshipBracketView.edition?.status ?? null;
+  const canViewBracketSetupTab = resolveCanViewBracketSetupTab({
+    championshipStatus: selectedChampionship?.status ?? ChampionshipStatus.PLANNING,
+    hasFinishedLoadingOperationalState,
+    matchesCount: operationalMatches.length,
+    bracketEditionStatus: operationalBracketEditionStatus,
+  });
+
   useEffect(() => {
-    if (selectedChampionship?.status === ChampionshipStatus.UPCOMING && operationalMatches.length === 0) {
+    if (canViewBracketSetupTab) {
       setActiveTab(AdminPanelTab.BRACKET_SETUP);
     }
-  }, [selectedChampionship?.status, operationalMatches.length]);
+  }, [canViewBracketSetupTab]);
 
   useEffect(() => {
     if (!selectedChampionshipId) {
@@ -475,12 +486,18 @@ export function AdminPage() {
   const canViewLogsTab = canViewAdminTab(AdminPanelTab.LOGS);
   const canViewUsersTab = canViewAdminTab(AdminPanelTab.USERS);
   const canViewAccountTab = canViewAdminTab(AdminPanelTab.ACCOUNT);
+  const canViewStandingsTab = canViewAdminTab(AdminPanelTab.STANDINGS);
   const canViewSettingsTab = canViewAdminTab(AdminPanelTab.SETTINGS);
   const canViewChampionshipStatus = canViewAdminTab(AdminPanelTab.CHAMPIONSHIP_STATUS);
   const canViewScoreSheetReviewTab = canViewAdminTab(AdminPanelTab.SCORE_SHEET_REVIEW);
   const canViewTieBreaksTab = canViewAdminTab(AdminPanelTab.TIE_BREAKS);
+  const canViewScheduleTab =
+    canViewAdminTab(AdminPanelTab.CHAMPIONSHIP_SCHEDULE) &&
+    visibleOperationalChampionshipBracketView.edition != null &&
+    visibleOperationalChampionshipBracketView.edition.status !== BracketEditionStatus.DRAFT;
 
   const canManageMatches = canEditAdminTab(AdminPanelTab.MATCHES);
+  const canManageSchedule = canEditAdminTab(AdminPanelTab.CHAMPIONSHIP_SCHEDULE);
   const canManageChampionshipStatus = canEditAdminTab(AdminPanelTab.CHAMPIONSHIP_STATUS);
   const canManageTeams = canEditAdminTab(AdminPanelTab.TEAMS);
   const canManageSports = canEditAdminTab(AdminPanelTab.SPORTS);
@@ -492,19 +509,20 @@ export function AdminPage() {
   const tabPriority: AdminPanelTab[] = [
     AdminPanelTab.CONTROL,
     AdminPanelTab.MATCHES,
+    AdminPanelTab.STANDINGS,
     AdminPanelTab.TEAMS,
     AdminPanelTab.SPORTS,
     AdminPanelTab.EVENTS,
     AdminPanelTab.LOGS,
     AdminPanelTab.USERS,
     AdminPanelTab.ACCOUNT,
+    AdminPanelTab.CHAMPIONSHIP_SCHEDULE,
     AdminPanelTab.SETTINGS,
   ];
 
   const defaultTabValue =
     tabPriority.find((adminPanelTab) => canViewAdminTab(adminPanelTab)) ?? AdminPanelTab.CONTROL;
 
-  const canViewBracketSetupTab = selectedChampionship.status === ChampionshipStatus.UPCOMING && operationalMatches.length === 0;
   const activeTab = _activeTab || defaultTabValue;
 
   return (
@@ -542,11 +560,14 @@ export function AdminPage() {
         canViewLogsTab={canViewLogsTab}
         canViewUsersTab={canViewUsersTab}
         canViewAccountTab={canViewAccountTab}
+        canViewStandingsTab={canViewStandingsTab}
         canViewSettingsTab={canViewSettingsTab}
         canViewScoreSheetReviewTab={canViewScoreSheetReviewTab}
         canViewTieBreaksTab={canViewTieBreaksTab}
         canViewChampionshipStatus={canViewChampionshipStatus}
         canViewBracketSetupTab={canViewBracketSetupTab}
+        canViewScheduleTab={canViewScheduleTab}
+        canManageSchedule={canManageSchedule}
         canManageMatches={canManageMatches}
         canManageChampionshipStatus={canManageChampionshipStatus}
         canManageScoreboard={canManageScoreboard}

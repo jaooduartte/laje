@@ -251,6 +251,210 @@ export type Database = {
           },
         ]
       }
+      championship_bracket_days: {
+        Row: {
+          bracket_edition_id: string
+          break_end_time: string | null
+          break_start_time: string | null
+          created_at: string
+          end_time: string
+          event_date: string
+          id: string
+          start_time: string
+        }
+        Insert: {
+          bracket_edition_id: string
+          break_end_time?: string | null
+          break_start_time?: string | null
+          created_at?: string
+          end_time: string
+          event_date: string
+          id?: string
+          start_time: string
+        }
+        Update: {
+          bracket_edition_id?: string
+          break_end_time?: string | null
+          break_start_time?: string | null
+          created_at?: string
+          end_time?: string
+          event_date?: string
+          id?: string
+          start_time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "championship_bracket_days_bracket_edition_id_fkey"
+            columns: ["bracket_edition_id"]
+            isOneToOne: false
+            referencedRelation: "championship_bracket_editions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      championship_bracket_locations: {
+        Row: {
+          bracket_day_id: string
+          created_at: string
+          id: string
+          location_group_id: string
+          name: string
+          position: number
+        }
+        Insert: {
+          bracket_day_id: string
+          created_at?: string
+          id?: string
+          location_group_id?: string
+          name: string
+          position?: number
+        }
+        Update: {
+          bracket_day_id?: string
+          created_at?: string
+          id?: string
+          location_group_id?: string
+          name?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "championship_bracket_locations_bracket_day_id_fkey"
+            columns: ["bracket_day_id"]
+            isOneToOne: false
+            referencedRelation: "championship_bracket_days"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      championship_bracket_courts: {
+        Row: {
+          bracket_location_id: string
+          court_group_id: string
+          created_at: string
+          id: string
+          name: string
+          position: number
+        }
+        Insert: {
+          bracket_location_id: string
+          court_group_id?: string
+          created_at?: string
+          id?: string
+          name: string
+          position?: number
+        }
+        Update: {
+          bracket_location_id?: string
+          court_group_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "championship_bracket_courts_bracket_location_id_fkey"
+            columns: ["bracket_location_id"]
+            isOneToOne: false
+            referencedRelation: "championship_bracket_locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      championship_bracket_day_breaks: {
+        Row: {
+          bracket_court_id: string | null
+          bracket_day_id: string
+          break_end_time: string
+          break_start_time: string
+          created_at: string
+          id: string
+          position: number
+          scope_type: Database["public"]["Enums"]["bracket_day_break_scope_type"]
+        }
+        Insert: {
+          bracket_court_id?: string | null
+          bracket_day_id: string
+          break_end_time: string
+          break_start_time: string
+          created_at?: string
+          id?: string
+          position?: number
+          scope_type?: Database["public"]["Enums"]["bracket_day_break_scope_type"]
+        }
+        Update: {
+          bracket_court_id?: string | null
+          bracket_day_id?: string
+          break_end_time?: string
+          break_start_time?: string
+          created_at?: string
+          id?: string
+          position?: number
+          scope_type?: Database["public"]["Enums"]["bracket_day_break_scope_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "championship_bracket_day_breaks_bracket_court_id_fkey"
+            columns: ["bracket_court_id"]
+            isOneToOne: false
+            referencedRelation: "championship_bracket_courts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "championship_bracket_day_breaks_bracket_day_id_fkey"
+            columns: ["bracket_day_id"]
+            isOneToOne: false
+            referencedRelation: "championship_bracket_days"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      championship_bracket_location_sport_priorities: {
+        Row: {
+          bracket_edition_id: string
+          created_at: string
+          id: string
+          location_group_id: string
+          priority_mode: Database["public"]["Enums"]["bracket_court_priority_mode"]
+          sport_id: string
+          updated_at: string
+        }
+        Insert: {
+          bracket_edition_id: string
+          created_at?: string
+          id?: string
+          location_group_id: string
+          priority_mode?: Database["public"]["Enums"]["bracket_court_priority_mode"]
+          sport_id: string
+          updated_at?: string
+        }
+        Update: {
+          bracket_edition_id?: string
+          created_at?: string
+          id?: string
+          location_group_id?: string
+          priority_mode?: Database["public"]["Enums"]["bracket_court_priority_mode"]
+          sport_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "championship_bracket_location_sport_priorities_bracket_edition_id_fkey"
+            columns: ["bracket_edition_id"]
+            isOneToOne: false
+            referencedRelation: "championship_bracket_editions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "championship_bracket_location_sport_priorities_sport_id_fkey"
+            columns: ["sport_id"]
+            isOneToOne: false
+            referencedRelation: "sports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       admin_action_logs: {
         Row: {
           action_type: Database["public"]["Enums"]["admin_action_type"]
@@ -365,6 +569,7 @@ export type Database = {
           name: string
           password_status: Database["public"]["Enums"]["admin_user_password_status"]
           profile_id: string
+          theme_mode_preference: Database["public"]["Enums"]["theme_mode_preference"]
           updated_at: string
           user_id: string
         }
@@ -374,6 +579,7 @@ export type Database = {
           name: string
           password_status?: Database["public"]["Enums"]["admin_user_password_status"]
           profile_id: string
+          theme_mode_preference?: Database["public"]["Enums"]["theme_mode_preference"]
           updated_at?: string
           user_id: string
         }
@@ -383,6 +589,7 @@ export type Database = {
           name?: string
           password_status?: Database["public"]["Enums"]["admin_user_password_status"]
           profile_id?: string
+          theme_mode_preference?: Database["public"]["Enums"]["theme_mode_preference"]
           updated_at?: string
           user_id?: string
         }
@@ -956,16 +1163,19 @@ export type Database = {
       sports: {
         Row: {
           created_at: string
+          default_match_duration_minutes: number
           id: string
           name: string
         }
         Insert: {
           created_at?: string
+          default_match_duration_minutes: number
           id?: string
           name: string
         }
         Update: {
           created_at?: string
+          default_match_duration_minutes?: number
           id?: string
           name?: string
         }
@@ -1141,6 +1351,12 @@ export type Database = {
         Args: { _new_password: string; _target_user_id: string }
         Returns: undefined
       }
+      admin_update_current_user_theme_mode_preference: {
+        Args: {
+          _theme_mode_preference: string
+        }
+        Returns: undefined
+      }
       can_access_admin_panel: { Args: never; Returns: boolean }
       complete_admin_user_password_setup: {
         Args: { _login_identifier: string; _new_password: string }
@@ -1241,6 +1457,7 @@ export type Database = {
         Args: never
         Returns: {
           account_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
+          championship_schedule_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
           championship_status_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
           control_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
           events_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
@@ -1250,6 +1467,7 @@ export type Database = {
           profile_name: string | null
           role: Database["public"]["Enums"]["app_role"] | null
           settings_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
+          standings_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
           sports_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
           teams_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
           users_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
@@ -1266,8 +1484,13 @@ export type Database = {
           password_status: Database["public"]["Enums"]["admin_user_password_status"]
           profile_id: string | null
           profile_name: string | null
+          theme_mode_preference: Database["public"]["Enums"]["theme_mode_preference"]
           user_id: string
         }[]
+      }
+      get_current_user_theme_mode_preference: {
+        Args: never
+        Returns: Database["public"]["Enums"]["theme_mode_preference"]
       }
       get_current_user_role: {
         Args: never
@@ -1406,6 +1629,18 @@ export type Database = {
         Args: { _payload: Json }
         Returns: string
       }
+      update_bracket_day_schedule: {
+        Args: { _bracket_edition_id: string; _schedule_updates: Json }
+        Returns: undefined
+      }
+      update_bracket_generated_location_group: {
+        Args: { _bracket_edition_id: string; _payload: Json }
+        Returns: undefined
+      }
+      update_bracket_location_sport_priorities: {
+        Args: { _bracket_edition_id: string; _priority_updates: Json }
+        Returns: undefined
+      }
     }
     Enums: {
       admin_action_type: "INSERT" | "UPDATE" | "DELETE" | "PASSWORD_CHANGED" | "LOGIN"
@@ -1419,12 +1654,16 @@ export type Database = {
         | "logs"
         | "users"
         | "account"
+        | "standings"
         | "championship_status"
         | "settings"
         | "score_sheet_review"
         | "tie_breaks"
+        | "championship_schedule"
       admin_user_password_status: "PENDING" | "ACTIVE"
       app_role: "admin" | "eventos" | "mesa"
+      bracket_court_priority_mode: "NONE" | "NAIPE" | "DIVISION"
+      bracket_day_break_scope_type: "ALL_COURTS" | "COURT"
       bracket_edition_status: "DRAFT" | "GROUPS_GENERATED" | "KNOCKOUT_GENERATED"
       bracket_phase: "GROUP_STAGE" | "KNOCKOUT"
       bracket_third_place_mode: "NONE" | "MATCH" | "CHAMPION_SEMIFINAL_LOSER"
@@ -1447,6 +1686,7 @@ export type Database = {
       match_naipe: "MASCULINO" | "FEMININO" | "MISTO"
       match_status: "SCHEDULED" | "LIVE" | "FINISHED"
       team_division: "DIVISAO_PRINCIPAL" | "DIVISAO_ACESSO"
+      theme_mode_preference: "auto" | "light" | "dark"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1585,12 +1825,16 @@ export const Constants = {
         "logs",
         "users",
         "account",
+        "standings",
         "championship_status",
         "settings",
         "score_sheet_review",
         "tie_breaks",
+        "championship_schedule",
       ],
       app_role: ["admin", "eventos", "mesa"],
+      bracket_court_priority_mode: ["NONE", "NAIPE", "DIVISION"],
+      bracket_day_break_scope_type: ["ALL_COURTS", "COURT"],
       bracket_edition_status: ["DRAFT", "GROUPS_GENERATED", "KNOCKOUT_GENERATED"],
       bracket_phase: ["GROUP_STAGE", "KNOCKOUT"],
       bracket_third_place_mode: ["NONE", "MATCH", "CHAMPION_SEMIFINAL_LOSER"],
@@ -1608,6 +1852,7 @@ export const Constants = {
       league_calendar_holiday_day_kind: ["HOLIDAY", "OPTIONAL"],
       league_calendar_holiday_scope: ["NATIONAL", "JOINVILLE"],
       league_event_organizer_type: ["ATHLETIC", "LAJE"],
+      theme_mode_preference: ["auto", "light", "dark"],
       league_event_reservation_request_status: ["PENDING", "APPROVED", "REJECTED"],
       league_event_type: ["HH", "OPEN_BAR", "CHAMPIONSHIP", "LAJE_EVENT"],
       match_naipe: ["MASCULINO", "FEMININO", "MISTO"],

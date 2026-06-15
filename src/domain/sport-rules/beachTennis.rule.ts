@@ -12,7 +12,6 @@ export const BEACH_TENNIS_RULE: PlatformSportRule = {
   pointsDraw: 0,
   pointsLoss: 0,
   resultRule: ChampionshipSportResultRule.SETS,
-  defaultMatchDurationMinutes: 35,
   tieBreakerRule: ChampionshipSportTieBreakerRule.BEACH_TENNIS,
   supportsCards: false,
   tieBreakerPriority: ["Maior número de vitórias", "Confronto direto", "Saldo dos games/sets", "Sorteio"],

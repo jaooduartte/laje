@@ -9,6 +9,8 @@ interface HourAndMinute {
   minute: number;
 }
 
+export type ResolvedThemeMode = ThemeMode.LIGHT | ThemeMode.DARK;
+
 function resolveLocalHourAndMinute(now: Date): HourAndMinute {
   return {
     hour: now.getHours(),
@@ -52,6 +54,30 @@ export function resolveThemeModeByTime(now: Date): ThemeMode {
   const isDarkModeHour = hour >= AUTO_THEME_DARK_START_HOUR || hour < AUTO_THEME_LIGHT_START_HOUR;
 
   return isDarkModeHour ? ThemeMode.DARK : ThemeMode.LIGHT;
+}
+
+export function isThemeMode(value: string | null | undefined): value is ThemeMode {
+  return value == ThemeMode.AUTO || value == ThemeMode.LIGHT || value == ThemeMode.DARK;
+}
+
+export function resolveThemeModeLabel(themeMode: ThemeMode): string {
+  if (themeMode == ThemeMode.AUTO) {
+    return "Automático";
+  }
+
+  if (themeMode == ThemeMode.LIGHT) {
+    return "Claro";
+  }
+
+  return "Escuro";
+}
+
+export function resolveEffectiveThemeMode(themeMode: ThemeMode, now: Date): ResolvedThemeMode {
+  if (themeMode == ThemeMode.AUTO) {
+    return resolveThemeModeByTime(now) as ResolvedThemeMode;
+  }
+
+  return themeMode;
 }
 
 export function resolveIsDarkModeByTime(now: Date): boolean {

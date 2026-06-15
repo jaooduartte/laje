@@ -6,7 +6,9 @@ import { AppBadgeTone, BracketPhase, ChampionshipSportResultRule, MatchStatus } 
 import { AppBadge } from "@/components/ui/app-badge";
 import {
   type MatchBracketContext,
+  TEAM_DIVISION_BADGE_TONES,
   TEAM_DIVISION_LABELS,
+  resolveSaoPauloDateTimeLabel,
   resolveMatchDisplaySlotValue,
   resolveMatchQueueLabel,
   resolveMatchNaipeBadgeTone,
@@ -66,11 +68,15 @@ export function MatchCard({
   const matchSetSummary = isSetMatch ? resolveMatchSetSummary(match) : [];
   const tieBreakRuleLabel =
     match.status == MatchStatus.FINISHED ? resolveMatchTieBreakRuleLabel(match.resolved_tie_breaker_rule) : null;
-  const startedAtLabel = match.start_time
-    ? showStartedAtDate
-      ? `Jogo iniciado em ${format(new Date(match.start_time), "dd/MM • HH:mm", { locale: ptBR })}`
-      : resolveMatchStartedAtLabel(match.start_time)
-    : null;
+  const startedAtDateTimeLabel = match.start_time ? resolveSaoPauloDateTimeLabel(match.start_time) : null;
+  const startedAtLabel =
+    match.status == MatchStatus.SCHEDULED || !match.start_time
+      ? null
+      : showStartedAtDate
+        ? startedAtDateTimeLabel
+          ? `Jogo iniciado em ${startedAtDateTimeLabel.slice(8, 10)}/${startedAtDateTimeLabel.slice(5, 7)} • ${startedAtDateTimeLabel.slice(11, 16)}`
+          : resolveMatchStartedAtLabel(match.start_time, match.status)
+        : resolveMatchStartedAtLabel(match.start_time, match.status);
   const footerScheduleLabel =
     match.status == MatchStatus.SCHEDULED
       ? scheduledDayLabel
@@ -112,7 +118,7 @@ export function MatchCard({
             {resolveMatchNaipeLabel(String(match.naipe))}
           </AppBadge>
           {match.division ? (
-            <AppBadge tone={AppBadgeTone.NEUTRAL}>{TEAM_DIVISION_LABELS[match.division]}</AppBadge>
+            <AppBadge tone={TEAM_DIVISION_BADGE_TONES[match.division]}>{TEAM_DIVISION_LABELS[match.division]}</AppBadge>
           ) : null}
           {bracketContext ? (
             <AppBadge tone={resolveBracketBadgeTone(bracketContext)}>
@@ -197,7 +203,7 @@ export function MatchCard({
           <p className="break-words">Horário estimado: {estimatedStartTime}</p>
         ) : null}
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <span>{match.location}</span>
+          <span>{match.court_name ? `${match.location} • ${match.court_name}` : match.location}</span>
           <span>{footerScheduleLabel}</span>
         </div>
       </div>

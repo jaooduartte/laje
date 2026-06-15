@@ -10,9 +10,11 @@ import {
   fetchChampionshipBracketLocationTemplates,
   fetchChampionshipBracketPendingTieBreaks,
   generateChampionshipKnockout,
+  getBracketDaySchedules,
   saveMatchSets,
   saveChampionshipBracketTieBreakResolution,
   swapChampionshipKnockoutBracketTeams,
+  updateBracketDaySchedule,
 } from "@/domain/championship-brackets/championshipBracket.repository";
 import type {
   ChampionshipCorrectedGroupStanding,
@@ -113,6 +115,11 @@ import {
   resolveMatchSwapDisplaySlot,
   resolveMatchSwapOptionLabel,
 } from "@/components/admin/adminMatchesSwap.utils";
+import {
+  resolveBracketDayScheduleUpdates,
+  resolveMatchScheduleMoveSortValue,
+  resolveShouldRedistributeBracketScheduleAfterMatchEdit,
+} from "@/components/admin/adminMatchesSchedule.utils";
 import { AdminMatchesViewMode } from "@/components/admin/adminMatches.types";
 import { useChampionshipCorrectedGroupStandings } from "@/hooks/useChampionshipCorrectedGroupStandings";
 import { type AwardDrawPendingContext, usePendingAwardDraws } from "@/hooks/usePendingAwardDraws";
@@ -307,6 +314,46 @@ function resolveMatchDisplaySlotValue(
   return match.queue_position ?? match.scheduled_slot ?? Number.MAX_SAFE_INTEGER;
 }
 
+function resolveMatchLocationAndCourtSortDifference(
+  firstMatch: Pick<Match, "location" | "court_name">,
+  secondMatch: Pick<Match, "location" | "court_name">,
+) {
+  const locationDifference = firstMatch.location.localeCompare(secondMatch.location, "pt-BR", {
+    numeric: true,
+    sensitivity: "base",
+  });
+
+  if (locationDifference != 0) {
+    return locationDifference;
+  }
+
+  return (firstMatch.court_name ?? "").localeCompare(secondMatch.court_name ?? "", "pt-BR", {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+function resolveEstimatedStartTimeSortValue(estimatedStartTimeValue: string | undefined) {
+  if (!estimatedStartTimeValue) {
+    return Number.MAX_SAFE_INTEGER;
+  }
+
+  const estimatedTimeMatch = /^(\d{2}):(\d{2})$/.exec(estimatedStartTimeValue.trim());
+
+  if (!estimatedTimeMatch) {
+    return Number.MAX_SAFE_INTEGER;
+  }
+
+  const parsedHours = Number(estimatedTimeMatch[1]);
+  const parsedMinutes = Number(estimatedTimeMatch[2]);
+
+  if (!Number.isFinite(parsedHours) || !Number.isFinite(parsedMinutes)) {
+    return Number.MAX_SAFE_INTEGER;
+  }
+
+  return (parsedHours * 60) + parsedMinutes;
+}
+
 interface Props {
   matches: Match[];
   championshipSports: ChampionshipSport[];
@@ -363,6 +410,8 @@ const ALL_MATCHES_TEAM_FILTER = "ALL_MATCHES_TEAMS";
 const ALL_MATCHES_NAIPE_FILTER = "ALL_MATCHES_NAIPES";
 const ALL_MATCHES_DIVISION_FILTER = "ALL_MATCHES_DIVISIONS";
 const ALL_MATCHES_GROUP_FILTER = "ALL_MATCHES_GROUPS";
+const ALL_MATCHES_LOCATION_FILTER = "ALL_MATCHES_LOCATIONS";
+const ALL_MATCHES_COURT_FILTER = "ALL_MATCHES_COURTS";
 const MATCHES_STATUS_FILTER_LIVE = "MATCHES_STATUS_FILTER_LIVE";
 const MATCHES_STATUS_FILTER_FINISHED = "MATCHES_STATUS_FILTER_FINISHED";
 const MATCHES_STATUS_FILTER_OPEN = "MATCHES_STATUS_FILTER_OPEN";
@@ -697,6 +746,8 @@ export function AdminMatches({
   const [matchesNaipeFilter, setMatchesNaipeFilter] = useState<string>(ALL_MATCHES_NAIPE_FILTER);
   const [matchesDivisionFilter, setMatchesDivisionFilter] = useState<string>(ALL_MATCHES_DIVISION_FILTER);
   const [matchesGroupFilter, setMatchesGroupFilter] = useState<string>(ALL_MATCHES_GROUP_FILTER);
+  const [matchesLocationFilter, setMatchesLocationFilter] = useState<string>(ALL_MATCHES_LOCATION_FILTER);
+  const [matchesCourtFilter, setMatchesCourtFilter] = useState<string>(ALL_MATCHES_COURT_FILTER);
   const [selectedMatchIds, setSelectedMatchIds] = useState<string[]>([]);
   const [matchesCurrentPage, setMatchesCurrentPage] = useState(1);
   const [matchesItemsPerPage, setMatchesItemsPerPage] = useState(DEFAULT_PAGINATION_ITEMS_PER_PAGE);
@@ -1050,6 +1101,8 @@ export function AdminMatches({
     setMatchesNaipeFilter(ALL_MATCHES_NAIPE_FILTER);
     setMatchesDivisionFilter(ALL_MATCHES_DIVISION_FILTER);
     setMatchesGroupFilter(ALL_MATCHES_GROUP_FILTER);
+    setMatchesLocationFilter(ALL_MATCHES_LOCATION_FILTER);
+    setMatchesCourtFilter(ALL_MATCHES_COURT_FILTER);
     setHideReviewedMatches(false);
     setCreatingMatch(false);
     setBulkReviewAction(null);
@@ -1174,6 +1227,101 @@ export function AdminMatches({
       .map(([value, label]) => ({ value, label }))
       .sort((firstGroupOption, secondGroupOption) => firstGroupOption.label.localeCompare(secondGroupOption.label));
   }, [championshipBracketView, matchesDivisionFilter, matchesNaipeFilter, matchesSportFilter]);
+
+  const matchesFilteredByBaseCriteria = useMemo(() => {
+    return matches.filter((match) => {
+      if (matchesSportFilter !== ALL_MATCHES_SPORT_FILTER && match.sport_id != matchesSportFilter) {
+        return false;
+      }
+
+      if (isScoreSheetReviewMode && match.status != MatchStatus.FINISHED) {
+        return false;
+      }
+
+      if (matchesStatusFilter == MATCHES_STATUS_FILTER_LIVE && match.status != MatchStatus.LIVE) {
+        return false;
+      }
+
+      if (matchesStatusFilter == MATCHES_STATUS_FILTER_FINISHED && match.status != MatchStatus.FINISHED) {
+        return false;
+      }
+
+      if (matchesStatusFilter == MATCHES_STATUS_FILTER_OPEN && match.status != MatchStatus.SCHEDULED) {
+        return false;
+      }
+
+      if (matchesTeamFilter !== ALL_MATCHES_TEAM_FILTER) {
+        const isHomeTeamMatch = match.home_team_id == matchesTeamFilter;
+        const isAwayTeamMatch = match.away_team_id == matchesTeamFilter;
+
+        if (!isHomeTeamMatch && !isAwayTeamMatch) {
+          return false;
+        }
+      }
+
+      if (matchesNaipeFilter !== ALL_MATCHES_NAIPE_FILTER && match.naipe != matchesNaipeFilter) {
+        return false;
+      }
+
+      if (
+        championshipUsesDivisions &&
+        matchesDivisionFilter != ALL_MATCHES_DIVISION_FILTER &&
+        match.division != matchesDivisionFilter
+      ) {
+        return false;
+      }
+
+      if (matchesGroupFilter != ALL_MATCHES_GROUP_FILTER) {
+        const matchBracketContext = matchBracketContextByMatchId[match.id];
+
+        if (!matchBracketContext || matchBracketContext.groupFilterValue != matchesGroupFilter) {
+          return false;
+        }
+      }
+
+      if (isScoreSheetReviewMode && hideReviewedMatches && match.is_score_sheet_reviewed) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [
+    championshipUsesDivisions,
+    hideReviewedMatches,
+    isScoreSheetReviewMode,
+    matchBracketContextByMatchId,
+    matches,
+    matchesDivisionFilter,
+    matchesGroupFilter,
+    matchesNaipeFilter,
+    matchesSportFilter,
+    matchesStatusFilter,
+    matchesTeamFilter,
+  ]);
+
+  const locationsForMatchesFilter = useMemo(() => {
+    return [...new Set(matchesFilteredByBaseCriteria.map((match) => match.location).filter(Boolean))].sort(
+      (firstLocation, secondLocation) => firstLocation.localeCompare(secondLocation)
+    );
+  }, [matchesFilteredByBaseCriteria]);
+
+  const courtsForMatchesFilter = useMemo(() => {
+    const uniqueCourtNames = new Set<string>();
+
+    matchesFilteredByBaseCriteria.forEach((match) => {
+      if (!match.court_name) {
+        return;
+      }
+
+      if (matchesLocationFilter != ALL_MATCHES_LOCATION_FILTER && match.location != matchesLocationFilter) {
+        return;
+      }
+
+      uniqueCourtNames.add(match.court_name);
+    });
+
+    return [...uniqueCourtNames].sort((firstCourtName, secondCourtName) => firstCourtName.localeCompare(secondCourtName));
+  }, [matchesFilteredByBaseCriteria, matchesLocationFilter]);
 
   const championshipBracketGroupStageOptions = useMemo(() => {
     return resolveChampionshipBracketGroupStageOptions(championshipBracketView);
@@ -1432,58 +1580,13 @@ export function AdminMatches({
   }, [matches, pendingSwapSourceMatch, shouldUseScheduledSlotInMatchList]);
 
   const filteredAndSortedMatches = useMemo(() => {
-    return [...matches]
+    return [...matchesFilteredByBaseCriteria]
       .filter((match) => {
-        if (matchesSportFilter !== ALL_MATCHES_SPORT_FILTER && match.sport_id != matchesSportFilter) {
+        if (matchesLocationFilter != ALL_MATCHES_LOCATION_FILTER && match.location != matchesLocationFilter) {
           return false;
         }
 
-        if (isScoreSheetReviewMode && match.status != MatchStatus.FINISHED) {
-          return false;
-        }
-
-        if (matchesStatusFilter == MATCHES_STATUS_FILTER_LIVE && match.status != MatchStatus.LIVE) {
-          return false;
-        }
-
-        if (matchesStatusFilter == MATCHES_STATUS_FILTER_FINISHED && match.status != MatchStatus.FINISHED) {
-          return false;
-        }
-
-        if (matchesStatusFilter == MATCHES_STATUS_FILTER_OPEN && match.status != MatchStatus.SCHEDULED) {
-          return false;
-        }
-
-        if (matchesTeamFilter !== ALL_MATCHES_TEAM_FILTER) {
-          const isHomeTeamMatch = match.home_team_id == matchesTeamFilter;
-          const isAwayTeamMatch = match.away_team_id == matchesTeamFilter;
-
-          if (!isHomeTeamMatch && !isAwayTeamMatch) {
-            return false;
-          }
-        }
-
-        if (matchesNaipeFilter !== ALL_MATCHES_NAIPE_FILTER && match.naipe != matchesNaipeFilter) {
-          return false;
-        }
-
-        if (
-          championshipUsesDivisions &&
-          matchesDivisionFilter != ALL_MATCHES_DIVISION_FILTER &&
-          match.division != matchesDivisionFilter
-        ) {
-          return false;
-        }
-
-        if (matchesGroupFilter != ALL_MATCHES_GROUP_FILTER) {
-          const matchBracketContext = matchBracketContextByMatchId[match.id];
-
-          if (!matchBracketContext || matchBracketContext.groupFilterValue != matchesGroupFilter) {
-            return false;
-          }
-        }
-
-        if (isScoreSheetReviewMode && hideReviewedMatches && match.is_score_sheet_reviewed) {
+        if (matchesCourtFilter != ALL_MATCHES_COURT_FILTER && match.court_name != matchesCourtFilter) {
           return false;
         }
 
@@ -1504,12 +1607,26 @@ export function AdminMatches({
             return firstScheduledDate.localeCompare(secondScheduledDate);
           }
 
+          const estimatedStartTimeDifference =
+            resolveEstimatedStartTimeSortValue(estimatedStartTimeByMatchId[firstMatch.id]) -
+            resolveEstimatedStartTimeSortValue(estimatedStartTimeByMatchId[secondMatch.id]);
+
+          if (estimatedStartTimeDifference != 0) {
+            return estimatedStartTimeDifference;
+          }
+
           const slotDifference =
             resolveMatchDisplaySlotValue(firstMatch, shouldUseScheduledSlotInMatchList) -
             resolveMatchDisplaySlotValue(secondMatch, shouldUseScheduledSlotInMatchList);
 
           if (slotDifference != 0) {
             return slotDifference;
+          }
+
+          const locationAndCourtDifference = resolveMatchLocationAndCourtSortDifference(firstMatch, secondMatch);
+
+          if (locationAndCourtDifference != 0) {
+            return locationAndCourtDifference;
           }
 
           return firstMatch.created_at.localeCompare(secondMatch.created_at);
@@ -1531,6 +1648,12 @@ export function AdminMatches({
             return slotDifference;
           }
 
+          const locationAndCourtDifference = resolveMatchLocationAndCourtSortDifference(firstMatch, secondMatch);
+
+          if (locationAndCourtDifference != 0) {
+            return locationAndCourtDifference;
+          }
+
           if (firstMatch.created_at != secondMatch.created_at) {
             return firstMatch.created_at.localeCompare(secondMatch.created_at);
           }
@@ -1544,18 +1667,11 @@ export function AdminMatches({
         return secondTimestamp - firstTimestamp;
       });
   }, [
-    championshipUsesDivisions,
-    hideReviewedMatches,
-    isScoreSheetReviewMode,
+    estimatedStartTimeByMatchId,
+    matchesCourtFilter,
+    matchesFilteredByBaseCriteria,
+    matchesLocationFilter,
     shouldUseScheduledSlotInMatchList,
-    matchBracketContextByMatchId,
-    matches,
-    matchesDivisionFilter,
-    matchesGroupFilter,
-    matchesNaipeFilter,
-    matchesSportFilter,
-    matchesStatusFilter,
-    matchesTeamFilter,
   ]);
 
   useEffect(() => {
@@ -1605,6 +1721,8 @@ export function AdminMatches({
     hideReviewedMatches,
     matchesDivisionFilter,
     matchesGroupFilter,
+    matchesCourtFilter,
+    matchesLocationFilter,
     matchesItemsPerPage,
     matchesNaipeFilter,
     matchesSportFilter,
@@ -1631,6 +1749,8 @@ export function AdminMatches({
     hideReviewedMatches,
     matchesDivisionFilter,
     matchesGroupFilter,
+    matchesCourtFilter,
+    matchesLocationFilter,
     matchesNaipeFilter,
     matchesSportFilter,
     matchesStatusFilter,
@@ -1677,6 +1797,21 @@ export function AdminMatches({
       setMatchesGroupFilter(ALL_MATCHES_GROUP_FILTER);
     }
   }, [groupsForMatchesFilter, matchesGroupFilter]);
+
+  useEffect(() => {
+    if (
+      matchesLocationFilter != ALL_MATCHES_LOCATION_FILTER &&
+      !locationsForMatchesFilter.includes(matchesLocationFilter)
+    ) {
+      setMatchesLocationFilter(ALL_MATCHES_LOCATION_FILTER);
+    }
+  }, [locationsForMatchesFilter, matchesLocationFilter]);
+
+  useEffect(() => {
+    if (matchesCourtFilter != ALL_MATCHES_COURT_FILTER && !courtsForMatchesFilter.includes(matchesCourtFilter)) {
+      setMatchesCourtFilter(ALL_MATCHES_COURT_FILTER);
+    }
+  }, [courtsForMatchesFilter, matchesCourtFilter]);
 
   useEffect(() => {
     const matchIds = new Set(matches.map((match) => match.id));
@@ -1905,7 +2040,10 @@ export function AdminMatches({
           return firstScheduledDate.localeCompare(secondScheduledDate);
         }
 
-        return (firstMatch.queue_position ?? Number.MAX_SAFE_INTEGER) - (secondMatch.queue_position ?? Number.MAX_SAFE_INTEGER);
+        return (
+          resolveMatchScheduleMoveSortValue(firstMatch, shouldUseScheduledSlotInMatchList) -
+          resolveMatchScheduleMoveSortValue(secondMatch, shouldUseScheduledSlotInMatchList)
+        );
       });
 
     setApplyingBulkAction(true);
@@ -1958,6 +2096,15 @@ export function AdminMatches({
       return;
     }
 
+    const redistributedSchedule = await redistributeBracketScheduleAfterMatchScheduleChange({
+      reloadError: "Os jogos foram movidos, mas não foi possível recarregar a agenda para redistribuir a fila",
+      redistributeError: "Os jogos foram movidos, mas a redistribuição automática da fila falhou",
+    });
+
+    if (!redistributedSchedule) {
+      return;
+    }
+
     await Promise.all([onRefetch(), onRefetchChampionshipBracket()]);
 
     if (skippedMatchesCount > 0) {
@@ -1966,6 +2113,41 @@ export function AdminMatches({
     }
 
     toast.success(`${movedMatchesCount} jogo(s) movido(s) para o próximo dia.`);
+  };
+
+  const redistributeBracketScheduleAfterMatchScheduleChange = async (messages: {
+    reloadError: string;
+    redistributeError: string;
+  }): Promise<boolean> => {
+    if (!championshipBracketView.edition?.id) {
+      return true;
+    }
+
+    const { data: bracketDaySchedules, error: bracketDaySchedulesError } =
+      await getBracketDaySchedules(championshipBracketView.edition.id);
+
+    if (bracketDaySchedulesError) {
+      toast.error(`${messages.reloadError}: ${bracketDaySchedulesError.message}`);
+      await Promise.all([onRefetch(), onRefetchChampionshipBracket()]);
+      return false;
+    }
+
+    if (bracketDaySchedules.length == 0) {
+      return true;
+    }
+
+    const { error: redistributeError } = await updateBracketDaySchedule(
+      championshipBracketView.edition.id,
+      resolveBracketDayScheduleUpdates(bracketDaySchedules),
+    );
+
+    if (redistributeError) {
+      toast.error(`${messages.redistributeError}: ${redistributeError.message}`);
+      await Promise.all([onRefetch(), onRefetchChampionshipBracket()]);
+      return false;
+    }
+
+    return true;
   };
 
   const handleMoveSelectedMatchesToNextChampionshipDay = async () => {
@@ -2864,6 +3046,24 @@ export function AdminMatches({
     const resolvedCourtName = shouldResetFinishedMatchToScheduled ? null : editingMatch?.court_name ?? null;
     const resolvedCurrentSetHomeScore = shouldResetFinishedMatchToScheduled ? null : editingMatch?.current_set_home_score ?? null;
     const resolvedCurrentSetAwayScore = shouldResetFinishedMatchToScheduled ? null : editingMatch?.current_set_away_score ?? null;
+    const resolvedScheduledDate = resolveDateOnlyString(editingMatchDraft.scheduledDate);
+    const resolvedDivision = championshipUsesDivisions ? editingMatchDraft.division : null;
+    const shouldRedistributeScheduleAfterEditingMatch =
+      resolveShouldRedistributeBracketScheduleAfterMatchEdit({
+        previousMatch: editingMatch,
+        nextMatch: {
+          status: editingMatchDraft.status,
+          scheduled_date: resolvedScheduledDate,
+          queue_position: parsedGameSlot,
+          scheduled_slot: parsedGameSlot,
+          sport_id: editingMatchDraft.sportId,
+          naipe: editingMatchDraft.naipe,
+          division: resolvedDivision,
+          location: normalizedLocation,
+          home_team_id: editingMatchDraft.homeTeamId,
+          away_team_id: editingMatchDraft.awayTeamId,
+        },
+      });
 
     const { error } = await supabase
       .from("matches")
@@ -2873,7 +3073,7 @@ export function AdminMatches({
         home_team_id: editingMatchDraft.homeTeamId,
         away_team_id: editingMatchDraft.awayTeamId,
         location: normalizedLocation,
-        scheduled_date: resolveDateOnlyString(editingMatchDraft.scheduledDate),
+        scheduled_date: resolvedScheduledDate,
         queue_position: parsedGameSlot,
         scheduled_slot: parsedGameSlot,
         court_name: resolvedCourtName,
@@ -2891,7 +3091,7 @@ export function AdminMatches({
         resolved_tie_breaker_rule: shouldPreserveTieBreakResolution ? editingMatchDraft.resolvedTieBreakerRule || null : null,
         resolved_tie_break_winner_team_id: shouldPreserveTieBreakResolution ? editingMatch?.resolved_tie_break_winner_team_id ?? null : null,
         status: editingMatchDraft.status,
-        division: championshipUsesDivisions ? editingMatchDraft.division : null,
+        division: resolvedDivision,
       })
       .eq("id", editingMatchId);
 
@@ -2961,6 +3161,19 @@ export function AdminMatches({
       if (bracketBindingResponse.errorMessage) {
         setSavingEditingMatch(false);
         toast.error(bracketBindingResponse.errorMessage);
+        return;
+      }
+    }
+
+    if (shouldRedistributeScheduleAfterEditingMatch) {
+      const redistributedSchedule = await redistributeBracketScheduleAfterMatchScheduleChange({
+        reloadError: "O jogo foi atualizado, mas não foi possível recarregar a agenda para redistribuir a fila",
+        redistributeError: "O jogo foi atualizado, mas a redistribuição automática da fila falhou",
+      });
+
+      if (!redistributedSchedule) {
+        setSavingEditingMatch(false);
+        handleCancelEditingMatch();
         return;
       }
     }
@@ -3615,8 +3828,9 @@ export function AdminMatches({
           onSelect={(sportFilterValue) => setMatchesSportFilter(sportFilterValue ?? ALL_MATCHES_SPORT_FILTER)}
         />
 
-        <div className="glass-card enter-section space-y-3 p-4">
-		          <div className={`grid grid-cols-1 gap-3 xl:items-center ${isScoreSheetReviewMode ? "xl:grid-cols-4" : "xl:grid-cols-7"}`}>
+        <div className="glass-card enter-section p-4">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-stretch xl:justify-between">
+            <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {!isScoreSheetReviewMode && !isTieBreaksMode ? (
                   <div className="xl:min-w-0">
                     <Select
@@ -3717,6 +3931,38 @@ export function AdminMatches({
             </div>
 
             <div className="xl:min-w-0">
+              <Select value={matchesLocationFilter} onValueChange={setMatchesLocationFilter}>
+                <SelectTrigger className="app-input-field w-full">
+                  <SelectValue placeholder="Filtrar por local" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_MATCHES_LOCATION_FILTER}>Todos os locais</SelectItem>
+                  {locationsForMatchesFilter.map((locationOption) => (
+                    <SelectItem key={locationOption} value={locationOption}>
+                      {locationOption}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="xl:min-w-0">
+              <Select value={matchesCourtFilter} onValueChange={setMatchesCourtFilter}>
+                <SelectTrigger className="app-input-field w-full">
+                  <SelectValue placeholder="Filtrar por quadra" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_MATCHES_COURT_FILTER}>Todas as quadras</SelectItem>
+                  {courtsForMatchesFilter.map((courtOption) => (
+                    <SelectItem key={courtOption} value={courtOption}>
+                      {courtOption}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="xl:min-w-0">
               <div className="flex items-center gap-2">
                 <Select value={matchesTeamFilter} onValueChange={setMatchesTeamFilter}>
                   <SelectTrigger className="app-input-field flex-1">
@@ -3745,14 +3991,17 @@ export function AdminMatches({
                 ) : null}
               </div>
             </div>
+            </div>
 
-	            {!isScoreSheetReviewMode && canManageMatches ? (
-	              <Button type="button" onClick={handleOpenCreateMatchModal} className="w-full xl:w-auto">
-	                <Plus className="mr-2 h-4 w-4" />
-	                Criar jogo
-	              </Button>
-	            ) : null}
-	          </div>
+            {!isScoreSheetReviewMode && canManageMatches ? (
+              <div className="flex items-center justify-end xl:min-w-[156px]">
+                <Button type="button" onClick={handleOpenCreateMatchModal} className="w-full xl:w-auto">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Criar jogo
+                </Button>
+              </div>
+            ) : null}
+          </div>
         </div>
 
         {!canManageMatches ? (
@@ -3860,7 +4109,7 @@ export function AdminMatches({
 
 	            {paginatedMatches.map((match) => {
 	              const matchBracketContext = matchBracketContextByMatchId[match.id];
-	              const startedAtLabel = resolveMatchStartedAtLabel(match.start_time);
+	              const startedAtLabel = resolveMatchStartedAtLabel(match.start_time, match.status);
 	              const tieBreakRuleLabel = resolveMatchTieBreakRuleLabel(match.resolved_tie_breaker_rule);
 	              const isSetMatch = match.result_rule == ChampionshipSportResultRule.SETS;
 	              const supportsCards = championshipSportSupportsCardsBySportId.get(match.sport_id) == true || match.supports_cards;
@@ -4059,7 +4308,7 @@ export function AdminMatches({
 	                      {/* Detalhes — empilhado no mobile, linha única no desktop */}
 	                      <div className="text-center text-xs text-muted-foreground">
 	                        <div className="flex flex-col items-center gap-y-0.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-x-3 sm:gap-y-0">
-	                          <span>Local: {match.location}</span>
+	                          <span>Local: {match.court_name ? `${match.location} • ${match.court_name}` : match.location}</span>
 	                          <span>Fila: {resolveScheduledQueueSummary(match, shouldUseScheduledSlotInMatchList)}</span>
 	                          {matchRepresentationByMatchId[match.id] ? (
 	                            <span className="break-words">Representação: {matchRepresentationByMatchId[match.id]}</span>

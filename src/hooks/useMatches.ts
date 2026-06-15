@@ -25,6 +25,8 @@ interface UseMatchesOptions {
   naipe?: MatchNaipe | null;
   division?: TeamDivision | null;
   groupFilterValue?: string | null;
+  location?: string | null;
+  courtName?: string | null;
   page?: number;
   itemsPerPage?: number;
   includeRealtime?: boolean;
@@ -73,12 +75,16 @@ type MatchEstimatedStartTimeBracketEditionCandidate = MatchEstimatedStartTimeBra
 };
 
 type MatchEstimatedStartTimeBracketDayRow = {
+  id: string;
   bracket_edition_id: string;
   event_date: string;
   start_time: string;
   end_time: string;
-  break_start_time: string | null;
-  break_end_time: string | null;
+  championship_bracket_day_breaks?: Array<{
+    break_start_time: string;
+    break_end_time: string;
+    position: number;
+  }> | null;
 };
 
 const supabaseLoose = supabase as unknown as SupabaseLooseClient;
@@ -146,6 +152,8 @@ export function useMatches({
   naipe,
   division,
   groupFilterValue,
+  location,
+  courtName,
   page,
   itemsPerPage,
   includeRealtime = true,
@@ -253,6 +261,14 @@ export function useMatches({
 
         if (typeof groupNumber == "number") {
           filteredQuery = filteredQuery.eq("group_number", groupNumber);
+        }
+
+        if (location) {
+          filteredQuery = filteredQuery.eq("location", location);
+        }
+
+        if (courtName) {
+          filteredQuery = filteredQuery.eq("court_name", courtName);
         }
 
         return filteredQuery;
@@ -583,7 +599,7 @@ export function useMatches({
             : await supabaseLoose
                 .from("championship_bracket_days")
                 .select(
-                  "bracket_edition_id, event_date, start_time, end_time, break_start_time, break_end_time",
+                  "id, bracket_edition_id, event_date, start_time, end_time, championship_bracket_day_breaks(break_start_time, break_end_time, position)",
                 )
                 .in(
                   "bracket_edition_id",
@@ -609,14 +625,17 @@ export function useMatches({
               return carry;
             }
 
+            const dayBreaks = (championshipBracketDay.championship_bracket_day_breaks ?? [])
+              .slice()
+              .sort((a, b) => a.position - b.position);
+
             carry[championshipBracketDay.bracket_edition_id] = [
               ...(carry[championshipBracketDay.bracket_edition_id] ?? []),
               {
                 date: championshipBracketDay.event_date,
                 start_time: championshipBracketDay.start_time,
                 end_time: championshipBracketDay.end_time,
-                break_start_time: championshipBracketDay.break_start_time,
-                break_end_time: championshipBracketDay.break_end_time,
+                breaks: dayBreaks,
               },
             ];
             return carry;
@@ -666,9 +685,11 @@ export function useMatches({
     }
   }, [
     championshipId,
+    courtName,
     division,
     groupFilterValue,
     itemsPerPage,
+    location,
     naipe,
     page,
     seasonYear,

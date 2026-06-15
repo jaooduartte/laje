@@ -32,10 +32,17 @@ export interface ChampionshipBracketCompetitionInput {
   groups: ChampionshipBracketGroupInput[];
 }
 
+export interface ChampionshipBracketCourtSportPriorityInput {
+  sport_id: string;
+  preferred_naipe: MatchNaipe | null;
+  preferred_division: TeamDivision | null;
+}
+
 export interface ChampionshipBracketCourtInput {
   name: string;
   position: number;
   sport_ids: string[];
+  sport_priorities?: ChampionshipBracketCourtSportPriorityInput[];
 }
 
 export interface ChampionshipBracketLocationInput {
@@ -164,6 +171,7 @@ export interface ChampionshipBracketScheduleCourtDraft {
   name: string;
   position: number;
   sport_ids: string[];
+  sport_priorities?: ChampionshipBracketCourtSportPriorityInput[];
 }
 
 export interface ChampionshipBracketScheduleLocationDraft {
@@ -217,4 +225,125 @@ export interface MatchSetInput {
   set_number: number;
   home_points: number;
   away_points: number;
+}
+
+export interface BracketDayBreak {
+  id: string;
+  bracket_day_id: string;
+  break_start_time: string;
+  break_end_time: string;
+  position: number;
+  scope_type: BracketDayBreakScopeType;
+  bracket_court_id: string | null;
+}
+
+export type BracketDayBreakScopeType = "ALL_COURTS" | "COURT";
+
+export interface BracketDayCourtOption {
+  id: string;
+  court_group_id: string;
+  name: string;
+  location_name: string;
+  label: string;
+}
+
+export interface BracketDaySchedule {
+  id: string;
+  event_date: string;
+  start_time: string;
+  end_time: string;
+  breaks: BracketDayBreak[];
+  courts: BracketDayCourtOption[];
+}
+
+export interface BracketDayScheduleUpdate {
+  date: string;
+  start_time: string;
+  end_time: string;
+  breaks: Array<{
+    break_start_time: string;
+    break_end_time: string;
+    position: number;
+    scope_type: BracketDayBreakScopeType;
+    bracket_court_id: string | null;
+  }>;
+}
+
+export interface BracketCourtPriorityUpdate {
+  bracket_court_id: string;
+  sport_id: string;
+  preferred_naipe: MatchNaipe | null;
+  preferred_division: TeamDivision | null;
+}
+
+export interface BracketCourtSportEntry {
+  sport_id: string;
+  preferred_naipe: MatchNaipe | null;
+  preferred_division: TeamDivision | null;
+}
+
+export interface BracketCourtWithSports {
+  id: string;
+  name: string;
+  position: number;
+  court_group_id?: string;
+  sports: BracketCourtSportEntry[];
+}
+
+export interface BracketLocationWithCourts {
+  id: string;
+  name: string;
+  position: number;
+  location_group_id?: string;
+  courts: BracketCourtWithSports[];
+}
+
+export interface BracketDayCourtSports {
+  bracket_day_id: string;
+  event_date: string;
+  locations: BracketLocationWithCourts[];
+}
+
+export type BracketLocationSportPriorityMode = "NONE" | "NAIPE" | "DIVISION";
+
+export interface BracketLocationSportPriorityCourtGroup {
+  court_group_id: string;
+  court_name: string;
+  position: number;
+}
+
+export interface BracketLocationSportPriorityGroup {
+  location_group_id: string;
+  location_name: string;
+  sport_id: string;
+  priority_mode: BracketLocationSportPriorityMode;
+  courts: BracketLocationSportPriorityCourtGroup[];
+}
+
+export interface BracketLocationSportPriorityUpdate {
+  location_group_id: string;
+  sport_id: string;
+  priority_mode: BracketLocationSportPriorityMode;
+}
+
+export interface BracketGeneratedCourtGroup {
+  court_group_id: string;
+  court_name: string;
+  position: number;
+}
+
+export interface BracketGeneratedLocationGroup {
+  location_group_id: string;
+  location_name: string;
+  position: number;
+  courts: BracketGeneratedCourtGroup[];
+}
+
+export interface BracketGeneratedLocationGroupUpdate {
+  location_group_id: string;
+  location_name: string;
+  courts: Array<{
+    court_group_id: string;
+    court_name: string;
+  }>;
 }

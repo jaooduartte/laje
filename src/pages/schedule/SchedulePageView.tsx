@@ -11,9 +11,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Championship, Match, Sport, Team } from "@/lib/types";
 import type { BracketGroupFilterOption, MatchBracketContext } from "@/lib/championship";
-import { TeamDivision, MatchStatus } from "@/lib/enums";
+import { MatchNaipe, MatchStatus, TeamDivision } from "@/lib/enums";
 import { scrollToTopOfPage } from "@/lib/scroll";
-import { TEAM_DIVISION_LABELS } from "@/lib/championship";
+import { MATCH_NAIPE_LABELS, TEAM_DIVISION_LABELS } from "@/lib/championship";
 import { Tabs, TabsNavigationList, TabsNavigationTrigger } from "@/components/ui/tabs";
 import { resolveMatchDisplaySlotValue, resolveMatchScheduledDateValue } from "@/lib/championship";
 
@@ -26,8 +26,13 @@ interface SchedulePageViewProps {
   teams: Team[];
   sports: Sport[];
   sportFilter: string | null;
+  naipeFilter: MatchNaipe | null;
   teamFilter: string | null;
   groupFilter: string | null;
+  locationFilter: string | null;
+  courtFilter: string | null;
+  locationOptions: string[];
+  courtOptions: string[];
   groupOptions: BracketGroupFilterOption[];
   divisionFilter: TeamDivision;
   statusFilter: string;
@@ -44,8 +49,11 @@ interface SchedulePageViewProps {
   estimatedStartTimeByMatchId: Record<string, string>;
   onChampionshipCodeChange: (value: string) => void;
   onSportFilterChange: (value: string | null) => void;
+  onNaipeFilterChange: (value: MatchNaipe | null) => void;
   onTeamFilterChange: (value: string | null) => void;
   onGroupFilterChange: (value: string | null) => void;
+  onLocationFilterChange: (value: string | null) => void;
+  onCourtFilterChange: (value: string | null) => void;
   onDivisionChange: (value: string) => void;
   onStatusFilterChange: (value: MatchStatus) => void;
   onYearFilterChange: (value: string) => void;
@@ -62,8 +70,13 @@ export function SchedulePageView({
   teams,
   sports,
   sportFilter,
+  naipeFilter,
   teamFilter,
   groupFilter,
+  locationFilter,
+  courtFilter,
+  locationOptions,
+  courtOptions,
   groupOptions,
   divisionFilter,
   statusFilter,
@@ -80,8 +93,11 @@ export function SchedulePageView({
   estimatedStartTimeByMatchId,
   onChampionshipCodeChange,
   onSportFilterChange,
+  onNaipeFilterChange,
   onTeamFilterChange,
   onGroupFilterChange,
+  onLocationFilterChange,
+  onCourtFilterChange,
   onDivisionChange,
   onStatusFilterChange,
   onYearFilterChange,
@@ -195,7 +211,7 @@ export function SchedulePageView({
           </TabsNavigationList>
         </Tabs>
 
-        <div className="glass-panel enter-section grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="glass-panel enter-section grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
           <Select value={selectedChampionshipCode} onValueChange={onChampionshipCodeChange}>
             <SelectTrigger className="app-input-field w-full">
               <SelectValue placeholder="Campeonato" />
@@ -222,6 +238,18 @@ export function SchedulePageView({
             </SelectContent>
           </Select>
 
+          <Select value={naipeFilter ?? "all"} onValueChange={(value) => onNaipeFilterChange(value == "all" ? null : (value as MatchNaipe))}>
+            <SelectTrigger className="app-input-field w-full">
+              <SelectValue placeholder="Filtrar por naipe" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os naipes</SelectItem>
+              <SelectItem value={MatchNaipe.MASCULINO}>{MATCH_NAIPE_LABELS[MatchNaipe.MASCULINO]}</SelectItem>
+              <SelectItem value={MatchNaipe.FEMININO}>{MATCH_NAIPE_LABELS[MatchNaipe.FEMININO]}</SelectItem>
+              <SelectItem value={MatchNaipe.MISTO}>{MATCH_NAIPE_LABELS[MatchNaipe.MISTO]}</SelectItem>
+            </SelectContent>
+          </Select>
+
           <Select value={groupFilter ?? "all"} onValueChange={(value) => onGroupFilterChange(value == "all" ? null : value)}>
             <SelectTrigger className="app-input-field w-full">
               <SelectValue placeholder="Filtrar por grupo" />
@@ -231,6 +259,34 @@ export function SchedulePageView({
               {groupOptions.map((groupOption) => (
                 <SelectItem key={groupOption.value} value={groupOption.value}>
                   {groupOption.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={locationFilter ?? "all"} onValueChange={(value) => onLocationFilterChange(value == "all" ? null : value)}>
+            <SelectTrigger className="app-input-field w-full">
+              <SelectValue placeholder="Filtrar por local" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os locais</SelectItem>
+              {locationOptions.map((locationOption) => (
+                <SelectItem key={locationOption} value={locationOption}>
+                  {locationOption}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={courtFilter ?? "all"} onValueChange={(value) => onCourtFilterChange(value == "all" ? null : value)}>
+            <SelectTrigger className="app-input-field w-full">
+              <SelectValue placeholder="Filtrar por quadra" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as quadras</SelectItem>
+              {courtOptions.map((courtOption) => (
+                <SelectItem key={courtOption} value={courtOption}>
+                  {courtOption}
                 </SelectItem>
               ))}
             </SelectContent>

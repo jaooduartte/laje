@@ -1,7 +1,8 @@
 import type { Database } from "@/integrations/supabase/types";
 import { isAdminUserPasswordStatus } from "@/lib/adminUsers";
-import { AdminPanelRole, AdminUserPasswordStatus } from "@/lib/enums";
+import { AdminPanelRole, AdminUserPasswordStatus, ThemeMode } from "@/lib/enums";
 import type { AdminUser, CurrentAdminAccount } from "@/lib/types";
+import { isThemeMode } from "@/lib/theme";
 import type {
   AdminCreateUserFormValues,
   AdminLoginState,
@@ -9,6 +10,7 @@ import type {
   AdminUserLoginIdentifierFormValues,
   AdminUserPasswordFormValues,
   AdminUserPasswordSetupFormValues,
+  AdminUserThemeModePreferenceFormValues,
 } from "@/domain/admin-users/adminUser.types";
 
 type ListAdminUsersRow = Database["public"]["Functions"]["list_admin_users"]["Returns"][number];
@@ -101,6 +103,9 @@ export class CurrentAdminAccountDTO {
       password_status: normalized_password_status,
       profile_id: this.current_admin_account_row.profile_id ?? null,
       profile_name: this.current_admin_account_row.profile_name ?? null,
+      theme_mode_preference: isThemeMode(this.current_admin_account_row.theme_mode_preference)
+        ? this.current_admin_account_row.theme_mode_preference
+        : ThemeMode.AUTO,
     };
   }
 }
@@ -262,6 +267,28 @@ export class AdminUserPasswordSaveDTO {
     return {
       _target_user_id: this.form_values.target_user_id,
       _new_password: normalized_password,
+    };
+  }
+}
+
+export class AdminUserThemeModePreferenceSaveDTO {
+  private readonly form_values: AdminUserThemeModePreferenceFormValues;
+
+  constructor(form_values: AdminUserThemeModePreferenceFormValues) {
+    this.form_values = form_values;
+  }
+
+  static fromFormValues(form_values: AdminUserThemeModePreferenceFormValues): AdminUserThemeModePreferenceSaveDTO {
+    return new AdminUserThemeModePreferenceSaveDTO(form_values);
+  }
+
+  bindToSave(): Database["public"]["Functions"]["admin_update_current_user_theme_mode_preference"]["Args"] {
+    if (!isThemeMode(this.form_values.theme_mode_preference)) {
+      throw new Error("Tema inválido.");
+    }
+
+    return {
+      _theme_mode_preference: this.form_values.theme_mode_preference,
     };
   }
 }

@@ -15,6 +15,7 @@ import {
   MatchNaipe,
   TeamDivision,
   TeamDivisionSelection,
+  ThemeTimeZone,
 } from "@/lib/enums";
 import type { ChampionshipBracketView, Match } from "@/lib/types";
 
@@ -155,6 +156,7 @@ export const EMPTY_CHAMPIONSHIP_BRACKET_VIEW: ChampionshipBracketView = {
 const MATCH_REPRESENTATION_COORDINATION_LABEL = "CO";
 const MATCH_REPRESENTATION_TO_BE_DEFINED_LABEL = "A definir";
 const NORMALIZED_BEACH_SOCCER_NAME = "beach soccer";
+const MATCH_DISPLAY_TIME_ZONE = ThemeTimeZone.SAO_PAULO;
 
 export interface MatchEstimatedStartTimeChampionshipSport {
   championship_id: string;
@@ -170,13 +172,32 @@ export interface MatchEstimatedStartTimeBracketEdition {
   schedule_days?: MatchEstimatedStartTimeScheduleDay[];
 }
 
+export interface MatchEstimatedStartTimeBreak {
+  break_start_time: string;
+  break_end_time: string;
+  position: number;
+}
+
 export interface MatchEstimatedStartTimeScheduleDay {
   date: string;
   start_time: string;
   end_time: string;
-  break_start_time: string | null;
-  break_end_time: string | null;
+  breaks?: MatchEstimatedStartTimeBreak[];
 }
+
+const MATCH_TIME_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: MATCH_DISPLAY_TIME_ZONE,
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+const MATCH_DATE_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: MATCH_DISPLAY_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
 
 function resolveAlphabeticalGroupSuffix(groupNumber: number): string {
   const safeGroupNumber = Number.isFinite(groupNumber) ? Math.max(1, Math.trunc(groupNumber)) : 1;
@@ -414,55 +435,42 @@ function resolveMinutesToTimeLabel(totalMinutes: number): string {
 
 function resolveEstimatedSlotStartMinutes(params: {
   dayStartMinutes: number;
+  dayEndMinutes: number;
   slotPosition: number;
   matchDurationMinutes: number;
-  breakStartMinutes: number | null;
-  breakEndMinutes: number | null;
+  breaks: Array<{ startMinutes: number; endMinutes: number }>;
 }): number | null {
-  const {
-    dayStartMinutes,
-    slotPosition,
-    matchDurationMinutes,
-    breakStartMinutes,
-    breakEndMinutes,
-  } = params;
+  const { dayStartMinutes, dayEndMinutes, slotPosition, matchDurationMinutes, breaks } = params;
 
   if (slotPosition < 1 || matchDurationMinutes <= 0) {
     return null;
   }
 
-  let currentSlotStartMinutes = dayStartMinutes;
-
-  if (
-    breakStartMinutes != null &&
-    breakEndMinutes != null &&
-    currentSlotStartMinutes >= breakStartMinutes &&
-    currentSlotStartMinutes < breakEndMinutes
-  ) {
-    currentSlotStartMinutes = breakEndMinutes;
+  // Avança o início até um ponto onde [start, start+duration] não cruza nem começa dentro de nenhum intervalo.
+  // Iterativo para cobrir casos de intervalos consecutivos ou adjacentes.
+  function findValidSlotStart(start: number): number {
+    let current = start;
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const brk of breaks) {
+        if (current < brk.endMinutes && current + matchDurationMinutes > brk.startMinutes) {
+          current = brk.endMinutes;
+          changed = true;
+        }
+      }
+    }
+    return current;
   }
 
-  for (let currentSlotPosition = 1; currentSlotPosition < slotPosition; currentSlotPosition += 1) {
-    const nextSlotStartMinutes = currentSlotStartMinutes + matchDurationMinutes;
+  let currentSlotStartMinutes = findValidSlotStart(dayStartMinutes);
 
-    if (breakStartMinutes == null || breakEndMinutes == null) {
-      currentSlotStartMinutes = nextSlotStartMinutes;
-      continue;
-    }
+  for (let pos = 1; pos < slotPosition; pos += 1) {
+    currentSlotStartMinutes = findValidSlotStart(currentSlotStartMinutes + matchDurationMinutes);
+  }
 
-    const doesNextSlotStartInsideBreak =
-      nextSlotStartMinutes >= breakStartMinutes &&
-      nextSlotStartMinutes < breakEndMinutes;
-    const doesAdvanceCrossBreakWindow =
-      currentSlotStartMinutes < breakEndMinutes &&
-      nextSlotStartMinutes > breakStartMinutes;
-
-    if (doesNextSlotStartInsideBreak || doesAdvanceCrossBreakWindow) {
-      currentSlotStartMinutes = Math.max(nextSlotStartMinutes, breakEndMinutes);
-      continue;
-    }
-
-    currentSlotStartMinutes = nextSlotStartMinutes;
+  if (currentSlotStartMinutes + matchDurationMinutes > dayEndMinutes) {
+    return null;
   }
 
   return currentSlotStartMinutes;
@@ -483,8 +491,6 @@ function resolveNormalizedMatchEstimatedStartTimeScheduleDays(
       date: typeof scheduleDay.date == "string" ? scheduleDay.date : "",
       start_time: typeof scheduleDay.start_time == "string" ? scheduleDay.start_time : "",
       end_time: typeof scheduleDay.end_time == "string" ? scheduleDay.end_time : "",
-      break_start_time: typeof scheduleDay.break_start_time == "string" ? scheduleDay.break_start_time : null,
-      break_end_time: typeof scheduleDay.break_end_time == "string" ? scheduleDay.break_end_time : null,
     }))
     .filter((scheduleDay) => scheduleDay.date && scheduleDay.start_time && scheduleDay.end_time);
 }
@@ -493,17 +499,92 @@ function resolveMatchEstimatedStartTimeScheduleDays(
   payloadSnapshot: Record<string, unknown> | null | undefined,
   fallbackScheduleDays: MatchEstimatedStartTimeScheduleDay[] | null | undefined,
 ): MatchEstimatedStartTimeScheduleDay[] {
-  if (payloadSnapshot && typeof payloadSnapshot == "object") {
-    const scheduleDaysFromPayloadSnapshot = resolveNormalizedMatchEstimatedStartTimeScheduleDays(
-      (payloadSnapshot as { schedule_days?: unknown }).schedule_days,
-    );
-
-    if (scheduleDaysFromPayloadSnapshot.length > 0) {
-      return scheduleDaysFromPayloadSnapshot;
-    }
+  // Prefere dados ao vivo do banco (inclui array de breaks atualizado)
+  const liveDays = (fallbackScheduleDays ?? []).filter(
+    (d) => !!d.date && !!d.start_time && !!d.end_time,
+  );
+  if (liveDays.length > 0) {
+    return liveDays;
   }
 
-  return resolveNormalizedMatchEstimatedStartTimeScheduleDays(fallbackScheduleDays);
+  // Fallback para payload_snapshot para campeonatos sem championship_bracket_days
+  if (payloadSnapshot && typeof payloadSnapshot == "object") {
+    return resolveNormalizedMatchEstimatedStartTimeScheduleDays(
+      (payloadSnapshot as { schedule_days?: unknown }).schedule_days,
+    );
+  }
+
+  return [];
+}
+
+function resolveTimeFormatterParts(dateTime: string): Map<string, string> | null {
+  const resolvedDate = new Date(dateTime);
+
+  if (Number.isNaN(resolvedDate.getTime())) {
+    return null;
+  }
+
+  try {
+    return new Map(
+      MATCH_TIME_FORMATTER
+        .formatToParts(resolvedDate)
+        .filter((part) => part.type == "hour" || part.type == "minute")
+        .map((part) => [part.type, part.value]),
+    );
+  } catch {
+    return null;
+  }
+}
+
+function resolveSaoPauloTimeLabel(dateTime: string): string | null {
+  const timeParts = resolveTimeFormatterParts(dateTime);
+  const hour = timeParts?.get("hour");
+  const minute = timeParts?.get("minute");
+
+  if (!hour || !minute) {
+    return null;
+  }
+
+  return `${hour}:${minute}`;
+}
+
+function resolveSaoPauloDateLabel(dateTime: string): string | null {
+  const resolvedDate = new Date(dateTime);
+
+  if (Number.isNaN(resolvedDate.getTime())) {
+    return null;
+  }
+
+  try {
+    const dateParts = new Map(
+      MATCH_DATE_FORMATTER
+        .formatToParts(resolvedDate)
+        .filter((part) => part.type == "year" || part.type == "month" || part.type == "day")
+        .map((part) => [part.type, part.value]),
+    );
+    const year = dateParts.get("year");
+    const month = dateParts.get("month");
+    const day = dateParts.get("day");
+
+    if (!year || !month || !day) {
+      return null;
+    }
+
+    return `${year}-${month}-${day}`;
+  } catch {
+    return null;
+  }
+}
+
+export function resolveSaoPauloDateTimeLabel(dateTime: string): string | null {
+  const resolvedDateLabel = resolveSaoPauloDateLabel(dateTime);
+  const resolvedTimeLabel = resolveSaoPauloTimeLabel(dateTime);
+
+  if (!resolvedDateLabel || !resolvedTimeLabel) {
+    return null;
+  }
+
+  return `${resolvedDateLabel} ${resolvedTimeLabel}`;
 }
 
 export function resolveEstimatedStartTimeByMatchId(params: {
@@ -597,6 +678,15 @@ export function resolveEstimatedStartTimeByMatchId(params: {
       return carry;
     }
 
+    if (match.start_time) {
+      const directPlannedStartTime = resolveSaoPauloTimeLabel(match.start_time);
+
+      if (directPlannedStartTime && /^\d{2}:\d{2}$/.test(directPlannedStartTime)) {
+        carry[match.id] = directPlannedStartTime;
+        return carry;
+      }
+    }
+
     const matchDurationMinutes = Math.trunc(
       championshipSport.default_match_duration_minutes,
     );
@@ -646,11 +736,18 @@ export function resolveEstimatedStartTimeByMatchId(params: {
       return carry;
     }
 
-    const breakStartMinutes = resolveTimeValueToMinutes(scheduleDay.break_start_time);
-    const breakEndMinutes = resolveTimeValueToMinutes(scheduleDay.break_end_time);
-    const hasBreakWindow = breakStartMinutes != null && breakEndMinutes != null;
-    const normalizedBreakStartMinutes = hasBreakWindow ? breakStartMinutes : null;
-    const normalizedBreakEndMinutes = hasBreakWindow ? breakEndMinutes : null;
+    const resolvedBreaks: Array<{ startMinutes: number; endMinutes: number }> = (scheduleDay.breaks ?? [])
+      .map((brk) => ({
+        startMinutes: resolveTimeValueToMinutes(brk.break_start_time) ?? -1,
+        endMinutes: resolveTimeValueToMinutes(brk.break_end_time) ?? -1,
+      }))
+      .filter((brk) => brk.startMinutes >= 0 && brk.endMinutes > brk.startMinutes)
+      .sort((a, b) => a.startMinutes - b.startMinutes);
+
+    const breaksKey =
+      resolvedBreaks.length > 0
+        ? resolvedBreaks.map((b) => `${b.startMinutes}-${b.endMinutes}`).join("|")
+        : "";
 
     const slotKey = [
       match.championship_id,
@@ -661,17 +758,16 @@ export function resolveEstimatedStartTimeByMatchId(params: {
       String(matchDurationMinutes),
       scheduleDay.start_time,
       scheduleDay.end_time,
-      scheduleDay.break_start_time ?? "",
-      scheduleDay.break_end_time ?? "",
+      breaksKey,
     ].join(":");
 
     if (!estimatedStartTimeBySlotKey[slotKey]) {
       const estimatedSlotStartMinutes = resolveEstimatedSlotStartMinutes({
         dayStartMinutes,
+        dayEndMinutes,
         slotPosition,
         matchDurationMinutes,
-        breakStartMinutes: normalizedBreakStartMinutes,
-        breakEndMinutes: normalizedBreakEndMinutes,
+        breaks: resolvedBreaks,
       });
 
       if (estimatedSlotStartMinutes == null) {
@@ -721,7 +817,7 @@ export function resolveMatchScheduledDateValue(match: {
   }
 
   if (match.start_time) {
-    return match.start_time.slice(0, 10);
+    return resolveSaoPauloDateLabel(match.start_time);
   }
 
   return null;
@@ -872,12 +968,15 @@ export function resolveInterleavedScheduledMatchesByCompetition<
     });
 }
 
-export function resolveMatchStartedAtLabel(startTime: string | null): string | null {
-  if (!startTime) {
+export function resolveMatchStartedAtLabel(
+  startTime: string | null,
+  matchStatus?: MatchStatus | null,
+): string | null {
+  if (!startTime || matchStatus == MatchStatus.SCHEDULED) {
     return null;
   }
 
-  return `Jogo iniciado às ${format(new Date(startTime), "HH:mm", { locale: ptBR })}`;
+  return `Jogo iniciado às ${resolveSaoPauloTimeLabel(startTime) ?? format(new Date(startTime), "HH:mm", { locale: ptBR })}`;
 }
 
 export function resolveMatchTieBreakRuleLabel(

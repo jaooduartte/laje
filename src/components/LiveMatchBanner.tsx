@@ -44,7 +44,7 @@ export function LiveMatchBanner({
       </div>
       <div className="grid gap-4 md:grid-cols-2 md:items-stretch">
         {matches.map((match) => {
-          const startedAtLabel = resolveMatchStartedAtLabel(match.start_time);
+          const startedAtLabel = resolveMatchStartedAtLabel(match.start_time, match.status);
           const matchRepresentation = matchRepresentationByMatchId[match.id];
           const estimatedStartTime = estimatedStartTimeByMatchId[match.id];
           const isSetMatch = match.result_rule == ChampionshipSportResultRule.SETS;

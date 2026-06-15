@@ -11,7 +11,6 @@ export interface PlatformSportRule {
   pointsDraw: number;
   pointsLoss: number;
   resultRule: ChampionshipSportResultRule;
-  defaultMatchDurationMinutes: number;
   tieBreakerRule: ChampionshipSportTieBreakerRule;
   supportsCards: boolean;
   tieBreakerPriority: string[];

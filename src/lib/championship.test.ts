@@ -5,6 +5,7 @@ import {
   resolveInterleavedScheduledMatchesByCompetition,
   resolveOrderedScheduledMatches,
   resolveMatchRepresentationByMatchId,
+  resolveMatchStartedAtLabel,
   type MatchEstimatedStartTimeBracketEdition,
   type MatchEstimatedStartTimeChampionshipSport,
 } from "@/lib/championship";
@@ -74,8 +75,6 @@ function buildEstimatedStartTimeBracketEdition(
           date: "2026-03-20",
           start_time: "08:00",
           end_time: "20:00",
-          break_start_time: null,
-          break_end_time: null,
         },
       ],
     },
@@ -380,7 +379,45 @@ describe("resolveMatchRepresentationByMatchId", () => {
   });
 });
 
+describe("resolveMatchStartedAtLabel", () => {
+  it("ignores start_time for scheduled matches because cards must use the estimated time only", () => {
+    expect(
+      resolveMatchStartedAtLabel("2026-06-15T08:00:00-03:00", MatchStatus.SCHEDULED),
+    ).toBeNull();
+  });
+
+  it("keeps the started label for live matches", () => {
+    expect(
+      resolveMatchStartedAtLabel("2026-06-15T08:00:00-03:00", MatchStatus.LIVE),
+    ).toBe("Jogo iniciado às 08:00");
+  });
+});
+
 describe("resolveEstimatedStartTimeByMatchId", () => {
+  it("prefers the planned start_time already persisted on the scheduled match", () => {
+    const matchWithPlannedStartTime = buildMatch({
+      id: "match-with-planned-start-time",
+      sport_id: "sport-beach-soccer",
+      queue_position: 9,
+      start_time: "2026-03-20 11:30:00+00",
+      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+    });
+
+    const estimatedStartTimeByMatchId = resolveEstimatedStartTimeByMatchId({
+      matches: [matchWithPlannedStartTime],
+      championshipSports: [
+        buildEstimatedStartTimeChampionshipSport({
+          sport_id: "sport-beach-soccer",
+          default_match_duration_minutes: 30,
+          show_estimated_start_time_on_cards: true,
+        }),
+      ],
+      championshipBracketEditions: [buildEstimatedStartTimeBracketEdition({})],
+    });
+
+    expect(estimatedStartTimeByMatchId["match-with-planned-start-time"]).toBe("08:30");
+  });
+
   it("starts slot 1 at day start and advances each slot by match duration", () => {
     const firstMatch = buildMatch({
       id: "match-1",
@@ -450,23 +487,24 @@ describe("resolveEstimatedStartTimeByMatchId", () => {
       ],
       championshipBracketEditions: [
         buildEstimatedStartTimeBracketEdition({
-          payload_snapshot: {
-            schedule_days: [
-              {
-                date: "2026-03-20",
-                start_time: "08:00",
-                end_time: "20:00",
-                break_start_time: "08:45",
-                break_end_time: "09:45",
-              },
-            ],
-          },
+          schedule_days: [
+            {
+              date: "2026-03-20",
+              start_time: "08:00",
+              end_time: "20:00",
+              breaks: [
+                { break_start_time: "08:45", break_end_time: "09:45", position: 1 },
+              ],
+            },
+          ],
         }),
       ],
     });
 
-    expect(estimatedStartTimeByMatchId["match-2"]).toBe("08:30");
-    expect(estimatedStartTimeByMatchId["match-3"]).toBe("09:45");
+    // match-2 inicia às 08:30 mas terminaria às 09:00 (dentro do intervalo 08:45-09:45), então é empurrado para 09:45
+    // match-3 segue a partir de 09:45 + 30min = 10:15
+    expect(estimatedStartTimeByMatchId["match-2"]).toBe("09:45");
+    expect(estimatedStartTimeByMatchId["match-3"]).toBe("10:15");
   });
 
   it("does not generate estimated time for non-beach-soccer, disabled toggle, or non-scheduled status", () => {
@@ -495,7 +533,7 @@ describe("resolveEstimatedStartTimeByMatchId", () => {
       championshipSports: [
         buildEstimatedStartTimeChampionshipSport({
           sport_id: "sport-volei",
-          show_estimated_start_time_on_cards: true,
+          show_estimated_start_time_on_cards: false,
         }),
         buildEstimatedStartTimeChampionshipSport({
           sport_id: "sport-beach-disabled",
@@ -572,8 +610,6 @@ describe("resolveEstimatedStartTimeByMatchId", () => {
               date: "2026-03-20",
               start_time: "09:00",
               end_time: "20:00",
-              break_start_time: null,
-              break_end_time: null,
             },
           ],
         }),
@@ -623,15 +659,11 @@ describe("resolveEstimatedStartTimeByMatchId", () => {
                 date: "2026-03-20",
                 start_time: "08:00",
                 end_time: "20:00",
-                break_start_time: null,
-                break_end_time: null,
               },
               {
                 date: "2026-03-21",
                 start_time: "08:00",
                 end_time: "20:00",
-                break_start_time: null,
-                break_end_time: null,
               },
             ],
           },

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ThemeMode } from "@/lib/enums";
-import { resolveSaoPauloHourAndMinute, resolveThemeModeByTime } from "@/lib/theme";
+import { resolveEffectiveThemeMode, resolveSaoPauloHourAndMinute, resolveThemeModeByTime } from "@/lib/theme";
 
 describe("theme", () => {
   it("should resolve Sao Paulo hour and minute", () => {
@@ -24,5 +24,13 @@ describe("theme", () => {
 
   it("should resolve dark mode at 18:00", () => {
     expect(resolveThemeModeByTime(new Date("2026-03-01T21:00:00.000Z"))).toBe(ThemeMode.DARK);
+  });
+
+  it("should keep light mode when manually selected", () => {
+    expect(resolveEffectiveThemeMode(ThemeMode.LIGHT, new Date("2026-03-01T21:00:00.000Z"))).toBe(ThemeMode.LIGHT);
+  });
+
+  it("should resolve automatic mode using Sao Paulo time", () => {
+    expect(resolveEffectiveThemeMode(ThemeMode.AUTO, new Date("2026-03-01T21:00:00.000Z"))).toBe(ThemeMode.DARK);
   });
 });

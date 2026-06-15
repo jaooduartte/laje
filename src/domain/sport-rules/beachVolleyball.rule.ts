@@ -12,7 +12,6 @@ export const BEACH_VOLLEYBALL_RULE: PlatformSportRule = {
   pointsDraw: 0,
   pointsLoss: 0,
   resultRule: ChampionshipSportResultRule.SETS,
-  defaultMatchDurationMinutes: 45,
   tieBreakerRule: ChampionshipSportTieBreakerRule.POINTS_AVERAGE,
   supportsCards: false,
   tieBreakerPriority: ["Confronto direto", "Pontos average", "Sorteio"],

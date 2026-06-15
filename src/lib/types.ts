@@ -15,6 +15,7 @@ import type {
   ChampionshipSportResultRule,
   ChampionshipSportTieBreakerRule,
   ChampionshipStatus,
+  ThemeMode,
   BracketEditionStatus,
   BracketPhase,
   BracketThirdPlaceMode,
@@ -45,6 +46,7 @@ export interface Team {
 export interface Sport {
   id: string;
   name: string;
+  default_match_duration_minutes?: number | null;
   created_at: string;
 }
 
@@ -213,6 +215,8 @@ export interface CurrentUserAdminContext {
   settings_permission: AdminPanelPermissionLevel;
   score_sheet_review_permission: AdminPanelPermissionLevel;
   tie_breaks_permission: AdminPanelPermissionLevel;
+  standings_permission?: AdminPanelPermissionLevel;
+  championship_schedule_permission?: AdminPanelPermissionLevel;
 }
 
 export interface PublicAccessSettings {
@@ -255,6 +259,7 @@ export interface CurrentAdminAccount {
   password_status: AdminUserPasswordStatus;
   profile_id: string | null;
   profile_name: string | null;
+  theme_mode_preference: ThemeMode;
 }
 
 export interface HomeDashboardRankedMetricItem {

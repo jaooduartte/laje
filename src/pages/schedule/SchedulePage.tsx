@@ -6,7 +6,7 @@ import { useChampionships } from "@/hooks/useChampionships";
 import { useChampionshipBracket } from "@/hooks/useChampionshipBracket";
 import { useSelectedChampionship } from "@/hooks/useSelectedChampionship";
 import { useChampionshipSelection } from "@/hooks/useChampionshipSelection";
-import { MatchStatus, TeamDivision } from "@/lib/enums";
+import { MatchNaipe, MatchStatus, TeamDivision } from "@/lib/enums";
 import {
   EMPTY_CHAMPIONSHIP_BRACKET_VIEW,
   isTeamDivision,
@@ -51,8 +51,11 @@ export function SchedulePage() {
   }, [championshipBracketView]);
 
   const [sportFilter, setSportFilter] = useState<string | null>(null);
+  const [naipeFilter, setNaipeFilter] = useState<MatchNaipe | null>(null);
   const [teamFilter, setTeamFilter] = useState<string | null>(null);
   const [groupFilter, setGroupFilter] = useState<string | null>(null);
+  const [locationFilter, setLocationFilter] = useState<string | null>(null);
+  const [courtFilter, setCourtFilter] = useState<string | null>(null);
   const [divisionFilter, setDivisionFilter] = useState<TeamDivision>(TeamDivision.DIVISAO_PRINCIPAL);
   const [statusFilter, setStatusFilter] = useState<MatchStatus>(MatchStatus.SCHEDULED);
   const [matchesCurrentPage, setMatchesCurrentPage] = useState(1);
@@ -60,8 +63,11 @@ export function SchedulePage() {
 
   useEffect(() => {
     setSportFilter(null);
+    setNaipeFilter(null);
     setTeamFilter(null);
     setGroupFilter(null);
+    setLocationFilter(null);
+    setCourtFilter(null);
     setDivisionFilter(TeamDivision.DIVISAO_PRINCIPAL);
     setStatusFilter(MatchStatus.SCHEDULED);
     setYearFilter(selectedChampionshipSeasonYear != null ? String(selectedChampionshipSeasonYear) : "ALL_YEARS");
@@ -71,7 +77,19 @@ export function SchedulePage() {
 
   useEffect(() => {
     setMatchesCurrentPage(1);
-  }, [divisionFilter, groupFilter, matchesItemsPerPage, selectedChampionshipCode, sportFilter, teamFilter, statusFilter, yearFilter]);
+  }, [
+    courtFilter,
+    divisionFilter,
+    groupFilter,
+    locationFilter,
+    matchesItemsPerPage,
+    naipeFilter,
+    selectedChampionshipCode,
+    sportFilter,
+    teamFilter,
+    statusFilter,
+    yearFilter,
+  ]);
 
   const matchBracketContextByMatchId = useMemo(() => {
     return resolveMatchBracketContextByMatchId(visibleChampionshipBracketView);
@@ -82,10 +100,11 @@ export function SchedulePage() {
 
     const filteredOptions = allOptions.filter((option) => {
       const sportMatch = !sportFilter || option.sport_id == sportFilter;
+      const naipeMatch = !naipeFilter || option.naipe == naipeFilter;
       const divisionMatch =
         !selectedChampionshipHasDivisions || option.division == divisionFilter;
 
-      return sportMatch && divisionMatch;
+      return sportMatch && naipeMatch && divisionMatch;
     });
 
     const uniqueGroups = new Map<string, string>();
@@ -97,7 +116,7 @@ export function SchedulePage() {
     return [...uniqueGroups.entries()]
       .map(([value, label]) => ({ value, label }))
       .sort((firstGroupOption, secondGroupOption) => firstGroupOption.label.localeCompare(secondGroupOption.label));
-  }, [divisionFilter, selectedChampionshipHasDivisions, sportFilter, visibleChampionshipBracketView]);
+  }, [divisionFilter, naipeFilter, selectedChampionshipHasDivisions, sportFilter, visibleChampionshipBracketView]);
 
   const {
     matches: visibleMatches,
@@ -111,13 +130,52 @@ export function SchedulePage() {
     seasonYear: correctedYearFilter,
     statuses: [statusFilter],
     sportId: sportFilter,
+    naipe: naipeFilter,
     teamId: teamFilter,
     division: selectedChampionshipHasDivisions ? divisionFilter : undefined,
     groupFilterValue: groupFilter,
+    location: locationFilter,
+    courtName: courtFilter,
     page: matchesCurrentPage,
     itemsPerPage: matchesItemsPerPage,
     sortMode: statusFilter === MatchStatus.SCHEDULED ? "SCHEDULED" : "FINISHED",
   });
+
+  const locationOptions = useMemo(() => {
+    return [...new Set(visibleMatches.map((match) => match.location).filter(Boolean))].sort((firstLocation, secondLocation) =>
+      firstLocation.localeCompare(secondLocation)
+    );
+  }, [visibleMatches]);
+
+  const courtOptions = useMemo(() => {
+    const uniqueCourtNames = new Set<string>();
+
+    visibleMatches.forEach((match) => {
+      if (!match.court_name) {
+        return;
+      }
+
+      if (locationFilter && match.location != locationFilter) {
+        return;
+      }
+
+      uniqueCourtNames.add(match.court_name);
+    });
+
+    return [...uniqueCourtNames].sort((firstCourtName, secondCourtName) => firstCourtName.localeCompare(secondCourtName));
+  }, [locationFilter, visibleMatches]);
+
+  useEffect(() => {
+    if (locationFilter && !locationOptions.includes(locationFilter)) {
+      setLocationFilter(null);
+    }
+  }, [locationFilter, locationOptions]);
+
+  useEffect(() => {
+    if (courtFilter && !courtOptions.includes(courtFilter)) {
+      setCourtFilter(null);
+    }
+  }, [courtFilter, courtOptions]);
 
   const { groupedMatches, orderedDates } = useMemo(() => {
     const groupedMatchesResult: Record<string, typeof visibleMatches> = {};
@@ -181,8 +239,13 @@ export function SchedulePage() {
       teams={teams}
       sports={sports}
       sportFilter={sportFilter}
+      naipeFilter={naipeFilter}
       teamFilter={teamFilter}
       groupFilter={groupFilter}
+      locationFilter={locationFilter}
+      courtFilter={courtFilter}
+      locationOptions={locationOptions}
+      courtOptions={courtOptions}
       groupOptions={groupOptions}
       divisionFilter={divisionFilter}
       statusFilter={statusFilter}
@@ -199,8 +262,11 @@ export function SchedulePage() {
       estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
       onChampionshipCodeChange={handleChampionshipCodeChange}
       onSportFilterChange={setSportFilter}
+      onNaipeFilterChange={setNaipeFilter}
       onTeamFilterChange={setTeamFilter}
       onGroupFilterChange={setGroupFilter}
+      onLocationFilterChange={setLocationFilter}
+      onCourtFilterChange={setCourtFilter}
       onDivisionChange={handleDivisionChange}
       onStatusFilterChange={setStatusFilter}
       onYearFilterChange={setYearFilter}

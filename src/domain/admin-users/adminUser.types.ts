@@ -1,4 +1,4 @@
-import type { AdminUserPasswordStatus } from "@/lib/enums";
+import type { AdminUserPasswordStatus, ThemeMode } from "@/lib/enums";
 
 export interface AdminCreateUserFormValues {
   name: string;
@@ -19,6 +19,10 @@ export interface AdminUserLoginIdentifierFormValues {
 export interface AdminUserPasswordFormValues {
   target_user_id: string;
   new_password: string;
+}
+
+export interface AdminUserThemeModePreferenceFormValues {
+  theme_mode_preference: ThemeMode;
 }
 
 export interface AdminUserPasswordSetupFormValues {

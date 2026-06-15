@@ -1,18 +1,25 @@
 import { useCallback, useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { ThemeMode } from "@/lib/enums";
-import { resolveThemeModeByTime } from "@/lib/theme";
+import { isThemeMode, resolveEffectiveThemeMode, type ResolvedThemeMode } from "@/lib/theme";
 
 const AUTO_THEME_REFRESH_INTERVAL_MS = 60_000;
 
-function resolveCurrentThemeMode(): ThemeMode {
-  return resolveThemeModeByTime(new Date());
+function resolveCurrentThemeMode(preferredThemeMode: ThemeMode): ResolvedThemeMode {
+  return resolveEffectiveThemeMode(preferredThemeMode, new Date());
 }
 
 export function useAutomaticTheme() {
-  const [themeMode, setThemeMode] = useState<ThemeMode>(resolveCurrentThemeMode);
+  const [preferredThemeMode, setPreferredThemeModeState] = useState<ThemeMode>(ThemeMode.AUTO);
+  const [themeMode, setThemeMode] = useState<ResolvedThemeMode>(() => resolveCurrentThemeMode(ThemeMode.AUTO));
 
-  const refreshThemeMode = useCallback(() => {
-    setThemeMode(resolveCurrentThemeMode());
+  const setPreferredThemeMode = useCallback((nextThemeMode: ThemeMode) => {
+    setPreferredThemeModeState(nextThemeMode);
+    setThemeMode(resolveCurrentThemeMode(nextThemeMode));
+  }, []);
+
+  const refreshThemeMode = useCallback((nextThemeMode: ThemeMode) => {
+    setThemeMode(resolveCurrentThemeMode(nextThemeMode));
   }, []);
 
   useEffect(() => {
@@ -24,15 +31,19 @@ export function useAutomaticTheme() {
   }, [themeMode]);
 
   useEffect(() => {
-    refreshThemeMode();
+    refreshThemeMode(preferredThemeMode);
+
+    if (preferredThemeMode != ThemeMode.AUTO) {
+      return;
+    }
 
     const intervalId = window.setInterval(() => {
-      refreshThemeMode();
+      refreshThemeMode(ThemeMode.AUTO);
     }, AUTO_THEME_REFRESH_INTERVAL_MS);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState == "visible") {
-        refreshThemeMode();
+        refreshThemeMode(ThemeMode.AUTO);
       }
     };
 
@@ -42,9 +53,55 @@ export function useAutomaticTheme() {
       window.clearInterval(intervalId);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [refreshThemeMode]);
+  }, [preferredThemeMode, refreshThemeMode]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const applyCurrentUserThemeModePreference = async (hasAuthenticatedUser: boolean) => {
+      if (!isMounted) {
+        return;
+      }
+
+      if (!hasAuthenticatedUser) {
+        setPreferredThemeMode(ThemeMode.AUTO);
+        return;
+      }
+
+      const { data, error } = await supabase.rpc("get_current_user_theme_mode_preference");
+
+      if (!isMounted || error || !isThemeMode(data)) {
+        return;
+      }
+
+      setPreferredThemeMode(data);
+    };
+
+    const initializeThemeModePreference = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      await applyCurrentUserThemeModePreference(Boolean(session?.user));
+    };
+
+    void initializeThemeModePreference();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      void applyCurrentUserThemeModePreference(Boolean(session?.user));
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, [setPreferredThemeMode]);
 
   return {
+    preferredThemeMode,
+    setPreferredThemeMode,
     themeMode,
     isDarkMode: themeMode == ThemeMode.DARK,
   };

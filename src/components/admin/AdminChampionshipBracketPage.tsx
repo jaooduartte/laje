@@ -26,6 +26,12 @@ import {
 import { resolveRandomUuid } from "@/lib/random";
 import { CHAMPIONSHIP_BRACKET_DEFAULT_QUALIFIERS_PER_GROUP } from "@/domain/championship-brackets/championshipBracket.constants";
 import {
+  QUALIFICATION_MODE_OPTIONS,
+  resolveCompetitionConfigByQualificationMode,
+  resolveQualificationModeOption,
+  type QualificationModeOption,
+} from "@/domain/championship-brackets/championshipBracketQualification";
+import {
   resolveGroupEditorColumns,
   resolveOrderedAssignedTeamIds,
   sanitizeGroupAssignments,
@@ -62,13 +68,17 @@ import {
 import type {
   ChampionshipBracketCompetitionConfigDraft,
   ChampionshipBracketCompetitionInput,
+  ChampionshipBracketCourtSportPriorityInput,
   ChampionshipBracketLocationTemplate,
   ChampionshipBracketLocationTemplateSaveInput,
   ChampionshipBracketRemoteDraftMetadata,
   ChampionshipBracketSetupFormValues,
   ChampionshipBracketLocationInput,
   ChampionshipBracketParticipantInput,
+  ChampionshipBracketScheduleCourtDraft,
+  ChampionshipBracketScheduleDayDraft,
   ChampionshipBracketScheduleDayInput,
+  ChampionshipBracketScheduleLocationDraft,
   ChampionshipBracketWizardDraftFormValues,
 } from "@/domain/championship-brackets/championshipBracket.types";
 import { Button } from "@/components/ui/button";
@@ -109,6 +119,7 @@ interface ScheduleCourtFormValue {
   name: string;
   position: number;
   sport_ids: string[];
+  sport_priorities: ChampionshipBracketCourtSportPriorityInput[];
 }
 
 interface ScheduleLocationFormValue {
@@ -162,34 +173,11 @@ const WIZARD_STEP_LABELS = [
   "Configuração de Grupos",
   "Sorteio dos Grupos",
   "Agenda",
+  "Prioridade de Quadras",
   "Revisão",
 ] as const;
 
 const SQUARE_CHECKBOX_CLASS_NAME = "h-4 w-4 rounded-[3px]";
-type QualificationModeOption = "FIRST_ONLY_SMART" | "FIRST_ONLY_EXPANDED" | "TOP_TWO";
-
-const QUALIFICATION_MODE_OPTIONS: Array<{
-  value: QualificationModeOption;
-  label: string;
-  helper: string;
-}> = [
-  {
-    value: "FIRST_ONLY_SMART",
-    label: "Só 1º por grupo (completa só se precisar)",
-    helper:
-      "Ex.: 4 grupos = 4 vagas (4 melhores 1º). Se forem 3 grupos, fecha 4 vagas com 3 melhores 1º + 1 melhor 2º.",
-  },
-  {
-    value: "FIRST_ONLY_EXPANDED",
-    label: "1º por grupo + melhores 2º",
-    helper: "Ex.: 4 grupos = 8 vagas (4 melhores 1º + 4 melhores 2º).",
-  },
-  {
-    value: "TOP_TWO",
-    label: "1º e 2º por grupo",
-    helper: "Ex.: 4 grupos = 8 vagas (1º e 2º de cada grupo).",
-  },
-];
 const WIZARD_NAIPE_TAB_DEFAULT_ORDER = [
   MatchNaipe.MASCULINO,
   MatchNaipe.FEMININO,
@@ -403,6 +391,7 @@ function resolveInitialScheduleCourt(): ScheduleCourtFormValue {
     name: "",
     position: 1,
     sport_ids: [],
+    sport_priorities: [],
   };
 }
 
@@ -438,24 +427,28 @@ function resolveReplicatedScheduleDay(
         name: court.name,
         position: courtIndex + 1,
         sport_ids: [...court.sport_ids],
+        sport_priorities: court.sport_priorities.map((sportPriority) => ({ ...sportPriority })),
       })),
     })),
   };
 }
 
 function resolveScheduleCourtClone(
-  schedule_court: ScheduleCourtFormValue,
+  schedule_court: ChampionshipBracketScheduleCourtDraft,
 ): ScheduleCourtFormValue {
   return {
     id: schedule_court.id,
     name: schedule_court.name,
     position: schedule_court.position,
     sport_ids: [...schedule_court.sport_ids],
+    sport_priorities: (schedule_court.sport_priorities ?? []).map((sportPriority) => ({
+      ...sportPriority,
+    })),
   };
 }
 
 function resolveScheduleLocationClone(
-  schedule_location: ScheduleLocationFormValue,
+  schedule_location: ChampionshipBracketScheduleLocationDraft,
 ): ScheduleLocationFormValue {
   return {
     id: schedule_location.id,
@@ -469,7 +462,7 @@ function resolveScheduleLocationClone(
 }
 
 function resolveScheduleDayClone(
-  schedule_day: ScheduleDayFormValue,
+  schedule_day: ChampionshipBracketScheduleDayDraft,
 ): ScheduleDayFormValue {
   return {
     id: schedule_day.id,
@@ -520,6 +513,7 @@ function resolveLocationTemplateModalFormValueFromTemplate(
       name: court.name,
       position: court.position,
       sport_ids: [...court.sport_ids],
+      sport_priorities: [],
     })),
   };
 }
@@ -535,6 +529,7 @@ function resolveLocationTemplateModalFormValueFromScheduleLocation(
       name: court.name,
       position: court.position,
       sport_ids: [...court.sport_ids],
+      sport_priorities: [],
     })),
   };
 }
@@ -554,6 +549,7 @@ function resolveScheduleLocationFromTemplate(
       name: court.name,
       position: courtIndex + 1,
       sport_ids: [...court.sport_ids],
+      sport_priorities: [],
     })),
   };
 }
@@ -609,35 +605,6 @@ function resolveDefaultCompetitionConfig(
     groups_count: safe_group_count,
     qualifiers_per_group: CHAMPIONSHIP_BRACKET_DEFAULT_QUALIFIERS_PER_GROUP,
     should_complete_knockout_with_best_second_placed_teams: true,
-  };
-}
-
-function resolveQualificationModeOption(config: CompetitionConfig): QualificationModeOption {
-  if (config.qualifiers_per_group == 2) {
-    return "TOP_TWO";
-  }
-
-  return config.should_complete_knockout_with_best_second_placed_teams
-    ? "FIRST_ONLY_EXPANDED"
-    : "FIRST_ONLY_SMART";
-}
-
-function resolveCompetitionConfigByQualificationMode(
-  currentConfig: CompetitionConfig,
-  mode: QualificationModeOption,
-): CompetitionConfig {
-  if (mode == "TOP_TWO") {
-    return {
-      ...currentConfig,
-      qualifiers_per_group: 2,
-      should_complete_knockout_with_best_second_placed_teams: false,
-    };
-  }
-
-  return {
-    ...currentConfig,
-    qualifiers_per_group: 1,
-    should_complete_knockout_with_best_second_placed_teams: mode == "FIRST_ONLY_EXPANDED",
   };
 }
 
@@ -3179,6 +3146,11 @@ export function AdminChampionshipBracketPage({
               name: court.name,
               position: courtIndex + 1,
               sport_ids: court.sport_ids,
+              sport_priorities: court.sport_priorities.filter(
+                (sportPriority) =>
+                  court.sport_ids.includes(sportPriority.sport_id) &&
+                  (sportPriority.preferred_naipe != null || sportPriority.preferred_division != null),
+              ),
             })),
           }),
         ),
@@ -3766,6 +3738,107 @@ export function AdminChampionshipBracketPage({
           competitionOption != null,
       );
   }, [competitionOptionsByKey, sortedActiveCompetitionKeys]);
+
+  const courtPriorityStepGroups = useMemo(() => {
+    const naipesBySportId = activeCompetitionOptions.reduce<Record<string, MatchNaipe[]>>(
+      (carry, competitionOption) => {
+        const currentNaipes = carry[competitionOption.sport_id] ?? [];
+
+        if (!currentNaipes.includes(competitionOption.naipe)) {
+          carry[competitionOption.sport_id] = [...currentNaipes, competitionOption.naipe];
+        }
+
+        return carry;
+      },
+      {},
+    );
+    const sportNameBySportId = activeCompetitionOptions.reduce<Record<string, string>>(
+      (carry, competitionOption) => {
+        carry[competitionOption.sport_id] = competitionOption.sport_name;
+        return carry;
+      },
+      {},
+    );
+
+    return scheduleDays.flatMap((scheduleDay, scheduleDayIndex) =>
+      scheduleDay.locations.flatMap((scheduleLocation) => {
+        const sportIdsWithMultipleCourts = Object.entries(
+          scheduleLocation.courts.reduce<Record<string, number>>((carry, court) => {
+            court.sport_ids.forEach((sportId) => {
+              carry[sportId] = (carry[sportId] ?? 0) + 1;
+            });
+            return carry;
+          }, {}),
+        )
+          .filter(([, courtCount]) => courtCount >= 2)
+          .map(([sportId]) => sportId);
+
+        return sportIdsWithMultipleCourts
+          .filter((sportId) => sportNameBySportId[sportId])
+          .map((sportId) => ({
+            key: `${scheduleDay.id}:${scheduleLocation.id}:${sportId}`,
+            schedule_day_id: scheduleDay.id,
+            day_label: `Dia ${scheduleDayIndex + 1}${scheduleDay.date ? ` • ${scheduleDay.date.split("-").reverse().join("/")}` : ""}`,
+            location_id: scheduleLocation.id,
+            location_name: scheduleLocation.name || "Local sem nome",
+            sport_id: sportId,
+            sport_name: sportNameBySportId[sportId],
+            naipe_options: naipesBySportId[sportId] ?? [],
+            courts: scheduleLocation.courts.filter((court) =>
+              court.sport_ids.includes(sportId),
+            ),
+          }));
+      }),
+    );
+  }, [activeCompetitionOptions, scheduleDays]);
+
+  const updateCourtSportPriority = useCallback(
+    (
+      scheduleDayId: string,
+      locationId: string,
+      courtId: string,
+      sportId: string,
+      patch: Partial<Omit<ChampionshipBracketCourtSportPriorityInput, "sport_id">>,
+    ) => {
+      updateScheduleDay(scheduleDayId, (scheduleDay) => ({
+        ...scheduleDay,
+        locations: scheduleDay.locations.map((scheduleLocation) => {
+          if (scheduleLocation.id != locationId) {
+            return scheduleLocation;
+          }
+
+          return {
+            ...scheduleLocation,
+            courts: scheduleLocation.courts.map((court) => {
+              if (court.id != courtId) {
+                return court;
+              }
+
+              const currentPriority = court.sport_priorities.find(
+                (sportPriority) => sportPriority.sport_id == sportId,
+              );
+              const nextPriority: ChampionshipBracketCourtSportPriorityInput = {
+                sport_id: sportId,
+                preferred_naipe: currentPriority?.preferred_naipe ?? null,
+                preferred_division: currentPriority?.preferred_division ?? null,
+                ...patch,
+              };
+              const nextPriorities = court.sport_priorities.filter(
+                (sportPriority) => sportPriority.sport_id != sportId,
+              );
+
+              if (nextPriority.preferred_naipe != null || nextPriority.preferred_division != null) {
+                nextPriorities.push(nextPriority);
+              }
+
+              return { ...court, sport_priorities: nextPriorities };
+            }),
+          };
+        }),
+      }));
+    },
+    [updateScheduleDay],
+  );
 
   const handleDeleteLocationTemplate = useCallback(async () => {
     if (!locationTemplateDeletionTarget || deletingLocationTemplate) {
@@ -5006,6 +5079,131 @@ export function AdminChampionshipBracketPage({
               ) : null}
 
               {currentStepIndex == 6 ? (
+                <div className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
+                  <div className="glass-card rounded-xl border border-border/50 p-6 shadow-sm">
+                    <div className="border-b border-border/50 pb-4 mb-6">
+                      <p className="text-lg font-bold">Prioridade de Quadras</p>
+                      <p className="text-sm text-muted-foreground">
+                        Quando duas ou mais quadras atendem a mesma modalidade, defina a preferência de
+                        naipe{selectedChampionship.uses_divisions ? " ou divisão" : ""} de cada quadra.
+                        A preferência é flexível: a quadra aceita outros jogos quando não há jogo do tipo
+                        preferido pendente. Esta etapa é opcional.
+                      </p>
+                    </div>
+
+                    {courtPriorityStepGroups.length == 0 ? (
+                      <div className="rounded-xl border border-dashed border-border/40 bg-background/20 p-8 text-center text-sm text-muted-foreground">
+                        Nenhum local possui duas ou mais quadras para a mesma modalidade. Nada a configurar aqui.
+                      </div>
+                    ) : (
+                      <div className="space-y-6">
+                        {courtPriorityStepGroups.map((priorityGroup) => (
+                          <div
+                            key={priorityGroup.key}
+                            className="rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm"
+                          >
+                            <p className="text-sm font-bold">
+                              {priorityGroup.day_label} • {priorityGroup.location_name} •{" "}
+                              {priorityGroup.sport_name}
+                            </p>
+
+                            <div className="mt-4 space-y-3">
+                              {priorityGroup.courts.map((court) => {
+                                const courtPriority = court.sport_priorities.find(
+                                  (sportPriority) => sportPriority.sport_id == priorityGroup.sport_id,
+                                );
+
+                                return (
+                                  <div
+                                    key={court.id}
+                                    className="flex flex-col gap-2 rounded-lg border border-border/30 bg-background/40 p-3 sm:flex-row sm:items-center sm:gap-4"
+                                  >
+                                    <p className="min-w-[120px] text-sm font-medium">
+                                      {court.name || "Quadra sem nome"}
+                                    </p>
+
+                                    <div className="flex flex-1 flex-col gap-2 sm:flex-row">
+                                      <div className="flex-1">
+                                        <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                          Naipe preferencial
+                                        </p>
+                                        <Select
+                                          value={courtPriority?.preferred_naipe ?? "NONE"}
+                                          onValueChange={(value) =>
+                                            updateCourtSportPriority(
+                                              priorityGroup.schedule_day_id,
+                                              priorityGroup.location_id,
+                                              court.id,
+                                              priorityGroup.sport_id,
+                                              {
+                                                preferred_naipe:
+                                                  value == "NONE" ? null : (value as MatchNaipe),
+                                              },
+                                            )
+                                          }
+                                        >
+                                          <SelectTrigger className="h-9">
+                                            <SelectValue placeholder="Sem preferência" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="NONE">Sem preferência</SelectItem>
+                                            {priorityGroup.naipe_options.map((naipeOption) => (
+                                              <SelectItem key={naipeOption} value={naipeOption}>
+                                                {MATCH_NAIPE_LABELS[naipeOption]}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+
+                                      {selectedChampionship.uses_divisions ? (
+                                        <div className="flex-1">
+                                          <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                            Divisão preferencial
+                                          </p>
+                                          <Select
+                                            value={courtPriority?.preferred_division ?? "NONE"}
+                                            onValueChange={(value) =>
+                                              updateCourtSportPriority(
+                                                priorityGroup.schedule_day_id,
+                                                priorityGroup.location_id,
+                                                court.id,
+                                                priorityGroup.sport_id,
+                                                {
+                                                  preferred_division:
+                                                    value == "NONE" ? null : (value as TeamDivision),
+                                                },
+                                              )
+                                            }
+                                          >
+                                            <SelectTrigger className="h-9">
+                                              <SelectValue placeholder="Sem preferência" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value="NONE">Sem preferência</SelectItem>
+                                              {Object.values(TeamDivision).map((divisionOption) => (
+                                                <SelectItem key={divisionOption} value={divisionOption}>
+                                                  {TEAM_DIVISION_LABELS[divisionOption]}
+                                                </SelectItem>
+                                              ))}
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+
+              {currentStepIndex == 7 ? (
                 <div className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
                   <div className="glass-card rounded-xl border border-border/50 p-6 shadow-sm">
                     <div className="border-b border-border/50 pb-4 mb-6">

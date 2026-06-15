@@ -3,8 +3,16 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AlertTriangle, Check, EyeOff, Loader2, Minus, Pencil, Play, Plus, RotateCcw, Square, Trash2, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { saveMatchSets, swapChampionshipKnockoutBracketTeams } from "@/domain/championship-brackets/championshipBracket.repository";
-import type { ChampionshipBracketScheduleDayInput, MatchSetInput } from "@/domain/championship-brackets/championshipBracket.types";
+import {
+  getBracketCourtSports,
+  saveMatchSets,
+  swapChampionshipKnockoutBracketTeams,
+} from "@/domain/championship-brackets/championshipBracket.repository";
+import type {
+  BracketDayCourtSports,
+  ChampionshipBracketScheduleDayInput,
+  MatchSetInput,
+} from "@/domain/championship-brackets/championshipBracket.types";
 import type { ChampionshipBracketView, ChampionshipSport, Match, Sport } from "@/lib/types";
 import { AppBadgeTone, BracketPhase, ChampionshipSportResultRule, ChampionshipStatus, MatchNaipe, MatchStatus } from "@/lib/enums";
 import { SportFilter } from "@/components/SportFilter";
@@ -24,6 +32,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { AppBadge } from "@/components/ui/app-badge";
+import { resolveCourtPriorityRank } from "@/components/admin/adminCourtPriority.utils";
 import {
   AppPaginationControls,
   DEFAULT_PAGINATION_ITEMS_PER_PAGE,
@@ -609,6 +618,98 @@ export function AdminMatchControl({
       return carry;
     }, {});
   }, [matches]);
+
+  // Preferências de quadra lidas da tabela (fonte da verdade pós-geração),
+  // não do payload_snapshot, que não reflete edições feitas na aba Agenda.
+  const [bracketCourtSportsDays, setBracketCourtSportsDays] = useState<BracketDayCourtSports[]>([]);
+  const bracketEditionId = championshipBracketView.edition?.id ?? null;
+
+  useEffect(() => {
+    if (!bracketEditionId) {
+      setBracketCourtSportsDays([]);
+      return;
+    }
+
+    let isActive = true;
+
+    getBracketCourtSports(bracketEditionId).then(({ data, error }) => {
+      if (isActive && !error) {
+        setBracketCourtSportsDays(data);
+      }
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, [bracketEditionId]);
+
+  const suggestedCourtByMatchId = useMemo(() => {
+    const courtSportsDayByDate = bracketCourtSportsDays.reduce<
+      Record<string, BracketDayCourtSports>
+    >((carry, day) => {
+      carry[day.event_date] = day;
+      return carry;
+    }, {});
+
+    return matches.reduce<Record<string, string>>((carry, match) => {
+      if (match.status != MatchStatus.SCHEDULED) {
+        return carry;
+      }
+
+      const scheduledDateValue = resolveMatchScheduledDateValue(match);
+      const courtSportsDay = scheduledDateValue ? courtSportsDayByDate[scheduledDateValue] : null;
+
+      if (!courtSportsDay) {
+        return carry;
+      }
+
+      const compatibleCourts = courtSportsDay.locations.flatMap((location) =>
+        location.courts
+          .map((court) => ({
+            court,
+            location,
+            courtSport: court.sports.find((sportEntry) => sportEntry.sport_id == match.sport_id),
+          }))
+          .filter((candidate) => candidate.courtSport != null),
+      );
+
+      const hasAnyPreference = compatibleCourts.some(
+        (candidate) =>
+          candidate.courtSport?.preferred_naipe != null ||
+          candidate.courtSport?.preferred_division != null,
+      );
+
+      if (compatibleCourts.length < 2 || !hasAnyPreference) {
+        return carry;
+      }
+
+      const rankedCourts = [...compatibleCourts].sort((left, right) => {
+        const rankDifference =
+          resolveCourtPriorityRank({
+            matchNaipe: match.naipe,
+            matchDivision: match.division,
+            preferredNaipe: left.courtSport?.preferred_naipe ?? null,
+            preferredDivision: left.courtSport?.preferred_division ?? null,
+          }) -
+          resolveCourtPriorityRank({
+            matchNaipe: match.naipe,
+            matchDivision: match.division,
+            preferredNaipe: right.courtSport?.preferred_naipe ?? null,
+            preferredDivision: right.courtSport?.preferred_division ?? null,
+          });
+
+        if (rankDifference != 0) {
+          return rankDifference;
+        }
+
+        return left.court.position - right.court.position;
+      });
+
+      const suggestedCourt = rankedCourts[0];
+      carry[match.id] = `${suggestedCourt.court.name} • ${suggestedCourt.location.name}`;
+      return carry;
+    }, {});
+  }, [bracketCourtSportsDays, matches]);
 
   // match_id → { id, competition_id, round_number } para lookup nos renders do KO
   const bracketMatchByMatchId = useMemo(() => {
@@ -1720,7 +1821,7 @@ export function AdminMatchControl({
               match_sets: closedMatchSets,
             });
             const editingSetDraft = editingSetDraftByMatchId[match.id];
-            const startedAtLabel = resolveMatchStartedAtLabel(match.start_time);
+            const startedAtLabel = resolveMatchStartedAtLabel(match.start_time, match.status);
             const tieBreakRuleLabel = resolveMatchTieBreakRuleLabel(match.resolved_tie_breaker_rule);
             const matchRepresentation = matchRepresentationByMatchId[match.id];
             const estimatedStartTime = estimatedStartTimeByMatchId[match.id];
@@ -1896,6 +1997,12 @@ export function AdminMatchControl({
 
                       {match.status == MatchStatus.SCHEDULED && estimatedStartTime ? (
                         <p className="text-xs text-muted-foreground">Horário estimado: {estimatedStartTime}</p>
+                      ) : null}
+
+                      {match.status == MatchStatus.SCHEDULED && suggestedCourtByMatchId[match.id] ? (
+                        <p className="text-xs text-muted-foreground">
+                          Sugestão de quadra: {suggestedCourtByMatchId[match.id]}
+                        </p>
                       ) : null}
 
                       {matchRepresentation ? (

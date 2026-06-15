@@ -1,9 +1,12 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { useAutomaticTheme } from "@/hooks/useAutomaticTheme";
 import type { ThemeMode } from "@/lib/enums";
+import type { ResolvedThemeMode } from "@/lib/theme";
 
 interface AutomaticThemeContextValue {
-  themeMode: ThemeMode;
+  preferredThemeMode: ThemeMode;
+  setPreferredThemeMode: (themeMode: ThemeMode) => void;
+  themeMode: ResolvedThemeMode;
   isDarkMode: boolean;
 }
 
@@ -14,14 +17,16 @@ interface AutomaticThemeProviderProps {
 }
 
 export function AutomaticThemeProvider({ children }: AutomaticThemeProviderProps) {
-  const { themeMode, isDarkMode } = useAutomaticTheme();
+  const { preferredThemeMode, setPreferredThemeMode, themeMode, isDarkMode } = useAutomaticTheme();
 
   const automaticThemeContextValue = useMemo(
     () => ({
+      preferredThemeMode,
+      setPreferredThemeMode,
       themeMode,
       isDarkMode,
     }),
-    [isDarkMode, themeMode],
+    [isDarkMode, preferredThemeMode, setPreferredThemeMode, themeMode],
   );
 
   return (

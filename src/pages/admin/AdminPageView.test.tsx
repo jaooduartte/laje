@@ -193,11 +193,14 @@ describe("AdminPageView tabs", () => {
         canViewLogsTab={false}
         canViewUsersTab={false}
         canViewAccountTab={false}
+        canViewStandingsTab={false}
         canViewSettingsTab={false}
         canViewScoreSheetReviewTab
         canViewTieBreaksTab
         canViewChampionshipStatus={false}
         canViewBracketSetupTab={false}
+        canViewScheduleTab={false}
+        canManageSchedule={false}
         canManageMatches
         canManageChampionshipStatus={false}
         canManageScoreboard
@@ -232,5 +235,158 @@ describe("AdminPageView tabs", () => {
     expect(jogosTabIndex).toBeGreaterThanOrEqual(0);
     expect(conferenciaTabIndex).toBeGreaterThan(jogosTabIndex);
     expect(sorteiosTabIndex).toBeGreaterThan(conferenciaTabIndex);
+  });
+
+  it("mantém Configurações como última aba mesmo quando Agenda está visível", () => {
+    const championship = buildChampionship();
+    const match = buildMatch();
+
+    render(
+      <AdminPageView
+        championships={[championship]}
+        selectedChampionship={championship}
+        selectedChampionshipCode={championship.code}
+        matches={[match]}
+        matchesTabMatches={[match]}
+        teams={[match.home_team!, match.away_team!]}
+        sports={[match.sports!]}
+        championshipSports={[buildChampionshipSport()]}
+        liveAndScheduledMatches={[match]}
+        championshipBracketView={buildBracketView()}
+        matchesTabChampionshipBracketView={buildBracketView()}
+        loadingChampionshipBracket={false}
+        loadingMatchesTabChampionshipBracket={false}
+        matchBracketContextByMatchId={{}}
+        matchesTabMatchBracketContextByMatchId={{}}
+        matchRepresentationByMatchId={{}}
+        matchesTabMatchRepresentationByMatchId={{}}
+        estimatedStartTimeByMatchId={{}}
+        matchesTabEstimatedStartTimeByMatchId={{}}
+        matchesFetching={false}
+        matchesTabFetching={false}
+        availableMatchSeasonYears={[2026]}
+        selectedMatchesSeasonYear={2026}
+        profileName="Admin"
+        canViewMatchesTab
+        canViewControlTab={false}
+        canViewTeamsTab={false}
+        canViewSportsTab={false}
+        canViewEventsTab={false}
+        canViewLogsTab={false}
+        canViewUsersTab={false}
+        canViewAccountTab={false}
+        canViewStandingsTab={false}
+        canViewSettingsTab
+        canViewScoreSheetReviewTab={false}
+        canViewTieBreaksTab={false}
+        canViewChampionshipStatus={false}
+        canViewBracketSetupTab={false}
+        canViewScheduleTab
+        canManageSchedule={false}
+        canManageMatches
+        canManageChampionshipStatus={false}
+        canManageScoreboard
+        canManageTeams={false}
+        canManageSports={false}
+        canManageLeagueEvents={false}
+        canManageUsers={false}
+        canManageAccount={false}
+        canManageSettings={false}
+        activeTab={AdminPanelTab.MATCHES}
+        onActiveTabChange={() => undefined}
+        onBracketGenerated={async () => undefined}
+        updatingChampionshipStatus={false}
+        onChampionshipCodeChange={() => undefined}
+        onChampionshipStatusChange={() => undefined}
+        onSelectedMatchesSeasonYearChange={() => undefined}
+        onSignOut={() => undefined}
+        onRefetchMatches={() => undefined}
+        onRefetchChampionshipBracket={() => undefined}
+        onRefetchTeams={() => undefined}
+        liveMatchesCount={0}
+        pendingLeagueEventReservationsCount={0}
+        pendingTieBreaksCount={0}
+      />,
+    );
+
+    const tabLabels = screen.getAllByRole("tab").map((tab) => tab.textContent?.trim());
+
+    expect(tabLabels.at(-2)).toBe("Agenda");
+    expect(tabLabels.at(-1)).toBe("Configurações");
+  });
+
+  it("não exibe Classificação quando apenas Jogos está liberado", () => {
+    const championship = buildChampionship();
+    const match = buildMatch();
+
+    render(
+      <AdminPageView
+        championships={[championship]}
+        selectedChampionship={championship}
+        selectedChampionshipCode={championship.code}
+        matches={[match]}
+        matchesTabMatches={[match]}
+        teams={[match.home_team!, match.away_team!]}
+        sports={[match.sports!]}
+        championshipSports={[buildChampionshipSport()]}
+        liveAndScheduledMatches={[match]}
+        championshipBracketView={buildBracketView()}
+        matchesTabChampionshipBracketView={buildBracketView()}
+        loadingChampionshipBracket={false}
+        loadingMatchesTabChampionshipBracket={false}
+        matchBracketContextByMatchId={{}}
+        matchesTabMatchBracketContextByMatchId={{}}
+        matchRepresentationByMatchId={{}}
+        matchesTabMatchRepresentationByMatchId={{}}
+        estimatedStartTimeByMatchId={{}}
+        matchesTabEstimatedStartTimeByMatchId={{}}
+        matchesFetching={false}
+        matchesTabFetching={false}
+        availableMatchSeasonYears={[2026]}
+        selectedMatchesSeasonYear={2026}
+        profileName="Admin"
+        canViewMatchesTab
+        canViewControlTab={false}
+        canViewTeamsTab={false}
+        canViewSportsTab={false}
+        canViewEventsTab={false}
+        canViewLogsTab={false}
+        canViewUsersTab={false}
+        canViewAccountTab={false}
+        canViewStandingsTab={false}
+        canViewSettingsTab={false}
+        canViewScoreSheetReviewTab={false}
+        canViewTieBreaksTab={false}
+        canViewChampionshipStatus={false}
+        canViewBracketSetupTab={false}
+        canViewScheduleTab={false}
+        canManageSchedule={false}
+        canManageMatches
+        canManageChampionshipStatus={false}
+        canManageScoreboard
+        canManageTeams={false}
+        canManageSports={false}
+        canManageLeagueEvents={false}
+        canManageUsers={false}
+        canManageAccount={false}
+        canManageSettings={false}
+        activeTab={AdminPanelTab.MATCHES}
+        onActiveTabChange={() => undefined}
+        onBracketGenerated={async () => undefined}
+        updatingChampionshipStatus={false}
+        onChampionshipCodeChange={() => undefined}
+        onChampionshipStatusChange={() => undefined}
+        onSelectedMatchesSeasonYearChange={() => undefined}
+        onSignOut={() => undefined}
+        onRefetchMatches={() => undefined}
+        onRefetchChampionshipBracket={() => undefined}
+        onRefetchTeams={() => undefined}
+        liveMatchesCount={0}
+        pendingLeagueEventReservationsCount={0}
+        pendingTieBreaksCount={0}
+      />,
+    );
+
+    expect(screen.queryByRole("tab", { name: "Classificação" })).not.toBeInTheDocument();
   });
 });

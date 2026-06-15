@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { updateBracketLocationSportPriorities } from "@/domain/championship-brackets/championshipBracket.repository";
 import type { Championship, ChampionshipSport, Sport } from "@/lib/types";
 import {
   ChampionshipCode,
@@ -18,7 +19,9 @@ interface Props {
   sports: Sport[];
   championshipSports: ChampionshipSport[];
   selectedChampionship: Championship;
+  bracketEditionId?: string | null;
   canManageSports?: boolean;
+  onRefetchMatches?: (options?: { showLoading?: boolean; showFetching?: boolean }) => void | Promise<void>;
 }
 
 function normalizeSportName(sportName: string): string {
@@ -29,17 +32,39 @@ function normalizeSportName(sportName: string): string {
     .trim();
 }
 
+function normalizePositiveIntegerDraftValue(value: string): number | null {
+  const trimmedValue = value.trim();
+
+  if (trimmedValue == "") {
+    return null;
+  }
+
+  const parsedValue = parseInt(trimmedValue, 10);
+
+  if (Number.isNaN(parsedValue) || parsedValue <= 0) {
+    return null;
+  }
+
+  return parsedValue;
+}
+
 export function AdminSports({
   sports,
   championshipSports,
   selectedChampionship,
+  bracketEditionId = null,
   canManageSports = true,
+  onRefetchMatches,
 }: Props) {
   const [savingSportIdById, setSavingSportIdById] = useState<Record<string, boolean>>({});
   const [optimisticEstimatedStartTimeBySportId, setOptimisticEstimatedStartTimeBySportId] = useState<
     Record<string, boolean | undefined>
   >({});
+  const [optimisticDurationBySportId, setOptimisticDurationBySportId] = useState<Record<string, number | undefined>>(
+    {},
+  );
   const [walkoverDraftBySportId, setWalkoverDraftBySportId] = useState<Record<string, string>>({});
+  const [durationDraftBySportId, setDurationDraftBySportId] = useState<Record<string, string>>({});
   const [optimisticAwardsIncludeKnockoutBySportId, setOptimisticAwardsIncludeKnockoutBySportId] = useState<
     Record<string, boolean | undefined>
   >({});
@@ -100,6 +125,42 @@ export function AdminSports({
 
     setWalkoverDraftBySportId(nextWalkoverDraftBySportId);
 
+    const nextDurationDraftBySportId = sports.reduce<Record<string, string>>((carry, sport) => {
+      carry[sport.id] =
+        sport.default_match_duration_minutes != null
+          ? String(sport.default_match_duration_minutes)
+          : "";
+      return carry;
+    }, {});
+
+    championshipSports.forEach((championshipSport) => {
+      if ((nextDurationDraftBySportId[championshipSport.sport_id] ?? "") !== "") {
+        return;
+      }
+
+      nextDurationDraftBySportId[championshipSport.sport_id] = String(
+        championshipSport.default_match_duration_minutes ?? "",
+      );
+    });
+
+    setDurationDraftBySportId(nextDurationDraftBySportId);
+
+    const nextOptimisticDurationBySportId = sports.reduce<Record<string, number | undefined>>((carry, sport) => {
+      carry[sport.id] = sport.default_match_duration_minutes ?? undefined;
+      return carry;
+    }, {});
+
+    championshipSports.forEach((championshipSport) => {
+      if (nextOptimisticDurationBySportId[championshipSport.sport_id] != null) {
+        return;
+      }
+
+      nextOptimisticDurationBySportId[championshipSport.sport_id] =
+        championshipSport.default_match_duration_minutes;
+    });
+
+    setOptimisticDurationBySportId(nextOptimisticDurationBySportId);
+
     const nextOptimisticAwardsIncludeKnockoutBySportId = championshipSports.reduce<
       Record<string, boolean | undefined>
     >((carry, championshipSport) => {
@@ -117,7 +178,7 @@ export function AdminSports({
     }, {});
 
     setOptimisticSupportsIndividualAwardsBySportId(nextOptimisticSupportsIndividualAwardsBySportId);
-  }, [championshipSports]);
+  }, [championshipSports, sports]);
 
   const handleToggleEstimatedStartTimeOnCards = async (
     championshipSport: ChampionshipSport,
@@ -189,6 +250,65 @@ export function AdminSports({
     }
 
     toast.success(parsedValue != null ? "Pontuação de W.O. atualizada." : "W.O. desabilitado para esta modalidade.");
+  };
+
+  const handleSaveDefaultMatchDuration = async (sport: Sport, championshipSport?: ChampionshipSport) => {
+    if (!canManageSports) {
+      return;
+    }
+
+    const draftValue = durationDraftBySportId[sport.id] ?? "";
+    const parsedValue = parseInt(draftValue, 10);
+    const savingKey = championshipSport?.id ?? sport.id;
+
+    if (draftValue.trim() == "" || Number.isNaN(parsedValue) || parsedValue <= 0) {
+      toast.error("Informe uma duração válida em minutos para a modalidade.");
+      return;
+    }
+
+    setSavingSportIdById((current) => ({ ...current, [savingKey]: true }));
+
+    const { error: updateError } = await supabase
+      .from("sports")
+      .update({ default_match_duration_minutes: parsedValue })
+      .eq("id", sport.id);
+
+    if (updateError) {
+      setSavingSportIdById((current) => ({ ...current, [savingKey]: false }));
+      toast.error(updateError.message || "Não foi possível salvar a duração da modalidade.");
+      return;
+    }
+
+    if (bracketEditionId && championshipSport) {
+      const { error: redistributeError } = await updateBracketLocationSportPriorities(bracketEditionId, []);
+
+      if (redistributeError) {
+        setSavingSportIdById((current) => ({ ...current, [savingKey]: false }));
+        toast.error(
+          redistributeError.message ||
+            "A duração foi salva, mas não foi possível recalcular os horários dos jogos.",
+        );
+        return;
+      }
+    }
+
+    setSavingSportIdById((current) => ({ ...current, [savingKey]: false }));
+    setOptimisticDurationBySportId((current) => ({
+      ...current,
+      [sport.id]: parsedValue,
+    }));
+    setDurationDraftBySportId((current) => ({
+      ...current,
+      [sport.id]: String(parsedValue),
+    }));
+
+    await onRefetchMatches?.({ showFetching: true });
+
+    toast.success(
+      bracketEditionId
+        ? "Duração da modalidade atualizada e horários dos jogos recalculados."
+        : "Duração da modalidade atualizada.",
+    );
   };
 
   const handleToggleSupportsIndividualAwards = async (
@@ -295,14 +415,32 @@ export function AdminSports({
             const resolvedSupportsCards = championshipSport?.supports_cards ?? platformSportRule.supportsCards;
             const resolvedResultRule = championshipSport?.result_rule ?? platformSportRule.resultRule;
             const resolvedDefaultMatchDurationMinutes =
-              championshipSport?.default_match_duration_minutes ?? platformSportRule.defaultMatchDurationMinutes;
+              optimisticDurationBySportId[sport?.id ?? ""] ??
+              sport?.default_match_duration_minutes ??
+              championshipSport?.default_match_duration_minutes ??
+              null;
             const shouldShowEstimatedStartTimeOnCards =
               optimisticEstimatedStartTimeBySportId[sport?.id ?? ""] ??
               championshipSport?.show_estimated_start_time_on_cards ??
               false;
-            const isSavingSport = championshipSport
-              ? savingSportIdById[championshipSport.id] == true
-              : false;
+            const savingKey = championshipSport?.id ?? sport?.id ?? platformSportRule.sportName;
+            const isSavingSport = savingSportIdById[savingKey] == true;
+            const draftDurationValue = sport ? (durationDraftBySportId[sport.id] ?? "") : "";
+            const normalizedDraftDurationValue = normalizePositiveIntegerDraftValue(draftDurationValue);
+            const hasDurationChanges =
+              !!sport &&
+              normalizedDraftDurationValue != null &&
+              normalizedDraftDurationValue !== resolvedDefaultMatchDurationMinutes;
+            const draftWalkoverValue = sport ? (walkoverDraftBySportId[sport.id] ?? "") : "";
+            const normalizedDraftWalkoverValue = normalizePositiveIntegerDraftValue(draftWalkoverValue);
+            const currentWalkoverWinnerPoints = championshipSport?.walkover_winner_points ?? null;
+            const hasWalkoverChanges =
+              !!sport &&
+              !!championshipSport &&
+              (draftWalkoverValue.trim() == ""
+                ? currentWalkoverWinnerPoints !== null
+                : normalizedDraftWalkoverValue != null &&
+                  normalizedDraftWalkoverValue !== currentWalkoverWinnerPoints);
             const awardsIncludeKnockout =
               optimisticAwardsIncludeKnockoutBySportId[sport?.id ?? ""] ??
               championshipSport?.awards_include_knockout_phase ??
@@ -341,8 +479,47 @@ export function AdminSports({
                   <div className="app-card-muted px-3 py-2">
                     <p className="text-xs font-medium text-muted-foreground">Regra de resultado</p>
                     <p className="font-medium">{CHAMPIONSHIP_SPORT_RESULT_RULE_LABELS[resolvedResultRule]}</p>
-                    <p className="text-xs text-muted-foreground">{resolvedDefaultMatchDurationMinutes} min por jogo</p>
                   </div>
+                </div>
+
+                <div className="app-card-muted space-y-2 px-3 py-2">
+                  <p className="text-xs font-medium text-muted-foreground">Duração padrão da partida</p>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min={1}
+                      placeholder="Minutos"
+                      className="h-8 w-32 text-sm"
+                      disabled={!canManageSports || !sport || isSavingSport}
+                      value={sport ? (durationDraftBySportId[sport.id] ?? "") : ""}
+                      onChange={(e) => {
+                        if (!sport) return;
+                        setDurationDraftBySportId((current) => ({
+                          ...current,
+                          [sport.id]: e.target.value,
+                        }));
+                      }}
+                    />
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={!canManageSports || !sport || isSavingSport || !hasDurationChanges}
+                      onClick={() => {
+                        if (!sport) return;
+                        void handleSaveDefaultMatchDuration(sport, championshipSport);
+                      }}
+                    >
+                      {isSavingSport ? "Salvando…" : "Salvar"}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Ao salvar, a agenda da edição atual é redistribuída com a nova duração da modalidade.
+                  </p>
+                  {!sport ? (
+                    <p className="text-xs text-muted-foreground">
+                      A modalidade precisa existir no banco para editar esta configuração.
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="app-card-muted px-3 py-2">
@@ -424,8 +601,8 @@ export function AdminSports({
                     />
                     <Button
                       size="sm"
-                      variant="outline"
-                      disabled={!canManageSports || !championshipSport || isSavingSport}
+                      variant="destructive"
+                      disabled={!canManageSports || !championshipSport || isSavingSport || !hasWalkoverChanges}
                       onClick={() => {
                         if (!championshipSport || !sport) return;
                         void handleSaveWalkoverWinnerPoints(championshipSport, sport.id);

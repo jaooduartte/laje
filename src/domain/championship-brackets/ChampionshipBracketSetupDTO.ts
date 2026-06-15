@@ -193,11 +193,28 @@ export class ChampionshipBracketSetupDTO {
         locations: scheduleDay.locations.map((location) => ({
           name: location.name.trim(),
           position: location.position,
-          courts: location.courts.map((court) => ({
-            name: court.name.trim(),
-            position: court.position,
-            sport_ids: [...new Set(court.sport_ids)],
-          })),
+          courts: location.courts.map((court) => {
+            const normalizedSportIds = [...new Set(court.sport_ids)];
+            const seenPrioritySportIds = new Set<string>();
+
+            return {
+              name: court.name.trim(),
+              position: court.position,
+              sport_ids: normalizedSportIds,
+              sport_priorities: (court.sport_priorities ?? []).filter((sportPriority) => {
+                if (
+                  !normalizedSportIds.includes(sportPriority.sport_id) ||
+                  seenPrioritySportIds.has(sportPriority.sport_id) ||
+                  (sportPriority.preferred_naipe == null && sportPriority.preferred_division == null)
+                ) {
+                  return false;
+                }
+
+                seenPrioritySportIds.add(sportPriority.sport_id);
+                return true;
+              }),
+            };
+          }),
         })),
       }),
     );

@@ -66,10 +66,12 @@ const ADMIN_TAB_LABELS: Record<AdminPanelTab, string> = {
   [AdminPanelTab.LOGS]: "Logs",
   [AdminPanelTab.USERS]: "Usuários",
   [AdminPanelTab.ACCOUNT]: "Minha conta",
+  [AdminPanelTab.STANDINGS]: "Classificação",
   [AdminPanelTab.CHAMPIONSHIP_STATUS]: "Status do campeonato",
   [AdminPanelTab.SETTINGS]: "Configurações",
   [AdminPanelTab.SCORE_SHEET_REVIEW]: "Conferência de Súmula",
   [AdminPanelTab.TIE_BREAKS]: "Sorteios",
+  [AdminPanelTab.CHAMPIONSHIP_SCHEDULE]: "Agenda",
 };
 
 const ADMIN_PERMISSION_LEVEL_LABELS: Record<AdminPanelPermissionLevel, string> = {
@@ -83,6 +85,7 @@ const ADMIN_PANEL_TAB_ORDER: AdminPanelTab[] = [
   AdminPanelTab.SCORE_SHEET_REVIEW,
   AdminPanelTab.TIE_BREAKS,
   AdminPanelTab.CONTROL,
+  AdminPanelTab.STANDINGS,
   AdminPanelTab.TEAMS,
   AdminPanelTab.SPORTS,
   AdminPanelTab.EVENTS,
@@ -90,6 +93,7 @@ const ADMIN_PANEL_TAB_ORDER: AdminPanelTab[] = [
   AdminPanelTab.USERS,
   AdminPanelTab.ACCOUNT,
   AdminPanelTab.CHAMPIONSHIP_STATUS,
+  AdminPanelTab.CHAMPIONSHIP_SCHEDULE,
   AdminPanelTab.SETTINGS,
 ];
 
@@ -177,21 +181,32 @@ function resolveDefaultPermissions(): AdminTabPermissionByTab {
     [AdminPanelTab.LOGS]: AdminPanelPermissionLevel.NONE,
     [AdminPanelTab.USERS]: AdminPanelPermissionLevel.NONE,
     [AdminPanelTab.ACCOUNT]: AdminPanelPermissionLevel.NONE,
+    [AdminPanelTab.STANDINGS]: AdminPanelPermissionLevel.NONE,
     [AdminPanelTab.CHAMPIONSHIP_STATUS]: AdminPanelPermissionLevel.NONE,
     [AdminPanelTab.SETTINGS]: AdminPanelPermissionLevel.NONE,
     [AdminPanelTab.SCORE_SHEET_REVIEW]: AdminPanelPermissionLevel.NONE,
     [AdminPanelTab.TIE_BREAKS]: AdminPanelPermissionLevel.NONE,
+    [AdminPanelTab.CHAMPIONSHIP_SCHEDULE]: AdminPanelPermissionLevel.NONE,
   };
 }
 
 function resolveNormalizedPermissions(rawPermissions: Record<string, unknown> | null): AdminTabPermissionByTab {
   const nextPermissions = resolveDefaultPermissions();
+  const rawMatchesPermission =
+    typeof rawPermissions?.[AdminPanelTab.MATCHES] == "string" && isAdminPanelPermissionLevel(rawPermissions[AdminPanelTab.MATCHES] as string)
+      ? (rawPermissions[AdminPanelTab.MATCHES] as AdminPanelPermissionLevel)
+      : AdminPanelPermissionLevel.NONE;
 
   ADMIN_PANEL_TAB_ORDER.forEach((adminPanelTab) => {
     const permissionValue = rawPermissions?.[adminPanelTab];
 
     if (typeof permissionValue == "string" && isAdminPanelPermissionLevel(permissionValue)) {
       nextPermissions[adminPanelTab] = permissionValue;
+      return;
+    }
+
+    if (adminPanelTab == AdminPanelTab.STANDINGS || adminPanelTab == AdminPanelTab.CHAMPIONSHIP_SCHEDULE) {
+      nextPermissions[adminPanelTab] = rawMatchesPermission;
     }
   });
 
@@ -1384,7 +1399,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                       type="button"
                       className={`w-full rounded-xl px-3 py-2 text-left transition ${
                         profileDraft.profileId == profile.profile_id
-                          ? "app-card-emphasis dark:bg-[hsl(0_0%_14%)]"
+                          ? "border border-primary/35 bg-primary/10 text-primary shadow-sm dark:border-primary/45 dark:bg-primary/20 dark:text-primary-foreground"
                           : "app-card-muted hover:bg-background/40 dark:hover:bg-[hsl(0_0%_100%/0.08)]"
                       }`}
                       onClick={() => handleEditProfile(profile)}

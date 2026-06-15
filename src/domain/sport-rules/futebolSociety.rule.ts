@@ -12,7 +12,6 @@ export const FUTEBOL_SOCIETY_RULE: PlatformSportRule = {
   pointsDraw: 1,
   pointsLoss: 0,
   resultRule: ChampionshipSportResultRule.POINTS,
-  defaultMatchDurationMinutes: 30,
   tieBreakerRule: ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY,
   supportsCards: true,
   tieBreakerPriority: [

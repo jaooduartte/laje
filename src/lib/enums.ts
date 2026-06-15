@@ -5,6 +5,7 @@ export enum MatchStatus {
 }
 
 export enum ThemeMode {
+  AUTO = "auto",
   LIGHT = "light",
   DARK = "dark",
 }
@@ -159,6 +160,7 @@ export enum AdminPanelTab {
   SETTINGS = "settings",
   SCORE_SHEET_REVIEW = "score_sheet_review",
   TIE_BREAKS = "tie_breaks",
+  CHAMPIONSHIP_SCHEDULE = "championship_schedule",
 }
 
 export enum AdminPanelRole {

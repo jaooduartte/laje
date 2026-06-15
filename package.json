@@ -8,6 +8,8 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
+    "fix-lint": "eslint . --fix",
+    "supabase-migrate": "npx supabase db push",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"
