@@ -363,6 +363,8 @@ function renderAdminMatches(params: {
   matches: Match[];
   viewMode?: AdminMatchesViewMode;
   bracketView?: ChampionshipBracketView;
+  visualQueuePositionByMatchId?: Record<string, number>;
+  estimatedStartTimeByMatchId?: Record<string, string>;
 }) {
   const onRefetch = vi.fn();
   const onRefetchChampionshipBracket = vi.fn();
@@ -377,7 +379,8 @@ function renderAdminMatches(params: {
       loadingChampionshipBracket={false}
       matchBracketContextByMatchId={{}}
       matchRepresentationByMatchId={{}}
-      estimatedStartTimeByMatchId={{}}
+      visualQueuePositionByMatchId={params.visualQueuePositionByMatchId ?? {}}
+      estimatedStartTimeByMatchId={params.estimatedStartTimeByMatchId ?? {}}
       isFetchingMatches={false}
       canManageMatches
       viewMode={params.viewMode ?? AdminMatchesViewMode.DEFAULT}
@@ -778,6 +781,83 @@ describe("AdminMatches score sheet review", () => {
     expect(within(matchCardContainer).getAllByRole("menuitem", { name: "Editar" }).length).toBeGreaterThan(0);
     expect(within(matchCardContainer).getAllByRole("menuitem", { name: "Trocar jogo" }).length).toBeGreaterThan(0);
     expect(within(matchCardContainer).getAllByRole("menuitem", { name: "Apagar" }).length).toBeGreaterThan(0);
+  });
+
+  it("mantém a ordem por horário e apenas troca a numeração visual da quadra nos cards agendados", () => {
+    renderAdminMatches({
+      viewMode: AdminMatchesViewMode.DEFAULT,
+      matches: [
+        buildMatch({
+          id: "court-a-game-1",
+          sport_id: "sport-1",
+          status: MatchStatus.SCHEDULED,
+          scheduled_date: "2026-04-12",
+          location: "Arena Seven",
+          court_name: "Quadra A",
+          queue_position: 1,
+          scheduled_slot: 1,
+          home_team: buildTeam({ id: "court-a-game-1-home", name: "TAUROS" }),
+          away_team: buildTeam({ id: "court-a-game-1-away", name: "CAMALEÃO" }),
+        }),
+        buildMatch({
+          id: "court-a-game-2",
+          sport_id: "sport-1",
+          status: MatchStatus.SCHEDULED,
+          scheduled_date: "2026-04-12",
+          location: "Arena Seven",
+          court_name: "Quadra A",
+          queue_position: 2,
+          scheduled_slot: 2,
+          home_team: buildTeam({ id: "court-a-game-2-home", name: "AAASF" }),
+          away_team: buildTeam({ id: "court-a-game-2-away", name: "RASANTE" }),
+        }),
+        buildMatch({
+          id: "court-a-game-4",
+          sport_id: "sport-1",
+          status: MatchStatus.SCHEDULED,
+          scheduled_date: "2026-04-12",
+          location: "Arena Seven",
+          court_name: "Quadra A",
+          queue_position: 3,
+          scheduled_slot: 3,
+          home_team: buildTeam({ id: "court-a-game-4-home", name: "GARRUDOS" }),
+          away_team: buildTeam({ id: "court-a-game-4-away", name: "RASANTE B" }),
+        }),
+        buildMatch({
+          id: "court-a-game-3",
+          sport_id: "sport-1",
+          status: MatchStatus.SCHEDULED,
+          scheduled_date: "2026-04-12",
+          location: "Arena Seven",
+          court_name: "Quadra A",
+          queue_position: 4,
+          scheduled_slot: 4,
+          home_team: buildTeam({ id: "court-a-game-3-home", name: "CAMALEÃO B" }),
+          away_team: buildTeam({ id: "court-a-game-3-away", name: "RAPOSAS" }),
+        }),
+      ],
+      visualQueuePositionByMatchId: {
+        "court-a-game-1": 1,
+        "court-a-game-2": 2,
+        "court-a-game-4": 3,
+        "court-a-game-3": 4,
+      },
+      estimatedStartTimeByMatchId: {
+        "court-a-game-1": "08:00",
+        "court-a-game-2": "08:40",
+        "court-a-game-4": "09:20",
+        "court-a-game-3": "10:00",
+      },
+    });
+
+    const gameThreeCard = getMatchCardContainerByTeamName("CAMALEÃO B");
+    const gameFourCard = getMatchCardContainerByTeamName("GARRUDOS");
+
+    expect(gameFourCard.compareDocumentPosition(gameThreeCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(gameFourCard).toHaveTextContent("Jogo 3");
+    expect(gameFourCard).toHaveTextContent("Horário estimado: 09:20");
+    expect(gameThreeCard).toHaveTextContent("Jogo 4");
+    expect(gameThreeCard).toHaveTextContent("Horário estimado: 10:00");
   });
 
   it("mantém menu restrito no modo de conferência sem trocar/apagar", async () => {

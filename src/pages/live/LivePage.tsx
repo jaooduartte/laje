@@ -57,6 +57,7 @@ export function LivePage() {
   const {
     matches: filteredLiveMatches,
     matchRepresentationByMatchId: liveMatchRepresentationByMatchId,
+    visualQueuePositionByMatchId: liveVisualQueuePositionByMatchId,
     estimatedStartTimeByMatchId: liveEstimatedStartTimeByMatchId,
     loading: liveMatchesLoading,
     isFetching: liveMatchesFetching,
@@ -72,6 +73,7 @@ export function LivePage() {
     matches: paginatedUpcomingMatches,
     totalCount: upcomingMatchesTotalCount,
     matchRepresentationByMatchId: upcomingMatchRepresentationByMatchId,
+    visualQueuePositionByMatchId: upcomingVisualQueuePositionByMatchId,
     estimatedStartTimeByMatchId: upcomingEstimatedStartTimeByMatchId,
     loading: upcomingMatchesLoading,
     isFetching: upcomingMatchesFetching,
@@ -138,6 +140,13 @@ export function LivePage() {
     };
   }, [liveEstimatedStartTimeByMatchId, upcomingEstimatedStartTimeByMatchId]);
 
+  const visualQueuePositionByMatchId = useMemo(() => {
+    return {
+      ...liveVisualQueuePositionByMatchId,
+      ...upcomingVisualQueuePositionByMatchId,
+    };
+  }, [liveVisualQueuePositionByMatchId, upcomingVisualQueuePositionByMatchId]);
+
   return (
     <LivePageView
       isLoading={championshipsLoading || liveMatchesLoading || upcomingMatchesLoading || championshipBracketLoading}
@@ -154,6 +163,7 @@ export function LivePage() {
       championshipBracketLoading={championshipBracketLoading}
       matchBracketContextByMatchId={matchBracketContextByMatchId}
       matchRepresentationByMatchId={matchRepresentationByMatchId}
+      visualQueuePositionByMatchId={visualQueuePositionByMatchId}
       estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
       onSportFilterChange={setSportFilter}
       onUpcomingMatchesPageChange={setUpcomingMatchesCurrentPage}

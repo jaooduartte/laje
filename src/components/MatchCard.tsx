@@ -27,6 +27,7 @@ interface Props {
   bracketContext?: MatchBracketContext;
   showStartedAtDate?: boolean;
   matchRepresentation?: string;
+  visualQueuePosition?: number;
   estimatedStartTime?: string;
 }
 
@@ -53,6 +54,7 @@ export function MatchCard({
   bracketContext,
   showStartedAtDate = false,
   matchRepresentation,
+  visualQueuePosition,
   estimatedStartTime,
 }: Props) {
   const matchCardClassName =
@@ -60,7 +62,7 @@ export function MatchCard({
       ? "list-item-card list-item-card-live flex h-full w-full flex-col p-4 live-glow dark:bg-[hsl(0_0%_12%)]"
       : "list-item-card list-item-card-hover flex h-full w-full flex-col p-4 dark:bg-[hsl(0_0%_12%)] dark:hover:bg-[hsl(0_0%_14%)]";
   const scheduledDateValue = resolveMatchScheduledDateValue(match);
-  const scheduledQueueLabel = resolveMatchQueueLabel(resolveMatchDisplaySlotValue(match));
+  const scheduledQueueLabel = resolveMatchQueueLabel(visualQueuePosition ?? resolveMatchDisplaySlotValue(match));
   const scheduledDayLabel = scheduledDateValue
     ? `${format(new Date(`${scheduledDateValue}T12:00:00`), "dd/MM", { locale: ptBR })} • ${scheduledQueueLabel}`
     : scheduledQueueLabel;

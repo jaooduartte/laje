@@ -13,6 +13,7 @@ import {
   resolveMatchScheduledDateValue,
   resolveOrderedScheduledMatches,
   resolveMatchRepresentationByMatchId,
+  resolveVisualQueuePositionByMatchId,
 } from "@/lib/championship";
 import type { MatchSetInput } from "@/domain/championship-brackets/championshipBracket.types";
 
@@ -331,7 +332,7 @@ export function useMatches({
         let scheduledOrderQuery = supabase
           .from("matches")
           .select(
-            "id, championship_id, season_year, scheduled_date, start_time, end_time, sport_id, naipe, division, queue_position, created_at, scheduled_slot, sports(name), home_team:teams!matches_home_team_id_fkey(name), away_team:teams!matches_away_team_id_fkey(name)",
+            "id, championship_id, location, court_name, season_year, scheduled_date, start_time, end_time, sport_id, naipe, division, queue_position, created_at, scheduled_slot, sports(name), home_team:teams!matches_home_team_id_fkey(name), away_team:teams!matches_away_team_id_fkey(name)",
           )
           .order("scheduled_date", { ascending: sortMode == "SCHEDULED", nullsFirst: false })
           .order("queue_position", { ascending: sortMode == "SCHEDULED", nullsFirst: false })
@@ -458,7 +459,7 @@ export function useMatches({
       let operationalContextQuery = supabase
         .from("matches")
         .select(
-          "id, championship_id, season_year, scheduled_date, start_time, status, sport_id, naipe, division, queue_position, created_at, scheduled_slot, sports(name), home_team:teams!matches_home_team_id_fkey(name), away_team:teams!matches_away_team_id_fkey(name)",
+          "id, championship_id, location, court_name, season_year, scheduled_date, start_time, status, sport_id, naipe, division, queue_position, created_at, scheduled_slot, sports(name), home_team:teams!matches_home_team_id_fkey(name), away_team:teams!matches_away_team_id_fkey(name)",
         )
         .order("scheduled_date", { ascending: true, nullsFirst: false })
         .order("queue_position", { ascending: true, nullsFirst: false })
@@ -798,18 +799,34 @@ export function useMatches({
     };
   }, []);
 
-  const matchRepresentationByMatchId = useMemo(() => {
-    return resolveMatchRepresentationByMatchId(matches, operationalContextMatches);
-  }, [matches, operationalContextMatches]);
-
-  const estimatedStartTimeByMatchId = useMemo(() => {
+  const estimatedStartTimeByContextMatchId = useMemo(() => {
     return resolveEstimatedStartTimeByMatchId({
-      matches,
+      matches: [...operationalContextMatches, ...matches] as Match[],
       contextMatches: operationalContextMatches,
       championshipSports: championshipSportsForEstimatedStartTime,
       championshipBracketEditions: championshipBracketEditionsForEstimatedStartTime,
     });
   }, [championshipBracketEditionsForEstimatedStartTime, championshipSportsForEstimatedStartTime, matches, operationalContextMatches]);
+
+  const matchRepresentationByMatchId = useMemo(() => {
+    return resolveMatchRepresentationByMatchId(matches, operationalContextMatches, estimatedStartTimeByContextMatchId);
+  }, [estimatedStartTimeByContextMatchId, matches, operationalContextMatches]);
+
+  const visualQueuePositionByMatchId = useMemo(() => {
+    return resolveVisualQueuePositionByMatchId(matches, operationalContextMatches, estimatedStartTimeByContextMatchId);
+  }, [estimatedStartTimeByContextMatchId, matches, operationalContextMatches]);
+
+  const estimatedStartTimeByMatchId = useMemo(() => {
+    return matches.reduce<Record<string, string>>((carry, match) => {
+      const estimatedStartTime = estimatedStartTimeByContextMatchId[match.id];
+
+      if (estimatedStartTime) {
+        carry[match.id] = estimatedStartTime;
+      }
+
+      return carry;
+    }, {});
+  }, [estimatedStartTimeByContextMatchId, matches]);
 
   const liveMatches = useMemo(() => {
     return [...matches]
@@ -843,6 +860,7 @@ export function useMatches({
     matches,
     totalCount,
     matchRepresentationByMatchId,
+    visualQueuePositionByMatchId,
     estimatedStartTimeByMatchId,
     liveMatches,
     upcomingMatches,

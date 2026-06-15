@@ -28,6 +28,7 @@ interface LivePageViewProps {
   championshipBracketLoading: boolean;
   matchBracketContextByMatchId: Record<string, MatchBracketContext>;
   matchRepresentationByMatchId: Record<string, string>;
+  visualQueuePositionByMatchId?: Record<string, number>;
   estimatedStartTimeByMatchId: Record<string, string>;
   onSportFilterChange: (value: string | null) => void;
   onUpcomingMatchesPageChange: (page: number) => void;
@@ -49,6 +50,7 @@ export function LivePageView({
   championshipBracketLoading,
   matchBracketContextByMatchId,
   matchRepresentationByMatchId,
+  visualQueuePositionByMatchId = {},
   estimatedStartTimeByMatchId,
   onSportFilterChange,
   onUpcomingMatchesPageChange,
@@ -153,6 +155,7 @@ export function LivePageView({
                         showChampionshipBadge={false}
                         bracketContext={matchBracketContextByMatchId[match.id]}
                         matchRepresentation={matchRepresentationByMatchId[match.id]}
+                        visualQueuePosition={visualQueuePositionByMatchId[match.id]}
                         estimatedStartTime={estimatedStartTimeByMatchId[match.id]}
                       />
                     ))}
