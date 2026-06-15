@@ -44,6 +44,8 @@ interface AdminPageViewProps {
   matchesTabMatchBracketContextByMatchId: Record<string, MatchBracketContext>;
   matchRepresentationByMatchId: Record<string, string>;
   matchesTabMatchRepresentationByMatchId: Record<string, string>;
+  visualQueuePositionByMatchId?: Record<string, number>;
+  matchesTabVisualQueuePositionByMatchId?: Record<string, number>;
   estimatedStartTimeByMatchId: Record<string, string>;
   matchesTabEstimatedStartTimeByMatchId: Record<string, string>;
   matchesFetching: boolean;
@@ -123,6 +125,8 @@ export function AdminPageView({
   matchesTabMatchBracketContextByMatchId,
   matchRepresentationByMatchId,
   matchesTabMatchRepresentationByMatchId,
+  visualQueuePositionByMatchId = {},
+  matchesTabVisualQueuePositionByMatchId = {},
   estimatedStartTimeByMatchId,
   matchesTabEstimatedStartTimeByMatchId,
   matchesFetching,
@@ -512,6 +516,7 @@ export function AdminPageView({
                 loadingChampionshipBracket={loadingMatchesTabChampionshipBracket}
                 matchBracketContextByMatchId={matchesTabMatchBracketContextByMatchId}
                 matchRepresentationByMatchId={matchesTabMatchRepresentationByMatchId}
+                visualQueuePositionByMatchId={matchesTabVisualQueuePositionByMatchId}
                 estimatedStartTimeByMatchId={matchesTabEstimatedStartTimeByMatchId}
                 isFetchingMatches={matchesTabFetching}
                 canManageMatches={canManageMatches}
@@ -536,6 +541,7 @@ export function AdminPageView({
 	                loadingChampionshipBracket={loadingChampionshipBracket}
 	                matchBracketContextByMatchId={matchBracketContextByMatchId}
 	                matchRepresentationByMatchId={matchRepresentationByMatchId}
+	                visualQueuePositionByMatchId={visualQueuePositionByMatchId}
 	                estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
 	                isFetchingMatches={matchesFetching}
 	                canManageMatches={canManageMatches}
@@ -557,6 +563,7 @@ export function AdminPageView({
                 loadingChampionshipBracket={loadingChampionshipBracket}
                 matchBracketContextByMatchId={matchBracketContextByMatchId}
                 matchRepresentationByMatchId={matchRepresentationByMatchId}
+                visualQueuePositionByMatchId={visualQueuePositionByMatchId}
                 estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
                 isFetchingMatches={matchesFetching}
                 canManageMatches={canManageMatches}
@@ -579,6 +586,7 @@ export function AdminPageView({
                 championshipBracketView={championshipBracketView}
                 matchBracketContextByMatchId={matchBracketContextByMatchId}
                 matchRepresentationByMatchId={matchRepresentationByMatchId}
+                visualQueuePositionByMatchId={visualQueuePositionByMatchId}
                 estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
                 isFetchingMatches={matchesFetching}
                 onRefetch={onRefetchMatches}

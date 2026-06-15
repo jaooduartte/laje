@@ -37,12 +37,14 @@ const {
   toastSuccessMock,
   toastErrorMock,
   saveMatchSetsMock,
+  getBracketCourtSportsMock,
 } = vi.hoisted(() => ({
   supabaseUpdateCalls: [] as SupabaseUpdateCall[],
   supabaseUpdateResults: [] as SupabaseUpdateResult[],
   toastSuccessMock: vi.fn(),
   toastErrorMock: vi.fn(),
   saveMatchSetsMock: vi.fn(),
+  getBracketCourtSportsMock: vi.fn(() => new Promise(() => {})),
 }));
 
 vi.mock("sonner", () => ({
@@ -53,6 +55,7 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("@/domain/championship-brackets/championshipBracket.repository", () => ({
+  getBracketCourtSports: (...args: unknown[]) => getBracketCourtSportsMock(...args),
   saveMatchSets: (...args: unknown[]) => saveMatchSetsMock(...args),
 }));
 
@@ -207,6 +210,7 @@ function renderAdminMatchControl(params: {
   matches: Match[];
   championshipSports: ChampionshipSport[];
   championshipStatus?: ChampionshipStatus;
+  visualQueuePositionByMatchId?: Record<string, number>;
 }) {
   const onRefetch = vi.fn();
   const onRefetchChampionshipBracket = vi.fn();
@@ -217,6 +221,7 @@ function renderAdminMatchControl(params: {
       championshipSports={params.championshipSports}
       championshipBracketView={buildChampionshipBracketView()}
       matchBracketContextByMatchId={{}}
+      visualQueuePositionByMatchId={params.visualQueuePositionByMatchId}
       onRefetch={onRefetch}
       onRefetchChampionshipBracket={onRefetchChampionshipBracket}
       canManageScoreboard
@@ -227,6 +232,7 @@ function renderAdminMatchControl(params: {
     matches: Match[];
     championshipSports: ChampionshipSport[];
     championshipStatus?: ChampionshipStatus;
+    visualQueuePositionByMatchId?: Record<string, number>;
   }) => {
     renderResult.rerender(
       <AdminMatchControl
@@ -235,6 +241,7 @@ function renderAdminMatchControl(params: {
         championshipSports={nextParams.championshipSports}
         championshipBracketView={buildChampionshipBracketView()}
         matchBracketContextByMatchId={{}}
+        visualQueuePositionByMatchId={nextParams.visualQueuePositionByMatchId}
         onRefetch={onRefetch}
         onRefetchChampionshipBracket={onRefetchChampionshipBracket}
         canManageScoreboard
@@ -674,6 +681,7 @@ describe("AdminMatchControl", () => {
       id: "live-points-match",
       sport_id: "sport-points",
       status: MatchStatus.LIVE,
+      queue_position: 7,
       start_time: "2026-04-11T10:00:00.000Z",
       home_team: buildTeam({ id: "home-team", name: "Atlética Alpha" }),
       away_team: buildTeam({ id: "away-team", name: "Atlética Beta" }),
@@ -687,6 +695,7 @@ describe("AdminMatchControl", () => {
     renderAdminMatchControl({
       matches: [match],
       championshipSports: [championshipSport],
+      visualQueuePositionByMatchId: { "live-points-match": 1 },
     });
     const matchCardElement = resolveMatchCardElement("Atlética Alpha");
     const scoreInputs = within(matchCardElement).getAllByRole("spinbutton");

@@ -58,6 +58,7 @@ interface Props {
   championshipBracketView: ChampionshipBracketView;
   matchBracketContextByMatchId: Record<string, MatchBracketContext>;
   matchRepresentationByMatchId?: Record<string, string>;
+  visualQueuePositionByMatchId?: Record<string, number>;
   estimatedStartTimeByMatchId?: Record<string, string>;
   isFetchingMatches?: boolean;
   onRefetch: (options?: { showLoading?: boolean; showFetching?: boolean }) => void | Promise<void>;
@@ -328,6 +329,7 @@ export function AdminMatchControl({
   championshipBracketView,
   matchBracketContextByMatchId,
   matchRepresentationByMatchId = {},
+  visualQueuePositionByMatchId = {},
   estimatedStartTimeByMatchId = {},
   isFetchingMatches = false,
   onRefetch,
@@ -1808,7 +1810,9 @@ export function AdminMatchControl({
             const liveMatchesCount = sportAndDateKey ? liveMatchesCountBySportAndDateKey[sportAndDateKey] ?? 0 : 0;
             const isMatchStartBlocked =
               match.status == MatchStatus.SCHEDULED && availableCourtsCount > 0 && liveMatchesCount >= availableCourtsCount;
-            const queueLabel = resolveMatchQueueLabel(match.scheduled_slot ?? match.queue_position);
+            const queueLabel = resolveMatchQueueLabel(
+              visualQueuePositionByMatchId[match.id] ?? match.scheduled_slot ?? match.queue_position,
+            );
             const queueSummary = scheduledDateValue
               ? `${format(new Date(`${scheduledDateValue}T12:00:00`), "dd/MM", { locale: ptBR })} • ${queueLabel}`
               : queueLabel;

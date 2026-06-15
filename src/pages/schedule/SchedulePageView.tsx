@@ -46,6 +46,7 @@ interface SchedulePageViewProps {
   matchesTotalPages: number;
   matchBracketContextByMatchId: Record<string, MatchBracketContext>;
   matchRepresentationByMatchId: Record<string, string>;
+  visualQueuePositionByMatchId?: Record<string, number>;
   estimatedStartTimeByMatchId: Record<string, string>;
   onChampionshipCodeChange: (value: string) => void;
   onSportFilterChange: (value: string | null) => void;
@@ -90,6 +91,7 @@ export function SchedulePageView({
   matchesTotalPages,
   matchBracketContextByMatchId,
   matchRepresentationByMatchId,
+  visualQueuePositionByMatchId = {},
   estimatedStartTimeByMatchId,
   onChampionshipCodeChange,
   onSportFilterChange,
@@ -193,8 +195,8 @@ export function SchedulePageView({
                 </button>
               </TooltipTrigger>
               <TooltipContent side="top" className="max-w-xs text-xs">
-                A agenda segue a fila operacional de cada modalidade, distribuindo os jogos conforme as quadras
-                disponíveis.
+                A agenda mantém a ordem operacional atual, mas exibe número do jogo e representação pela fila visual
+                de cada quadra.
               </TooltipContent>
             </Tooltip>
           </div>
@@ -352,6 +354,7 @@ export function SchedulePageView({
                       showChampionshipBadge={false}
                       bracketContext={matchBracketContextByMatchId[match.id]}
                       matchRepresentation={matchRepresentationByMatchId[match.id]}
+                      visualQueuePosition={visualQueuePositionByMatchId[match.id]}
                       estimatedStartTime={estimatedStartTimeByMatchId[match.id]}
                     />
                   ))}
@@ -381,6 +384,7 @@ export function SchedulePageView({
                         showChampionshipBadge={false}
                         bracketContext={matchBracketContextByMatchId[match.id]}
                         matchRepresentation={matchRepresentationByMatchId[match.id]}
+                        visualQueuePosition={visualQueuePositionByMatchId[match.id]}
                         estimatedStartTime={estimatedStartTimeByMatchId[match.id]}
                       />
                     ))}

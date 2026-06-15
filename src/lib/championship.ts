@@ -267,6 +267,8 @@ export type MatchRepresentationSource = Pick<
   Match,
   | "id"
   | "championship_id"
+  | "location"
+  | "court_name"
   | "season_year"
   | "scheduled_date"
   | "start_time"
@@ -290,23 +292,12 @@ export function resolveMatchDisplaySlotValue(
   return match.queue_position ?? match.scheduled_slot ?? Number.MAX_SAFE_INTEGER;
 }
 
-function resolveMatchRepresentationScopeKey(match: MatchRepresentationSource): string {
-  const scheduledDateValue = resolveMatchScheduledDateValue(match) ?? "WITHOUT_SCHEDULED_DATE";
-  const normalizedSportName = (match.sports?.name ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-  const representationNaipeScope =
-    normalizedSportName == NORMALIZED_BEACH_SOCCER_NAME ? "ALL_NAIPES" : match.naipe;
-
+function resolveMatchVisualCourtScopeKey(match: MatchRepresentationSource): string {
   return [
     match.championship_id,
     String(match.season_year),
-    scheduledDateValue,
-    match.sport_id,
-    representationNaipeScope,
-    match.division ?? "WITHOUT_DIVISION",
+    match.location.trim(),
+    (match.court_name ?? "").trim() || "WITHOUT_COURT_NAME",
   ].join(":");
 }
 
@@ -325,6 +316,20 @@ function resolveMatchRepresentationFromPreviousMatch(match: MatchRepresentationS
   return `${previousHomeTeamName} x ${previousAwayTeamName}`;
 }
 
+function resolveMatchRepresentationForVisualCourtSequence(
+  currentMatch: MatchRepresentationSource,
+  previousMatch: MatchRepresentationSource | undefined,
+): string {
+  const currentScheduledDate = resolveMatchScheduledDateValue(currentMatch);
+  const previousScheduledDate = previousMatch ? resolveMatchScheduledDateValue(previousMatch) : null;
+
+  if (!previousMatch || currentScheduledDate != previousScheduledDate) {
+    return MATCH_REPRESENTATION_COORDINATION_LABEL;
+  }
+
+  return resolveMatchRepresentationFromPreviousMatch(previousMatch);
+}
+
 function resolveUniqueMatchSourcesById<MatchSource extends { id: string }>(matchSources: MatchSource[]): MatchSource[] {
   const matchSourceById = matchSources.reduce<Record<string, MatchSource>>((carry, matchSource) => {
     carry[matchSource.id] = matchSource;
@@ -334,52 +339,129 @@ function resolveUniqueMatchSourcesById<MatchSource extends { id: string }>(match
   return Object.values(matchSourceById);
 }
 
-function resolveOperationalMatchRepresentationByMatchId(
-  matches: MatchRepresentationSource[],
-): Record<string, string> {
-  const matchesByScopeKey = matches.reduce<Record<string, MatchRepresentationSource[]>>((carry, match) => {
-    const scopeKey = resolveMatchRepresentationScopeKey(match);
+function resolveMatchVisualCourtTimeSortValue(
+  match: MatchRepresentationSource,
+  estimatedStartTimeByMatchId?: Record<string, string>,
+): number | null {
+  const plannedStartTimeLabel = resolveSaoPauloTimeLabel(match.start_time ?? "");
+  const estimatedStartTimeLabel = estimatedStartTimeByMatchId?.[match.id];
 
-    carry[scopeKey] = [...(carry[scopeKey] ?? []), match];
+  return resolveTimeValueToMinutes(plannedStartTimeLabel ?? estimatedStartTimeLabel ?? null);
+}
+
+function compareMatchVisualCourtOrder(
+  firstMatch: MatchRepresentationSource,
+  secondMatch: MatchRepresentationSource,
+  estimatedStartTimeByMatchId?: Record<string, string>,
+) {
+  const firstScheduledDate = resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
+  const secondScheduledDate = resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
+
+  if (firstScheduledDate != secondScheduledDate) {
+    return firstScheduledDate.localeCompare(secondScheduledDate);
+  }
+
+  const firstVisualTimeSortValue = resolveMatchVisualCourtTimeSortValue(firstMatch, estimatedStartTimeByMatchId);
+  const secondVisualTimeSortValue = resolveMatchVisualCourtTimeSortValue(secondMatch, estimatedStartTimeByMatchId);
+
+  if (firstVisualTimeSortValue != null && secondVisualTimeSortValue != null && firstVisualTimeSortValue != secondVisualTimeSortValue) {
+    return firstVisualTimeSortValue - secondVisualTimeSortValue;
+  }
+
+  if (firstVisualTimeSortValue != null && secondVisualTimeSortValue == null) {
+    return -1;
+  }
+
+  if (firstVisualTimeSortValue == null && secondVisualTimeSortValue != null) {
+    return 1;
+  }
+
+  const slotDifference = resolveMatchDisplaySlotValue(firstMatch) - resolveMatchDisplaySlotValue(secondMatch);
+
+  if (slotDifference != 0) {
+    return slotDifference;
+  }
+
+  if (firstMatch.created_at != secondMatch.created_at) {
+    return firstMatch.created_at.localeCompare(secondMatch.created_at);
+  }
+
+  return firstMatch.id.localeCompare(secondMatch.id);
+}
+function resolveOrderedVisualCourtMatches(
+  matches: MatchRepresentationSource[],
+  estimatedStartTimeByMatchId?: Record<string, string>,
+): Record<string, MatchRepresentationSource[]> {
+  return matches.reduce<Record<string, MatchRepresentationSource[]>>((carry, match) => {
+    const scopeKey = resolveMatchVisualCourtScopeKey(match);
+
+    carry[scopeKey] = [...(carry[scopeKey] ?? []), match].sort((firstMatch, secondMatch) =>
+      compareMatchVisualCourtOrder(firstMatch, secondMatch, estimatedStartTimeByMatchId),
+    );
     return carry;
   }, {});
+}
 
-  return Object.values(matchesByScopeKey).reduce<Record<string, string>>((carry, scopedMatches) => {
-    const orderedScopedMatches = [...scopedMatches].sort((firstMatch, secondMatch) => {
-      const slotDifference = resolveMatchDisplaySlotValue(firstMatch) - resolveMatchDisplaySlotValue(secondMatch);
+export function resolveVisualQueuePositionByMatchId(
+  matches: MatchRepresentationSource[],
+  contextMatches?: MatchRepresentationSource[],
+  estimatedStartTimeByMatchId?: Record<string, string>,
+): Record<string, number> {
+  if (matches.length == 0) {
+    return {};
+  }
 
-      if (slotDifference != 0) {
-        return slotDifference;
-      }
+  const visualCourtMatchesByScopeKey = resolveOrderedVisualCourtMatches(
+    resolveUniqueMatchSourcesById([...(contextMatches ?? []), ...matches]),
+    estimatedStartTimeByMatchId,
+  );
 
-      if (firstMatch.created_at != secondMatch.created_at) {
-        return firstMatch.created_at.localeCompare(secondMatch.created_at);
-      }
+  const visualQueuePositionByMatchId = Object.values(visualCourtMatchesByScopeKey).reduce<Record<string, number>>(
+    (carry, scopedMatches) => {
+      scopedMatches.forEach((match, matchIndex) => {
+        carry[match.id] = matchIndex + 1;
+      });
 
-      return firstMatch.id.localeCompare(secondMatch.id);
-    });
+      return carry;
+    },
+    {},
+  );
 
-    orderedScopedMatches.forEach((match, matchIndex) => {
-      carry[match.id] = resolveMatchRepresentationFromPreviousMatch(orderedScopedMatches[matchIndex - 1]);
-    });
+  return matches.reduce<Record<string, number>>((carry, match) => {
+    const visualQueuePosition = visualQueuePositionByMatchId[match.id];
+
+    if (typeof visualQueuePosition == "number") {
+      carry[match.id] = visualQueuePosition;
+    }
 
     return carry;
   }, {});
 }
 
-export function resolveMatchRepresentationByMatchId(
+export function resolveVisualCourtMatchRepresentationByMatchId(
   matches: MatchRepresentationSource[],
   contextMatches?: MatchRepresentationSource[],
+  estimatedStartTimeByMatchId?: Record<string, string>,
 ): Record<string, string> {
   if (matches.length == 0) {
     return {};
   }
 
-  const operationalMatches = resolveUniqueMatchSourcesById([
-    ...(contextMatches ?? []),
-    ...matches,
-  ]);
-  const matchRepresentationByMatchId = resolveOperationalMatchRepresentationByMatchId(operationalMatches);
+  const visualCourtMatchesByScopeKey = resolveOrderedVisualCourtMatches(
+    resolveUniqueMatchSourcesById([...(contextMatches ?? []), ...matches]),
+    estimatedStartTimeByMatchId,
+  );
+
+  const matchRepresentationByMatchId = Object.values(visualCourtMatchesByScopeKey).reduce<Record<string, string>>(
+    (carry, scopedMatches) => {
+      scopedMatches.forEach((match, matchIndex) => {
+        carry[match.id] = resolveMatchRepresentationForVisualCourtSequence(match, scopedMatches[matchIndex - 1]);
+      });
+
+      return carry;
+    },
+    {},
+  );
 
   return matches.reduce<Record<string, string>>((carry, match) => {
     const matchRepresentation = matchRepresentationByMatchId[match.id];
@@ -390,6 +472,14 @@ export function resolveMatchRepresentationByMatchId(
 
     return carry;
   }, {});
+}
+
+export function resolveMatchRepresentationByMatchId(
+  matches: MatchRepresentationSource[],
+  contextMatches?: MatchRepresentationSource[],
+  estimatedStartTimeByMatchId?: Record<string, string>,
+): Record<string, string> {
+  return resolveVisualCourtMatchRepresentationByMatchId(matches, contextMatches, estimatedStartTimeByMatchId);
 }
 
 export function resolveNormalizedSportName(sportName: string | null | undefined): string {

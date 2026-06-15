@@ -363,6 +363,7 @@ interface Props {
   loadingChampionshipBracket: boolean;
   matchBracketContextByMatchId: Record<string, MatchBracketContext>;
   matchRepresentationByMatchId?: Record<string, string>;
+  visualQueuePositionByMatchId?: Record<string, number>;
   estimatedStartTimeByMatchId?: Record<string, string>;
   isFetchingMatches?: boolean;
   canManageMatches?: boolean;
@@ -521,11 +522,12 @@ function resolveScheduledDateDraftValue(match: Match): Date | null {
 
 function resolveScheduledQueueSummary(
   match: Match & { scheduled_slot?: number | null },
-  shouldUseScheduledSlot: boolean,
+  visualQueuePosition: number | undefined,
 ): string {
   const scheduledDateValue = resolveMatchScheduledDateValue(match);
-  const displayedQueueValue = match.queue_position ?? match.scheduled_slot ?? null;
-  const queueLabel = resolveMatchQueueLabel(displayedQueueValue);
+  const queueLabel = resolveMatchQueueLabel(
+    visualQueuePosition ?? match.queue_position ?? match.scheduled_slot ?? null,
+  );
 
   if (!scheduledDateValue) {
     return queueLabel;
@@ -706,6 +708,7 @@ export function AdminMatches({
   loadingChampionshipBracket,
   matchBracketContextByMatchId,
   matchRepresentationByMatchId = {},
+  visualQueuePositionByMatchId = {},
   estimatedStartTimeByMatchId = {},
   isFetchingMatches = false,
   canManageMatches: canManageMatchesProp = true,
@@ -4309,7 +4312,7 @@ export function AdminMatches({
 	                      <div className="text-center text-xs text-muted-foreground">
 	                        <div className="flex flex-col items-center gap-y-0.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-x-3 sm:gap-y-0">
 	                          <span>Local: {match.court_name ? `${match.location} • ${match.court_name}` : match.location}</span>
-	                          <span>Fila: {resolveScheduledQueueSummary(match, shouldUseScheduledSlotInMatchList)}</span>
+	                          <span>Fila: {resolveScheduledQueueSummary(match, visualQueuePositionByMatchId[match.id])}</span>
 	                          {matchRepresentationByMatchId[match.id] ? (
 	                            <span className="break-words">Representação: {matchRepresentationByMatchId[match.id]}</span>
 	                          ) : null}

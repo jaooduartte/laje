@@ -90,6 +90,7 @@ export function AdminPage() {
   const {
     matches: operationalMatches,
     matchRepresentationByMatchId: operationalMatchRepresentationByMatchId,
+    visualQueuePositionByMatchId: operationalVisualQueuePositionByMatchId,
     estimatedStartTimeByMatchId: operationalEstimatedStartTimeByMatchId,
     isFetching: operationalMatchesFetching,
     refetch: refetchOperationalMatches,
@@ -108,6 +109,7 @@ export function AdminPage() {
   const {
     matches: matchesTabMatches,
     matchRepresentationByMatchId: matchesTabMatchRepresentationByMatchId,
+    visualQueuePositionByMatchId: matchesTabVisualQueuePositionByMatchId,
     estimatedStartTimeByMatchId: matchesTabEstimatedStartTimeByMatchId,
     isFetching: matchesTabFetching,
     refetch: refetchMatchesTabMatches,
@@ -545,6 +547,8 @@ export function AdminPage() {
         matchesTabMatchBracketContextByMatchId={matchesTabMatchBracketContextByMatchId}
         matchRepresentationByMatchId={operationalMatchRepresentationByMatchId}
         matchesTabMatchRepresentationByMatchId={matchesTabMatchRepresentationByMatchId}
+        visualQueuePositionByMatchId={operationalVisualQueuePositionByMatchId}
+        matchesTabVisualQueuePositionByMatchId={matchesTabVisualQueuePositionByMatchId}
         estimatedStartTimeByMatchId={operationalEstimatedStartTimeByMatchId}
         matchesTabEstimatedStartTimeByMatchId={matchesTabEstimatedStartTimeByMatchId}
         matchesFetching={operationalMatchesFetching}

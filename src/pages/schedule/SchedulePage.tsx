@@ -122,6 +122,7 @@ export function SchedulePage() {
     matches: visibleMatches,
     totalCount: totalMatches,
     matchRepresentationByMatchId,
+    visualQueuePositionByMatchId,
     estimatedStartTimeByMatchId,
     loading: matchesLoading,
     isFetching: matchesFetching,
@@ -259,6 +260,7 @@ export function SchedulePage() {
       matchesTotalPages={matchesTotalPages}
       matchBracketContextByMatchId={matchBracketContextByMatchId}
       matchRepresentationByMatchId={matchRepresentationByMatchId}
+      visualQueuePositionByMatchId={visualQueuePositionByMatchId}
       estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
       onChampionshipCodeChange={handleChampionshipCodeChange}
       onSportFilterChange={setSportFilter}
