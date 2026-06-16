@@ -907,10 +907,10 @@ describe("AdminMatches score sheet review", () => {
           status: MatchStatus.SCHEDULED,
           naipe: MatchNaipe.FEMININO,
           division: TeamDivision.DIVISAO_ACESSO,
-          scheduled_date: "2026-04-12",
+          scheduled_date: "2026-04-13",
           location: "Arena Seven",
           court_name: "Quadra B",
-          start_time: "2026-04-12T08:40:00.000Z",
+          start_time: "2026-04-13T08:40:00.000Z",
           queue_position: 2,
           scheduled_slot: 2,
           home_team: buildTeam({ id: "swap-target-home", name: "CANDIDATO CASA" }),
@@ -935,6 +935,15 @@ describe("AdminMatches score sheet review", () => {
     });
 
     supabaseRpcResponses.push({
+      data: [
+        {
+          match_id: "swap-target-match",
+        },
+      ],
+      error: null,
+    });
+
+    supabaseRpcResponses.push({
       data: {
         source_match_id: "swap-source-match",
         target_match_id: "swap-target-match",
@@ -954,12 +963,21 @@ describe("AdminMatches score sheet review", () => {
     clickFirstMenuItemInMatchCard(sourceCardContainer as HTMLElement, "Trocar jogo");
 
     expect(await screen.findByText("Trocar jogo na fila")).toBeInTheDocument();
+    expect(await screen.findByText("12/04 • Jogo 1 • ORIGEM CASA x ORIGEM VISITANTE")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(supabaseRpcCalls[0]).toMatchObject({
+        functionName: "list_match_queue_swap_candidates",
+        payload: {
+          _source_match_id: "swap-source-match",
+        },
+      });
+    });
 
     fireEvent.click(screen.getByRole("combobox", { name: "Selecionar jogo para troca de fila" }));
-    expect((await screen.findAllByText("Jogo 2 • CANDIDATO CASA x CANDIDATO VISITANTE")).length).toBeGreaterThan(0);
-    expect(screen.queryByText("Jogo 3 • OUTRO CASA x OUTRO VISITANTE")).not.toBeInTheDocument();
+    expect((await screen.findAllByText("13/04 • Jogo 2 • CANDIDATO CASA x CANDIDATO VISITANTE")).length).toBeGreaterThan(0);
+    expect(screen.queryByText("12/04 • Jogo 3 • OUTRO CASA x OUTRO VISITANTE")).not.toBeInTheDocument();
 
-    fireEvent.click((await screen.findAllByText("Jogo 2 • CANDIDATO CASA x CANDIDATO VISITANTE"))[0]);
+    fireEvent.click((await screen.findAllByText("13/04 • Jogo 2 • CANDIDATO CASA x CANDIDATO VISITANTE"))[0]);
 
     onRefetch.mockClear();
     onRefetchChampionshipBracket.mockClear();
@@ -967,10 +985,10 @@ describe("AdminMatches score sheet review", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirmar troca" }));
 
     await waitFor(() => {
-      expect(supabaseRpcCalls.length).toBe(1);
+      expect(supabaseRpcCalls.length).toBe(2);
     });
 
-    expect(supabaseRpcCalls[0]).toMatchObject({
+    expect(supabaseRpcCalls[1]).toMatchObject({
       functionName: "swap_match_queue_slots",
       payload: {
         _source_match_id: "swap-source-match",

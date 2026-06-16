@@ -191,6 +191,7 @@ describe("adminMatchesSchedule utils", () => {
             id: "match-1",
             status: MatchStatus.SCHEDULED,
             scheduled_date: "2026-06-20",
+            naipe: MatchNaipe.MASCULINO,
             location: "Arena Seven",
             court_name: "Quadra B",
             start_time: "2026-06-20T08:00:00.000Z",
@@ -205,6 +206,7 @@ describe("adminMatchesSchedule utils", () => {
           id: "match-2",
           status: MatchStatus.SCHEDULED,
           scheduled_date: "2026-06-20",
+          naipe: MatchNaipe.MASCULINO,
           location: "Arena Seven",
           court_name: "Quadra B",
           start_time: "2026-06-20T08:40:00.000Z",
@@ -215,7 +217,7 @@ describe("adminMatchesSchedule utils", () => {
           away_team_id: "team-3",
         },
       }),
-    ).toBe("A mesma atlética não pode jogar ou representar jogos consecutivos na mesma quadra.");
+    ).toBe("A mesma atlética precisa de pelo menos 4 jogos de descanso na mesma quadra para partidas do mesmo naipe.");
   });
 
   it("ignora a mesma atlética quando os jogos são de quadras diferentes", () => {
@@ -226,6 +228,7 @@ describe("adminMatchesSchedule utils", () => {
             id: "match-1",
             status: MatchStatus.SCHEDULED,
             scheduled_date: "2026-06-20",
+            naipe: MatchNaipe.MASCULINO,
             location: "Arena Seven",
             court_name: "Quadra A",
             start_time: "2026-06-20T08:00:00.000Z",
@@ -240,6 +243,7 @@ describe("adminMatchesSchedule utils", () => {
           id: "match-2",
           status: MatchStatus.SCHEDULED,
           scheduled_date: "2026-06-20",
+          naipe: MatchNaipe.MASCULINO,
           location: "Arena Seven",
           court_name: "Quadra B",
           start_time: "2026-06-20T08:40:00.000Z",
@@ -248,6 +252,159 @@ describe("adminMatchesSchedule utils", () => {
           created_at: "2026-06-15T00:01:00.000Z",
           home_team_id: "team-1",
           away_team_id: "team-3",
+        },
+      }),
+    ).toBeNull();
+  });
+
+  it("detecta conflito quando a mesma atlética do mesmo naipe ficaria com menos de 4 jogos de folga", () => {
+    expect(
+      resolveScheduledMatchCourtConflictMessage({
+        matches: [
+          {
+            id: "match-1",
+            status: MatchStatus.SCHEDULED,
+            scheduled_date: "2026-06-20",
+            naipe: MatchNaipe.MASCULINO,
+            location: "Arena Seven",
+            court_name: "Quadra A",
+            start_time: "2026-06-20T08:00:00.000Z",
+            queue_position: 1,
+            scheduled_slot: 1,
+            created_at: "2026-06-15T00:00:00.000Z",
+            home_team_id: "team-1",
+            away_team_id: "team-2",
+          },
+          {
+            id: "match-2",
+            status: MatchStatus.SCHEDULED,
+            scheduled_date: "2026-06-20",
+            naipe: MatchNaipe.FEMININO,
+            location: "Arena Seven",
+            court_name: "Quadra A",
+            start_time: "2026-06-20T08:40:00.000Z",
+            queue_position: 2,
+            scheduled_slot: 2,
+            created_at: "2026-06-15T00:01:00.000Z",
+            home_team_id: "team-3",
+            away_team_id: "team-4",
+          },
+          {
+            id: "match-3",
+            status: MatchStatus.SCHEDULED,
+            scheduled_date: "2026-06-20",
+            naipe: MatchNaipe.FEMININO,
+            location: "Arena Seven",
+            court_name: "Quadra A",
+            start_time: "2026-06-20T09:20:00.000Z",
+            queue_position: 3,
+            scheduled_slot: 3,
+            created_at: "2026-06-15T00:02:00.000Z",
+            home_team_id: "team-5",
+            away_team_id: "team-6",
+          },
+        ],
+        nextMatch: {
+          id: "match-4",
+          status: MatchStatus.SCHEDULED,
+          scheduled_date: "2026-06-20",
+          naipe: MatchNaipe.MASCULINO,
+          location: "Arena Seven",
+          court_name: "Quadra A",
+          start_time: "2026-06-20T10:00:00.000Z",
+          queue_position: 4,
+          scheduled_slot: 4,
+          created_at: "2026-06-15T00:03:00.000Z",
+          home_team_id: "team-1",
+          away_team_id: "team-7",
+        },
+      }),
+    ).toBe("A mesma atlética precisa de pelo menos 4 jogos de descanso na mesma quadra para partidas do mesmo naipe.");
+  });
+
+  it("detecta conflito quando a mesma atlética ficaria em jogos consecutivos de naipes diferentes", () => {
+    expect(
+      resolveScheduledMatchCourtConflictMessage({
+        matches: [
+          {
+            id: "match-1",
+            status: MatchStatus.SCHEDULED,
+            scheduled_date: "2026-06-20",
+            naipe: MatchNaipe.MASCULINO,
+            location: "Arena Seven",
+            court_name: "Quadra A",
+            start_time: "2026-06-20T08:00:00.000Z",
+            queue_position: 1,
+            scheduled_slot: 1,
+            created_at: "2026-06-15T00:00:00.000Z",
+            home_team_id: "team-1",
+            away_team_id: "team-2",
+          },
+        ],
+        nextMatch: {
+          id: "match-2",
+          status: MatchStatus.SCHEDULED,
+          scheduled_date: "2026-06-20",
+          naipe: MatchNaipe.FEMININO,
+          location: "Arena Seven",
+          court_name: "Quadra A",
+          start_time: "2026-06-20T08:40:00.000Z",
+          queue_position: 2,
+          scheduled_slot: 2,
+          created_at: "2026-06-15T00:01:00.000Z",
+          home_team_id: "team-1",
+          away_team_id: "team-3",
+        },
+      }),
+    ).toBe("A mesma atlética precisa de pelo menos 1 jogo de intervalo entre partidas de naipes diferentes na mesma quadra.");
+  });
+
+  it("permite a mesma atlética em naipes diferentes quando há um jogo no meio", () => {
+    expect(
+      resolveScheduledMatchCourtConflictMessage({
+        matches: [
+          {
+            id: "match-1",
+            status: MatchStatus.SCHEDULED,
+            scheduled_date: "2026-06-20",
+            naipe: MatchNaipe.MASCULINO,
+            location: "Arena Seven",
+            court_name: "Quadra A",
+            start_time: "2026-06-20T08:00:00.000Z",
+            queue_position: 1,
+            scheduled_slot: 1,
+            created_at: "2026-06-15T00:00:00.000Z",
+            home_team_id: "team-1",
+            away_team_id: "team-2",
+          },
+          {
+            id: "match-2",
+            status: MatchStatus.SCHEDULED,
+            scheduled_date: "2026-06-20",
+            naipe: MatchNaipe.FEMININO,
+            location: "Arena Seven",
+            court_name: "Quadra A",
+            start_time: "2026-06-20T08:40:00.000Z",
+            queue_position: 2,
+            scheduled_slot: 2,
+            created_at: "2026-06-15T00:01:00.000Z",
+            home_team_id: "team-3",
+            away_team_id: "team-4",
+          },
+        ],
+        nextMatch: {
+          id: "match-3",
+          status: MatchStatus.SCHEDULED,
+          scheduled_date: "2026-06-20",
+          naipe: MatchNaipe.FEMININO,
+          location: "Arena Seven",
+          court_name: "Quadra A",
+          start_time: "2026-06-20T09:20:00.000Z",
+          queue_position: 3,
+          scheduled_slot: 3,
+          created_at: "2026-06-15T00:02:00.000Z",
+          home_team_id: "team-1",
+          away_team_id: "team-5",
         },
       }),
     ).toBeNull();

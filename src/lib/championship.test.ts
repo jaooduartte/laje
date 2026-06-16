@@ -253,6 +253,36 @@ describe("resolveMatchRepresentationByMatchId", () => {
     expect(representationByMatchId["court-a-day-2-game-2"]).toBe("Gamma x Delta");
   });
 
+  it("usa CO quando o jogo anterior da quadra tem a mesma atlética do jogo atual", () => {
+    const previousMatch = buildMatch({
+      id: "court-a-game-previous",
+      scheduled_date: "2026-03-21",
+      queue_position: 1,
+      location: "Arena Seven",
+      court_name: "Quadra A",
+      home_team_id: "team-1",
+      away_team_id: "team-2",
+      home_team: { id: "team-1", name: "Alpha", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      away_team: { id: "team-2", name: "Beta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+    });
+    const currentMatch = buildMatch({
+      id: "court-a-game-current",
+      scheduled_date: "2026-03-21",
+      queue_position: 2,
+      location: "Arena Seven",
+      court_name: "Quadra A",
+      home_team_id: "team-2",
+      away_team_id: "team-3",
+      home_team: { id: "team-2", name: "Beta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      away_team: { id: "team-3", name: "Gamma", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+    });
+
+    const representationByMatchId = resolveMatchRepresentationByMatchId([currentMatch, previousMatch]);
+
+    expect(representationByMatchId["court-a-game-previous"]).toBe("CO");
+    expect(representationByMatchId["court-a-game-current"]).toBe("CO");
+  });
+
   it("usa o contexto completo da quadra quando a lista visível está filtrada", () => {
     const previousCourtMatch = buildMatch({
       id: "court-a-hidden-previous",

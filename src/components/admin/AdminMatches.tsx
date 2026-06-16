@@ -111,7 +111,6 @@ import {
   resolveNormalizedTieBreakTeamOrder,
 } from "@/components/admin/adminMatchesTieBreak.utils";
 import {
-  resolveIsMatchEligibleForQueueSwap,
   resolveMatchSwapDisplaySlot,
   resolveMatchSwapOptionLabel,
 } from "@/components/admin/adminMatchesSwap.utils";
@@ -437,6 +436,10 @@ type SwapMatchQueueSlotsResponse = {
   target_previous_slot: number;
   source_next_slot: number;
   target_next_slot: number;
+};
+
+type ListMatchQueueSwapCandidatesResponseItem = {
+  match_id: string;
 };
 
 function resolveDateOnlyString(date: Date): string {
@@ -765,6 +768,8 @@ export function AdminMatches({
   const [showSwapMatchDialog, setShowSwapMatchDialog] = useState(false);
   const [pendingSwapSourceMatchId, setPendingSwapSourceMatchId] = useState<string | null>(null);
   const [pendingSwapTargetMatchId, setPendingSwapTargetMatchId] = useState("");
+  const [eligibleSwapTargetMatchIds, setEligibleSwapTargetMatchIds] = useState<string[]>([]);
+  const [loadingSwapTargetMatchOptions, setLoadingSwapTargetMatchOptions] = useState(false);
   const [swappingMatches, setSwappingMatches] = useState(false);
   const [showDeleteSelectedMatchesDialog, setShowDeleteSelectedMatchesDialog] = useState(false);
   const [creatingMatch, setCreatingMatch] = useState(false);
@@ -1561,14 +1566,30 @@ export function AdminMatches({
       return [];
     }
 
+    const eligibleSwapTargetMatchIdSet = new Set(eligibleSwapTargetMatchIds);
+
     return matches
-      .filter((match) => resolveIsMatchEligibleForQueueSwap(pendingSwapSourceMatch, match, matches))
+      .filter((match) => eligibleSwapTargetMatchIdSet.has(match.id))
       .sort((firstMatch, secondMatch) => {
-        const firstSlot = resolveMatchSwapDisplaySlot(firstMatch, shouldUseScheduledSlotInMatchList) ?? Number.MAX_SAFE_INTEGER;
-        const secondSlot = resolveMatchSwapDisplaySlot(secondMatch, shouldUseScheduledSlotInMatchList) ?? Number.MAX_SAFE_INTEGER;
+        const firstScheduledDate = resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
+        const secondScheduledDate = resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
+
+        if (firstScheduledDate != secondScheduledDate) {
+          return firstScheduledDate.localeCompare(secondScheduledDate);
+        }
+
+        const firstSlot = resolveMatchSwapDisplaySlot(firstMatch, true) ?? Number.MAX_SAFE_INTEGER;
+        const secondSlot = resolveMatchSwapDisplaySlot(secondMatch, true) ?? Number.MAX_SAFE_INTEGER;
 
         if (firstSlot != secondSlot) {
           return firstSlot - secondSlot;
+        }
+
+        const firstStartTime = firstMatch.start_time ?? "";
+        const secondStartTime = secondMatch.start_time ?? "";
+
+        if (firstStartTime != secondStartTime) {
+          return firstStartTime.localeCompare(secondStartTime);
         }
 
         if (firstMatch.created_at != secondMatch.created_at) {
@@ -1579,9 +1600,13 @@ export function AdminMatches({
       })
       .map((match) => ({
         id: match.id,
-        label: resolveMatchSwapOptionLabel(match, shouldUseScheduledSlotInMatchList),
+        label: resolveMatchSwapOptionLabel({
+          match,
+          shouldUseScheduledSlot: true,
+          displaySlot: visualQueuePositionByMatchId[match.id],
+        }),
       }));
-  }, [matches, pendingSwapSourceMatch, shouldUseScheduledSlotInMatchList]);
+  }, [eligibleSwapTargetMatchIds, matches, pendingSwapSourceMatch, visualQueuePositionByMatchId]);
 
   const filteredAndSortedMatches = useMemo(() => {
     return [...matchesFilteredByBaseCriteria]
@@ -1677,6 +1702,46 @@ export function AdminMatches({
     matchesLocationFilter,
     shouldUseScheduledSlotInMatchList,
   ]);
+
+  useEffect(() => {
+    if (!showSwapMatchDialog || !pendingSwapSourceMatch) {
+      setEligibleSwapTargetMatchIds([]);
+      setLoadingSwapTargetMatchOptions(false);
+      return;
+    }
+
+    let shouldIgnore = false;
+
+    setLoadingSwapTargetMatchOptions(true);
+
+    void (async () => {
+      const { data, error } = await supabase.rpc("list_match_queue_swap_candidates", {
+        _source_match_id: pendingSwapSourceMatch.id,
+      });
+
+      if (shouldIgnore) {
+        return;
+      }
+
+      if (error) {
+        setEligibleSwapTargetMatchIds([]);
+        setLoadingSwapTargetMatchOptions(false);
+        toast.error(resolveAdminMatchesOperationalErrorMessage(error));
+        return;
+      }
+
+      const candidateRows = Array.isArray(data)
+        ? (data as ListMatchQueueSwapCandidatesResponseItem[])
+        : [];
+
+      setEligibleSwapTargetMatchIds(candidateRows.map((candidateRow) => candidateRow.match_id));
+      setLoadingSwapTargetMatchOptions(false);
+    })();
+
+    return () => {
+      shouldIgnore = true;
+    };
+  }, [pendingSwapSourceMatch, showSwapMatchDialog]);
 
   useEffect(() => {
     if (!pendingSwapTargetMatchId) {
@@ -1833,6 +1898,8 @@ export function AdminMatches({
     setShowSwapMatchDialog(false);
     setPendingSwapSourceMatchId(null);
     setPendingSwapTargetMatchId("");
+    setEligibleSwapTargetMatchIds([]);
+    setLoadingSwapTargetMatchOptions(false);
   }, [pendingSwapSourceMatch, showSwapMatchDialog]);
 
   useEffect(() => {
@@ -1843,6 +1910,8 @@ export function AdminMatches({
     setShowSwapMatchDialog(false);
     setPendingSwapSourceMatchId(null);
     setPendingSwapTargetMatchId("");
+    setEligibleSwapTargetMatchIds([]);
+    setLoadingSwapTargetMatchOptions(false);
   }, [isScoreSheetReviewMode, showSwapMatchDialog]);
 
   useEffect(() => {
@@ -2278,6 +2347,7 @@ export function AdminMatches({
 
     setPendingSwapSourceMatchId(match.id);
     setPendingSwapTargetMatchId("");
+    setEligibleSwapTargetMatchIds([]);
     setShowSwapMatchDialog(true);
   };
 
@@ -2289,6 +2359,8 @@ export function AdminMatches({
     setShowSwapMatchDialog(false);
     setPendingSwapSourceMatchId(null);
     setPendingSwapTargetMatchId("");
+    setEligibleSwapTargetMatchIds([]);
+    setLoadingSwapTargetMatchOptions(false);
   };
 
   const handleConfirmSwapMatches = async () => {
@@ -2298,6 +2370,11 @@ export function AdminMatches({
 
     if (!pendingSwapSourceMatch || !pendingSwapTargetMatchId) {
       toast.error("Selecione um jogo válido para trocar a fila.");
+      return;
+    }
+
+    if (loadingSwapTargetMatchOptions) {
+      toast.error("Aguarde o carregamento das opções de troca.");
       return;
     }
 
@@ -2325,6 +2402,8 @@ export function AdminMatches({
     setShowSwapMatchDialog(false);
     setPendingSwapSourceMatchId(null);
     setPendingSwapTargetMatchId("");
+    setEligibleSwapTargetMatchIds([]);
+    setLoadingSwapTargetMatchOptions(false);
 
     await Promise.all([onRefetch(), onRefetchChampionshipBracket()]);
 
@@ -3079,6 +3158,7 @@ export function AdminMatches({
         id: editingMatchId,
         status: editingMatchDraft.status,
         scheduled_date: resolvedScheduledDate,
+        naipe: editingMatchDraft.naipe,
         location: normalizedLocation,
         court_name: resolvedCourtName,
         start_time: resolvedStartTime,
@@ -4494,10 +4574,10 @@ export function AdminMatches({
         }}
       >
         <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
+            <DialogHeader>
             <DialogTitle>Trocar jogo na fila</DialogTitle>
             <DialogDescription>
-              Selecione um jogo da mesma quadra e do mesmo dia para trocar a posição da fila, sem criar conflito de representação.
+              Selecione um jogo da mesma quadra para trocar a posição da fila, inclusive em outros dias, sem criar conflito de representação.
             </DialogDescription>
           </DialogHeader>
 
@@ -4506,7 +4586,11 @@ export function AdminMatches({
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Jogo selecionado</p>
               <div className="app-card-muted rounded-xl p-3 text-sm">
                 {pendingSwapSourceMatch
-                  ? resolveMatchSwapOptionLabel(pendingSwapSourceMatch, shouldUseScheduledSlotInMatchList)
+                  ? resolveMatchSwapOptionLabel({
+                    match: pendingSwapSourceMatch,
+                    shouldUseScheduledSlot: true,
+                    displaySlot: visualQueuePositionByMatchId[pendingSwapSourceMatch.id],
+                  })
                   : "Selecione um jogo para iniciar a troca."}
               </div>
             </div>
@@ -4518,7 +4602,7 @@ export function AdminMatches({
                 onValueChange={(value) => {
                   setPendingSwapTargetMatchId(value == EMPTY_SWAP_MATCH_OPTION_VALUE ? "" : value);
                 }}
-                disabled={eligibleSwapTargetMatchOptions.length == 0 || swappingMatches}
+                disabled={loadingSwapTargetMatchOptions || eligibleSwapTargetMatchOptions.length == 0 || swappingMatches}
               >
                 <SelectTrigger aria-label="Selecionar jogo para troca de fila" className="app-input-field">
                   <SelectValue placeholder="Selecione o jogo para troca" />
@@ -4533,7 +4617,11 @@ export function AdminMatches({
                 </SelectContent>
               </Select>
 
-              {eligibleSwapTargetMatchOptions.length == 0 ? (
+              {loadingSwapTargetMatchOptions ? (
+                <p className="text-xs text-muted-foreground">
+                  Carregando jogos elegíveis para troca...
+                </p>
+              ) : eligibleSwapTargetMatchOptions.length == 0 ? (
                 <p className="text-xs text-muted-foreground">
                   Não há jogo elegível para troca neste escopo.
                 </p>
@@ -4548,7 +4636,7 @@ export function AdminMatches({
             <Button
               type="button"
               onClick={() => void handleConfirmSwapMatches()}
-              disabled={!pendingSwapSourceMatch || !pendingSwapTargetMatchId || swappingMatches}
+              disabled={!pendingSwapSourceMatch || !pendingSwapTargetMatchId || loadingSwapTargetMatchOptions || swappingMatches}
             >
               {swappingMatches ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Confirmar troca
