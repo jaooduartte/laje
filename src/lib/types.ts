@@ -21,6 +21,7 @@ import type {
   BracketThirdPlaceMode,
   MatchNaipe,
   MatchStatus,
+  MatchManualRepresentationMode,
   TeamDivision,
 } from "@/lib/enums";
 
@@ -85,6 +86,7 @@ export interface Match {
   away_team_id: string;
   location: string;
   court_name: string | null;
+  manual_representation_mode?: MatchManualRepresentationMode | null;
   scheduled_date: string | null;
   queue_position: number | null;
   scheduled_slot?: number | null;

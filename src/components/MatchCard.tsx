@@ -120,7 +120,12 @@ export function MatchCard({
             {resolveMatchNaipeLabel(String(match.naipe))}
           </AppBadge>
           {match.division ? (
-            <AppBadge tone={TEAM_DIVISION_BADGE_TONES[match.division]}>{TEAM_DIVISION_LABELS[match.division]}</AppBadge>
+            <AppBadge tone={TEAM_DIVISION_BADGE_TONES[match.division]}>
+              <span className="sm:hidden">
+                {match.division == "DIVISAO_PRINCIPAL" ? "Div. Principal" : "Div. Acesso"}
+              </span>
+              <span className="hidden sm:inline">{TEAM_DIVISION_LABELS[match.division]}</span>
+            </AppBadge>
           ) : null}
           {bracketContext ? (
             <AppBadge tone={resolveBracketBadgeTone(bracketContext)}>

@@ -10,17 +10,22 @@ import {
   fetchChampionshipBracketLocationTemplates,
   fetchChampionshipBracketPendingTieBreaks,
   generateChampionshipKnockout,
+  getBracketCourtSports,
   getBracketDaySchedules,
+  listEditableMatchScheduleSlots,
   saveMatchSets,
   saveChampionshipBracketTieBreakResolution,
   swapChampionshipKnockoutBracketTeams,
+  updateScheduledMatchLogistics,
   updateBracketDaySchedule,
 } from "@/domain/championship-brackets/championshipBracket.repository";
 import type {
+  BracketDayCourtSports,
   ChampionshipCorrectedGroupStanding,
   ChampionshipBracketLocationTemplate,
   ChampionshipBracketScheduleDayInput,
   ChampionshipBracketTieBreakPendingContext,
+  EditableMatchScheduleSlot,
   MatchSetInput,
 } from "@/domain/championship-brackets/championshipBracket.types";
 import {
@@ -42,6 +47,7 @@ import {
   BracketPhase,
   ChampionshipSportResultRule,
   ChampionshipSportTieBreakerRule,
+  MatchManualRepresentationMode,
   MatchNaipe,
   MatchStatus,
   TeamDivision,
@@ -70,6 +76,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -117,8 +124,6 @@ import {
 import {
   resolveBracketDayScheduleUpdates,
   resolveMatchScheduleMoveSortValue,
-  resolveScheduledMatchCourtConflictMessage,
-  resolveShouldRedistributeBracketScheduleAfterMatchEdit,
 } from "@/components/admin/adminMatchesSchedule.utils";
 import { AdminMatchesViewMode } from "@/components/admin/adminMatches.types";
 import { useChampionshipCorrectedGroupStandings } from "@/hooks/useChampionshipCorrectedGroupStandings";
@@ -354,6 +359,10 @@ function resolveEstimatedStartTimeSortValue(estimatedStartTimeValue: string | un
   return (parsedHours * 60) + parsedMinutes;
 }
 
+function normalizeBracketEntityName(value: string | null | undefined) {
+  return (value ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase("pt-BR");
+}
+
 interface Props {
   matches: Match[];
   championshipSports: ChampionshipSport[];
@@ -391,9 +400,11 @@ interface MatchEditDraft {
   awayYellowCards: number;
   awayRedCards: number;
   location: string;
+  courtName: string;
   scheduledDate: Date | null;
   startTime: Date | null;
   gameSlot: string;
+  manualRepresentationMode: MatchManualRepresentationMode;
   division: TeamDivision;
   naipe: MatchNaipe;
   status: MatchStatus;
@@ -440,6 +451,13 @@ type SwapMatchQueueSlotsResponse = {
 
 type ListMatchQueueSwapCandidatesResponseItem = {
   match_id: string;
+  scheduled_date: string | null;
+  start_time: string | null;
+  queue_position: number | null;
+  scheduled_slot: number | null;
+  created_at: string;
+  home_team_name: string | null;
+  away_team_name: string | null;
 };
 
 function resolveDateOnlyString(date: Date): string {
@@ -660,12 +678,12 @@ function resolveScoreSheetDraftFromContext(context: MatchScoreSheetAwardsContext
     return "";
   };
 
-  const homeGoalSelections: GoalSelection[] = context.home_goals.map((goal) => ({
+  const homeGoalSelections: GoalSelection[] = (context.home_goals ?? []).map((goal) => ({
     scorerId: resolvePlayerSelection(goal, homePlayerOptions),
     concedingGoalkeeperName: goal.conceding_goalkeeper_name ?? "",
   }));
 
-  const awayGoalSelections: GoalSelection[] = context.away_goals.map((goal) => ({
+  const awayGoalSelections: GoalSelection[] = (context.away_goals ?? []).map((goal) => ({
     scorerId: resolvePlayerSelection(goal, awayPlayerOptions),
     concedingGoalkeeperName: goal.conceding_goalkeeper_name ?? "",
   }));
@@ -679,10 +697,10 @@ function resolveScoreSheetDraftFromContext(context: MatchScoreSheetAwardsContext
   }
 
   const resolveGoalkeeperSelections = (
-    goalkeepers: Array<{ player_id: string | null; player_name: string | null }>,
+    goalkeepers: Array<{ player_id: string | null; player_name: string | null }> | null | undefined,
     options: ScoreSheetAwardPlayerOption[],
   ): string[] => {
-    const selections = goalkeepers.map((gk) => resolvePlayerSelection(gk, options));
+    const selections = (goalkeepers ?? []).map((gk) => resolvePlayerSelection(gk, options));
     return selections.length > 0 ? selections : [""];
   };
 
@@ -768,13 +786,17 @@ export function AdminMatches({
   const [showSwapMatchDialog, setShowSwapMatchDialog] = useState(false);
   const [pendingSwapSourceMatchId, setPendingSwapSourceMatchId] = useState<string | null>(null);
   const [pendingSwapTargetMatchId, setPendingSwapTargetMatchId] = useState("");
-  const [eligibleSwapTargetMatchIds, setEligibleSwapTargetMatchIds] = useState<string[]>([]);
+  const [eligibleSwapTargetMatchCandidates, setEligibleSwapTargetMatchCandidates] = useState<
+    ListMatchQueueSwapCandidatesResponseItem[]
+  >([]);
   const [loadingSwapTargetMatchOptions, setLoadingSwapTargetMatchOptions] = useState(false);
   const [swappingMatches, setSwappingMatches] = useState(false);
   const [showDeleteSelectedMatchesDialog, setShowDeleteSelectedMatchesDialog] = useState(false);
   const [creatingMatch, setCreatingMatch] = useState(false);
   const [locationTemplates, setLocationTemplates] = useState<ChampionshipBracketLocationTemplate[]>([]);
   const [loadingLocationTemplates, setLoadingLocationTemplates] = useState(false);
+  const [bracketCourtSportsDays, setBracketCourtSportsDays] = useState<BracketDayCourtSports[]>([]);
+  const [loadingBracketCourtSportsDays, setLoadingBracketCourtSportsDays] = useState(false);
   const [pendingTieBreakContexts, setPendingTieBreakContexts] = useState<ChampionshipBracketTieBreakPendingContext[]>([]);
   const [loadingPendingTieBreakContexts, setLoadingPendingTieBreakContexts] = useState(false);
   const [showTieBreakDialog, setShowTieBreakDialog] = useState(false);
@@ -782,7 +804,9 @@ export function AdminMatches({
   const [savingTieBreakResolutionByContextKey, setSavingTieBreakResolutionByContextKey] = useState<Record<string, boolean>>({});
   const [draftTieBreakTeamIdsByContextKey, setDraftTieBreakTeamIdsByContextKey] = useState<Record<string, string[]>>({});
   const [editingMatchSetsDraft, setEditingMatchSetsDraft] = useState<MatchSetInput[]>([]);
-  const [hideReviewedMatches, setHideReviewedMatches] = useState(isScoreSheetReviewMode);
+  const [editingAvailableScheduleSlots, setEditingAvailableScheduleSlots] = useState<EditableMatchScheduleSlot[]>([]);
+  const [loadingEditingAvailableScheduleSlots, setLoadingEditingAvailableScheduleSlots] = useState(false);
+  const [hideReviewedMatches, setHideReviewedMatches] = useState(false);
   const [savingReviewStateByMatchId, setSavingReviewStateByMatchId] = useState<Record<string, boolean>>({});
   const [bulkReviewAction, setBulkReviewAction] = useState<BulkReviewAction | null>(null);
   const [showEditReviewConfirmationDialog, setShowEditReviewConfirmationDialog] = useState(false);
@@ -827,6 +851,7 @@ export function AdminMatches({
   const championshipUsesDivisions = selectedChampionship.uses_divisions;
   const hasConfiguredBracket =
     championshipBracketView.edition != null && championshipBracketView.competitions.length > 0;
+  const bracketEditionId = championshipBracketView.edition?.id ?? null;
   const availableSportsForCreate = useMemo(() => {
     return resolveSportsByNaipe(championshipSports, naipe);
   }, [championshipSports, naipe]);
@@ -885,69 +910,11 @@ export function AdminMatches({
     return championshipSportSupportsCardsBySportId.get(editingMatchDraft.sportId) == true;
   }, [championshipSportSupportsCardsBySportId, editingMatchDraft]);
 
-  const championshipSportShowsTimeBySportId = useMemo(() => {
-    const map = new Map<string, boolean>();
-    championshipSports.forEach((s) => {
-      map.set(s.sport_id, s.show_estimated_start_time_on_cards);
-    });
-    return map;
-  }, [championshipSports]);
-
-  const isEditingSportWithTime = useMemo(() => {
-    if (!editingMatchDraft) {
-      return false;
-    }
-    return championshipSportShowsTimeBySportId.get(editingMatchDraft.sportId) == true;
-  }, [championshipSportShowsTimeBySportId, editingMatchDraft]);
-
   const championshipBracketScheduleDays = useMemo(() => {
     return resolveChampionshipBracketScheduleDays(championshipBracketView);
   }, [championshipBracketView]);
 
   const shouldUseScheduledSlotInMatchList = matchesSportFilter === ALL_MATCHES_SPORT_FILTER;
-
-  const availableQueuePositionsForEditingMatch = useMemo(() => {
-    const usedPositions = new Set<number>();
-
-    // Inclui a posição atual do jogo em edição para garantir que ela sempre apareça na lista
-    if (editingMatchDraft?.gameSlot) {
-      const currentSlot = Number.parseInt(editingMatchDraft.gameSlot, 10);
-      if (Number.isFinite(currentSlot) && currentSlot > 0) {
-        usedPositions.add(currentSlot);
-      }
-    }
-
-    if (editingMatchDraft?.scheduledDate) {
-      const scheduledDateString = resolveDateOnlyString(editingMatchDraft.scheduledDate);
-      const matchesOnSameDate = matches.filter((m) => {
-        if (resolveMatchScheduledDateValue(m) !== scheduledDateString) return false;
-        // Quando filtrado por esporte, restringe ao mesmo esporte para não inflar posições com slots de outras modalidades
-        if (!shouldUseScheduledSlotInMatchList && editingMatchDraft.sportId) {
-          return m.sport_id === editingMatchDraft.sportId;
-        }
-        return true;
-      });
-
-      for (const m of matchesOnSameDate) {
-        const slot = shouldUseScheduledSlotInMatchList
-          ? (m.scheduled_slot ?? m.queue_position)
-          : (m.queue_position ?? m.scheduled_slot);
-        if (slot != null) usedPositions.add(slot);
-      }
-    }
-
-    if (usedPositions.size === 0) {
-      return [];
-    }
-
-    const maxPosition = Math.max(...usedPositions);
-    const positions = [];
-    for (let i = 1; i <= maxPosition; i++) {
-      positions.push(i);
-    }
-
-    return positions;
-  }, [editingMatchDraft?.scheduledDate, editingMatchDraft?.gameSlot, editingMatchDraft?.sportId, shouldUseScheduledSlotInMatchList, matches]);
 
   const championshipDayDates = useMemo(() => {
     const payloadScheduleDayDates = championshipBracketScheduleDays
@@ -1019,6 +986,125 @@ export function AdminMatches({
       return leftLocationName.localeCompare(rightLocationName, "pt-BR", { sensitivity: "base" });
     });
   }, [availableLocationOptions, editingMatchDraft?.location]);
+
+  const bracketCourtSportsDayByDate = useMemo(() => {
+    return bracketCourtSportsDays.reduce<Record<string, BracketDayCourtSports>>((carry, day) => {
+      carry[day.event_date] = day;
+      return carry;
+    }, {});
+  }, [bracketCourtSportsDays]);
+
+  const editingCourtOptions = useMemo(() => {
+    const currentCourtName = editingMatchDraft?.courtName.trim() ?? "";
+
+    if (!editingMatchDraft?.scheduledDate || !editingMatchDraft.location.trim()) {
+      return currentCourtName ? [currentCourtName] : [];
+    }
+
+    const scheduledDateString = resolveDateOnlyString(editingMatchDraft.scheduledDate);
+    const bracketDay = bracketCourtSportsDayByDate[scheduledDateString];
+
+    if (!bracketDay) {
+      return currentCourtName ? [currentCourtName] : [];
+    }
+
+    const normalizedLocation = normalizeBracketEntityName(editingMatchDraft.location);
+    const compatibleCourts = bracketDay.locations
+      .filter((locationOption) => normalizeBracketEntityName(locationOption.name) == normalizedLocation)
+      .flatMap((locationOption) =>
+        locationOption.courts
+          .filter((courtOption) =>
+            !editingMatchDraft.sportId || courtOption.sports.some((sportEntry) => sportEntry.sport_id == editingMatchDraft.sportId),
+          )
+          .map((courtOption) => ({
+            name: courtOption.name,
+            position: courtOption.position,
+          })),
+      )
+      .sort((leftCourtOption, rightCourtOption) => leftCourtOption.position - rightCourtOption.position)
+      .map((courtOption) => courtOption.name);
+
+    if (!editingMatchDraft.sportId) {
+      if (!currentCourtName || compatibleCourts.includes(currentCourtName)) {
+        return compatibleCourts;
+      }
+
+      return [...compatibleCourts, currentCourtName].sort((leftCourtName, rightCourtName) => {
+        return leftCourtName.localeCompare(rightCourtName, "pt-BR", { sensitivity: "base" });
+      });
+    }
+
+    if (compatibleCourts.length > 0) {
+      return compatibleCourts;
+    }
+
+    return [];
+  }, [
+    bracketCourtSportsDayByDate,
+    editingMatchDraft?.courtName,
+    editingMatchDraft?.location,
+    editingMatchDraft?.scheduledDate,
+    editingMatchDraft?.sportId,
+  ]);
+
+  const currentEditingCourtName = editingMatchDraft?.courtName ?? "";
+
+  useEffect(() => {
+    if (!editingMatchDraft) {
+      return;
+    }
+
+    if (editingCourtOptions.length == 0) {
+      if (!currentEditingCourtName) {
+        return;
+      }
+
+      setEditingMatchDraft((currentDraft) =>
+        currentDraft
+          ? {
+              ...currentDraft,
+              courtName: "",
+            }
+          : currentDraft,
+      );
+      return;
+    }
+
+    if (editingCourtOptions.includes(currentEditingCourtName)) {
+      return;
+    }
+
+    setEditingMatchDraft((currentDraft) =>
+      currentDraft
+          ? {
+            ...currentDraft,
+            courtName: editingCourtOptions[0] ?? "",
+          }
+        : currentDraft,
+    );
+  }, [currentEditingCourtName, editingCourtOptions, editingMatchDraft]);
+
+  const selectedEditingScheduleSlot = useMemo(() => {
+    if (!editingMatchDraft) {
+      return null;
+    }
+
+    const currentStartTimeValue = editingMatchDraft.startTime?.toISOString() ?? null;
+
+    if (currentStartTimeValue) {
+      const matchedByTime = editingAvailableScheduleSlots.find((slot) => slot.start_time == currentStartTimeValue);
+
+      if (matchedByTime) {
+        return matchedByTime;
+      }
+    }
+
+    if (editingMatchDraft.gameSlot) {
+      return editingAvailableScheduleSlots.find((slot) => String(slot.slot_number) == editingMatchDraft.gameSlot) ?? null;
+    }
+
+    return editingAvailableScheduleSlots.find((slot) => slot.is_current_slot) ?? null;
+  }, [editingAvailableScheduleSlots, editingMatchDraft]);
 
   const teamsAllowedForMatches = useMemo(() => {
     if (!championshipUsesDivisions) {
@@ -1128,7 +1214,7 @@ export function AdminMatches({
 
   useEffect(() => {
     setMatchesStatusFilter(defaultMatchesStatusFilter);
-    setHideReviewedMatches(isScoreSheetReviewMode);
+    setHideReviewedMatches(false);
     setBulkReviewAction(null);
     setSelectedMatchIds([]);
   }, [defaultMatchesStatusFilter, isScoreSheetReviewMode]);
@@ -1179,6 +1265,112 @@ export function AdminMatches({
 
     void loadLocationTemplates();
   }, [isTieBreaksMode, loadLocationTemplates]);
+
+  useEffect(() => {
+    if (!bracketEditionId) {
+      setBracketCourtSportsDays([]);
+      setLoadingBracketCourtSportsDays(false);
+      return;
+    }
+
+    let isActive = true;
+    setLoadingBracketCourtSportsDays(true);
+
+    void getBracketCourtSports(bracketEditionId).then(({ data, error }) => {
+      if (!isActive) {
+        return;
+      }
+
+      setLoadingBracketCourtSportsDays(false);
+
+      if (error) {
+        toast.error(resolveAdminMatchesOperationalErrorMessage(error));
+        return;
+      }
+
+      setBracketCourtSportsDays(data);
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, [bracketEditionId]);
+
+  useEffect(() => {
+    if (
+      !editingMatchId ||
+      !editingMatchDraft?.scheduledDate ||
+      !editingMatchDraft.location.trim() ||
+      !editingMatchDraft.courtName.trim() ||
+      !editingMatchDraft.sportId
+    ) {
+      setEditingAvailableScheduleSlots([]);
+      setLoadingEditingAvailableScheduleSlots(false);
+      return;
+    }
+
+    let isActive = true;
+    const scheduledDateString = resolveDateOnlyString(editingMatchDraft.scheduledDate);
+
+    setLoadingEditingAvailableScheduleSlots(true);
+
+    void listEditableMatchScheduleSlots({
+      match_id: editingMatchId,
+      target_date: scheduledDateString,
+      target_location: editingMatchDraft.location.trim(),
+      target_court_name: editingMatchDraft.courtName.trim(),
+      sport_id: editingMatchDraft.sportId,
+      naipe: editingMatchDraft.naipe,
+      home_team_id: editingMatchDraft.homeTeamId || null,
+      away_team_id: editingMatchDraft.awayTeamId || null,
+    }).then(({ data, error }) => {
+      if (!isActive) {
+        return;
+      }
+
+      setLoadingEditingAvailableScheduleSlots(false);
+
+      if (error) {
+        setEditingAvailableScheduleSlots([]);
+        toast.error(resolveAdminMatchesOperationalErrorMessage(error));
+        return;
+      }
+
+      setEditingAvailableScheduleSlots(data);
+      setEditingMatchDraft((currentDraft) => {
+        if (!currentDraft) {
+          return currentDraft;
+        }
+
+        const currentStartTimeValue = currentDraft.startTime?.toISOString() ?? null;
+        const matchedSlot =
+          (currentStartTimeValue ? data.find((slot) => slot.start_time == currentStartTimeValue) : null) ??
+          (currentDraft.gameSlot ? data.find((slot) => String(slot.slot_number) == currentDraft.gameSlot) : null) ??
+          data.find((slot) => slot.is_current_slot) ??
+          data[0] ??
+          null;
+
+        return {
+          ...currentDraft,
+          startTime: matchedSlot ? new Date(matchedSlot.start_time) : null,
+          gameSlot: matchedSlot ? String(matchedSlot.slot_number) : "",
+        };
+      });
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, [
+    editingMatchDraft?.awayTeamId,
+    editingMatchDraft?.courtName,
+    editingMatchDraft?.homeTeamId,
+    editingMatchDraft?.location,
+    editingMatchDraft?.naipe,
+    editingMatchDraft?.scheduledDate,
+    editingMatchDraft?.sportId,
+    editingMatchId,
+  ]);
 
   useEffect(() => {
     setSportId("");
@@ -1566,13 +1758,10 @@ export function AdminMatches({
       return [];
     }
 
-    const eligibleSwapTargetMatchIdSet = new Set(eligibleSwapTargetMatchIds);
-
-    return matches
-      .filter((match) => eligibleSwapTargetMatchIdSet.has(match.id))
+    return eligibleSwapTargetMatchCandidates
       .sort((firstMatch, secondMatch) => {
-        const firstScheduledDate = resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
-        const secondScheduledDate = resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
+        const firstScheduledDate = firstMatch.scheduled_date ?? "9999-12-31";
+        const secondScheduledDate = secondMatch.scheduled_date ?? "9999-12-31";
 
         if (firstScheduledDate != secondScheduledDate) {
           return firstScheduledDate.localeCompare(secondScheduledDate);
@@ -1596,17 +1785,38 @@ export function AdminMatches({
           return firstMatch.created_at.localeCompare(secondMatch.created_at);
         }
 
-        return firstMatch.id.localeCompare(secondMatch.id);
+        return firstMatch.match_id.localeCompare(secondMatch.match_id);
       })
       .map((match) => ({
-        id: match.id,
+        id: match.match_id,
         label: resolveMatchSwapOptionLabel({
-          match,
+          match: {
+            scheduled_date: match.scheduled_date,
+            queue_position: match.queue_position,
+            scheduled_slot: match.scheduled_slot,
+            home_team: match.home_team_name
+              ? {
+                  id: "",
+                  name: match.home_team_name,
+                  city: "",
+                  division: null,
+                  created_at: "",
+                }
+              : undefined,
+            away_team: match.away_team_name
+              ? {
+                  id: "",
+                  name: match.away_team_name,
+                  city: "",
+                  division: null,
+                  created_at: "",
+                }
+              : undefined,
+          },
           shouldUseScheduledSlot: true,
-          displaySlot: visualQueuePositionByMatchId[match.id],
         }),
       }));
-  }, [eligibleSwapTargetMatchIds, matches, pendingSwapSourceMatch, visualQueuePositionByMatchId]);
+  }, [eligibleSwapTargetMatchCandidates, pendingSwapSourceMatch]);
 
   const filteredAndSortedMatches = useMemo(() => {
     return [...matchesFilteredByBaseCriteria]
@@ -1705,7 +1915,7 @@ export function AdminMatches({
 
   useEffect(() => {
     if (!showSwapMatchDialog || !pendingSwapSourceMatch) {
-      setEligibleSwapTargetMatchIds([]);
+      setEligibleSwapTargetMatchCandidates([]);
       setLoadingSwapTargetMatchOptions(false);
       return;
     }
@@ -1724,7 +1934,7 @@ export function AdminMatches({
       }
 
       if (error) {
-        setEligibleSwapTargetMatchIds([]);
+        setEligibleSwapTargetMatchCandidates([]);
         setLoadingSwapTargetMatchOptions(false);
         toast.error(resolveAdminMatchesOperationalErrorMessage(error));
         return;
@@ -1734,7 +1944,7 @@ export function AdminMatches({
         ? (data as ListMatchQueueSwapCandidatesResponseItem[])
         : [];
 
-      setEligibleSwapTargetMatchIds(candidateRows.map((candidateRow) => candidateRow.match_id));
+      setEligibleSwapTargetMatchCandidates(candidateRows);
       setLoadingSwapTargetMatchOptions(false);
     })();
 
@@ -1898,7 +2108,7 @@ export function AdminMatches({
     setShowSwapMatchDialog(false);
     setPendingSwapSourceMatchId(null);
     setPendingSwapTargetMatchId("");
-    setEligibleSwapTargetMatchIds([]);
+    setEligibleSwapTargetMatchCandidates([]);
     setLoadingSwapTargetMatchOptions(false);
   }, [pendingSwapSourceMatch, showSwapMatchDialog]);
 
@@ -1910,7 +2120,7 @@ export function AdminMatches({
     setShowSwapMatchDialog(false);
     setPendingSwapSourceMatchId(null);
     setPendingSwapTargetMatchId("");
-    setEligibleSwapTargetMatchIds([]);
+    setEligibleSwapTargetMatchCandidates([]);
     setLoadingSwapTargetMatchOptions(false);
   }, [isScoreSheetReviewMode, showSwapMatchDialog]);
 
@@ -2347,7 +2557,7 @@ export function AdminMatches({
 
     setPendingSwapSourceMatchId(match.id);
     setPendingSwapTargetMatchId("");
-    setEligibleSwapTargetMatchIds([]);
+    setEligibleSwapTargetMatchCandidates([]);
     setShowSwapMatchDialog(true);
   };
 
@@ -2359,7 +2569,7 @@ export function AdminMatches({
     setShowSwapMatchDialog(false);
     setPendingSwapSourceMatchId(null);
     setPendingSwapTargetMatchId("");
-    setEligibleSwapTargetMatchIds([]);
+    setEligibleSwapTargetMatchCandidates([]);
     setLoadingSwapTargetMatchOptions(false);
   };
 
@@ -2402,7 +2612,7 @@ export function AdminMatches({
     setShowSwapMatchDialog(false);
     setPendingSwapSourceMatchId(null);
     setPendingSwapTargetMatchId("");
-    setEligibleSwapTargetMatchIds([]);
+    setEligibleSwapTargetMatchCandidates([]);
     setLoadingSwapTargetMatchOptions(false);
 
     await Promise.all([onRefetch(), onRefetchChampionshipBracket()]);
@@ -2906,9 +3116,11 @@ export function AdminMatches({
       awayYellowCards: match.away_yellow_cards ?? 0,
       awayRedCards: match.away_red_cards ?? 0,
       location: match.location,
+      courtName: match.court_name ?? "",
       scheduledDate: resolveScheduledDateDraftValue(match),
       startTime: match.start_time ? new Date(match.start_time) : null,
       gameSlot: currentGameSlot == null ? "" : String(currentGameSlot),
+      manualRepresentationMode: match.manual_representation_mode ?? MatchManualRepresentationMode.AUTO,
       division: match.division ?? TeamDivision.DIVISAO_PRINCIPAL,
       naipe: match.naipe,
       status: match.status,
@@ -2923,6 +3135,8 @@ export function AdminMatches({
     setEditingMatchId(null);
     setEditingMatchDraft(null);
     setEditingMatchSetsDraft([]);
+    setEditingAvailableScheduleSlots([]);
+    setLoadingEditingAvailableScheduleSlots(false);
     setShowEditReviewConfirmationDialog(false);
   };
 
@@ -2975,12 +3189,14 @@ export function AdminMatches({
     }
 
     const normalizedLocation = editingMatchDraft.location.trim();
+    const normalizedCourtName = editingMatchDraft.courtName.trim();
 
     if (
       !editingMatchDraft.sportId ||
       !editingMatchDraft.homeTeamId ||
       !editingMatchDraft.awayTeamId ||
       !normalizedLocation ||
+      !normalizedCourtName ||
       !editingMatchDraft.scheduledDate
     ) {
       toast.error("Preencha todos os campos da edição.");
@@ -2992,23 +3208,8 @@ export function AdminMatches({
       return;
     }
 
-    const normalizedGameSlot = editingMatchDraft.gameSlot;
-    const isLastInQueue = normalizedGameSlot === "LAST_IN_QUEUE";
-    const shouldClearGameSlot = normalizedGameSlot.length == 0;
-    
-    let parsedGameSlot: number | null = null;
-    
-    if (isLastInQueue) {
-      const scheduledDateString = resolveDateOnlyString(editingMatchDraft.scheduledDate);
-      const matchesOnSameDate = matches.filter(m => resolveMatchScheduledDateValue(m) === scheduledDateString && m.id !== editingMatchId);
-      const maxQueuePosition = matchesOnSameDate.reduce((max, m) => Math.max(max, m.queue_position ?? 0), 0);
-      parsedGameSlot = maxQueuePosition + 1;
-    } else if (!shouldClearGameSlot) {
-      parsedGameSlot = Number.parseInt(normalizedGameSlot, 10);
-    }
-
-    if (!isLastInQueue && !shouldClearGameSlot && (!Number.isFinite(parsedGameSlot) || parsedGameSlot == null || parsedGameSlot <= 0)) {
-      toast.error("Informe um número de jogo válido ou deixe o campo vazio.");
+    if (!editingMatchDraft.startTime || !selectedEditingScheduleSlot) {
+      toast.error("Selecione um horário disponível para o jogo.");
       return;
     }
 
@@ -3128,82 +3329,66 @@ export function AdminMatches({
     const resolvedEndTime = shouldResetFinishedMatchToScheduled || shouldReopenFinishedMatchAsLive ? null : editingMatch?.end_time ?? null;
     const resolvedScheduledDate = resolveDateOnlyString(editingMatchDraft.scheduledDate);
     const resolvedDivision = championshipUsesDivisions ? editingMatchDraft.division : null;
-    const shouldRedistributeScheduleAfterEditingMatch =
-      resolveShouldRedistributeBracketScheduleAfterMatchEdit({
-        previousMatch: editingMatch,
-        nextMatch: {
-          status: editingMatchDraft.status,
-          scheduled_date: resolvedScheduledDate,
-          queue_position: parsedGameSlot,
-          scheduled_slot: parsedGameSlot,
-          sport_id: editingMatchDraft.sportId,
-          naipe: editingMatchDraft.naipe,
-          division: resolvedDivision,
-          location: normalizedLocation,
-          court_name: editingMatch?.court_name ?? null,
-          start_time: resolvedStartTime,
-          created_at: editingMatch?.created_at ?? new Date().toISOString(),
-          home_team_id: editingMatchDraft.homeTeamId,
-          away_team_id: editingMatchDraft.awayTeamId,
-        },
-      });
-    const resolvedCourtName = shouldResetFinishedMatchToScheduled || shouldRedistributeScheduleAfterEditingMatch
-      ? null
-      : editingMatch?.court_name ?? null;
+    const resolvedCourtName = normalizedCourtName;
+    const resolvedSlotNumber = selectedEditingScheduleSlot.slot_number;
     const resolvedCurrentSetHomeScore = shouldResetFinishedMatchToScheduled ? null : editingMatch?.current_set_home_score ?? null;
     const resolvedCurrentSetAwayScore = shouldResetFinishedMatchToScheduled ? null : editingMatch?.current_set_away_score ?? null;
-    const scheduledMatchCourtConflictMessage = resolveScheduledMatchCourtConflictMessage({
-      matches,
-      nextMatch: {
-        id: editingMatchId,
-        status: editingMatchDraft.status,
+
+    if (editingMatchDraft.status == MatchStatus.SCHEDULED) {
+      const { error: logisticsUpdateError } = await updateScheduledMatchLogistics({
+        match_id: editingMatchId,
         scheduled_date: resolvedScheduledDate,
-        naipe: editingMatchDraft.naipe,
         location: normalizedLocation,
         court_name: resolvedCourtName,
-        start_time: resolvedStartTime,
-        queue_position: parsedGameSlot,
-        scheduled_slot: parsedGameSlot,
-        created_at: editingMatch?.created_at ?? new Date().toISOString(),
+        slot_start_time: selectedEditingScheduleSlot.start_time,
+        representation_mode: editingMatchDraft.manualRepresentationMode,
+        sport_id: editingMatchDraft.sportId,
+        naipe: editingMatchDraft.naipe,
         home_team_id: editingMatchDraft.homeTeamId,
         away_team_id: editingMatchDraft.awayTeamId,
-      },
-    });
+      });
 
-    if (!shouldRedistributeScheduleAfterEditingMatch && scheduledMatchCourtConflictMessage) {
-      setSavingEditingMatch(false);
-      toast.error(scheduledMatchCourtConflictMessage);
-      return;
+      if (logisticsUpdateError) {
+        setSavingEditingMatch(false);
+        toast.error(resolveAdminMatchesOperationalErrorMessage(logisticsUpdateError));
+        return;
+      }
+    }
+
+    const matchUpdatePayload: Record<string, unknown> = {
+      naipe: editingMatchDraft.naipe,
+      sport_id: editingMatchDraft.sportId,
+      home_team_id: editingMatchDraft.homeTeamId,
+      away_team_id: editingMatchDraft.awayTeamId,
+      current_set_home_score: resolvedCurrentSetHomeScore,
+      current_set_away_score: resolvedCurrentSetAwayScore,
+      home_score: resolvedHomeScore,
+      away_score: resolvedAwayScore,
+      home_yellow_cards: resolvedHomeYellowCards,
+      home_red_cards: resolvedHomeRedCards,
+      away_yellow_cards: resolvedAwayYellowCards,
+      away_red_cards: resolvedAwayRedCards,
+      is_score_sheet_reviewed: shouldKeepScoreSheetReview,
+      manual_representation_mode: editingMatchDraft.manualRepresentationMode,
+      resolved_tie_breaker_rule: shouldPreserveTieBreakResolution ? editingMatchDraft.resolvedTieBreakerRule || null : null,
+      resolved_tie_break_winner_team_id: shouldPreserveTieBreakResolution ? editingMatch?.resolved_tie_break_winner_team_id ?? null : null,
+      status: editingMatchDraft.status,
+      division: resolvedDivision,
+    };
+
+    if (editingMatchDraft.status != MatchStatus.SCHEDULED) {
+      matchUpdatePayload.location = normalizedLocation;
+      matchUpdatePayload.scheduled_date = resolvedScheduledDate;
+      matchUpdatePayload.queue_position = resolvedSlotNumber;
+      matchUpdatePayload.scheduled_slot = resolvedSlotNumber;
+      matchUpdatePayload.court_name = resolvedCourtName;
+      matchUpdatePayload.start_time = resolvedStartTime;
+      matchUpdatePayload.end_time = resolvedEndTime;
     }
 
     const { error } = await supabase
       .from("matches")
-      .update({
-        naipe: editingMatchDraft.naipe,
-        sport_id: editingMatchDraft.sportId,
-        home_team_id: editingMatchDraft.homeTeamId,
-        away_team_id: editingMatchDraft.awayTeamId,
-        location: normalizedLocation,
-        scheduled_date: resolvedScheduledDate,
-        queue_position: parsedGameSlot,
-        scheduled_slot: parsedGameSlot,
-        court_name: resolvedCourtName,
-        start_time: resolvedStartTime,
-        end_time: resolvedEndTime,
-        current_set_home_score: resolvedCurrentSetHomeScore,
-        current_set_away_score: resolvedCurrentSetAwayScore,
-        home_score: resolvedHomeScore,
-        away_score: resolvedAwayScore,
-        home_yellow_cards: resolvedHomeYellowCards,
-        home_red_cards: resolvedHomeRedCards,
-        away_yellow_cards: resolvedAwayYellowCards,
-        away_red_cards: resolvedAwayRedCards,
-        is_score_sheet_reviewed: shouldKeepScoreSheetReview,
-        resolved_tie_breaker_rule: shouldPreserveTieBreakResolution ? editingMatchDraft.resolvedTieBreakerRule || null : null,
-        resolved_tie_break_winner_team_id: shouldPreserveTieBreakResolution ? editingMatch?.resolved_tie_break_winner_team_id ?? null : null,
-        status: editingMatchDraft.status,
-        division: resolvedDivision,
-      })
+      .update(matchUpdatePayload)
       .eq("id", editingMatchId);
 
     if (error) {
@@ -3272,19 +3457,6 @@ export function AdminMatches({
       if (bracketBindingResponse.errorMessage) {
         setSavingEditingMatch(false);
         toast.error(bracketBindingResponse.errorMessage);
-        return;
-      }
-    }
-
-    if (shouldRedistributeScheduleAfterEditingMatch) {
-      const redistributedSchedule = await redistributeBracketScheduleAfterMatchScheduleChange({
-        reloadError: "O jogo foi atualizado, mas não foi possível recarregar a agenda para redistribuir a fila",
-        redistributeError: "O jogo foi atualizado, mas a redistribuição automática da fila falhou",
-      });
-
-      if (!redistributedSchedule) {
-        setSavingEditingMatch(false);
-        handleCancelEditingMatch();
         return;
       }
     }
@@ -4356,7 +4528,7 @@ export function AdminMatches({
 	                        {match.division ? (
 	                          <AppBadge tone={TEAM_DIVISION_BADGE_TONES[match.division]}>
 	                            <span className="sm:hidden">
-	                              {match.division === TeamDivision.DIVISAO_PRINCIPAL ? "D.P." : "D.A."}
+	                              {match.division === TeamDivision.DIVISAO_PRINCIPAL ? "Div. Principal" : "Div. Acesso"}
 	                            </span>
 	                            <span className="hidden sm:inline">{TEAM_DIVISION_LABELS[match.division]}</span>
 	                          </AppBadge>
@@ -5302,7 +5474,7 @@ export function AdminMatches({
           <DialogContent className="flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col overflow-hidden sm:max-h-none sm:w-full sm:max-w-4xl sm:overflow-visible">
             <DialogHeader className="shrink-0">
               <DialogTitle>Editar jogo - {selectedChampionship.name}</DialogTitle>
-              <DialogDescription>Atualize naipe, modalidade, grupo, placar, status, atléticas, local e o dia da fila do confronto.</DialogDescription>
+              <DialogDescription>Atualize a logística do slot, as atléticas e, se necessário, force a representação da CO apenas neste jogo.</DialogDescription>
             </DialogHeader>
 
             <div className="min-h-0 overflow-y-auto pr-1 sm:overflow-visible sm:pr-0">
@@ -5456,7 +5628,7 @@ export function AdminMatches({
 
               <div className="space-y-3">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Operação do dia</p>
-                <div className={`grid grid-cols-1 gap-3 ${isEditingSportWithTime ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">Local</p>
                     <Select
@@ -5467,6 +5639,7 @@ export function AdminMatches({
                             ? {
                                 ...currentDraft,
                                 location: value,
+                                courtName: "",
                               }
                             : currentDraft,
                         )
@@ -5505,26 +5678,96 @@ export function AdminMatches({
                     />
                   </div>
 
-                  {isEditingSportWithTime ? (
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">Horário de início</p>
-                      <DateTimePicker
-                        value={editingMatchDraft.startTime}
-                        onChange={(value) =>
-                          setEditingMatchDraft((currentDraft) =>
-                            currentDraft
-                              ? {
-                                  ...currentDraft,
-                                  startTime: value,
-                                }
-                              : currentDraft,
-                          )
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Quadra</p>
+                    <Select
+                      value={editingMatchDraft.courtName || EMPTY_GROUP_OPTION_VALUE}
+                      onValueChange={(value) =>
+                        setEditingMatchDraft((currentDraft) =>
+                          currentDraft
+                            ? {
+                                ...currentDraft,
+                                courtName: value == EMPTY_GROUP_OPTION_VALUE ? "" : value,
+                              }
+                            : currentDraft,
+                        )
+                      }
+                      disabled={editingCourtOptions.length == 0}
+                    >
+                      <SelectTrigger aria-label="Quadra do jogo" className="app-input-field">
+                        <SelectValue
+                          placeholder={
+                            loadingBracketCourtSportsDays ? "Carregando quadras" : "Quadra"
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={EMPTY_GROUP_OPTION_VALUE} disabled>
+                          {loadingBracketCourtSportsDays ? "Carregando quadras" : "Selecione a quadra"}
+                        </SelectItem>
+                        {editingCourtOptions.length == 0 ? (
+                          <SelectItem value="NO_COURTS_AVAILABLE" disabled>
+                            Nenhuma quadra disponível
+                          </SelectItem>
+                        ) : (
+                          editingCourtOptions.map((courtOption) => (
+                            <SelectItem key={courtOption} value={courtOption}>
+                              {courtOption}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Horário estimado</p>
+                    <Select
+                      value={selectedEditingScheduleSlot?.start_time ?? EMPTY_GROUP_OPTION_VALUE}
+                      onValueChange={(value) => {
+                        const selectedSlot = editingAvailableScheduleSlots.find((slot) => slot.start_time == value);
+
+                        if (!selectedSlot) {
+                          return;
                         }
-                        placeholder="Horário de início"
-                        showTime={true}
-                      />
-                    </div>
-                  ) : null}
+
+                        setEditingMatchDraft((currentDraft) =>
+                          currentDraft
+                            ? {
+                                ...currentDraft,
+                                startTime: new Date(selectedSlot.start_time),
+                                gameSlot: String(selectedSlot.slot_number),
+                              }
+                            : currentDraft,
+                        );
+                      }}
+                      disabled={loadingEditingAvailableScheduleSlots || editingAvailableScheduleSlots.length == 0}
+                    >
+                      <SelectTrigger aria-label="Horário estimado do jogo" className="app-input-field">
+                        <SelectValue
+                          placeholder={
+                            loadingEditingAvailableScheduleSlots ? "Carregando horários" : "Horário estimado"
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={EMPTY_GROUP_OPTION_VALUE} disabled>
+                          {loadingEditingAvailableScheduleSlots ? "Carregando horários" : "Selecione o horário"}
+                        </SelectItem>
+                        {editingAvailableScheduleSlots.length == 0 ? (
+                          <SelectItem value="NO_SCHEDULE_SLOTS_AVAILABLE" disabled>
+                            Nenhum horário disponível
+                          </SelectItem>
+                        ) : (
+                          editingAvailableScheduleSlots.map((scheduleSlot) => (
+                            <SelectItem key={scheduleSlot.start_time} value={scheduleSlot.start_time}>
+                              {scheduleSlot.start_time_label}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -5559,34 +5802,40 @@ export function AdminMatches({
 
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">Número do jogo</p>
-                    <Select
-                      value={editingMatchDraft.gameSlot || "EMPTY"}
-                      onValueChange={(value) =>
-                        setEditingMatchDraft((currentDraft) =>
-                          currentDraft
-                            ? {
-                                ...currentDraft,
-                                gameSlot: value === "EMPTY" ? "" : value,
-                              }
-                            : currentDraft,
-                        )
-                      }
-                    >
-                      <SelectTrigger aria-label="Número do jogo" className="app-input-field h-10">
-                        <SelectValue placeholder="Nenhum" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="EMPTY">Nenhum</SelectItem>
-                        {availableQueuePositionsForEditingMatch.map((pos) => (
-                          <SelectItem key={pos} value={String(pos)}>
-                            Jogo {pos}
-                          </SelectItem>
-                        ))}
-                        <SelectItem value="LAST_IN_QUEUE">Último da fila</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="app-input-field-disabled flex h-10 items-center rounded-xl px-3 text-sm">
+                      {selectedEditingScheduleSlot
+                        ? resolveMatchQueueLabel(selectedEditingScheduleSlot.slot_number)
+                        : "Selecione um horário"}
+                    </div>
                   </div>
 
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Representação</p>
+                    <div className="app-card-muted flex min-h-10 items-center justify-between rounded-xl px-3 py-2">
+                      <div className="space-y-0.5">
+                        <p className="text-sm font-medium text-foreground">Forçar CO</p>
+                        <p className="text-xs text-muted-foreground">
+                          Mantém a representação automática desligada só para este jogo.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={editingMatchDraft.manualRepresentationMode == MatchManualRepresentationMode.CO}
+                        onCheckedChange={(checked) =>
+                          setEditingMatchDraft((currentDraft) =>
+                            currentDraft
+                              ? {
+                                  ...currentDraft,
+                                  manualRepresentationMode: checked
+                                    ? MatchManualRepresentationMode.CO
+                                    : MatchManualRepresentationMode.AUTO,
+                                }
+                              : currentDraft,
+                          )
+                        }
+                        aria-label="Forçar representação da CO"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -5882,6 +6131,18 @@ export function AdminMatches({
 
               {editingLocationOptions.length == 0 ? (
                 <p className="text-xs text-muted-foreground">Nenhum local cadastrado para seleção. Cadastre um local antes de editar o jogo.</p>
+              ) : null}
+
+              {editingCourtOptions.length == 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Nenhuma quadra compatível encontrada para a modalidade e o local selecionados neste dia.
+                </p>
+              ) : null}
+
+              {!loadingEditingAvailableScheduleSlots && editingAvailableScheduleSlots.length == 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Nenhum horário livre encontrado para o dia, local e quadra selecionados.
+                </p>
               ) : null}
               </div>
             </div>

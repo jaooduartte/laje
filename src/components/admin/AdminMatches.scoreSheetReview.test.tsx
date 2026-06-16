@@ -12,6 +12,7 @@ import {
   ChampionshipSportResultRule,
   ChampionshipSportTieBreakerRule,
   ChampionshipStatus,
+  MatchManualRepresentationMode,
   MatchNaipe,
   MatchStatus,
   TeamDivision,
@@ -48,11 +49,14 @@ const {
   toastSuccessMock,
   toastErrorMock,
   fetchLocationTemplatesMock,
+  getBracketCourtSportsMock,
+  listEditableMatchScheduleSlotsMock,
   fetchPendingTieBreaksMock,
   fetchCorrectedGroupStandingsMock,
   generateChampionshipKnockoutMock,
   saveMatchSetsMock,
   saveTieBreakResolutionMock,
+  updateScheduledMatchLogisticsMock,
   supabaseChannelMock,
 } = vi.hoisted(() => ({
   supabaseUpdateCalls: [] as SupabaseUpdateCall[],
@@ -63,11 +67,14 @@ const {
   toastSuccessMock: vi.fn(),
   toastErrorMock: vi.fn(),
   fetchLocationTemplatesMock: vi.fn(),
+  getBracketCourtSportsMock: vi.fn(),
+  listEditableMatchScheduleSlotsMock: vi.fn(),
   fetchPendingTieBreaksMock: vi.fn(),
   fetchCorrectedGroupStandingsMock: vi.fn(),
   generateChampionshipKnockoutMock: vi.fn(),
   saveMatchSetsMock: vi.fn(),
   saveTieBreakResolutionMock: vi.fn(),
+  updateScheduledMatchLogisticsMock: vi.fn(),
   supabaseChannelMock: {
     on: vi.fn(),
     subscribe: vi.fn(),
@@ -141,11 +148,14 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
 
 vi.mock("@/domain/championship-brackets/championshipBracket.repository", () => ({
   fetchChampionshipBracketLocationTemplates: (...args: unknown[]) => fetchLocationTemplatesMock(...args),
+  getBracketCourtSports: (...args: unknown[]) => getBracketCourtSportsMock(...args),
+  listEditableMatchScheduleSlots: (...args: unknown[]) => listEditableMatchScheduleSlotsMock(...args),
   fetchChampionshipBracketPendingTieBreaks: (...args: unknown[]) => fetchPendingTieBreaksMock(...args),
   fetchChampionshipCorrectedGroupStandings: (...args: unknown[]) => fetchCorrectedGroupStandingsMock(...args),
   generateChampionshipKnockout: (...args: unknown[]) => generateChampionshipKnockoutMock(...args),
   saveMatchSets: (...args: unknown[]) => saveMatchSetsMock(...args),
   saveChampionshipBracketTieBreakResolution: (...args: unknown[]) => saveTieBreakResolutionMock(...args),
+  updateScheduledMatchLogistics: (...args: unknown[]) => updateScheduledMatchLogisticsMock(...args),
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -250,6 +260,7 @@ function buildMatch(overrides: Partial<Match> & Pick<Match, "id" | "sport_id" | 
     away_team_id: overrides.away_team_id ?? awayTeam.id,
     location: overrides.location ?? "Praia de Piçarras",
     court_name: overrides.court_name ?? null,
+    manual_representation_mode: overrides.manual_representation_mode ?? MatchManualRepresentationMode.AUTO,
     scheduled_date: overrides.scheduled_date ?? "2026-04-11",
     queue_position: overrides.queue_position ?? 1,
     scheduled_slot: overrides.scheduled_slot ?? null,
@@ -287,6 +298,7 @@ function buildChampionshipSport(overrides: Partial<ChampionshipSport> & Pick<Cha
     naipe_mode: overrides.naipe_mode ?? ChampionshipSportNaipeMode.MASCULINO_FEMININO,
     result_rule: overrides.result_rule ?? ChampionshipSportResultRule.POINTS,
     supports_cards: overrides.supports_cards ?? true,
+    supports_individual_awards: overrides.supports_individual_awards ?? true,
     tie_breaker_rule: overrides.tie_breaker_rule ?? ChampionshipSportTieBreakerRule.BEACH_SOCCER,
     default_match_duration_minutes: overrides.default_match_duration_minutes ?? 30,
     show_estimated_start_time_on_cards: overrides.show_estimated_start_time_on_cards ?? false,
@@ -395,6 +407,17 @@ function renderAdminMatches(params: {
   };
 }
 
+function buildEditableScheduleSlots(date: string, currentSlotNumber = 1) {
+  const slotLabels = ["08:00", "08:40", "09:20", "10:00", "10:40", "11:20"];
+
+  return slotLabels.map((timeLabel, slotIndex) => ({
+    slot_number: slotIndex + 1,
+    start_time: `${date}T${timeLabel}:00.000Z`,
+    start_time_label: timeLabel,
+    is_current_slot: slotIndex + 1 == currentSlotNumber,
+  }));
+}
+
 function getMatchCardContainerByTeamName(teamName: string): HTMLElement {
   const cardTitle = screen.getByText(teamName);
   const cardContainer = cardTitle.closest(".list-item-card");
@@ -422,20 +445,26 @@ describe("AdminMatches score sheet review", () => {
     toastSuccessMock.mockReset();
     toastErrorMock.mockReset();
     fetchLocationTemplatesMock.mockReset();
+    getBracketCourtSportsMock.mockReset();
+    listEditableMatchScheduleSlotsMock.mockReset();
     fetchPendingTieBreaksMock.mockReset();
     fetchCorrectedGroupStandingsMock.mockReset();
     generateChampionshipKnockoutMock.mockReset();
     saveMatchSetsMock.mockReset();
     saveTieBreakResolutionMock.mockReset();
+    updateScheduledMatchLogisticsMock.mockReset();
     supabaseChannelMock.on.mockClear();
     supabaseChannelMock.subscribe.mockClear();
 
     fetchLocationTemplatesMock.mockResolvedValue({ data: [], error: null });
+    getBracketCourtSportsMock.mockResolvedValue({ data: [], error: null });
+    listEditableMatchScheduleSlotsMock.mockResolvedValue({ data: [], error: null });
     fetchPendingTieBreaksMock.mockResolvedValue({ data: [], error: null });
     fetchCorrectedGroupStandingsMock.mockResolvedValue({ data: [], error: null });
     generateChampionshipKnockoutMock.mockResolvedValue({ data: null, error: null });
     saveMatchSetsMock.mockResolvedValue({ error: null });
     saveTieBreakResolutionMock.mockResolvedValue({ data: null, error: null });
+    updateScheduledMatchLogisticsMock.mockResolvedValue({ error: null });
   });
 
   afterEach(() => {
@@ -571,7 +600,6 @@ describe("AdminMatches score sheet review", () => {
 
   it("abre revisão de súmula e salva premiações antes de marcar como revisado", async () => {
     supabaseRpcResponses.push(
-      { data: null, error: null },
       {
         data: {
           match_id: "match-1",
@@ -580,12 +608,12 @@ describe("AdminMatches score sheet review", () => {
           required_home_goals: 0,
           required_away_goals: 0,
           is_walkover: false,
-          home_players: [{ id: "home-player-1", name: "Goleiro Casa" }],
-          away_players: [{ id: "away-player-1", name: "Goleiro Visitante" }],
+          home_players: [{ id: "home-player-1", name: "Goleiro Casa", is_goalkeeper: true }],
+          away_players: [{ id: "away-player-1", name: "Goleiro Visitante", is_goalkeeper: true }],
           home_goals: [],
           away_goals: [],
-          home_goalkeeper: null,
-          away_goalkeeper: null,
+          home_goalkeepers: [{ player_id: "home-player-1", player_name: "Goleiro Casa" }],
+          away_goalkeepers: [{ player_id: "away-player-1", player_name: "Goleiro Visitante" }],
         },
         error: null,
       },
@@ -615,11 +643,11 @@ describe("AdminMatches score sheet review", () => {
 
     expect(await screen.findByText("Revisão de súmula e premiações")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("combobox", { name: "Goleiro - CASA 1" }));
-    fireEvent.click(screen.getByText("Goleiro Casa"));
+    fireEvent.click(screen.getByRole("combobox", { name: "Goleiro 1 - CASA 1" }));
+    fireEvent.click(screen.getByRole("option", { name: "Goleiro Casa" }));
 
-    fireEvent.click(screen.getByRole("combobox", { name: "Goleiro - VISITANTE 1" }));
-    fireEvent.click(screen.getByText("Goleiro Visitante"));
+    fireEvent.click(screen.getByRole("combobox", { name: "Goleiro 1 - VISITANTE 1" }));
+    fireEvent.click(screen.getByRole("option", { name: "Goleiro Visitante" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Salvar revisão" }));
 
@@ -902,21 +930,6 @@ describe("AdminMatches score sheet review", () => {
           away_team: buildTeam({ id: "swap-source-away", name: "ORIGEM VISITANTE" }),
         }),
         buildMatch({
-          id: "swap-target-match",
-          sport_id: "sport-1",
-          status: MatchStatus.SCHEDULED,
-          naipe: MatchNaipe.FEMININO,
-          division: TeamDivision.DIVISAO_ACESSO,
-          scheduled_date: "2026-04-13",
-          location: "Arena Seven",
-          court_name: "Quadra B",
-          start_time: "2026-04-13T08:40:00.000Z",
-          queue_position: 2,
-          scheduled_slot: 2,
-          home_team: buildTeam({ id: "swap-target-home", name: "CANDIDATO CASA" }),
-          away_team: buildTeam({ id: "swap-target-away", name: "CANDIDATO VISITANTE" }),
-        }),
-        buildMatch({
           id: "swap-ineligible-match",
           sport_id: "sport-1",
           status: MatchStatus.SCHEDULED,
@@ -938,6 +951,13 @@ describe("AdminMatches score sheet review", () => {
       data: [
         {
           match_id: "swap-target-match",
+          scheduled_date: "2026-04-13",
+          start_time: "2026-04-13T08:40:00.000Z",
+          queue_position: 2,
+          scheduled_slot: 2,
+          created_at: "2026-04-01T00:00:00.000Z",
+          home_team_name: "CANDIDATO CASA",
+          away_team_name: "CANDIDATO VISITANTE",
         },
       ],
       error: null,
@@ -1003,6 +1023,11 @@ describe("AdminMatches score sheet review", () => {
   });
 
   it("abre confirmação ao salvar edição de jogo revisado e permite remover a revisão", async () => {
+    listEditableMatchScheduleSlotsMock.mockResolvedValue({
+      data: buildEditableScheduleSlots("2026-04-11", 1),
+      error: null,
+    });
+
     renderAdminMatches({
       viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
       matches: [
@@ -1011,6 +1036,9 @@ describe("AdminMatches score sheet review", () => {
           sport_id: "sport-1",
           status: MatchStatus.FINISHED,
           is_score_sheet_reviewed: true,
+          court_name: "Quadra 1",
+          start_time: "2026-04-11T08:00:00.000Z",
+          scheduled_slot: 1,
           home_team: buildTeam({ id: "team-reviewed-edit-home", name: "EDIT CASA" }),
           away_team: buildTeam({ id: "team-reviewed-edit-away", name: "EDIT VISITANTE" }),
         }),
@@ -1022,6 +1050,7 @@ describe("AdminMatches score sheet review", () => {
     const matchCardContainer = getMatchCardContainerByTeamName("EDIT CASA");
     clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
 
+    expect(await screen.findByText("Jogo 1")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
 
     expect(await screen.findByText("Jogo já revisado na súmula")).toBeInTheDocument();
@@ -1039,7 +1068,6 @@ describe("AdminMatches score sheet review", () => {
 
   it("exige preencher autores dos gols antes de salvar a revisão", async () => {
     supabaseRpcResponses.push(
-      { data: null, error: null },
       {
         data: {
           match_id: "review-loader-match",
@@ -1048,12 +1076,12 @@ describe("AdminMatches score sheet review", () => {
           required_home_goals: 1,
           required_away_goals: 0,
           is_walkover: false,
-          home_players: [{ id: "home-player-2", name: "Atacante Casa" }],
-          away_players: [{ id: "away-player-2", name: "Goleira Visitante" }],
+          home_players: [{ id: "home-player-2", name: "Atacante Casa", is_goalkeeper: false }],
+          away_players: [{ id: "away-player-2", name: "Goleira Visitante", is_goalkeeper: true }],
           home_goals: [],
           away_goals: [],
-          home_goalkeeper: null,
-          away_goalkeeper: null,
+          home_goalkeepers: [],
+          away_goalkeepers: [{ player_id: "away-player-2", player_name: "Goleira Visitante" }],
         },
         error: null,
       },
@@ -1516,73 +1544,129 @@ describe("AdminMatches score sheet review", () => {
     expect(within(secondContextCard).getByRole("button", { name: "Refazer sorteio" })).toBeInTheDocument();
   });
 
-  it("ao editar o campo jogo sincroniza queue_position e scheduled_slot", async () => {
-    // Jogo na posição 5 — dropdown terá posições 1-5 disponíveis
+  it("ao editar a logística de um jogo agendado usa o RPC autoritativo de slots", async () => {
+    getBracketCourtSportsMock.mockResolvedValue({
+      data: [
+        {
+          bracket_day_id: "day-1",
+          event_date: "2026-04-11",
+          locations: [
+            {
+              id: "location-1",
+              name: "Praia de Piçarras",
+              position: 1,
+              courts: [
+                {
+                  id: "court-1",
+                  name: "Quadra 1",
+                  position: 1,
+                  sports: [{ sport_id: "sport-1" }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      error: null,
+    });
+    listEditableMatchScheduleSlotsMock.mockResolvedValue({
+      data: buildEditableScheduleSlots("2026-04-11", 5),
+      error: null,
+    });
+
     renderAdminMatches({
       matches: [
         buildMatch({
           id: "edit-game-slot-match",
           sport_id: "sport-1",
           status: MatchStatus.SCHEDULED,
+          court_name: "Quadra 1",
+          start_time: "2026-04-11T10:40:00.000Z",
           queue_position: 5,
           scheduled_slot: 5,
           home_team: buildTeam({ id: "edit-slot-home", name: "CASA SLOT" }),
           away_team: buildTeam({ id: "edit-slot-away", name: "VISITANTE SLOT" }),
         }),
       ],
+      bracketView: buildBracketView({
+        edition: buildBracketEdition(),
+      }),
     });
 
     fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo CASA SLOT x VISITANTE SLOT"));
     const matchCardContainer = getMatchCardContainerByTeamName("CASA SLOT");
     clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
 
-    // Seleciona "Jogo 3" (disponível pois posição atual é 5 → dropdown mostra 1-5)
-    fireEvent.click(screen.getByRole("combobox", { name: "Número do jogo" }));
-    fireEvent.click(await screen.findByText("Jogo 3"));
+    expect(await screen.findByText("Jogo 5")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Horário estimado do jogo" }));
+    fireEvent.click(await screen.findByText("09:20"));
 
     fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
 
     await waitFor(() => {
-      expect(supabaseUpdateCalls.length).toBeGreaterThan(0);
+      expect(updateScheduledMatchLogisticsMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          match_id: "edit-game-slot-match",
+          scheduled_date: "2026-04-11",
+          location: "Praia de Piçarras",
+          court_name: "Quadra 1",
+          slot_start_time: "2026-04-11T09:20:00.000Z",
+          representation_mode: MatchManualRepresentationMode.AUTO,
+        }),
+      );
     });
 
+    expect(supabaseUpdateCalls[0].payload).not.toHaveProperty("queue_position");
+    expect(supabaseUpdateCalls[0].payload).not.toHaveProperty("scheduled_slot");
     expect(supabaseUpdateCalls[0].payload).toMatchObject({
-      queue_position: 3,
-      scheduled_slot: 3,
+      status: MatchStatus.SCHEDULED,
     });
   });
 
-  it("ao limpar o campo jogo salva queue_position e scheduled_slot como null", async () => {
+  it("permite forçar representação da CO sem redistribuir a fila do jogo agendado", async () => {
+    listEditableMatchScheduleSlotsMock.mockResolvedValue({
+      data: buildEditableScheduleSlots("2026-04-11", 2),
+      error: null,
+    });
+
     renderAdminMatches({
       matches: [
         buildMatch({
-          id: "edit-game-slot-clear-match",
+          id: "edit-co-override-match",
           sport_id: "sport-1",
           status: MatchStatus.SCHEDULED,
-          queue_position: 9,
-          scheduled_slot: 9,
-          home_team: buildTeam({ id: "edit-slot-clear-home", name: "CASA SLOT CLEAR" }),
-          away_team: buildTeam({ id: "edit-slot-clear-away", name: "VISITANTE SLOT CLEAR" }),
+          court_name: "Quadra 1",
+          start_time: "2026-04-11T08:40:00.000Z",
+          queue_position: 2,
+          scheduled_slot: 2,
+          home_team: buildTeam({ id: "edit-co-home", name: "CASA CO" }),
+          away_team: buildTeam({ id: "edit-co-away", name: "VISITANTE CO" }),
         }),
       ],
     });
 
-    fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo CASA SLOT CLEAR x VISITANTE SLOT CLEAR"));
-    const matchCardContainer = getMatchCardContainerByTeamName("CASA SLOT CLEAR");
+    fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo CASA CO x VISITANTE CO"));
+    const matchCardContainer = getMatchCardContainerByTeamName("CASA CO");
     clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
 
-    fireEvent.click(screen.getByRole("combobox", { name: "Número do jogo" }));
-    fireEvent.click(await screen.findByText("Nenhum"));
+    expect(await screen.findByText("Jogo 2")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("switch", { name: "Forçar representação da CO" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
 
     await waitFor(() => {
-      expect(supabaseUpdateCalls.length).toBeGreaterThan(0);
+      expect(updateScheduledMatchLogisticsMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          match_id: "edit-co-override-match",
+          slot_start_time: "2026-04-11T08:40:00.000Z",
+          representation_mode: MatchManualRepresentationMode.CO,
+        }),
+      );
     });
 
     expect(supabaseUpdateCalls[0].payload).toMatchObject({
-      queue_position: null,
-      scheduled_slot: null,
+      manual_representation_mode: MatchManualRepresentationMode.CO,
     });
   });
 

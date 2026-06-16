@@ -17,6 +17,8 @@ import { MATCH_NAIPE_LABELS, TEAM_DIVISION_LABELS } from "@/lib/championship";
 import { Tabs, TabsNavigationList, TabsNavigationTrigger } from "@/components/ui/tabs";
 import { resolveMatchDisplaySlotValue, resolveMatchScheduledDateValue } from "@/lib/championship";
 
+const ALL_SCHEDULE_DIVISIONS_FILTER = "ALL_SCHEDULE_DIVISIONS_FILTER";
+
 interface SchedulePageViewProps {
   isLoading: boolean;
   selectedChampionship: Championship | null;
@@ -34,7 +36,7 @@ interface SchedulePageViewProps {
   locationOptions: string[];
   courtOptions: string[];
   groupOptions: BracketGroupFilterOption[];
-  divisionFilter: TeamDivision;
+  divisionFilter: string;
   statusFilter: string;
   yearFilter: string;
   orderedDates: string[];
@@ -300,6 +302,7 @@ export function SchedulePageView({
                 <SelectValue placeholder="Divisão" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value={ALL_SCHEDULE_DIVISIONS_FILTER}>Todas as divisões</SelectItem>
                 <SelectItem value={TeamDivision.DIVISAO_PRINCIPAL}>
                   {TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_PRINCIPAL]}
                 </SelectItem>
