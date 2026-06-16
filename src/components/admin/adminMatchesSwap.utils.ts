@@ -1,5 +1,5 @@
 import type { Match } from "@/lib/types";
-import { MatchStatus } from "@/lib/enums";
+import { MatchManualRepresentationMode, MatchStatus } from "@/lib/enums";
 import { resolveMatchQueueLabel, resolveMatchScheduledDateValue } from "@/lib/championship";
 import { resolveScheduledMatchCourtConflictMessage } from "@/components/admin/adminMatchesSchedule.utils";
 
@@ -19,6 +19,7 @@ type MatchQueueSwapComparable = Pick<
   | "away_team_id"
   | "queue_position"
   | "scheduled_slot"
+  | "manual_representation_mode"
   | "start_time"
 >;
 
@@ -158,9 +159,19 @@ export function resolveMatchQueueSwapConflictMessage(params: {
     return sourceConflictMessage;
   }
 
-  return resolveScheduledMatchCourtConflictMessage({
+  const targetConflictMessage = resolveScheduledMatchCourtConflictMessage({
     matches: simulatedMatches as Parameters<typeof resolveScheduledMatchCourtConflictMessage>[0]["matches"],
     nextMatch: targetSwappedMatch as Parameters<typeof resolveScheduledMatchCourtConflictMessage>[0]["nextMatch"],
+  });
+
+  if (targetConflictMessage) {
+    return targetConflictMessage;
+  }
+
+  return resolveMatchQueueSwapRepresentationConflictMessage({
+    matches: simulatedMatches,
+    sourceMatch: sourceSwappedMatch,
+    targetMatch: targetSwappedMatch,
   });
 }
 
@@ -176,6 +187,113 @@ function resolveSwappedMatchSnapshot(
     scheduled_slot: nextOperationalSlot,
     start_time: referenceMatch.start_time,
   };
+}
+
+function resolveMatchQueueSwapRepresentationConflictMessage(params: {
+  matches: MatchQueueSwapComparable[];
+  sourceMatch: MatchQueueSwapComparable;
+  targetMatch: MatchQueueSwapComparable;
+}): string | null {
+  const { matches, sourceMatch, targetMatch } = params;
+  const affectedTeamIds = new Set(
+    [sourceMatch.home_team_id, sourceMatch.away_team_id, targetMatch.home_team_id, targetMatch.away_team_id].filter(Boolean),
+  );
+
+  const normalizedLocation = normalizeBracketEntityName(sourceMatch.location);
+  const normalizedCourtName = normalizeBracketEntityName(sourceMatch.court_name);
+  const affectedScheduledDates = new Set(
+    [resolveMatchScheduledDateValue(sourceMatch), resolveMatchScheduledDateValue(targetMatch)].filter(Boolean),
+  );
+
+  const scopedMatches = matches
+    .filter((match) => {
+      const matchScheduledDate = resolveMatchScheduledDateValue(match);
+
+      return (
+        match.status === MatchStatus.SCHEDULED &&
+        !!matchScheduledDate &&
+        affectedScheduledDates.has(matchScheduledDate) &&
+        normalizeBracketEntityName(match.location) === normalizedLocation &&
+        normalizeBracketEntityName(match.court_name) === normalizedCourtName
+      );
+    })
+    .sort(compareSwapScopedMatches);
+
+  for (let matchIndex = 1; matchIndex < scopedMatches.length; matchIndex += 1) {
+    const previousMatch = scopedMatches[matchIndex - 1];
+    const currentMatch = scopedMatches[matchIndex];
+
+    if (resolveMatchScheduledDateValue(previousMatch) !== resolveMatchScheduledDateValue(currentMatch)) {
+      continue;
+    }
+
+    if (currentMatch.manual_representation_mode === MatchManualRepresentationMode.CO) {
+      continue;
+    }
+
+    if (!doMatchesShareAnyTeam(previousMatch, currentMatch)) {
+      continue;
+    }
+
+    if (!doMatchesIncludeAffectedTeam(previousMatch, currentMatch, affectedTeamIds)) {
+      continue;
+    }
+
+    return "A troca cria conflito de representação na mesma quadra.";
+  }
+
+  return null;
+}
+
+function normalizeBracketEntityName(value: string | null | undefined) {
+  return (value ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase("pt-BR");
+}
+
+function compareSwapScopedMatches(
+  firstMatch: MatchQueueSwapComparable,
+  secondMatch: MatchQueueSwapComparable,
+) {
+  const firstScheduledDate = resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
+  const secondScheduledDate = resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
+
+  if (firstScheduledDate !== secondScheduledDate) {
+    return firstScheduledDate.localeCompare(secondScheduledDate);
+  }
+
+  if (firstMatch.start_time && secondMatch.start_time && firstMatch.start_time !== secondMatch.start_time) {
+    return firstMatch.start_time.localeCompare(secondMatch.start_time);
+  }
+
+  if (firstMatch.start_time && !secondMatch.start_time) {
+    return -1;
+  }
+
+  if (!firstMatch.start_time && secondMatch.start_time) {
+    return 1;
+  }
+
+  const slotDifference = (resolveMatchOperationalQueueSlot(firstMatch) ?? Number.MAX_SAFE_INTEGER)
+    - (resolveMatchOperationalQueueSlot(secondMatch) ?? Number.MAX_SAFE_INTEGER);
+
+  if (slotDifference !== 0) {
+    return slotDifference;
+  }
+
+  if (firstMatch.created_at !== secondMatch.created_at) {
+    return firstMatch.created_at.localeCompare(secondMatch.created_at);
+  }
+
+  return firstMatch.id.localeCompare(secondMatch.id);
+}
+
+function doMatchesIncludeAffectedTeam(
+  firstMatch: Pick<MatchQueueSwapComparable, "home_team_id" | "away_team_id">,
+  secondMatch: Pick<MatchQueueSwapComparable, "home_team_id" | "away_team_id">,
+  affectedTeamIds: Set<string>,
+) {
+  return [firstMatch.home_team_id, firstMatch.away_team_id, secondMatch.home_team_id, secondMatch.away_team_id]
+    .filter(Boolean)
+    .some((teamId) => affectedTeamIds.has(teamId as string));
 }
 
 function resolveSwapMatchScheduledDateLabel(scheduledDate: string | null | undefined): string | null {

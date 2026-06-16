@@ -64,6 +64,11 @@ export enum MatchNaipe {
   MISTO = "MISTO",
 }
 
+export enum MatchManualRepresentationMode {
+  AUTO = "AUTO",
+  CO = "CO",
+}
+
 export enum ChampionshipSportNaipeMode {
   MISTO = "MISTO",
   MASCULINO_FEMININO = "MASCULINO_FEMININO",

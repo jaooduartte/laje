@@ -11,6 +11,7 @@ import {
   ChampionshipSportTieBreakerRule,
   ChampionshipCode,
   ChampionshipStatus,
+  MatchManualRepresentationMode,
   MatchStatus,
   MatchNaipe,
   TeamDivision,
@@ -274,6 +275,7 @@ export type MatchRepresentationSource = Pick<
   | "start_time"
   | "status"
   | "sport_id"
+  | "manual_representation_mode"
   | "naipe"
   | "division"
   | "queue_position"
@@ -330,6 +332,10 @@ function resolveMatchRepresentationForVisualCourtSequence(
   currentMatch: MatchRepresentationSource,
   previousMatch: MatchRepresentationSource | undefined,
 ): string {
+  if (currentMatch.manual_representation_mode === MatchManualRepresentationMode.CO) {
+    return MATCH_REPRESENTATION_COORDINATION_LABEL;
+  }
+
   const currentScheduledDate = resolveMatchScheduledDateValue(currentMatch);
   const previousScheduledDate = previousMatch ? resolveMatchScheduledDateValue(previousMatch) : null;
 

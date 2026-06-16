@@ -1,6 +1,7 @@
 import type {
   BracketThirdPlaceMode,
   ChampionshipBracketTieBreakContextType,
+  MatchManualRepresentationMode,
   MatchNaipe,
   TeamDivision,
 } from "@/lib/enums";
@@ -267,6 +268,37 @@ export interface BracketDayScheduleUpdate {
     scope_type: BracketDayBreakScopeType;
     bracket_court_id: string | null;
   }>;
+}
+
+export interface EditableMatchScheduleSlot {
+  slot_number: number;
+  start_time: string;
+  start_time_label: string;
+  is_current_slot: boolean;
+}
+
+export interface EditableMatchScheduleSlotQueryInput {
+  match_id: string;
+  target_date: string;
+  target_location: string;
+  target_court_name: string;
+  sport_id?: string | null;
+  naipe?: MatchNaipe | null;
+  home_team_id?: string | null;
+  away_team_id?: string | null;
+}
+
+export interface ScheduledMatchLogisticsUpdateInput {
+  match_id: string;
+  scheduled_date: string;
+  location: string;
+  court_name: string;
+  slot_start_time: string;
+  representation_mode: MatchManualRepresentationMode;
+  sport_id?: string | null;
+  naipe?: MatchNaipe | null;
+  home_team_id?: string | null;
+  away_team_id?: string | null;
 }
 
 export interface BracketCourtPriorityUpdate {

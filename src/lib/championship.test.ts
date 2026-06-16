@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MatchNaipe, MatchStatus, TeamDivision } from "@/lib/enums";
+import { MatchManualRepresentationMode, MatchNaipe, MatchStatus, TeamDivision } from "@/lib/enums";
 import {
   resolveEstimatedStartTimeByMatchId,
   resolveInterleavedScheduledMatchesByCompetition,
@@ -26,6 +26,7 @@ function buildMatch(overrides: Partial<Match> & Pick<Match, "id">): Match {
     away_team_id: overrides.away_team_id ?? `${overrides.id}-away-team-id`,
     location: overrides.location ?? "Quadra Central",
     court_name: overrides.court_name ?? null,
+    manual_representation_mode: overrides.manual_representation_mode ?? MatchManualRepresentationMode.AUTO,
     scheduled_date: overrides.scheduled_date ?? "2026-03-20",
     queue_position: overrides.queue_position ?? 1,
     current_set_home_score: overrides.current_set_home_score ?? null,
@@ -251,6 +252,31 @@ describe("resolveMatchRepresentationByMatchId", () => {
     expect(representationByMatchId["court-a-day-1"]).toBe("CO");
     expect(representationByMatchId["court-a-day-2"]).toBe("CO");
     expect(representationByMatchId["court-a-day-2-game-2"]).toBe("Gamma x Delta");
+  });
+
+  it("prioriza o override manual de CO no próprio jogo", () => {
+    const previousMatch = buildMatch({
+      id: "court-a-override-previous",
+      queue_position: 1,
+      location: "Arena Seven",
+      court_name: "Quadra A",
+      home_team: { id: "team-1", name: "Alpha", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      away_team: { id: "team-2", name: "Beta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+    });
+    const currentMatch = buildMatch({
+      id: "court-a-override-current",
+      queue_position: 2,
+      location: "Arena Seven",
+      court_name: "Quadra A",
+      manual_representation_mode: MatchManualRepresentationMode.CO,
+      home_team: { id: "team-3", name: "Gamma", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      away_team: { id: "team-4", name: "Delta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+    });
+
+    const representationByMatchId = resolveMatchRepresentationByMatchId([currentMatch, previousMatch]);
+
+    expect(representationByMatchId["court-a-override-previous"]).toBe("CO");
+    expect(representationByMatchId["court-a-override-current"]).toBe("CO");
   });
 
   it("usa CO quando o jogo anterior da quadra tem a mesma atlética do jogo atual", () => {

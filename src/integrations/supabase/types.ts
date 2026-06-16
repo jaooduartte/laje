@@ -1049,6 +1049,7 @@ export type Database = {
           home_team_id: string
           id: string
           location: string
+          manual_representation_mode: string
           naipe: Database["public"]["Enums"]["match_naipe"]
           queue_position: number | null
           scheduled_slot: number | null
@@ -1082,6 +1083,7 @@ export type Database = {
           home_team_id: string
           id?: string
           location: string
+          manual_representation_mode?: string
           naipe?: Database["public"]["Enums"]["match_naipe"]
           queue_position?: number | null
           scheduled_slot?: number | null
@@ -1115,6 +1117,7 @@ export type Database = {
           home_team_id?: string
           id?: string
           location?: string
+          manual_representation_mode?: string
           naipe?: Database["public"]["Enums"]["match_naipe"]
           queue_position?: number | null
           scheduled_slot?: number | null
@@ -1605,7 +1608,14 @@ export type Database = {
       list_match_queue_swap_candidates: {
         Args: { _source_match_id: string }
         Returns: {
+          away_team_name: string | null
+          created_at: string
+          home_team_name: string | null
           match_id: string
+          queue_position: number | null
+          scheduled_date: string | null
+          scheduled_slot: number | null
+          start_time: string | null
         }[]
       }
       get_match_sets: {

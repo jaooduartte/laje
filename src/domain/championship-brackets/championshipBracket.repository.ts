@@ -19,6 +19,9 @@ import type {
   BracketKnockoutCourtPriorityUpdate,
   BracketGeneratedLocationGroup,
   BracketGeneratedLocationGroupUpdate,
+  EditableMatchScheduleSlot,
+  EditableMatchScheduleSlotQueryInput,
+  ScheduledMatchLogisticsUpdateInput,
 } from "@/domain/championship-brackets/championshipBracket.types";
 import type { ChampionshipBracketView } from "@/lib/types";
 import type { MatchNaipe, TeamDivision } from "@/lib/enums";
@@ -480,6 +483,49 @@ export async function updateBracketCompetitionQualification(
     _should_complete_knockout_with_best_second_placed_teams:
       shouldCompleteKnockoutWithBestSecondPlacedTeams,
   });
+  return { error: response.error };
+}
+
+export async function listEditableMatchScheduleSlots(
+  input: EditableMatchScheduleSlotQueryInput,
+): Promise<{ data: EditableMatchScheduleSlot[]; error: Error | null }> {
+  const response = await supabase.rpc("list_editable_match_schedule_slots", {
+    _match_id: input.match_id,
+    _target_date: input.target_date,
+    _target_location: input.target_location,
+    _target_court_name: input.target_court_name,
+    _sport_id: input.sport_id ?? null,
+    _naipe: input.naipe ?? null,
+    _home_team_id: input.home_team_id ?? null,
+    _away_team_id: input.away_team_id ?? null,
+  });
+
+  if (response.error) {
+    return { data: [], error: response.error };
+  }
+
+  return {
+    data: (response.data as EditableMatchScheduleSlot[] | null) ?? [],
+    error: null,
+  };
+}
+
+export async function updateScheduledMatchLogistics(
+  input: ScheduledMatchLogisticsUpdateInput,
+): Promise<{ error: Error | null }> {
+  const response = await supabase.rpc("update_scheduled_match_logistics", {
+    _match_id: input.match_id,
+    _scheduled_date: input.scheduled_date,
+    _location: input.location,
+    _court_name: input.court_name,
+    _slot_start_time: input.slot_start_time,
+    _representation_mode: input.representation_mode,
+    _sport_id: input.sport_id ?? null,
+    _naipe: input.naipe ?? null,
+    _home_team_id: input.home_team_id ?? null,
+    _away_team_id: input.away_team_id ?? null,
+  });
+
   return { error: response.error };
 }
 

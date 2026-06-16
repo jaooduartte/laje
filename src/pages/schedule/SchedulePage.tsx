@@ -19,6 +19,8 @@ import {
 import { DEFAULT_PAGINATION_ITEMS_PER_PAGE } from "@/components/ui/app-pagination-controls";
 import { SchedulePageView } from "@/pages/schedule/SchedulePageView";
 
+const ALL_SCHEDULE_DIVISIONS_FILTER = "ALL_SCHEDULE_DIVISIONS_FILTER";
+
 export function SchedulePage() {
   const { championships, loading: championshipsLoading } = useChampionships();
   const { selectedChampionshipCode, setSelectedChampionshipCode } = useSelectedChampionship();
@@ -56,7 +58,7 @@ export function SchedulePage() {
   const [groupFilter, setGroupFilter] = useState<string | null>(null);
   const [locationFilter, setLocationFilter] = useState<string | null>(null);
   const [courtFilter, setCourtFilter] = useState<string | null>(null);
-  const [divisionFilter, setDivisionFilter] = useState<TeamDivision>(TeamDivision.DIVISAO_PRINCIPAL);
+  const [divisionFilter, setDivisionFilter] = useState<string>(ALL_SCHEDULE_DIVISIONS_FILTER);
   const [statusFilter, setStatusFilter] = useState<MatchStatus>(MatchStatus.SCHEDULED);
   const [matchesCurrentPage, setMatchesCurrentPage] = useState(1);
   const [matchesItemsPerPage, setMatchesItemsPerPage] = useState(DEFAULT_PAGINATION_ITEMS_PER_PAGE);
@@ -68,7 +70,7 @@ export function SchedulePage() {
     setGroupFilter(null);
     setLocationFilter(null);
     setCourtFilter(null);
-    setDivisionFilter(TeamDivision.DIVISAO_PRINCIPAL);
+    setDivisionFilter(ALL_SCHEDULE_DIVISIONS_FILTER);
     setStatusFilter(MatchStatus.SCHEDULED);
     setYearFilter(selectedChampionshipSeasonYear != null ? String(selectedChampionshipSeasonYear) : "ALL_YEARS");
     setMatchesCurrentPage(1);
@@ -102,7 +104,9 @@ export function SchedulePage() {
       const sportMatch = !sportFilter || option.sport_id == sportFilter;
       const naipeMatch = !naipeFilter || option.naipe == naipeFilter;
       const divisionMatch =
-        !selectedChampionshipHasDivisions || option.division == divisionFilter;
+        !selectedChampionshipHasDivisions ||
+        divisionFilter == ALL_SCHEDULE_DIVISIONS_FILTER ||
+        option.division == divisionFilter;
 
       return sportMatch && naipeMatch && divisionMatch;
     });
@@ -133,7 +137,10 @@ export function SchedulePage() {
     sportId: sportFilter,
     naipe: naipeFilter,
     teamId: teamFilter,
-    division: selectedChampionshipHasDivisions ? divisionFilter : undefined,
+    division:
+      selectedChampionshipHasDivisions && divisionFilter != ALL_SCHEDULE_DIVISIONS_FILTER
+        ? (divisionFilter as TeamDivision)
+        : undefined,
     groupFilterValue: groupFilter,
     location: locationFilter,
     courtName: courtFilter,
@@ -225,6 +232,11 @@ export function SchedulePage() {
   }, [matchesCurrentPage, matchesTotalPages]);
 
   const handleDivisionChange = (value: string) => {
+    if (value == ALL_SCHEDULE_DIVISIONS_FILTER) {
+      setDivisionFilter(ALL_SCHEDULE_DIVISIONS_FILTER);
+      return;
+    }
+
     if (isTeamDivision(value)) {
       setDivisionFilter(value);
     }

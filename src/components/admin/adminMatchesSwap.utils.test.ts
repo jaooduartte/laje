@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MatchNaipe, MatchStatus, TeamDivision } from "@/lib/enums";
+import { MatchManualRepresentationMode, MatchNaipe, MatchStatus, TeamDivision } from "@/lib/enums";
 import {
   resolveIsMatchEligibleForQueueSwap,
   resolveMatchQueueSwapConflictMessage,
@@ -20,6 +20,7 @@ function buildScheduledMatch(overrides: Partial<Match> & Pick<Match, "id">): Mat
     sport_id: overrides.sport_id ?? "sport-1",
     home_team_id: overrides.home_team_id ?? `${overrides.id}-home`,
     away_team_id: overrides.away_team_id ?? `${overrides.id}-away`,
+    manual_representation_mode: overrides.manual_representation_mode ?? MatchManualRepresentationMode.AUTO,
     location: overrides.location ?? "Quadra Central",
     court_name: overrides.court_name ?? null,
     scheduled_date: overrides.scheduled_date ?? "2026-04-12",
@@ -239,4 +240,5 @@ describe("adminMatchesSwap utils", () => {
       false,
     );
   });
+
 });
