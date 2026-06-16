@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   resolveBracketDayScheduleUpdates,
   resolveMatchScheduleMoveSortValue,
+  resolveScheduledMatchCourtConflictMessage,
   resolveShouldRedistributeBracketScheduleAfterMatchEdit,
 } from "@/components/admin/adminMatchesSchedule.utils";
 import { MatchNaipe, MatchStatus, TeamDivision } from "@/lib/enums";
@@ -83,6 +84,9 @@ describe("adminMatchesSchedule utils", () => {
           naipe: MatchNaipe.MASCULINO,
           division: TeamDivision.DIVISAO_PRINCIPAL,
           location: "Arena Seven",
+          court_name: "Quadra A",
+          start_time: "2026-06-20T08:00:00.000Z",
+          created_at: "2026-06-15T00:00:00.000Z",
           home_team_id: "home-1",
           away_team_id: "away-1",
         },
@@ -95,6 +99,9 @@ describe("adminMatchesSchedule utils", () => {
           naipe: MatchNaipe.MASCULINO,
           division: TeamDivision.DIVISAO_PRINCIPAL,
           location: "Arena Seven",
+          court_name: "Quadra A",
+          start_time: "2026-06-15T00:00:00.000Z",
+          created_at: "2026-06-15T00:00:00.000Z",
           home_team_id: "home-1",
           away_team_id: "away-1",
         },
@@ -114,6 +121,9 @@ describe("adminMatchesSchedule utils", () => {
           naipe: MatchNaipe.MASCULINO,
           division: TeamDivision.DIVISAO_PRINCIPAL,
           location: "Arena Seven",
+          court_name: "Quadra A",
+          start_time: "2026-06-20T08:00:00.000Z",
+          created_at: "2026-06-15T00:00:00.000Z",
           home_team_id: "home-1",
           away_team_id: "away-1",
         },
@@ -126,6 +136,9 @@ describe("adminMatchesSchedule utils", () => {
           naipe: MatchNaipe.MASCULINO,
           division: TeamDivision.DIVISAO_PRINCIPAL,
           location: "Arena Seven",
+          court_name: "Quadra A",
+          start_time: "2026-06-20T08:00:00.000Z",
+          created_at: "2026-06-15T00:00:00.000Z",
           home_team_id: "home-1",
           away_team_id: "away-1",
         },
@@ -145,6 +158,9 @@ describe("adminMatchesSchedule utils", () => {
           naipe: MatchNaipe.MASCULINO,
           division: TeamDivision.DIVISAO_PRINCIPAL,
           location: "Arena Seven",
+          court_name: "Quadra A",
+          start_time: "2026-06-20T08:00:00.000Z",
+          created_at: "2026-06-15T00:00:00.000Z",
           home_team_id: "home-1",
           away_team_id: "away-1",
         },
@@ -157,10 +173,83 @@ describe("adminMatchesSchedule utils", () => {
           naipe: MatchNaipe.MASCULINO,
           division: TeamDivision.DIVISAO_PRINCIPAL,
           location: "Arena Seven",
+          court_name: "Quadra A",
+          start_time: "2026-06-20T08:00:00.000Z",
+          created_at: "2026-06-15T00:00:00.000Z",
           home_team_id: "home-1",
           away_team_id: "away-1",
         },
       }),
     ).toBe(false);
+  });
+
+  it("detecta conflito quando a mesma atlética ficaria em jogos seguidos na mesma quadra", () => {
+    expect(
+      resolveScheduledMatchCourtConflictMessage({
+        matches: [
+          {
+            id: "match-1",
+            status: MatchStatus.SCHEDULED,
+            scheduled_date: "2026-06-20",
+            location: "Arena Seven",
+            court_name: "Quadra B",
+            start_time: "2026-06-20T08:00:00.000Z",
+            queue_position: 1,
+            scheduled_slot: 1,
+            created_at: "2026-06-15T00:00:00.000Z",
+            home_team_id: "team-1",
+            away_team_id: "team-2",
+          },
+        ],
+        nextMatch: {
+          id: "match-2",
+          status: MatchStatus.SCHEDULED,
+          scheduled_date: "2026-06-20",
+          location: "Arena Seven",
+          court_name: "Quadra B",
+          start_time: "2026-06-20T08:40:00.000Z",
+          queue_position: 2,
+          scheduled_slot: 2,
+          created_at: "2026-06-15T00:01:00.000Z",
+          home_team_id: "team-1",
+          away_team_id: "team-3",
+        },
+      }),
+    ).toBe("A mesma atlética não pode jogar ou representar jogos consecutivos na mesma quadra.");
+  });
+
+  it("ignora a mesma atlética quando os jogos são de quadras diferentes", () => {
+    expect(
+      resolveScheduledMatchCourtConflictMessage({
+        matches: [
+          {
+            id: "match-1",
+            status: MatchStatus.SCHEDULED,
+            scheduled_date: "2026-06-20",
+            location: "Arena Seven",
+            court_name: "Quadra A",
+            start_time: "2026-06-20T08:00:00.000Z",
+            queue_position: 1,
+            scheduled_slot: 1,
+            created_at: "2026-06-15T00:00:00.000Z",
+            home_team_id: "team-1",
+            away_team_id: "team-2",
+          },
+        ],
+        nextMatch: {
+          id: "match-2",
+          status: MatchStatus.SCHEDULED,
+          scheduled_date: "2026-06-20",
+          location: "Arena Seven",
+          court_name: "Quadra B",
+          start_time: "2026-06-20T08:40:00.000Z",
+          queue_position: 2,
+          scheduled_slot: 2,
+          created_at: "2026-06-15T00:01:00.000Z",
+          home_team_id: "team-1",
+          away_team_id: "team-3",
+        },
+      }),
+    ).toBeNull();
   });
 });

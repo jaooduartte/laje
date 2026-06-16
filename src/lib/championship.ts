@@ -391,15 +391,27 @@ function compareMatchVisualCourtOrder(
 function resolveOrderedVisualCourtMatches(
   matches: MatchRepresentationSource[],
   estimatedStartTimeByMatchId?: Record<string, string>,
+  options?: {
+    scheduledOnly?: boolean;
+  },
 ): Record<string, MatchRepresentationSource[]> {
-  return matches.reduce<Record<string, MatchRepresentationSource[]>>((carry, match) => {
+  return matches
+    .filter((match) => {
+      return (
+        (!options?.scheduledOnly || match.status === MatchStatus.SCHEDULED) &&
+        resolveMatchScheduledDateValue(match) != null &&
+        match.location.trim() &&
+        (match.court_name ?? "").trim()
+      );
+    })
+    .reduce<Record<string, MatchRepresentationSource[]>>((carry, match) => {
     const scopeKey = resolveMatchVisualCourtScopeKey(match);
 
     carry[scopeKey] = [...(carry[scopeKey] ?? []), match].sort((firstMatch, secondMatch) =>
       compareMatchVisualCourtOrder(firstMatch, secondMatch, estimatedStartTimeByMatchId),
     );
     return carry;
-  }, {});
+    }, {});
 }
 
 export function resolveVisualQueuePositionByMatchId(
@@ -414,6 +426,7 @@ export function resolveVisualQueuePositionByMatchId(
   const visualCourtMatchesByScopeKey = resolveOrderedVisualCourtMatches(
     resolveUniqueMatchSourcesById([...(contextMatches ?? []), ...matches]),
     estimatedStartTimeByMatchId,
+    { scheduledOnly: true },
   );
 
   const visualQueuePositionByMatchId = Object.values(visualCourtMatchesByScopeKey).reduce<Record<string, number>>(

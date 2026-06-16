@@ -14,6 +14,7 @@ import {
 import { AdminChampionshipQualificationSection } from "@/components/admin/AdminChampionshipQualificationSection";
 import { AdminChampionshipCourtPrioritySection } from "@/components/admin/AdminChampionshipCourtPrioritySection";
 import { AdminChampionshipGeneratedLocationsSection } from "@/components/admin/AdminChampionshipGeneratedLocationsSection";
+import { AdminChampionshipKnockoutPrioritySection } from "@/components/admin/AdminChampionshipKnockoutPrioritySection";
 import {
   resolveDivisionOptionsBySportId,
   resolveNaipeOptionsBySportId,
@@ -496,6 +497,25 @@ export function AdminChampionshipSchedule({
           sportNameBySportId={sportNameBySportId}
           naipeOptionsBySportId={naipeOptionsBySportId}
           divisionOptionsBySportId={divisionOptionsBySportId}
+          onSaved={() => {
+            onRefetchMatches();
+            onRefetchChampionshipBracket();
+          }}
+        />
+      </section>
+
+      <section className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Trophy className="h-4 w-4 text-muted-foreground" />
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            Prioridade do mata-mata
+          </h3>
+        </div>
+
+        <AdminChampionshipKnockoutPrioritySection
+          bracketEditionId={bracketEditionId}
+          isEditable={isEditable}
+          sportNameBySportId={sportNameBySportId}
           onSaved={() => {
             onRefetchMatches();
             onRefetchChampionshipBracket();

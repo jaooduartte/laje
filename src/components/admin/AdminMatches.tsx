@@ -118,6 +118,7 @@ import {
 import {
   resolveBracketDayScheduleUpdates,
   resolveMatchScheduleMoveSortValue,
+  resolveScheduledMatchCourtConflictMessage,
   resolveShouldRedistributeBracketScheduleAfterMatchEdit,
 } from "@/components/admin/adminMatchesSchedule.utils";
 import { AdminMatchesViewMode } from "@/components/admin/adminMatches.types";
@@ -1561,7 +1562,7 @@ export function AdminMatches({
     }
 
     return matches
-      .filter((match) => resolveIsMatchEligibleForQueueSwap(pendingSwapSourceMatch, match))
+      .filter((match) => resolveIsMatchEligibleForQueueSwap(pendingSwapSourceMatch, match, matches))
       .sort((firstMatch, secondMatch) => {
         const firstSlot = resolveMatchSwapDisplaySlot(firstMatch, shouldUseScheduledSlotInMatchList) ?? Number.MAX_SAFE_INTEGER;
         const secondSlot = resolveMatchSwapDisplaySlot(secondMatch, shouldUseScheduledSlotInMatchList) ?? Number.MAX_SAFE_INTEGER;
@@ -3046,9 +3047,6 @@ export function AdminMatches({
       ? null
       : (shouldReopenFinishedMatchAsLive ? (editingMatch?.start_time ?? new Date().toISOString()) : (editingMatchDraft.startTime?.toISOString() ?? null));
     const resolvedEndTime = shouldResetFinishedMatchToScheduled || shouldReopenFinishedMatchAsLive ? null : editingMatch?.end_time ?? null;
-    const resolvedCourtName = shouldResetFinishedMatchToScheduled ? null : editingMatch?.court_name ?? null;
-    const resolvedCurrentSetHomeScore = shouldResetFinishedMatchToScheduled ? null : editingMatch?.current_set_home_score ?? null;
-    const resolvedCurrentSetAwayScore = shouldResetFinishedMatchToScheduled ? null : editingMatch?.current_set_away_score ?? null;
     const resolvedScheduledDate = resolveDateOnlyString(editingMatchDraft.scheduledDate);
     const resolvedDivision = championshipUsesDivisions ? editingMatchDraft.division : null;
     const shouldRedistributeScheduleAfterEditingMatch =
@@ -3063,10 +3061,40 @@ export function AdminMatches({
           naipe: editingMatchDraft.naipe,
           division: resolvedDivision,
           location: normalizedLocation,
+          court_name: editingMatch?.court_name ?? null,
+          start_time: resolvedStartTime,
+          created_at: editingMatch?.created_at ?? new Date().toISOString(),
           home_team_id: editingMatchDraft.homeTeamId,
           away_team_id: editingMatchDraft.awayTeamId,
         },
       });
+    const resolvedCourtName = shouldResetFinishedMatchToScheduled || shouldRedistributeScheduleAfterEditingMatch
+      ? null
+      : editingMatch?.court_name ?? null;
+    const resolvedCurrentSetHomeScore = shouldResetFinishedMatchToScheduled ? null : editingMatch?.current_set_home_score ?? null;
+    const resolvedCurrentSetAwayScore = shouldResetFinishedMatchToScheduled ? null : editingMatch?.current_set_away_score ?? null;
+    const scheduledMatchCourtConflictMessage = resolveScheduledMatchCourtConflictMessage({
+      matches,
+      nextMatch: {
+        id: editingMatchId,
+        status: editingMatchDraft.status,
+        scheduled_date: resolvedScheduledDate,
+        location: normalizedLocation,
+        court_name: resolvedCourtName,
+        start_time: resolvedStartTime,
+        queue_position: parsedGameSlot,
+        scheduled_slot: parsedGameSlot,
+        created_at: editingMatch?.created_at ?? new Date().toISOString(),
+        home_team_id: editingMatchDraft.homeTeamId,
+        away_team_id: editingMatchDraft.awayTeamId,
+      },
+    });
+
+    if (!shouldRedistributeScheduleAfterEditingMatch && scheduledMatchCourtConflictMessage) {
+      setSavingEditingMatch(false);
+      toast.error(scheduledMatchCourtConflictMessage);
+      return;
+    }
 
     const { error } = await supabase
       .from("matches")
@@ -4469,7 +4497,7 @@ export function AdminMatches({
           <DialogHeader>
             <DialogTitle>Trocar jogo na fila</DialogTitle>
             <DialogDescription>
-              Selecione o jogo do mesmo dia, modalidade, naipe e divisão para trocar a posição da fila.
+              Selecione um jogo da mesma quadra e do mesmo dia para trocar a posição da fila, sem criar conflito de representação.
             </DialogDescription>
           </DialogHeader>
 

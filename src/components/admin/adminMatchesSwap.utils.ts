@@ -1,6 +1,7 @@
 import type { Match } from "@/lib/types";
 import { MatchStatus } from "@/lib/enums";
 import { resolveMatchQueueLabel, resolveMatchScheduledDateValue } from "@/lib/championship";
+import { resolveScheduledMatchCourtConflictMessage } from "@/components/admin/adminMatchesSchedule.utils";
 
 type MatchQueueSwapComparable = Pick<
   Match,
@@ -11,8 +12,14 @@ type MatchQueueSwapComparable = Pick<
   | "sport_id"
   | "naipe"
   | "division"
+  | "location"
+  | "court_name"
+  | "created_at"
+  | "home_team_id"
+  | "away_team_id"
   | "queue_position"
   | "scheduled_slot"
+  | "start_time"
 >;
 
 type MatchQueueSwapDisplay = Pick<
@@ -35,6 +42,7 @@ export function resolveMatchOperationalQueueSlot(
 export function resolveIsMatchEligibleForQueueSwap(
   sourceMatch: MatchQueueSwapComparable,
   candidateMatch: MatchQueueSwapComparable,
+  matches: MatchQueueSwapComparable[] = [],
 ): boolean {
   if (sourceMatch.id == candidateMatch.id) {
     return false;
@@ -51,19 +59,30 @@ export function resolveIsMatchEligibleForQueueSwap(
     return false;
   }
 
+  if (sourceMatch.location != candidateMatch.location || sourceMatch.court_name != candidateMatch.court_name) {
+    return false;
+  }
+
   if (sourceMatch.sport_id != candidateMatch.sport_id) {
     return false;
   }
 
-  if (sourceMatch.naipe != candidateMatch.naipe) {
-    return false;
-  }
-
-  if (sourceMatch.division != candidateMatch.division) {
+  if (!sourceMatch.location?.trim() || !sourceMatch.court_name?.trim()) {
     return false;
   }
 
   if (resolveMatchOperationalQueueSlot(sourceMatch) == null || resolveMatchOperationalQueueSlot(candidateMatch) == null) {
+    return false;
+  }
+
+  if (
+    matches.length > 0 &&
+    resolveMatchQueueSwapConflictMessage({
+      matches,
+      sourceMatch,
+      targetMatch: candidateMatch,
+    }) != null
+  ) {
     return false;
   }
 
@@ -95,4 +114,60 @@ export function resolveMatchSwapOptionLabel(
   const awayTeamName = match.away_team?.name ?? "Visitante";
 
   return `${queueLabel} • ${homeTeamName} x ${awayTeamName}`;
+}
+
+export function resolveMatchQueueSwapConflictMessage(params: {
+  matches: MatchQueueSwapComparable[];
+  sourceMatch: MatchQueueSwapComparable;
+  targetMatch: MatchQueueSwapComparable;
+}): string | null {
+  const { matches, sourceMatch, targetMatch } = params;
+
+  const sourceOperationalSlot = resolveMatchOperationalQueueSlot(sourceMatch);
+  const targetOperationalSlot = resolveMatchOperationalQueueSlot(targetMatch);
+
+  if (sourceOperationalSlot == null || targetOperationalSlot == null) {
+    return "Os jogos selecionados precisam ter posição válida na fila.";
+  }
+
+  const sourceSwappedMatch = resolveSwappedMatchSnapshot(sourceMatch, targetMatch, targetOperationalSlot);
+  const targetSwappedMatch = resolveSwappedMatchSnapshot(targetMatch, sourceMatch, sourceOperationalSlot);
+  const simulatedMatches = matches.map((match) => {
+    if (match.id == sourceMatch.id) {
+      return sourceSwappedMatch;
+    }
+
+    if (match.id == targetMatch.id) {
+      return targetSwappedMatch;
+    }
+
+    return match;
+  });
+
+  const sourceConflictMessage = resolveScheduledMatchCourtConflictMessage({
+    matches: simulatedMatches as Parameters<typeof resolveScheduledMatchCourtConflictMessage>[0]["matches"],
+    nextMatch: sourceSwappedMatch as Parameters<typeof resolveScheduledMatchCourtConflictMessage>[0]["nextMatch"],
+  });
+
+  if (sourceConflictMessage) {
+    return sourceConflictMessage;
+  }
+
+  return resolveScheduledMatchCourtConflictMessage({
+    matches: simulatedMatches as Parameters<typeof resolveScheduledMatchCourtConflictMessage>[0]["matches"],
+    nextMatch: targetSwappedMatch as Parameters<typeof resolveScheduledMatchCourtConflictMessage>[0]["nextMatch"],
+  });
+}
+
+function resolveSwappedMatchSnapshot(
+  match: MatchQueueSwapComparable,
+  referenceMatch: MatchQueueSwapComparable,
+  nextOperationalSlot: number,
+): MatchQueueSwapComparable {
+  return {
+    ...match,
+    queue_position: nextOperationalSlot,
+    scheduled_slot: nextOperationalSlot,
+    start_time: referenceMatch.start_time,
+  };
 }
