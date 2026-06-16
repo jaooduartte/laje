@@ -3,6 +3,7 @@ import { MatchManualRepresentationMode, MatchNaipe, MatchStatus, TeamDivision } 
 import {
   resolveEstimatedStartTimeByMatchId,
   resolveInterleavedScheduledMatchesByCompetition,
+  resolveOrderedScheduledMatchesByVisualTime,
   resolveOrderedScheduledMatches,
   resolveMatchRepresentationByMatchId,
   resolveMatchStartedAtLabel,
@@ -864,6 +865,44 @@ describe("resolveEstimatedStartTimeByMatchId", () => {
     });
 
     expect(estimatedStartTimeByMatchId["beach-game-2"]).toBe("08:30");
+  });
+});
+
+describe("resolveOrderedScheduledMatchesByVisualTime", () => {
+  it("ordena os cards agendados pelo horario estimado antes da fila original", () => {
+    const tenAMatch = buildMatch({
+      id: "match-10h",
+      queue_position: 2,
+      location: "Arena Seven",
+      court_name: "Quadra B",
+    });
+    const eightAMatch = buildMatch({
+      id: "match-08h",
+      queue_position: 1,
+      location: "Arena Seven",
+      court_name: "Quadra A",
+    });
+    const nineTwentyMatch = buildMatch({
+      id: "match-09h20",
+      queue_position: 3,
+      location: "Arena Seven",
+      court_name: "Quadra A",
+    });
+
+    const orderedMatches = resolveOrderedScheduledMatchesByVisualTime(
+      [tenAMatch, eightAMatch, nineTwentyMatch],
+      {
+        "match-10h": "10:00",
+        "match-08h": "08:00",
+        "match-09h20": "09:20",
+      },
+    );
+
+    expect(orderedMatches.map((match) => match.id)).toEqual([
+      "match-08h",
+      "match-09h20",
+      "match-10h",
+    ]);
   });
 });
 

@@ -14,6 +14,7 @@ import {
   resolveChampionshipBracketGroupStageOptions,
   resolveChampionshipGroupLabel,
   resolveMatchBracketContextByMatchId,
+  resolveOrderedScheduledMatchesByVisualTime,
   resolveMatchScheduledDateValue,
 } from "@/lib/championship";
 import { DEFAULT_PAGINATION_ITEMS_PER_PAGE } from "@/components/ui/app-pagination-controls";
@@ -204,7 +205,6 @@ export function SchedulePage() {
       groupedMatchesResult[dateKey].push(match);
     });
 
-    // Sort matches within each date by queue_position DESC if viewing finished matches
     if (statusFilter === MatchStatus.FINISHED) {
       Object.keys(groupedMatchesResult).forEach((dateKey) => {
         groupedMatchesResult[dateKey].sort((a, b) => {
@@ -215,13 +215,20 @@ export function SchedulePage() {
       });
       // Sort dates DESC
       orderedDatesResult.sort((a, b) => b.localeCompare(a));
+    } else {
+      Object.keys(groupedMatchesResult).forEach((dateKey) => {
+        groupedMatchesResult[dateKey] = resolveOrderedScheduledMatchesByVisualTime(
+          groupedMatchesResult[dateKey],
+          estimatedStartTimeByMatchId,
+        );
+      });
     }
 
     return {
       groupedMatches: groupedMatchesResult,
       orderedDates: orderedDatesResult,
     };
-  }, [visibleMatches, statusFilter]);
+  }, [estimatedStartTimeByMatchId, statusFilter, visibleMatches]);
 
   const matchesTotalPages = Math.max(1, Math.ceil(totalMatches / matchesItemsPerPage));
 

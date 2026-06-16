@@ -1001,6 +1001,14 @@ export function resolveOrderedScheduledMatches<
   });
 }
 
+export function resolveOrderedScheduledMatchesByVisualTime<
+  MatchItem extends MatchRepresentationSource,
+>(scheduledMatches: MatchItem[], estimatedStartTimeByMatchId?: Record<string, string>): MatchItem[] {
+  return [...scheduledMatches].sort((firstMatch, secondMatch) =>
+    compareMatchVisualCourtOrder(firstMatch, secondMatch, estimatedStartTimeByMatchId),
+  );
+}
+
 export function resolveNextScheduledMatchesByCompetition<
   MatchItem extends {
     sport_id: string;
