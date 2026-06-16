@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MatchNaipe, MatchStatus, TeamDivision } from "@/lib/enums";
 import {
   resolveIsMatchEligibleForQueueSwap,
+  resolveMatchQueueSwapConflictMessage,
   resolveMatchOperationalQueueSlot,
   resolveMatchSwapOptionLabel,
 } from "@/components/admin/adminMatchesSwap.utils";
@@ -51,7 +52,7 @@ function buildScheduledMatch(overrides: Partial<Match> & Pick<Match, "id">): Mat
 }
 
 describe("adminMatchesSwap utils", () => {
-  it("aceita troca apenas quando os jogos são agendados e do mesmo escopo operacional", () => {
+  it("aceita troca quando os jogos são agendados, do mesmo dia, mesma quadra e sem conflito final", () => {
     const sourceMatch = buildScheduledMatch({
       id: "match-1",
       queue_position: 2,
@@ -59,17 +60,23 @@ describe("adminMatchesSwap utils", () => {
       naipe: MatchNaipe.FEMININO,
       division: TeamDivision.DIVISAO_ACESSO,
       scheduled_date: "2026-04-12",
+      location: "Arena Seven",
+      court_name: "Quadra B",
+      start_time: "2026-04-12T08:40:00.000Z",
     });
     const candidateMatch = buildScheduledMatch({
       id: "match-2",
       queue_position: 5,
       sport_id: "sport-beach-soccer",
-      naipe: MatchNaipe.FEMININO,
-      division: TeamDivision.DIVISAO_ACESSO,
+      naipe: MatchNaipe.MASCULINO,
+      division: TeamDivision.DIVISAO_PRINCIPAL,
       scheduled_date: "2026-04-12",
+      location: "Arena Seven",
+      court_name: "Quadra B",
+      start_time: "2026-04-12T10:40:00.000Z",
     });
 
-    expect(resolveIsMatchEligibleForQueueSwap(sourceMatch, candidateMatch)).toBe(true);
+    expect(resolveIsMatchEligibleForQueueSwap(sourceMatch, candidateMatch, [sourceMatch, candidateMatch])).toBe(true);
   });
 
   it("rejeita troca quando qualquer regra de elegibilidade não é atendida", () => {
@@ -104,13 +111,13 @@ describe("adminMatchesSwap utils", () => {
     expect(
       resolveIsMatchEligibleForQueueSwap(
         sourceMatch,
-        buildScheduledMatch({ id: "match-5", queue_position: 4, naipe: MatchNaipe.FEMININO }),
+        buildScheduledMatch({ id: "match-5", queue_position: 4, location: "Arena Eight" }),
       ),
     ).toBe(false);
     expect(
       resolveIsMatchEligibleForQueueSwap(
         sourceMatch,
-        buildScheduledMatch({ id: "match-6", queue_position: 4, division: TeamDivision.DIVISAO_ACESSO }),
+        buildScheduledMatch({ id: "match-6", queue_position: 4, court_name: "Quadra B" }),
       ),
     ).toBe(false);
     expect(
@@ -133,5 +140,49 @@ describe("adminMatchesSwap utils", () => {
     expect(resolveMatchOperationalQueueSlot(candidateMatch)).toBe(7);
     expect(resolveMatchSwapOptionLabel(candidateMatch, false)).toBe("Jogo 7 • Atlética Delta x Atlética Sigma");
     expect(resolveMatchSwapOptionLabel(candidateMatch, true)).toBe("Jogo 9 • Atlética Delta x Atlética Sigma");
+  });
+
+  it("rejeita troca quando a nova sequência da quadra criaria conflito consecutivo", () => {
+    const previousMatch = buildScheduledMatch({
+      id: "previous-match",
+      queue_position: 1,
+      scheduled_slot: 1,
+      location: "Arena Seven",
+      court_name: "Quadra B",
+      start_time: "2026-04-12T08:00:00.000Z",
+      home_team_id: "team-1",
+      away_team_id: "team-2",
+    });
+    const sourceMatch = buildScheduledMatch({
+      id: "source-match",
+      queue_position: 2,
+      scheduled_slot: 2,
+      location: "Arena Seven",
+      court_name: "Quadra B",
+      start_time: "2026-04-12T08:40:00.000Z",
+      home_team_id: "team-3",
+      away_team_id: "team-4",
+    });
+    const targetMatch = buildScheduledMatch({
+      id: "target-match",
+      queue_position: 3,
+      scheduled_slot: 3,
+      location: "Arena Seven",
+      court_name: "Quadra B",
+      start_time: "2026-04-12T09:20:00.000Z",
+      home_team_id: "team-1",
+      away_team_id: "team-5",
+    });
+
+    expect(
+      resolveMatchQueueSwapConflictMessage({
+        matches: [previousMatch, sourceMatch, targetMatch],
+        sourceMatch,
+        targetMatch,
+      }),
+    ).toBe("A mesma atlética não pode jogar ou representar jogos consecutivos na mesma quadra.");
+    expect(resolveIsMatchEligibleForQueueSwap(sourceMatch, targetMatch, [previousMatch, sourceMatch, targetMatch])).toBe(
+      false,
+    );
   });
 });

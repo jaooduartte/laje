@@ -455,6 +455,57 @@ export type Database = {
           },
         ]
       }
+      championship_bracket_knockout_court_priorities: {
+        Row: {
+          bracket_edition_id: string
+          court_group_id: string
+          created_at: string
+          division_scope: Database["public"]["Enums"]["bracket_knockout_division_scope"]
+          id: string
+          location_group_id: string
+          phase: Database["public"]["Enums"]["bracket_knockout_priority_phase"]
+          sport_id: string
+          updated_at: string
+        }
+        Insert: {
+          bracket_edition_id: string
+          court_group_id: string
+          created_at?: string
+          division_scope?: Database["public"]["Enums"]["bracket_knockout_division_scope"]
+          id?: string
+          location_group_id: string
+          phase: Database["public"]["Enums"]["bracket_knockout_priority_phase"]
+          sport_id: string
+          updated_at?: string
+        }
+        Update: {
+          bracket_edition_id?: string
+          court_group_id?: string
+          created_at?: string
+          division_scope?: Database["public"]["Enums"]["bracket_knockout_division_scope"]
+          id?: string
+          location_group_id?: string
+          phase?: Database["public"]["Enums"]["bracket_knockout_priority_phase"]
+          sport_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "championship_bracket_knockout_court_priorities_bracket_edition_id_fkey"
+            columns: ["bracket_edition_id"]
+            isOneToOne: false
+            referencedRelation: "championship_bracket_editions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "championship_bracket_knockout_court_priorities_sport_id_fkey"
+            columns: ["sport_id"]
+            isOneToOne: false
+            referencedRelation: "sports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       admin_action_logs: {
         Row: {
           action_type: Database["public"]["Enums"]["admin_action_type"]
@@ -1663,6 +1714,11 @@ export type Database = {
       admin_user_password_status: "PENDING" | "ACTIVE"
       app_role: "admin" | "eventos" | "mesa"
       bracket_court_priority_mode: "NONE" | "NAIPE" | "DIVISION"
+      bracket_knockout_division_scope:
+        | "DIVISAO_PRINCIPAL"
+        | "DIVISAO_ACESSO"
+        | "ALL"
+      bracket_knockout_priority_phase: "SEMIFINAL" | "FINAL"
       bracket_day_break_scope_type: "ALL_COURTS" | "COURT"
       bracket_edition_status: "DRAFT" | "GROUPS_GENERATED" | "KNOCKOUT_GENERATED"
       bracket_phase: "GROUP_STAGE" | "KNOCKOUT"
@@ -1834,6 +1890,12 @@ export const Constants = {
       ],
       app_role: ["admin", "eventos", "mesa"],
       bracket_court_priority_mode: ["NONE", "NAIPE", "DIVISION"],
+      bracket_knockout_division_scope: [
+        "DIVISAO_PRINCIPAL",
+        "DIVISAO_ACESSO",
+        "ALL",
+      ],
+      bracket_knockout_priority_phase: ["SEMIFINAL", "FINAL"],
       bracket_day_break_scope_type: ["ALL_COURTS", "COURT"],
       bracket_edition_status: ["DRAFT", "GROUPS_GENERATED", "KNOCKOUT_GENERATED"],
       bracket_phase: ["GROUP_STAGE", "KNOCKOUT"],

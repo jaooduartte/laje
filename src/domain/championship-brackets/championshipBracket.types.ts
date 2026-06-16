@@ -306,6 +306,10 @@ export interface BracketDayCourtSports {
 
 export type BracketLocationSportPriorityMode = "NONE" | "NAIPE" | "DIVISION";
 
+export type BracketKnockoutPriorityPhase = "SEMIFINAL" | "FINAL";
+
+export type BracketKnockoutPriorityDivisionScope = TeamDivision | "ALL";
+
 export interface BracketLocationSportPriorityCourtGroup {
   court_group_id: string;
   court_name: string;
@@ -324,6 +328,32 @@ export interface BracketLocationSportPriorityUpdate {
   location_group_id: string;
   sport_id: string;
   priority_mode: BracketLocationSportPriorityMode;
+}
+
+export interface BracketKnockoutPriorityCourtOption {
+  location_group_id: string;
+  location_name: string;
+  location_position: number;
+  court_group_id: string;
+  court_name: string;
+  court_position: number;
+}
+
+export interface BracketKnockoutCourtPriorityGroup {
+  sport_id: string;
+  phase: BracketKnockoutPriorityPhase;
+  division_scope: BracketKnockoutPriorityDivisionScope;
+  location_group_id: string | null;
+  court_group_id: string | null;
+  courts: BracketKnockoutPriorityCourtOption[];
+}
+
+export interface BracketKnockoutCourtPriorityUpdate {
+  sport_id: string;
+  phase: BracketKnockoutPriorityPhase;
+  division_scope: BracketKnockoutPriorityDivisionScope;
+  location_group_id: string | null;
+  court_group_id: string | null;
 }
 
 export interface BracketGeneratedCourtGroup {

@@ -43,6 +43,9 @@ type MatchScheduleRedistributionSnapshot = Pick<
   | "naipe"
   | "division"
   | "location"
+  | "court_name"
+  | "start_time"
+  | "created_at"
   | "home_team_id"
   | "away_team_id"
 >;
@@ -69,7 +72,119 @@ export function resolveShouldRedistributeBracketScheduleAfterMatchEdit(params: {
     previousMatch.naipe != nextMatch.naipe ||
     previousMatch.division != nextMatch.division ||
     previousMatch.location != nextMatch.location ||
+    previousMatch.court_name != nextMatch.court_name ||
     previousMatch.home_team_id != nextMatch.home_team_id ||
     previousMatch.away_team_id != nextMatch.away_team_id
   );
+}
+
+type MatchCourtConflictSnapshot = Pick<
+  Match,
+  | "id"
+  | "status"
+  | "scheduled_date"
+  | "location"
+  | "court_name"
+  | "start_time"
+  | "queue_position"
+  | "scheduled_slot"
+  | "created_at"
+  | "home_team_id"
+  | "away_team_id"
+>;
+
+export function resolveScheduledMatchCourtConflictMessage(params: {
+  matches: MatchCourtConflictSnapshot[];
+  nextMatch: MatchCourtConflictSnapshot;
+}): string | null {
+  const { matches, nextMatch } = params;
+
+  if (
+    nextMatch.status !== MatchStatus.SCHEDULED ||
+    !nextMatch.scheduled_date ||
+    !nextMatch.location?.trim() ||
+    !nextMatch.court_name?.trim() ||
+    !nextMatch.home_team_id ||
+    !nextMatch.away_team_id
+  ) {
+    return null;
+  }
+
+  const normalizedLocation = normalizeBracketEntityName(nextMatch.location);
+  const normalizedCourtName = normalizeBracketEntityName(nextMatch.court_name);
+
+  const scopedMatches = [
+    ...matches.filter((match) => {
+      return (
+        match.status === MatchStatus.SCHEDULED &&
+        match.scheduled_date === nextMatch.scheduled_date &&
+        normalizeBracketEntityName(match.location) === normalizedLocation &&
+        normalizeBracketEntityName(match.court_name) === normalizedCourtName &&
+        match.id !== nextMatch.id
+      );
+    }),
+    nextMatch,
+  ].sort(compareCourtSequenceMatches);
+
+  const currentMatchIndex = scopedMatches.findIndex((match) => match.id === nextMatch.id);
+
+  if (currentMatchIndex < 0) {
+    return null;
+  }
+
+  const previousMatch = scopedMatches[currentMatchIndex - 1];
+  const followingMatch = scopedMatches[currentMatchIndex + 1];
+
+  if (previousMatch && doMatchesShareAnyTeam(previousMatch, nextMatch)) {
+    return "A mesma atlética não pode jogar ou representar jogos consecutivos na mesma quadra.";
+  }
+
+  if (followingMatch && doMatchesShareAnyTeam(followingMatch, nextMatch)) {
+    return "A mesma atlética não pode jogar ou representar jogos consecutivos na mesma quadra.";
+  }
+
+  return null;
+}
+
+function normalizeBracketEntityName(value: string | null | undefined) {
+  return (value ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase("pt-BR");
+}
+
+function compareCourtSequenceMatches(
+  firstMatch: MatchCourtConflictSnapshot,
+  secondMatch: MatchCourtConflictSnapshot,
+) {
+  if (firstMatch.start_time && secondMatch.start_time && firstMatch.start_time !== secondMatch.start_time) {
+    return firstMatch.start_time.localeCompare(secondMatch.start_time);
+  }
+
+  if (firstMatch.start_time && !secondMatch.start_time) {
+    return -1;
+  }
+
+  if (!firstMatch.start_time && secondMatch.start_time) {
+    return 1;
+  }
+
+  const slotDifference = resolveMatchScheduleMoveSortValue(firstMatch, true) - resolveMatchScheduleMoveSortValue(secondMatch, true);
+
+  if (slotDifference !== 0) {
+    return slotDifference;
+  }
+
+  if (firstMatch.created_at !== secondMatch.created_at) {
+    return firstMatch.created_at.localeCompare(secondMatch.created_at);
+  }
+
+  return firstMatch.id.localeCompare(secondMatch.id);
+}
+
+function doMatchesShareAnyTeam(
+  firstMatch: Pick<MatchCourtConflictSnapshot, "home_team_id" | "away_team_id">,
+  secondMatch: Pick<MatchCourtConflictSnapshot, "home_team_id" | "away_team_id">,
+) {
+  const firstTeamIds = [firstMatch.home_team_id, firstMatch.away_team_id].filter(Boolean);
+  const secondTeamIds = new Set([secondMatch.home_team_id, secondMatch.away_team_id].filter(Boolean));
+
+  return firstTeamIds.some((teamId) => secondTeamIds.has(teamId));
 }
