@@ -24,13 +24,19 @@ type MatchQueueSwapComparable = Pick<
 
 type MatchQueueSwapDisplay = Pick<
   Match,
-  "queue_position" | "scheduled_slot" | "home_team" | "away_team"
+  "queue_position" | "scheduled_slot" | "scheduled_date" | "home_team" | "away_team"
 >;
+
+type MatchSwapOptionLabelParams = {
+  match: MatchQueueSwapDisplay;
+  shouldUseScheduledSlot: boolean;
+  displaySlot?: number | null;
+};
 
 export function resolveMatchOperationalQueueSlot(
   match: Pick<Match, "queue_position" | "scheduled_slot">,
 ): number | null {
-  const resolvedSlot = match.queue_position ?? match.scheduled_slot ?? null;
+  const resolvedSlot = match.scheduled_slot ?? match.queue_position ?? null;
 
   if (typeof resolvedSlot != "number" || !Number.isFinite(resolvedSlot) || resolvedSlot <= 0) {
     return null;
@@ -55,7 +61,7 @@ export function resolveIsMatchEligibleForQueueSwap(
   const sourceScheduledDate = resolveMatchScheduledDateValue(sourceMatch);
   const candidateScheduledDate = resolveMatchScheduledDateValue(candidateMatch);
 
-  if (!sourceScheduledDate || !candidateScheduledDate || sourceScheduledDate != candidateScheduledDate) {
+  if (!sourceScheduledDate || !candidateScheduledDate) {
     return false;
   }
 
@@ -104,16 +110,15 @@ export function resolveMatchSwapDisplaySlot(
   return resolvedSlot;
 }
 
-export function resolveMatchSwapOptionLabel(
-  match: MatchQueueSwapDisplay,
-  shouldUseScheduledSlot: boolean,
-): string {
-  const queueSlot = resolveMatchSwapDisplaySlot(match, shouldUseScheduledSlot);
+export function resolveMatchSwapOptionLabel(params: MatchSwapOptionLabelParams): string {
+  const { match, shouldUseScheduledSlot, displaySlot } = params;
+  const queueSlot = displaySlot ?? resolveMatchSwapDisplaySlot(match, shouldUseScheduledSlot);
   const queueLabel = resolveMatchQueueLabel(queueSlot);
+  const scheduledDateLabel = resolveSwapMatchScheduledDateLabel(match.scheduled_date);
   const homeTeamName = match.home_team?.name ?? "Casa";
   const awayTeamName = match.away_team?.name ?? "Visitante";
 
-  return `${queueLabel} • ${homeTeamName} x ${awayTeamName}`;
+  return `${scheduledDateLabel ? `${scheduledDateLabel} • ` : ""}${queueLabel} • ${homeTeamName} x ${awayTeamName}`;
 }
 
 export function resolveMatchQueueSwapConflictMessage(params: {
@@ -166,8 +171,20 @@ function resolveSwappedMatchSnapshot(
 ): MatchQueueSwapComparable {
   return {
     ...match,
+    scheduled_date: referenceMatch.scheduled_date,
     queue_position: nextOperationalSlot,
     scheduled_slot: nextOperationalSlot,
     start_time: referenceMatch.start_time,
   };
+}
+
+function resolveSwapMatchScheduledDateLabel(scheduledDate: string | null | undefined): string | null {
+  const normalizedValue = scheduledDate?.trim() ?? "";
+  const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(normalizedValue);
+
+  if (!dateMatch) {
+    return null;
+  }
+
+  return `${dateMatch[3]}/${dateMatch[2]}`;
 }

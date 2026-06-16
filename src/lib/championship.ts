@@ -316,6 +316,16 @@ function resolveMatchRepresentationFromPreviousMatch(match: MatchRepresentationS
   return `${previousHomeTeamName} x ${previousAwayTeamName}`;
 }
 
+function doMatchRepresentationSourcesShareAnyTeam(
+  firstMatch: Pick<MatchRepresentationSource, "home_team" | "away_team">,
+  secondMatch: Pick<MatchRepresentationSource, "home_team" | "away_team">,
+): boolean {
+  const firstTeamIds = [firstMatch.home_team?.id, firstMatch.away_team?.id].filter(Boolean);
+  const secondTeamIds = new Set([secondMatch.home_team?.id, secondMatch.away_team?.id].filter(Boolean));
+
+  return firstTeamIds.some((teamId) => secondTeamIds.has(teamId));
+}
+
 function resolveMatchRepresentationForVisualCourtSequence(
   currentMatch: MatchRepresentationSource,
   previousMatch: MatchRepresentationSource | undefined,
@@ -324,6 +334,10 @@ function resolveMatchRepresentationForVisualCourtSequence(
   const previousScheduledDate = previousMatch ? resolveMatchScheduledDateValue(previousMatch) : null;
 
   if (!previousMatch || currentScheduledDate != previousScheduledDate) {
+    return MATCH_REPRESENTATION_COORDINATION_LABEL;
+  }
+
+  if (doMatchRepresentationSourcesShareAnyTeam(previousMatch, currentMatch)) {
     return MATCH_REPRESENTATION_COORDINATION_LABEL;
   }
 

@@ -1602,6 +1602,12 @@ export type Database = {
         Args: { _source_match_id: string; _target_match_id: string }
         Returns: Json
       }
+      list_match_queue_swap_candidates: {
+        Args: { _source_match_id: string }
+        Returns: {
+          match_id: string
+        }[]
+      }
       get_match_sets: {
         Args: { _match_id: string }
         Returns: Json

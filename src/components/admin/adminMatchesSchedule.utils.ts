@@ -83,6 +83,7 @@ type MatchCourtConflictSnapshot = Pick<
   | "id"
   | "status"
   | "scheduled_date"
+  | "naipe"
   | "location"
   | "court_name"
   | "start_time"
@@ -132,15 +133,28 @@ export function resolveScheduledMatchCourtConflictMessage(params: {
     return null;
   }
 
-  const previousMatch = scopedMatches[currentMatchIndex - 1];
-  const followingMatch = scopedMatches[currentMatchIndex + 1];
+  const nearbySameNaipeConflictingMatch = scopedMatches.find((match, matchIndex) => {
+    if (match.id == nextMatch.id || match.naipe != nextMatch.naipe) {
+      return false;
+    }
 
-  if (previousMatch && doMatchesShareAnyTeam(previousMatch, nextMatch)) {
-    return "A mesma atlética não pode jogar ou representar jogos consecutivos na mesma quadra.";
+    return Math.abs(matchIndex - currentMatchIndex) < 4 && doMatchesShareAnyTeam(match, nextMatch);
+  });
+
+  if (nearbySameNaipeConflictingMatch) {
+    return "A mesma atlética precisa de pelo menos 4 jogos de descanso na mesma quadra para partidas do mesmo naipe.";
   }
 
-  if (followingMatch && doMatchesShareAnyTeam(followingMatch, nextMatch)) {
-    return "A mesma atlética não pode jogar ou representar jogos consecutivos na mesma quadra.";
+  const nearbyDifferentNaipeConflictingMatch = scopedMatches.find((match, matchIndex) => {
+    if (match.id == nextMatch.id || match.naipe == nextMatch.naipe) {
+      return false;
+    }
+
+    return Math.abs(matchIndex - currentMatchIndex) < 2 && doMatchesShareAnyTeam(match, nextMatch);
+  });
+
+  if (nearbyDifferentNaipeConflictingMatch) {
+    return "A mesma atlética precisa de pelo menos 1 jogo de intervalo entre partidas de naipes diferentes na mesma quadra.";
   }
 
   return null;
