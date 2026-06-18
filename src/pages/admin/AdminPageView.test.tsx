@@ -40,6 +40,10 @@ vi.mock("@/components/admin/AdminLeagueEvents", () => ({
   AdminLeagueEvents: () => <div data-testid="admin-events-mock" />,
 }));
 
+vi.mock("@/components/admin/AdminLinks", () => ({
+  AdminLinks: () => <div data-testid="admin-links-mock" />,
+}));
+
 vi.mock("@/components/admin/AdminLogs", () => ({
   AdminLogs: () => <div data-testid="admin-logs-mock" />,
 }));
@@ -190,6 +194,7 @@ describe("AdminPageView tabs", () => {
         canViewTeamsTab={false}
         canViewSportsTab={false}
         canViewEventsTab={false}
+        canViewLinksTab={false}
         canViewLogsTab={false}
         canViewUsersTab={false}
         canViewAccountTab={false}
@@ -207,6 +212,7 @@ describe("AdminPageView tabs", () => {
         canManageTeams={false}
         canManageSports={false}
         canManageLeagueEvents={false}
+        canManageLinks={false}
         canManageUsers={false}
         canManageAccount={false}
         canManageSettings={false}
@@ -272,6 +278,7 @@ describe("AdminPageView tabs", () => {
         canViewTeamsTab={false}
         canViewSportsTab={false}
         canViewEventsTab={false}
+        canViewLinksTab
         canViewLogsTab={false}
         canViewUsersTab={false}
         canViewAccountTab={false}
@@ -289,6 +296,7 @@ describe("AdminPageView tabs", () => {
         canManageTeams={false}
         canManageSports={false}
         canManageLeagueEvents={false}
+        canManageLinks={false}
         canManageUsers={false}
         canManageAccount={false}
         canManageSettings={false}
@@ -350,6 +358,7 @@ describe("AdminPageView tabs", () => {
         canViewTeamsTab={false}
         canViewSportsTab={false}
         canViewEventsTab={false}
+        canViewLinksTab={false}
         canViewLogsTab={false}
         canViewUsersTab={false}
         canViewAccountTab={false}
@@ -367,6 +376,7 @@ describe("AdminPageView tabs", () => {
         canManageTeams={false}
         canManageSports={false}
         canManageLeagueEvents={false}
+        canManageLinks={false}
         canManageUsers={false}
         canManageAccount={false}
         canManageSettings={false}

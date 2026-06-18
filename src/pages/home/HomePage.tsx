@@ -60,7 +60,11 @@ export function HomePage() {
         return publicAccessSettings.is_schedule_page_blocked;
       }
 
-      return publicAccessSettings.is_league_calendar_page_blocked;
+      if (field == PublicPageAccessSettingField.LEAGUE_CALENDAR) {
+        return publicAccessSettings.is_league_calendar_page_blocked;
+      }
+
+      return publicAccessSettings.is_links_page_blocked;
     })
     .map((field) => ({
       label: PUBLIC_PAGE_ACCESS_LABELS[field],

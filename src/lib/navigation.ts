@@ -1,4 +1,4 @@
-import { Calendar, CalendarDays, Radio, Shield, Trophy } from "lucide-react";
+import { Calendar, CalendarDays, Link2, Radio, Shield, Trophy } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AppRoutePath } from "@/lib/enums";
 
@@ -14,6 +14,7 @@ export const APP_NAVIGATION_ITEMS: AppNavigationItem[] = [
   { routePath: AppRoutePath.CHAMPIONSHIPS, label: "Campeonatos", icon: Trophy, isPublicPage: true },
   { routePath: AppRoutePath.SCHEDULE, label: "Agenda", icon: Calendar, isPublicPage: true },
   { routePath: AppRoutePath.LEAGUE_CALENDAR, label: "Calendário da Liga", icon: CalendarDays, isPublicPage: true },
+  { routePath: AppRoutePath.LINKS, label: "Links", icon: Link2, isPublicPage: true },
   { routePath: AppRoutePath.ADMIN, label: "Admin", icon: Shield, isPublicPage: false },
 ];
 

@@ -14,6 +14,7 @@ import { LivePage } from "@/pages/live/LivePage";
 import { ChampionshipsPage } from "@/pages/championships/ChampionshipsPage";
 import { SchedulePage } from "@/pages/schedule/SchedulePage";
 import { LeagueCalendarPage } from "@/pages/league-calendar/LeagueCalendarPage";
+import { LinksPage } from "@/pages/links/LinksPage";
 import { LoginPage } from "@/pages/login/LoginPage";
 import { AdminPage } from "@/pages/admin/AdminPage";
 import { NotFoundPage } from "@/pages/not-found/NotFoundPage";
@@ -72,6 +73,14 @@ const App = () => (
                   element={
                     <PublicRouteGuard routePath={AppRoutePath.LEAGUE_CALENDAR}>
                       <LeagueCalendarPage />
+                    </PublicRouteGuard>
+                  }
+                />
+                <Route
+                  path={AppRoutePath.LINKS}
+                  element={
+                    <PublicRouteGuard routePath={AppRoutePath.LINKS}>
+                      <LinksPage />
                     </PublicRouteGuard>
                   }
                 />

@@ -81,6 +81,8 @@ const ADMIN_LOG_RESOURCE_LABELS: Record<AdminLogResourceTable, string> = {
   [AdminLogResourceTable.LEAGUE_EVENTS]: "Eventos da Liga",
   [AdminLogResourceTable.LEAGUE_EVENT_RESERVATION_REQUESTS]: "Reservas do Calendário da Liga",
   [AdminLogResourceTable.LEAGUE_EVENT_ORGANIZER_TEAMS]: "Organização de eventos",
+  [AdminLogResourceTable.PUBLIC_LINK_SECTIONS]: "Seções de links",
+  [AdminLogResourceTable.PUBLIC_LINK_ITEMS]: "Links públicos",
   [AdminLogResourceTable.CHAMPIONSHIP_BRACKET_WORKFLOW]: "Configuração de Campeonato",
   [AdminLogResourceTable.AUTH_USERS]: "Usuários administrativos",
   [AdminLogResourceTable.PUBLIC_PAGE_ACCESS_SETTINGS]: "Configurações públicas",
@@ -94,6 +96,8 @@ const ADMIN_LOG_RESOURCE_ENTITY_LABELS: Record<AdminLogResourceTable, string> = 
   [AdminLogResourceTable.LEAGUE_EVENTS]: "evento da liga",
   [AdminLogResourceTable.LEAGUE_EVENT_RESERVATION_REQUESTS]: "reserva do calendário da liga",
   [AdminLogResourceTable.LEAGUE_EVENT_ORGANIZER_TEAMS]: "vínculo de organização do evento",
+  [AdminLogResourceTable.PUBLIC_LINK_SECTIONS]: "seção de links",
+  [AdminLogResourceTable.PUBLIC_LINK_ITEMS]: "link público",
   [AdminLogResourceTable.CHAMPIONSHIP_BRACKET_WORKFLOW]: "configuração de campeonato",
   [AdminLogResourceTable.AUTH_USERS]: "usuário administrativo",
   [AdminLogResourceTable.PUBLIC_PAGE_ACCESS_SETTINGS]: "configuração pública",
@@ -142,6 +146,13 @@ const ADMIN_LOG_DEFAULT_FIELD_LABELS: Record<string, string> = {
   points_loss: "Pontos por derrota",
   queue_position: "Jogo",
   scheduled_slot: "Jogo",
+  sort_order: "Ordem",
+  is_active: "Ativo",
+  section_id: "Seção",
+  display_name: "Nome de exibição",
+  url: "URL",
+  filter_mode: "Modo de filtro",
+  filters: "Filtros",
 };
 
 const ADMIN_LOG_RESOURCE_FIELD_LABELS: Partial<Record<AdminLogResourceTable, Record<string, string>>> = {
@@ -176,7 +187,23 @@ const ADMIN_LOG_RESOURCE_FIELD_LABELS: Partial<Record<AdminLogResourceTable, Rec
     is_championships_page_blocked: "Bloqueio da tela Campeonatos",
     is_schedule_page_blocked: "Bloqueio da tela Agenda",
     is_league_calendar_page_blocked: "Bloqueio da tela Calendário da Liga",
+    is_links_page_blocked: "Bloqueio da tela Links",
     blocked_message: "Mensagem de manutenção",
+  },
+  [AdminLogResourceTable.PUBLIC_LINK_SECTIONS]: {
+    name: "Nome da seção",
+    description: "Descrição",
+    sort_order: "Ordem",
+    is_active: "Ativa",
+  },
+  [AdminLogResourceTable.PUBLIC_LINK_ITEMS]: {
+    section_id: "Seção",
+    display_name: "Nome do link",
+    url: "URL",
+    sort_order: "Ordem",
+    is_active: "Ativo",
+    filter_mode: "Modo de filtro",
+    filters: "Filtros",
   },
   [AdminLogResourceTable.CHAMPIONSHIPS]: {
     code: "Código do campeonato",
@@ -252,6 +279,8 @@ function isAdminLogResourceTable(value: string): value is AdminLogResourceTable 
     value == AdminLogResourceTable.LEAGUE_EVENTS ||
     value == AdminLogResourceTable.LEAGUE_EVENT_RESERVATION_REQUESTS ||
     value == AdminLogResourceTable.LEAGUE_EVENT_ORGANIZER_TEAMS ||
+    value == AdminLogResourceTable.PUBLIC_LINK_SECTIONS ||
+    value == AdminLogResourceTable.PUBLIC_LINK_ITEMS ||
     value == AdminLogResourceTable.CHAMPIONSHIP_BRACKET_WORKFLOW ||
     value == AdminLogResourceTable.AUTH_USERS ||
     value == AdminLogResourceTable.PUBLIC_PAGE_ACCESS_SETTINGS

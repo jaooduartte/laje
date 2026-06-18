@@ -33,6 +33,7 @@ export enum AppRoutePath {
   CHAMPIONSHIPS = "/campeonatos",
   SCHEDULE = "/agenda",
   LEAGUE_CALENDAR = "/calendario-da-liga",
+  LINKS = "/links",
   LOGIN = "/login",
   ADMIN = "/admin",
   LEGACY_CHAMPIONSHIPS = "/championships",
@@ -45,6 +46,7 @@ export enum PublicPageAccessSettingField {
   CHAMPIONSHIPS = "is_championships_page_blocked",
   SCHEDULE = "is_schedule_page_blocked",
   LEAGUE_CALENDAR = "is_league_calendar_page_blocked",
+  LINKS = "is_links_page_blocked",
 }
 
 export enum TeamDivision {
@@ -157,6 +159,7 @@ export enum AdminPanelTab {
   TEAMS = "teams",
   SPORTS = "sports",
   EVENTS = "events",
+  LINKS = "links",
   LOGS = "logs",
   USERS = "users",
   ACCOUNT = "account",
@@ -215,6 +218,8 @@ export enum AdminLogResourceTable {
   LEAGUE_EVENTS = "public.league_events",
   LEAGUE_EVENT_RESERVATION_REQUESTS = "public.league_event_reservation_requests",
   LEAGUE_EVENT_ORGANIZER_TEAMS = "public.league_event_organizer_teams",
+  PUBLIC_LINK_SECTIONS = "public.public_link_sections",
+  PUBLIC_LINK_ITEMS = "public.public_link_items",
   CHAMPIONSHIP_BRACKET_WORKFLOW = "public.championship_bracket_workflow",
   AUTH_USERS = "auth.users",
   PUBLIC_PAGE_ACCESS_SETTINGS = "public.public_page_access_settings",
@@ -233,4 +238,9 @@ export enum RealtimePresenceChannel {
 export enum ChampionshipAwardType {
   TOP_SCORER = "TOP_SCORER",
   BEST_GOALKEEPER = "BEST_GOALKEEPER",
+}
+
+export enum PublicLinkFilterMode {
+  GLOBAL = "GLOBAL",
+  BY_CHAMPIONSHIP_YEAR = "BY_CHAMPIONSHIP_YEAR",
 }

@@ -485,6 +485,7 @@ export function AdminPage() {
   const canViewTeamsTab = canViewAdminTab(AdminPanelTab.TEAMS);
   const canViewSportsTab = canViewAdminTab(AdminPanelTab.SPORTS);
   const canViewEventsTab = canViewAdminTab(AdminPanelTab.EVENTS);
+  const canViewLinksTab = canViewAdminTab(AdminPanelTab.LINKS);
   const canViewLogsTab = canViewAdminTab(AdminPanelTab.LOGS);
   const canViewUsersTab = canViewAdminTab(AdminPanelTab.USERS);
   const canViewAccountTab = canViewAdminTab(AdminPanelTab.ACCOUNT);
@@ -504,6 +505,7 @@ export function AdminPage() {
   const canManageTeams = canEditAdminTab(AdminPanelTab.TEAMS);
   const canManageSports = canEditAdminTab(AdminPanelTab.SPORTS);
   const canManageLeagueEvents = canEditAdminTab(AdminPanelTab.EVENTS);
+  const canManageLinks = canEditAdminTab(AdminPanelTab.LINKS);
   const canManageUsers = canEditAdminTab(AdminPanelTab.USERS);
   const canManageAccount = canEditAdminTab(AdminPanelTab.ACCOUNT);
   const canManageSettings = canEditAdminTab(AdminPanelTab.SETTINGS);
@@ -515,6 +517,7 @@ export function AdminPage() {
     AdminPanelTab.TEAMS,
     AdminPanelTab.SPORTS,
     AdminPanelTab.EVENTS,
+    AdminPanelTab.LINKS,
     AdminPanelTab.LOGS,
     AdminPanelTab.USERS,
     AdminPanelTab.ACCOUNT,
@@ -561,6 +564,7 @@ export function AdminPage() {
         canViewTeamsTab={canViewTeamsTab}
         canViewSportsTab={canViewSportsTab}
         canViewEventsTab={canViewEventsTab}
+        canViewLinksTab={canViewLinksTab}
         canViewLogsTab={canViewLogsTab}
         canViewUsersTab={canViewUsersTab}
         canViewAccountTab={canViewAccountTab}
@@ -578,6 +582,7 @@ export function AdminPage() {
         canManageTeams={canManageTeams}
         canManageSports={canManageSports}
         canManageLeagueEvents={canManageLeagueEvents}
+        canManageLinks={canManageLinks}
         canManageUsers={canManageUsers}
         canManageAccount={canManageAccount}
         canManageSettings={canManageSettings}

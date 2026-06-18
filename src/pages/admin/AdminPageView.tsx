@@ -9,6 +9,7 @@ import { AdminMatches } from "@/components/admin/AdminMatches";
 import { AdminMatchesViewMode } from "@/components/admin/adminMatches.types";
 import { AdminMatchControl } from "@/components/admin/AdminMatchControl";
 import { AdminLeagueEvents } from "@/components/admin/AdminLeagueEvents";
+import { AdminLinks } from "@/components/admin/AdminLinks";
 import { AdminLogs } from "@/components/admin/AdminLogs";
 import { AdminPublicAccessSettings } from "@/components/admin/AdminPublicAccessSettings";
 import { AdminAccount } from "@/components/admin/AdminAccount";
@@ -58,6 +59,7 @@ interface AdminPageViewProps {
   canViewTeamsTab: boolean;
   canViewSportsTab: boolean;
   canViewEventsTab: boolean;
+  canViewLinksTab: boolean;
   canViewLogsTab: boolean;
   canViewUsersTab: boolean;
   canViewAccountTab: boolean;
@@ -75,6 +77,7 @@ interface AdminPageViewProps {
   canManageTeams: boolean;
   canManageSports: boolean;
   canManageLeagueEvents: boolean;
+  canManageLinks: boolean;
   canManageUsers: boolean;
   canManageAccount: boolean;
   canManageSettings: boolean;
@@ -139,6 +142,7 @@ export function AdminPageView({
   canViewTeamsTab,
   canViewSportsTab,
   canViewEventsTab,
+  canViewLinksTab,
   canViewLogsTab,
   canViewUsersTab,
   canViewAccountTab,
@@ -156,6 +160,7 @@ export function AdminPageView({
   canManageTeams,
   canManageSports,
   canManageLeagueEvents,
+  canManageLinks,
   canManageUsers,
   canManageAccount,
   canManageSettings,
@@ -214,6 +219,10 @@ export function AdminPageView({
       nextAdminTabItems.push({ value: AdminPanelTab.EVENTS, label: "Eventos da Liga" });
     }
 
+    if (canViewLinksTab) {
+      nextAdminTabItems.push({ value: AdminPanelTab.LINKS, label: "Links" });
+    }
+
     if (canViewLogsTab) {
       nextAdminTabItems.push({ value: AdminPanelTab.LOGS, label: "Logs" });
     }
@@ -248,6 +257,7 @@ export function AdminPageView({
     canViewScheduleTab,
     canViewControlTab,
     canViewEventsTab,
+    canViewLinksTab,
     canViewLogsTab,
     canViewMatchesTab,
     canViewScoreSheetReviewTab,
@@ -630,6 +640,12 @@ export function AdminPageView({
           {canViewEventsTab ? (
             <TabsContent value={AdminPanelTab.EVENTS}>
               <AdminLeagueEvents teams={teams} canManageLeagueEvents={canManageLeagueEvents} />
+            </TabsContent>
+          ) : null}
+
+          {canViewLinksTab ? (
+            <TabsContent value={AdminPanelTab.LINKS}>
+              <AdminLinks championships={championships} canManageLinks={canManageLinks} />
             </TabsContent>
           ) : null}
 

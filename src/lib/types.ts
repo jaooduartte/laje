@@ -19,6 +19,7 @@ import type {
   BracketEditionStatus,
   BracketPhase,
   BracketThirdPlaceMode,
+  PublicLinkFilterMode,
   MatchNaipe,
   MatchStatus,
   MatchManualRepresentationMode,
@@ -210,6 +211,7 @@ export interface CurrentUserAdminContext {
   teams_permission: AdminPanelPermissionLevel;
   sports_permission: AdminPanelPermissionLevel;
   events_permission: AdminPanelPermissionLevel;
+  links_permission?: AdminPanelPermissionLevel;
   logs_permission: AdminPanelPermissionLevel;
   users_permission: AdminPanelPermissionLevel;
   account_permission: AdminPanelPermissionLevel;
@@ -227,6 +229,7 @@ export interface PublicAccessSettings {
   is_championships_page_blocked: boolean;
   is_schedule_page_blocked: boolean;
   is_league_calendar_page_blocked: boolean;
+  is_links_page_blocked: boolean;
   blocked_message: string | null;
   updated_at: string | null;
 }
@@ -262,6 +265,39 @@ export interface CurrentAdminAccount {
   profile_id: string | null;
   profile_name: string | null;
   theme_mode_preference: ThemeMode;
+}
+
+export interface PublicLinkItemFilter {
+  id: string;
+  public_link_item_id: string;
+  championship_id: string;
+  season_year: number;
+  created_at: string;
+  championships?: Championship | null;
+}
+
+export interface PublicLinkItem {
+  id: string;
+  section_id: string;
+  display_name: string;
+  url: string;
+  sort_order: number;
+  is_active: boolean;
+  filter_mode: PublicLinkFilterMode;
+  created_at: string;
+  updated_at: string;
+  public_link_item_filters?: PublicLinkItemFilter[];
+}
+
+export interface PublicLinkSection {
+  id: string;
+  name: string;
+  description: string | null;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  public_link_items?: PublicLinkItem[];
 }
 
 export interface HomeDashboardRankedMetricItem {

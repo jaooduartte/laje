@@ -85,6 +85,12 @@ export const CHAMPIONSHIP_STATUS_BADGE_CLASS_NAMES: Record<ChampionshipStatus, s
     "border-transparent bg-primary/10 text-primary dark:bg-primary/30 dark:text-primary-foreground",
 };
 
+export const CHAMPIONSHIP_CODE_LABELS: Record<ChampionshipCode, string> = {
+  [ChampionshipCode.CLV]: "Copa Laje de Verão",
+  [ChampionshipCode.SOCIETY]: "Copa Laje Society",
+  [ChampionshipCode.INTERLAJE]: "Interlaje",
+};
+
 export const MATCH_NAIPE_LABELS: Record<MatchNaipe, string> = {
   [MatchNaipe.MASCULINO]: "Masculino",
   [MatchNaipe.FEMININO]: "Feminino",

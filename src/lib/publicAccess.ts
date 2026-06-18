@@ -7,6 +7,7 @@ export const DEFAULT_PUBLIC_ACCESS_SETTINGS: PublicAccessSettings = {
   is_championships_page_blocked: false,
   is_schedule_page_blocked: false,
   is_league_calendar_page_blocked: false,
+  is_links_page_blocked: false,
   blocked_message: null,
   updated_at: null,
 };
@@ -16,6 +17,7 @@ export const PUBLIC_PAGE_ACCESS_LABELS: Record<PublicPageAccessSettingField, str
   [PublicPageAccessSettingField.CHAMPIONSHIPS]: "Campeonatos",
   [PublicPageAccessSettingField.SCHEDULE]: "Agenda",
   [PublicPageAccessSettingField.LEAGUE_CALENDAR]: "Calendário da Liga",
+  [PublicPageAccessSettingField.LINKS]: "Links",
 };
 
 export const PUBLIC_PAGE_ACCESS_FIELD_ORDER: PublicPageAccessSettingField[] = [
@@ -23,6 +25,7 @@ export const PUBLIC_PAGE_ACCESS_FIELD_ORDER: PublicPageAccessSettingField[] = [
   PublicPageAccessSettingField.CHAMPIONSHIPS,
   PublicPageAccessSettingField.SCHEDULE,
   PublicPageAccessSettingField.LEAGUE_CALENDAR,
+  PublicPageAccessSettingField.LINKS,
 ];
 
 export function resolvePublicAccessSettings(
@@ -47,6 +50,7 @@ function isPublicRoutePath(routePath: string): boolean {
     routePath == AppRoutePath.CHAMPIONSHIPS ||
     routePath == AppRoutePath.SCHEDULE ||
     routePath == AppRoutePath.LEAGUE_CALENDAR ||
+    routePath == AppRoutePath.LINKS ||
     routePath == AppRoutePath.LEGACY_CHAMPIONSHIPS ||
     routePath == AppRoutePath.LEGACY_SCHEDULE ||
     routePath == AppRoutePath.LEGACY_LEAGUE_CALENDAR
@@ -83,6 +87,10 @@ export function resolveIsPublicRouteBlocked(
 
   if (routePath == AppRoutePath.LEAGUE_CALENDAR || routePath == AppRoutePath.LEGACY_LEAGUE_CALENDAR) {
     return publicAccessSettings.is_league_calendar_page_blocked;
+  }
+
+  if (routePath == AppRoutePath.LINKS) {
+    return publicAccessSettings.is_links_page_blocked;
   }
 
   return false;

@@ -1320,6 +1320,119 @@ export type Database = {
           },
         ]
       }
+      public_link_item_filters: {
+        Row: {
+          championship_id: string
+          created_at: string
+          id: string
+          public_link_item_id: string
+          season_year: number
+        }
+        Insert: {
+          championship_id: string
+          created_at?: string
+          id?: string
+          public_link_item_id: string
+          season_year: number
+        }
+        Update: {
+          championship_id?: string
+          created_at?: string
+          id?: string
+          public_link_item_id?: string
+          season_year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "public_link_item_filters_championship_id_fkey"
+            columns: ["championship_id"]
+            isOneToOne: false
+            referencedRelation: "championships"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "public_link_item_filters_public_link_item_id_fkey"
+            columns: ["public_link_item_id"]
+            isOneToOne: false
+            referencedRelation: "public_link_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      public_link_items: {
+        Row: {
+          created_at: string
+          display_name: string
+          filter_mode: Database["public"]["Enums"]["public_link_filter_mode"]
+          id: string
+          is_active: boolean
+          section_id: string
+          sort_order: number
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          filter_mode?: Database["public"]["Enums"]["public_link_filter_mode"]
+          id?: string
+          is_active?: boolean
+          section_id: string
+          sort_order?: number
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          filter_mode?: Database["public"]["Enums"]["public_link_filter_mode"]
+          id?: string
+          is_active?: boolean
+          section_id?: string
+          sort_order?: number
+          updated_at?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "public_link_items_section_id_fkey"
+            columns: ["section_id"]
+            isOneToOne: false
+            referencedRelation: "public_link_sections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      public_link_sections: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       teams: {
         Row: {
           city: string
@@ -1515,6 +1628,7 @@ export type Database = {
           championship_status_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
           control_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
           events_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
+          links_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
           logs_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
           matches_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
           profile_id: string | null
@@ -1574,6 +1688,7 @@ export type Database = {
           blocked_message: string | null
           is_championships_page_blocked: boolean
           is_league_calendar_page_blocked: boolean
+          is_links_page_blocked: boolean
           is_live_page_blocked: boolean
           is_public_access_blocked: boolean
           is_schedule_page_blocked: boolean
@@ -1682,11 +1797,43 @@ export type Database = {
           _blocked_message?: string | null
           _is_championships_page_blocked?: boolean
           _is_league_calendar_page_blocked?: boolean
+          _is_links_page_blocked?: boolean
           _is_live_page_blocked?: boolean
           _is_public_access_blocked: boolean
           _is_schedule_page_blocked?: boolean
         }
         Returns: undefined
+      }
+      delete_public_link_item: {
+        Args: { _item_id: string }
+        Returns: undefined
+      }
+      delete_public_link_section: {
+        Args: { _section_id: string }
+        Returns: undefined
+      }
+      upsert_public_link_item: {
+        Args: {
+          _display_name?: string | null
+          _filter_mode?: Database["public"]["Enums"]["public_link_filter_mode"]
+          _filters?: Json
+          _is_active?: boolean
+          _item_id?: string | null
+          _section_id?: string | null
+          _sort_order?: number
+          _url?: string | null
+        }
+        Returns: string
+      }
+      upsert_public_link_section: {
+        Args: {
+          _description?: string | null
+          _is_active?: boolean
+          _name?: string | null
+          _section_id?: string | null
+          _sort_order?: number
+        }
+        Returns: string
       }
       save_match_sets: {
         Args: { _match_id: string; _sets: Json }
@@ -1718,6 +1865,7 @@ export type Database = {
         | "teams"
         | "sports"
         | "events"
+        | "links"
         | "logs"
         | "users"
         | "account"
@@ -1757,6 +1905,7 @@ export type Database = {
       league_event_type: "HH" | "OPEN_BAR" | "CHAMPIONSHIP" | "LAJE_EVENT"
       match_naipe: "MASCULINO" | "FEMININO" | "MISTO"
       match_status: "SCHEDULED" | "LIVE" | "FINISHED"
+      public_link_filter_mode: "GLOBAL" | "BY_CHAMPIONSHIP_YEAR"
       team_division: "DIVISAO_PRINCIPAL" | "DIVISAO_ACESSO"
       theme_mode_preference: "auto" | "light" | "dark"
     }
@@ -1894,6 +2043,7 @@ export const Constants = {
         "teams",
         "sports",
         "events",
+        "links",
         "logs",
         "users",
         "account",
@@ -1935,6 +2085,7 @@ export const Constants = {
       league_event_type: ["HH", "OPEN_BAR", "CHAMPIONSHIP", "LAJE_EVENT"],
       match_naipe: ["MASCULINO", "FEMININO", "MISTO"],
       match_status: ["SCHEDULED", "LIVE", "FINISHED"],
+      public_link_filter_mode: ["GLOBAL", "BY_CHAMPIONSHIP_YEAR"],
       team_division: ["DIVISAO_PRINCIPAL", "DIVISAO_ACESSO"],
     },
   },
