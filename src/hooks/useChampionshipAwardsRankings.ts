@@ -11,28 +11,29 @@ export interface AwardsRankingGoalScorer {
   goals: number;
 }
 
-export interface AwardsRankingGoalkeeper {
-  player_id: string;
-  player_name: string;
+export interface AwardsRankingBestDefense {
+  team_id: string;
   team_name: string;
   naipe: MatchNaipe;
   division: TeamDivision | null;
   matches_count: number;
   goals_against: number;
+  goals_against_average: number;
 }
 
 export interface AwardsRankingDrawResult {
   award_type: ChampionshipAwardType;
   naipe: MatchNaipe;
   division: TeamDivision | null;
-  winner_player_id: string;
+  winner_player_id: string | null;
+  winner_team_id: string | null;
 }
 
 export interface ChampionshipAwardsRankings {
   season_year: number;
   pending_matches_count: number;
   top_scorers: AwardsRankingGoalScorer[];
-  best_goalkeepers: AwardsRankingGoalkeeper[];
+  best_defenses: AwardsRankingBestDefense[];
   award_draw_results: AwardsRankingDrawResult[];
 }
 
@@ -79,7 +80,6 @@ export function useChampionshipAwardsRankings({ championshipId, seasonYear }: Us
     const channel = supabase
       .channel(`awards-rankings-${championshipId}-${seasonYear}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "match_award_goal_scorers" }, () => void fetch())
-      .on("postgres_changes", { event: "*", schema: "public", table: "match_award_goalkeepers" }, () => void fetch())
       .on("postgres_changes", { event: "*", schema: "public", table: "championship_award_draw_results" }, () => void fetch())
       .on(
         "postgres_changes",

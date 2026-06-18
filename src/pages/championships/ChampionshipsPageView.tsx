@@ -388,7 +388,7 @@ export function ChampionshipsPageView({
                             r.naipe === championshipChampion.naipe &&
                             r.division === (championshipChampion.division ?? null)
                         ) ?? null;
-                        const goalkeeperDrawResult = awardsRankings?.award_draw_results?.find(
+                        const defenseDrawResult = awardsRankings?.award_draw_results?.find(
                           (r) =>
                             r.award_type === "BEST_GOALKEEPER" &&
                             r.naipe === championshipChampion.naipe &&
@@ -407,19 +407,25 @@ export function ChampionshipsPageView({
                               : filteredScorers.sort((a, b) => b.goals - a.goals)[0]) ?? null
                           : null;
 
-                        const filteredGoalkeepers = isCurrentYear
-                          ? [...(awardsRankings?.best_goalkeepers ?? [])].filter(
+                        const filteredBestDefenses = isCurrentYear
+                          ? [...(awardsRankings?.best_defenses ?? [])].filter(
                               (g) => g.naipe === championshipChampion.naipe && g.division === championshipChampion.division
                             )
                           : [];
-                        const bestGoalkeeper = isCurrentYear
-                          ? (goalkeeperDrawResult
-                              ? filteredGoalkeepers.find((g) => g.player_id === goalkeeperDrawResult.winner_player_id) ??
-                                filteredGoalkeepers.sort(
-                                  (a, b) => a.goals_against - b.goals_against || b.matches_count - a.matches_count
+                        const bestDefense = isCurrentYear
+                          ? (defenseDrawResult
+                              ? filteredBestDefenses.find((g) => g.team_id === defenseDrawResult.winner_team_id) ??
+                                filteredBestDefenses.sort(
+                                  (a, b) =>
+                                    a.goals_against_average - b.goals_against_average ||
+                                    a.goals_against - b.goals_against ||
+                                    b.matches_count - a.matches_count
                                 )[0]
-                              : filteredGoalkeepers.sort(
-                                  (a, b) => a.goals_against - b.goals_against || b.matches_count - a.matches_count
+                              : filteredBestDefenses.sort(
+                                  (a, b) =>
+                                    a.goals_against_average - b.goals_against_average ||
+                                    a.goals_against - b.goals_against ||
+                                    b.matches_count - a.matches_count
                                 )[0]) ?? null
                           : null;
 
@@ -494,13 +500,16 @@ export function ChampionshipsPageView({
                                 )}
                               </div>
                               <div className="flex items-center justify-between gap-2 text-xs">
-                                <span className="text-muted-foreground shrink-0">Melhor goleiro</span>
-                                {awardsReady && bestGoalkeeper ? (
+                                <span className="text-muted-foreground shrink-0">Melhor defesa</span>
+                                {awardsReady && bestDefense ? (
                                   <span className="truncate text-right font-medium">
-                                    {bestGoalkeeper.player_name}
+                                    {bestDefense.team_name}
                                     <span className="ml-1 text-muted-foreground">
-                                      • {bestGoalkeeper.team_name} • {bestGoalkeeper.goals_against}{" "}
-                                      {bestGoalkeeper.goals_against === 1 ? "gol sofrido" : "gols sofridos"}
+                                      • {bestDefense.goals_against_average.toLocaleString("pt-BR", {
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2,
+                                      })} de média • {bestDefense.goals_against}{" "}
+                                      {bestDefense.goals_against === 1 ? "gol sofrido" : "gols sofridos"}
                                     </span>
                                   </span>
                                 ) : (

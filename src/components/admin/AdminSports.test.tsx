@@ -21,48 +21,48 @@ vi.mock("@/domain/championship-brackets/championshipBracket.repository", () => (
 }));
 
 describe("AdminSports", () => {
-  it("prioriza o valor salvo em sports para preencher a duração da modalidade", () => {
-    const championship: Championship = {
-      id: "championship-1",
-      code: ChampionshipCode.SOCIETY,
-      name: "Copa Laje Society",
-      status: ChampionshipStatus.UPCOMING,
-      current_season_year: 2026,
-      uses_divisions: true,
-      default_location: null,
+  const championship: Championship = {
+    id: "championship-1",
+    code: ChampionshipCode.SOCIETY,
+    name: "Copa Laje Society",
+    status: ChampionshipStatus.UPCOMING,
+    current_season_year: 2026,
+    uses_divisions: true,
+    default_location: null,
+    created_at: "2026-06-15T00:00:00.000Z",
+  };
+
+  const sports: Sport[] = [
+    {
+      id: "sport-1",
+      name: "Futebol Society",
+      default_match_duration_minutes: 40,
       created_at: "2026-06-15T00:00:00.000Z",
-    };
+    },
+  ];
 
-    const sports: Sport[] = [
-      {
-        id: "sport-1",
-        name: "Futebol Society",
-        default_match_duration_minutes: 40,
-        created_at: "2026-06-15T00:00:00.000Z",
-      },
-    ];
+  const championshipSports: ChampionshipSport[] = [
+    {
+      id: "championship-sport-1",
+      championship_id: championship.id,
+      sport_id: "sport-1",
+      naipe_mode: ChampionshipSportNaipeMode.MASCULINO_FEMININO,
+      result_rule: ChampionshipSportResultRule.POINTS,
+      supports_cards: true,
+      tie_breaker_rule: ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY,
+      default_match_duration_minutes: 30,
+      show_estimated_start_time_on_cards: true,
+      points_win: 3,
+      points_draw: 1,
+      points_loss: 0,
+      created_at: "2026-06-15T00:00:00.000Z",
+      walkover_winner_points: 3,
+      awards_include_knockout_phase: true,
+      supports_individual_awards: true,
+    },
+  ];
 
-    const championshipSports: ChampionshipSport[] = [
-      {
-        id: "championship-sport-1",
-        championship_id: championship.id,
-        sport_id: "sport-1",
-        naipe_mode: ChampionshipSportNaipeMode.MASCULINO_FEMININO,
-        result_rule: ChampionshipSportResultRule.POINTS,
-        supports_cards: true,
-        tie_breaker_rule: ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY,
-        default_match_duration_minutes: 30,
-        show_estimated_start_time_on_cards: true,
-        points_win: 3,
-        points_draw: 1,
-        points_loss: 0,
-        created_at: "2026-06-15T00:00:00.000Z",
-        walkover_winner_points: 3,
-        awards_include_knockout_phase: true,
-        supports_individual_awards: true,
-      },
-    ];
-
+  it("prioriza o valor salvo em sports para preencher a duração da modalidade", () => {
     render(
       <AdminSports
         sports={sports}
@@ -72,5 +72,22 @@ describe("AdminSports", () => {
     );
 
     expect(screen.getByDisplayValue("40")).toBeInTheDocument();
+  });
+
+  it("exibe a nova nomenclatura e os critérios de premiação", () => {
+    render(
+      <AdminSports
+        sports={sports}
+        championshipSports={championshipSports}
+        selectedChampionship={championship}
+      />,
+    );
+
+    expect(screen.getByText("Cadastro de atletas na súmula")).toBeInTheDocument();
+    expect(screen.getByText("Contabilização de prêmios (artilheiro e melhor defesa)")).toBeInTheDocument();
+    expect(screen.getByText("Critérios de premiação")).toBeInTheDocument();
+    expect(screen.getByText(/Artilheiro:/)).toBeInTheDocument();
+    expect(screen.getByText(/Melhor defesa:/)).toBeInTheDocument();
+    expect(screen.getByText(/A plataforma define a atlética vencedora da melhor defesa/)).toBeInTheDocument();
   });
 });

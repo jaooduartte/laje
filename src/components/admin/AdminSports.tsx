@@ -338,11 +338,11 @@ export function AdminSports({
         ...current,
         [championshipSport.sport_id]: championshipSport.supports_individual_awards,
       }));
-      toast.error(error.message || "Não foi possível salvar a configuração de artilharia e goleiro.");
+      toast.error(error.message || "Não foi possível salvar a configuração de premiações.");
       return;
     }
 
-    toast.success("Configuração de artilharia e goleiro atualizada.");
+    toast.success("Configuração de premiações atualizada.");
   };
 
   const handleToggleAwardsIncludeKnockout = async (
@@ -624,7 +624,7 @@ export function AdminSports({
                 </div>
 
                 <div className="app-card-muted space-y-2 px-3 py-2">
-                  <p className="text-xs font-medium text-muted-foreground">Cadastro de artilheiros e goleiros na súmula</p>
+                  <p className="text-xs font-medium text-muted-foreground">Cadastro de atletas na súmula</p>
                   <RadioGroup
                     value={supportsIndividualAwards ? "YES" : "NO"}
                     onValueChange={(value) => {
@@ -666,7 +666,7 @@ export function AdminSports({
                 </div>
 
                 <div className="app-card-muted space-y-2 px-3 py-2">
-                  <p className="text-xs font-medium text-muted-foreground">Contabilização de prêmios (artilheiro e goleiro)</p>
+                  <p className="text-xs font-medium text-muted-foreground">Contabilização de prêmios (artilheiro e melhor defesa)</p>
                   <RadioGroup
                     value={awardsIncludeKnockout ? "YES" : "NO"}
                     onValueChange={(value) => {
@@ -705,6 +705,21 @@ export function AdminSports({
                       Perfil em visualização: sem permissão para editar a aba de modalidades.
                     </p>
                   ) : null}
+                </div>
+
+                <div className="app-card-muted space-y-2 px-3 py-2">
+                  <p className="text-xs font-medium text-muted-foreground">Critérios de premiação</p>
+                  <div className="space-y-2 text-sm">
+                    <p>
+                      <span className="font-medium">Artilheiro:</span> maior número de gols. Empate no 1º lugar é resolvido por sorteio.
+                    </p>
+                    <p>
+                      <span className="font-medium">Melhor defesa:</span> menor média de gols sofridos por jogo, menor total de gols sofridos, maior número de jogos e, se necessário, sorteio.
+                    </p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    A plataforma define a atlética vencedora da melhor defesa. A própria atlética indica internamente qual goleiro deve receber o prêmio.
+                  </p>
                 </div>
               </div>
             );

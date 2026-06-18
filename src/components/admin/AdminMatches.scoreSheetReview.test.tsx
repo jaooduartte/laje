@@ -608,12 +608,10 @@ describe("AdminMatches score sheet review", () => {
           required_home_goals: 0,
           required_away_goals: 0,
           is_walkover: false,
-          home_players: [{ id: "home-player-1", name: "Goleiro Casa", is_goalkeeper: true }],
-          away_players: [{ id: "away-player-1", name: "Goleiro Visitante", is_goalkeeper: true }],
+          home_players: [{ id: "home-player-1", name: "Atleta Casa" }],
+          away_players: [{ id: "away-player-1", name: "Atleta Visitante" }],
           home_goals: [],
           away_goals: [],
-          home_goalkeepers: [{ player_id: "home-player-1", player_name: "Goleiro Casa" }],
-          away_goalkeepers: [{ player_id: "away-player-1", player_name: "Goleiro Visitante" }],
         },
         error: null,
       },
@@ -642,21 +640,23 @@ describe("AdminMatches score sheet review", () => {
     clickFirstMenuItemInMatchCard(matchCardContainer, "Revisar súmula e premiações");
 
     expect(await screen.findByText("Revisão de súmula e premiações")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("combobox", { name: "Goleiro 1 - CASA 1" }));
-    fireEvent.click(screen.getByRole("option", { name: "Goleiro Casa" }));
-
-    fireEvent.click(screen.getByRole("combobox", { name: "Goleiro 1 - VISITANTE 1" }));
-    fireEvent.click(screen.getByRole("option", { name: "Goleiro Visitante" }));
+    expect(screen.queryByText("Goleiros")).not.toBeInTheDocument();
+    expect(screen.queryByText("Goleiro")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Salvar revisão" }));
 
     await waitFor(() => {
-      expect(
-        supabaseRpcCalls.some(
-          (rpcCall) => rpcCall.functionName == "save_match_score_sheet_awards" && rpcCall.payload._match_id == "match-1",
-        ),
-      ).toBe(true);
+      expect(supabaseRpcCalls.some((rpcCall) => rpcCall.functionName == "save_match_score_sheet_awards")).toBe(true);
+    });
+
+    expect(
+      supabaseRpcCalls.find(
+        (rpcCall) => rpcCall.functionName == "save_match_score_sheet_awards" && rpcCall.payload._match_id == "match-1",
+      )?.payload,
+    ).toMatchObject({
+      _match_id: "match-1",
+      _home_goal_scorers: [],
+      _away_goal_scorers: [],
     });
 
     expect(supabaseUpdateCalls).toHaveLength(0);
@@ -1076,12 +1076,10 @@ describe("AdminMatches score sheet review", () => {
           required_home_goals: 1,
           required_away_goals: 0,
           is_walkover: false,
-          home_players: [{ id: "home-player-2", name: "Atacante Casa", is_goalkeeper: false }],
-          away_players: [{ id: "away-player-2", name: "Goleira Visitante", is_goalkeeper: true }],
+          home_players: [{ id: "home-player-2", name: "Atacante Casa" }],
+          away_players: [{ id: "away-player-2", name: "Atleta Visitante" }],
           home_goals: [],
           away_goals: [],
-          home_goalkeepers: [],
-          away_goalkeepers: [{ player_id: "away-player-2", player_name: "Goleira Visitante" }],
         },
         error: null,
       },

@@ -9,10 +9,10 @@ export interface AwardDrawPendingContext {
   naipe: MatchNaipe;
   division: TeamDivision | null;
   award_type: ChampionshipAwardType;
-  tied_players: Array<{
-    player_id: string;
-    player_name: string;
-    team_name: string;
+  tied_participants: Array<{
+    participant_id: string;
+    participant_name: string;
+    team_name: string | null;
     metric_value: number;
   }>;
   tied_player_ids_signature: string;

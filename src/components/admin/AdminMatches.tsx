@@ -3,7 +3,6 @@ import type { CheckedState } from "@radix-ui/react-checkbox";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AlertTriangle, Award, Check, Clock, EyeOff, Loader2, Medal, MoreVertical, Pencil, Plus, Radio, RefreshCw, Square, Trash2, Trophy, X } from "lucide-react";
-import { HandPalm } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -172,7 +171,6 @@ const supabaseLoose = supabase as unknown as SupabaseLooseClient;
 interface ScoreSheetAwardPlayerOption {
   id: string;
   name: string;
-  is_goalkeeper: boolean;
 }
 
 interface ScoreSheetAwardSelectionOption {
@@ -192,24 +190,15 @@ interface MatchScoreSheetAwardsContext {
   home_goals: Array<{
     player_id: string | null;
     player_name: string | null;
-    conceding_goalkeeper_player_id: string | null;
-    conceding_goalkeeper_name: string | null;
   }>;
   away_goals: Array<{
     player_id: string | null;
     player_name: string | null;
-    conceding_goalkeeper_player_id: string | null;
-    conceding_goalkeeper_name: string | null;
   }>;
-  home_goalkeepers: Array<{ player_id: string | null; player_name: string | null }>;
-  away_goalkeepers: Array<{ player_id: string | null; player_name: string | null }>;
 }
-
-
 
 interface GoalSelection {
   scorerId: string;
-  concedingGoalkeeperName: string;
 }
 
 interface MatchScoreSheetAwardsDraft {
@@ -217,12 +206,8 @@ interface MatchScoreSheetAwardsDraft {
   awayPlayerOptions: ScoreSheetAwardPlayerOption[];
   homeGoalSelections: GoalSelection[];
   awayGoalSelections: GoalSelection[];
-  homeGoalkeeperSelections: string[];
-  awayGoalkeeperSelections: string[];
   newHomePlayerName: string;
   newAwayPlayerName: string;
-  newHomePlayerIsGoalkeeper: boolean;
-  newAwayPlayerIsGoalkeeper: boolean;
   requiredHomeGoals: number;
   requiredAwayGoals: number;
   isWalkover: boolean;
@@ -666,7 +651,7 @@ function resolveScoreSheetDraftFromContext(context: MatchScoreSheetAwardsContext
 
     if (selection.player_id) {
       if (!options.some((option) => option.id == selection.player_id) && selection.player_name) {
-        options.push({ id: selection.player_id, name: selection.player_name, is_goalkeeper: false });
+        options.push({ id: selection.player_id, name: selection.player_name });
       }
       return selection.player_id;
     }
@@ -680,41 +665,27 @@ function resolveScoreSheetDraftFromContext(context: MatchScoreSheetAwardsContext
 
   const homeGoalSelections: GoalSelection[] = (context.home_goals ?? []).map((goal) => ({
     scorerId: resolvePlayerSelection(goal, homePlayerOptions),
-    concedingGoalkeeperName: goal.conceding_goalkeeper_name ?? "",
   }));
 
   const awayGoalSelections: GoalSelection[] = (context.away_goals ?? []).map((goal) => ({
     scorerId: resolvePlayerSelection(goal, awayPlayerOptions),
-    concedingGoalkeeperName: goal.conceding_goalkeeper_name ?? "",
   }));
 
   while (homeGoalSelections.length < context.required_home_goals) {
-    homeGoalSelections.push({ scorerId: "", concedingGoalkeeperName: "" });
+    homeGoalSelections.push({ scorerId: "" });
   }
 
   while (awayGoalSelections.length < context.required_away_goals) {
-    awayGoalSelections.push({ scorerId: "", concedingGoalkeeperName: "" });
+    awayGoalSelections.push({ scorerId: "" });
   }
 
-  const resolveGoalkeeperSelections = (
-    goalkeepers: Array<{ player_id: string | null; player_name: string | null }> | null | undefined,
-    options: ScoreSheetAwardPlayerOption[],
-  ): string[] => {
-    const selections = (goalkeepers ?? []).map((gk) => resolvePlayerSelection(gk, options));
-    return selections.length > 0 ? selections : [""];
-  };
-
   return {
-    homePlayerOptions: homePlayerOptions.sort((a, b) => Number(b.is_goalkeeper) - Number(a.is_goalkeeper) || a.name.localeCompare(b.name)),
-    awayPlayerOptions: awayPlayerOptions.sort((a, b) => Number(b.is_goalkeeper) - Number(a.is_goalkeeper) || a.name.localeCompare(b.name)),
+    homePlayerOptions: homePlayerOptions.sort((a, b) => a.name.localeCompare(b.name)),
+    awayPlayerOptions: awayPlayerOptions.sort((a, b) => a.name.localeCompare(b.name)),
     homeGoalSelections: homeGoalSelections.slice(0, context.required_home_goals),
     awayGoalSelections: awayGoalSelections.slice(0, context.required_away_goals),
-    homeGoalkeeperSelections: resolveGoalkeeperSelections(context.home_goalkeepers, homePlayerOptions),
-    awayGoalkeeperSelections: resolveGoalkeeperSelections(context.away_goalkeepers, awayPlayerOptions),
     newHomePlayerName: "",
     newAwayPlayerName: "",
-    newHomePlayerIsGoalkeeper: false,
-    newAwayPlayerIsGoalkeeper: false,
     requiredHomeGoals: context.required_home_goals,
     requiredAwayGoals: context.required_away_goals,
     isWalkover: context.is_walkover,
@@ -818,7 +789,7 @@ export function AdminMatches({
   const [savingScoreSheetAwardsByMatchId, setSavingScoreSheetAwardsByMatchId] = useState<Record<string, boolean>>({});
   const [addPlayerButtonStateByKey, setAddPlayerButtonStateByKey] = useState<Record<string, "loading" | "success">>({});
   const newPlayerInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
-  const [editingPlayerByKey, setEditingPlayerByKey] = useState<Record<string, { playerId: string; name: string; isGoalkeeper: boolean } | null>>({});
+  const [editingPlayerByKey, setEditingPlayerByKey] = useState<Record<string, { playerId: string; name: string } | null>>({});
   const [draftAwardDrawOrderByContextKey, setDraftAwardDrawOrderByContextKey] = useState<Record<string, string[]>>({});
   const [savingAwardDrawByContextKey, setSavingAwardDrawByContextKey] = useState<Record<string, boolean>>({});
   const hasHandledPaginationScrollRef = useRef(false);
@@ -2844,16 +2815,12 @@ export function AdminMatches({
         .filter((p) => p.id !== playerId);
       const clearGoalId = (selections: GoalSelection[]) =>
         selections.map((gs) => gs.scorerId == playerId ? { ...gs, scorerId: "" } : gs);
-      const clearGkId = (selections: string[]) =>
-        selections.map((s) => s == playerId ? "" : s);
       return {
         ...draft,
         homePlayerOptions: side == "home" ? nextPlayerOptions : draft.homePlayerOptions,
         awayPlayerOptions: side == "away" ? nextPlayerOptions : draft.awayPlayerOptions,
         homeGoalSelections: clearGoalId(draft.homeGoalSelections),
         awayGoalSelections: clearGoalId(draft.awayGoalSelections),
-        homeGoalkeeperSelections: clearGkId(draft.homeGoalkeeperSelections),
-        awayGoalkeeperSelections: clearGkId(draft.awayGoalkeeperSelections),
       };
     });
   };
@@ -2879,20 +2846,16 @@ export function AdminMatches({
     handleUpdateScoreSheetAwardsDraft(matchId, (draft) => {
       const playerOptions = side == "home" ? draft.homePlayerOptions : draft.awayPlayerOptions;
       const nextPlayerOptions = playerOptions
-        .map((p) => p.id == oldId ? { ...p, id: newId, name: normalizedName, is_goalkeeper: editingState.isGoalkeeper } : p)
-        .sort((a, b) => Number(b.is_goalkeeper) - Number(a.is_goalkeeper) || a.name.localeCompare(b.name));
+        .map((p) => p.id == oldId ? { ...p, id: newId, name: normalizedName } : p)
+        .sort((a, b) => a.name.localeCompare(b.name));
       const updateGoalId = (selections: GoalSelection[]) =>
         selections.map((gs) => gs.scorerId == oldId ? { ...gs, scorerId: newId } : gs);
-      const updateGkId = (selections: string[]) =>
-        selections.map((s) => s == oldId ? newId : s);
       return {
         ...draft,
         homePlayerOptions: side == "home" ? nextPlayerOptions : draft.homePlayerOptions,
         awayPlayerOptions: side == "away" ? nextPlayerOptions : draft.awayPlayerOptions,
         homeGoalSelections: updateGoalId(draft.homeGoalSelections),
         awayGoalSelections: updateGoalId(draft.awayGoalSelections),
-        homeGoalkeeperSelections: updateGkId(draft.homeGoalkeeperSelections),
-        awayGoalkeeperSelections: updateGkId(draft.awayGoalkeeperSelections),
       };
     });
 
@@ -2928,15 +2891,13 @@ export function AdminMatches({
 
     setTimeout(() => {
       handleUpdateScoreSheetAwardsDraft(matchId, (draft) => {
-        const isGoalkeeper = side == "home" ? draft.newHomePlayerIsGoalkeeper : draft.newAwayPlayerIsGoalkeeper;
         const nextPlayerOption = {
           id: syntheticPlayerId,
           name: normalizedPlayerName,
-          is_goalkeeper: isGoalkeeper,
         };
 
         const nextPlayerOptions = [...(side == "home" ? draft.homePlayerOptions : draft.awayPlayerOptions), nextPlayerOption]
-          .sort((a, b) => Number(b.is_goalkeeper) - Number(a.is_goalkeeper) || a.name.localeCompare(b.name));
+          .sort((a, b) => a.name.localeCompare(b.name));
 
         return {
           ...draft,
@@ -2944,8 +2905,6 @@ export function AdminMatches({
           awayPlayerOptions: side == "away" ? nextPlayerOptions : draft.awayPlayerOptions,
           newHomePlayerName: side == "home" ? "" : draft.newHomePlayerName,
           newAwayPlayerName: side == "away" ? "" : draft.newAwayPlayerName,
-          newHomePlayerIsGoalkeeper: side == "home" ? false : draft.newHomePlayerIsGoalkeeper,
-          newAwayPlayerIsGoalkeeper: side == "away" ? false : draft.newAwayPlayerIsGoalkeeper,
         };
       });
 
@@ -2978,14 +2937,6 @@ export function AdminMatches({
         toast.error("Preencha os autores de todos os gols antes de salvar.");
         return;
       }
-
-      const hasHomeGoalkeeper = activeScoreSheetAwardsDraft.homeGoalkeeperSelections.some((s) => s.trim().length > 0);
-      const hasAwayGoalkeeper = activeScoreSheetAwardsDraft.awayGoalkeeperSelections.some((s) => s.trim().length > 0);
-
-      if (!hasHomeGoalkeeper || !hasAwayGoalkeeper) {
-        toast.error("Informe pelo menos um goleiro para cada equipe.");
-        return;
-      }
     }
 
     setSavingScoreSheetAwardsByMatchId((currentSavingState) => ({
@@ -2993,27 +2944,17 @@ export function AdminMatches({
       [activeScoreSheetReviewMatchId]: true,
     }));
 
-    const homeGoalScorersPayload = activeScoreSheetAwardsDraft.homeGoalSelections.map((gs) => ({
-      ...resolveScoreSheetSelectionOptionByValue(gs.scorerId, activeScoreSheetAwardsDraft.homePlayerOptions),
-      ...(gs.concedingGoalkeeperName.trim() ? { conceding_goalkeeper_name: gs.concedingGoalkeeperName.trim() } : {}),
-    }));
-    const awayGoalScorersPayload = activeScoreSheetAwardsDraft.awayGoalSelections.map((gs) => ({
-      ...resolveScoreSheetSelectionOptionByValue(gs.scorerId, activeScoreSheetAwardsDraft.awayPlayerOptions),
-      ...(gs.concedingGoalkeeperName.trim() ? { conceding_goalkeeper_name: gs.concedingGoalkeeperName.trim() } : {}),
-    }));
-    const homeGoalkeepersPayload = activeScoreSheetAwardsDraft.homeGoalkeeperSelections
-      .filter((s) => s.trim().length > 0)
-      .map((s) => resolveScoreSheetSelectionOptionByValue(s, activeScoreSheetAwardsDraft.homePlayerOptions));
-    const awayGoalkeepersPayload = activeScoreSheetAwardsDraft.awayGoalkeeperSelections
-      .filter((s) => s.trim().length > 0)
-      .map((s) => resolveScoreSheetSelectionOptionByValue(s, activeScoreSheetAwardsDraft.awayPlayerOptions));
+    const homeGoalScorersPayload = activeScoreSheetAwardsDraft.homeGoalSelections.map((gs) =>
+      resolveScoreSheetSelectionOptionByValue(gs.scorerId, activeScoreSheetAwardsDraft.homePlayerOptions),
+    );
+    const awayGoalScorersPayload = activeScoreSheetAwardsDraft.awayGoalSelections.map((gs) =>
+      resolveScoreSheetSelectionOptionByValue(gs.scorerId, activeScoreSheetAwardsDraft.awayPlayerOptions),
+    );
 
     const { error } = await supabaseLoose.rpc("save_match_score_sheet_awards", {
       _match_id: activeScoreSheetReviewMatch.id,
       _home_goal_scorers: homeGoalScorersPayload,
       _away_goal_scorers: awayGoalScorersPayload,
-      _home_goalkeepers: homeGoalkeepersPayload,
-      _away_goalkeepers: awayGoalkeepersPayload,
     });
 
     setSavingScoreSheetAwardsByMatchId((currentSavingState) => ({
@@ -3074,7 +3015,7 @@ export function AdminMatches({
       });
 
       if (hasNonWalkoverMatch) {
-        toast.error("Para marcar como revisado, use a revisão individual de súmula para registrar gols e goleiros.");
+        toast.error("Para marcar como revisado, use a revisão individual de súmula para registrar os autores dos gols.");
         return;
       }
     }
@@ -3629,9 +3570,23 @@ export function AdminMatches({
     toast.success("Sorteio salvo e mata-mata atualizado.");
   };
 
+  const formatAwardDrawParticipantLabel = (
+    context: AwardDrawPendingContext,
+    participant: AwardDrawPendingContext["tied_participants"][number],
+  ) => {
+    if (context.award_type === ChampionshipAwardType.BEST_GOALKEEPER) {
+      return `${participant.participant_name} • média ${participant.metric_value.toLocaleString("pt-BR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`;
+    }
+
+    return `${participant.participant_name} (${participant.team_name}) • ${participant.metric_value}`;
+  };
+
   const handleShuffleAwardDraw = (context: AwardDrawPendingContext) => {
-    const playerIds = context.tied_players.map((p) => p.player_id);
-    const shuffled = shuffleTeamIds(playerIds);
+    const participantIds = context.tied_participants.map((participant) => participant.participant_id);
+    const shuffled = shuffleTeamIds(participantIds);
 
     setDraftAwardDrawOrderByContextKey((current) => ({
       ...current,
@@ -3642,27 +3597,27 @@ export function AdminMatches({
   const handleUpdateAwardDrawPlayerAtPosition = (
     context: AwardDrawPendingContext,
     positionIndex: number,
-    playerId: string,
+    participantId: string,
   ) => {
     setDraftAwardDrawOrderByContextKey((current) => {
-      const currentOrder = current[context.context_key] ?? context.tied_players.map(() => "");
+      const currentOrder = current[context.context_key] ?? context.tied_participants.map(() => "");
       const updatedOrder = [...currentOrder];
-      updatedOrder[positionIndex] = playerId;
+      updatedOrder[positionIndex] = participantId;
       return { ...current, [context.context_key]: updatedOrder };
     });
   };
 
   const handleSaveAwardDrawResult = async (context: AwardDrawPendingContext) => {
-    const orderedPlayerIds = draftAwardDrawOrderByContextKey[context.context_key];
+    const orderedParticipantIds = draftAwardDrawOrderByContextKey[context.context_key];
 
-    if (!orderedPlayerIds || orderedPlayerIds.length == 0 || !orderedPlayerIds[0]) {
+    if (!orderedParticipantIds || orderedParticipantIds.length == 0 || !orderedParticipantIds[0]) {
       toast.error("Selecione ou sorteie o vencedor antes de salvar.");
       return;
     }
 
-    const winnerPlayerId = orderedPlayerIds[0];
+    const winnerParticipantId = orderedParticipantIds[0];
 
-    if (!winnerPlayerId) {
+    if (!winnerParticipantId) {
       return;
     }
 
@@ -3678,7 +3633,8 @@ export function AdminMatches({
         _naipe: context.naipe,
         _division: context.division,
         _award_type: context.award_type,
-        _winner_player_id: winnerPlayerId,
+        _winner_player_id: context.award_type === ChampionshipAwardType.TOP_SCORER ? winnerParticipantId : null,
+        _winner_team_id: context.award_type === ChampionshipAwardType.BEST_GOALKEEPER ? winnerParticipantId : null,
         _tied_player_ids_signature: context.tied_player_ids_signature,
       });
 
@@ -3958,14 +3914,14 @@ export function AdminMatches({
             ) : (
               <div className="space-y-3">
                 {pendingAwardDrawContexts.map((awardDrawContext) => {
-                  const orderedPlayerIds = draftAwardDrawOrderByContextKey[awardDrawContext.context_key];
-                  const hasAnyPosition = orderedPlayerIds && orderedPlayerIds.some((id) => id !== "");
+                  const orderedParticipantIds = draftAwardDrawOrderByContextKey[awardDrawContext.context_key];
+                  const hasAnyPosition = orderedParticipantIds && orderedParticipantIds.some((id) => id !== "");
                   const isSaving = savingAwardDrawByContextKey[awardDrawContext.context_key] == true;
-                  const displayedSlots = awardDrawContext.tied_players.map((_, playerIndex) => ({
+                  const displayedSlots = awardDrawContext.tied_participants.map((_, playerIndex) => ({
                     position: playerIndex + 1,
-                    playerId: (orderedPlayerIds ?? [])[playerIndex] ?? "",
+                    participantId: (orderedParticipantIds ?? [])[playerIndex] ?? "",
                   }));
-                  const canSave = (displayedSlots[0]?.playerId ?? "") !== "";
+                  const canSave = (displayedSlots[0]?.participantId ?? "") !== "";
 
                   return (
                     <div key={awardDrawContext.context_key} className="glass-card space-y-3 p-4">
@@ -3987,7 +3943,7 @@ export function AdminMatches({
                               {slot.position}º
                             </span>
                             <Select
-                              value={slot.playerId || EMPTY_AWARD_DRAW_PLAYER_OPTION_VALUE}
+                              value={slot.participantId || EMPTY_AWARD_DRAW_PLAYER_OPTION_VALUE}
                               onValueChange={(value) =>
                                 handleUpdateAwardDrawPlayerAtPosition(
                                   awardDrawContext,
@@ -3998,28 +3954,28 @@ export function AdminMatches({
                               disabled={isSaving || !canManageMatches}
                             >
                               <SelectTrigger
-                                aria-label={`Jogador na posição ${slot.position} do desempate`}
+                                aria-label={`Participante na posição ${slot.position} do desempate`}
                                 className="app-input-field w-full"
                               >
-                                <SelectValue placeholder="Selecione o jogador" />
+                                <SelectValue placeholder="Selecione o participante" />
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value={EMPTY_AWARD_DRAW_PLAYER_OPTION_VALUE}>
-                                  Selecione o jogador
+                                  Selecione o participante
                                 </SelectItem>
-                                {awardDrawContext.tied_players.map((player) => {
+                                {awardDrawContext.tied_participants.map((participant) => {
                                   const isSelectedInOtherSlot = displayedSlots.some(
                                     (otherSlot) =>
                                       otherSlot.position !== slot.position &&
-                                      otherSlot.playerId === player.player_id,
+                                      otherSlot.participantId === participant.participant_id,
                                   );
                                   return (
                                     <SelectItem
-                                      key={`${awardDrawContext.context_key}:${slot.position}:${player.player_id}`}
-                                      value={player.player_id}
+                                      key={`${awardDrawContext.context_key}:${slot.position}:${participant.participant_id}`}
+                                      value={participant.participant_id}
                                       disabled={isSelectedInOtherSlot}
                                     >
-                                      {player.player_name} ({player.team_name}) • {player.metric_value}
+                                      {formatAwardDrawParticipantLabel(awardDrawContext, participant)}
                                     </SelectItem>
                                   );
                                 })}
@@ -4886,7 +4842,7 @@ export function AdminMatches({
           <DialogHeader>
             <DialogTitle>Revisão de súmula e premiações</DialogTitle>
             <DialogDescription>
-              Informe autores dos gols e goleiros para contabilizar artilharia e melhor goleiro por naipe/divisão.
+              Informe os autores dos gols para contabilizar a artilharia. A melhor defesa é calculada automaticamente pela atlética menos vazada.
             </DialogDescription>
           </DialogHeader>
 
@@ -4924,61 +4880,22 @@ export function AdminMatches({
                       title: activeScoreSheetReviewMatch.home_team?.name ?? "Time da casa",
                       playerOptions: activeScoreSheetAwardsDraft.homePlayerOptions,
                       goalSelections: activeScoreSheetAwardsDraft.homeGoalSelections,
-                      goalkeeperSelections: activeScoreSheetAwardsDraft.homeGoalkeeperSelections,
-                      opposingGoalkeeperSelections: activeScoreSheetAwardsDraft.awayGoalkeeperSelections,
-                      opposingPlayerOptions: activeScoreSheetAwardsDraft.awayPlayerOptions,
                       newPlayerName: activeScoreSheetAwardsDraft.newHomePlayerName,
-                      newPlayerIsGoalkeeper: activeScoreSheetAwardsDraft.newHomePlayerIsGoalkeeper,
                     },
                     {
                       key: "away" as const,
                       title: activeScoreSheetReviewMatch.away_team?.name ?? "Time visitante",
                       playerOptions: activeScoreSheetAwardsDraft.awayPlayerOptions,
                       goalSelections: activeScoreSheetAwardsDraft.awayGoalSelections,
-                      goalkeeperSelections: activeScoreSheetAwardsDraft.awayGoalkeeperSelections,
-                      opposingGoalkeeperSelections: activeScoreSheetAwardsDraft.homeGoalkeeperSelections,
-                      opposingPlayerOptions: activeScoreSheetAwardsDraft.homePlayerOptions,
                       newPlayerName: activeScoreSheetAwardsDraft.newAwayPlayerName,
-                      newPlayerIsGoalkeeper: activeScoreSheetAwardsDraft.newAwayPlayerIsGoalkeeper,
                     },
                   ]).map((teamSection) => {
-                    // Goleiros do time adversário já selecionados (para usar no dropdown "goleiro que sofreu")
-                    const opposingGoalkeeperNames = teamSection.opposingGoalkeeperSelections
-                      .filter((s) => s.trim().length > 0)
-                      .map((s) => {
-                        if (s.startsWith(NEW_PLAYER_OPTION_PREFIX)) {
-                          return s.slice(NEW_PLAYER_OPTION_PREFIX.length);
-                        }
-                        return teamSection.opposingPlayerOptions.find((p) => p.id == s)?.name ?? "";
-                      })
-                      .filter((name) => name.length > 0);
-
                     return (
                     <div key={teamSection.key} className="app-card-muted space-y-3 rounded-xl p-3">
                       <p className="text-sm font-semibold">{teamSection.title}</p>
 
                       <div className="space-y-2">
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Cadastrar jogador</p>
-                        <RadioGroup
-                          value={teamSection.newPlayerIsGoalkeeper ? "goalkeeper" : "player"}
-                          onValueChange={(value) => {
-                            handleUpdateScoreSheetAwardsDraft(activeScoreSheetReviewMatch.id, (draft) => ({
-                              ...draft,
-                              newHomePlayerIsGoalkeeper: teamSection.key == "home" ? value == "goalkeeper" : draft.newHomePlayerIsGoalkeeper,
-                              newAwayPlayerIsGoalkeeper: teamSection.key == "away" ? value == "goalkeeper" : draft.newAwayPlayerIsGoalkeeper,
-                            }));
-                          }}
-                          className="flex gap-4"
-                        >
-                          <div className="flex items-center gap-1.5">
-                            <RadioGroupItem value="player" id={`${activeScoreSheetReviewMatch.id}-${teamSection.key}-type-player`} />
-                            <Label htmlFor={`${activeScoreSheetReviewMatch.id}-${teamSection.key}-type-player`} className="cursor-pointer text-sm font-normal">Jogador</Label>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <RadioGroupItem value="goalkeeper" id={`${activeScoreSheetReviewMatch.id}-${teamSection.key}-type-goalkeeper`} />
-                            <Label htmlFor={`${activeScoreSheetReviewMatch.id}-${teamSection.key}-type-goalkeeper`} className="cursor-pointer text-sm font-normal">Goleiro</Label>
-                          </div>
-                        </RadioGroup>
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Cadastrar atleta</p>
                         <div className="flex gap-2">
                           <Input
                             ref={(el) => { newPlayerInputRefs.current[`${activeScoreSheetReviewMatch.id}:${teamSection.key}`] = el; }}
@@ -4997,7 +4914,7 @@ export function AdminMatches({
                                 handleAddInlineAwardPlayer(activeScoreSheetReviewMatch.id, teamSection.key);
                               }
                             }}
-                            placeholder={teamSection.newPlayerIsGoalkeeper ? "Nome do goleiro" : "Nome do jogador"}
+                            placeholder="Nome do atleta"
                           />
                           {(() => {
                             const btnState = addPlayerButtonStateByKey[`${activeScoreSheetReviewMatch.id}:${teamSection.key}`];
@@ -5021,7 +4938,7 @@ export function AdminMatches({
 
                       {teamSection.playerOptions.length > 0 ? (
                         <div className="space-y-1.5">
-                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Jogadores cadastrados</p>
+                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Atletas cadastrados</p>
                           {teamSection.playerOptions.map((playerOption) => {
                             const editKey = `${activeScoreSheetReviewMatch.id}:${teamSection.key}`;
                             const editingState = editingPlayerByKey[editKey];
@@ -5030,25 +4947,6 @@ export function AdminMatches({
                             if (isEditing) {
                               return (
                                 <div key={playerOption.id} className="space-y-1.5 rounded-lg border border-primary/30 bg-primary/5 px-2.5 py-2">
-                                  <RadioGroup
-                                    value={editingState.isGoalkeeper ? "goalkeeper" : "player"}
-                                    onValueChange={(value) => {
-                                      setEditingPlayerByKey((prev) => ({
-                                        ...prev,
-                                        [editKey]: editingState ? { ...editingState, isGoalkeeper: value == "goalkeeper" } : null,
-                                      }));
-                                    }}
-                                    className="flex gap-4"
-                                  >
-                                    <div className="flex items-center gap-1.5">
-                                      <RadioGroupItem value="player" id={`edit-${playerOption.id}-player`} />
-                                      <Label htmlFor={`edit-${playerOption.id}-player`} className="cursor-pointer text-xs font-normal">Jogador</Label>
-                                    </div>
-                                    <div className="flex items-center gap-1.5">
-                                      <RadioGroupItem value="goalkeeper" id={`edit-${playerOption.id}-gk`} />
-                                      <Label htmlFor={`edit-${playerOption.id}-gk`} className="cursor-pointer text-xs font-normal">Goleiro</Label>
-                                    </div>
-                                  </RadioGroup>
                                   <div className="flex gap-1.5">
                                     <Input
                                       value={editingState.name}
@@ -5091,9 +4989,6 @@ export function AdminMatches({
                             return (
                               <div key={playerOption.id} className="flex items-center gap-1.5 rounded-lg bg-muted/30 px-2.5 py-1.5">
                                 <span className="min-w-0 flex-1 truncate text-sm">{playerOption.name}</span>
-                                {playerOption.is_goalkeeper ? (
-                                  <HandPalm size={13} weight="fill" className="shrink-0 text-primary" />
-                                ) : null}
                                 <Button
                                   type="button"
                                   variant="ghost"
@@ -5102,7 +4997,7 @@ export function AdminMatches({
                                   onClick={() => {
                                     setEditingPlayerByKey((prev) => ({
                                       ...prev,
-                                      [editKey]: { playerId: playerOption.id, name: playerOption.name, isGoalkeeper: playerOption.is_goalkeeper },
+                                      [editKey]: { playerId: playerOption.id, name: playerOption.name },
                                     }));
                                   }}
                                 >
@@ -5124,78 +5019,9 @@ export function AdminMatches({
                       ) : null}
 
                       <div className="space-y-2">
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Goleiros</p>
-                        {teamSection.goalkeeperSelections.map((gkSelection, gkIndex) => (
-                          <div key={`${teamSection.key}-gk-${gkIndex}`} className="flex gap-2">
-                            <Select
-                              value={gkSelection || EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE}
-                              onValueChange={(value) => {
-                                const resolvedValue = value == EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE ? "" : value;
-                                handleUpdateScoreSheetAwardsDraft(activeScoreSheetReviewMatch.id, (draft) => {
-                                  const nextSelections = [...(teamSection.key == "home" ? draft.homeGoalkeeperSelections : draft.awayGoalkeeperSelections)];
-                                  nextSelections[gkIndex] = resolvedValue;
-                                  return {
-                                    ...draft,
-                                    homeGoalkeeperSelections: teamSection.key == "home" ? nextSelections : draft.homeGoalkeeperSelections,
-                                    awayGoalkeeperSelections: teamSection.key == "away" ? nextSelections : draft.awayGoalkeeperSelections,
-                                  };
-                                });
-                              }}
-                            >
-                              <SelectTrigger className="app-input-field flex-1" aria-label={`Goleiro ${gkIndex + 1} - ${teamSection.title}`}>
-                                <SelectValue placeholder="Selecione o goleiro" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value={EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE}>Selecione o goleiro</SelectItem>
-                                {teamSection.playerOptions.filter((p) => p.is_goalkeeper).map((playerOption) => (
-                                  <SelectItem key={`${teamSection.key}-gk-opt-${playerOption.id}`} value={playerOption.id}>
-                                    {playerOption.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            {teamSection.goalkeeperSelections.length > 1 && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => {
-                                  handleUpdateScoreSheetAwardsDraft(activeScoreSheetReviewMatch.id, (draft) => {
-                                    const nextSelections = (teamSection.key == "home" ? draft.homeGoalkeeperSelections : draft.awayGoalkeeperSelections)
-                                      .filter((_, i) => i !== gkIndex);
-                                    return {
-                                      ...draft,
-                                      homeGoalkeeperSelections: teamSection.key == "home" ? nextSelections : draft.homeGoalkeeperSelections,
-                                      awayGoalkeeperSelections: teamSection.key == "away" ? nextSelections : draft.awayGoalkeeperSelections,
-                                    };
-                                  });
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
-                        ))}
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            handleUpdateScoreSheetAwardsDraft(activeScoreSheetReviewMatch.id, (draft) => ({
-                              ...draft,
-                              homeGoalkeeperSelections: teamSection.key == "home" ? [...draft.homeGoalkeeperSelections, ""] : draft.homeGoalkeeperSelections,
-                              awayGoalkeeperSelections: teamSection.key == "away" ? [...draft.awayGoalkeeperSelections, ""] : draft.awayGoalkeeperSelections,
-                            }));
-                          }}
-                        >
-                          <Plus className="mr-2 h-4 w-4" /> Adicionar goleiro
-                        </Button>
-                      </div>
-
-                      <div className="space-y-2">
                         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Autores dos gols</p>
                         {teamSection.goalSelections.map((goalSelection, goalIndex) => (
-                          <div key={`${teamSection.key}-goal-${goalIndex + 1}`} className="space-y-1">
+                          <div key={`${teamSection.key}-goal-${goalIndex + 1}`}>
                             <Select
                               value={goalSelection.scorerId || EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE}
                               onValueChange={(value) => {
@@ -5220,47 +5046,11 @@ export function AdminMatches({
                                 <SelectItem value={EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE}>Selecione o jogador</SelectItem>
                                 {teamSection.playerOptions.map((playerOption) => (
                                   <SelectItem key={playerOption.id} value={playerOption.id}>
-                                    <span className="flex items-center gap-2">
-                                      {playerOption.name}
-                                      {playerOption.is_goalkeeper && (
-                                        <HandPalm size={14} weight="fill" className="text-primary" aria-label="Goleiro" />
-                                      )}
-                                    </span>
+                                    {playerOption.name}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
-                            {opposingGoalkeeperNames.length > 0 ? (
-                              <Select
-                                value={goalSelection.concedingGoalkeeperName || EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE}
-                                onValueChange={(value) => {
-                                  handleUpdateScoreSheetAwardsDraft(activeScoreSheetReviewMatch.id, (draft) => {
-                                    const nextSelections = [...(teamSection.key == "home" ? draft.homeGoalSelections : draft.awayGoalSelections)];
-                                    nextSelections[goalIndex] = {
-                                      ...nextSelections[goalIndex],
-                                      concedingGoalkeeperName: value == EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE ? "" : value,
-                                    };
-                                    return {
-                                      ...draft,
-                                      homeGoalSelections: teamSection.key == "home" ? nextSelections : draft.homeGoalSelections,
-                                      awayGoalSelections: teamSection.key == "away" ? nextSelections : draft.awayGoalSelections,
-                                    };
-                                  });
-                                }}
-                              >
-                                <SelectTrigger className="h-8 text-xs text-muted-foreground" aria-label={`Goleiro que sofreu o gol ${goalIndex + 1}`}>
-                                  <SelectValue placeholder="Goleiro adversário que sofreu" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value={EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE}>Goleiro que sofreu (opcional)</SelectItem>
-                                  {opposingGoalkeeperNames.map((name) => (
-                                    <SelectItem key={name} value={name}>
-                                      {name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            ) : null}
                           </div>
                         ))}
                       </div>
