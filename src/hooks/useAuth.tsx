@@ -12,6 +12,7 @@ const DEFAULT_ADMIN_TAB_PERMISSIONS: AdminTabPermissionByTab = {
   [AdminPanelTab.TEAMS]: AdminPanelPermissionLevel.NONE,
   [AdminPanelTab.SPORTS]: AdminPanelPermissionLevel.NONE,
   [AdminPanelTab.EVENTS]: AdminPanelPermissionLevel.NONE,
+  [AdminPanelTab.LINKS]: AdminPanelPermissionLevel.NONE,
   [AdminPanelTab.LOGS]: AdminPanelPermissionLevel.NONE,
   [AdminPanelTab.USERS]: AdminPanelPermissionLevel.NONE,
   [AdminPanelTab.ACCOUNT]: AdminPanelPermissionLevel.NONE,
@@ -62,6 +63,9 @@ function resolveAdminTabPermissionsFromContext(context: CurrentUserAdminContext 
       : AdminPanelPermissionLevel.NONE,
     [AdminPanelTab.EVENTS]: isAdminPanelPermissionLevel(context.events_permission)
       ? context.events_permission
+      : AdminPanelPermissionLevel.NONE,
+    [AdminPanelTab.LINKS]: isAdminPanelPermissionLevel(context.links_permission ?? null)
+      ? context.links_permission!
       : AdminPanelPermissionLevel.NONE,
     [AdminPanelTab.LOGS]: isAdminPanelPermissionLevel(context.logs_permission)
       ? context.logs_permission

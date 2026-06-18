@@ -24,6 +24,7 @@ interface PublicAccessSettingsSavePayload {
   is_championships_page_blocked: boolean;
   is_schedule_page_blocked: boolean;
   is_league_calendar_page_blocked: boolean;
+  is_links_page_blocked: boolean;
   blocked_message: string | null;
 }
 
@@ -36,6 +37,7 @@ function resolvePublicAccessSettingsSavePayload(
     is_championships_page_blocked: publicAccessSettings.is_championships_page_blocked,
     is_schedule_page_blocked: publicAccessSettings.is_schedule_page_blocked,
     is_league_calendar_page_blocked: publicAccessSettings.is_league_calendar_page_blocked,
+    is_links_page_blocked: publicAccessSettings.is_links_page_blocked,
     blocked_message:
       publicAccessSettings.blocked_message && publicAccessSettings.blocked_message.trim().length > 0
         ? publicAccessSettings.blocked_message.trim()
@@ -93,6 +95,7 @@ export function AdminPublicAccessSettings({ canManageSettings = false }: Props) 
         _is_championships_page_blocked: nextPayload.is_championships_page_blocked,
         _is_schedule_page_blocked: nextPayload.is_schedule_page_blocked,
         _is_league_calendar_page_blocked: nextPayload.is_league_calendar_page_blocked,
+        _is_links_page_blocked: nextPayload.is_links_page_blocked,
         _blocked_message: nextPayload.blocked_message,
       });
 
