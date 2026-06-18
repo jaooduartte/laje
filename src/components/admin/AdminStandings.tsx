@@ -384,12 +384,17 @@ export function AdminStandings({
     seasonYear: awardsSeasonYear,
   });
 
+  const formatDefenseAverage = (value: number) => value.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
   const filteredAwardsGroupKeys = useMemo(() => {
     if (!awardsRankings) return [];
 
     const allGroupKeys = Array.from(new Set([
       ...awardsRankings.top_scorers.map((s) => `${s.naipe}:${s.division ?? "NULL"}`),
-      ...awardsRankings.best_goalkeepers.map((g) => `${g.naipe}:${g.division ?? "NULL"}`),
+      ...awardsRankings.best_defenses.map((g) => `${g.naipe}:${g.division ?? "NULL"}`),
     ])).sort();
 
     return allGroupKeys.filter((groupKey) => {
@@ -556,7 +561,7 @@ export function AdminStandings({
                 const scorerDrawResult = awardsRankings.award_draw_results?.find(
                   (r) => r.award_type === ChampionshipAwardType.TOP_SCORER && r.naipe === naipe && (r.division ?? "NULL") === (groupDivision ?? "NULL"),
                 );
-                const goalkeeperDrawResult = awardsRankings.award_draw_results?.find(
+                const defenseDrawResult = awardsRankings.award_draw_results?.find(
                   (r) => r.award_type === ChampionshipAwardType.BEST_GOALKEEPER && r.naipe === naipe && (r.division ?? "NULL") === (groupDivision ?? "NULL"),
                 );
 
@@ -574,19 +579,20 @@ export function AdminStandings({
                   })
                   .slice(0, 3);
 
-                const groupGoalkeepers = [...awardsRankings.best_goalkeepers]
+                const groupBestDefenses = [...awardsRankings.best_defenses]
                   .filter((g) => g.naipe === naipe && (g.division ?? "NULL") === (groupDivision ?? "NULL"))
                   .sort((a, b) => {
+                    const averageDiff = a.goals_against_average - b.goals_against_average;
+                    if (averageDiff !== 0) return averageDiff;
                     const goalsDiff = a.goals_against - b.goals_against;
                     if (goalsDiff !== 0) return goalsDiff;
-                    // Mesmo número de gols sofridos: vencedor do sorteio tem prioridade máxima
-                    const aIsWinner = goalkeeperDrawResult?.winner_player_id === a.player_id;
-                    const bIsWinner = goalkeeperDrawResult?.winner_player_id === b.player_id;
-                    if (aIsWinner && !bIsWinner) return -1;
-                    if (!aIsWinner && bIsWinner) return 1;
                     const matchesDiff = b.matches_count - a.matches_count;
                     if (matchesDiff !== 0) return matchesDiff;
-                    return a.player_name.localeCompare(b.player_name);
+                    const aIsWinner = defenseDrawResult?.winner_team_id === a.team_id;
+                    const bIsWinner = defenseDrawResult?.winner_team_id === b.team_id;
+                    if (aIsWinner && !bIsWinner) return -1;
+                    if (!aIsWinner && bIsWinner) return 1;
+                    return a.team_name.localeCompare(b.team_name);
                   })
                   .slice(0, 3);
 
@@ -648,21 +654,24 @@ export function AdminStandings({
                       <hr className="border-border" />
 
                       <div className="space-y-1.5">
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Melhores goleiros</p>
-                        {groupGoalkeepers.length === 0 ? (
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Melhores defesas</p>
+                        {groupBestDefenses.length === 0 ? (
                           <p className="text-xs text-muted-foreground">Sem registros elegíveis.</p>
                         ) : (
                           <ol className="space-y-1.5">
                             {(() => {
-                              const winnerGoalkeeperGoalsAgainst = groupGoalkeepers.find((g) => g.player_id === goalkeeperDrawResult?.winner_player_id)?.goals_against;
-                              return groupGoalkeepers.map((goalkeeper, i) => {
-                                const isDrawWinner = goalkeeperDrawResult?.winner_player_id === goalkeeper.player_id;
-                                const isInDraw = !!goalkeeperDrawResult && winnerGoalkeeperGoalsAgainst !== undefined && goalkeeper.goals_against === winnerGoalkeeperGoalsAgainst;
+                              const winnerBestDefense = groupBestDefenses.find((g) => g.team_id === defenseDrawResult?.winner_team_id) ?? null;
+                              return groupBestDefenses.map((bestDefense, i) => {
+                                const isDrawWinner = defenseDrawResult?.winner_team_id === bestDefense.team_id;
+                                const isInDraw = !!winnerBestDefense
+                                  && bestDefense.goals_against_average === winnerBestDefense.goals_against_average
+                                  && bestDefense.goals_against === winnerBestDefense.goals_against
+                                  && bestDefense.matches_count === winnerBestDefense.matches_count;
                                 return (
-                                  <li key={`${goalkeeper.player_id}:${goalkeeper.naipe}:${goalkeeper.division ?? "NULL"}`} className="flex items-center gap-2 text-sm">
+                                  <li key={`${bestDefense.team_id}:${bestDefense.naipe}:${bestDefense.division ?? "NULL"}`} className="flex items-center gap-2 text-sm">
                                     <span className="flex min-w-0 flex-1 items-center gap-2">
                                       {medalIcon(i)}
-                                      <span className="min-w-0 truncate font-medium">{goalkeeper.player_name}</span>
+                                      <span className="min-w-0 truncate font-medium">{bestDefense.team_name}</span>
                                       {isInDraw && (
                                         <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${isDrawWinner ? "border-primary/30 bg-primary/10 text-primary" : "border-muted-foreground/20 bg-secondary text-muted-foreground"}`}>
                                           <Shuffle className="h-3 w-3" />
@@ -670,9 +679,11 @@ export function AdminStandings({
                                         </span>
                                       )}
                                     </span>
-                                    <span className="flex-1 text-center text-xs text-muted-foreground">{goalkeeper.team_name}</span>
+                                    <span className="flex-1 text-center text-xs text-muted-foreground">
+                                      {bestDefense.matches_count} {bestDefense.matches_count === 1 ? "jogo" : "jogos"}
+                                    </span>
                                     <span className="flex-1 text-right text-xs font-semibold tabular-nums">
-                                      {goalkeeper.goals_against} {goalkeeper.goals_against === 1 ? "gol sofrido" : "gols sofridos"}
+                                      {formatDefenseAverage(bestDefense.goals_against_average)} de média • {bestDefense.goals_against} {bestDefense.goals_against === 1 ? "gol sofrido" : "gols sofridos"}
                                     </span>
                                   </li>
                                 );
