@@ -44,6 +44,7 @@ import type {
 import {
   AppBadgeTone,
   BracketPhase,
+  ChampionshipAwardType,
   ChampionshipSportResultRule,
   ChampionshipSportTieBreakerRule,
   MatchManualRepresentationMode,
@@ -370,6 +371,12 @@ const EMPTY_TIE_BREAK_TEAM_OPTION_VALUE = "EMPTY_TIE_BREAK_TEAM_OPTION_VALUE";
 const EMPTY_SWAP_MATCH_OPTION_VALUE = "EMPTY_SWAP_MATCH_OPTION_VALUE";
 const EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE = "EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE";
 const EMPTY_AWARD_DRAW_PLAYER_OPTION_VALUE = "EMPTY_AWARD_DRAW_PLAYER_OPTION_VALUE";
+
+function resolveAwardDrawDisplayText(value: string): string {
+  return value
+    .split(TeamDivision.DIVISAO_PRINCIPAL).join(TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_PRINCIPAL])
+    .split(TeamDivision.DIVISAO_ACESSO).join(TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_ACESSO]);
+}
 
 type SwapMatchQueueSlotsResponse = {
   source_match_id: string;
@@ -3800,8 +3807,8 @@ export function AdminMatches({
                     <div key={awardDrawContext.context_key} className="glass-card space-y-3 p-4">
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <p className="text-sm font-semibold">{awardDrawContext.title}</p>
-                          <p className="text-xs text-muted-foreground">{awardDrawContext.description}</p>
+                          <p className="text-sm font-semibold">{resolveAwardDrawDisplayText(awardDrawContext.title)}</p>
+                          <p className="text-xs text-muted-foreground">{resolveAwardDrawDisplayText(awardDrawContext.description)}</p>
                         </div>
                         <Trophy className="h-4 w-4 shrink-0 text-amber-500" />
                       </div>
