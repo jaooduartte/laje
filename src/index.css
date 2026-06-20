@@ -539,8 +539,11 @@
   }
 
   .dark .app-card-live-active {
-    border-color: hsl(var(--live) / 0.4);
-    box-shadow: none;
+    border-color: hsl(var(--live) / 0.38);
+    background: hsl(var(--live) / 0.12);
+    box-shadow:
+      0 0 0 1px hsl(var(--live) / 0.28),
+      0 10px 32px hsl(0 0% 0% / 0.5);
   }
 
   .dark .app-text-status-danger {
@@ -586,8 +589,17 @@
   }
 
   .dark .list-item-card-live {
-    border-color: transparent;
-    background: hsl(0, 0%, 10%);
+    border-color: hsl(var(--live) / 0.32);
+    background:
+      linear-gradient(180deg, hsl(var(--live) / 0.08), hsl(0 0% 10%) 22%);
+  }
+
+  .dark .live-glow {
+    box-shadow:
+      0 0 0 1px hsl(var(--live) / 0.28),
+      0 0 24px hsl(var(--live) / 0.24),
+      0 0 72px hsl(var(--live) / 0.12),
+      0 14px 36px hsl(0 0% 0% / 0.62);
   }
 
   .score-text {

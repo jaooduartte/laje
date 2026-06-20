@@ -564,7 +564,7 @@ describe("AdminMatches score sheet review", () => {
     expect(renderedMarkup.indexOf("TIME JOGO 7")).toBeLessThan(renderedMarkup.indexOf("TIME JOGO 8"));
   });
 
-  it("oculta jogos revisados ao ativar o filtro do ícone de olho", async () => {
+  it("abre ocultando jogos revisados por padrão e permite exibi-los novamente", async () => {
     renderAdminMatches({
       viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
       matches: [
@@ -588,13 +588,15 @@ describe("AdminMatches score sheet review", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("REVISADO CASA")).toBeInTheDocument();
       expect(screen.getByText("PENDENTE CASA")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByLabelText("Ocultar jogos já revisados"));
-
     expect(screen.queryByText("REVISADO CASA")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Mostrar jogos revisados também")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText("Mostrar jogos revisados também"));
+
+    expect(screen.getByText("REVISADO CASA")).toBeInTheDocument();
     expect(screen.getByText("PENDENTE CASA")).toBeInTheDocument();
   });
 
@@ -1076,6 +1078,8 @@ describe("AdminMatches score sheet review", () => {
         }),
       ],
     });
+
+    fireEvent.click(await screen.findByLabelText("Mostrar jogos revisados também"));
 
     const actionsButton = await screen.findByLabelText("Ações do jogo EDIT CASA x EDIT VISITANTE");
     fireEvent.pointerDown(actionsButton);

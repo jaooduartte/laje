@@ -756,7 +756,7 @@ export function AdminMatches({
   const [editingMatchSetsDraft, setEditingMatchSetsDraft] = useState<MatchSetInput[]>([]);
   const [editingAvailableScheduleSlots, setEditingAvailableScheduleSlots] = useState<EditableMatchScheduleSlot[]>([]);
   const [loadingEditingAvailableScheduleSlots, setLoadingEditingAvailableScheduleSlots] = useState(false);
-  const [hideReviewedMatches, setHideReviewedMatches] = useState(false);
+  const [hideReviewedMatches, setHideReviewedMatches] = useState(isScoreSheetReviewMode);
   const [savingReviewStateByMatchId, setSavingReviewStateByMatchId] = useState<Record<string, boolean>>({});
   const [bulkReviewAction, setBulkReviewAction] = useState<BulkReviewAction | null>(null);
   const [showEditReviewConfirmationDialog, setShowEditReviewConfirmationDialog] = useState(false);
@@ -1152,7 +1152,7 @@ export function AdminMatches({
     setMatchesGroupFilter(ALL_MATCHES_GROUP_FILTER);
     setMatchesLocationFilter(ALL_MATCHES_LOCATION_FILTER);
     setMatchesCourtFilter(ALL_MATCHES_COURT_FILTER);
-    setHideReviewedMatches(false);
+    setHideReviewedMatches(isScoreSheetReviewMode);
     setCreatingMatch(false);
     setBulkReviewAction(null);
     setSavingReviewStateByMatchId({});
@@ -1164,11 +1164,11 @@ export function AdminMatches({
     setSelectedMatchIds([]);
     setMatchesCurrentPage(1);
     setMatchesItemsPerPage(DEFAULT_PAGINATION_ITEMS_PER_PAGE);
-  }, [defaultMatchesStatusFilter, selectedChampionship.id]);
+  }, [defaultMatchesStatusFilter, isScoreSheetReviewMode, selectedChampionship.id]);
 
   useEffect(() => {
     setMatchesStatusFilter(defaultMatchesStatusFilter);
-    setHideReviewedMatches(false);
+    setHideReviewedMatches(isScoreSheetReviewMode);
     setBulkReviewAction(null);
     setSelectedMatchIds([]);
   }, [defaultMatchesStatusFilter, isScoreSheetReviewMode]);
