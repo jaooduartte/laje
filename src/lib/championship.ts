@@ -164,6 +164,11 @@ const MATCH_REPRESENTATION_COORDINATION_LABEL = "CO";
 const MATCH_REPRESENTATION_TO_BE_DEFINED_LABEL = "A definir";
 const NORMALIZED_BEACH_SOCCER_NAME = "beach soccer";
 const MATCH_DISPLAY_TIME_ZONE = ThemeTimeZone.SAO_PAULO;
+const ADMIN_MATCH_CARD_STATUS_SORT_ORDER: Record<MatchStatus, number> = {
+  [MatchStatus.LIVE]: 0,
+  [MatchStatus.SCHEDULED]: 1,
+  [MatchStatus.FINISHED]: 2,
+};
 
 export interface MatchEstimatedStartTimeChampionshipSport {
   championship_id: string;
@@ -297,7 +302,7 @@ export type MatchRepresentationSource = Pick<
 export function resolveMatchDisplaySlotValue(
   match: Pick<Match, "queue_position"> & { scheduled_slot?: number | null },
 ) {
-  return match.queue_position ?? match.scheduled_slot ?? Number.MAX_SAFE_INTEGER;
+  return match.scheduled_slot ?? match.queue_position ?? Number.MAX_SAFE_INTEGER;
 }
 
 function resolveMatchVisualCourtScopeKey(match: MatchRepresentationSource): string {
@@ -452,7 +457,6 @@ export function resolveVisualQueuePositionByMatchId(
   const visualCourtMatchesByScopeKey = resolveOrderedVisualCourtMatches(
     resolveUniqueMatchSourcesById([...(contextMatches ?? []), ...matches]),
     estimatedStartTimeByMatchId,
-    { scheduledOnly: true },
   );
 
   const visualQueuePositionByMatchId = Object.values(visualCourtMatchesByScopeKey).reduce<Record<string, number>>(
@@ -958,6 +962,162 @@ export function resolveMatchQueueLabel(queuePosition: number | null): string {
   }
 
   return "Fila do dia";
+}
+
+export function resolveDisplayedMatchQueuePosition(
+  match: {
+    queue_position: number | null;
+    scheduled_slot?: number | null;
+  },
+  visualQueuePosition?: number | null,
+): number | null {
+  const candidateQueuePositions = [
+    visualQueuePosition,
+    match.scheduled_slot,
+    match.queue_position,
+  ];
+
+  for (const candidateQueuePosition of candidateQueuePositions) {
+    if (
+      typeof candidateQueuePosition == "number" &&
+      Number.isFinite(candidateQueuePosition) &&
+      candidateQueuePosition > 0
+    ) {
+      return candidateQueuePosition;
+    }
+  }
+
+  return null;
+}
+
+export function resolveDisplayedMatchQueueLabel(
+  match: {
+    queue_position: number | null;
+    scheduled_slot?: number | null;
+  },
+  visualQueuePosition?: number | null,
+): string {
+  return resolveMatchQueueLabel(resolveDisplayedMatchQueuePosition(match, visualQueuePosition));
+}
+
+function resolveAdminEstimatedStartTimeSortValue(estimatedStartTimeValue: string | undefined): number {
+  return resolveTimeValueToMinutes(estimatedStartTimeValue) ?? Number.MAX_SAFE_INTEGER;
+}
+
+function compareAdminMatchLocationAndCourt(
+  firstMatch: Pick<Match, "location" | "court_name">,
+  secondMatch: Pick<Match, "location" | "court_name">,
+) {
+  const locationDifference = firstMatch.location.localeCompare(secondMatch.location, "pt-BR", {
+    numeric: true,
+    sensitivity: "base",
+  });
+
+  if (locationDifference != 0) {
+    return locationDifference;
+  }
+
+  return (firstMatch.court_name ?? "").localeCompare(secondMatch.court_name ?? "", "pt-BR", {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+export function compareAdminMatchCardOrder(
+  firstMatch: Match,
+  secondMatch: Match,
+  options?: {
+    estimatedStartTimeByMatchId?: Record<string, string>;
+    visualQueuePositionByMatchId?: Record<string, number>;
+  },
+) {
+  const statusOrderDifference =
+    ADMIN_MATCH_CARD_STATUS_SORT_ORDER[firstMatch.status] - ADMIN_MATCH_CARD_STATUS_SORT_ORDER[secondMatch.status];
+
+  if (statusOrderDifference != 0) {
+    return statusOrderDifference;
+  }
+
+  if (firstMatch.status == MatchStatus.SCHEDULED && secondMatch.status == MatchStatus.SCHEDULED) {
+    const firstScheduledDate = resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
+    const secondScheduledDate = resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
+
+    if (firstScheduledDate != secondScheduledDate) {
+      return firstScheduledDate.localeCompare(secondScheduledDate);
+    }
+
+    const estimatedStartTimeDifference =
+      resolveAdminEstimatedStartTimeSortValue(options?.estimatedStartTimeByMatchId?.[firstMatch.id]) -
+      resolveAdminEstimatedStartTimeSortValue(options?.estimatedStartTimeByMatchId?.[secondMatch.id]);
+
+    if (estimatedStartTimeDifference != 0) {
+      return estimatedStartTimeDifference;
+    }
+
+    const firstDisplayedQueuePosition = resolveDisplayedMatchQueuePosition(
+      firstMatch,
+      options?.visualQueuePositionByMatchId?.[firstMatch.id],
+    ) ?? Number.MAX_SAFE_INTEGER;
+    const secondDisplayedQueuePosition = resolveDisplayedMatchQueuePosition(
+      secondMatch,
+      options?.visualQueuePositionByMatchId?.[secondMatch.id],
+    ) ?? Number.MAX_SAFE_INTEGER;
+
+    if (firstDisplayedQueuePosition != secondDisplayedQueuePosition) {
+      return firstDisplayedQueuePosition - secondDisplayedQueuePosition;
+    }
+
+    const locationAndCourtDifference = compareAdminMatchLocationAndCourt(firstMatch, secondMatch);
+
+    if (locationAndCourtDifference != 0) {
+      return locationAndCourtDifference;
+    }
+
+    if (firstMatch.created_at != secondMatch.created_at) {
+      return firstMatch.created_at.localeCompare(secondMatch.created_at);
+    }
+
+    return firstMatch.id.localeCompare(secondMatch.id);
+  }
+
+  if (firstMatch.status == MatchStatus.FINISHED && secondMatch.status == MatchStatus.FINISHED) {
+    const firstScheduledDate = resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
+    const secondScheduledDate = resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
+
+    if (firstScheduledDate != secondScheduledDate) {
+      return firstScheduledDate.localeCompare(secondScheduledDate);
+    }
+
+    const firstDisplayedQueuePosition = resolveDisplayedMatchQueuePosition(
+      firstMatch,
+      options?.visualQueuePositionByMatchId?.[firstMatch.id],
+    ) ?? Number.MAX_SAFE_INTEGER;
+    const secondDisplayedQueuePosition = resolveDisplayedMatchQueuePosition(
+      secondMatch,
+      options?.visualQueuePositionByMatchId?.[secondMatch.id],
+    ) ?? Number.MAX_SAFE_INTEGER;
+
+    if (firstDisplayedQueuePosition != secondDisplayedQueuePosition) {
+      return firstDisplayedQueuePosition - secondDisplayedQueuePosition;
+    }
+
+    const locationAndCourtDifference = compareAdminMatchLocationAndCourt(firstMatch, secondMatch);
+
+    if (locationAndCourtDifference != 0) {
+      return locationAndCourtDifference;
+    }
+
+    if (firstMatch.created_at != secondMatch.created_at) {
+      return firstMatch.created_at.localeCompare(secondMatch.created_at);
+    }
+
+    return firstMatch.id.localeCompare(secondMatch.id);
+  }
+
+  const firstTimestamp = new Date(firstMatch.start_time ?? firstMatch.created_at).getTime();
+  const secondTimestamp = new Date(secondMatch.start_time ?? secondMatch.created_at).getTime();
+
+  return secondTimestamp - firstTimestamp;
 }
 
 export function resolveMatchCompetitionKey(match: {

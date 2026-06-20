@@ -70,12 +70,24 @@ describe("ChampionshipsPageView", () => {
       pending_matches_count: 0,
       top_scorers: [
         {
-          player_id: "player-1",
-          player_name: "Artilheiro 1",
+          player_id: "player-final",
+          player_name: "Artilheiro da Final",
+          team_id: "team-final",
           team_name: "Atlética Campeã",
           naipe: MatchNaipe.MASCULINO,
           division: TeamDivision.DIVISAO_PRINCIPAL,
           goals: 6,
+          team_advancement_rank: 3,
+        },
+        {
+          player_id: "player-semi",
+          player_name: "Artilheiro da Semi",
+          team_id: "team-semi",
+          team_name: "Atlética Vice",
+          naipe: MatchNaipe.MASCULINO,
+          division: TeamDivision.DIVISAO_PRINCIPAL,
+          goals: 6,
+          team_advancement_rank: 2,
         },
       ],
       best_defenses: [
@@ -149,5 +161,7 @@ describe("ChampionshipsPageView", () => {
     expect(await screen.findByText("Melhor defesa")).toBeInTheDocument();
     expect(screen.getByText(/Atlética Defesa/)).toBeInTheDocument();
     expect(screen.getByText(/1,00 de média/)).toBeInTheDocument();
+    expect(screen.getByText("Artilheiro da Final")).toBeInTheDocument();
+    expect(screen.queryByText("Artilheiro da Semi")).not.toBeInTheDocument();
   });
 });

@@ -39,8 +39,9 @@ import {
 } from "@/components/ui/app-pagination-controls";
 import {
   type MatchBracketContext,
+  compareAdminMatchCardOrder,
   MATCH_NAIPE_LABELS,
-  resolveMatchQueueLabel,
+  resolveDisplayedMatchQueueLabel,
   resolveMatchNaipeBadgeTone,
   resolveMatchNaipeLabel,
   resolveRecordedMatchSets,
@@ -101,11 +102,6 @@ const SAVE_STATUS_CLASS_NAMES: Record<SaveStatus, string> = {
 const ALL_CONTROL_NAIPE_FILTER = "ALL_CONTROL_NAIPES";
 const NAIPE_OPTIONS: MatchNaipe[] = [MatchNaipe.MASCULINO, MatchNaipe.FEMININO, MatchNaipe.MISTO];
 
-const MATCH_CONTROL_STATUS_SORT_ORDER: Record<MatchStatus, number> = {
-  [MatchStatus.LIVE]: 0,
-  [MatchStatus.SCHEDULED]: 1,
-  [MatchStatus.FINISHED]: 2,
-};
 const MATCH_CONTROL_AUTOSAVE_DEBOUNCE_IN_MILLISECONDS = 150;
 const MATCH_CONTROL_PERSISTED_DRAFT_STORAGE_KEY = "admin_match_control_draft_by_match_id";
 const MATCH_CONTROL_PERSISTED_DRAFT_TTL_IN_MILLISECONDS = 10 * 60 * 1000;
@@ -1694,34 +1690,11 @@ export function AdminMatchControl({
   }, [matches, naipeFilter, showOnlyLiveMatches, sportFilter]);
 
   const sortedMatches = useMemo(() => {
-    return [...filteredMatches].sort((firstMatch, secondMatch) => {
-      const statusOrderDifference =
-        MATCH_CONTROL_STATUS_SORT_ORDER[firstMatch.status] - MATCH_CONTROL_STATUS_SORT_ORDER[secondMatch.status];
-
-      if (statusOrderDifference != 0) {
-        return statusOrderDifference;
-      }
-
-      if (firstMatch.status == MatchStatus.SCHEDULED && secondMatch.status == MatchStatus.SCHEDULED) {
-        const firstScheduledDate = resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
-        const secondScheduledDate = resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
-
-        if (firstScheduledDate != secondScheduledDate) {
-          return firstScheduledDate.localeCompare(secondScheduledDate);
-        }
-
-        const firstSlot = firstMatch.scheduled_slot ?? firstMatch.queue_position ?? Number.MAX_SAFE_INTEGER;
-        const secondSlot = secondMatch.scheduled_slot ?? secondMatch.queue_position ?? Number.MAX_SAFE_INTEGER;
-        if (firstSlot != secondSlot) return firstSlot - secondSlot;
-        return (firstMatch.queue_position ?? Number.MAX_SAFE_INTEGER) - (secondMatch.queue_position ?? Number.MAX_SAFE_INTEGER);
-      }
-
-      const firstTimestamp = new Date(firstMatch.start_time ?? firstMatch.created_at).getTime();
-      const secondTimestamp = new Date(secondMatch.start_time ?? secondMatch.created_at).getTime();
-
-      return secondTimestamp - firstTimestamp;
-    });
-  }, [filteredMatches]);
+    return [...filteredMatches].sort((firstMatch, secondMatch) => compareAdminMatchCardOrder(firstMatch, secondMatch, {
+      estimatedStartTimeByMatchId,
+      visualQueuePositionByMatchId,
+    }));
+  }, [estimatedStartTimeByMatchId, filteredMatches, visualQueuePositionByMatchId]);
 
   const totalPages = Math.max(1, Math.ceil(sortedMatches.length / itemsPerPage));
 
@@ -1810,9 +1783,7 @@ export function AdminMatchControl({
             const liveMatchesCount = sportAndDateKey ? liveMatchesCountBySportAndDateKey[sportAndDateKey] ?? 0 : 0;
             const isMatchStartBlocked =
               match.status == MatchStatus.SCHEDULED && availableCourtsCount > 0 && liveMatchesCount >= availableCourtsCount;
-            const queueLabel = resolveMatchQueueLabel(
-              visualQueuePositionByMatchId[match.id] ?? match.scheduled_slot ?? match.queue_position,
-            );
+            const queueLabel = resolveDisplayedMatchQueueLabel(match, visualQueuePositionByMatchId[match.id]);
             const queueSummary = scheduledDateValue
               ? `${format(new Date(`${scheduledDateValue}T12:00:00`), "dd/MM", { locale: ptBR })} • ${queueLabel}`
               : queueLabel;

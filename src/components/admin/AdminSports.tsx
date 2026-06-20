@@ -711,7 +711,7 @@ export function AdminSports({
                   <p className="text-xs font-medium text-muted-foreground">Critérios de premiação</p>
                   <div className="space-y-2 text-sm">
                     <p>
-                      <span className="font-medium">Artilheiro:</span> maior número de gols. Empate no 1º lugar é resolvido por sorteio.
+                      <span className="font-medium">Artilheiro:</span> maior número de gols, equipe que avançou mais longe no campeonato e, se o empate persistir, sorteio.
                     </p>
                     <p>
                       <span className="font-medium">Melhor defesa:</span> menor média de gols sofridos por jogo, menor total de gols sofridos, maior número de jogos e, se necessário, sorteio.

@@ -888,6 +888,38 @@ describe("AdminMatches score sheet review", () => {
     expect(gameThreeCard).toHaveTextContent("Horário estimado: 10:00");
   });
 
+  it("mostra o slot visual correto mesmo quando o queue_position legado está diferente", () => {
+    renderAdminMatches({
+      viewMode: AdminMatchesViewMode.DEFAULT,
+      matches: [
+        buildMatch({
+          id: "legacy-queue-match",
+          sport_id: "sport-1",
+          status: MatchStatus.SCHEDULED,
+          scheduled_date: "2026-04-12",
+          location: "Arena Seven",
+          court_name: "Quadra A",
+          queue_position: 7,
+          scheduled_slot: 1,
+          home_team: buildTeam({ id: "legacy-home", name: "AAAUS" }),
+          away_team: buildTeam({ id: "legacy-away", name: "RASANTE" }),
+        }),
+      ],
+      visualQueuePositionByMatchId: {
+        "legacy-queue-match": 1,
+      },
+      estimatedStartTimeByMatchId: {
+        "legacy-queue-match": "08:10",
+      },
+    });
+
+    const matchCard = getMatchCardContainerByTeamName("AAAUS");
+
+    expect(matchCard).toHaveTextContent("Jogo 1");
+    expect(matchCard).not.toHaveTextContent("Jogo 7");
+    expect(matchCard).toHaveTextContent("Horário estimado: 08:10");
+  });
+
   it("mantém menu restrito no modo de conferência sem trocar/apagar", async () => {
     renderAdminMatches({
       viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
@@ -1061,6 +1093,10 @@ describe("AdminMatches score sheet review", () => {
       expect(supabaseUpdateCalls.length).toBeGreaterThan(0);
     });
 
+    expect(supabaseUpdateCalls[0].payload).not.toHaveProperty("queue_position");
+    expect(supabaseUpdateCalls[0].payload).toMatchObject({
+      scheduled_slot: 1,
+    });
     expect(supabaseUpdateCalls[0].payload).toMatchObject({
       is_score_sheet_reviewed: false,
     });

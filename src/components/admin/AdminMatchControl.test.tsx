@@ -140,6 +140,7 @@ function buildChampionshipSport(
     points_win: overrides.points_win ?? 3,
     points_draw: overrides.points_draw ?? 1,
     points_loss: overrides.points_loss ?? 0,
+    walkover_winner_points: overrides.walkover_winner_points ?? null,
     created_at: overrides.created_at ?? "2026-03-01T00:00:00.000Z",
     championships: overrides.championships,
     sports: overrides.sports,
@@ -166,6 +167,7 @@ function buildMatch(overrides: Partial<Match> & Pick<Match, "id" | "sport_id" | 
     court_name: overrides.court_name ?? null,
     scheduled_date: overrides.scheduled_date ?? "2026-04-11",
     queue_position: overrides.queue_position ?? 1,
+    scheduled_slot: overrides.scheduled_slot ?? null,
     current_set_home_score: overrides.current_set_home_score ?? 0,
     current_set_away_score: overrides.current_set_away_score ?? 0,
     resolved_tie_breaker_rule: overrides.resolved_tie_breaker_rule ?? null,
@@ -211,6 +213,7 @@ function renderAdminMatchControl(params: {
   championshipSports: ChampionshipSport[];
   championshipStatus?: ChampionshipStatus;
   visualQueuePositionByMatchId?: Record<string, number>;
+  estimatedStartTimeByMatchId?: Record<string, string>;
 }) {
   const onRefetch = vi.fn();
   const onRefetchChampionshipBracket = vi.fn();
@@ -222,6 +225,7 @@ function renderAdminMatchControl(params: {
       championshipBracketView={buildChampionshipBracketView()}
       matchBracketContextByMatchId={{}}
       visualQueuePositionByMatchId={params.visualQueuePositionByMatchId}
+      estimatedStartTimeByMatchId={params.estimatedStartTimeByMatchId}
       onRefetch={onRefetch}
       onRefetchChampionshipBracket={onRefetchChampionshipBracket}
       canManageScoreboard
@@ -233,6 +237,7 @@ function renderAdminMatchControl(params: {
     championshipSports: ChampionshipSport[];
     championshipStatus?: ChampionshipStatus;
     visualQueuePositionByMatchId?: Record<string, number>;
+    estimatedStartTimeByMatchId?: Record<string, string>;
   }) => {
     renderResult.rerender(
       <AdminMatchControl
@@ -242,6 +247,7 @@ function renderAdminMatchControl(params: {
         championshipBracketView={buildChampionshipBracketView()}
         matchBracketContextByMatchId={{}}
         visualQueuePositionByMatchId={nextParams.visualQueuePositionByMatchId}
+        estimatedStartTimeByMatchId={nextParams.estimatedStartTimeByMatchId}
         onRefetch={onRefetch}
         onRefetchChampionshipBracket={onRefetchChampionshipBracket}
         canManageScoreboard
@@ -268,18 +274,38 @@ function resolveMatchCardElement(teamName: string): HTMLElement {
   return matchCardElement as HTMLElement;
 }
 
-function selectWalkoverOption(matchCardElement: HTMLElement, optionLabel: string): void {
+async function selectWalkoverOption(matchCardElement: HTMLElement, optionLabel: string): Promise<void> {
   const walkoverSelectTrigger = within(matchCardElement).getByRole("combobox", { name: "W.O.?" });
 
-  act(() => {
+  await act(async () => {
     fireEvent.click(walkoverSelectTrigger);
     vi.runOnlyPendingTimers();
+    await Promise.resolve();
   });
 
   const walkoverOption = screen.getByRole("option", { name: optionLabel });
 
-  act(() => {
+  await act(async () => {
     fireEvent.click(walkoverOption);
+    await Promise.resolve();
+  });
+}
+
+async function confirmFinishDialog(): Promise<void> {
+  const confirmDialogTitle = screen.getByText("Encerrar jogo");
+  const confirmAction =
+    screen
+      .getAllByText(/^encerrar$/i)
+      .map((element) => element.closest("button"))
+      .find((element): element is HTMLButtonElement => element instanceof HTMLButtonElement) ?? null;
+
+  if (!confirmDialogTitle || !confirmAction) {
+    throw new Error("Dialog de confirmação para encerrar jogo não encontrado.");
+  }
+
+  await act(async () => {
+    fireEvent.click(confirmAction);
+    await Promise.resolve();
   });
 }
 
@@ -351,6 +377,7 @@ describe("AdminMatchControl", () => {
       id: "championship-sport-beach-soccer-wo",
       sport_id: "sport-beach-soccer-wo",
       result_rule: ChampionshipSportResultRule.POINTS,
+      walkover_winner_points: 3,
     });
     const { onRefetch, onRefetchChampionshipBracket } = renderAdminMatchControl({
       matches: [match],
@@ -358,11 +385,12 @@ describe("AdminMatchControl", () => {
     });
 
     const matchCardElement = resolveMatchCardElement("Atlética WO Casa");
-    selectWalkoverOption(matchCardElement, homeTeam.name);
+    await selectWalkoverOption(matchCardElement, homeTeam.name);
 
     await act(async () => {
       fireEvent.click(within(matchCardElement).getByRole("button", { name: /encerrar w\.o\./i }));
     });
+    await confirmFinishDialog();
 
     expect(saveMatchSetsMock).not.toHaveBeenCalled();
     expect(supabaseUpdateCalls).toHaveLength(1);
@@ -375,7 +403,7 @@ describe("AdminMatchControl", () => {
       walkover_loser_team_id: homeTeam.id,
     });
     expect(typeof supabaseUpdateCalls[0]?.payload.start_time).toBe("string");
-    expect(typeof supabaseUpdateCalls[0]?.payload.end_time).toBe("string");
+    expect(supabaseUpdateCalls[0]?.payload.end_time).toBeNull();
     expect(toastSuccessMock).toHaveBeenCalledWith("Jogo encerrado por W.O.! Classificação atualizada.");
     expect(onRefetch).toHaveBeenCalledTimes(1);
     expect(onRefetchChampionshipBracket).toHaveBeenCalledTimes(1);
@@ -398,6 +426,7 @@ describe("AdminMatchControl", () => {
       id: "championship-sport-beach-volley-wo",
       sport_id: "sport-beach-volley-wo",
       result_rule: ChampionshipSportResultRule.SETS,
+      walkover_winner_points: 21,
     });
 
     renderAdminMatchControl({
@@ -406,11 +435,12 @@ describe("AdminMatchControl", () => {
     });
 
     const matchCardElement = resolveMatchCardElement("Atlética Sets WO Casa");
-    selectWalkoverOption(matchCardElement, awayTeam.name);
+    await selectWalkoverOption(matchCardElement, awayTeam.name);
 
     await act(async () => {
       fireEvent.click(within(matchCardElement).getByRole("button", { name: /encerrar w\.o\./i }));
     });
+    await confirmFinishDialog();
 
     expect(saveMatchSetsMock).toHaveBeenCalledWith("scheduled-walkover-sets-match", [
       {
@@ -455,11 +485,12 @@ describe("AdminMatchControl", () => {
     });
 
     const matchCardElement = resolveMatchCardElement("Atlética WO Ao Vivo Casa");
-    selectWalkoverOption(matchCardElement, homeTeam.name);
+    await selectWalkoverOption(matchCardElement, homeTeam.name);
 
     await act(async () => {
       fireEvent.click(within(matchCardElement).getByRole("button", { name: /encerrar w\.o\./i }));
     });
+    await confirmFinishDialog();
 
     expect(supabaseUpdateCalls).toHaveLength(0);
     expect(toastErrorMock).toHaveBeenCalledWith("Não é possível aplicar W.O. em jogo ao vivo com placar ou sets já lançados.");
@@ -530,11 +561,12 @@ describe("AdminMatchControl", () => {
     });
 
     const matchCardElement = resolveMatchCardElement("Atlética WO Bloqueio Casa");
-    selectWalkoverOption(matchCardElement, homeTeam.name);
+    await selectWalkoverOption(matchCardElement, homeTeam.name);
 
     await act(async () => {
       fireEvent.click(within(matchCardElement).getByRole("button", { name: /encerrar w\.o\./i }));
     });
+    await confirmFinishDialog();
 
     expect(supabaseUpdateCalls).toHaveLength(0);
     expect(toastErrorMock).toHaveBeenCalledWith("Só é possível aplicar W.O. quando o campeonato estiver Em andamento.");
@@ -674,6 +706,60 @@ describe("AdminMatchControl", () => {
     expect(startButton).toBeDisabled();
     expect(supabaseUpdateCalls).toHaveLength(0);
     expect(toastErrorMock).not.toHaveBeenCalled();
+  });
+
+  it("usa a mesma ordenação da aba jogos para cards agendados no controle ao vivo", () => {
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-visual-order",
+      sport_id: "sport-visual-order",
+      result_rule: ChampionshipSportResultRule.POINTS,
+      supports_cards: false,
+    });
+
+    renderAdminMatchControl({
+      matches: [
+        buildMatch({
+          id: "court-a-game-3",
+          sport_id: "sport-visual-order",
+          status: MatchStatus.SCHEDULED,
+          scheduled_date: "2026-04-12",
+          location: "Arena Seven",
+          court_name: "Quadra A",
+          queue_position: 4,
+          scheduled_slot: 4,
+          home_team: buildTeam({ id: "court-a-game-3-home", name: "CAMALEÃO B" }),
+          away_team: buildTeam({ id: "court-a-game-3-away", name: "RAPOSAS" }),
+        }),
+        buildMatch({
+          id: "court-a-game-4",
+          sport_id: "sport-visual-order",
+          status: MatchStatus.SCHEDULED,
+          scheduled_date: "2026-04-12",
+          location: "Arena Seven",
+          court_name: "Quadra A",
+          queue_position: 3,
+          scheduled_slot: 3,
+          home_team: buildTeam({ id: "court-a-game-4-home", name: "GARRUDOS" }),
+          away_team: buildTeam({ id: "court-a-game-4-away", name: "RASANTE B" }),
+        }),
+      ],
+      championshipSports: [championshipSport],
+      visualQueuePositionByMatchId: {
+        "court-a-game-4": 3,
+        "court-a-game-3": 4,
+      },
+      estimatedStartTimeByMatchId: {
+        "court-a-game-4": "09:20",
+        "court-a-game-3": "10:00",
+      },
+    });
+
+    const gameThreeCard = resolveMatchCardElement("CAMALEÃO B");
+    const gameFourCard = resolveMatchCardElement("GARRUDOS");
+
+    expect(gameFourCard.compareDocumentPosition(gameThreeCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(gameFourCard).toHaveTextContent("Jogo 3");
+    expect(gameThreeCard).toHaveTextContent("Jogo 4");
   });
 
   it("mostra o estado ao vivo e salva o placar por pontos em autosave", async () => {
@@ -1056,6 +1142,7 @@ describe("AdminMatchControl", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: /finalizar/i }));
     });
+    await confirmFinishDialog();
 
     expect(supabaseUpdateCalls).toHaveLength(2);
     expect(supabaseUpdateCalls.at(-1)?.payload.status).toBe(MatchStatus.FINISHED);

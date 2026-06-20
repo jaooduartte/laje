@@ -86,7 +86,20 @@ describe("AdminSports", () => {
     expect(screen.getByText("Cadastro de atletas na súmula")).toBeInTheDocument();
     expect(screen.getByText("Contabilização de prêmios (artilheiro e melhor defesa)")).toBeInTheDocument();
     expect(screen.getByText("Critérios de premiação")).toBeInTheDocument();
-    expect(screen.getByText(/Artilheiro:/)).toBeInTheDocument();
+    expect(
+      screen.getByText((_, element) => {
+        const textContent = element?.textContent?.trim() ?? "";
+        const childHasSameText = Array.from(element?.children ?? []).some((child) =>
+          child.textContent?.trim().includes("equipe que avançou mais longe no campeonato"),
+        );
+
+        return (
+          element?.tagName == "P" &&
+          textContent.includes("equipe que avançou mais longe no campeonato") &&
+          !childHasSameText
+        );
+      }),
+    ).toBeInTheDocument();
     expect(screen.getByText(/Melhor defesa:/)).toBeInTheDocument();
     expect(screen.getByText(/A plataforma define a atlética vencedora da melhor defesa/)).toBeInTheDocument();
   });

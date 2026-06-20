@@ -5,10 +5,12 @@ import type { ChampionshipAwardType, MatchNaipe, TeamDivision } from "@/lib/enum
 export interface AwardsRankingGoalScorer {
   player_id: string;
   player_name: string;
+  team_id: string;
   team_name: string;
   naipe: MatchNaipe;
   division: TeamDivision | null;
   goals: number;
+  team_advancement_rank: number;
 }
 
 export interface AwardsRankingBestDefense {
@@ -35,6 +37,42 @@ export interface ChampionshipAwardsRankings {
   top_scorers: AwardsRankingGoalScorer[];
   best_defenses: AwardsRankingBestDefense[];
   award_draw_results: AwardsRankingDrawResult[];
+}
+
+export function compareAwardsRankingGoalScorers(
+  firstScorer: AwardsRankingGoalScorer,
+  secondScorer: AwardsRankingGoalScorer,
+  options?: {
+    drawWinnerPlayerId?: string | null;
+  },
+) {
+  const goalsDifference = secondScorer.goals - firstScorer.goals;
+
+  if (goalsDifference != 0) {
+    return goalsDifference;
+  }
+
+  const teamAdvancementDifference = secondScorer.team_advancement_rank - firstScorer.team_advancement_rank;
+
+  if (teamAdvancementDifference != 0) {
+    return teamAdvancementDifference;
+  }
+
+  const drawWinnerPlayerId = options?.drawWinnerPlayerId ?? null;
+  const firstScorerWonDraw = drawWinnerPlayerId != null && firstScorer.player_id == drawWinnerPlayerId;
+  const secondScorerWonDraw = drawWinnerPlayerId != null && secondScorer.player_id == drawWinnerPlayerId;
+
+  if (firstScorerWonDraw && !secondScorerWonDraw) {
+    return -1;
+  }
+
+  if (!firstScorerWonDraw && secondScorerWonDraw) {
+    return 1;
+  }
+
+  return firstScorer.player_name.localeCompare(secondScorer.player_name, "pt-BR", {
+    sensitivity: "base",
+  });
 }
 
 interface UseChampionshipAwardsRankingsOptions {

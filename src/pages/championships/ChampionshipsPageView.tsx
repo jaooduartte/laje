@@ -14,7 +14,10 @@ import type {
   MatchBracketContext,
 } from "@/lib/championship";
 import type { ChampionshipChampionYearGroup } from "@/lib/championshipHistory";
-import type { ChampionshipAwardsRankings } from "@/hooks/useChampionshipAwardsRankings";
+import {
+  compareAwardsRankingGoalScorers,
+  type ChampionshipAwardsRankings,
+} from "@/hooks/useChampionshipAwardsRankings";
 import { ChampionshipCode, MatchNaipe, TeamDivision } from "@/lib/enums";
 import { MATCH_NAIPE_LABELS, TEAM_DIVISION_LABELS } from "@/lib/championship";
 import type { ModalidadeConfig } from "@/lib/modalidadeConfig";
@@ -400,12 +403,14 @@ export function ChampionshipsPageView({
                               (s) => s.naipe === championshipChampion.naipe && s.division === championshipChampion.division
                             )
                           : [];
-                        const topScorer = isCurrentYear
-                          ? (scorerDrawResult
-                              ? filteredScorers.find((s) => s.player_id === scorerDrawResult.winner_player_id) ??
-                                filteredScorers.sort((a, b) => b.goals - a.goals)[0]
-                              : filteredScorers.sort((a, b) => b.goals - a.goals)[0]) ?? null
-                          : null;
+                        const sortedScorers = isCurrentYear
+                          ? [...filteredScorers].sort((firstScorer, secondScorer) => compareAwardsRankingGoalScorers(
+                              firstScorer,
+                              secondScorer,
+                              { drawWinnerPlayerId: scorerDrawResult?.winner_player_id ?? null },
+                            ))
+                          : [];
+                        const topScorer = isCurrentYear ? sortedScorers[0] ?? null : null;
 
                         const filteredBestDefenses = isCurrentYear
                           ? [...(awardsRankings?.best_defenses ?? [])].filter(

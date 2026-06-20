@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { MatchManualRepresentationMode, MatchNaipe, MatchStatus, TeamDivision } from "@/lib/enums";
 import {
+  compareAdminMatchCardOrder,
+  resolveDisplayedMatchQueueLabel,
+  resolveDisplayedMatchQueuePosition,
   resolveEstimatedStartTimeByMatchId,
   resolveInterleavedScheduledMatchesByCompetition,
   resolveOrderedScheduledMatchesByVisualTime,
@@ -30,6 +33,7 @@ function buildMatch(overrides: Partial<Match> & Pick<Match, "id">): Match {
     manual_representation_mode: overrides.manual_representation_mode ?? MatchManualRepresentationMode.AUTO,
     scheduled_date: overrides.scheduled_date ?? "2026-03-20",
     queue_position: overrides.queue_position ?? 1,
+    scheduled_slot: overrides.scheduled_slot ?? null,
     current_set_home_score: overrides.current_set_home_score ?? null,
     current_set_away_score: overrides.current_set_away_score ?? null,
     resolved_tie_breaker_rule: overrides.resolved_tie_breaker_rule ?? null,
@@ -403,7 +407,100 @@ describe("resolveMatchRepresentationByMatchId", () => {
   });
 });
 
+describe("compareAdminMatchCardOrder", () => {
+  it("prioriza o horário estimado e a fila visual para jogos agendados", () => {
+    const laterDisplayedMatch = buildMatch({
+      id: "scheduled-match-2",
+      scheduled_date: "2026-04-12",
+      queue_position: 4,
+      scheduled_slot: 4,
+      location: "Arena Seven",
+      court_name: "Quadra A",
+    });
+    const earlierDisplayedMatch = buildMatch({
+      id: "scheduled-match-1",
+      scheduled_date: "2026-04-12",
+      queue_position: 7,
+      scheduled_slot: 1,
+      location: "Arena Seven",
+      court_name: "Quadra A",
+    });
+
+    const orderedMatches = [laterDisplayedMatch, earlierDisplayedMatch].sort((firstMatch, secondMatch) =>
+      compareAdminMatchCardOrder(firstMatch, secondMatch, {
+        estimatedStartTimeByMatchId: {
+          "scheduled-match-1": "08:10",
+          "scheduled-match-2": "09:00",
+        },
+        visualQueuePositionByMatchId: {
+          "scheduled-match-1": 1,
+          "scheduled-match-2": 2,
+        },
+      }),
+    );
+
+    expect(orderedMatches.map((match) => match.id)).toEqual([
+      "scheduled-match-1",
+      "scheduled-match-2",
+    ]);
+  });
+});
+
+describe("resolveDisplayedMatchQueuePosition", () => {
+  it("prioriza visualQueuePosition, depois scheduled_slot e por último queue_position", () => {
+    const match = buildMatch({
+      id: "displayed-queue-match",
+      queue_position: 7,
+      scheduled_slot: 1,
+    });
+
+    expect(resolveDisplayedMatchQueuePosition(match, 3)).toBe(3);
+    expect(resolveDisplayedMatchQueuePosition(match)).toBe(1);
+    expect(resolveDisplayedMatchQueueLabel(match, 1)).toBe("Jogo 1");
+  });
+});
+
 describe("resolveVisualQueuePositionByMatchId", () => {
+  it("mantém a numeração estável da quadra mesmo depois que jogos anteriores deixam de estar agendados", () => {
+    const firstFinishedMatch = buildMatch({
+      id: "court-a-game-1",
+      status: MatchStatus.FINISHED,
+      scheduled_slot: 1,
+      queue_position: 7,
+      location: "Arena Seven",
+      court_name: "Quadra A",
+      start_time: "2026-03-20T11:00:00.000Z",
+    });
+    const secondFinishedMatch = buildMatch({
+      id: "court-a-game-2",
+      status: MatchStatus.FINISHED,
+      scheduled_slot: 2,
+      queue_position: 1,
+      location: "Arena Seven",
+      court_name: "Quadra A",
+      start_time: "2026-03-20T11:40:00.000Z",
+    });
+    const nextScheduledMatch = buildMatch({
+      id: "court-a-game-3",
+      status: MatchStatus.SCHEDULED,
+      scheduled_slot: 3,
+      queue_position: 2,
+      location: "Arena Seven",
+      court_name: "Quadra A",
+      start_time: "2026-03-20T12:20:00.000Z",
+    });
+
+    const visualQueuePositionByMatchId = resolveVisualQueuePositionByMatchId([
+      nextScheduledMatch,
+      secondFinishedMatch,
+      firstFinishedMatch,
+    ]);
+
+    expect(visualQueuePositionByMatchId["court-a-game-1"]).toBe(1);
+    expect(visualQueuePositionByMatchId["court-a-game-2"]).toBe(2);
+    expect(visualQueuePositionByMatchId["court-a-game-3"]).toBe(3);
+  });
+
   it("numera os jogos pela fila visual da própria quadra", () => {
     const firstCourtMatch = buildMatch({
       id: "court-a-game-1",

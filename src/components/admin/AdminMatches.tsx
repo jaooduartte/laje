@@ -82,6 +82,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   type MatchBracketContext,
+  compareAdminMatchCardOrder,
   doesChampionshipSportSupportNaipe,
   CHAMPIONSHIP_SPORT_TIE_BREAKER_RULE_LABELS,
   MATCH_NAIPE_LABELS,
@@ -92,6 +93,8 @@ import {
   resolveBracketGroupFilterOptions,
   resolveChampionshipBracketGroupStageOptions,
   resolveChampionshipGroupLabel,
+  resolveDisplayedMatchQueueLabel,
+  resolveDisplayedMatchQueuePosition,
   resolveGroupStageMatchBindingByMatchId,
   resolveMatchQueueLabel,
   resolveMatchNaipeBadgeTone,
@@ -293,57 +296,6 @@ function resolveKnockoutMatchSourceLabels(knockoutMatchBinding: KnockoutMatchBin
   };
 }
 
-function resolveMatchDisplaySlotValue(
-  match: Match & { scheduled_slot?: number | null },
-  shouldUseScheduledSlot: boolean,
-) {
-  if (shouldUseScheduledSlot) {
-    return match.scheduled_slot ?? match.queue_position ?? Number.MAX_SAFE_INTEGER;
-  }
-
-  return match.queue_position ?? match.scheduled_slot ?? Number.MAX_SAFE_INTEGER;
-}
-
-function resolveMatchLocationAndCourtSortDifference(
-  firstMatch: Pick<Match, "location" | "court_name">,
-  secondMatch: Pick<Match, "location" | "court_name">,
-) {
-  const locationDifference = firstMatch.location.localeCompare(secondMatch.location, "pt-BR", {
-    numeric: true,
-    sensitivity: "base",
-  });
-
-  if (locationDifference != 0) {
-    return locationDifference;
-  }
-
-  return (firstMatch.court_name ?? "").localeCompare(secondMatch.court_name ?? "", "pt-BR", {
-    numeric: true,
-    sensitivity: "base",
-  });
-}
-
-function resolveEstimatedStartTimeSortValue(estimatedStartTimeValue: string | undefined) {
-  if (!estimatedStartTimeValue) {
-    return Number.MAX_SAFE_INTEGER;
-  }
-
-  const estimatedTimeMatch = /^(\d{2}):(\d{2})$/.exec(estimatedStartTimeValue.trim());
-
-  if (!estimatedTimeMatch) {
-    return Number.MAX_SAFE_INTEGER;
-  }
-
-  const parsedHours = Number(estimatedTimeMatch[1]);
-  const parsedMinutes = Number(estimatedTimeMatch[2]);
-
-  if (!Number.isFinite(parsedHours) || !Number.isFinite(parsedMinutes)) {
-    return Number.MAX_SAFE_INTEGER;
-  }
-
-  return (parsedHours * 60) + parsedMinutes;
-}
-
 function normalizeBracketEntityName(value: string | null | undefined) {
   return (value ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase("pt-BR");
 }
@@ -418,12 +370,6 @@ const EMPTY_TIE_BREAK_TEAM_OPTION_VALUE = "EMPTY_TIE_BREAK_TEAM_OPTION_VALUE";
 const EMPTY_SWAP_MATCH_OPTION_VALUE = "EMPTY_SWAP_MATCH_OPTION_VALUE";
 const EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE = "EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE";
 const EMPTY_AWARD_DRAW_PLAYER_OPTION_VALUE = "EMPTY_AWARD_DRAW_PLAYER_OPTION_VALUE";
-
-const MATCH_STATUS_SORT_ORDER: Record<MatchStatus, number> = {
-  [MatchStatus.LIVE]: 0,
-  [MatchStatus.SCHEDULED]: 1,
-  [MatchStatus.FINISHED]: 2,
-};
 
 type SwapMatchQueueSlotsResponse = {
   source_match_id: string;
@@ -532,9 +478,7 @@ function resolveScheduledQueueSummary(
   visualQueuePosition: number | undefined,
 ): string {
   const scheduledDateValue = resolveMatchScheduledDateValue(match);
-  const queueLabel = resolveMatchQueueLabel(
-    visualQueuePosition ?? match.queue_position ?? match.scheduled_slot ?? null,
-  );
+  const queueLabel = resolveDisplayedMatchQueueLabel(match, visualQueuePosition);
 
   if (!scheduledDateValue) {
     return queueLabel;
@@ -1802,86 +1746,16 @@ export function AdminMatches({
 
         return true;
       })
-      .sort((firstMatch, secondMatch) => {
-        const statusOrderDifference = MATCH_STATUS_SORT_ORDER[firstMatch.status] - MATCH_STATUS_SORT_ORDER[secondMatch.status];
-
-        if (statusOrderDifference != 0) {
-          return statusOrderDifference;
-        }
-
-        if (firstMatch.status == MatchStatus.SCHEDULED && secondMatch.status == MatchStatus.SCHEDULED) {
-          const firstScheduledDate = resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
-          const secondScheduledDate = resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
-
-          if (firstScheduledDate != secondScheduledDate) {
-            return firstScheduledDate.localeCompare(secondScheduledDate);
-          }
-
-          const estimatedStartTimeDifference =
-            resolveEstimatedStartTimeSortValue(estimatedStartTimeByMatchId[firstMatch.id]) -
-            resolveEstimatedStartTimeSortValue(estimatedStartTimeByMatchId[secondMatch.id]);
-
-          if (estimatedStartTimeDifference != 0) {
-            return estimatedStartTimeDifference;
-          }
-
-          const slotDifference =
-            resolveMatchDisplaySlotValue(firstMatch, shouldUseScheduledSlotInMatchList) -
-            resolveMatchDisplaySlotValue(secondMatch, shouldUseScheduledSlotInMatchList);
-
-          if (slotDifference != 0) {
-            return slotDifference;
-          }
-
-          const locationAndCourtDifference = resolveMatchLocationAndCourtSortDifference(firstMatch, secondMatch);
-
-          if (locationAndCourtDifference != 0) {
-            return locationAndCourtDifference;
-          }
-
-          return firstMatch.created_at.localeCompare(secondMatch.created_at);
-        }
-
-        if (firstMatch.status == MatchStatus.FINISHED && secondMatch.status == MatchStatus.FINISHED) {
-          const firstScheduledDate = resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
-          const secondScheduledDate = resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
-
-          if (firstScheduledDate != secondScheduledDate) {
-            return firstScheduledDate.localeCompare(secondScheduledDate);
-          }
-
-          const slotDifference =
-            resolveMatchDisplaySlotValue(firstMatch, shouldUseScheduledSlotInMatchList) -
-            resolveMatchDisplaySlotValue(secondMatch, shouldUseScheduledSlotInMatchList);
-
-          if (slotDifference != 0) {
-            return slotDifference;
-          }
-
-          const locationAndCourtDifference = resolveMatchLocationAndCourtSortDifference(firstMatch, secondMatch);
-
-          if (locationAndCourtDifference != 0) {
-            return locationAndCourtDifference;
-          }
-
-          if (firstMatch.created_at != secondMatch.created_at) {
-            return firstMatch.created_at.localeCompare(secondMatch.created_at);
-          }
-
-          return firstMatch.id.localeCompare(secondMatch.id);
-        }
-
-        const firstTimestamp = new Date(firstMatch.start_time ?? firstMatch.created_at).getTime();
-        const secondTimestamp = new Date(secondMatch.start_time ?? secondMatch.created_at).getTime();
-
-        return secondTimestamp - firstTimestamp;
-      });
+      .sort((firstMatch, secondMatch) => compareAdminMatchCardOrder(firstMatch, secondMatch, {
+        estimatedStartTimeByMatchId,
+        visualQueuePositionByMatchId,
+      }));
   }, [
     estimatedStartTimeByMatchId,
     matchesCourtFilter,
     matchesFilteredByBaseCriteria,
     matchesLocationFilter,
-    shouldUseScheduledSlotInMatchList,
+    visualQueuePositionByMatchId,
   ]);
 
   useEffect(() => {
@@ -3042,7 +2916,7 @@ export function AdminMatches({
     }
 
     const matchBracketBinding = groupStageMatchBracketBindingByMatchId[match.id];
-    const displaySlot = resolveMatchDisplaySlotValue(match, shouldUseScheduledSlotInMatchList);
+    const displaySlot = resolveDisplayedMatchQueuePosition(match);
     const currentGameSlot = displaySlot === Number.MAX_SAFE_INTEGER ? null : displaySlot;
 
     setEditingMatchId(match.id);
@@ -3320,7 +3194,6 @@ export function AdminMatches({
     if (editingMatchDraft.status != MatchStatus.SCHEDULED) {
       matchUpdatePayload.location = normalizedLocation;
       matchUpdatePayload.scheduled_date = resolvedScheduledDate;
-      matchUpdatePayload.queue_position = resolvedSlotNumber;
       matchUpdatePayload.scheduled_slot = resolvedSlotNumber;
       matchUpdatePayload.court_name = resolvedCourtName;
       matchUpdatePayload.start_time = resolvedStartTime;

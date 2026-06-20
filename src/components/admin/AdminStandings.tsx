@@ -7,7 +7,10 @@ import { useMatches } from "@/hooks/useMatches";
 import { useChampionshipBracketResolvedTieBreakOrders } from "@/hooks/useChampionshipBracketResolvedTieBreakOrders";
 import { useChampionshipCorrectedGroupStandings } from "@/hooks/useChampionshipCorrectedGroupStandings";
 import { useChampionshipBracketHistory } from "@/hooks/useChampionshipBracketHistory";
-import { useChampionshipAwardsRankings } from "@/hooks/useChampionshipAwardsRankings";
+import {
+  compareAwardsRankingGoalScorers,
+  useChampionshipAwardsRankings,
+} from "@/hooks/useChampionshipAwardsRankings";
 import { resolveChampionshipCompetitionPodiums } from "@/lib/championshipPodium";
 import {
   applyOfficialThirdPlacementToStandings,
@@ -567,16 +570,9 @@ export function AdminStandings({
 
                 const groupScorers = [...awardsRankings.top_scorers]
                   .filter((s) => s.naipe === naipe && (s.division ?? "NULL") === (groupDivision ?? "NULL"))
-                  .sort((a, b) => {
-                    const goalsDiff = b.goals - a.goals;
-                    if (goalsDiff !== 0) return goalsDiff;
-                    // Empate nos gols: vencedor do sorteio aparece primeiro
-                    const aIsWinner = scorerDrawResult?.winner_player_id === a.player_id;
-                    const bIsWinner = scorerDrawResult?.winner_player_id === b.player_id;
-                    if (aIsWinner && !bIsWinner) return -1;
-                    if (!aIsWinner && bIsWinner) return 1;
-                    return a.player_name.localeCompare(b.player_name);
-                  })
+                  .sort((a, b) => compareAwardsRankingGoalScorers(a, b, {
+                    drawWinnerPlayerId: scorerDrawResult?.winner_player_id ?? null,
+                  }))
                   .slice(0, 3);
 
                 const groupBestDefenses = [...awardsRankings.best_defenses]
@@ -623,10 +619,13 @@ export function AdminStandings({
                         ) : (
                           <ol className="space-y-1.5">
                             {(() => {
-                              const winnerScorerGoals = groupScorers.find((s) => s.player_id === scorerDrawResult?.winner_player_id)?.goals;
+                              const winnerScorer = groupScorers.find((scorer) => scorer.player_id === scorerDrawResult?.winner_player_id) ?? null;
                               return groupScorers.map((scorer, i) => {
                                 const isDrawWinner = scorerDrawResult?.winner_player_id === scorer.player_id;
-                                const isInDraw = !!scorerDrawResult && winnerScorerGoals !== undefined && scorer.goals === winnerScorerGoals;
+                                const isInDraw = !!scorerDrawResult &&
+                                  winnerScorer != null &&
+                                  scorer.goals === winnerScorer.goals &&
+                                  scorer.team_advancement_rank === winnerScorer.team_advancement_rank;
                                 return (
                                   <li key={`${scorer.player_id}:${scorer.naipe}:${scorer.division ?? "NULL"}`} className="flex items-center gap-2 text-sm">
                                     <span className="flex min-w-0 flex-1 items-center gap-2">
