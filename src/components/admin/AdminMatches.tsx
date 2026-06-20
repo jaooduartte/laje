@@ -480,6 +480,34 @@ function resolveScheduledDateDraftValue(match: Match): Date | null {
   return new Date(`${scheduledDateValue}T12:00:00`);
 }
 
+function resolveInitialEditingMatchDraft(match: Match, selectedGroupOptionValue: string): MatchEditDraft {
+  const displaySlot = resolveDisplayedMatchQueuePosition(match);
+  const currentGameSlot = displaySlot === Number.MAX_SAFE_INTEGER ? null : displaySlot;
+
+  return {
+    sportId: match.sport_id,
+    homeTeamId: match.home_team_id,
+    awayTeamId: match.away_team_id,
+    homeScore: match.home_score,
+    awayScore: match.away_score,
+    homeYellowCards: match.home_yellow_cards ?? 0,
+    homeRedCards: match.home_red_cards ?? 0,
+    awayYellowCards: match.away_yellow_cards ?? 0,
+    awayRedCards: match.away_red_cards ?? 0,
+    location: match.location,
+    courtName: match.court_name ?? "",
+    scheduledDate: resolveScheduledDateDraftValue(match),
+    startTime: match.start_time ? new Date(match.start_time) : null,
+    gameSlot: currentGameSlot == null ? "" : String(currentGameSlot),
+    manualRepresentationMode: match.manual_representation_mode ?? MatchManualRepresentationMode.AUTO,
+    division: match.division ?? TeamDivision.DIVISAO_PRINCIPAL,
+    naipe: match.naipe,
+    status: match.status,
+    selectedGroupOptionValue,
+    resolvedTieBreakerRule: match.resolved_tie_breaker_rule ?? "",
+  };
+}
+
 function resolveScheduledQueueSummary(
   match: Match & { scheduled_slot?: number | null },
   visualQueuePosition: number | undefined,
@@ -1011,6 +1039,14 @@ export function AdminMatches({
       return null;
     }
 
+    if (editingMatchDraft.gameSlot) {
+      const matchedByGameNumber = editingAvailableScheduleSlots.find((slot) => String(slot.slot_number) == editingMatchDraft.gameSlot);
+
+      if (matchedByGameNumber) {
+        return matchedByGameNumber;
+      }
+    }
+
     const currentStartTimeValue = editingMatchDraft.startTime?.toISOString() ?? null;
 
     if (currentStartTimeValue) {
@@ -1019,10 +1055,6 @@ export function AdminMatches({
       if (matchedByTime) {
         return matchedByTime;
       }
-    }
-
-    if (editingMatchDraft.gameSlot) {
-      return editingAvailableScheduleSlots.find((slot) => String(slot.slot_number) == editingMatchDraft.gameSlot) ?? null;
     }
 
     return editingAvailableScheduleSlots.find((slot) => slot.is_current_slot) ?? null;
@@ -1265,9 +1297,22 @@ export function AdminMatches({
         }
 
         const currentStartTimeValue = currentDraft.startTime?.toISOString() ?? null;
+
+        if (currentDraft.gameSlot && currentStartTimeValue) {
+          return currentDraft;
+        }
+
+        const matchedSlotByGameNumber = currentDraft.gameSlot
+          ? data.find((slot) => String(slot.slot_number) == currentDraft.gameSlot) ?? null
+          : null;
+
+        if (currentDraft.gameSlot && !matchedSlotByGameNumber) {
+          return currentDraft;
+        }
+
         const matchedSlot =
+          matchedSlotByGameNumber ??
           (currentStartTimeValue ? data.find((slot) => slot.start_time == currentStartTimeValue) : null) ??
-          (currentDraft.gameSlot ? data.find((slot) => String(slot.slot_number) == currentDraft.gameSlot) : null) ??
           data.find((slot) => slot.is_current_slot) ??
           data[0] ??
           null;
@@ -2923,32 +2968,13 @@ export function AdminMatches({
     }
 
     const matchBracketBinding = groupStageMatchBracketBindingByMatchId[match.id];
-    const displaySlot = resolveDisplayedMatchQueuePosition(match);
-    const currentGameSlot = displaySlot === Number.MAX_SAFE_INTEGER ? null : displaySlot;
-
     setEditingMatchId(match.id);
-    setEditingMatchDraft({
-      sportId: match.sport_id,
-      homeTeamId: match.home_team_id,
-      awayTeamId: match.away_team_id,
-      homeScore: match.home_score,
-      awayScore: match.away_score,
-      homeYellowCards: match.home_yellow_cards ?? 0,
-      homeRedCards: match.home_red_cards ?? 0,
-      awayYellowCards: match.away_yellow_cards ?? 0,
-      awayRedCards: match.away_red_cards ?? 0,
-      location: match.location,
-      courtName: match.court_name ?? "",
-      scheduledDate: resolveScheduledDateDraftValue(match),
-      startTime: match.start_time ? new Date(match.start_time) : null,
-      gameSlot: currentGameSlot == null ? "" : String(currentGameSlot),
-      manualRepresentationMode: match.manual_representation_mode ?? MatchManualRepresentationMode.AUTO,
-      division: match.division ?? TeamDivision.DIVISAO_PRINCIPAL,
-      naipe: match.naipe,
-      status: match.status,
-      selectedGroupOptionValue: matchBracketBinding ? `${matchBracketBinding.competition_id}:${matchBracketBinding.group_id}` : "",
-      resolvedTieBreakerRule: match.resolved_tie_breaker_rule ?? "",
-    });
+    setEditingMatchDraft(
+      resolveInitialEditingMatchDraft(
+        match,
+        matchBracketBinding ? `${matchBracketBinding.competition_id}:${matchBracketBinding.group_id}` : "",
+      ),
+    );
     setEditingMatchSetsDraft(resolveRecordedMatchSets(match));
   };
 
@@ -3030,17 +3056,32 @@ export function AdminMatches({
       return;
     }
 
-    if (!editingMatchDraft.startTime || !selectedEditingScheduleSlot) {
-      toast.error("Selecione um horário disponível para o jogo.");
-      return;
-    }
-
     if (editingMatchBracketBinding && !selectedEditingGroupOption) {
       toast.error("Selecione o grupo do jogo antes de salvar.");
       return;
     }
 
     const editingMatch = matches.find((match) => match.id == editingMatchId) ?? null;
+    const originalEditingDraft = editingMatch
+      ? resolveInitialEditingMatchDraft(editingMatch, editingMatchDraft.selectedGroupOptionValue)
+      : null;
+    const didChangeOperationalFields =
+      normalizedLocation != (originalEditingDraft?.location ?? "") ||
+      normalizedCourtName != (originalEditingDraft?.courtName ?? "") ||
+      (editingMatchDraft.sportId ?? "") != (originalEditingDraft?.sportId ?? "") ||
+      editingMatchDraft.naipe != (originalEditingDraft?.naipe ?? editingMatchDraft.naipe) ||
+      (editingMatchDraft.homeTeamId ?? "") != (originalEditingDraft?.homeTeamId ?? "") ||
+      (editingMatchDraft.awayTeamId ?? "") != (originalEditingDraft?.awayTeamId ?? "") ||
+      resolveDateOnlyString(editingMatchDraft.scheduledDate) != resolveDateOnlyString(originalEditingDraft?.scheduledDate) ||
+      (editingMatchDraft.startTime?.toISOString() ?? null) != (originalEditingDraft?.startTime?.toISOString() ?? null) ||
+      editingMatchDraft.gameSlot != (originalEditingDraft?.gameSlot ?? "");
+    const requiresAvailableScheduleSlot =
+      editingMatchDraft.status == MatchStatus.SCHEDULED || didChangeOperationalFields;
+
+    if (!editingMatchDraft.startTime || (requiresAvailableScheduleSlot && !selectedEditingScheduleSlot)) {
+      toast.error("Selecione um horário disponível para o jogo.");
+      return;
+    }
 
     if (
       editingMatch?.is_score_sheet_reviewed &&
@@ -3127,6 +3168,8 @@ export function AdminMatches({
     const shouldSyncMatchSets = isEditingSetRuleBySelectedSport || resolveRecordedMatchSets(editingMatch ?? { match_sets: [] }).length > 0;
     const shouldResetFinishedMatchToScheduled =
       editingMatchDraft.status == MatchStatus.SCHEDULED && editingMatch?.status == MatchStatus.FINISHED;
+    const shouldTransitionMatchToLive =
+      editingMatchDraft.status == MatchStatus.LIVE && editingMatch?.status != MatchStatus.LIVE;
     const shouldReopenFinishedMatchAsLive =
       editingMatchDraft.status == MatchStatus.LIVE && editingMatch?.status == MatchStatus.FINISHED;
     const shouldPreserveTieBreakResolution = editingMatchDraft.status == MatchStatus.FINISHED;
@@ -3148,11 +3191,11 @@ export function AdminMatches({
     const resolvedStartTime = shouldResetFinishedMatchToScheduled
       ? null
       : (shouldReopenFinishedMatchAsLive ? (editingMatch?.start_time ?? new Date().toISOString()) : (editingMatchDraft.startTime?.toISOString() ?? null));
-    const resolvedEndTime = shouldResetFinishedMatchToScheduled || shouldReopenFinishedMatchAsLive ? null : editingMatch?.end_time ?? null;
+    const resolvedEndTime = shouldResetFinishedMatchToScheduled || shouldTransitionMatchToLive ? null : editingMatch?.end_time ?? null;
     const resolvedScheduledDate = resolveDateOnlyString(editingMatchDraft.scheduledDate);
     const resolvedDivision = championshipUsesDivisions ? editingMatchDraft.division : null;
     const resolvedCourtName = normalizedCourtName;
-    const resolvedSlotNumber = selectedEditingScheduleSlot.slot_number;
+    const resolvedSlotNumber = selectedEditingScheduleSlot?.slot_number ?? null;
     const resolvedCurrentSetHomeScore = shouldResetFinishedMatchToScheduled ? null : editingMatch?.current_set_home_score ?? null;
     const resolvedCurrentSetAwayScore = shouldResetFinishedMatchToScheduled ? null : editingMatch?.current_set_away_score ?? null;
 
@@ -3198,13 +3241,21 @@ export function AdminMatches({
       division: resolvedDivision,
     };
 
-    if (editingMatchDraft.status != MatchStatus.SCHEDULED) {
+    if (
+      editingMatchDraft.status != MatchStatus.SCHEDULED &&
+      (didChangeOperationalFields || shouldResetFinishedMatchToScheduled || shouldReopenFinishedMatchAsLive)
+    ) {
       matchUpdatePayload.location = normalizedLocation;
       matchUpdatePayload.scheduled_date = resolvedScheduledDate;
-      matchUpdatePayload.scheduled_slot = resolvedSlotNumber;
+      if (resolvedSlotNumber != null) {
+        matchUpdatePayload.scheduled_slot = resolvedSlotNumber;
+      }
       matchUpdatePayload.court_name = resolvedCourtName;
       matchUpdatePayload.start_time = resolvedStartTime;
       matchUpdatePayload.end_time = resolvedEndTime;
+    } else if (shouldTransitionMatchToLive) {
+      matchUpdatePayload.start_time = resolvedStartTime;
+      matchUpdatePayload.end_time = null;
     }
 
     const { error } = await supabase
@@ -5473,8 +5524,10 @@ export function AdminMatches({
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">Número do jogo</p>
                     <div className="app-input-field-disabled flex h-10 items-center rounded-xl px-3 text-sm">
-                      {selectedEditingScheduleSlot
-                        ? resolveMatchQueueLabel(selectedEditingScheduleSlot.slot_number)
+                      {editingMatchDraft.gameSlot
+                        ? resolveMatchQueueLabel(Number(editingMatchDraft.gameSlot))
+                        : selectedEditingScheduleSlot
+                          ? resolveMatchQueueLabel(selectedEditingScheduleSlot.slot_number)
                         : "Selecione um horário"}
                     </div>
                   </div>

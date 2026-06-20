@@ -633,6 +633,62 @@ describe("resolveVisualQueuePositionByMatchId", () => {
     expect(visualQueuePositionByMatchId["court-a-game-4"]).toBe(3);
     expect(visualQueuePositionByMatchId["court-a-game-3"]).toBe(4);
   });
+
+  it("mantém a posição visual pelo slot quando o jogo já foi iniciado", () => {
+    const previousMatches = Array.from({ length: 7 }, (_, matchIndex) =>
+      buildMatch({
+        id: `court-a-finished-game-${matchIndex + 1}`,
+        status: MatchStatus.FINISHED,
+        scheduled_date: "2026-03-20",
+        scheduled_slot: matchIndex + 1,
+        queue_position: matchIndex + 1,
+        start_time: `2026-03-20T${String(10 + Math.floor(matchIndex / 6)).padStart(2, "0")}:${String((matchIndex % 6) * 10).padStart(2, "0")}:00.000Z`,
+        location: "Arena Seven",
+        court_name: "Quadra A",
+      }),
+    );
+    const liveMatch = buildMatch({
+      id: "court-a-live-game-8",
+      status: MatchStatus.LIVE,
+      scheduled_date: "2026-03-20",
+      scheduled_slot: 8,
+      queue_position: 8,
+      start_time: "2026-03-20T20:29:00.000Z",
+      location: "Arena Seven",
+      court_name: "Quadra A",
+    });
+    const nextScheduledMatch = buildMatch({
+      id: "court-a-scheduled-game-9",
+      status: MatchStatus.SCHEDULED,
+      scheduled_date: "2026-03-20",
+      scheduled_slot: 9,
+      queue_position: 9,
+      start_time: "2026-03-20T17:20:00.000Z",
+      location: "Arena Seven",
+      court_name: "Quadra A",
+    });
+    const lastScheduledMatch = buildMatch({
+      id: "court-a-scheduled-game-10",
+      status: MatchStatus.SCHEDULED,
+      scheduled_date: "2026-03-20",
+      scheduled_slot: 10,
+      queue_position: 10,
+      start_time: "2026-03-20T18:00:00.000Z",
+      location: "Arena Seven",
+      court_name: "Quadra A",
+    });
+
+    const visualQueuePositionByMatchId = resolveVisualQueuePositionByMatchId([
+      ...previousMatches,
+      lastScheduledMatch,
+      nextScheduledMatch,
+      liveMatch,
+    ]);
+
+    expect(visualQueuePositionByMatchId["court-a-live-game-8"]).toBe(8);
+    expect(visualQueuePositionByMatchId["court-a-scheduled-game-9"]).toBe(9);
+    expect(visualQueuePositionByMatchId["court-a-scheduled-game-10"]).toBe(10);
+  });
 });
 
 describe("resolveMatchStartedAtLabel", () => {

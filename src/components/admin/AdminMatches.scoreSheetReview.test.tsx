@@ -1094,12 +1094,103 @@ describe("AdminMatches score sheet review", () => {
     });
 
     expect(supabaseUpdateCalls[0].payload).not.toHaveProperty("queue_position");
-    expect(supabaseUpdateCalls[0].payload).toMatchObject({
-      scheduled_slot: 1,
-    });
+    expect(supabaseUpdateCalls[0].payload).not.toHaveProperty("scheduled_slot");
     expect(supabaseUpdateCalls[0].payload).toMatchObject({
       is_score_sheet_reviewed: false,
     });
+  });
+
+  it("preserva o número legado da fila ao editar apenas o placar de um jogo encerrado", async () => {
+    listEditableMatchScheduleSlotsMock.mockResolvedValue({
+      data: buildEditableScheduleSlots("2026-04-11", 1),
+      error: null,
+    });
+
+    renderAdminMatches({
+      viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
+      matches: [
+        buildMatch({
+          id: "finished-queue-legacy-match",
+          sport_id: "sport-1",
+          status: MatchStatus.FINISHED,
+          court_name: "Quadra B",
+          start_time: "2026-04-11T08:00:00.000Z",
+          queue_position: 6,
+          scheduled_slot: null,
+          home_team: buildTeam({ id: "team-finished-queue-home", name: "AFA" }),
+          away_team: buildTeam({ id: "team-finished-queue-away", name: "AAJ" }),
+        }),
+      ],
+    });
+
+    fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo AFA x AAJ"));
+    const matchCardContainer = getMatchCardContainerByTeamName("AFA");
+    clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
+
+    expect(await screen.findByText("Jogo 6")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Placar do mandante" }), {
+      target: { value: "5" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
+
+    await waitFor(() => {
+      expect(supabaseUpdateCalls.length).toBeGreaterThan(0);
+    });
+
+    expect(supabaseUpdateCalls[0].payload).toMatchObject({
+      home_score: 5,
+      status: MatchStatus.FINISHED,
+      manual_representation_mode: MatchManualRepresentationMode.AUTO,
+    });
+    expect(supabaseUpdateCalls[0].payload).not.toHaveProperty("scheduled_slot");
+    expect(supabaseUpdateCalls[0].payload).not.toHaveProperty("location");
+    expect(supabaseUpdateCalls[0].payload).not.toHaveProperty("scheduled_date");
+  });
+
+  it("limpa o horário final herdado ao iniciar um jogo agendado", async () => {
+    listEditableMatchScheduleSlotsMock.mockResolvedValue({
+      data: buildEditableScheduleSlots("2026-04-11", 2),
+      error: null,
+    });
+
+    renderAdminMatches({
+      matches: [
+        buildMatch({
+          id: "scheduled-live-transition-match",
+          sport_id: "sport-1",
+          status: MatchStatus.SCHEDULED,
+          court_name: "Quadra C",
+          start_time: "2026-04-11T08:40:00.000Z",
+          end_time: "2026-04-11T08:00:00.000Z",
+          scheduled_slot: 2,
+          home_team: buildTeam({ id: "team-live-transition-home", name: "ACATO" }),
+          away_team: buildTeam({ id: "team-live-transition-away", name: "SOBERANOS" }),
+        }),
+      ],
+    });
+
+    fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo ACATO x SOBERANOS"));
+    const matchCardContainer = getMatchCardContainerByTeamName("ACATO");
+    clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Status do jogo" }));
+    fireEvent.click(await screen.findByText("Ao vivo"));
+    fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
+
+    await waitFor(() => {
+      expect(supabaseUpdateCalls.length).toBeGreaterThan(0);
+    });
+
+    expect(supabaseUpdateCalls[0].payload).toMatchObject({
+      status: MatchStatus.LIVE,
+      start_time: "2026-04-11T08:40:00.000Z",
+      end_time: null,
+    });
+    expect(supabaseUpdateCalls[0].payload).not.toHaveProperty("scheduled_slot");
+    expect(supabaseUpdateCalls[0].payload).not.toHaveProperty("location");
+    expect(supabaseUpdateCalls[0].payload).not.toHaveProperty("scheduled_date");
   });
 
   it("exige preencher autores dos gols antes de salvar a revisão", async () => {

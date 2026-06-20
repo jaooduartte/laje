@@ -1447,6 +1447,7 @@ export function AdminMatchControl({
       .update({
         status: MatchStatus.LIVE,
         start_time: new Date().toISOString(),
+        end_time: null,
         is_walkover: false,
         walkover_loser_team_id: null,
       })

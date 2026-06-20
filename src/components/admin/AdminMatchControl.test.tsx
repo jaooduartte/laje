@@ -335,6 +335,8 @@ describe("AdminMatchControl", () => {
       id: "scheduled-match",
       sport_id: "sport-points",
       status: MatchStatus.SCHEDULED,
+      start_time: "2026-04-11T10:00:00.000Z",
+      end_time: "2026-04-11T09:40:00.000Z",
     });
     const championshipSport = buildChampionshipSport({
       id: "championship-sport-points",
@@ -355,6 +357,7 @@ describe("AdminMatchControl", () => {
     expect(supabaseUpdateCalls[0]?.value).toBe("scheduled-match");
     expect(supabaseUpdateCalls[0]?.payload.status).toBe(MatchStatus.LIVE);
     expect(typeof supabaseUpdateCalls[0]?.payload.start_time).toBe("string");
+    expect(supabaseUpdateCalls[0]?.payload.end_time).toBeNull();
     expect(toastSuccessMock).toHaveBeenCalledWith("Jogo iniciado!");
     expect(onRefetch).toHaveBeenCalledTimes(1);
     expect(onRefetchChampionshipBracket).toHaveBeenCalledTimes(1);

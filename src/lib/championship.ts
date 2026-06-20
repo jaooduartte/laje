@@ -392,19 +392,25 @@ function compareMatchVisualCourtOrder(
     return firstScheduledDate.localeCompare(secondScheduledDate);
   }
 
-  const firstVisualTimeSortValue = resolveMatchVisualCourtTimeSortValue(firstMatch, estimatedStartTimeByMatchId);
-  const secondVisualTimeSortValue = resolveMatchVisualCourtTimeSortValue(secondMatch, estimatedStartTimeByMatchId);
+  if (firstMatch.status == MatchStatus.SCHEDULED && secondMatch.status == MatchStatus.SCHEDULED) {
+    const firstVisualTimeSortValue = resolveMatchVisualCourtTimeSortValue(firstMatch, estimatedStartTimeByMatchId);
+    const secondVisualTimeSortValue = resolveMatchVisualCourtTimeSortValue(secondMatch, estimatedStartTimeByMatchId);
 
-  if (firstVisualTimeSortValue != null && secondVisualTimeSortValue != null && firstVisualTimeSortValue != secondVisualTimeSortValue) {
-    return firstVisualTimeSortValue - secondVisualTimeSortValue;
-  }
+    if (
+      firstVisualTimeSortValue != null &&
+      secondVisualTimeSortValue != null &&
+      firstVisualTimeSortValue != secondVisualTimeSortValue
+    ) {
+      return firstVisualTimeSortValue - secondVisualTimeSortValue;
+    }
 
-  if (firstVisualTimeSortValue != null && secondVisualTimeSortValue == null) {
-    return -1;
-  }
+    if (firstVisualTimeSortValue != null && secondVisualTimeSortValue == null) {
+      return -1;
+    }
 
-  if (firstVisualTimeSortValue == null && secondVisualTimeSortValue != null) {
-    return 1;
+    if (firstVisualTimeSortValue == null && secondVisualTimeSortValue != null) {
+      return 1;
+    }
   }
 
   const slotDifference = resolveMatchDisplaySlotValue(firstMatch) - resolveMatchDisplaySlotValue(secondMatch);
