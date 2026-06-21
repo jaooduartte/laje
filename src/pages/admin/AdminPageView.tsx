@@ -20,7 +20,7 @@ import { AdminChampionshipSchedule } from "@/components/admin/AdminChampionshipS
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AdminPanelTab, BracketEditionStatus, ChampionshipCode, ChampionshipStatus } from "@/lib/enums";
+import { AdminPanelTab, BracketEditionStatus, ChampionshipCode, ChampionshipStatus, MatchStatus } from "@/lib/enums";
 import type { MatchBracketContext } from "@/lib/championship";
 import type { AwardDrawPendingContext } from "@/hooks/usePendingAwardDraws";
 import { CHAMPIONSHIP_STATUS_LABELS } from "@/lib/championship";
@@ -183,6 +183,11 @@ export function AdminPageView({
   refetchPendingAwardDraws = () => {},
 }: AdminPageViewProps) {
   const totalSorteiosCount = pendingTieBreaksCount + pendingAwardDrawContexts.length;
+  const pendingScoreSheetReviewCount = useMemo(() => {
+    return matches.filter((match) => {
+      return match.status == MatchStatus.FINISHED && !match.is_score_sheet_reviewed;
+    }).length;
+  }, [matches]);
 
   const adminTabItems = useMemo(() => {
     const nextAdminTabItems: AdminTabItem[] = [];
@@ -474,6 +479,11 @@ export function AdminPageView({
                 {adminTabItem.value === AdminPanelTab.CONTROL && liveMatchesCount > 0 && (
                   <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground shadow-sm">
                     {liveMatchesCount}
+                  </span>
+                )}
+                {adminTabItem.value === SCORE_SHEET_REVIEW_TAB_VALUE && pendingScoreSheetReviewCount > 0 && (
+                  <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground shadow-sm">
+                    {pendingScoreSheetReviewCount}
                   </span>
                 )}
                 {adminTabItem.value === TIE_BREAKS_TAB_VALUE && totalSorteiosCount > 0 && (

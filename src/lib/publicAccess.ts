@@ -9,6 +9,7 @@ export const DEFAULT_PUBLIC_ACCESS_SETTINGS: PublicAccessSettings = {
   is_league_calendar_page_blocked: false,
   is_links_page_blocked: false,
   blocked_message: null,
+  announcement_message: null,
   updated_at: null,
 };
 

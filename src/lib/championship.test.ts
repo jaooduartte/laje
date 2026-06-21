@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { MatchManualRepresentationMode, MatchNaipe, MatchStatus, TeamDivision } from "@/lib/enums";
+import { BracketThirdPlaceMode, MatchManualRepresentationMode, MatchNaipe, MatchStatus, TeamDivision } from "@/lib/enums";
 import {
   compareAdminMatchCardOrder,
   resolveDisplayedMatchQueueLabel,
   resolveDisplayedMatchQueuePosition,
   resolveEstimatedStartTimeByMatchId,
   resolveInterleavedScheduledMatchesByCompetition,
+  resolveMatchBracketContextByMatchId,
   resolveOrderedScheduledMatchesByVisualTime,
   resolveOrderedScheduledMatches,
   resolveMatchRepresentationByMatchId,
@@ -14,7 +15,7 @@ import {
   type MatchEstimatedStartTimeBracketEdition,
   type MatchEstimatedStartTimeChampionshipSport,
 } from "@/lib/championship";
-import type { Match } from "@/lib/types";
+import type { ChampionshipBracketView, Match } from "@/lib/types";
 
 function buildMatch(overrides: Partial<Match> & Pick<Match, "id">): Match {
   return {
@@ -284,7 +285,7 @@ describe("resolveMatchRepresentationByMatchId", () => {
     expect(representationByMatchId["court-a-override-current"]).toBe("CO");
   });
 
-  it("usa CO quando o jogo anterior da quadra tem a mesma atlética do jogo atual", () => {
+  it("mantém a representação do último jogo da quadra mesmo quando há atlética repetida", () => {
     const previousMatch = buildMatch({
       id: "court-a-game-previous",
       scheduled_date: "2026-03-21",
@@ -311,7 +312,7 @@ describe("resolveMatchRepresentationByMatchId", () => {
     const representationByMatchId = resolveMatchRepresentationByMatchId([currentMatch, previousMatch]);
 
     expect(representationByMatchId["court-a-game-previous"]).toBe("CO");
-    expect(representationByMatchId["court-a-game-current"]).toBe("CO");
+    expect(representationByMatchId["court-a-game-current"]).toBe("Alpha x Beta");
   });
 
   it("usa o contexto completo da quadra quando a lista visível está filtrada", () => {
@@ -407,6 +408,89 @@ describe("resolveMatchRepresentationByMatchId", () => {
   });
 });
 
+describe("resolveMatchBracketContextByMatchId", () => {
+  it("mantém o badge de semifinal quando a chave projetada tem 4 vagas e só a primeira rodada foi materializada", () => {
+    const championshipBracketView: ChampionshipBracketView = {
+      edition: null,
+      competitions: [
+        {
+          id: "competition-feminino-acesso",
+          sport_id: "sport-society",
+          sport_name: "Futebol Society",
+          naipe: MatchNaipe.FEMININO,
+          division: TeamDivision.DIVISAO_ACESSO,
+          groups_count: 2,
+          qualifiers_per_group: 1,
+          should_complete_knockout_with_best_second_placed_teams: true,
+          third_place_mode: BracketThirdPlaceMode.NONE,
+          groups: [],
+          knockout_matches: [
+            {
+              id: "semi-1",
+              round_number: 1,
+              slot_number: 1,
+              match_id: "match-semi-1",
+              status: MatchStatus.SCHEDULED,
+              scheduled_date: "2026-06-21",
+              queue_position: 22,
+              scheduled_slot: 7,
+              start_time: "2026-06-21 13:00:00+00",
+              end_time: "2026-06-21 13:40:00+00",
+              location: "Arena Seven",
+              court_name: "Quadra B",
+              home_team_id: "team-1",
+              away_team_id: "team-4",
+              home_team_name: "AFA",
+              away_team_name: "SOBERANOS",
+              winner_team_id: null,
+              winner_team_name: null,
+              is_bye: false,
+              is_third_place: false,
+            },
+            {
+              id: "semi-2",
+              round_number: 1,
+              slot_number: 2,
+              match_id: "match-semi-2",
+              status: MatchStatus.SCHEDULED,
+              scheduled_date: "2026-06-21",
+              queue_position: 23,
+              scheduled_slot: 8,
+              start_time: "2026-06-21 13:40:00+00",
+              end_time: "2026-06-21 14:20:00+00",
+              location: "Arena Seven",
+              court_name: "Quadra B",
+              home_team_id: "team-2",
+              away_team_id: "team-3",
+              home_team_name: "AGUA",
+              away_team_name: "AMEN",
+              winner_team_id: null,
+              winner_team_name: null,
+              is_bye: false,
+              is_third_place: false,
+            },
+          ],
+        },
+      ],
+    };
+
+    const bracketContextByMatchId = resolveMatchBracketContextByMatchId(championshipBracketView, 2026);
+
+    expect(bracketContextByMatchId["match-semi-1"]).toMatchObject({
+      badgeLabel: "Semifinal",
+      phase: "KNOCKOUT",
+      seasonYear: 2026,
+      stageLabel: "Futebol Society • Feminino • Divisão de Acesso • 2026 • Semifinal",
+    });
+    expect(bracketContextByMatchId["match-semi-2"]).toMatchObject({
+      badgeLabel: "Semifinal",
+      phase: "KNOCKOUT",
+      seasonYear: 2026,
+      stageLabel: "Futebol Society • Feminino • Divisão de Acesso • 2026 • Semifinal",
+    });
+  });
+});
+
 describe("compareAdminMatchCardOrder", () => {
   it("prioriza o horário estimado e a fila visual para jogos agendados", () => {
     const laterDisplayedMatch = buildMatch({
@@ -447,16 +531,27 @@ describe("compareAdminMatchCardOrder", () => {
 });
 
 describe("resolveDisplayedMatchQueuePosition", () => {
-  it("prioriza visualQueuePosition, depois scheduled_slot e por último queue_position", () => {
+  it("prioriza queue_position da planilha e só usa fila visual como fallback", () => {
     const match = buildMatch({
       id: "displayed-queue-match",
       queue_position: 7,
       scheduled_slot: 1,
     });
 
-    expect(resolveDisplayedMatchQueuePosition(match, 3)).toBe(3);
-    expect(resolveDisplayedMatchQueuePosition(match)).toBe(1);
-    expect(resolveDisplayedMatchQueueLabel(match, 1)).toBe("Jogo 1");
+    expect(resolveDisplayedMatchQueuePosition(match, 3)).toBe(7);
+    expect(resolveDisplayedMatchQueuePosition(match)).toBe(7);
+    expect(resolveDisplayedMatchQueueLabel(match, 1)).toBe("Jogo 7");
+  });
+
+  it("usa a fila visual só quando o jogo ainda não tem queue_position persistido", () => {
+    const match = buildMatch({
+      id: "displayed-queue-fallback-match",
+      scheduled_slot: 4,
+    });
+    match.queue_position = null;
+
+    expect(resolveDisplayedMatchQueuePosition(match, 17)).toBe(17);
+    expect(resolveDisplayedMatchQueuePosition(match)).toBe(4);
   });
 });
 

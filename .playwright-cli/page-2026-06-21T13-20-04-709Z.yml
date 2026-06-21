@@ -1,0 +1,37 @@
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T"
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e6]:
+        - link "Logo LAJE" [ref=e7] [cursor=pointer]:
+          - /url: /
+          - img "Logo LAJE" [ref=e8]
+        - navigation [ref=e9]:
+          - link "Ao Vivo" [ref=e10] [cursor=pointer]:
+            - /url: /ao-vivo
+            - img [ref=e11]
+            - generic [ref=e17]: Ao Vivo
+          - link "Campeonatos" [ref=e18] [cursor=pointer]:
+            - /url: /campeonatos
+            - img [ref=e19]
+            - generic [ref=e25]: Campeonatos
+          - link "Agenda" [ref=e26] [cursor=pointer]:
+            - /url: /agenda
+            - img [ref=e27]
+            - generic [ref=e29]: Agenda
+          - link "Calendário da Liga" [ref=e30] [cursor=pointer]:
+            - /url: /calendario-da-liga
+            - img [ref=e31]
+            - generic [ref=e33]: Calendário da Liga
+          - link "Links" [ref=e34] [cursor=pointer]:
+            - /url: /links
+            - img [ref=e35]
+            - generic [ref=e38]: Links
+          - link "Admin" [ref=e39] [cursor=pointer]:
+            - /url: /admin
+            - img [ref=e40]
+            - generic [ref=e42]: Admin
+    - main [ref=e43]:
+      - img [ref=e45]

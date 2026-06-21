@@ -121,6 +121,16 @@ export function useChampionshipAwardsRankings({ championshipId, seasonYear }: Us
       .on("postgres_changes", { event: "*", schema: "public", table: "championship_award_draw_results" }, () => void fetch())
       .on(
         "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "championship_competition_team_disqualifications",
+          filter: `championship_id=eq.${championshipId}`,
+        },
+        () => void fetch(),
+      )
+      .on(
+        "postgres_changes",
         { event: "UPDATE", schema: "public", table: "matches", filter: `championship_id=eq.${championshipId}` },
         () => void fetch(),
       )

@@ -18,10 +18,20 @@ export function Header() {
   const { user, loading: authLoading } = useAuth();
   const location = useLocation();
   const navRef = useRef<HTMLElement | null>(null);
+  const announcementViewportRef = useRef<HTMLDivElement | null>(null);
+  const announcementTextRef = useRef<HTMLSpanElement | null>(null);
   const linkByPathRef = useRef<Record<string, HTMLAnchorElement | null>>({});
   const [activeIndicatorLeft, setActiveIndicatorLeft] = useState(previousHeaderIndicatorState?.left ?? 0);
   const [activeIndicatorWidth, setActiveIndicatorWidth] = useState(previousHeaderIndicatorState?.width ?? 0);
   const [showActiveIndicator, setShowActiveIndicator] = useState(previousHeaderIndicatorState != null);
+  const [isAnnouncementOverflowing, setIsAnnouncementOverflowing] = useState(false);
+
+  const announcementMessage = useMemo(() => {
+    const normalizedAnnouncementMessage = publicAccessSettings.announcement_message?.trim();
+    return normalizedAnnouncementMessage && normalizedAnnouncementMessage.length > 0
+      ? normalizedAnnouncementMessage
+      : null;
+  }, [publicAccessSettings.announcement_message]);
 
   const activeRoutePath = useMemo(() => {
     return HEADER_APP_NAVIGATION_ITEMS.find((headerLinkItem) => headerLinkItem.routePath == location.pathname)?.routePath ?? null;
@@ -51,19 +61,44 @@ export function Header() {
     setShowActiveIndicator(true);
   }, [activeRoutePath]);
 
+  const updateAnnouncementOverflow = useCallback(() => {
+    if (!announcementMessage || !announcementViewportRef.current || !announcementTextRef.current) {
+      setIsAnnouncementOverflowing(false);
+      return;
+    }
+
+    setIsAnnouncementOverflowing(
+      announcementTextRef.current.scrollWidth > announcementViewportRef.current.clientWidth + 1,
+    );
+  }, [announcementMessage]);
+
   useLayoutEffect(() => {
     const animationFrameId = requestAnimationFrame(updateActiveIndicator);
     return () => cancelAnimationFrame(animationFrameId);
   }, [updateActiveIndicator]);
+
+  useLayoutEffect(() => {
+    const animationFrameId = requestAnimationFrame(updateAnnouncementOverflow);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [updateAnnouncementOverflow]);
 
   useEffect(() => {
     window.addEventListener("resize", updateActiveIndicator);
     return () => window.removeEventListener("resize", updateActiveIndicator);
   }, [updateActiveIndicator]);
 
+  useEffect(() => {
+    if (!announcementMessage) {
+      return;
+    }
+
+    window.addEventListener("resize", updateAnnouncementOverflow);
+    return () => window.removeEventListener("resize", updateAnnouncementOverflow);
+  }, [announcementMessage, updateAnnouncementOverflow]);
+
   return (
     <header className="sticky top-0 z-50">
-      <div className="container py-2">
+      <div className="container space-y-2 py-2">
         <div className="app-header-surface flex h-14 items-center gap-2 px-2 sm:h-16 sm:px-3">
           <Link to={AppRoutePath.HOME} className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg sm:h-14 sm:w-14">
             <img src="/logo.png" alt="Logo LAJE" className="h-10 w-10 object-contain shadow-none sm:h-12 sm:w-12" />
@@ -127,6 +162,34 @@ export function Header() {
             ))}
           </nav>
         </div>
+
+        {announcementMessage ? (
+          <div className="app-announcement-banner app-card-warning enter-item rounded-2xl px-3 py-2" role="status" aria-live="polite">
+            <div
+              ref={announcementViewportRef}
+              className="app-announcement-viewport"
+              data-overflowing={isAnnouncementOverflowing ? "true" : "false"}
+            >
+              {isAnnouncementOverflowing ? (
+                <div className="app-announcement-marquee-track">
+                  <span className="app-announcement-prefix">Aviso:</span>
+                  <span ref={announcementTextRef} className="app-announcement-text">
+                    {announcementMessage}
+                  </span>
+                  <span className="app-announcement-prefix" aria-hidden="true">Aviso:</span>
+                  <span className="app-announcement-text" aria-hidden="true">
+                    {announcementMessage}
+                  </span>
+                </div>
+              ) : (
+                <span ref={announcementTextRef} className="app-announcement-inline">
+                  <span className="app-announcement-prefix">Aviso:</span>
+                  <span className="app-announcement-text">{announcementMessage}</span>
+                </span>
+              )}
+            </div>
+          </div>
+        ) : null}
       </div>
     </header>
   );

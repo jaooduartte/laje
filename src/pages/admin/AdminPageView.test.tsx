@@ -243,6 +243,97 @@ describe("AdminPageView tabs", () => {
     expect(sorteiosTabIndex).toBeGreaterThan(conferenciaTabIndex);
   });
 
+  it("exibe na aba de conferência o total de jogos encerrados ainda não revisados", () => {
+    const championship = buildChampionship();
+    const finishedPendingMatch = {
+      ...buildMatch(),
+      status: MatchStatus.FINISHED,
+    };
+    const reviewedMatch = {
+      ...buildMatch(),
+      id: "match-2",
+      status: MatchStatus.FINISHED,
+      is_score_sheet_reviewed: true,
+    };
+    const scheduledMatch = {
+      ...buildMatch(),
+      id: "match-3",
+      status: MatchStatus.SCHEDULED,
+    };
+
+    render(
+      <AdminPageView
+        championships={[championship]}
+        selectedChampionship={championship}
+        selectedChampionshipCode={championship.code}
+        matches={[finishedPendingMatch, reviewedMatch, scheduledMatch]}
+        matchesTabMatches={[finishedPendingMatch]}
+        teams={[finishedPendingMatch.home_team!, finishedPendingMatch.away_team!]}
+        sports={[finishedPendingMatch.sports!]}
+        championshipSports={[buildChampionshipSport()]}
+        liveAndScheduledMatches={[scheduledMatch]}
+        championshipBracketView={buildBracketView()}
+        matchesTabChampionshipBracketView={buildBracketView()}
+        loadingChampionshipBracket={false}
+        loadingMatchesTabChampionshipBracket={false}
+        matchBracketContextByMatchId={{}}
+        matchesTabMatchBracketContextByMatchId={{}}
+        matchRepresentationByMatchId={{}}
+        matchesTabMatchRepresentationByMatchId={{}}
+        estimatedStartTimeByMatchId={{}}
+        matchesTabEstimatedStartTimeByMatchId={{}}
+        matchesFetching={false}
+        matchesTabFetching={false}
+        availableMatchSeasonYears={[2026]}
+        selectedMatchesSeasonYear={2026}
+        profileName="Admin"
+        canViewMatchesTab
+        canViewControlTab={false}
+        canViewTeamsTab={false}
+        canViewSportsTab={false}
+        canViewEventsTab={false}
+        canViewLinksTab={false}
+        canViewLogsTab={false}
+        canViewUsersTab={false}
+        canViewAccountTab={false}
+        canViewStandingsTab={false}
+        canViewSettingsTab={false}
+        canViewScoreSheetReviewTab
+        canViewTieBreaksTab={false}
+        canViewChampionshipStatus={false}
+        canViewBracketSetupTab={false}
+        canViewScheduleTab={false}
+        canManageSchedule={false}
+        canManageMatches
+        canManageChampionshipStatus={false}
+        canManageScoreboard
+        canManageTeams={false}
+        canManageSports={false}
+        canManageLeagueEvents={false}
+        canManageLinks={false}
+        canManageUsers={false}
+        canManageAccount={false}
+        canManageSettings={false}
+        activeTab={AdminPanelTab.MATCHES}
+        onActiveTabChange={() => undefined}
+        onBracketGenerated={async () => undefined}
+        updatingChampionshipStatus={false}
+        onChampionshipCodeChange={() => undefined}
+        onChampionshipStatusChange={() => undefined}
+        onSelectedMatchesSeasonYearChange={() => undefined}
+        onSignOut={() => undefined}
+        onRefetchMatches={() => undefined}
+        onRefetchChampionshipBracket={() => undefined}
+        onRefetchTeams={() => undefined}
+        liveMatchesCount={0}
+        pendingLeagueEventReservationsCount={0}
+        pendingTieBreaksCount={0}
+      />,
+    );
+
+    expect(screen.getByRole("tab", { name: /Conferência de Súmula/i })).toHaveTextContent("1");
+  });
+
   it("mantém Configurações como última aba mesmo quando Agenda está visível", () => {
     const championship = buildChampionship();
     const match = buildMatch();

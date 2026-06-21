@@ -121,6 +121,16 @@ export function usePendingAwardDraws({ championshipId, seasonYear }: UsePendingA
         {
           event: "*",
           schema: "public",
+          table: "championship_competition_team_disqualifications",
+          filter: `championship_id=eq.${championshipId}`,
+        },
+        scheduleRefetch,
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
           table: "championship_award_draw_results",
           filter: `championship_id=eq.${championshipId}`,
         },

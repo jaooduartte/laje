@@ -104,8 +104,8 @@ import {
   resolveMatchScheduledDateValue,
   resolveMatchSetSummary,
   resolveMatchStartedAtLabel,
+  resolveMatchDisplayStatusLabel,
   resolveMatchStatusBadgeTone,
-  resolveMatchStatusLabel,
   resolveMatchTieBreakRuleLabel,
   resolveKnockoutRoundLabel,
 } from "@/lib/championship";
@@ -127,6 +127,7 @@ import {
 import {
   resolveBracketDayScheduleUpdates,
   resolveMatchScheduleMoveSortValue,
+  resolveShouldRedistributeBracketScheduleAfterMatchEdit,
 } from "@/components/admin/adminMatchesSchedule.utils";
 import { AdminMatchesViewMode } from "@/components/admin/adminMatches.types";
 import { useChampionshipCorrectedGroupStandings } from "@/hooks/useChampionshipCorrectedGroupStandings";
@@ -470,6 +471,26 @@ function resolveNormalizedMatchSetsDraft(matchSetsDraft: MatchSetInput[]): Match
   }));
 }
 
+function areMatchSetInputsEqual(firstMatchSets: MatchSetInput[], secondMatchSets: MatchSetInput[]): boolean {
+  if (firstMatchSets.length != secondMatchSets.length) {
+    return false;
+  }
+
+  return firstMatchSets.every((matchSet, matchSetIndex) => {
+    const secondMatchSet = secondMatchSets[matchSetIndex];
+
+    if (!secondMatchSet) {
+      return false;
+    }
+
+    return (
+      matchSet.set_number == secondMatchSet.set_number &&
+      matchSet.home_points == secondMatchSet.home_points &&
+      matchSet.away_points == secondMatchSet.away_points
+    );
+  });
+}
+
 function resolveScheduledDateDraftValue(match: Match): Date | null {
   const scheduledDateValue = resolveMatchScheduledDateValue(match);
 
@@ -561,6 +582,22 @@ function resolveChampionshipBracketScheduleDays(
   return scheduleDays.filter((scheduleDay): scheduleDay is ChampionshipBracketScheduleDayInput => {
     return typeof scheduleDay == "object" && scheduleDay != null && typeof scheduleDay.date == "string" && Array.isArray(scheduleDay.locations);
   });
+}
+
+function resolveAllowedEditingStatuses(currentStatus: MatchStatus): MatchStatus[] {
+  if (currentStatus == MatchStatus.SCHEDULED) {
+    return [MatchStatus.SCHEDULED, MatchStatus.LIVE];
+  }
+
+  if (currentStatus == MatchStatus.LIVE) {
+    return [MatchStatus.LIVE, MatchStatus.FINISHED];
+  }
+
+  if (currentStatus == MatchStatus.FINISHED) {
+    return [MatchStatus.FINISHED, MatchStatus.LIVE];
+  }
+
+  return [currentStatus];
 }
 
 function resolveSportsByNaipe(championshipSports: ChampionshipSport[], naipe: MatchNaipe): Sport[] {
@@ -1602,6 +1639,16 @@ export function AdminMatches({
     );
   }, [editingMatchDraft, editingMatchGroupOptions]);
 
+  const editingAllowedStatuses = useMemo(() => {
+    if (!editingMatch) {
+      return [];
+    }
+
+    return resolveAllowedEditingStatuses(editingMatch.status);
+  }, [editingMatch]);
+
+  const canEditScheduledMatchSetup = editingMatch?.status == MatchStatus.SCHEDULED && editingMatchDraft?.status == MatchStatus.SCHEDULED;
+
   const eligibleTeamsForEditingMatch = useMemo(() => {
     if (!editingMatchDraft) {
       return teamsAllowedForMatches;
@@ -1719,6 +1766,35 @@ export function AdminMatches({
   const isSavingActiveScoreSheetAwardsContext =
     activeScoreSheetReviewMatchId != null &&
     savingScoreSheetAwardsByMatchId[activeScoreSheetReviewMatchId] == true;
+  const hasIncompleteActiveScoreSheetGoalSelections =
+    !!activeScoreSheetAwardsDraft &&
+    !activeScoreSheetAwardsDraft.isWalkover &&
+    (
+      activeScoreSheetAwardsDraft.homeGoalSelections.some((goalSelection) => goalSelection.scorerId.trim().length == 0) ||
+      activeScoreSheetAwardsDraft.awayGoalSelections.some((goalSelection) => goalSelection.scorerId.trim().length == 0)
+    );
+  const activeScoreSheetGoalSelectionSummary = useMemo(() => {
+    if (!activeScoreSheetAwardsDraft || activeScoreSheetAwardsDraft.isWalkover) {
+      return {
+        totalGoals: 0,
+        filledGoals: 0,
+        pendingGoals: 0,
+      };
+    }
+
+    const allSelections = [
+      ...activeScoreSheetAwardsDraft.homeGoalSelections,
+      ...activeScoreSheetAwardsDraft.awayGoalSelections,
+    ];
+    const totalGoals = allSelections.length;
+    const filledGoals = allSelections.filter((goalSelection) => goalSelection.scorerId.trim().length > 0).length;
+
+    return {
+      totalGoals,
+      filledGoals,
+      pendingGoals: totalGoals - filledGoals,
+    };
+  }, [activeScoreSheetAwardsDraft]);
 
   const eligibleSwapTargetMatchOptions = useMemo(() => {
     if (!pendingSwapSourceMatch) {
@@ -3061,22 +3137,72 @@ export function AdminMatches({
       return;
     }
 
-    const editingMatch = matches.find((match) => match.id == editingMatchId) ?? null;
-    const originalEditingDraft = editingMatch
-      ? resolveInitialEditingMatchDraft(editingMatch, editingMatchDraft.selectedGroupOptionValue)
+    if (!editingMatch) {
+      toast.error("Não foi possível localizar o jogo para editar.");
+      return;
+    }
+
+    const originalSelectedGroupOptionValue = editingMatchBracketBinding
+      ? `${editingMatchBracketBinding.competition_id}:${editingMatchBracketBinding.group_id}`
+      : "";
+    const originalEditingDraft = resolveInitialEditingMatchDraft(
+      editingMatch,
+      originalSelectedGroupOptionValue,
+    );
+    const resolvedScheduledDate = resolveDateOnlyString(editingMatchDraft.scheduledDate);
+    const originalScheduledDate = originalEditingDraft.scheduledDate
+      ? resolveDateOnlyString(originalEditingDraft.scheduledDate)
       : null;
-    const didChangeOperationalFields =
-      normalizedLocation != (originalEditingDraft?.location ?? "") ||
-      normalizedCourtName != (originalEditingDraft?.courtName ?? "") ||
-      (editingMatchDraft.sportId ?? "") != (originalEditingDraft?.sportId ?? "") ||
-      editingMatchDraft.naipe != (originalEditingDraft?.naipe ?? editingMatchDraft.naipe) ||
-      (editingMatchDraft.homeTeamId ?? "") != (originalEditingDraft?.homeTeamId ?? "") ||
-      (editingMatchDraft.awayTeamId ?? "") != (originalEditingDraft?.awayTeamId ?? "") ||
-      resolveDateOnlyString(editingMatchDraft.scheduledDate) != resolveDateOnlyString(originalEditingDraft?.scheduledDate) ||
-      (editingMatchDraft.startTime?.toISOString() ?? null) != (originalEditingDraft?.startTime?.toISOString() ?? null) ||
-      editingMatchDraft.gameSlot != (originalEditingDraft?.gameSlot ?? "");
+    const resolvedStartTimeValue = editingMatchDraft.startTime?.toISOString() ?? null;
+    const originalStartTimeValue = originalEditingDraft.startTime?.toISOString() ?? null;
+    const resolvedDivision = championshipUsesDivisions ? editingMatchDraft.division : null;
+    const originalDivision = championshipUsesDivisions ? originalEditingDraft.division : null;
+    const didChangeLocation = normalizedLocation != (originalEditingDraft.location ?? "");
+    const didChangeCourtName = normalizedCourtName != (originalEditingDraft.courtName ?? "");
+    const didChangeScheduledDate = resolvedScheduledDate != originalScheduledDate;
+    const didChangeStartTime = resolvedStartTimeValue != originalStartTimeValue;
+    const didChangeGameSlot = editingMatchDraft.gameSlot != (originalEditingDraft.gameSlot ?? "");
+    const didChangeRepresentationMode =
+      editingMatchDraft.manualRepresentationMode != originalEditingDraft.manualRepresentationMode;
+    const didChangeLogisticsFields =
+      didChangeLocation ||
+      didChangeCourtName ||
+      didChangeScheduledDate ||
+      didChangeStartTime ||
+      didChangeGameSlot ||
+      didChangeRepresentationMode;
+    const didChangeSport = (editingMatchDraft.sportId ?? "") != (originalEditingDraft.sportId ?? "");
+    const didChangeNaipe = editingMatchDraft.naipe != originalEditingDraft.naipe;
+    const didChangeDivision = resolvedDivision != originalDivision;
+    const didChangeHomeTeam = (editingMatchDraft.homeTeamId ?? "") != (originalEditingDraft.homeTeamId ?? "");
+    const didChangeAwayTeam = (editingMatchDraft.awayTeamId ?? "") != (originalEditingDraft.awayTeamId ?? "");
+    const didChangeGroupBinding =
+      editingMatchDraft.selectedGroupOptionValue != originalSelectedGroupOptionValue;
+    const didChangeStructuralFields =
+      didChangeSport ||
+      didChangeNaipe ||
+      didChangeDivision ||
+      didChangeHomeTeam ||
+      didChangeAwayTeam ||
+      didChangeGroupBinding;
+    const didChangeStatus = editingMatchDraft.status != editingMatch.status;
     const requiresAvailableScheduleSlot =
-      editingMatchDraft.status == MatchStatus.SCHEDULED || didChangeOperationalFields;
+      canEditScheduledMatchSetup && (didChangeLogisticsFields || didChangeStructuralFields);
+
+    if (!editingAllowedStatuses.includes(editingMatchDraft.status)) {
+      toast.error("A transição de status selecionada não é permitida para este jogo.");
+      return;
+    }
+
+    if ((didChangeLogisticsFields || didChangeStructuralFields) && !canEditScheduledMatchSetup) {
+      toast.error("Depois que o jogo sai de agendado, só é possível editar status e resultado.");
+      return;
+    }
+
+    if (editingMatch.status != MatchStatus.SCHEDULED && editingMatchDraft.status == MatchStatus.SCHEDULED) {
+      toast.error("Para voltar ao agendamento, use a ação dedicada no Controle ao Vivo.");
+      return;
+    }
 
     if (!editingMatchDraft.startTime || (requiresAvailableScheduleSlot && !selectedEditingScheduleSlot)) {
       toast.error("Selecione um horário disponível para o jogo.");
@@ -3165,13 +3291,16 @@ export function AdminMatches({
       }
     }
 
-    const shouldSyncMatchSets = isEditingSetRuleBySelectedSport || resolveRecordedMatchSets(editingMatch ?? { match_sets: [] }).length > 0;
-    const shouldResetFinishedMatchToScheduled =
-      editingMatchDraft.status == MatchStatus.SCHEDULED && editingMatch?.status == MatchStatus.FINISHED;
+    const recordedEditingMatchSets = resolveNormalizedMatchSetsDraft(resolveRecordedMatchSets(editingMatch));
+    const didChangeMatchSets = !areMatchSetInputsEqual(normalizedEditingMatchSetsDraft, recordedEditingMatchSets);
+    const shouldSyncMatchSets =
+      didChangeMatchSets || (isEditingSetRuleBySelectedSport && recordedEditingMatchSets.length == 0 && normalizedEditingMatchSetsDraft.length > 0);
     const shouldTransitionMatchToLive =
-      editingMatchDraft.status == MatchStatus.LIVE && editingMatch?.status != MatchStatus.LIVE;
+      editingMatchDraft.status == MatchStatus.LIVE && editingMatch.status == MatchStatus.SCHEDULED;
     const shouldReopenFinishedMatchAsLive =
-      editingMatchDraft.status == MatchStatus.LIVE && editingMatch?.status == MatchStatus.FINISHED;
+      editingMatchDraft.status == MatchStatus.LIVE && editingMatch.status == MatchStatus.FINISHED;
+    const shouldTransitionMatchToFinished =
+      editingMatchDraft.status == MatchStatus.FINISHED && editingMatch.status == MatchStatus.LIVE;
     const shouldPreserveTieBreakResolution = editingMatchDraft.status == MatchStatus.FINISHED;
     const resolvedSetWins = isEditingSetRuleBySelectedSport ? resolveSetWins(normalizedEditingMatchSetsDraft) : null;
     const resolvedHomeScore = resolvedSetWins ? resolvedSetWins.home_sets : resolveSafeScoreValue(editingMatchDraft.homeScore);
@@ -3188,24 +3317,51 @@ export function AdminMatches({
     const resolvedAwayRedCards = isEditingSportWithCardsBySelectedSport
       ? resolveSafeScoreValue(editingMatchDraft.awayRedCards)
       : 0;
-    const resolvedStartTime = shouldResetFinishedMatchToScheduled
-      ? null
-      : (shouldReopenFinishedMatchAsLive ? (editingMatch?.start_time ?? new Date().toISOString()) : (editingMatchDraft.startTime?.toISOString() ?? null));
-    const resolvedEndTime = shouldResetFinishedMatchToScheduled || shouldTransitionMatchToLive ? null : editingMatch?.end_time ?? null;
-    const resolvedScheduledDate = resolveDateOnlyString(editingMatchDraft.scheduledDate);
-    const resolvedDivision = championshipUsesDivisions ? editingMatchDraft.division : null;
+    const didChangeScoreFields =
+      resolvedHomeScore != editingMatch.home_score || resolvedAwayScore != editingMatch.away_score;
+    const didChangeCardFields =
+      resolvedHomeYellowCards != editingMatch.home_yellow_cards ||
+      resolvedHomeRedCards != editingMatch.home_red_cards ||
+      resolvedAwayYellowCards != editingMatch.away_yellow_cards ||
+      resolvedAwayRedCards != editingMatch.away_red_cards;
+    const didChangeTieBreakRule =
+      (editingMatchDraft.resolvedTieBreakerRule || "") != (originalEditingDraft.resolvedTieBreakerRule || "");
+    const resolvedReviewFlag = editingMatchDraft.status == MatchStatus.FINISHED ? shouldKeepScoreSheetReview : false;
+    const didChangeReviewFlag = resolvedReviewFlag != (editingMatch.is_score_sheet_reviewed ?? false);
+    const resolvedTieBreakWinnerTeamId = shouldPreserveTieBreakResolution
+      ? editingMatch.resolved_tie_break_winner_team_id ?? null
+      : null;
     const resolvedCourtName = normalizedCourtName;
-    const resolvedSlotNumber = selectedEditingScheduleSlot?.slot_number ?? null;
-    const resolvedCurrentSetHomeScore = shouldResetFinishedMatchToScheduled ? null : editingMatch?.current_set_home_score ?? null;
-    const resolvedCurrentSetAwayScore = shouldResetFinishedMatchToScheduled ? null : editingMatch?.current_set_away_score ?? null;
+    const resolvedSlotNumber = selectedEditingScheduleSlot?.slot_number ?? editingMatch.scheduled_slot ?? null;
+    const shouldUpdateScheduledMatchSetup = canEditScheduledMatchSetup && (didChangeLogisticsFields || didChangeStructuralFields);
+    const shouldRedistributeScheduledMatch =
+      shouldUpdateScheduledMatchSetup &&
+      resolveShouldRedistributeBracketScheduleAfterMatchEdit({
+        previousMatch: editingMatch,
+        nextMatch: {
+          ...editingMatch,
+          status: MatchStatus.SCHEDULED,
+          scheduled_date: resolvedScheduledDate,
+          queue_position: editingMatch.queue_position,
+          scheduled_slot: resolvedSlotNumber,
+          sport_id: editingMatchDraft.sportId,
+          naipe: editingMatchDraft.naipe,
+          division: resolvedDivision,
+          location: normalizedLocation,
+          court_name: resolvedCourtName,
+          start_time: selectedEditingScheduleSlot?.start_time ?? editingMatch.start_time,
+          home_team_id: editingMatchDraft.homeTeamId,
+          away_team_id: editingMatchDraft.awayTeamId,
+        },
+      });
 
-    if (editingMatchDraft.status == MatchStatus.SCHEDULED) {
+    if (shouldUpdateScheduledMatchSetup) {
       const { error: logisticsUpdateError } = await updateScheduledMatchLogistics({
         match_id: editingMatchId,
         scheduled_date: resolvedScheduledDate,
         location: normalizedLocation,
         court_name: resolvedCourtName,
-        slot_start_time: selectedEditingScheduleSlot.start_time,
+        slot_start_time: selectedEditingScheduleSlot!.start_time,
         representation_mode: editingMatchDraft.manualRepresentationMode,
         sport_id: editingMatchDraft.sportId,
         naipe: editingMatchDraft.naipe,
@@ -3220,53 +3376,88 @@ export function AdminMatches({
       }
     }
 
-    const matchUpdatePayload: Record<string, unknown> = {
-      naipe: editingMatchDraft.naipe,
-      sport_id: editingMatchDraft.sportId,
-      home_team_id: editingMatchDraft.homeTeamId,
-      away_team_id: editingMatchDraft.awayTeamId,
-      current_set_home_score: resolvedCurrentSetHomeScore,
-      current_set_away_score: resolvedCurrentSetAwayScore,
-      home_score: resolvedHomeScore,
-      away_score: resolvedAwayScore,
-      home_yellow_cards: resolvedHomeYellowCards,
-      home_red_cards: resolvedHomeRedCards,
-      away_yellow_cards: resolvedAwayYellowCards,
-      away_red_cards: resolvedAwayRedCards,
-      is_score_sheet_reviewed: shouldKeepScoreSheetReview,
-      manual_representation_mode: editingMatchDraft.manualRepresentationMode,
-      resolved_tie_breaker_rule: shouldPreserveTieBreakResolution ? editingMatchDraft.resolvedTieBreakerRule || null : null,
-      resolved_tie_break_winner_team_id: shouldPreserveTieBreakResolution ? editingMatch?.resolved_tie_break_winner_team_id ?? null : null,
-      status: editingMatchDraft.status,
-      division: resolvedDivision,
-    };
+    const matchUpdatePayload: Record<string, unknown> = {};
 
-    if (
-      editingMatchDraft.status != MatchStatus.SCHEDULED &&
-      (didChangeOperationalFields || shouldResetFinishedMatchToScheduled || shouldReopenFinishedMatchAsLive)
-    ) {
-      matchUpdatePayload.location = normalizedLocation;
-      matchUpdatePayload.scheduled_date = resolvedScheduledDate;
-      if (resolvedSlotNumber != null) {
-        matchUpdatePayload.scheduled_slot = resolvedSlotNumber;
+    if (canEditScheduledMatchSetup) {
+      if (didChangeSport) {
+        matchUpdatePayload.sport_id = editingMatchDraft.sportId;
       }
-      matchUpdatePayload.court_name = resolvedCourtName;
-      matchUpdatePayload.start_time = resolvedStartTime;
-      matchUpdatePayload.end_time = resolvedEndTime;
-    } else if (shouldTransitionMatchToLive) {
-      matchUpdatePayload.start_time = resolvedStartTime;
-      matchUpdatePayload.end_time = null;
+
+      if (didChangeNaipe) {
+        matchUpdatePayload.naipe = editingMatchDraft.naipe;
+      }
+
+      if (didChangeDivision) {
+        matchUpdatePayload.division = resolvedDivision;
+      }
+
+      if (didChangeHomeTeam) {
+        matchUpdatePayload.home_team_id = editingMatchDraft.homeTeamId;
+      }
+
+      if (didChangeAwayTeam) {
+        matchUpdatePayload.away_team_id = editingMatchDraft.awayTeamId;
+      }
     }
 
-    const { error } = await supabase
-      .from("matches")
-      .update(matchUpdatePayload)
-      .eq("id", editingMatchId);
+    if (didChangeStatus) {
+      matchUpdatePayload.status = editingMatchDraft.status;
 
-    if (error) {
-      setSavingEditingMatch(false);
-      toast.error(error.message);
-      return;
+      if (shouldTransitionMatchToLive || shouldReopenFinishedMatchAsLive) {
+        matchUpdatePayload.start_time = editingMatch.start_time ?? resolvedStartTimeValue ?? new Date().toISOString();
+        matchUpdatePayload.end_time = null;
+        matchUpdatePayload.is_walkover = false;
+        matchUpdatePayload.is_double_walkover = false;
+        matchUpdatePayload.walkover_loser_team_id = null;
+
+        if (shouldReopenFinishedMatchAsLive) {
+          matchUpdatePayload.is_score_sheet_reviewed = false;
+          matchUpdatePayload.resolved_tie_breaker_rule = null;
+          matchUpdatePayload.resolved_tie_break_winner_team_id = null;
+        }
+      }
+
+      if (shouldTransitionMatchToFinished) {
+        matchUpdatePayload.end_time = editingMatch.end_time ?? new Date().toISOString();
+      }
+    }
+
+    if (editingMatchDraft.status == MatchStatus.FINISHED) {
+      if (didChangeScoreFields || didChangeMatchSets || shouldTransitionMatchToFinished) {
+        matchUpdatePayload.home_score = resolvedHomeScore;
+        matchUpdatePayload.away_score = resolvedAwayScore;
+      }
+
+      if (didChangeCardFields || shouldTransitionMatchToFinished) {
+        matchUpdatePayload.home_yellow_cards = resolvedHomeYellowCards;
+        matchUpdatePayload.home_red_cards = resolvedHomeRedCards;
+        matchUpdatePayload.away_yellow_cards = resolvedAwayYellowCards;
+        matchUpdatePayload.away_red_cards = resolvedAwayRedCards;
+      }
+
+      if (didChangeReviewFlag || shouldReopenFinishedMatchAsLive) {
+        matchUpdatePayload.is_score_sheet_reviewed = resolvedReviewFlag;
+      }
+
+      if (didChangeTieBreakRule || shouldReopenFinishedMatchAsLive) {
+        matchUpdatePayload.resolved_tie_breaker_rule = shouldPreserveTieBreakResolution
+          ? editingMatchDraft.resolvedTieBreakerRule || null
+          : null;
+        matchUpdatePayload.resolved_tie_break_winner_team_id = resolvedTieBreakWinnerTeamId;
+      }
+    }
+
+    if (Object.keys(matchUpdatePayload).length > 0) {
+      const { error } = await supabase
+        .from("matches")
+        .update(matchUpdatePayload)
+        .eq("id", editingMatchId);
+
+      if (error) {
+        setSavingEditingMatch(false);
+        toast.error(error.message);
+        return;
+      }
     }
 
     if (shouldSyncMatchSets) {
@@ -3282,7 +3473,12 @@ export function AdminMatches({
       }
     }
 
-    if (editingMatchBracketBinding && selectedEditingGroupOption) {
+    if (
+      canEditScheduledMatchSetup &&
+      editingMatchBracketBinding &&
+      selectedEditingGroupOption &&
+      (didChangeGroupBinding || didChangeHomeTeam || didChangeAwayTeam)
+    ) {
       const nextBracketMatchPayload: {
         competition_id: string;
         group_id: string;
@@ -3318,7 +3514,12 @@ export function AdminMatches({
         toast.error(bracketMatchError.message);
         return;
       }
-    } else if (!editingMatchBracketBinding && selectedEditingGroupOption) {
+    } else if (
+      canEditScheduledMatchSetup &&
+      !editingMatchBracketBinding &&
+      selectedEditingGroupOption &&
+      didChangeGroupBinding
+    ) {
       const bracketBindingResponse = await createGroupStageBracketBinding({
         matchId: editingMatchId,
         homeTeamId: editingMatchDraft.homeTeamId,
@@ -3329,6 +3530,19 @@ export function AdminMatches({
       if (bracketBindingResponse.errorMessage) {
         setSavingEditingMatch(false);
         toast.error(bracketBindingResponse.errorMessage);
+        return;
+      }
+    }
+
+    if (shouldRedistributeScheduledMatch) {
+      const redistributedSchedule = await redistributeBracketScheduleAfterMatchScheduleChange({
+        reloadError: "O jogo foi salvo, mas não foi possível recarregar a agenda para redistribuir a fila",
+        redistributeError: "O jogo foi salvo, mas a redistribuição automática da fila falhou",
+      });
+
+      if (!redistributedSchedule) {
+        setSavingEditingMatch(false);
+        handleCancelEditingMatch();
         return;
       }
     }
@@ -4394,8 +4608,11 @@ export function AdminMatches({
 
 	                      {/* Badges — sempre alinhados à esquerda */}
 	                      <div className="flex flex-wrap items-center gap-1.5 sm:flex-col sm:items-start sm:gap-1">
-	                        <AppBadge tone={resolveMatchNaipeBadgeTone(String(match.naipe))}>
-	                          <span className="sm:hidden">
+	                        <AppBadge
+	                          tone={resolveMatchNaipeBadgeTone(String(match.naipe))}
+	                          className="min-h-6 min-w-10 justify-center px-3 sm:min-h-0 sm:min-w-0 sm:justify-start sm:px-2.5"
+	                        >
+	                          <span className="flex items-center justify-center leading-none sm:hidden">
 	                            {match.naipe === MatchNaipe.MASCULINO ? "♂" : match.naipe === MatchNaipe.FEMININO ? "♀" : "⚥"}
 	                          </span>
 	                          <span className="hidden sm:inline">{resolveMatchNaipeLabel(String(match.naipe))}</span>
@@ -4409,7 +4626,7 @@ export function AdminMatches({
 	                          ) : (
 	                            <Clock className="h-3 w-3 sm:hidden" />
 	                          )}
-	                          <span className="hidden sm:inline">{resolveMatchStatusLabel(match.status)}</span>
+	                          <span className="hidden sm:inline">{resolveMatchDisplayStatusLabel(match)}</span>
 	                        </AppBadge>
 
 	                        {match.division ? (
@@ -4769,7 +4986,7 @@ export function AdminMatches({
           }
         }}
       >
-        <DialogContent className="flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col overflow-hidden sm:max-h-none sm:w-full sm:max-w-4xl sm:overflow-visible">
+        <DialogContent className="flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col overflow-hidden sm:max-h-none sm:w-full sm:max-w-6xl sm:overflow-visible">
           <DialogHeader>
             <DialogTitle>Revisão de súmula e premiações</DialogTitle>
             <DialogDescription>
@@ -4804,6 +5021,19 @@ export function AdminMatches({
               </div>
 
               {!activeScoreSheetAwardsDraft.isWalkover ? (
+                <div className={`rounded-xl border px-3 py-2.5 text-sm ${hasIncompleteActiveScoreSheetGoalSelections ? "border-amber-200 bg-amber-50 text-amber-900" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}>
+                  <p className="font-medium">
+                    {hasIncompleteActiveScoreSheetGoalSelections
+                      ? `Faltam ${activeScoreSheetGoalSelectionSummary.pendingGoals} autor${activeScoreSheetGoalSelectionSummary.pendingGoals == 1 ? "" : "es"} de gol para liberar o salvamento.`
+                      : "Todos os autores dos gols foram vinculados."}
+                  </p>
+                  <p className="mt-1 text-xs text-current/80">
+                    {activeScoreSheetGoalSelectionSummary.filledGoals} de {activeScoreSheetGoalSelectionSummary.totalGoals} gols preenchidos nesta revisão.
+                  </p>
+                </div>
+              ) : null}
+
+              {!activeScoreSheetAwardsDraft.isWalkover ? (
                 <div className="grid gap-4 lg:grid-cols-2">
                   {([
                     {
@@ -4821,12 +5051,175 @@ export function AdminMatches({
                       newPlayerName: activeScoreSheetAwardsDraft.newAwayPlayerName,
                     },
                   ]).map((teamSection) => {
+                    const totalGoals = teamSection.goalSelections.length;
+                    const filledGoals = teamSection.goalSelections.filter((goalSelection) => goalSelection.scorerId.trim().length > 0).length;
+                    const pendingGoals = totalGoals - filledGoals;
+
                     return (
                     <div key={teamSection.key} className="app-card-muted space-y-3 rounded-xl p-3">
-                      <p className="text-sm font-semibold">{teamSection.title}</p>
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="space-y-1">
+                          <p className="text-sm font-semibold">{teamSection.title}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {filledGoals} de {totalGoals} gols vinculados
+                            {pendingGoals > 0 ? ` • faltam ${pendingGoals}` : ""}
+                          </p>
+                        </div>
+                        <div className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${pendingGoals > 0 ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}>
+                          {pendingGoals > 0 ? "Pendente" : "Completo"}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Autores dos gols</p>
+                        {teamSection.goalSelections.length > 0 ? (
+                          teamSection.playerOptions.length > 0 ? (
+                            <div className="space-y-2">
+                              {teamSection.goalSelections.map((goalSelection, goalIndex) => (
+                                <div key={`${teamSection.key}-goal-${goalIndex + 1}`} className="space-y-1">
+                                  <Label className="text-xs text-muted-foreground">{goalIndex + 1}º gol</Label>
+                                  <Select
+                                    value={goalSelection.scorerId || EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE}
+                                    onValueChange={(value) => {
+                                      handleUpdateScoreSheetAwardsDraft(activeScoreSheetReviewMatch.id, (draft) => {
+                                        const nextSelections = [...(teamSection.key == "home" ? draft.homeGoalSelections : draft.awayGoalSelections)];
+                                        nextSelections[goalIndex] = {
+                                          ...nextSelections[goalIndex],
+                                          scorerId: value == EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE ? "" : value,
+                                        };
+                                        return {
+                                          ...draft,
+                                          homeGoalSelections: teamSection.key == "home" ? nextSelections : draft.homeGoalSelections,
+                                          awayGoalSelections: teamSection.key == "away" ? nextSelections : draft.awayGoalSelections,
+                                        };
+                                      });
+                                    }}
+                                  >
+                                    <SelectTrigger className="app-input-field" aria-label={`${teamSection.title} gol ${goalIndex + 1}`}>
+                                      <SelectValue placeholder={`Selecione o autor do ${goalIndex + 1}º gol`} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value={EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE}>Selecione o jogador</SelectItem>
+                                      {teamSection.playerOptions.map((playerOption) => (
+                                        <SelectItem key={playerOption.id} value={playerOption.id}>
+                                          {playerOption.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-background/70 px-3 py-3 text-sm text-muted-foreground">
+                              Nenhum atleta cadastrado ainda. Cadastre um atleta para vincular os gols desta atlética.
+                            </div>
+                          )
+                        ) : (
+                          <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-background/70 px-3 py-3 text-sm text-muted-foreground">
+                            Esta atlética não marcou gols nesta partida.
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Atletas cadastrados</p>
+                          <span className="text-xs text-muted-foreground">
+                            {teamSection.playerOptions.length} atleta{teamSection.playerOptions.length == 1 ? "" : "s"}
+                          </span>
+                        </div>
+                        {teamSection.playerOptions.length > 0 ? (
+                          <div className="space-y-1.5">
+                            {teamSection.playerOptions.map((playerOption) => {
+                              const editKey = `${activeScoreSheetReviewMatch.id}:${teamSection.key}`;
+                              const editingState = editingPlayerByKey[editKey];
+                              const isEditing = editingState?.playerId == playerOption.id;
+
+                              if (isEditing) {
+                                return (
+                                  <div key={playerOption.id} className="space-y-1.5 rounded-lg border border-primary/30 bg-primary/5 px-2.5 py-2">
+                                    <div className="flex gap-1.5">
+                                      <Input
+                                        value={editingState.name}
+                                        onChange={(e) => {
+                                          const v = e.target.value;
+                                          setEditingPlayerByKey((prev) => ({
+                                            ...prev,
+                                            [editKey]: editingState ? { ...editingState, name: v } : null,
+                                          }));
+                                        }}
+                                        onKeyDown={(e) => {
+                                          if (e.key == "Enter") handleConfirmEditAwardPlayer(activeScoreSheetReviewMatch.id, teamSection.key);
+                                          if (e.key == "Escape") setEditingPlayerByKey((prev) => ({ ...prev, [editKey]: null }));
+                                        }}
+                                        className="h-8 text-sm"
+                                        autoFocus
+                                      />
+                                      <Button
+                                        type="button"
+                                        size="icon"
+                                        className="h-8 w-8 shrink-0"
+                                        onClick={() => handleConfirmEditAwardPlayer(activeScoreSheetReviewMatch.id, teamSection.key)}
+                                      >
+                                        <Check className="h-3.5 w-3.5" />
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 shrink-0"
+                                        onClick={() => setEditingPlayerByKey((prev) => ({ ...prev, [editKey]: null }))}
+                                      >
+                                        <X className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <div key={playerOption.id} className="flex items-center gap-1.5 rounded-lg bg-muted/30 px-2.5 py-1.5">
+                                  <span className="min-w-0 flex-1 truncate text-sm">{playerOption.name}</span>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+                                    onClick={() => {
+                                      setEditingPlayerByKey((prev) => ({
+                                        ...prev,
+                                        [editKey]: { playerId: playerOption.id, name: playerOption.name },
+                                      }));
+                                    }}
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
+                                    onClick={() => handleDeleteAwardPlayer(activeScoreSheetReviewMatch.id, teamSection.key, playerOption.id)}
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-background/70 px-3 py-3 text-sm text-muted-foreground">
+                            Sem atletas cadastrados para esta atlética.
+                          </div>
+                        )}
+                      </div>
 
                       <div className="space-y-2">
                         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Cadastrar atleta</p>
+                        <p className="text-xs text-muted-foreground">
+                          Use este campo apenas se o autor do gol ainda não estiver na lista acima.
+                        </p>
                         <div className="flex gap-2">
                           <Input
                             ref={(el) => { newPlayerInputRefs.current[`${activeScoreSheetReviewMatch.id}:${teamSection.key}`] = el; }}
@@ -4855,7 +5248,7 @@ export function AdminMatches({
                                 variant={btnState == "success" ? "default" : "outline"}
                                 disabled={!!btnState}
                                 onClick={() => handleAddInlineAwardPlayer(activeScoreSheetReviewMatch.id, teamSection.key)}
-                                className={btnState == "success" ? "bg-green-600 hover:bg-green-600 border-green-600 text-white" : ""}
+                                className={btnState == "success" ? "border-green-600 bg-green-600 text-white hover:bg-green-600" : ""}
                               >
                                 {btnState == "loading" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 {btnState == "success" && <Check className="mr-2 h-4 w-4" />}
@@ -4866,125 +5259,6 @@ export function AdminMatches({
                           })()}
                         </div>
                       </div>
-
-                      {teamSection.playerOptions.length > 0 ? (
-                        <div className="space-y-1.5">
-                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Atletas cadastrados</p>
-                          {teamSection.playerOptions.map((playerOption) => {
-                            const editKey = `${activeScoreSheetReviewMatch.id}:${teamSection.key}`;
-                            const editingState = editingPlayerByKey[editKey];
-                            const isEditing = editingState?.playerId == playerOption.id;
-
-                            if (isEditing) {
-                              return (
-                                <div key={playerOption.id} className="space-y-1.5 rounded-lg border border-primary/30 bg-primary/5 px-2.5 py-2">
-                                  <div className="flex gap-1.5">
-                                    <Input
-                                      value={editingState.name}
-                                      onChange={(e) => {
-                                        const v = e.target.value;
-                                        setEditingPlayerByKey((prev) => ({
-                                          ...prev,
-                                          [editKey]: editingState ? { ...editingState, name: v } : null,
-                                        }));
-                                      }}
-                                      onKeyDown={(e) => {
-                                        if (e.key == "Enter") handleConfirmEditAwardPlayer(activeScoreSheetReviewMatch.id, teamSection.key);
-                                        if (e.key == "Escape") setEditingPlayerByKey((prev) => ({ ...prev, [editKey]: null }));
-                                      }}
-                                      className="h-8 text-sm"
-                                      autoFocus
-                                    />
-                                    <Button
-                                      type="button"
-                                      size="icon"
-                                      className="h-8 w-8 shrink-0"
-                                      onClick={() => handleConfirmEditAwardPlayer(activeScoreSheetReviewMatch.id, teamSection.key)}
-                                    >
-                                      <Check className="h-3.5 w-3.5" />
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8 shrink-0"
-                                      onClick={() => setEditingPlayerByKey((prev) => ({ ...prev, [editKey]: null }))}
-                                    >
-                                      <X className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              );
-                            }
-
-                            return (
-                              <div key={playerOption.id} className="flex items-center gap-1.5 rounded-lg bg-muted/30 px-2.5 py-1.5">
-                                <span className="min-w-0 flex-1 truncate text-sm">{playerOption.name}</span>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
-                                  onClick={() => {
-                                    setEditingPlayerByKey((prev) => ({
-                                      ...prev,
-                                      [editKey]: { playerId: playerOption.id, name: playerOption.name },
-                                    }));
-                                  }}
-                                >
-                                  <Pencil className="h-3 w-3" />
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
-                                  onClick={() => handleDeleteAwardPlayer(activeScoreSheetReviewMatch.id, teamSection.key, playerOption.id)}
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : null}
-
-                      <div className="space-y-2">
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Autores dos gols</p>
-                        {teamSection.goalSelections.map((goalSelection, goalIndex) => (
-                          <div key={`${teamSection.key}-goal-${goalIndex + 1}`}>
-                            <Select
-                              value={goalSelection.scorerId || EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE}
-                              onValueChange={(value) => {
-                                handleUpdateScoreSheetAwardsDraft(activeScoreSheetReviewMatch.id, (draft) => {
-                                  const nextSelections = [...(teamSection.key == "home" ? draft.homeGoalSelections : draft.awayGoalSelections)];
-                                  nextSelections[goalIndex] = {
-                                    ...nextSelections[goalIndex],
-                                    scorerId: value == EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE ? "" : value,
-                                  };
-                                  return {
-                                    ...draft,
-                                    homeGoalSelections: teamSection.key == "home" ? nextSelections : draft.homeGoalSelections,
-                                    awayGoalSelections: teamSection.key == "away" ? nextSelections : draft.awayGoalSelections,
-                                  };
-                                });
-                              }}
-                            >
-                              <SelectTrigger className="app-input-field" aria-label={`${teamSection.title} gol ${goalIndex + 1}`}>
-                                <SelectValue placeholder={`Gol ${goalIndex + 1}`} />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value={EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE}>Selecione o jogador</SelectItem>
-                                {teamSection.playerOptions.map((playerOption) => (
-                                  <SelectItem key={playerOption.id} value={playerOption.id}>
-                                    {playerOption.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        ))}
-                      </div>
                     </div>
                     );
                   })}
@@ -4993,14 +5267,26 @@ export function AdminMatches({
             </div>
           )}
 
-          <DialogFooter className="mt-2">
+          <DialogFooter className="mt-2 gap-2 sm:items-center sm:justify-between">
+            {!activeScoreSheetAwardsDraft?.isWalkover && hasIncompleteActiveScoreSheetGoalSelections ? (
+              <p className="text-sm text-amber-700">
+                Preencha os {activeScoreSheetGoalSelectionSummary.pendingGoals} autor{activeScoreSheetGoalSelectionSummary.pendingGoals == 1 ? "" : "es"} restante{activeScoreSheetGoalSelectionSummary.pendingGoals == 1 ? "" : "s"} para salvar.
+              </p>
+            ) : (
+              <div />
+            )}
             <Button type="button" variant="outline" onClick={handleCloseScoreSheetReviewDialog} disabled={isSavingActiveScoreSheetAwardsContext}>
               Cancelar
             </Button>
             <Button
               type="button"
               onClick={() => void handleSaveScoreSheetAwards()}
-              disabled={isLoadingActiveScoreSheetAwardsContext || isSavingActiveScoreSheetAwardsContext || !activeScoreSheetAwardsDraft}
+              disabled={
+                isLoadingActiveScoreSheetAwardsContext ||
+                isSavingActiveScoreSheetAwardsContext ||
+                !activeScoreSheetAwardsDraft ||
+                hasIncompleteActiveScoreSheetGoalSelections
+              }
             >
               {isSavingActiveScoreSheetAwardsContext ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Salvar revisão
@@ -5223,6 +5509,7 @@ export function AdminMatches({
                     );
                   }}
                   className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-5"
+                  disabled={!canEditScheduledMatchSetup}
                 >
                   {NAIPE_OPTIONS.map((naipeOption) => (
                     <Label
@@ -5258,7 +5545,7 @@ export function AdminMatches({
                         )
                       }
                     >
-                      <SelectTrigger aria-label="Modalidade do jogo" className="app-input-field">
+                      <SelectTrigger aria-label="Modalidade do jogo" className="app-input-field" disabled={!canEditScheduledMatchSetup}>
                         <SelectValue placeholder="Modalidade" />
                       </SelectTrigger>
                       <SelectContent>
@@ -5293,8 +5580,9 @@ export function AdminMatches({
                               : currentDraft,
                           );
                         }}
+                        disabled={!canEditScheduledMatchSetup}
                       >
-                        <SelectTrigger aria-label="Divisão do jogo" className="app-input-field">
+                        <SelectTrigger aria-label="Divisão do jogo" className="app-input-field" disabled={!canEditScheduledMatchSetup}>
                           <SelectValue placeholder="Divisão" />
                         </SelectTrigger>
                         <SelectContent>
@@ -5328,9 +5616,9 @@ export function AdminMatches({
                               : currentDraft,
                           )
                         }
-                        disabled={loadingChampionshipBracket}
+                        disabled={loadingChampionshipBracket || !canEditScheduledMatchSetup}
                       >
-                        <SelectTrigger aria-label="Grupo do jogo" className="app-input-field">
+                        <SelectTrigger aria-label="Grupo do jogo" className="app-input-field" disabled={loadingChampionshipBracket || !canEditScheduledMatchSetup}>
                           <SelectValue placeholder="Chave" />
                         </SelectTrigger>
                         <SelectContent>
@@ -5365,9 +5653,9 @@ export function AdminMatches({
                             : currentDraft,
                         )
                       }
-                      disabled={editingLocationOptions.length == 0}
+                      disabled={editingLocationOptions.length == 0 || !canEditScheduledMatchSetup}
                     >
-                      <SelectTrigger aria-label="Local do jogo" className="app-input-field">
+                      <SelectTrigger aria-label="Local do jogo" className="app-input-field" disabled={editingLocationOptions.length == 0 || !canEditScheduledMatchSetup}>
                         <SelectValue placeholder={loadingLocationTemplates ? "Carregando locais" : "Local"} />
                       </SelectTrigger>
                       <SelectContent>
@@ -5396,6 +5684,7 @@ export function AdminMatches({
                       }
                       placeholder="Dia da fila"
                       showTime={false}
+                      disabled={!canEditScheduledMatchSetup}
                     />
                   </div>
 
@@ -5413,9 +5702,9 @@ export function AdminMatches({
                             : currentDraft,
                         )
                       }
-                      disabled={editingCourtOptions.length == 0}
+                      disabled={editingCourtOptions.length == 0 || !canEditScheduledMatchSetup}
                     >
-                      <SelectTrigger aria-label="Quadra do jogo" className="app-input-field">
+                      <SelectTrigger aria-label="Quadra do jogo" className="app-input-field" disabled={editingCourtOptions.length == 0 || !canEditScheduledMatchSetup}>
                         <SelectValue
                           placeholder={
                             loadingBracketCourtSportsDays ? "Carregando quadras" : "Quadra"
@@ -5462,9 +5751,9 @@ export function AdminMatches({
                             : currentDraft,
                         );
                       }}
-                      disabled={loadingEditingAvailableScheduleSlots || editingAvailableScheduleSlots.length == 0}
+                      disabled={!canEditScheduledMatchSetup || loadingEditingAvailableScheduleSlots || editingAvailableScheduleSlots.length == 0}
                     >
-                      <SelectTrigger aria-label="Horário estimado do jogo" className="app-input-field">
+                      <SelectTrigger aria-label="Horário estimado do jogo" className="app-input-field" disabled={!canEditScheduledMatchSetup || loadingEditingAvailableScheduleSlots || editingAvailableScheduleSlots.length == 0}>
                         <SelectValue
                           placeholder={
                             loadingEditingAvailableScheduleSlots ? "Carregando horários" : "Horário estimado"
@@ -5514,9 +5803,15 @@ export function AdminMatches({
                         <SelectValue placeholder="Status do jogo" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={MatchStatus.SCHEDULED}>Agendado</SelectItem>
-                        <SelectItem value={MatchStatus.LIVE}>Ao vivo</SelectItem>
-                        <SelectItem value={MatchStatus.FINISHED}>Encerrado</SelectItem>
+                        {editingAllowedStatuses.map((statusOption) => (
+                          <SelectItem key={statusOption} value={statusOption}>
+                            {statusOption == MatchStatus.SCHEDULED
+                              ? "Agendado"
+                              : statusOption == MatchStatus.LIVE
+                                ? "Ao vivo"
+                                : "Encerrado"}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -5556,6 +5851,7 @@ export function AdminMatches({
                           )
                         }
                         aria-label="Forçar representação da CO"
+                        disabled={!canEditScheduledMatchSetup}
                       />
                     </div>
                   </div>
@@ -5795,7 +6091,7 @@ export function AdminMatches({
                         )
                       }
                     >
-                      <SelectTrigger aria-label="Atlética da casa" className="app-input-field">
+                      <SelectTrigger aria-label="Atlética da casa" className="app-input-field" disabled={!canEditScheduledMatchSetup}>
                         <SelectValue placeholder="Atlética da casa" />
                       </SelectTrigger>
                       <SelectContent>
@@ -5827,7 +6123,7 @@ export function AdminMatches({
                         )
                       }
                     >
-                      <SelectTrigger aria-label="Atlética visitante" className="app-input-field">
+                      <SelectTrigger aria-label="Atlética visitante" className="app-input-field" disabled={!canEditScheduledMatchSetup}>
                         <SelectValue placeholder="Atlética visitante" />
                       </SelectTrigger>
                       <SelectContent>

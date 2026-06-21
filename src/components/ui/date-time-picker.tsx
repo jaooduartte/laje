@@ -15,6 +15,7 @@ interface DateTimePickerProps {
   showTime?: boolean;
   className?: string;
   defaultTime?: string;
+  disabled?: boolean;
 }
 
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, index) => index.toString().padStart(2, "0"));
@@ -53,7 +54,15 @@ function getBaseDate(value: Date | null, defaultTimeParts: { hour: number; minut
   return currentDate;
 }
 
-export function DateTimePicker({ value, onChange, placeholder, showTime = true, className, defaultTime }: DateTimePickerProps) {
+export function DateTimePicker({
+  value,
+  onChange,
+  placeholder,
+  showTime = true,
+  className,
+  defaultTime,
+  disabled = false,
+}: DateTimePickerProps) {
   const selectedDate = value ? new Date(value) : undefined;
   const defaultTimeParts = useMemo(() => resolveDefaultTimeParts(defaultTime), [defaultTime]);
 
@@ -115,6 +124,7 @@ export function DateTimePicker({ value, onChange, placeholder, showTime = true, 
         <Button
           type="button"
           variant="outline"
+          disabled={disabled}
           className={cn(
             "app-input-field w-full justify-start overflow-hidden text-left font-normal hover:bg-background/70",
             !value ? "text-muted-foreground" : "text-foreground",

@@ -9,6 +9,7 @@ import {
   filterAggregatesByBracketGroupPlacement,
   formatPointsAverageForStandings,
   formatStandingsPoints,
+  moveDisqualifiedStandingsToBottom,
   resolveManualTieBreakWinnerTeamIdByPairKey,
   sortTeamStandingAggregatesByRanking,
   type TeamStandingAggregate,
@@ -274,6 +275,19 @@ describe("applyCorrectedGroupPointsToStanding", () => {
     const adjustedStanding = applyCorrectedGroupPointsToStanding(standing, {});
 
     expect(adjustedStanding.points).toBe(12);
+  });
+});
+
+describe("moveDisqualifiedStandingsToBottom", () => {
+  it("mantém a atlética desclassificada por último mesmo com métricas melhores", () => {
+    const standings = [
+      buildAggregate({ team_id: "team-top", team_name: "Top", points: 12 }),
+      buildAggregate({ team_id: "team-bottom", team_name: "Bottom", points: 3 }),
+    ];
+
+    const result = moveDisqualifiedStandingsToBottom(standings, new Set(["team-top:WITHOUT_DIVISION"]));
+
+    expect(result.map((standing) => standing.team_id)).toEqual(["team-bottom", "team-top"]);
   });
 });
 

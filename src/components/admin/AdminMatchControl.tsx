@@ -14,7 +14,7 @@ import type {
   MatchSetInput,
 } from "@/domain/championship-brackets/championshipBracket.types";
 import type { ChampionshipBracketView, ChampionshipSport, Match, Sport } from "@/lib/types";
-import { AppBadgeTone, BracketPhase, ChampionshipSportResultRule, ChampionshipStatus, MatchNaipe, MatchStatus } from "@/lib/enums";
+import { AppBadgeTone, BracketPhase, ChampionshipSportResultRule, ChampionshipStatus, MatchNaipe, MatchStatus, TeamDivision } from "@/lib/enums";
 import { SportFilter } from "@/components/SportFilter";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,7 +41,9 @@ import {
   type MatchBracketContext,
   compareAdminMatchCardOrder,
   MATCH_NAIPE_LABELS,
+  TEAM_DIVISION_LABELS,
   resolveDisplayedMatchQueueLabel,
+  resolveBracketGroupFilterOptions,
   resolveMatchNaipeBadgeTone,
   resolveMatchNaipeLabel,
   resolveRecordedMatchSets,
@@ -86,6 +88,7 @@ interface MatchSetEditDraft {
 type SaveStatus = "saving" | "saved" | "error";
 type MatchSide = "home" | "away";
 type CardColor = "yellow" | "red";
+type WalkoverMode = "NONE" | "HOME_LOST" | "AWAY_LOST" | "DOUBLE";
 
 const SAVE_STATUS_LABELS: Record<SaveStatus, string> = {
   saving: "Salvando...",
@@ -100,12 +103,19 @@ const SAVE_STATUS_CLASS_NAMES: Record<SaveStatus, string> = {
 };
 
 const ALL_CONTROL_NAIPE_FILTER = "ALL_CONTROL_NAIPES";
+const ALL_CONTROL_DIVISION_FILTER = "ALL_CONTROL_DIVISIONS";
+const ALL_CONTROL_GROUP_FILTER = "ALL_CONTROL_GROUPS";
+const ALL_CONTROL_LOCATION_FILTER = "ALL_CONTROL_LOCATIONS";
+const ALL_CONTROL_COURT_FILTER = "ALL_CONTROL_COURTS";
 const NAIPE_OPTIONS: MatchNaipe[] = [MatchNaipe.MASCULINO, MatchNaipe.FEMININO, MatchNaipe.MISTO];
 
 const MATCH_CONTROL_AUTOSAVE_DEBOUNCE_IN_MILLISECONDS = 150;
 const MATCH_CONTROL_PERSISTED_DRAFT_STORAGE_KEY = "admin_match_control_draft_by_match_id";
 const MATCH_CONTROL_PERSISTED_DRAFT_TTL_IN_MILLISECONDS = 10 * 60 * 1000;
-const WALKOVER_NONE_OPTION_VALUE = "__WALKOVER_NONE_OPTION__";
+const WALKOVER_MODE_NONE: WalkoverMode = "NONE";
+const WALKOVER_MODE_HOME_LOST: WalkoverMode = "HOME_LOST";
+const WALKOVER_MODE_AWAY_LOST: WalkoverMode = "AWAY_LOST";
+const WALKOVER_MODE_DOUBLE: WalkoverMode = "DOUBLE";
 const SCORE_INPUT_CLASS_NAME =
   "score-text h-12 w-16 min-w-16 app-input-field px-1 text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
 
@@ -142,6 +152,26 @@ function isMatchControlDraftValue(value: unknown): value is MatchControlDraft {
   ];
 
   return requiredNumericFields.every((fieldValue) => typeof fieldValue == "number" && Number.isFinite(fieldValue));
+}
+
+function resolvePersistedWalkoverMode(match: Match): WalkoverMode {
+  if (match.is_walkover != true) {
+    return WALKOVER_MODE_NONE;
+  }
+
+  if (match.is_double_walkover == true) {
+    return WALKOVER_MODE_DOUBLE;
+  }
+
+  if (match.walkover_loser_team_id == match.home_team_id) {
+    return WALKOVER_MODE_HOME_LOST;
+  }
+
+  if (match.walkover_loser_team_id == match.away_team_id) {
+    return WALKOVER_MODE_AWAY_LOST;
+  }
+
+  return WALKOVER_MODE_NONE;
 }
 
 function readPersistedMatchControlDraftByMatchId(): Record<string, PersistedMatchControlDraftEntry> {
@@ -337,9 +367,13 @@ export function AdminMatchControl({
   const [matchSetsByMatchId, setMatchSetsByMatchId] = useState<Record<string, MatchSetInput[]>>({});
   const [editingSetDraftByMatchId, setEditingSetDraftByMatchId] = useState<Record<string, MatchSetEditDraft | undefined>>({});
   const [saveStatusByMatchId, setSaveStatusByMatchId] = useState<Record<string, SaveStatus | undefined>>({});
-  const [walkoverLoserTeamIdByMatchId, setWalkoverLoserTeamIdByMatchId] = useState<Record<string, string | undefined>>({});
+  const [walkoverModeByMatchId, setWalkoverModeByMatchId] = useState<Record<string, WalkoverMode | undefined>>({});
   const [sportFilter, setSportFilter] = useState<string | null>(null);
   const [naipeFilter, setNaipeFilter] = useState<string>(ALL_CONTROL_NAIPE_FILTER);
+  const [divisionFilter, setDivisionFilter] = useState<string>(ALL_CONTROL_DIVISION_FILTER);
+  const [groupFilter, setGroupFilter] = useState<string>(ALL_CONTROL_GROUP_FILTER);
+  const [locationFilter, setLocationFilter] = useState<string>(ALL_CONTROL_LOCATION_FILTER);
+  const [courtFilter, setCourtFilter] = useState<string>(ALL_CONTROL_COURT_FILTER);
   const [showOnlyLiveMatches, setShowOnlyLiveMatches] = useState(false);
   const [showFinishConfirmDialog, setShowFinishConfirmDialog] = useState(false);
   const [pendingFinishMatch, setPendingFinishMatch] = useState<Match | null>(null);
@@ -516,45 +550,43 @@ export function AdminMatchControl({
   }, [matches]);
 
   useEffect(() => {
-    setWalkoverLoserTeamIdByMatchId((previousWalkoverLoserTeamIdByMatchId) => {
-      const nextWalkoverLoserTeamIdByMatchId = matches.reduce<Record<string, string | undefined>>((carry, match) => {
+    setWalkoverModeByMatchId((previousWalkoverModeByMatchId) => {
+      const nextWalkoverModeByMatchId = matches.reduce<Record<string, WalkoverMode | undefined>>((carry, match) => {
         if (match.status != MatchStatus.SCHEDULED && match.status != MatchStatus.LIVE) {
           return carry;
         }
 
-        const selectedLoserTeamId = previousWalkoverLoserTeamIdByMatchId[match.id];
-        const persistedLoserTeamId =
-          match.is_walkover && (match.walkover_loser_team_id == match.home_team_id || match.walkover_loser_team_id == match.away_team_id)
-            ? match.walkover_loser_team_id
-            : null;
-        const resolvedLoserTeamId = selectedLoserTeamId ?? persistedLoserTeamId ?? undefined;
+        const selectedWalkoverMode = previousWalkoverModeByMatchId[match.id];
+        const persistedWalkoverMode = resolvePersistedWalkoverMode(match);
+        const resolvedWalkoverMode = selectedWalkoverMode ?? persistedWalkoverMode;
+        const isKnockoutMatch = matchBracketContextByMatchId[match.id]?.phase == BracketPhase.KNOCKOUT;
 
-        if (!resolvedLoserTeamId) {
+        if (
+          !resolvedWalkoverMode ||
+          resolvedWalkoverMode == WALKOVER_MODE_NONE ||
+          (resolvedWalkoverMode == WALKOVER_MODE_DOUBLE && isKnockoutMatch)
+        ) {
           return carry;
         }
 
-        if (resolvedLoserTeamId != match.home_team_id && resolvedLoserTeamId != match.away_team_id) {
-          return carry;
-        }
-
-        carry[match.id] = resolvedLoserTeamId;
+        carry[match.id] = resolvedWalkoverMode;
         return carry;
       }, {});
 
-      const previousEntries = Object.entries(previousWalkoverLoserTeamIdByMatchId);
-      const nextEntries = Object.entries(nextWalkoverLoserTeamIdByMatchId);
+      const previousEntries = Object.entries(previousWalkoverModeByMatchId);
+      const nextEntries = Object.entries(nextWalkoverModeByMatchId);
 
       if (previousEntries.length == nextEntries.length) {
-        const hasChanges = previousEntries.some(([matchId, loserTeamId]) => loserTeamId != nextWalkoverLoserTeamIdByMatchId[matchId]);
+        const hasChanges = previousEntries.some(([matchId, walkoverMode]) => walkoverMode != nextWalkoverModeByMatchId[matchId]);
 
         if (!hasChanges) {
-          return previousWalkoverLoserTeamIdByMatchId;
+          return previousWalkoverModeByMatchId;
         }
       }
 
-      return nextWalkoverLoserTeamIdByMatchId;
+      return nextWalkoverModeByMatchId;
     });
-  }, [matches]);
+  }, [matchBracketContextByMatchId, matches]);
 
   const controlSports = useMemo(() => {
     const sportById = new Map<string, Sport>();
@@ -813,7 +845,7 @@ export function AdminMatchControl({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [itemsPerPage, matches.length, naipeFilter, showOnlyLiveMatches, sportFilter]);
+  }, [courtFilter, divisionFilter, groupFilter, itemsPerPage, locationFilter, matches.length, naipeFilter, showOnlyLiveMatches, sportFilter]);
 
   useEffect(() => {
     if (!hasInitializedSportFilterRef.current) {
@@ -870,64 +902,59 @@ export function AdminMatchControl({
     };
   }, [resolveClosedMatchSets]);
 
-  const resolveSelectedWalkoverLoserTeamId = useCallback((match: Match) => {
-    const selectedWalkoverLoserTeamId = walkoverLoserTeamIdByMatchId[match.id];
-
-    if (!selectedWalkoverLoserTeamId) {
-      return null;
-    }
-
-    if (selectedWalkoverLoserTeamId == match.home_team_id || selectedWalkoverLoserTeamId == match.away_team_id) {
-      return selectedWalkoverLoserTeamId;
-    }
-
-    return null;
-  }, [walkoverLoserTeamIdByMatchId]);
+  const resolveSelectedWalkoverMode = useCallback((match: Match) => {
+    return walkoverModeByMatchId[match.id] ?? WALKOVER_MODE_NONE;
+  }, [walkoverModeByMatchId]);
 
   const clearWalkoverSelection = useCallback((matchId: string) => {
-    setWalkoverLoserTeamIdByMatchId((currentWalkoverLoserTeamIdByMatchId) => {
-      if (!currentWalkoverLoserTeamIdByMatchId[matchId]) {
-        return currentWalkoverLoserTeamIdByMatchId;
+    setWalkoverModeByMatchId((currentWalkoverModeByMatchId) => {
+      if (!currentWalkoverModeByMatchId[matchId]) {
+        return currentWalkoverModeByMatchId;
       }
 
-      const nextWalkoverLoserTeamIdByMatchId = { ...currentWalkoverLoserTeamIdByMatchId };
-      delete nextWalkoverLoserTeamIdByMatchId[matchId];
-      return nextWalkoverLoserTeamIdByMatchId;
+      const nextWalkoverModeByMatchId = { ...currentWalkoverModeByMatchId };
+      delete nextWalkoverModeByMatchId[matchId];
+      return nextWalkoverModeByMatchId;
     });
   }, []);
 
-  const handleUpdateWalkoverLoserTeamId = useCallback((match: Match, value: string) => {
-    const resolvedWalkoverLoserTeamId = value.trim();
+  const handleUpdateWalkoverMode = useCallback((match: Match, walkoverMode: WalkoverMode) => {
+    const isKnockoutMatch = matchBracketContextByMatchId[match.id]?.phase == BracketPhase.KNOCKOUT;
 
     if (
-      resolvedWalkoverLoserTeamId &&
-      resolvedWalkoverLoserTeamId != match.home_team_id &&
-      resolvedWalkoverLoserTeamId != match.away_team_id
+      walkoverMode != WALKOVER_MODE_NONE &&
+      walkoverMode != WALKOVER_MODE_HOME_LOST &&
+      walkoverMode != WALKOVER_MODE_AWAY_LOST &&
+      walkoverMode != WALKOVER_MODE_DOUBLE
     ) {
       return;
     }
 
-    setWalkoverLoserTeamIdByMatchId((currentWalkoverLoserTeamIdByMatchId) => {
-      if (!resolvedWalkoverLoserTeamId) {
-        if (!currentWalkoverLoserTeamIdByMatchId[match.id]) {
-          return currentWalkoverLoserTeamIdByMatchId;
+    if (walkoverMode == WALKOVER_MODE_DOUBLE && isKnockoutMatch) {
+      return;
+    }
+
+    setWalkoverModeByMatchId((currentWalkoverModeByMatchId) => {
+      if (walkoverMode == WALKOVER_MODE_NONE) {
+        if (!currentWalkoverModeByMatchId[match.id]) {
+          return currentWalkoverModeByMatchId;
         }
 
-        const nextWalkoverLoserTeamIdByMatchId = { ...currentWalkoverLoserTeamIdByMatchId };
-        delete nextWalkoverLoserTeamIdByMatchId[match.id];
-        return nextWalkoverLoserTeamIdByMatchId;
+        const nextWalkoverModeByMatchId = { ...currentWalkoverModeByMatchId };
+        delete nextWalkoverModeByMatchId[match.id];
+        return nextWalkoverModeByMatchId;
       }
 
-      if (currentWalkoverLoserTeamIdByMatchId[match.id] == resolvedWalkoverLoserTeamId) {
-        return currentWalkoverLoserTeamIdByMatchId;
+      if (currentWalkoverModeByMatchId[match.id] == walkoverMode) {
+        return currentWalkoverModeByMatchId;
       }
 
       return {
-        ...currentWalkoverLoserTeamIdByMatchId,
-        [match.id]: resolvedWalkoverLoserTeamId,
+        ...currentWalkoverModeByMatchId,
+        [match.id]: walkoverMode,
       };
     });
-  }, []);
+  }, [matchBracketContextByMatchId]);
 
   const hasRecordedProgressForWalkover = useCallback((match: Match) => {
     const currentMatchDraft = getMatchDraft(match);
@@ -1387,12 +1414,18 @@ export function AdminMatchControl({
       .from("matches")
       .update({
         status: MatchStatus.SCHEDULED,
-        start_time: null,
+        start_time: match.start_time,
+        end_time: null,
         home_score: 0,
         away_score: 0,
         current_set_home_score: null,
         current_set_away_score: null,
+        home_yellow_cards: 0,
+        home_red_cards: 0,
+        away_yellow_cards: 0,
+        away_red_cards: 0,
         is_walkover: false,
+        is_double_walkover: false,
         walkover_loser_team_id: null,
       })
       .eq("id", match.id);
@@ -1446,9 +1479,10 @@ export function AdminMatchControl({
       .from("matches")
       .update({
         status: MatchStatus.LIVE,
-        start_time: new Date().toISOString(),
+        start_time: match.start_time ?? new Date().toISOString(),
         end_time: null,
         is_walkover: false,
+        is_double_walkover: false,
         walkover_loser_team_id: null,
       })
       .eq("id", matchId);
@@ -1465,7 +1499,7 @@ export function AdminMatchControl({
     onRefetchChampionshipBracket();
   };
 
-  const handleFinishWithWalkover = async (match: Match, walkoverLoserTeamId: string) => {
+  const handleFinishWithWalkover = async (match: Match, walkoverMode: Exclude<WalkoverMode, "NONE">) => {
     if (!canManageScoreboard) {
       return;
     }
@@ -1475,13 +1509,71 @@ export function AdminMatchControl({
       return;
     }
 
-    if (walkoverLoserTeamId != match.home_team_id && walkoverLoserTeamId != match.away_team_id) {
-      toast.error("Selecione uma atlética válida para marcar o W.O.");
+    const matchBracketContext = matchBracketContextByMatchId[match.id];
+    const isKnockoutMatch = matchBracketContext?.phase == BracketPhase.KNOCKOUT;
+
+    if (walkoverMode == WALKOVER_MODE_DOUBLE && isKnockoutMatch) {
+      toast.error("Não é possível aplicar W.O. duplo em jogos do mata-mata.");
       return;
     }
 
     if (match.status == MatchStatus.LIVE && hasRecordedProgressForWalkover(match)) {
       toast.error("Não é possível aplicar W.O. em jogo ao vivo com placar ou sets já lançados.");
+      return;
+    }
+
+    if (walkoverMode == WALKOVER_MODE_DOUBLE) {
+      const now = new Date().toISOString();
+
+      const { error } = await supabase
+        .from("matches")
+        .update({
+          home_score: 0,
+          away_score: 0,
+          current_set_home_score: null,
+          current_set_away_score: null,
+          home_yellow_cards: 0,
+          home_red_cards: 0,
+          away_yellow_cards: 0,
+          away_red_cards: 0,
+          start_time: match.start_time ?? now,
+          end_time: match.start_time != null ? now : null,
+          status: MatchStatus.FINISHED,
+          is_walkover: true,
+          is_double_walkover: true,
+          walkover_loser_team_id: null,
+        })
+        .eq("id", match.id);
+
+      if (error) {
+        toast.error(resolveAdminMatchControlErrorMessage(error, error.message), {
+          id: "admin-match-control-migration-required",
+        });
+        return;
+      }
+
+      setMatchSetsByMatchId((currentMatchSetsByMatchId) => ({
+        ...currentMatchSetsByMatchId,
+        [match.id]: [],
+      }));
+      clearWalkoverSelection(match.id);
+      setDraftDirty(match.id, false);
+
+      toast.success("Jogo encerrado por W.O.! Classificação atualizada.");
+      onRefetch();
+      onRefetchChampionshipBracket();
+      return;
+    }
+
+    const walkoverLoserTeamId =
+      walkoverMode == WALKOVER_MODE_HOME_LOST
+        ? match.home_team_id
+        : walkoverMode == WALKOVER_MODE_AWAY_LOST
+          ? match.away_team_id
+          : null;
+
+    if (walkoverLoserTeamId != match.home_team_id && walkoverLoserTeamId != match.away_team_id) {
+      toast.error("Selecione uma atlética válida para marcar o W.O.");
       return;
     }
 
@@ -1532,6 +1624,7 @@ export function AdminMatchControl({
         end_time: match.start_time != null ? now : null,
         status: MatchStatus.FINISHED,
         is_walkover: true,
+        is_double_walkover: false,
         walkover_loser_team_id: walkoverLoserTeamId,
       })
       .eq("id", match.id);
@@ -1574,10 +1667,10 @@ export function AdminMatchControl({
       return;
     }
 
-    const selectedWalkoverLoserTeamId = resolveSelectedWalkoverLoserTeamId(match);
+    const selectedWalkoverMode = resolveSelectedWalkoverMode(match);
 
-    if (selectedWalkoverLoserTeamId) {
-      await handleFinishWithWalkover(match, selectedWalkoverLoserTeamId);
+    if (selectedWalkoverMode != WALKOVER_MODE_NONE) {
+      await handleFinishWithWalkover(match, selectedWalkoverMode);
       return;
     }
 
@@ -1633,6 +1726,7 @@ export function AdminMatchControl({
         end_time: new Date().toISOString(),
         status: MatchStatus.FINISHED,
         is_walkover: false,
+        is_double_walkover: false,
         walkover_loser_team_id: null,
       })
       .eq("id", match.id);
@@ -1672,7 +1766,29 @@ export function AdminMatchControl({
     [bracketMatchByMatchId, onRefetch, onRefetchChampionshipBracket],
   );
 
-  const filteredMatches = useMemo(() => {
+  const divisionOptions = useMemo(() => {
+    const uniqueDivisions = new Set<TeamDivision>();
+
+    matches.forEach((match) => {
+      if (sportFilter && match.sport_id != sportFilter) {
+        return;
+      }
+
+      if (naipeFilter !== ALL_CONTROL_NAIPE_FILTER && match.naipe != naipeFilter) {
+        return;
+      }
+
+      if (match.division) {
+        uniqueDivisions.add(match.division);
+      }
+    });
+
+    return [...uniqueDivisions].sort((firstDivision, secondDivision) =>
+      TEAM_DIVISION_LABELS[firstDivision].localeCompare(TEAM_DIVISION_LABELS[secondDivision]),
+    );
+  }, [matches, naipeFilter, sportFilter]);
+
+  const matchesFilteredByTopLevelCriteria = useMemo(() => {
     return matches.filter((match) => {
       if (sportFilter && match.sport_id != sportFilter) {
         return false;
@@ -1686,9 +1802,95 @@ export function AdminMatchControl({
         return false;
       }
 
+      if (divisionFilter !== ALL_CONTROL_DIVISION_FILTER && match.division != divisionFilter) {
+        return false;
+      }
+
       return true;
     });
-  }, [matches, naipeFilter, showOnlyLiveMatches, sportFilter]);
+  }, [divisionFilter, matches, naipeFilter, showOnlyLiveMatches, sportFilter]);
+
+  const groupOptions = useMemo(() => {
+    const eligibleMatchIds = new Set(matchesFilteredByTopLevelCriteria.map((match) => match.id));
+    const eligibleMatchBracketContextByMatchId = Object.fromEntries(
+      Object.entries(matchBracketContextByMatchId).filter(([matchId]) => eligibleMatchIds.has(matchId)),
+    );
+
+    return resolveBracketGroupFilterOptions(eligibleMatchBracketContextByMatchId);
+  }, [matchBracketContextByMatchId, matchesFilteredByTopLevelCriteria]);
+
+  const matchesFilteredByPrimaryCriteria = useMemo(() => {
+    return matchesFilteredByTopLevelCriteria.filter((match) => {
+      if (groupFilter == ALL_CONTROL_GROUP_FILTER) {
+        return true;
+      }
+
+      const matchBracketContext = matchBracketContextByMatchId[match.id];
+      return matchBracketContext?.groupFilterValue == groupFilter;
+    });
+  }, [groupFilter, matchBracketContextByMatchId, matchesFilteredByTopLevelCriteria]);
+
+  const locationOptions = useMemo(() => {
+    return [...new Set(matchesFilteredByPrimaryCriteria.map((match) => match.location).filter(Boolean))].sort((firstLocation, secondLocation) =>
+      firstLocation.localeCompare(secondLocation),
+    );
+  }, [matchesFilteredByPrimaryCriteria]);
+
+  const courtOptions = useMemo(() => {
+    const uniqueCourtNames = new Set<string>();
+
+    matchesFilteredByPrimaryCriteria.forEach((match) => {
+      if (!match.court_name) {
+        return;
+      }
+
+      if (locationFilter != ALL_CONTROL_LOCATION_FILTER && match.location != locationFilter) {
+        return;
+      }
+
+      uniqueCourtNames.add(match.court_name);
+    });
+
+    return [...uniqueCourtNames].sort((firstCourtName, secondCourtName) => firstCourtName.localeCompare(secondCourtName));
+  }, [locationFilter, matchesFilteredByPrimaryCriteria]);
+
+  useEffect(() => {
+    if (divisionFilter != ALL_CONTROL_DIVISION_FILTER && !divisionOptions.includes(divisionFilter as TeamDivision)) {
+      setDivisionFilter(ALL_CONTROL_DIVISION_FILTER);
+    }
+  }, [divisionFilter, divisionOptions]);
+
+  useEffect(() => {
+    if (groupFilter != ALL_CONTROL_GROUP_FILTER && !groupOptions.some((groupOption) => groupOption.value == groupFilter)) {
+      setGroupFilter(ALL_CONTROL_GROUP_FILTER);
+    }
+  }, [groupFilter, groupOptions]);
+
+  useEffect(() => {
+    if (locationFilter != ALL_CONTROL_LOCATION_FILTER && !locationOptions.includes(locationFilter)) {
+      setLocationFilter(ALL_CONTROL_LOCATION_FILTER);
+    }
+  }, [locationFilter, locationOptions]);
+
+  useEffect(() => {
+    if (courtFilter != ALL_CONTROL_COURT_FILTER && !courtOptions.includes(courtFilter)) {
+      setCourtFilter(ALL_CONTROL_COURT_FILTER);
+    }
+  }, [courtFilter, courtOptions]);
+
+  const filteredMatches = useMemo(() => {
+    return matchesFilteredByPrimaryCriteria.filter((match) => {
+      if (locationFilter != ALL_CONTROL_LOCATION_FILTER && match.location != locationFilter) {
+        return false;
+      }
+
+      if (courtFilter != ALL_CONTROL_COURT_FILTER && match.court_name != courtFilter) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [courtFilter, locationFilter, matchesFilteredByPrimaryCriteria]);
 
   const sortedMatches = useMemo(() => {
     return [...filteredMatches].sort((firstMatch, secondMatch) => compareAdminMatchCardOrder(firstMatch, secondMatch, {
@@ -1735,7 +1937,7 @@ export function AdminMatchControl({
 
           <div className="flex items-stretch gap-3">
             <Select value={naipeFilter} onValueChange={setNaipeFilter}>
-              <SelectTrigger className="app-input-field h-10 flex-1 sm:w-40 sm:flex-none">
+              <SelectTrigger aria-label="Filtrar por naipe no controle ao vivo" className="app-input-field h-10 flex-1 sm:w-40 sm:flex-none">
                 <SelectValue placeholder="Naipe" />
               </SelectTrigger>
               <SelectContent>
@@ -1759,6 +1961,80 @@ export function AdminMatchControl({
               <EyeOff className="h-4 w-4" />
             </Button>
           </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {divisionOptions.length > 0 ? (
+            <div className="xl:min-w-0">
+              <Select value={divisionFilter} onValueChange={setDivisionFilter}>
+                <SelectTrigger aria-label="Filtrar por divisão no controle ao vivo" className="app-input-field w-full">
+                  <SelectValue placeholder="Divisão" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_CONTROL_DIVISION_FILTER}>Todas as divisões</SelectItem>
+                  {divisionOptions.map((divisionOption) => (
+                    <SelectItem key={divisionOption} value={divisionOption}>
+                      {TEAM_DIVISION_LABELS[divisionOption]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+
+          {groupOptions.length > 0 ? (
+            <div className="xl:min-w-0">
+              <Select value={groupFilter} onValueChange={setGroupFilter}>
+                <SelectTrigger aria-label="Filtrar por grupo no controle ao vivo" className="app-input-field w-full">
+                  <SelectValue placeholder="Grupo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_CONTROL_GROUP_FILTER}>Todos os grupos</SelectItem>
+                  {groupOptions.map((groupOption) => (
+                    <SelectItem key={groupOption.value} value={groupOption.value}>
+                      {groupOption.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+
+          {locationOptions.length > 0 ? (
+            <div className="xl:min-w-0">
+              <Select value={locationFilter} onValueChange={setLocationFilter}>
+                <SelectTrigger aria-label="Filtrar por local no controle ao vivo" className="app-input-field w-full">
+                  <SelectValue placeholder="Local" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_CONTROL_LOCATION_FILTER}>Todos os locais</SelectItem>
+                  {locationOptions.map((locationOption) => (
+                    <SelectItem key={locationOption} value={locationOption}>
+                      {locationOption}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+
+          {courtOptions.length > 0 ? (
+            <div className="xl:min-w-0">
+              <Select value={courtFilter} onValueChange={setCourtFilter}>
+                <SelectTrigger aria-label="Filtrar por quadra no controle ao vivo" className="app-input-field w-full">
+                  <SelectValue placeholder="Quadra" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_CONTROL_COURT_FILTER}>Todas as quadras</SelectItem>
+                  {courtOptions.map((courtOption) => (
+                    <SelectItem key={courtOption} value={courtOption}>
+                      {courtOption}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -1801,14 +2077,16 @@ export function AdminMatchControl({
             const tieBreakRuleLabel = resolveMatchTieBreakRuleLabel(match.resolved_tie_breaker_rule);
             const matchRepresentation = matchRepresentationByMatchId[match.id];
             const estimatedStartTime = estimatedStartTimeByMatchId[match.id];
+            const matchLocationLabel = match.court_name ? `${match.location} • ${match.court_name}` : match.location;
             const displayedHomeScore = isSetMatch && match.status != MatchStatus.LIVE ? displayedSetWins.home_sets : matchDraft.homeScore;
             const displayedAwayScore = isSetMatch && match.status != MatchStatus.LIVE ? displayedSetWins.away_sets : matchDraft.awayScore;
             const hasCurrentSetScore =
               Number(matchDraft.homeScore) > 0 || Number(matchDraft.awayScore) > 0;
             const isChampionshipStartBlocked = championshipStatus != ChampionshipStatus.IN_PROGRESS;
-            const selectedWalkoverLoserTeamId = resolveSelectedWalkoverLoserTeamId(match);
-            const hasWalkoverSelection = selectedWalkoverLoserTeamId != null;
+            const selectedWalkoverMode = resolveSelectedWalkoverMode(match);
+            const hasWalkoverSelection = selectedWalkoverMode != WALKOVER_MODE_NONE;
             const shouldShowWalkoverSelector = match.status == MatchStatus.SCHEDULED || match.status == MatchStatus.LIVE;
+            const isKnockoutMatch = matchBracketContext?.phase == BracketPhase.KNOCKOUT;
 
             const bracketMatch = bracketMatchByMatchId[match.id];
             const isKnockoutFirstRound =
@@ -1842,13 +2120,8 @@ export function AdminMatchControl({
                           W.O.?
                         </span>
                         <Select
-                          value={selectedWalkoverLoserTeamId ?? WALKOVER_NONE_OPTION_VALUE}
-                          onValueChange={(value) =>
-                            handleUpdateWalkoverLoserTeamId(
-                              match,
-                              value == WALKOVER_NONE_OPTION_VALUE ? "" : value,
-                            )
-                          }
+                          value={selectedWalkoverMode}
+                          onValueChange={(value) => handleUpdateWalkoverMode(match, value as WalkoverMode)}
                           disabled={!canManageScoreboard}
                         >
                           <SelectTrigger
@@ -1859,9 +2132,12 @@ export function AdminMatchControl({
                             <SelectValue placeholder="Não" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value={WALKOVER_NONE_OPTION_VALUE}>Não</SelectItem>
-                            <SelectItem value={match.home_team_id}>{match.home_team?.name ?? "Mandante"}</SelectItem>
-                            <SelectItem value={match.away_team_id}>{match.away_team?.name ?? "Visitante"}</SelectItem>
+                            <SelectItem value={WALKOVER_MODE_NONE}>Não</SelectItem>
+                            <SelectItem value={WALKOVER_MODE_HOME_LOST}>{match.home_team?.name ?? "Mandante"}</SelectItem>
+                            <SelectItem value={WALKOVER_MODE_AWAY_LOST}>{match.away_team?.name ?? "Visitante"}</SelectItem>
+                            <SelectItem value={WALKOVER_MODE_DOUBLE} disabled={isKnockoutMatch}>
+                              Ambas as atléticas tomaram W.O.
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -1932,7 +2208,7 @@ export function AdminMatchControl({
                   <div className="order-1 space-y-1">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span className="shrink-0 text-xs uppercase text-muted-foreground">
-                        {match.sports?.name} • {match.location}
+                        {match.sports?.name} • {matchLocationLabel}
                       </span>
                       <div className="flex flex-wrap items-center gap-1">
                         <AppBadge tone={resolveMatchNaipeBadgeTone(String(match.naipe))} className="w-fit">

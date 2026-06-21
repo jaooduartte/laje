@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { TeamStandingsTable } from "@/components/TeamStandingsTable";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -41,5 +41,39 @@ describe("TeamStandingsTable draw winner icon", () => {
     );
 
     expect(container.querySelector(".lucide-shuffle")).toBeNull();
+  });
+
+  it("exibe badge e força o time desclassificado para o fim", () => {
+    render(
+      <TooltipProvider>
+        <TeamStandingsTable
+          standings={[
+            ...standings,
+            {
+              team_id: "team-2",
+              team_name: "TIME 2",
+              team_city: "Joinville",
+              division: null,
+              played: 2,
+              wins: 0,
+              draws: 0,
+              losses: 2,
+              goals_for: 1,
+              goals_against: 4,
+              goal_diff: -3,
+              points: 0,
+              yellow_cards: 0,
+              red_cards: 0,
+            },
+          ]}
+          variant="full"
+          disqualifiedTeamKeys={new Set(["team-1:WITHOUT_DIVISION"])}
+        />
+      </TooltipProvider>,
+    );
+
+    const rows = screen.getAllByRole("row");
+    expect(rows[2]).toHaveTextContent("TIME 1");
+    expect(screen.getByText("Desclassificada")).toBeInTheDocument();
   });
 });

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AdminMatchControl } from "@/components/admin/AdminMatchControl";
 import {
   BracketEditionStatus,
+  BracketPhase,
   ChampionshipSportNaipeMode,
   ChampionshipSportResultRule,
   ChampionshipSportTieBreakerRule,
@@ -19,6 +20,7 @@ import type {
   Sport,
   Team,
 } from "@/lib/types";
+import type { MatchBracketContext } from "@/lib/championship";
 
 type SupabaseUpdateCall = {
   table: string;
@@ -170,6 +172,10 @@ function buildMatch(overrides: Partial<Match> & Pick<Match, "id" | "sport_id" | 
     scheduled_slot: overrides.scheduled_slot ?? null,
     current_set_home_score: overrides.current_set_home_score ?? 0,
     current_set_away_score: overrides.current_set_away_score ?? 0,
+    is_walkover: overrides.is_walkover ?? false,
+    is_double_walkover: overrides.is_double_walkover ?? false,
+    walkover_loser_team_id: overrides.walkover_loser_team_id ?? null,
+    is_score_sheet_reviewed: overrides.is_score_sheet_reviewed ?? false,
     resolved_tie_breaker_rule: overrides.resolved_tie_breaker_rule ?? null,
     resolved_tie_break_winner_team_id: overrides.resolved_tie_break_winner_team_id ?? null,
     start_time: overrides.start_time ?? null,
@@ -214,6 +220,7 @@ function renderAdminMatchControl(params: {
   championshipStatus?: ChampionshipStatus;
   visualQueuePositionByMatchId?: Record<string, number>;
   estimatedStartTimeByMatchId?: Record<string, string>;
+  matchBracketContextByMatchId?: Record<string, MatchBracketContext>;
 }) {
   const onRefetch = vi.fn();
   const onRefetchChampionshipBracket = vi.fn();
@@ -223,7 +230,7 @@ function renderAdminMatchControl(params: {
       championshipStatus={params.championshipStatus ?? ChampionshipStatus.IN_PROGRESS}
       championshipSports={params.championshipSports}
       championshipBracketView={buildChampionshipBracketView()}
-      matchBracketContextByMatchId={{}}
+      matchBracketContextByMatchId={params.matchBracketContextByMatchId ?? {}}
       visualQueuePositionByMatchId={params.visualQueuePositionByMatchId}
       estimatedStartTimeByMatchId={params.estimatedStartTimeByMatchId}
       onRefetch={onRefetch}
@@ -238,6 +245,7 @@ function renderAdminMatchControl(params: {
     championshipStatus?: ChampionshipStatus;
     visualQueuePositionByMatchId?: Record<string, number>;
     estimatedStartTimeByMatchId?: Record<string, string>;
+    matchBracketContextByMatchId?: Record<string, MatchBracketContext>;
   }) => {
     renderResult.rerender(
       <AdminMatchControl
@@ -245,7 +253,7 @@ function renderAdminMatchControl(params: {
         championshipStatus={nextParams.championshipStatus ?? ChampionshipStatus.IN_PROGRESS}
         championshipSports={nextParams.championshipSports}
         championshipBracketView={buildChampionshipBracketView()}
-        matchBracketContextByMatchId={{}}
+        matchBracketContextByMatchId={nextParams.matchBracketContextByMatchId ?? {}}
         visualQueuePositionByMatchId={nextParams.visualQueuePositionByMatchId}
         estimatedStartTimeByMatchId={nextParams.estimatedStartTimeByMatchId}
         onRefetch={onRefetch}
@@ -291,6 +299,23 @@ async function selectWalkoverOption(matchCardElement: HTMLElement, optionLabel: 
   });
 }
 
+async function selectControlFilterOption(filterLabel: string, optionLabel: string): Promise<void> {
+  const filterTrigger = screen.getByRole("combobox", { name: filterLabel });
+
+  await act(async () => {
+    fireEvent.click(filterTrigger);
+    vi.runOnlyPendingTimers();
+    await Promise.resolve();
+  });
+
+  const filterOption = screen.getByRole("option", { name: optionLabel });
+
+  await act(async () => {
+    fireEvent.click(filterOption);
+    await Promise.resolve();
+  });
+}
+
 async function confirmFinishDialog(): Promise<void> {
   const confirmDialogTitle = screen.getByText("Encerrar jogo");
   const confirmAction =
@@ -301,6 +326,20 @@ async function confirmFinishDialog(): Promise<void> {
 
   if (!confirmDialogTitle || !confirmAction) {
     throw new Error("Dialog de confirmação para encerrar jogo não encontrado.");
+  }
+
+  await act(async () => {
+    fireEvent.click(confirmAction);
+    await Promise.resolve();
+  });
+}
+
+async function confirmReturnToScheduledDialog(): Promise<void> {
+  const confirmDialogTitle = screen.getByRole("heading", { name: "Voltar ao agendamento" });
+  const confirmAction = screen.getByRole("button", { name: "Voltar ao agendamento" });
+
+  if (!confirmDialogTitle || !confirmAction) {
+    throw new Error("Dialog de confirmação para voltar ao agendamento não encontrado.");
   }
 
   await act(async () => {
@@ -356,9 +395,64 @@ describe("AdminMatchControl", () => {
     expect(supabaseUpdateCalls[0]?.table).toBe("matches");
     expect(supabaseUpdateCalls[0]?.value).toBe("scheduled-match");
     expect(supabaseUpdateCalls[0]?.payload.status).toBe(MatchStatus.LIVE);
-    expect(typeof supabaseUpdateCalls[0]?.payload.start_time).toBe("string");
+    expect(supabaseUpdateCalls[0]?.payload.start_time).toBe("2026-04-11T10:00:00.000Z");
     expect(supabaseUpdateCalls[0]?.payload.end_time).toBeNull();
     expect(toastSuccessMock).toHaveBeenCalledWith("Jogo iniciado!");
+    expect(onRefetch).toHaveBeenCalledTimes(1);
+    expect(onRefetchChampionshipBracket).toHaveBeenCalledTimes(1);
+  });
+
+  it("volta jogo ao agendamento limpando apenas dados operacionais", async () => {
+    const match = buildMatch({
+      id: "return-to-scheduled-match",
+      sport_id: "sport-return-scheduled",
+      status: MatchStatus.LIVE,
+      start_time: "2026-04-11T10:40:00.000Z",
+      end_time: "2026-04-11T11:05:00.000Z",
+      home_score: 2,
+      away_score: 1,
+      home_yellow_cards: 1,
+      away_red_cards: 1,
+      queue_position: 6,
+      scheduled_slot: 6,
+      home_team: buildTeam({ id: "return-home-team", name: "Atlética Retorno Casa" }),
+      away_team: buildTeam({ id: "return-away-team", name: "Atlética Retorno Visitante" }),
+    });
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-return-scheduled",
+      sport_id: "sport-return-scheduled",
+      result_rule: ChampionshipSportResultRule.POINTS,
+      supports_cards: true,
+    });
+
+    const { onRefetch, onRefetchChampionshipBracket } = renderAdminMatchControl({
+      matches: [match],
+      championshipSports: [championshipSport],
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /voltar ao agendamento/i }));
+    });
+    await confirmReturnToScheduledDialog();
+
+    expect(supabaseUpdateCalls).toHaveLength(1);
+    expect(supabaseUpdateCalls[0]?.payload).toMatchObject({
+      status: MatchStatus.SCHEDULED,
+      start_time: "2026-04-11T10:40:00.000Z",
+      end_time: null,
+      home_score: 0,
+      away_score: 0,
+      home_yellow_cards: 0,
+      home_red_cards: 0,
+      away_yellow_cards: 0,
+      away_red_cards: 0,
+      is_walkover: false,
+      is_double_walkover: false,
+      walkover_loser_team_id: null,
+    });
+    expect(supabaseUpdateCalls[0]?.payload).not.toHaveProperty("scheduled_slot");
+    expect(supabaseUpdateCalls[0]?.payload).not.toHaveProperty("queue_position");
+    expect(toastSuccessMock).toHaveBeenCalledWith("Jogo voltou ao agendamento.");
     expect(onRefetch).toHaveBeenCalledTimes(1);
     expect(onRefetchChampionshipBracket).toHaveBeenCalledTimes(1);
   });
@@ -403,6 +497,7 @@ describe("AdminMatchControl", () => {
       away_score: 3,
       status: MatchStatus.FINISHED,
       is_walkover: true,
+      is_double_walkover: false,
       walkover_loser_team_id: homeTeam.id,
     });
     expect(typeof supabaseUpdateCalls[0]?.payload.start_time).toBe("string");
@@ -458,7 +553,61 @@ describe("AdminMatchControl", () => {
       away_score: 0,
       status: MatchStatus.FINISHED,
       is_walkover: true,
+      is_double_walkover: false,
       walkover_loser_team_id: awayTeam.id,
+    });
+  });
+
+  it("encerra jogo agendado por W.O. duplo com placar zerado e sem perdedor definido", async () => {
+    const homeTeam = buildTeam({ id: "double-wo-home-team", name: "Atlética WO Duplo Casa" });
+    const awayTeam = buildTeam({ id: "double-wo-away-team", name: "Atlética WO Duplo Visitante" });
+    const match = buildMatch({
+      id: "scheduled-double-walkover-match",
+      sport_id: "sport-double-wo",
+      status: MatchStatus.SCHEDULED,
+      sports: buildSport({ id: "sport-double-wo", name: "Futebol Society" }),
+      home_team: homeTeam,
+      away_team: awayTeam,
+      home_team_id: homeTeam.id,
+      away_team_id: awayTeam.id,
+      home_score: 2,
+      away_score: 1,
+      home_yellow_cards: 1,
+      away_red_cards: 1,
+    });
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-double-wo",
+      sport_id: "sport-double-wo",
+      result_rule: ChampionshipSportResultRule.POINTS,
+      walkover_winner_points: 3,
+    });
+
+    renderAdminMatchControl({
+      matches: [match],
+      championshipSports: [championshipSport],
+    });
+
+    const matchCardElement = resolveMatchCardElement("Atlética WO Duplo Casa");
+    await selectWalkoverOption(matchCardElement, "Ambas as atléticas tomaram W.O.");
+
+    await act(async () => {
+      fireEvent.click(within(matchCardElement).getByRole("button", { name: /encerrar w\.o\./i }));
+    });
+    await confirmFinishDialog();
+
+    expect(saveMatchSetsMock).not.toHaveBeenCalled();
+    expect(supabaseUpdateCalls).toHaveLength(1);
+    expect(supabaseUpdateCalls[0]?.payload).toMatchObject({
+      home_score: 0,
+      away_score: 0,
+      home_yellow_cards: 0,
+      home_red_cards: 0,
+      away_yellow_cards: 0,
+      away_red_cards: 0,
+      status: MatchStatus.FINISHED,
+      is_walkover: true,
+      is_double_walkover: true,
+      walkover_loser_team_id: null,
     });
   });
 
@@ -575,6 +724,49 @@ describe("AdminMatchControl", () => {
     expect(toastErrorMock).toHaveBeenCalledWith("Só é possível aplicar W.O. quando o campeonato estiver Em andamento.");
   });
 
+  it("bloqueia W.O. duplo em jogo de mata-mata", async () => {
+    const homeTeam = buildTeam({ id: "double-wo-knockout-home", name: "Atlética WO Duplo Mata-mata Casa" });
+    const awayTeam = buildTeam({ id: "double-wo-knockout-away", name: "Atlética WO Duplo Mata-mata Visitante" });
+    const match = buildMatch({
+      id: "knockout-double-walkover-match",
+      sport_id: "sport-knockout-double-wo",
+      status: MatchStatus.SCHEDULED,
+      home_team: homeTeam,
+      away_team: awayTeam,
+      home_team_id: homeTeam.id,
+      away_team_id: awayTeam.id,
+    });
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-knockout-double-wo",
+      sport_id: "sport-knockout-double-wo",
+      result_rule: ChampionshipSportResultRule.POINTS,
+      walkover_winner_points: 3,
+    });
+
+    renderAdminMatchControl({
+      matches: [match],
+      championshipSports: [championshipSport],
+      matchBracketContextByMatchId: {
+        [match.id]: {
+          badgeLabel: "Semifinal",
+          phase: BracketPhase.KNOCKOUT,
+          stageLabel: "Semifinal",
+        },
+      },
+    });
+
+    const matchCardElement = resolveMatchCardElement("Atlética WO Duplo Mata-mata Casa");
+    const walkoverSelectTrigger = within(matchCardElement).getByRole("combobox", { name: "W.O.?" });
+
+    await act(async () => {
+      fireEvent.click(walkoverSelectTrigger);
+      vi.runOnlyPendingTimers();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole("option", { name: "Ambas as atléticas tomaram W.O." })).toHaveAttribute("aria-disabled", "true");
+  });
+
   it("atualiza os dados ao trocar a modalidade no filtro do controle ao vivo", async () => {
     const match = buildMatch({
       id: "filter-match",
@@ -651,6 +843,98 @@ describe("AdminMatchControl", () => {
     });
 
     expect(screen.getAllByText("Atlética Modalidade Restante").length).toBeGreaterThan(0);
+  });
+
+  it("permite filtrar o controle ao vivo por divisão, grupo, local e quadra", async () => {
+    const principalGroupBMatch = buildMatch({
+      id: "principal-group-b",
+      sport_id: "sport-filter",
+      status: MatchStatus.SCHEDULED,
+      division: TeamDivision.DIVISAO_PRINCIPAL,
+      location: "Arena Seven",
+      court_name: "Quadra A",
+      home_team: buildTeam({ id: "principal-group-b-home", name: "Principal Grupo B" }),
+      away_team: buildTeam({ id: "principal-group-b-away", name: "Visitante Grupo B" }),
+    });
+    const principalGroupCMatch = buildMatch({
+      id: "principal-group-c",
+      sport_id: "sport-filter",
+      status: MatchStatus.SCHEDULED,
+      division: TeamDivision.DIVISAO_PRINCIPAL,
+      location: "Arena Seven",
+      court_name: "Quadra B",
+      home_team: buildTeam({ id: "principal-group-c-home", name: "Principal Grupo C" }),
+      away_team: buildTeam({ id: "principal-group-c-away", name: "Visitante Grupo C" }),
+    });
+    const accessGroupAMatch = buildMatch({
+      id: "access-group-a",
+      sport_id: "sport-filter",
+      status: MatchStatus.SCHEDULED,
+      division: TeamDivision.DIVISAO_ACESSO,
+      location: "Arena Central",
+      court_name: "Quadra 1",
+      home_team: buildTeam({ id: "access-group-a-home", name: "Acesso Grupo A" }),
+      away_team: buildTeam({ id: "access-group-a-away", name: "Visitante Grupo A" }),
+    });
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-filter",
+      sport_id: "sport-filter",
+      result_rule: ChampionshipSportResultRule.POINTS,
+      supports_cards: false,
+    });
+
+    renderAdminMatchControl({
+      matches: [principalGroupBMatch, principalGroupCMatch, accessGroupAMatch],
+      championshipSports: [championshipSport],
+      matchBracketContextByMatchId: {
+        [principalGroupBMatch.id]: {
+          badgeLabel: "Grupo B",
+          phase: BracketPhase.GROUP_STAGE,
+          stageLabel: "Fase de grupos",
+          groupFilterValue: "GROUP_B",
+          groupLabel: "Grupo B",
+        },
+        [principalGroupCMatch.id]: {
+          badgeLabel: "Grupo C",
+          phase: BracketPhase.GROUP_STAGE,
+          stageLabel: "Fase de grupos",
+          groupFilterValue: "GROUP_C",
+          groupLabel: "Grupo C",
+        },
+        [accessGroupAMatch.id]: {
+          badgeLabel: "Grupo A",
+          phase: BracketPhase.GROUP_STAGE,
+          stageLabel: "Fase de grupos",
+          groupFilterValue: "GROUP_A",
+          groupLabel: "Grupo A",
+        },
+      },
+    });
+
+    expect(screen.getAllByText("Principal Grupo B").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Principal Grupo C").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Acesso Grupo A").length).toBeGreaterThan(0);
+
+    expect(screen.getByRole("combobox", { name: "Filtrar por divisão no controle ao vivo" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Filtrar por grupo no controle ao vivo" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Filtrar por local no controle ao vivo" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Filtrar por quadra no controle ao vivo" })).toBeInTheDocument();
+
+    await selectControlFilterOption("Filtrar por divisão no controle ao vivo", "Divisão Principal");
+
+    expect(screen.getAllByText("Principal Grupo B").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Principal Grupo C").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Acesso Grupo A")).toBeNull();
+
+    await selectControlFilterOption("Filtrar por grupo no controle ao vivo", "Grupo C");
+
+    expect(screen.queryByText("Principal Grupo B")).toBeNull();
+    expect(screen.getAllByText("Principal Grupo C").length).toBeGreaterThan(0);
+
+    await selectControlFilterOption("Filtrar por quadra no controle ao vivo", "Quadra B");
+
+    expect(screen.queryByText("Principal Grupo B")).toBeNull();
+    expect(screen.getAllByText("Principal Grupo C").length).toBeGreaterThan(0);
   });
 
   it("atualiza os dados ao trocar de página no controle ao vivo", async () => {
@@ -763,6 +1047,31 @@ describe("AdminMatchControl", () => {
     expect(gameFourCard.compareDocumentPosition(gameThreeCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(gameFourCard).toHaveTextContent("Jogo 3");
     expect(gameThreeCard).toHaveTextContent("Jogo 4");
+  });
+
+  it("mostra a quadra no cabeçalho do card do controle ao vivo", () => {
+    const match = buildMatch({
+      id: "live-match-location-and-court",
+      sport_id: "sport-location-and-court",
+      status: MatchStatus.LIVE,
+      location: "Arena Seven",
+      court_name: "Quadra Central",
+      home_team: buildTeam({ id: "location-court-home", name: "Atlética Local Casa" }),
+      away_team: buildTeam({ id: "location-court-away", name: "Atlética Local Visitante" }),
+    });
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-location-and-court",
+      sport_id: "sport-location-and-court",
+      result_rule: ChampionshipSportResultRule.POINTS,
+      supports_cards: false,
+    });
+
+    renderAdminMatchControl({
+      matches: [match],
+      championshipSports: [championshipSport],
+    });
+
+    expect(resolveMatchCardElement("Atlética Local Casa")).toHaveTextContent("Futevôlei • Arena Seven • Quadra Central");
   });
 
   it("mostra o estado ao vivo e salva o placar por pontos em autosave", async () => {

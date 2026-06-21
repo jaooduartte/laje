@@ -10,6 +10,7 @@ import {
   TEAM_DIVISION_LABELS,
   resolveSaoPauloDateTimeLabel,
   resolveMatchDisplaySlotValue,
+  resolveMatchDisplayStatusLabel,
   resolveMatchQueueLabel,
   resolveMatchNaipeBadgeTone,
   resolveMatchNaipeLabel,
@@ -17,7 +18,6 @@ import {
   resolveMatchSetSummary,
   resolveMatchStartedAtLabel,
   resolveMatchStatusBadgeTone,
-  resolveMatchStatusLabel,
   resolveMatchTieBreakRuleLabel,
 } from "@/lib/championship";
 
@@ -107,7 +107,7 @@ export function MatchCard({
             {match.sports?.name}
           </span>
           <AppBadge tone={resolveMatchStatusBadgeTone(match.status)} className="shrink-0">
-            {resolveMatchStatusLabel(match.status)}
+            {resolveMatchDisplayStatusLabel(match)}
           </AppBadge>
         </div>
         <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">

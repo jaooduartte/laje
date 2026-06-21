@@ -11,6 +11,7 @@ import { useChampionshipCorrectedGroupStandings } from "@/hooks/useChampionshipC
 import { useSelectedChampionship } from "@/hooks/useSelectedChampionship";
 import { useChampionshipSelection } from "@/hooks/useChampionshipSelection";
 import { useChampionshipAwardsRankings, type ChampionshipAwardsRankings } from "@/hooks/useChampionshipAwardsRankings";
+import { useCompetitionTeamDisqualifications } from "@/hooks/useCompetitionTeamDisqualifications";
 import type { ChampionshipBracketResolvedTieBreakOrderContext } from "@/domain/championship-brackets/championshipBracket.types";
 import type { MatchBracketContext } from "@/lib/championship";
 import {
@@ -38,8 +39,10 @@ import {
   applyOfficialThirdPlacementToStandings,
   applyCorrectedGroupPointsToStanding,
   aggregateStandingsByTeam,
+  moveDisqualifiedStandingsToBottom,
   resolveCorrectedStandingKey,
   resolveManualTieBreakWinnerTeamIdByPairKey,
+  resolveTeamStandingAggregateKey,
 } from "@/lib/standings";
 import { ChampionshipsPageView } from "@/pages/championships/ChampionshipsPageView";
 
@@ -98,6 +101,12 @@ export function ChampionshipsPage() {
   const { rankings: awardsRankings } = useChampionshipAwardsRankings({
     championshipId: selectedChampionshipId,
     seasonYear: selectedChampionshipSeasonYear,
+  });
+  const standingsDisqualificationSeasonYear =
+    standingsYearFilter == ALL_YEAR_FILTER ? null : Number(standingsYearFilter);
+  const { disqualifications: competitionDisqualifications } = useCompetitionTeamDisqualifications({
+    championshipId: selectedChampionshipId,
+    seasonYear: standingsDisqualificationSeasonYear,
   });
   const { teams } = useTeams();
 
@@ -312,14 +321,52 @@ export function ChampionshipsPage() {
   });
 
   const filteredStandings = useMemo(() => {
-    return aggregateStandingsByTeam(standingsWithFilters, {
+    const aggregates = aggregateStandingsByTeam(standingsWithFilters, {
       tieBreakerRule: standingsTieBreakerRule,
       headToHeadMatches: standingsHeadToHeadMatches,
       manualTieBreakWinnerTeamIdByPairKey: standingsManualTieBreakWinnerTeamIdByPairKey,
     });
+
+    if (
+      standingsDisqualificationSeasonYear == null ||
+      standingsSportFilter == ALL_STANDINGS_SPORT_FILTER ||
+      standingsNaipeFilter == ALL_STANDINGS_NAIPE_FILTER
+    ) {
+      return aggregates;
+    }
+
+    const disqualifiedTeamKeys = new Set(
+      competitionDisqualifications
+        .filter((disqualification) => {
+          if (disqualification.sport_id != standingsSportFilter) {
+            return false;
+          }
+
+          if (disqualification.naipe != standingsNaipeFilter) {
+            return false;
+          }
+
+          if (
+            standingsDivisionFilter != ALL_STANDINGS_DIVISION_FILTER &&
+            disqualification.division != standingsDivisionFilter
+          ) {
+            return false;
+          }
+
+          return true;
+        })
+        .map((disqualification) => resolveTeamStandingAggregateKey(disqualification)),
+    );
+
+    return moveDisqualifiedStandingsToBottom(aggregates, disqualifiedTeamKeys);
   }, [
+    competitionDisqualifications,
     standingsHeadToHeadMatches,
+    standingsDisqualificationSeasonYear,
+    standingsDivisionFilter,
     standingsManualTieBreakWinnerTeamIdByPairKey,
+    standingsNaipeFilter,
+    standingsSportFilter,
     standingsTieBreakerRule,
     standingsWithFilters,
   ]);
@@ -377,6 +424,45 @@ export function ChampionshipsPage() {
     filteredStandings,
     selectedStandingsSeasonView,
     shouldUseManualTieBreakOnStandings,
+    standingsNaipeFilter,
+    standingsSportFilter,
+  ]);
+
+  const standingsDisqualifiedTeamKeys = useMemo(() => {
+    if (
+      standingsDisqualificationSeasonYear == null ||
+      standingsSportFilter == ALL_STANDINGS_SPORT_FILTER ||
+      standingsNaipeFilter == ALL_STANDINGS_NAIPE_FILTER
+    ) {
+      return undefined;
+    }
+
+    const keys = competitionDisqualifications
+      .filter((disqualification) => {
+        if (disqualification.sport_id != standingsSportFilter) {
+          return false;
+        }
+
+        if (disqualification.naipe != standingsNaipeFilter) {
+          return false;
+        }
+
+        if (
+          standingsDivisionFilter != ALL_STANDINGS_DIVISION_FILTER &&
+          disqualification.division != standingsDivisionFilter
+        ) {
+          return false;
+        }
+
+        return true;
+      })
+      .map((disqualification) => resolveTeamStandingAggregateKey(disqualification));
+
+    return keys.length > 0 ? new Set(keys) : undefined;
+  }, [
+    competitionDisqualifications,
+    standingsDisqualificationSeasonYear,
+    standingsDivisionFilter,
     standingsNaipeFilter,
     standingsSportFilter,
   ]);
@@ -440,6 +526,8 @@ export function ChampionshipsPage() {
       selectedChampionshipHasDivisions={standings.some((s) => s.division != null)}
       awardsRankings={awardsRankings}
       awardsSeasonYear={selectedChampionshipSeasonYear}
+      disqualifiedTeamKeys={standingsDisqualifiedTeamKeys}
+      competitionDisqualifications={competitionDisqualifications}
       onStandingsSportFilterChange={setStandingsSportFilter}
       onStandingsNaipeFilterChange={setStandingsNaipeFilter}
       onStandingsDivisionFilterChange={setStandingsDivisionFilter}

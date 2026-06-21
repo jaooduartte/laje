@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { Award, Medal, Shuffle, Trophy } from "lucide-react";
+import { Award, Loader2, Medal, ShieldAlert, Shuffle, Trophy } from "lucide-react";
+import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { AppBadge } from "@/components/ui/app-badge";
 import { useStandings } from "@/hooks/useStandings";
 import { useMatches } from "@/hooks/useMatches";
 import { useChampionshipBracketResolvedTieBreakOrders } from "@/hooks/useChampionshipBracketResolvedTieBreakOrders";
 import { useChampionshipCorrectedGroupStandings } from "@/hooks/useChampionshipCorrectedGroupStandings";
 import { useChampionshipBracketHistory } from "@/hooks/useChampionshipBracketHistory";
+import { useCompetitionTeamDisqualifications } from "@/hooks/useCompetitionTeamDisqualifications";
+import { supabase } from "@/integrations/supabase/client";
 import {
   compareAwardsRankingGoalScorers,
   useChampionshipAwardsRankings,
@@ -17,8 +22,10 @@ import {
   aggregateStandingsByTeam,
   applyCorrectedGroupPointsToStanding,
   filterAggregatesByBracketGroupPlacement,
+  moveDisqualifiedStandingsToBottom,
   resolveCorrectedStandingKey,
   resolveManualTieBreakWinnerTeamIdByPairKey,
+  resolveTeamStandingAggregateKey,
 } from "@/lib/standings";
 import { ChampionshipAwardType, ChampionshipCode, ChampionshipSportTieBreakerRule, MatchNaipe, MatchStatus, TeamDivision } from "@/lib/enums";
 import { resolveModalidadeConfigBySportId } from "@/lib/modalidadeConfig";
@@ -35,6 +42,7 @@ import type {
   Championship,
   ChampionshipBracketView,
   ChampionshipSport,
+  CompetitionTeamDisqualification,
   Sport,
 } from "@/lib/types";
 import { SportFilter } from "@/components/SportFilter";
@@ -50,6 +58,7 @@ interface Props {
 const ALL_SPORTS_FILTER = "all";
 const ALL_NAIPES_FILTER = "all";
 const ALL_GROUPS_FILTER = "all";
+const EMPTY_DISQUALIFICATION_FILTER = "";
 
 export function AdminStandings({
   selectedChampionship,
@@ -63,26 +72,31 @@ export function AdminStandings({
   const [groupFilter, setGroupFilter] = useState<string>(ALL_GROUPS_FILTER);
   const [divisionFilter, setDivisionFilter] = useState<TeamDivision>(TeamDivision.DIVISAO_PRINCIPAL);
   const [placementFilter, setPlacementFilter] = useState<string>("all");
+  const [isDisqualificationDialogOpen, setIsDisqualificationDialogOpen] = useState(false);
+  const [disqualificationYearFilter, setDisqualificationYearFilter] = useState<string>("");
+  const [disqualificationSportFilter, setDisqualificationSportFilter] = useState<string>(EMPTY_DISQUALIFICATION_FILTER);
+  const [disqualificationNaipeFilter, setDisqualificationNaipeFilter] = useState<string>(EMPTY_DISQUALIFICATION_FILTER);
+  const [disqualificationDivisionFilter, setDisqualificationDivisionFilter] = useState<string>(EMPTY_DISQUALIFICATION_FILTER);
+  const [selectedDisqualificationTeamId, setSelectedDisqualificationTeamId] = useState<string>("");
+  const [isSavingDisqualification, setIsSavingDisqualification] = useState(false);
 
   const selectedChampionshipSeasonYear = selectedChampionship?.current_season_year ?? null;
   const [yearFilter, setYearFilter] = useState<string>(
     selectedChampionshipSeasonYear != null ? String(selectedChampionshipSeasonYear) : "all",
   );
   const correctedYearFilter = yearFilter === "all" ? null : Number(yearFilter);
+  const selectedDisqualificationSeasonYear = useMemo(() => {
+    const parsedYear = Number(disqualificationYearFilter);
+    return Number.isFinite(parsedYear) ? parsedYear : null;
+  }, [disqualificationYearFilter]);
 
   const seasonYearsForBracketHistory = useMemo(() => {
-    const seasonYears: number[] = [];
-
-    if (selectedChampionshipSeasonYear != null) {
-      seasonYears.push(selectedChampionshipSeasonYear);
-    }
-
-    if (correctedYearFilter != null && Number.isFinite(correctedYearFilter)) {
-      seasonYears.push(correctedYearFilter);
-    }
-
-    return [...new Set(seasonYears)];
-  }, [correctedYearFilter, selectedChampionshipSeasonYear]);
+    return [...new Set([
+      selectedChampionshipSeasonYear,
+      correctedYearFilter,
+      ...availableSeasonYears,
+    ])].filter((seasonYear): seasonYear is number => seasonYear != null && Number.isFinite(seasonYear));
+  }, [availableSeasonYears, correctedYearFilter, selectedChampionshipSeasonYear]);
 
   const { championshipBracketSeasonViews } = useChampionshipBracketHistory({
     championshipId: selectedChampionship.id,
@@ -111,6 +125,12 @@ export function AdminStandings({
       ...championshipBracketSeasonViews.map((championshipBracketSeasonView) => championshipBracketSeasonView.season_year),
     ])].sort((firstYear, secondYear) => secondYear - firstYear);
   }, [availableSeasonYears, championshipBracketSeasonViews]);
+
+  const disqualificationSeasonYears = useMemo(() => {
+    return [...new Set([selectedChampionshipSeasonYear, ...historyYears])]
+      .filter((year): year is number => year != null)
+      .sort((firstYear, secondYear) => secondYear - firstYear);
+  }, [historyYears, selectedChampionshipSeasonYear]);
 
   useEffect(() => {
     if (selectedChampionshipSeasonYear == null) {
@@ -144,6 +164,16 @@ export function AdminStandings({
   const { correctedGroupStandings, loading: correctedStandingsLoading } = useChampionshipCorrectedGroupStandings({
     championshipId: selectedChampionship.id,
     seasonYear: correctedYearFilter,
+  });
+  const {
+    disqualifications: competitionDisqualifications,
+    refetch: refetchCompetitionDisqualifications,
+  } = useCompetitionTeamDisqualifications({
+    championshipId: selectedChampionship.id,
+    seasonYears: [...new Set([
+      correctedYearFilter,
+      selectedDisqualificationSeasonYear,
+    ])].filter((seasonYear): seasonYear is number => seasonYear != null && Number.isFinite(seasonYear)),
   });
 
   const standingsHeadToHeadSportFilter = sportFilter == ALL_SPORTS_FILTER ? null : sportFilter;
@@ -264,6 +294,40 @@ export function AdminStandings({
     }
   }, [isPlacementFilterDisabled, placementFilter]);
 
+  const visibleCompetitionDisqualifications = useMemo(() => {
+    return competitionDisqualifications.filter((disqualification) => {
+      if (sportFilter != ALL_SPORTS_FILTER && disqualification.sport_id != sportFilter) {
+        return false;
+      }
+
+      if (naipeFilter != ALL_NAIPES_FILTER && disqualification.naipe != naipeFilter) {
+        return false;
+      }
+
+      if (selectedChampionship.uses_divisions && disqualification.division != divisionFilter) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [
+    competitionDisqualifications,
+    divisionFilter,
+    naipeFilter,
+    selectedChampionship.uses_divisions,
+    sportFilter,
+  ]);
+
+  const visibleCompetitionDisqualifiedTeamKeys = useMemo(() => {
+    if (visibleCompetitionDisqualifications.length == 0) {
+      return undefined;
+    }
+
+    return new Set(
+      visibleCompetitionDisqualifications.map((disqualification) => resolveTeamStandingAggregateKey(disqualification)),
+    );
+  }, [visibleCompetitionDisqualifications]);
+
   const filteredStandings = useMemo(() => {
     const correctedStandingByKey = correctedGroupStandings.reduce<
       Record<string, { points_base: number; corrected_points: number }>
@@ -297,8 +361,12 @@ export function AdminStandings({
       headToHeadMatches: standingsHeadToHeadMatches,
       manualTieBreakWinnerTeamIdByPairKey: manualTieBreakWinnerTeamIdByPairKey,
     });
+    const aggregatesWithDisqualificationOrder = moveDisqualifiedStandingsToBottom(
+      aggregates,
+      visibleCompetitionDisqualifiedTeamKeys,
+    );
 
-    return filterAggregatesByBracketGroupPlacement(aggregates, {
+    return filterAggregatesByBracketGroupPlacement(aggregatesWithDisqualificationOrder, {
       groupOptions: selectedSeasonGroupOptions,
       placement:
         resolvedPlacementFilter == "first_per_group"
@@ -317,6 +385,7 @@ export function AdminStandings({
         headToHeadMatches: standingsHeadToHeadMatches,
         manualTieBreakWinnerTeamIdByPairKey: manualTieBreakWinnerTeamIdByPairKey,
       },
+      pinnedBottomTeamKeys: visibleCompetitionDisqualifiedTeamKeys,
       resolveTieBreakerRuleForSport: (selectedSportId) => {
         const championshipSport = championshipSports.find((sport) => sport.sport_id == selectedSportId);
         return championshipSport?.tie_breaker_rule ?? ChampionshipSportTieBreakerRule.STANDARD;
@@ -335,6 +404,7 @@ export function AdminStandings({
     standings,
     standingsHeadToHeadMatches,
     standingsTieBreakerRule,
+    visibleCompetitionDisqualifiedTeamKeys,
   ]);
 
   const standingsWithOfficialThirdPlacement = useMemo(() => {
@@ -378,6 +448,212 @@ export function AdminStandings({
     shouldUseManualTieBreakOnStandings,
     sportFilter,
   ]);
+
+  const disqualificationBracketView = useMemo(() => {
+    if (selectedDisqualificationSeasonYear == null) {
+      return championshipBracketView;
+    }
+
+    if (selectedDisqualificationSeasonYear == selectedChampionshipSeasonYear) {
+      return championshipBracketView;
+    }
+
+    const selectedSeasonView = championshipBracketSeasonViews.find((seasonBracketView) => {
+      return seasonBracketView.season_year == selectedDisqualificationSeasonYear;
+    });
+
+    return selectedSeasonView?.championship_bracket_view ?? championshipBracketView;
+  }, [
+    championshipBracketSeasonViews,
+    championshipBracketView,
+    selectedChampionshipSeasonYear,
+    selectedDisqualificationSeasonYear,
+  ]);
+
+  const disqualificationCompetitionOptions = useMemo(() => {
+    return disqualificationBracketView.competitions;
+  }, [disqualificationBracketView.competitions]);
+
+  const disqualificationSportOptions = useMemo(() => {
+    const uniqueSports = new Map<string, string>();
+
+    disqualificationCompetitionOptions.forEach((competition) => {
+      uniqueSports.set(competition.sport_id, competition.sport_name);
+    });
+
+    return [...uniqueSports.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((firstOption, secondOption) => firstOption.label.localeCompare(secondOption.label, "pt-BR", { sensitivity: "base" }));
+  }, [disqualificationCompetitionOptions]);
+
+  const disqualificationNaipeOptions = useMemo(() => {
+    if (disqualificationSportFilter == EMPTY_DISQUALIFICATION_FILTER) {
+      return [];
+    }
+
+    return [...new Set(
+      disqualificationCompetitionOptions
+        .filter((competition) => competition.sport_id == disqualificationSportFilter)
+        .map((competition) => competition.naipe),
+    )];
+  }, [disqualificationCompetitionOptions, disqualificationSportFilter]);
+
+  const disqualificationDivisionOptions = useMemo(() => {
+    if (
+      disqualificationSportFilter == EMPTY_DISQUALIFICATION_FILTER ||
+      disqualificationNaipeFilter == EMPTY_DISQUALIFICATION_FILTER
+    ) {
+      return [];
+    }
+
+    return [...new Set(
+      disqualificationCompetitionOptions
+        .filter((competition) => {
+          return competition.sport_id == disqualificationSportFilter && competition.naipe == disqualificationNaipeFilter;
+        })
+        .map((competition) => competition.division)
+        .filter((division): division is TeamDivision => division != null),
+    )];
+  }, [disqualificationCompetitionOptions, disqualificationNaipeFilter, disqualificationSportFilter]);
+
+  const selectedDisqualificationCompetition = useMemo(() => {
+    if (
+      disqualificationSportFilter == EMPTY_DISQUALIFICATION_FILTER ||
+      disqualificationNaipeFilter == EMPTY_DISQUALIFICATION_FILTER
+    ) {
+      return null;
+    }
+
+    return disqualificationCompetitionOptions.find((competition) => {
+      if (
+        competition.sport_id != disqualificationSportFilter ||
+        competition.naipe != disqualificationNaipeFilter
+      ) {
+        return false;
+      }
+
+      if (!selectedChampionship.uses_divisions) {
+        return true;
+      }
+
+      return competition.division == (disqualificationDivisionFilter || null);
+    }) ?? null;
+  }, [
+    disqualificationCompetitionOptions,
+    disqualificationDivisionFilter,
+    disqualificationNaipeFilter,
+    disqualificationSportFilter,
+    selectedChampionship.uses_divisions,
+  ]);
+
+  const selectedCompetitionDisqualifications = useMemo(() => {
+    if (!selectedDisqualificationCompetition) {
+      return [];
+    }
+
+    return competitionDisqualifications.filter((disqualification) => {
+      return (
+        disqualification.sport_id == selectedDisqualificationCompetition.sport_id &&
+        disqualification.naipe == selectedDisqualificationCompetition.naipe &&
+        disqualification.division == selectedDisqualificationCompetition.division
+      );
+    });
+  }, [competitionDisqualifications, selectedDisqualificationCompetition]);
+
+  const availableDisqualificationTeams = useMemo(() => {
+    if (!selectedDisqualificationCompetition) {
+      return [];
+    }
+
+    const disqualifiedTeamIds = new Set(selectedCompetitionDisqualifications.map((disqualification) => disqualification.team_id));
+
+    return selectedDisqualificationCompetition.groups
+      .flatMap((group) => group.teams)
+      .filter((team, teamIndex, teams) => {
+        if (disqualifiedTeamIds.has(team.team_id)) {
+          return false;
+        }
+
+        return teams.findIndex((candidateTeam) => candidateTeam.team_id == team.team_id) == teamIndex;
+      })
+      .sort((firstTeam, secondTeam) => firstTeam.team_name.localeCompare(secondTeam.team_name, "pt-BR", { sensitivity: "base" }));
+  }, [selectedCompetitionDisqualifications, selectedDisqualificationCompetition]);
+
+  useEffect(() => {
+    if (disqualificationSeasonYears.length == 0) {
+      return;
+    }
+
+    if (disqualificationSeasonYears.some((year) => String(year) == disqualificationYearFilter)) {
+      return;
+    }
+
+    const fallbackYear = correctedYearFilter ?? selectedChampionshipSeasonYear ?? disqualificationSeasonYears[0];
+    setDisqualificationYearFilter(String(fallbackYear));
+  }, [correctedYearFilter, disqualificationSeasonYears, disqualificationYearFilter, selectedChampionshipSeasonYear]);
+
+  useEffect(() => {
+    if (disqualificationSportOptions.length == 0) {
+      setDisqualificationSportFilter(EMPTY_DISQUALIFICATION_FILTER);
+      return;
+    }
+
+    if (disqualificationSportOptions.some((option) => option.value == disqualificationSportFilter)) {
+      return;
+    }
+
+    setDisqualificationSportFilter(EMPTY_DISQUALIFICATION_FILTER);
+  }, [disqualificationSportFilter, disqualificationSportOptions]);
+
+  useEffect(() => {
+    if (disqualificationNaipeOptions.length == 0) {
+      setDisqualificationNaipeFilter(EMPTY_DISQUALIFICATION_FILTER);
+      return;
+    }
+
+    if (disqualificationNaipeOptions.includes(disqualificationNaipeFilter as MatchNaipe)) {
+      return;
+    }
+
+    setDisqualificationNaipeFilter(EMPTY_DISQUALIFICATION_FILTER);
+  }, [disqualificationNaipeFilter, disqualificationNaipeOptions]);
+
+  useEffect(() => {
+    if (!selectedChampionship.uses_divisions) {
+      if (disqualificationDivisionFilter != EMPTY_DISQUALIFICATION_FILTER) {
+        setDisqualificationDivisionFilter(EMPTY_DISQUALIFICATION_FILTER);
+      }
+      return;
+    }
+
+    if (disqualificationDivisionOptions.length == 0) {
+      setDisqualificationDivisionFilter(EMPTY_DISQUALIFICATION_FILTER);
+      return;
+    }
+
+    if (disqualificationDivisionOptions.includes(disqualificationDivisionFilter as TeamDivision)) {
+      return;
+    }
+
+    setDisqualificationDivisionFilter(EMPTY_DISQUALIFICATION_FILTER);
+  }, [
+    disqualificationDivisionFilter,
+    disqualificationDivisionOptions,
+    selectedChampionship.uses_divisions,
+  ]);
+
+  useEffect(() => {
+    if (availableDisqualificationTeams.length == 0) {
+      setSelectedDisqualificationTeamId("");
+      return;
+    }
+
+    if (availableDisqualificationTeams.some((team) => team.team_id == selectedDisqualificationTeamId)) {
+      return;
+    }
+
+    setSelectedDisqualificationTeamId("");
+  }, [availableDisqualificationTeams, selectedDisqualificationTeamId]);
 
   const isLoading = standingsLoading || correctedStandingsLoading || tieBreaksLoading || finishedMatchesLoading;
 
@@ -440,8 +716,81 @@ export function AdminStandings({
     return resolveModalidadeConfigBySportId(sportFilter, activeNaipe, sports);
   }, [naipeFilter, sportFilter, sports]);
 
+  function handleOpenDisqualificationDialog() {
+    const fallbackYear = correctedYearFilter ?? selectedChampionshipSeasonYear ?? disqualificationSeasonYears[0];
+
+    setDisqualificationYearFilter(fallbackYear != null ? String(fallbackYear) : "");
+    setDisqualificationSportFilter(EMPTY_DISQUALIFICATION_FILTER);
+    setDisqualificationNaipeFilter(EMPTY_DISQUALIFICATION_FILTER);
+    setDisqualificationDivisionFilter(EMPTY_DISQUALIFICATION_FILTER);
+    setSelectedDisqualificationTeamId("");
+    setIsDisqualificationDialogOpen(true);
+  }
+
+  async function handleConfirmDisqualification() {
+    if (
+      !selectedDisqualificationCompetition ||
+      selectedDisqualificationSeasonYear == null ||
+      !selectedDisqualificationTeamId ||
+      isSavingDisqualification
+    ) {
+      return;
+    }
+
+    const selectedTeam = availableDisqualificationTeams.find((team) => team.team_id == selectedDisqualificationTeamId) ?? null;
+
+    if (!selectedTeam) {
+      toast.error("Selecione uma atlética participante válida.");
+      return;
+    }
+
+    setIsSavingDisqualification(true);
+
+    try {
+      const { error } = await (supabase as unknown as {
+        rpc: (fn: string, args: Record<string, unknown>) => Promise<{ error: unknown }>;
+      }).rpc("disqualify_championship_team_competition", {
+        _championship_id: selectedChampionship.id,
+        _season_year: selectedDisqualificationSeasonYear,
+        _sport_id: selectedDisqualificationCompetition.sport_id,
+        _naipe: selectedDisqualificationCompetition.naipe,
+        _division: selectedDisqualificationCompetition.division,
+        _team_id: selectedTeam.team_id,
+      });
+
+      if (error) {
+        toast.error("Não foi possível desclassificar a atlética.");
+        return;
+      }
+
+      toast.success(`Atlética ${selectedTeam.team_name} desclassificada com sucesso.`);
+      setIsDisqualificationDialogOpen(false);
+      await refetchCompetitionDisqualifications();
+    } finally {
+      setIsSavingDisqualification(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
+      <div className="glass-card enter-section flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-foreground">Ações da competição</p>
+          <p className="text-xs text-muted-foreground">
+            Desclassifique uma atlética escolhendo ano, modalidade, naipe, divisão e equipe diretamente no formulário.
+          </p>
+        </div>
+
+        <Button
+          type="button"
+          className="w-full sm:w-auto"
+          onClick={handleOpenDisqualificationDialog}
+        >
+          <ShieldAlert className="h-4 w-4" />
+          Desclassificar atlética
+        </Button>
+      </div>
+
       <div className="space-y-3">
         <SportFilter
           sports={activeSports}
@@ -534,14 +883,26 @@ export function AdminStandings({
         )}
       </div>
 
-      <TeamStandingsTable
-        standings={standingsWithOfficialThirdPlacement.adjustedStandings}
-        modalidadeConfig={activeModalidadeConfig}
-        isLoading={isLoading}
-        variant="full"
-        drawWinners={drawWinners}
-        groupLabelByTeamId={groupLabelByTeamId}
-      />
+      <div className="space-y-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-foreground">Classificação por competição</p>
+            <p className="text-xs text-muted-foreground">
+              A tabela abaixo continua respeitando os filtros aplicados para leitura da classificação.
+            </p>
+          </div>
+        </div>
+
+        <TeamStandingsTable
+          standings={standingsWithOfficialThirdPlacement.adjustedStandings}
+          modalidadeConfig={activeModalidadeConfig}
+          isLoading={isLoading}
+          variant="full"
+          drawWinners={drawWinners}
+          groupLabelByTeamId={groupLabelByTeamId}
+          disqualifiedTeamKeys={visibleCompetitionDisqualifiedTeamKeys}
+        />
+      </div>
 
       {awardsRankings && selectedChampionship.code === ChampionshipCode.SOCIETY ? (
         <div className="glass-card enter-section space-y-3 p-4">
@@ -569,14 +930,30 @@ export function AdminStandings({
                 );
 
                 const groupScorers = [...awardsRankings.top_scorers]
-                  .filter((s) => s.naipe === naipe && (s.division ?? "NULL") === (groupDivision ?? "NULL"))
+                  .filter((s) => {
+                    if (s.naipe !== naipe || (s.division ?? "NULL") !== (groupDivision ?? "NULL")) {
+                      return false;
+                    }
+
+                    return !visibleCompetitionDisqualifications.some((disqualification: CompetitionTeamDisqualification) => {
+                      return disqualification.team_id == s.team_id;
+                    });
+                  })
                   .sort((a, b) => compareAwardsRankingGoalScorers(a, b, {
                     drawWinnerPlayerId: scorerDrawResult?.winner_player_id ?? null,
                   }))
                   .slice(0, 3);
 
                 const groupBestDefenses = [...awardsRankings.best_defenses]
-                  .filter((g) => g.naipe === naipe && (g.division ?? "NULL") === (groupDivision ?? "NULL"))
+                  .filter((g) => {
+                    if (g.naipe !== naipe || (g.division ?? "NULL") !== (groupDivision ?? "NULL")) {
+                      return false;
+                    }
+
+                    return !visibleCompetitionDisqualifications.some((disqualification: CompetitionTeamDisqualification) => {
+                      return disqualification.team_id == g.team_id;
+                    });
+                  })
                   .sort((a, b) => {
                     const averageDiff = a.goals_against_average - b.goals_against_average;
                     if (averageDiff !== 0) return averageDiff;
@@ -699,6 +1076,141 @@ export function AdminStandings({
           )}
         </div>
       ) : null}
+
+      <Dialog open={isDisqualificationDialogOpen} onOpenChange={setIsDisqualificationDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Desclassificar atlética da competição</DialogTitle>
+            <DialogDescription>
+              Todos os jogos já agendados, ao vivo ou encerrados dessa competição passam a valer W.O. para o adversário.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 text-sm text-muted-foreground">
+              A atlética continua visível na classificação, sempre em último, com badge de desclassificada. A ação não tem reversão nesta versão.
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground" htmlFor="competition-disqualification-year">
+                  Ano
+                </label>
+                <Select value={disqualificationYearFilter} onValueChange={setDisqualificationYearFilter}>
+                  <SelectTrigger id="competition-disqualification-year" className="app-input-field">
+                    <SelectValue placeholder="Selecione o ano" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {disqualificationSeasonYears.map((year) => (
+                      <SelectItem key={year} value={String(year)}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground" htmlFor="competition-disqualification-sport">
+                  Modalidade
+                </label>
+                <Select value={disqualificationSportFilter} onValueChange={setDisqualificationSportFilter}>
+                  <SelectTrigger id="competition-disqualification-sport" className="app-input-field">
+                    <SelectValue placeholder="Selecione a modalidade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {disqualificationSportOptions.map((sportOption) => (
+                      <SelectItem key={sportOption.value} value={sportOption.value}>
+                        {sportOption.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground" htmlFor="competition-disqualification-naipe">
+                  Naipe
+                </label>
+                <Select value={disqualificationNaipeFilter} onValueChange={setDisqualificationNaipeFilter}>
+                  <SelectTrigger id="competition-disqualification-naipe" className="app-input-field">
+                    <SelectValue placeholder="Selecione o naipe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {disqualificationNaipeOptions.map((naipeOption) => (
+                      <SelectItem key={naipeOption} value={naipeOption}>
+                        {MATCH_NAIPE_LABELS[naipeOption]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {selectedChampionship.uses_divisions ? (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground" htmlFor="competition-disqualification-division">
+                    Divisão
+                  </label>
+                  <Select value={disqualificationDivisionFilter} onValueChange={setDisqualificationDivisionFilter}>
+                    <SelectTrigger id="competition-disqualification-division" className="app-input-field">
+                      <SelectValue placeholder="Selecione a divisão" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {disqualificationDivisionOptions.map((divisionOption) => (
+                        <SelectItem key={divisionOption} value={divisionOption}>
+                          {TEAM_DIVISION_LABELS[divisionOption]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground" htmlFor="competition-disqualification-team">
+                Atlética participante
+              </label>
+              <Select value={selectedDisqualificationTeamId} onValueChange={setSelectedDisqualificationTeamId}>
+                <SelectTrigger id="competition-disqualification-team" className="app-input-field">
+                  <SelectValue placeholder="Selecione a atlética" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableDisqualificationTeams.map((team) => (
+                    <SelectItem key={team.team_id} value={team.team_id}>
+                      {team.team_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedDisqualificationCompetition == null ? (
+                <p className="text-xs text-muted-foreground">
+                  Selecione o recorte da competição para carregar as atléticas participantes.
+                </p>
+              ) : availableDisqualificationTeams.length == 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Todas as atléticas dessa competição já foram desclassificadas ou não há participantes disponíveis.
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsDisqualificationDialogOpen(false)} disabled={isSavingDisqualification}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => void handleConfirmDisqualification()}
+              disabled={!selectedDisqualificationTeamId || isSavingDisqualification}
+            >
+              {isSavingDisqualification ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Confirmar desclassificação
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -207,6 +207,64 @@ export type Database = {
           },
         ]
       }
+      championship_competition_team_disqualifications: {
+        Row: {
+          championship_id: string
+          created_at: string
+          created_by: string | null
+          division: Database["public"]["Enums"]["team_division"] | null
+          id: string
+          naipe: Database["public"]["Enums"]["match_naipe"]
+          season_year: number
+          sport_id: string
+          team_id: string
+        }
+        Insert: {
+          championship_id: string
+          created_at?: string
+          created_by?: string | null
+          division?: Database["public"]["Enums"]["team_division"] | null
+          id?: string
+          naipe: Database["public"]["Enums"]["match_naipe"]
+          season_year: number
+          sport_id: string
+          team_id: string
+        }
+        Update: {
+          championship_id?: string
+          created_at?: string
+          created_by?: string | null
+          division?: Database["public"]["Enums"]["team_division"] | null
+          id?: string
+          naipe?: Database["public"]["Enums"]["match_naipe"]
+          season_year?: number
+          sport_id?: string
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "championship_competition_team_disqualifications_championship_id_fkey"
+            columns: ["championship_id"]
+            isOneToOne: false
+            referencedRelation: "championships"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "championship_competition_team_disqualifications_sport_id_fkey"
+            columns: ["sport_id"]
+            isOneToOne: false
+            referencedRelation: "sports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "championship_competition_team_disqualifications_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       championship_bracket_editions: {
         Row: {
           championship_id: string
@@ -1037,6 +1095,8 @@ export type Database = {
           championship_id: string
           current_set_away_score: number | null
           current_set_home_score: number | null
+          disqualification_id: string | null
+          is_double_walkover: boolean
           is_walkover: boolean
           is_score_sheet_reviewed: boolean
           court_name: string | null
@@ -1071,6 +1131,8 @@ export type Database = {
           championship_id: string
           current_set_away_score?: number | null
           current_set_home_score?: number | null
+          disqualification_id?: string | null
+          is_double_walkover?: boolean
           is_walkover?: boolean
           is_score_sheet_reviewed?: boolean
           court_name?: string | null
@@ -1105,6 +1167,8 @@ export type Database = {
           championship_id?: string
           current_set_away_score?: number | null
           current_set_home_score?: number | null
+          disqualification_id?: string | null
+          is_double_walkover?: boolean
           is_walkover?: boolean
           is_score_sheet_reviewed?: boolean
           court_name?: string | null
@@ -1144,6 +1208,13 @@ export type Database = {
             columns: ["championship_id"]
             isOneToOne: false
             referencedRelation: "championships"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matches_disqualification_id_fkey"
+            columns: ["disqualification_id"]
+            isOneToOne: false
+            referencedRelation: "championship_competition_team_disqualifications"
             referencedColumns: ["id"]
           },
           {
@@ -1685,6 +1756,7 @@ export type Database = {
       get_public_access_settings: {
         Args: never
         Returns: {
+          announcement_message: string | null
           blocked_message: string | null
           is_championships_page_blocked: boolean
           is_league_calendar_page_blocked: boolean
@@ -1794,6 +1866,7 @@ export type Database = {
       }
       set_public_access_settings: {
         Args: {
+          _announcement_message?: string | null
           _blocked_message?: string | null
           _is_championships_page_blocked?: boolean
           _is_league_calendar_page_blocked?: boolean

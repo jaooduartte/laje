@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { resolveChampionshipBracketKnockoutProjection } from "@/domain/championship-brackets/championshipBracketKnockoutProjection";
 import type { MatchSetInput } from "@/domain/championship-brackets/championshipBracket.types";
 import {
   AppBadgeTone,
@@ -259,6 +260,37 @@ export function resolveKnockoutRoundLabel(
   return `${2 ** remainingRounds} avos de final`;
 }
 
+function resolveKnockoutTotalRounds(bracketSize: number): number {
+  let totalRounds = 1;
+
+  while (2 ** totalRounds < bracketSize) {
+    totalRounds += 1;
+  }
+
+  return totalRounds;
+}
+
+function resolveCompetitionProjectedKnockoutTotalRounds(competition: ChampionshipBracketView["competitions"][number]): number {
+  const knockoutProjection = resolveChampionshipBracketKnockoutProjection({
+    groups_count: competition.groups_count,
+    qualifiers_per_group: competition.qualifiers_per_group,
+    should_complete_knockout_with_best_second_placed_teams:
+      competition.should_complete_knockout_with_best_second_placed_teams,
+  });
+
+  if (knockoutProjection.projected_bracket_size >= 2) {
+    return resolveKnockoutTotalRounds(knockoutProjection.projected_bracket_size);
+  }
+
+  return competition.knockout_matches.reduce((currentTotalRounds, knockoutMatch) => {
+    if (knockoutMatch.is_third_place) {
+      return currentTotalRounds;
+    }
+
+    return Math.max(currentTotalRounds, knockoutMatch.round_number);
+  }, 0);
+}
+
 export function isTeamDivision(value: string): value is TeamDivision {
   return value === TeamDivision.DIVISAO_PRINCIPAL || value === TeamDivision.DIVISAO_ACESSO;
 }
@@ -329,16 +361,6 @@ function resolveMatchRepresentationFromPreviousMatch(match: MatchRepresentationS
   return `${previousHomeTeamName} x ${previousAwayTeamName}`;
 }
 
-function doMatchRepresentationSourcesShareAnyTeam(
-  firstMatch: Pick<MatchRepresentationSource, "home_team" | "away_team">,
-  secondMatch: Pick<MatchRepresentationSource, "home_team" | "away_team">,
-): boolean {
-  const firstTeamIds = [firstMatch.home_team?.id, firstMatch.away_team?.id].filter(Boolean);
-  const secondTeamIds = new Set([secondMatch.home_team?.id, secondMatch.away_team?.id].filter(Boolean));
-
-  return firstTeamIds.some((teamId) => secondTeamIds.has(teamId));
-}
-
 function resolveMatchRepresentationForVisualCourtSequence(
   currentMatch: MatchRepresentationSource,
   previousMatch: MatchRepresentationSource | undefined,
@@ -351,10 +373,6 @@ function resolveMatchRepresentationForVisualCourtSequence(
   const previousScheduledDate = previousMatch ? resolveMatchScheduledDateValue(previousMatch) : null;
 
   if (!previousMatch || currentScheduledDate != previousScheduledDate) {
-    return MATCH_REPRESENTATION_COORDINATION_LABEL;
-  }
-
-  if (doMatchRepresentationSourcesShareAnyTeam(previousMatch, currentMatch)) {
     return MATCH_REPRESENTATION_COORDINATION_LABEL;
   }
 
@@ -947,6 +965,20 @@ export function resolveMatchStatusLabel(status: MatchStatus): string {
   return MATCH_STATUS_LABELS[status];
 }
 
+export function isMatchCanceledByDisqualification(match: Pick<Match, "disqualification_id">): boolean {
+  return match.disqualification_id != null;
+}
+
+export function resolveMatchDisplayStatusLabel(
+  match: Pick<Match, "status" | "disqualification_id">,
+): string {
+  if (isMatchCanceledByDisqualification(match)) {
+    return "Cancelado por desclassificação";
+  }
+
+  return resolveMatchStatusLabel(match.status);
+}
+
 export function resolveMatchScheduledDateValue(match: {
   scheduled_date: string | null;
   start_time: string | null;
@@ -1378,13 +1410,7 @@ export function resolveMatchBracketContextByMatchId(
   return championshipBracketView.competitions.reduce<Record<string, MatchBracketContext>>((matchContextById, competition) => {
     const divisionLabel = competition.division ? TEAM_DIVISION_LABELS[competition.division] : "Sem divisão";
     const seasonYearLabel = typeof seasonYear == "number" ? ` • ${seasonYear}` : "";
-    const knockoutTotalRounds = competition.knockout_matches.reduce((currentTotalRounds, knockoutMatch) => {
-      if (knockoutMatch.is_third_place) {
-        return currentTotalRounds;
-      }
-
-      return Math.max(currentTotalRounds, knockoutMatch.round_number);
-    }, 0);
+    const knockoutTotalRounds = resolveCompetitionProjectedKnockoutTotalRounds(competition);
 
     competition.groups.forEach((group) => {
       const championshipGroupLabel = resolveChampionshipGroupLabel(group.group_number);

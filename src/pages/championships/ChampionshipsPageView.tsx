@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatStandingsPoints, type TeamStandingAggregate } from "@/lib/standings";
-import type { Championship, Match, Sport, Team } from "@/lib/types";
+import type { Championship, CompetitionTeamDisqualification, Match, Sport, Team } from "@/lib/types";
 import type {
   BracketGroupFilterOption,
   MatchBracketContext,
@@ -42,6 +42,7 @@ interface ChampionshipsPageViewProps {
   allStandingsDivisionFilter: string;
   selectedChampionshipHasDivisions: boolean;
   filteredStandings: TeamStandingAggregate[];
+  disqualifiedTeamKeys?: ReadonlySet<string>;
   isStandingsNaipeFilterLocked: boolean;
   standingsModalidadeConfig?: ModalidadeConfig;
   teamFilter: string;
@@ -59,6 +60,7 @@ interface ChampionshipsPageViewProps {
   overallPodiumStandings: TeamStandingAggregate[];
   awardsRankings: ChampionshipAwardsRankings | null;
   awardsSeasonYear: number | null;
+  competitionDisqualifications?: CompetitionTeamDisqualification[];
   matchBracketContextByMatchId: Record<string, MatchBracketContext>;
   matchRepresentationByMatchId: Record<string, string>;
   estimatedStartTimeByMatchId: Record<string, string>;
@@ -92,6 +94,7 @@ export function ChampionshipsPageView({
   allStandingsDivisionFilter,
   selectedChampionshipHasDivisions,
   filteredStandings,
+  disqualifiedTeamKeys,
   isStandingsNaipeFilterLocked,
   standingsModalidadeConfig,
   teamFilter,
@@ -109,6 +112,7 @@ export function ChampionshipsPageView({
   overallPodiumStandings,
   awardsRankings,
   awardsSeasonYear,
+  competitionDisqualifications = [],
   matchBracketContextByMatchId,
   matchRepresentationByMatchId,
   estimatedStartTimeByMatchId,
@@ -314,6 +318,7 @@ export function ChampionshipsPageView({
                 modalidadeConfig={standingsModalidadeConfig}
                 isLoading={isStandingsLoading}
                 variant="public"
+                disqualifiedTeamKeys={disqualifiedTeamKeys}
               />
             </section>
 
@@ -400,7 +405,16 @@ export function ChampionshipsPageView({
 
                         const filteredScorers = isCurrentYear
                           ? [...(awardsRankings?.top_scorers ?? [])].filter(
-                              (s) => s.naipe === championshipChampion.naipe && s.division === championshipChampion.division
+                              (s) =>
+                                s.naipe === championshipChampion.naipe &&
+                                s.division === championshipChampion.division &&
+                                !competitionDisqualifications.some((disqualification) => {
+                                  return (
+                                    disqualification.naipe === championshipChampion.naipe &&
+                                    disqualification.division === championshipChampion.division &&
+                                    disqualification.team_id === s.team_id
+                                  );
+                                })
                             )
                           : [];
                         const sortedScorers = isCurrentYear
@@ -414,7 +428,16 @@ export function ChampionshipsPageView({
 
                         const filteredBestDefenses = isCurrentYear
                           ? [...(awardsRankings?.best_defenses ?? [])].filter(
-                              (g) => g.naipe === championshipChampion.naipe && g.division === championshipChampion.division
+                              (g) =>
+                                g.naipe === championshipChampion.naipe &&
+                                g.division === championshipChampion.division &&
+                                !competitionDisqualifications.some((disqualification) => {
+                                  return (
+                                    disqualification.naipe === championshipChampion.naipe &&
+                                    disqualification.division === championshipChampion.division &&
+                                    disqualification.team_id === g.team_id
+                                  );
+                                })
                             )
                           : [];
                         const bestDefense = isCurrentYear

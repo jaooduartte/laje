@@ -26,6 +26,16 @@ interface PublicAccessSettingsSavePayload {
   is_league_calendar_page_blocked: boolean;
   is_links_page_blocked: boolean;
   blocked_message: string | null;
+  announcement_message: string | null;
+}
+
+function normalizeOptionalMessage(value: string | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const normalizedValue = value.trim();
+  return normalizedValue.length > 0 ? normalizedValue : null;
 }
 
 function resolvePublicAccessSettingsSavePayload(
@@ -38,10 +48,8 @@ function resolvePublicAccessSettingsSavePayload(
     is_schedule_page_blocked: publicAccessSettings.is_schedule_page_blocked,
     is_league_calendar_page_blocked: publicAccessSettings.is_league_calendar_page_blocked,
     is_links_page_blocked: publicAccessSettings.is_links_page_blocked,
-    blocked_message:
-      publicAccessSettings.blocked_message && publicAccessSettings.blocked_message.trim().length > 0
-        ? publicAccessSettings.blocked_message.trim()
-        : null,
+    blocked_message: normalizeOptionalMessage(publicAccessSettings.blocked_message),
+    announcement_message: normalizeOptionalMessage(publicAccessSettings.announcement_message),
   };
 }
 
@@ -97,6 +105,7 @@ export function AdminPublicAccessSettings({ canManageSettings = false }: Props) 
         _is_league_calendar_page_blocked: nextPayload.is_league_calendar_page_blocked,
         _is_links_page_blocked: nextPayload.is_links_page_blocked,
         _blocked_message: nextPayload.blocked_message,
+        _announcement_message: nextPayload.announcement_message,
       });
 
       if (error) {
@@ -189,6 +198,26 @@ export function AdminPublicAccessSettings({ canManageSettings = false }: Props) 
           className="app-input-field min-h-24 resize-none"
           disabled={!canManageSettings}
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="public-access-announcement-message">Aviso no app (opcional)</Label>
+        <Textarea
+          id="public-access-announcement-message"
+          value={publicAccessSettings.announcement_message ?? ""}
+          onChange={(event) =>
+            setPublicAccessSettings((currentPublicAccessSettings) => ({
+              ...currentPublicAccessSettings,
+              announcement_message: event.target.value,
+            }))
+          }
+          placeholder="Ex.: Novo regulamento disponível na aba Links."
+          className="app-input-field min-h-24 resize-none"
+          disabled={!canManageSettings}
+        />
+        <p className="text-xs text-muted-foreground">
+          Quando preenchido, aparece abaixo do cabeçalho em todas as telas do app.
+        </p>
       </div>
 
       {canManageSettings ? (

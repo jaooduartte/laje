@@ -59,6 +59,29 @@ export function resolveTeamStandingAggregateKey(
   return `${standing.team_id}:${standing.division ?? "WITHOUT_DIVISION"}`;
 }
 
+export function moveDisqualifiedStandingsToBottom<TStanding extends Pick<TeamStandingAggregate, "team_id" | "division">>(
+  standings: TStanding[],
+  disqualifiedTeamKeys?: ReadonlySet<string>,
+): TStanding[] {
+  if (!disqualifiedTeamKeys || disqualifiedTeamKeys.size == 0) {
+    return standings;
+  }
+
+  const eligibleStandings: TStanding[] = [];
+  const disqualifiedStandings: TStanding[] = [];
+
+  standings.forEach((standing) => {
+    if (disqualifiedTeamKeys.has(resolveTeamStandingAggregateKey(standing))) {
+      disqualifiedStandings.push(standing);
+      return;
+    }
+
+    eligibleStandings.push(standing);
+  });
+
+  return [...eligibleStandings, ...disqualifiedStandings];
+}
+
 interface CorrectedStandingPoints {
   team_id: string;
   sport_id: string;
@@ -682,6 +705,7 @@ export interface BracketGroupPlacementFilterContext {
   sortOptions: SortStandingsOptions;
   resolveTieBreakerRuleForSport: (sportId: string) => ChampionshipSportTieBreakerRule;
   finalTieBreakerRule: ChampionshipSportTieBreakerRule;
+  pinnedBottomTeamKeys?: ReadonlySet<string>;
 }
 
 export function filterAggregatesByBracketGroupPlacement(
@@ -722,10 +746,13 @@ export function filterAggregatesByBracketGroupPlacement(
     const allowedTeamIds = new Set(groupsToScan.flatMap((groupOption) => groupOption.team_ids));
     const filteredAggregates = aggregates.filter((aggregateRow) => allowedTeamIds.has(aggregateRow.team_id));
 
-    return sortTeamStandingAggregatesByRanking(filteredAggregates, {
-      ...context.sortOptions,
-      tieBreakerRule: context.finalTieBreakerRule,
-    });
+    return moveDisqualifiedStandingsToBottom(
+      sortTeamStandingAggregatesByRanking(filteredAggregates, {
+        ...context.sortOptions,
+        tieBreakerRule: context.finalTieBreakerRule,
+      }),
+      context.pinnedBottomTeamKeys,
+    );
   }
 
   if (context.groupOptions.length == 0) {
@@ -744,10 +771,13 @@ export function filterAggregatesByBracketGroupPlacement(
       continue;
     }
 
-    const sorted = sortTeamStandingAggregatesByRanking(inGroup, {
-      ...context.sortOptions,
-      tieBreakerRule: context.resolveTieBreakerRuleForSport(group.sport_id),
-    });
+    const sorted = moveDisqualifiedStandingsToBottom(
+      sortTeamStandingAggregatesByRanking(inGroup, {
+        ...context.sortOptions,
+        tieBreakerRule: context.resolveTieBreakerRuleForSport(group.sport_id),
+      }),
+      context.pinnedBottomTeamKeys,
+    );
 
     const pick = sorted[rankIndex];
 
@@ -763,10 +793,13 @@ export function filterAggregatesByBracketGroupPlacement(
     }
   }
 
-  return sortTeamStandingAggregatesByRanking(picked, {
-    ...context.sortOptions,
-    tieBreakerRule: context.finalTieBreakerRule,
-  });
+  return moveDisqualifiedStandingsToBottom(
+    sortTeamStandingAggregatesByRanking(picked, {
+      ...context.sortOptions,
+      tieBreakerRule: context.finalTieBreakerRule,
+    }),
+    context.pinnedBottomTeamKeys,
+  );
 }
 
 export function aggregateStandingsByNaipe(

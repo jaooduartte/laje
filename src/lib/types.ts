@@ -94,7 +94,9 @@ export interface Match {
   current_set_home_score?: number | null;
   current_set_away_score?: number | null;
   is_walkover?: boolean;
+  is_double_walkover?: boolean;
   walkover_loser_team_id?: string | null;
+  disqualification_id?: string | null;
   is_score_sheet_reviewed?: boolean;
   resolved_tie_breaker_rule?: ChampionshipSportTieBreakerRule | null;
   resolved_tie_break_winner_team_id?: string | null;
@@ -231,6 +233,7 @@ export interface PublicAccessSettings {
   is_league_calendar_page_blocked: boolean;
   is_links_page_blocked: boolean;
   blocked_message: string | null;
+  announcement_message: string | null;
   updated_at: string | null;
 }
 
@@ -440,4 +443,16 @@ export interface ChampionshipBracketCompetition {
 export interface ChampionshipBracketView {
   edition: ChampionshipBracketEdition | null;
   competitions: ChampionshipBracketCompetition[];
+}
+
+export interface CompetitionTeamDisqualification {
+  id: string;
+  championship_id: string;
+  season_year: number;
+  sport_id: string;
+  naipe: MatchNaipe;
+  division: TeamDivision | null;
+  team_id: string;
+  created_at: string;
+  created_by: string | null;
 }

@@ -189,6 +189,7 @@ const ADMIN_LOG_RESOURCE_FIELD_LABELS: Partial<Record<AdminLogResourceTable, Rec
     is_league_calendar_page_blocked: "Bloqueio da tela Calendário da Liga",
     is_links_page_blocked: "Bloqueio da tela Links",
     blocked_message: "Mensagem de manutenção",
+    announcement_message: "Mensagem de aviso do app",
   },
   [AdminLogResourceTable.PUBLIC_LINK_SECTIONS]: {
     name: "Nome da seção",
