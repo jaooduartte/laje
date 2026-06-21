@@ -5161,7 +5161,7 @@ export function AdminMatches({
               </div>
 
               {!activeScoreSheetAwardsDraft.isWalkover ? (
-                <div className={`rounded-xl border px-3 py-2.5 text-sm ${hasIncompleteActiveScoreSheetGoalSelections ? "border-amber-200 bg-amber-50 text-amber-900" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}>
+                <div className={`rounded-xl border px-3 py-2.5 text-sm ${hasIncompleteActiveScoreSheetGoalSelections ? "border-amber-300/60 bg-amber-50 text-amber-900 dark:border-amber-700/50 dark:bg-amber-950 dark:text-amber-100" : "border-emerald-300/60 bg-emerald-50 text-emerald-900 dark:border-emerald-700/50 dark:bg-emerald-950 dark:text-emerald-100"}`}>
                   <p className="font-medium">
                     {hasIncompleteActiveScoreSheetGoalSelections
                       ? `Faltam ${activeScoreSheetGoalSelectionSummary.pendingGoals} autor${activeScoreSheetGoalSelectionSummary.pendingGoals == 1 ? "" : "es"} de gol para liberar o salvamento.`
@@ -5205,7 +5205,7 @@ export function AdminMatches({
                             {pendingGoals > 0 ? ` • faltam ${pendingGoals}` : ""}
                           </p>
                         </div>
-                        <div className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${pendingGoals > 0 ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}>
+                        <div className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${pendingGoals > 0 ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-100" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-100"}`}>
                           {pendingGoals > 0 ? "Pendente" : "Completo"}
                         </div>
                       </div>
@@ -5413,7 +5413,7 @@ export function AdminMatches({
 
           <DialogFooter className="mt-2 flex-col gap-3 sm:flex-col sm:space-x-0">
             {!activeScoreSheetAwardsDraft?.isWalkover && hasIncompleteActiveScoreSheetGoalSelections ? (
-              <p className="text-sm text-amber-700">
+              <p className="text-sm text-amber-700 dark:text-amber-300">
                 Preencha os {activeScoreSheetGoalSelectionSummary.pendingGoals} autor{activeScoreSheetGoalSelectionSummary.pendingGoals == 1 ? "" : "es"} restante{activeScoreSheetGoalSelectionSummary.pendingGoals == 1 ? "" : "s"} para salvar.
               </p>
             ) : (

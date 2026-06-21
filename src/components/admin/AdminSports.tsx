@@ -705,6 +705,12 @@ export function AdminSports({
                       Perfil em visualização: sem permissão para editar a aba de modalidades.
                     </p>
                   ) : null}
+
+                  <p className="text-xs text-muted-foreground">
+                    Com a opção desligada, a apuração considera somente a fase de grupos. Com a opção ligada, soma fase
+                    de grupos + eliminatória, mas só entram no ranking atléticas e jogadores de atléticas que
+                    disputaram ao menos um jogo eliminatório válido.
+                  </p>
                 </div>
 
                 <div className="app-card-muted space-y-2 px-3 py-2">

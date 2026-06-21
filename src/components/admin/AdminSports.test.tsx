@@ -87,6 +87,12 @@ describe("AdminSports", () => {
     expect(screen.getByText("Contabilização de prêmios (artilheiro e melhor defesa)")).toBeInTheDocument();
     expect(screen.getByText("Critérios de premiação")).toBeInTheDocument();
     expect(
+      screen.getByText(/Com a opção desligada, a apuração considera somente a fase de grupos\./),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/só entram no ranking atléticas e jogadores de atléticas que disputaram ao menos um jogo eliminatório válido\./),
+    ).toBeInTheDocument();
+    expect(
       screen.getByText((_, element) => {
         const textContent = element?.textContent?.trim() ?? "";
         const childHasSameText = Array.from(element?.children ?? []).some((child) =>
