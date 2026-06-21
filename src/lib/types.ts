@@ -1,4 +1,5 @@
 import type { MatchSetInput } from "@/domain/championship-brackets/championshipBracket.types";
+import type { ChampionshipKnockoutPairingMode } from "@/domain/championship-brackets/championshipBracketPairing";
 import type {
   AdminActionType,
   AdminPanelPermissionLevel,
@@ -93,6 +94,8 @@ export interface Match {
   scheduled_slot?: number | null;
   current_set_home_score?: number | null;
   current_set_away_score?: number | null;
+  home_penalty_score?: number | null;
+  away_penalty_score?: number | null;
   is_walkover?: boolean;
   is_double_walkover?: boolean;
   walkover_loser_team_id?: string | null;
@@ -435,6 +438,7 @@ export interface ChampionshipBracketCompetition {
   groups_count: number;
   qualifiers_per_group: number;
   should_complete_knockout_with_best_second_placed_teams?: boolean | null;
+  knockout_pairing_mode?: ChampionshipKnockoutPairingMode | null;
   third_place_mode: BracketThirdPlaceMode;
   groups: ChampionshipBracketGroup[];
   knockout_matches: ChampionshipBracketKnockoutMatch[];

@@ -19,7 +19,7 @@ export function Header() {
   const location = useLocation();
   const navRef = useRef<HTMLElement | null>(null);
   const announcementViewportRef = useRef<HTMLDivElement | null>(null);
-  const announcementTextRef = useRef<HTMLSpanElement | null>(null);
+  const announcementMeasureRef = useRef<HTMLSpanElement | null>(null);
   const linkByPathRef = useRef<Record<string, HTMLAnchorElement | null>>({});
   const [activeIndicatorLeft, setActiveIndicatorLeft] = useState(previousHeaderIndicatorState?.left ?? 0);
   const [activeIndicatorWidth, setActiveIndicatorWidth] = useState(previousHeaderIndicatorState?.width ?? 0);
@@ -62,13 +62,13 @@ export function Header() {
   }, [activeRoutePath]);
 
   const updateAnnouncementOverflow = useCallback(() => {
-    if (!announcementMessage || !announcementViewportRef.current || !announcementTextRef.current) {
+    if (!announcementMessage || !announcementViewportRef.current || !announcementMeasureRef.current) {
       setIsAnnouncementOverflowing(false);
       return;
     }
 
     setIsAnnouncementOverflowing(
-      announcementTextRef.current.scrollWidth > announcementViewportRef.current.clientWidth + 1,
+      announcementMeasureRef.current.scrollWidth > announcementViewportRef.current.clientWidth + 1,
     );
   }, [announcementMessage]);
 
@@ -170,10 +170,15 @@ export function Header() {
               className="app-announcement-viewport"
               data-overflowing={isAnnouncementOverflowing ? "true" : "false"}
             >
+              <span ref={announcementMeasureRef} className="app-announcement-measure" aria-hidden="true">
+                <span className="app-announcement-prefix">Aviso:</span>
+                <span className="app-announcement-text">{announcementMessage}</span>
+              </span>
+
               {isAnnouncementOverflowing ? (
                 <div className="app-announcement-marquee-track">
                   <span className="app-announcement-prefix">Aviso:</span>
-                  <span ref={announcementTextRef} className="app-announcement-text">
+                  <span className="app-announcement-text">
                     {announcementMessage}
                   </span>
                   <span className="app-announcement-prefix" aria-hidden="true">Aviso:</span>
@@ -182,7 +187,7 @@ export function Header() {
                   </span>
                 </div>
               ) : (
-                <span ref={announcementTextRef} className="app-announcement-inline">
+                <span className="app-announcement-inline">
                   <span className="app-announcement-prefix">Aviso:</span>
                   <span className="app-announcement-text">{announcementMessage}</span>
                 </span>

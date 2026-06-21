@@ -3,6 +3,7 @@ import {
   sanitizeGroupAssignments,
   sanitizeGroupOrderedTeamIdsByGroupNumber,
 } from "@/domain/championship-brackets/championshipBracketGroupEditor";
+import { resolveDefaultCompetitionKnockoutPairingMode } from "@/domain/championship-brackets/championshipBracketPairing";
 import type {
   ChampionshipBracketCompetitionConfigDraft,
   ChampionshipBracketWizardDraftFormValues,
@@ -22,6 +23,7 @@ interface SanitizeChampionshipBracketWizardDraftOptions {
 interface WizardCompetitionOption {
   key: string;
   sport_id: string;
+  sport_name: string;
   naipe: MatchNaipe;
   division: TeamDivision | null;
 }
@@ -42,11 +44,21 @@ function resolveSupportedNaipesByMode(naipeMode: ChampionshipSportNaipeMode): Ma
   return [MatchNaipe.MASCULINO, MatchNaipe.FEMININO];
 }
 
-function resolveDefaultCompetitionConfig(participantCount: number): ChampionshipBracketCompetitionConfigDraft {
+function resolveDefaultCompetitionConfig(
+  participantCount: number,
+  competitionOption: WizardCompetitionOption | null,
+): ChampionshipBracketCompetitionConfigDraft {
   return {
     groups_count: Math.max(1, Math.min(2, participantCount)),
     qualifiers_per_group: CHAMPIONSHIP_BRACKET_DEFAULT_QUALIFIERS_PER_GROUP,
     should_complete_knockout_with_best_second_placed_teams: true,
+    knockout_pairing_mode: competitionOption
+      ? resolveDefaultCompetitionKnockoutPairingMode({
+          sport_name: competitionOption.sport_name,
+          naipe: competitionOption.naipe,
+          division: competitionOption.division,
+        })
+      : "LINEAR",
   };
 }
 
@@ -77,9 +89,12 @@ function resolveCompetitionOptionsByTeamId({
     }
 
     carry[team.id] = championshipSports.flatMap((championshipSport) => {
+      const sportName = championshipSport.sports?.name ?? "Modalidade";
+
       return resolveSupportedNaipesByMode(championshipSport.naipe_mode).map((naipe) => ({
         key: resolveCompetitionKey(championshipSport.sport_id, naipe, teamDivision),
         sport_id: championshipSport.sport_id,
+        sport_name: sportName,
         naipe,
         division: teamDivision,
       }));
@@ -171,13 +186,23 @@ export function sanitizeChampionshipBracketWizardDraft({
   const activeCompetitionKeys = Object.keys(teamIdsByCompetitionKey).filter((competitionKey) => {
     return (teamIdsByCompetitionKey[competitionKey] ?? []).length >= 2;
   });
+  const competitionOptionsByKey = Object.values(competitionOptionsByTeamId).reduce<
+    Record<string, WizardCompetitionOption>
+  >((carry, competitionOptions) => {
+    competitionOptions.forEach((competitionOption) => {
+      carry[competitionOption.key] = competitionOption;
+    });
+
+    return carry;
+  }, {});
 
   const nextCompetitionConfigByKey = activeCompetitionKeys.reduce<Record<string, ChampionshipBracketCompetitionConfigDraft>>(
     (carry, competitionKey) => {
       const participantCount = teamIdsByCompetitionKey[competitionKey]?.length ?? 2;
+      const competitionOption = competitionOptionsByKey[competitionKey] ?? null;
       carry[competitionKey] =
         draftFormValues.competition_config_by_key[competitionKey] ??
-        resolveDefaultCompetitionConfig(participantCount);
+        resolveDefaultCompetitionConfig(participantCount, competitionOption);
       return carry;
     },
     {},

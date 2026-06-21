@@ -14,7 +14,16 @@ import type {
   MatchSetInput,
 } from "@/domain/championship-brackets/championshipBracket.types";
 import type { ChampionshipBracketView, ChampionshipSport, Match, Sport } from "@/lib/types";
-import { AppBadgeTone, BracketPhase, ChampionshipSportResultRule, ChampionshipStatus, MatchNaipe, MatchStatus, TeamDivision } from "@/lib/enums";
+import {
+  AppBadgeTone,
+  BracketPhase,
+  ChampionshipSportResultRule,
+  ChampionshipSportTieBreakerRule,
+  ChampionshipStatus,
+  MatchNaipe,
+  MatchStatus,
+  TeamDivision,
+} from "@/lib/enums";
 import { SportFilter } from "@/components/SportFilter";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,11 +55,13 @@ import {
   resolveBracketGroupFilterOptions,
   resolveMatchNaipeBadgeTone,
   resolveMatchNaipeLabel,
+  resolveMatchPenaltyShootoutSummary,
   resolveRecordedMatchSets,
   resolveMatchScheduledDateValue,
   resolveMatchSetSummary,
   resolveMatchStartedAtLabel,
   resolveMatchTieBreakRuleLabel,
+  isSocietyKnockoutMatch,
 } from "@/lib/championship";
 import { scrollToTopOfPage } from "@/lib/scroll";
 
@@ -82,6 +93,11 @@ interface MatchSetEditDraft {
   setNumber: number;
   homePoints: number;
   awayPoints: number;
+}
+
+interface MatchPenaltyShootoutDraft {
+  homePenaltyScore: string;
+  awayPenaltyScore: string;
 }
 
 
@@ -265,6 +281,37 @@ function parseNonNegativeNumber(value: string): number {
   return Math.max(0, parsedValue);
 }
 
+function resolvePenaltyShootoutInputValue(value: string): string {
+  const trimmedValue = value.trim();
+
+  if (trimmedValue.length == 0) {
+    return "";
+  }
+
+  return String(Math.max(0, Number.parseInt(trimmedValue, 10) || 0));
+}
+
+function resolvePenaltyShootoutScoreValue(value: string): number | null {
+  const trimmedValue = value.trim();
+
+  if (trimmedValue.length == 0) {
+    return null;
+  }
+
+  return Math.max(0, Number.parseInt(trimmedValue, 10) || 0);
+}
+
+function resolvePenaltyShootoutWinnerTeamId(match: Match, homePenaltyScore: number, awayPenaltyScore: number): string {
+  return homePenaltyScore > awayPenaltyScore ? match.home_team_id : match.away_team_id;
+}
+
+function resolveInitialPenaltyShootoutDraft(match: Match): MatchPenaltyShootoutDraft {
+  return {
+    homePenaltyScore: typeof match.home_penalty_score == "number" ? String(match.home_penalty_score) : "",
+    awayPenaltyScore: typeof match.away_penalty_score == "number" ? String(match.away_penalty_score) : "",
+  };
+}
+
 
 function resolveWalkoverWinnerPoints(
   match: Pick<Match, "sport_id">,
@@ -326,9 +373,14 @@ function resolveAdminMatchControlErrorMessage(
 ): string {
   if (
     error.code == "PGRST204" &&
-    (error.message.includes("current_set_home_score") || error.message.includes("current_set_away_score"))
+    (
+      error.message.includes("current_set_home_score") ||
+      error.message.includes("current_set_away_score") ||
+      error.message.includes("home_penalty_score") ||
+      error.message.includes("away_penalty_score")
+    )
   ) {
-    return "A migration 20260316013000_add_match_live_set_progress_and_tie_break_metadata.sql ainda não foi aplicada no banco. Rode npx supabase db push e recarregue o schema.";
+    return "As migrations de placar ao vivo e pênaltis ainda não foram aplicadas no banco. Rode npx supabase db push e recarregue o schema.";
   }
 
   return fallbackMessage;
@@ -377,6 +429,12 @@ export function AdminMatchControl({
   const [showOnlyLiveMatches, setShowOnlyLiveMatches] = useState(false);
   const [showFinishConfirmDialog, setShowFinishConfirmDialog] = useState(false);
   const [pendingFinishMatch, setPendingFinishMatch] = useState<Match | null>(null);
+  const [showPenaltyShootoutDialog, setShowPenaltyShootoutDialog] = useState(false);
+  const [pendingPenaltyShootoutMatch, setPendingPenaltyShootoutMatch] = useState<Match | null>(null);
+  const [penaltyShootoutDraft, setPenaltyShootoutDraft] = useState<MatchPenaltyShootoutDraft>({
+    homePenaltyScore: "",
+    awayPenaltyScore: "",
+  });
   const [showReturnToScheduledConfirmDialog, setShowReturnToScheduledConfirmDialog] = useState(false);
   const [pendingReturnToScheduledMatch, setPendingReturnToScheduledMatch] = useState<Match | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -918,6 +976,21 @@ export function AdminMatchControl({
     });
   }, []);
 
+  const openPenaltyShootoutDialog = useCallback((match: Match) => {
+    setPendingPenaltyShootoutMatch(match);
+    setPenaltyShootoutDraft(resolveInitialPenaltyShootoutDraft(match));
+    setShowPenaltyShootoutDialog(true);
+  }, []);
+
+  const closePenaltyShootoutDialog = useCallback(() => {
+    setShowPenaltyShootoutDialog(false);
+    setPendingPenaltyShootoutMatch(null);
+    setPenaltyShootoutDraft({
+      homePenaltyScore: "",
+      awayPenaltyScore: "",
+    });
+  }, []);
+
   const handleUpdateWalkoverMode = useCallback((match: Match, walkoverMode: WalkoverMode) => {
     const isKnockoutMatch = matchBracketContextByMatchId[match.id]?.phase == BracketPhase.KNOCKOUT;
 
@@ -1424,6 +1497,10 @@ export function AdminMatchControl({
         home_red_cards: 0,
         away_yellow_cards: 0,
         away_red_cards: 0,
+        home_penalty_score: null,
+        away_penalty_score: null,
+        resolved_tie_breaker_rule: null,
+        resolved_tie_break_winner_team_id: null,
         is_walkover: false,
         is_double_walkover: false,
         walkover_loser_team_id: null,
@@ -1481,6 +1558,10 @@ export function AdminMatchControl({
         status: MatchStatus.LIVE,
         start_time: match.start_time ?? new Date().toISOString(),
         end_time: null,
+        home_penalty_score: null,
+        away_penalty_score: null,
+        resolved_tie_breaker_rule: null,
+        resolved_tie_break_winner_team_id: null,
         is_walkover: false,
         is_double_walkover: false,
         walkover_loser_team_id: null,
@@ -1536,6 +1617,10 @@ export function AdminMatchControl({
           home_red_cards: 0,
           away_yellow_cards: 0,
           away_red_cards: 0,
+          home_penalty_score: null,
+          away_penalty_score: null,
+          resolved_tie_breaker_rule: null,
+          resolved_tie_break_winner_team_id: null,
           start_time: match.start_time ?? now,
           end_time: match.start_time != null ? now : null,
           status: MatchStatus.FINISHED,
@@ -1620,6 +1705,10 @@ export function AdminMatchControl({
         home_red_cards: 0,
         away_yellow_cards: 0,
         away_red_cards: 0,
+        home_penalty_score: null,
+        away_penalty_score: null,
+        resolved_tie_breaker_rule: null,
+        resolved_tie_break_winner_team_id: null,
         start_time: match.start_time ?? now,
         end_time: match.start_time != null ? now : null,
         status: MatchStatus.FINISHED,
@@ -1662,7 +1751,13 @@ export function AdminMatchControl({
     return persistMatchDraft(match, matchDraft);
   };
 
-  const handleFinish = async (match: Match) => {
+  const handleFinish = async (
+    match: Match,
+    penaltyShootoutScores?: {
+      homePenaltyScore: number;
+      awayPenaltyScore: number;
+    },
+  ) => {
     if (!canManageScoreboard) {
       return;
     }
@@ -1692,12 +1787,17 @@ export function AdminMatchControl({
     const matchBracketContext = matchBracketContextByMatchId[match.id];
     const resolvedHomeScore = isSetMatch ? displayedSetWins.home_sets : currentMatchDraft.homeScore;
     const resolvedAwayScore = isSetMatch ? displayedSetWins.away_sets : currentMatchDraft.awayScore;
+    const shouldUseSocietyPenaltyShootout =
+      isSocietyKnockoutMatch(match, matchBracketContext) &&
+      resolvedHomeScore == resolvedAwayScore;
 
-    if (
-      matchBracketContext?.phase == BracketPhase.KNOCKOUT &&
-      resolvedHomeScore == resolvedAwayScore
-    ) {
+    if (matchBracketContext?.phase == BracketPhase.KNOCKOUT && resolvedHomeScore == resolvedAwayScore && !shouldUseSocietyPenaltyShootout) {
       toast.error("Jogos do mata-mata não podem terminar empatados.");
+      return;
+    }
+
+    if (shouldUseSocietyPenaltyShootout && !penaltyShootoutScores) {
+      openPenaltyShootoutDialog(match);
       return;
     }
 
@@ -1707,6 +1807,15 @@ export function AdminMatchControl({
       toast.error("Não foi possível salvar os dados antes de finalizar o jogo.");
       return;
     }
+
+    const resolvedPenaltyShootoutWinnerTeamId =
+      shouldUseSocietyPenaltyShootout && penaltyShootoutScores
+        ? resolvePenaltyShootoutWinnerTeamId(
+            match,
+            penaltyShootoutScores.homePenaltyScore,
+            penaltyShootoutScores.awayPenaltyScore,
+          )
+        : null;
 
     const { error } = await supabase
       .from("matches")
@@ -1723,6 +1832,12 @@ export function AdminMatchControl({
         home_red_cards: supportsCards ? Math.max(0, currentMatchDraft.homeRedCards) : 0,
         away_yellow_cards: supportsCards ? Math.max(0, currentMatchDraft.awayYellowCards) : 0,
         away_red_cards: supportsCards ? Math.max(0, currentMatchDraft.awayRedCards) : 0,
+        home_penalty_score: penaltyShootoutScores?.homePenaltyScore ?? null,
+        away_penalty_score: penaltyShootoutScores?.awayPenaltyScore ?? null,
+        resolved_tie_breaker_rule: resolvedPenaltyShootoutWinnerTeamId
+          ? ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY
+          : null,
+        resolved_tie_break_winner_team_id: resolvedPenaltyShootoutWinnerTeamId,
         end_time: new Date().toISOString(),
         status: MatchStatus.FINISHED,
         is_walkover: false,
@@ -1738,9 +1853,37 @@ export function AdminMatchControl({
       return;
     }
 
+    if (showPenaltyShootoutDialog) {
+      closePenaltyShootoutDialog();
+    }
+
     toast.success("Jogo finalizado! Classificação atualizada.");
     onRefetch();
     onRefetchChampionshipBracket();
+  };
+
+  const handleConfirmPenaltyShootout = async () => {
+    if (!pendingPenaltyShootoutMatch) {
+      return;
+    }
+
+    const homePenaltyScore = resolvePenaltyShootoutScoreValue(penaltyShootoutDraft.homePenaltyScore);
+    const awayPenaltyScore = resolvePenaltyShootoutScoreValue(penaltyShootoutDraft.awayPenaltyScore);
+
+    if (homePenaltyScore == null || awayPenaltyScore == null) {
+      toast.error("Informe o placar dos pênaltis para as duas atléticas.");
+      return;
+    }
+
+    if (homePenaltyScore == awayPenaltyScore) {
+      toast.error("O placar dos pênaltis precisa definir um vencedor.");
+      return;
+    }
+
+    await handleFinish(pendingPenaltyShootoutMatch, {
+      homePenaltyScore,
+      awayPenaltyScore,
+    });
   };
 
   const handleSwapKnockoutTeam = useCallback(
@@ -2075,6 +2218,7 @@ export function AdminMatchControl({
             const editingSetDraft = editingSetDraftByMatchId[match.id];
             const startedAtLabel = resolveMatchStartedAtLabel(match.start_time, match.status);
             const tieBreakRuleLabel = resolveMatchTieBreakRuleLabel(match.resolved_tie_breaker_rule);
+            const penaltyShootoutSummary = resolveMatchPenaltyShootoutSummary(match, matchBracketContext);
             const matchRepresentation = matchRepresentationByMatchId[match.id];
             const estimatedStartTime = estimatedStartTimeByMatchId[match.id];
             const matchLocationLabel = match.court_name ? `${match.location} • ${match.court_name}` : match.location;
@@ -2264,6 +2408,12 @@ export function AdminMatchControl({
                       {isSetMatch ? (
                         <p className="text-xs font-medium text-muted-foreground">
                           Sets ganhos: {displayedSetWins.home_sets} × {displayedSetWins.away_sets}
+                        </p>
+                      ) : null}
+
+                      {penaltyShootoutSummary ? (
+                        <p className="text-xs font-medium text-muted-foreground">
+                          Pênaltis: ({penaltyShootoutSummary.homePenaltyScore} × {penaltyShootoutSummary.awayPenaltyScore})
                         </p>
                       ) : null}
 
@@ -2710,6 +2860,79 @@ export function AdminMatchControl({
             >
               Encerrar
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={showPenaltyShootoutDialog}
+        onOpenChange={(open) => {
+          if (!open) {
+            closePenaltyShootoutDialog();
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Registrar pênaltis</AlertDialogTitle>
+            <AlertDialogDescription>
+              O jogo terminou empatado no tempo normal. Informe o placar dos pênaltis para definir o vencedor oficial.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">
+                {pendingPenaltyShootoutMatch?.home_team?.name ?? "Casa"}
+              </p>
+              <Input
+                type="number"
+                min={0}
+                step={1}
+                value={penaltyShootoutDraft.homePenaltyScore}
+                onChange={(event) =>
+                  setPenaltyShootoutDraft((currentDraft) => ({
+                    ...currentDraft,
+                    homePenaltyScore: resolvePenaltyShootoutInputValue(event.target.value),
+                  }))
+                }
+                className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                aria-label="Gols nos pênaltis da casa"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">
+                {pendingPenaltyShootoutMatch?.away_team?.name ?? "Visitante"}
+              </p>
+              <Input
+                type="number"
+                min={0}
+                step={1}
+                value={penaltyShootoutDraft.awayPenaltyScore}
+                onChange={(event) =>
+                  setPenaltyShootoutDraft((currentDraft) => ({
+                    ...currentDraft,
+                    awayPenaltyScore: resolvePenaltyShootoutInputValue(event.target.value),
+                  }))
+                }
+                className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                aria-label="Gols nos pênaltis do visitante"
+              />
+            </div>
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={closePenaltyShootoutDialog}>Cancelar</AlertDialogCancel>
+            <Button
+              type="button"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                void handleConfirmPenaltyShootout();
+              }}
+            >
+              Salvar pênaltis e encerrar
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

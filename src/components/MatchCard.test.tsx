@@ -1,7 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { MatchCard } from "@/components/MatchCard";
-import { ChampionshipCode, ChampionshipSportResultRule, ChampionshipStatus, MatchNaipe, MatchStatus } from "@/lib/enums";
+import type { MatchBracketContext } from "@/lib/championship";
+import { BracketPhase, ChampionshipCode, ChampionshipSportResultRule, ChampionshipStatus, MatchNaipe, MatchStatus } from "@/lib/enums";
 import type { Match } from "@/lib/types";
 
 function buildMatch(overrides: Partial<Match> = {}): Match {
@@ -25,6 +26,8 @@ function buildMatch(overrides: Partial<Match> = {}): Match {
     status: overrides.status ?? MatchStatus.FINISHED,
     home_score: overrides.home_score ?? 3,
     away_score: overrides.away_score ?? 0,
+    home_penalty_score: overrides.home_penalty_score ?? null,
+    away_penalty_score: overrides.away_penalty_score ?? null,
     home_yellow_cards: overrides.home_yellow_cards ?? 0,
     home_red_cards: overrides.home_red_cards ?? 0,
     away_yellow_cards: overrides.away_yellow_cards ?? 0,
@@ -72,5 +75,30 @@ describe("MatchCard", () => {
 
     expect(screen.getByText("Cancelado por desclassificação")).toBeInTheDocument();
     expect(screen.getByText("W.O.")).toBeInTheDocument();
+  });
+
+  it("mostra o placar secundário de pênaltis em empate do mata-mata da Society", () => {
+    const bracketContext: MatchBracketContext = {
+      badgeLabel: "Semifinal",
+      phase: BracketPhase.KNOCKOUT,
+      stageLabel: "Semifinal",
+    };
+
+    render(
+      <MatchCard
+        match={buildMatch({
+          status: MatchStatus.FINISHED,
+          is_walkover: false,
+          disqualification_id: null,
+          home_score: 2,
+          away_score: 2,
+          home_penalty_score: 4,
+          away_penalty_score: 3,
+        })}
+        bracketContext={bracketContext}
+      />,
+    );
+
+    expect(screen.getByText("Pênaltis: (4 × 3)")).toBeInTheDocument();
   });
 });

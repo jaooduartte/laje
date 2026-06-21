@@ -35,7 +35,7 @@ function mockAnnouncementDimensions(viewportWidth: number, textWidth: number) {
   });
 
   vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(function scrollWidth() {
-    return this.classList.contains("app-announcement-text") || this.classList.contains("app-announcement-inline") ? textWidth : 0;
+    return this.classList.contains("app-announcement-measure") ? textWidth : 0;
   });
 }
 
@@ -84,7 +84,7 @@ describe("Header", () => {
 
     renderHeader();
 
-    expect(screen.getByText("Novo regulamento disponível.")).toBeInTheDocument();
+    expect(screen.getAllByText("Novo regulamento disponível.").length).toBeGreaterThan(0);
 
     await waitFor(() => {
       expect(document.querySelector(".app-announcement-viewport")).toHaveAttribute("data-overflowing", "false");

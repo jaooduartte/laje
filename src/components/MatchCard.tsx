@@ -14,6 +14,7 @@ import {
   resolveMatchQueueLabel,
   resolveMatchNaipeBadgeTone,
   resolveMatchNaipeLabel,
+  resolveMatchPenaltyShootoutSummary,
   resolveMatchScheduledDateValue,
   resolveMatchSetSummary,
   resolveMatchStartedAtLabel,
@@ -70,6 +71,7 @@ export function MatchCard({
   const matchSetSummary = isSetMatch ? resolveMatchSetSummary(match) : [];
   const tieBreakRuleLabel =
     match.status == MatchStatus.FINISHED ? resolveMatchTieBreakRuleLabel(match.resolved_tie_breaker_rule) : null;
+  const penaltyShootoutSummary = resolveMatchPenaltyShootoutSummary(match, bracketContext);
   const startedAtDateTimeLabel = match.start_time ? resolveSaoPauloDateTimeLabel(match.start_time) : null;
   const startedAtLabel =
     match.status == MatchStatus.SCHEDULED || !match.start_time
@@ -166,6 +168,14 @@ export function MatchCard({
         {isSetMatch && match.status == MatchStatus.LIVE ? (
           <div className="mt-3">
             <p className="text-center text-xs text-muted-foreground">Sets: {match.home_score} × {match.away_score}</p>
+          </div>
+        ) : null}
+
+        {penaltyShootoutSummary ? (
+          <div className="mt-3">
+            <p className="text-center text-xs font-medium text-muted-foreground">
+              Pênaltis: ({penaltyShootoutSummary.homePenaltyScore} × {penaltyShootoutSummary.awayPenaltyScore})
+            </p>
           </div>
         ) : null}
 

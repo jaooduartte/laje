@@ -6,6 +6,7 @@ import type {
   ChampionshipBracketScheduleLocationDraft,
   ChampionshipBracketWizardDraftFormValues,
 } from "@/domain/championship-brackets/championshipBracket.types";
+import { resolveCompetitionKnockoutPairingModeValue } from "@/domain/championship-brackets/championshipBracketPairing";
 import { resolveRandomUuid } from "@/lib/random";
 
 function resolveStringArray(value: unknown): string[] {
@@ -92,6 +93,10 @@ function resolveCompetitionConfigByKey(
             .should_complete_knockout_with_best_second_placed_teams,
           true,
         ),
+      knockout_pairing_mode: resolveCompetitionKnockoutPairingModeValue(
+        (competition_config as ChampionshipBracketCompetitionConfigDraft)
+          .knockout_pairing_mode,
+      ),
     };
 
     return carry;
@@ -454,6 +459,9 @@ export class ChampionshipBracketWizardDraftDTO {
             ),
             should_complete_knockout_with_best_second_placed_teams:
               competition_config.should_complete_knockout_with_best_second_placed_teams,
+            knockout_pairing_mode: resolveCompetitionKnockoutPairingModeValue(
+              competition_config.knockout_pairing_mode,
+            ),
           };
           return carry;
         },

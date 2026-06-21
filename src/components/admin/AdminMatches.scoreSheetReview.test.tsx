@@ -6,6 +6,7 @@ import { AdminMatchesViewMode } from "@/components/admin/adminMatches.types";
 import {
   ChampionshipBracketTieBreakContextType,
   BracketEditionStatus,
+  BracketPhase,
   BracketThirdPlaceMode,
   ChampionshipCode,
   ChampionshipSportNaipeMode,
@@ -277,6 +278,8 @@ function buildMatch(overrides: Partial<Match> & Pick<Match, "id" | "sport_id" | 
     is_score_sheet_reviewed: overrides.is_score_sheet_reviewed ?? false,
     resolved_tie_breaker_rule: overrides.resolved_tie_breaker_rule ?? null,
     resolved_tie_break_winner_team_id: overrides.resolved_tie_break_winner_team_id ?? null,
+    home_penalty_score: overrides.home_penalty_score ?? null,
+    away_penalty_score: overrides.away_penalty_score ?? null,
     start_time: overrides.start_time ?? null,
     end_time: overrides.end_time ?? null,
     status: overrides.status,
@@ -288,7 +291,7 @@ function buildMatch(overrides: Partial<Match> & Pick<Match, "id" | "sport_id" | 
     away_red_cards: overrides.away_red_cards ?? 0,
     created_at: overrides.created_at ?? "2026-04-11T08:00:00.000Z",
     group_number: overrides.group_number ?? null,
-    championships: overrides.championships,
+    championships: overrides.championships ?? buildChampionship(),
     sports: overrides.sports ?? buildSport({ id: overrides.sport_id, name: "Beach Soccer" }),
     home_team: homeTeam,
     away_team: awayTeam,
@@ -383,6 +386,9 @@ function renderAdminMatches(params: {
   bracketView?: ChampionshipBracketView;
   visualQueuePositionByMatchId?: Record<string, number>;
   estimatedStartTimeByMatchId?: Record<string, string>;
+  matchBracketContextByMatchId?: Record<string, { badgeLabel: string; phase: BracketPhase; stageLabel: string; groupFilterValue?: string; groupLabel?: string }>;
+  selectedChampionship?: Championship;
+  championshipSports?: ChampionshipSport[];
 }) {
   const onRefetch = vi.fn();
   const onRefetchChampionshipBracket = vi.fn();
@@ -391,11 +397,11 @@ function renderAdminMatches(params: {
     <AdminMatches
       matches={params.matches}
       teams={params.matches.flatMap((match) => [match.home_team!, match.away_team!])}
-      championshipSports={[buildChampionshipSport({ id: "championship-sport-1", sport_id: "sport-1" })]}
-      selectedChampionship={buildChampionship()}
+      championshipSports={params.championshipSports ?? [buildChampionshipSport({ id: "championship-sport-1", sport_id: "sport-1" })]}
+      selectedChampionship={params.selectedChampionship ?? buildChampionship()}
       championshipBracketView={params.bracketView ?? buildBracketView()}
       loadingChampionshipBracket={false}
-      matchBracketContextByMatchId={{}}
+      matchBracketContextByMatchId={params.matchBracketContextByMatchId ?? {}}
       matchRepresentationByMatchId={{}}
       visualQueuePositionByMatchId={params.visualQueuePositionByMatchId ?? {}}
       estimatedStartTimeByMatchId={params.estimatedStartTimeByMatchId ?? {}}
@@ -672,6 +678,67 @@ describe("AdminMatches score sheet review", () => {
     });
 
     expect(supabaseUpdateCalls).toHaveLength(0);
+  });
+
+  it("mostra aviso de que pênaltis não entram na artilharia na revisão de súmula", async () => {
+    supabaseRpcResponses.push({
+      data: {
+        match_id: "society-score-sheet-match",
+        home_team_id: "team-1-home",
+        away_team_id: "team-1-away",
+        required_home_goals: 2,
+        required_away_goals: 2,
+        is_walkover: false,
+        home_players: [],
+        away_players: [],
+        home_goals: [],
+        away_goals: [],
+      },
+      error: null,
+    });
+
+    renderAdminMatches({
+      viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
+      selectedChampionship: buildChampionship({
+        code: ChampionshipCode.SOCIETY,
+        name: "Copa Laje Society",
+      }),
+      matchBracketContextByMatchId: {
+        "society-score-sheet-match": {
+          badgeLabel: "Semifinal",
+          phase: BracketPhase.KNOCKOUT,
+          stageLabel: "Semifinal",
+        },
+      },
+      matches: [
+        buildMatch({
+          id: "society-score-sheet-match",
+          sport_id: "sport-1",
+          status: MatchStatus.FINISHED,
+          home_score: 2,
+          away_score: 2,
+          home_penalty_score: 4,
+          away_penalty_score: 3,
+          championships: buildChampionship({
+            code: ChampionshipCode.SOCIETY,
+            name: "Copa Laje Society",
+          }),
+          sports: buildSport({ id: "sport-1", name: "Futebol Society" }),
+          home_team: buildTeam({ id: "team-1-home", name: "PENALTY CASA" }),
+          away_team: buildTeam({ id: "team-1-away", name: "PENALTY VISITANTE" }),
+        }),
+      ],
+    });
+
+    fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo PENALTY CASA x PENALTY VISITANTE"));
+    const matchCardContainer = getMatchCardContainerByTeamName("PENALTY CASA");
+    clickFirstMenuItemInMatchCard(matchCardContainer, "Revisar súmula e premiações");
+
+    expect(
+      await screen.findByText(
+        "Os pênaltis desempataram o jogo, mas não entram na artilharia. Informe apenas os autores dos gols do tempo normal.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("marca em lote somente os jogos filtrados ao selecionar todos filtrados", async () => {
@@ -1188,6 +1255,191 @@ describe("AdminMatches score sheet review", () => {
     expect(supabaseUpdateCalls[0].payload).not.toHaveProperty("manual_representation_mode");
   });
 
+  it("mostra o indicador de pênaltis no card admin quando o mata-mata da Society foi decidido nos pênaltis", async () => {
+    renderAdminMatches({
+      selectedChampionship: buildChampionship({
+        code: ChampionshipCode.SOCIETY,
+        name: "Copa Laje Society",
+      }),
+      matchBracketContextByMatchId: {
+        "society-card-penalties-match": {
+          badgeLabel: "Final",
+          phase: BracketPhase.KNOCKOUT,
+          stageLabel: "Final",
+        },
+      },
+      matches: [
+        buildMatch({
+          id: "society-card-penalties-match",
+          sport_id: "sport-1",
+          status: MatchStatus.FINISHED,
+          home_score: 2,
+          away_score: 2,
+          home_penalty_score: 4,
+          away_penalty_score: 3,
+          championships: buildChampionship({
+            code: ChampionshipCode.SOCIETY,
+            name: "Copa Laje Society",
+          }),
+          sports: buildSport({ id: "sport-1", name: "Futebol Society" }),
+          home_team: buildTeam({ id: "society-card-home", name: "CARD PEN CASA" }),
+          away_team: buildTeam({ id: "society-card-away", name: "CARD PEN VISITANTE" }),
+        }),
+      ],
+    });
+
+    expect(await screen.findByText("Pênaltis: (4 × 3)")).toBeInTheDocument();
+  });
+
+  it("salva os pênaltis e o vencedor oficial na edição de jogo da Society", async () => {
+    listEditableMatchScheduleSlotsMock.mockResolvedValue({
+      data: buildEditableScheduleSlots("2026-04-11", 1),
+      error: null,
+    });
+
+    renderAdminMatches({
+      selectedChampionship: buildChampionship({
+        code: ChampionshipCode.SOCIETY,
+        name: "Copa Laje Society",
+      }),
+      championshipSports: [
+        buildChampionshipSport({
+          id: "championship-sport-society-edit",
+          sport_id: "sport-1",
+          tie_breaker_rule: ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY,
+        }),
+      ],
+      matchBracketContextByMatchId: {
+        "society-finished-edit-match": {
+          badgeLabel: "Semifinal",
+          phase: BracketPhase.KNOCKOUT,
+          stageLabel: "Semifinal",
+        },
+      },
+      matches: [
+        buildMatch({
+          id: "society-finished-edit-match",
+          sport_id: "sport-1",
+          status: MatchStatus.FINISHED,
+          court_name: "Quadra Society",
+          start_time: "2026-04-11T08:00:00.000Z",
+          home_score: 2,
+          away_score: 2,
+          championships: buildChampionship({
+            code: ChampionshipCode.SOCIETY,
+            name: "Copa Laje Society",
+          }),
+          sports: buildSport({ id: "sport-1", name: "Futebol Society" }),
+          home_team: buildTeam({ id: "society-edit-home", name: "EDIT PEN CASA" }),
+          away_team: buildTeam({ id: "society-edit-away", name: "EDIT PEN VISITANTE" }),
+        }),
+      ],
+    });
+
+    fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo EDIT PEN CASA x EDIT PEN VISITANTE"));
+    const matchCardContainer = getMatchCardContainerByTeamName("EDIT PEN CASA");
+    clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
+
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Pênaltis da casa" }), {
+      target: { value: "4" },
+    });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Pênaltis do visitante" }), {
+      target: { value: "3" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
+
+    await waitFor(() => {
+      expect(supabaseUpdateCalls.length).toBeGreaterThan(0);
+    });
+
+    expect(supabaseUpdateCalls[0].payload).toMatchObject({
+      home_penalty_score: 4,
+      away_penalty_score: 3,
+      resolved_tie_breaker_rule: ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY,
+      resolved_tie_break_winner_team_id: "society-edit-home",
+    });
+  });
+
+  it("limpa os pênaltis ao desfazer o empate do tempo normal na edição", async () => {
+    listEditableMatchScheduleSlotsMock.mockResolvedValue({
+      data: buildEditableScheduleSlots("2026-04-11", 1),
+      error: null,
+    });
+
+    renderAdminMatches({
+      selectedChampionship: buildChampionship({
+        code: ChampionshipCode.SOCIETY,
+        name: "Copa Laje Society",
+      }),
+      championshipSports: [
+        buildChampionshipSport({
+          id: "championship-sport-society-clear",
+          sport_id: "sport-1",
+          tie_breaker_rule: ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY,
+        }),
+      ],
+      matchBracketContextByMatchId: {
+        "society-clear-penalties-match": {
+          badgeLabel: "Final",
+          phase: BracketPhase.KNOCKOUT,
+          stageLabel: "Final",
+        },
+      },
+      matches: [
+        buildMatch({
+          id: "society-clear-penalties-match",
+          sport_id: "sport-1",
+          status: MatchStatus.FINISHED,
+          court_name: "Quadra Society",
+          start_time: "2026-04-11T08:00:00.000Z",
+          home_score: 2,
+          away_score: 2,
+          home_penalty_score: 5,
+          away_penalty_score: 4,
+          resolved_tie_breaker_rule: ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY,
+          resolved_tie_break_winner_team_id: "society-clear-home",
+          championships: buildChampionship({
+            code: ChampionshipCode.SOCIETY,
+            name: "Copa Laje Society",
+          }),
+          sports: buildSport({ id: "sport-1", name: "Futebol Society" }),
+          home_team: buildTeam({ id: "society-clear-home", name: "CLEAR PEN CASA" }),
+          away_team: buildTeam({ id: "society-clear-away", name: "CLEAR PEN VISITANTE" }),
+        }),
+      ],
+    });
+
+    fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo CLEAR PEN CASA x CLEAR PEN VISITANTE"));
+    const matchCardContainer = getMatchCardContainerByTeamName("CLEAR PEN CASA");
+    clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
+
+    expect(screen.getByRole("spinbutton", { name: "Pênaltis da casa" })).toHaveValue(5);
+
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Placar do mandante" }), {
+      target: { value: "3" },
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByRole("spinbutton", { name: "Pênaltis da casa" })).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
+
+    await waitFor(() => {
+      expect(supabaseUpdateCalls.length).toBeGreaterThan(0);
+    });
+
+    expect(supabaseUpdateCalls[0].payload).toMatchObject({
+      home_score: 3,
+      away_score: 2,
+      home_penalty_score: null,
+      away_penalty_score: null,
+      resolved_tie_breaker_rule: null,
+      resolved_tie_break_winner_team_id: null,
+    });
+  });
+
   it("não faz write ao salvar um jogo encerrado sem alterações", async () => {
     listEditableMatchScheduleSlotsMock.mockResolvedValue({
       data: buildEditableScheduleSlots("2026-04-11", 1),
@@ -1285,10 +1537,13 @@ describe("AdminMatches score sheet review", () => {
           end_time: "2026-04-11T09:15:00.000Z",
           home_score: 2,
           away_score: 1,
+          home_penalty_score: 4,
+          away_penalty_score: 2,
           home_yellow_cards: 1,
           away_red_cards: 1,
           is_score_sheet_reviewed: true,
-          resolved_tie_breaker_rule: ChampionshipSportTieBreakerRule.STANDARD,
+          resolved_tie_breaker_rule: ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY,
+          resolved_tie_break_winner_team_id: "team-live-reopen-home",
           scheduled_slot: 2,
           home_team: buildTeam({ id: "team-live-reopen-home", name: "REABRIR CASA" }),
           away_team: buildTeam({ id: "team-live-reopen-away", name: "REABRIR VISITANTE" }),
@@ -1315,6 +1570,8 @@ describe("AdminMatches score sheet review", () => {
       start_time: "2026-04-11T08:40:00.000Z",
       end_time: null,
       is_score_sheet_reviewed: false,
+      home_penalty_score: null,
+      away_penalty_score: null,
       resolved_tie_breaker_rule: null,
       resolved_tie_break_winner_team_id: null,
       is_walkover: false,

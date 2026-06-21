@@ -29,6 +29,10 @@ function buildChampionshipSport(overrides: Partial<ChampionshipSport> = {}): Cha
     points_draw: overrides.points_draw ?? 1,
     points_loss: overrides.points_loss ?? 0,
     created_at: overrides.created_at ?? "2026-05-08T00:00:00.000Z",
+    walkover_winner_points: overrides.walkover_winner_points ?? 3,
+    awards_include_knockout_phase: overrides.awards_include_knockout_phase ?? true,
+    supports_individual_awards: overrides.supports_individual_awards ?? true,
+    sports: overrides.sports,
   };
 }
 
@@ -77,11 +81,13 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
             groups_count: 4,
             qualifiers_per_group: 2,
             should_complete_knockout_with_best_second_placed_teams: false,
+            knockout_pairing_mode: "LINEAR",
           },
           [accessCompetitionKey]: {
             groups_count: 2,
             qualifiers_per_group: 1,
             should_complete_knockout_with_best_second_placed_teams: true,
+            knockout_pairing_mode: "LINEAR",
           },
         },
         group_assignments_by_competition_key: {
@@ -148,6 +154,7 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
             groups_count: 2,
             qualifiers_per_group: 1,
             should_complete_knockout_with_best_second_placed_teams: true,
+            knockout_pairing_mode: "LINEAR",
           },
         },
         group_assignments_by_competition_key: {
@@ -173,6 +180,7 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
       groups_count: 2,
       qualifiers_per_group: 1,
       should_complete_knockout_with_best_second_placed_teams: true,
+      knockout_pairing_mode: "LINEAR",
     });
     expect(Object.keys(sanitizedDraft.group_assignments_by_competition_key[competitionKey] ?? {})).toEqual([
       "team-1",
@@ -187,6 +195,48 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
     expect(sanitizedDraft.group_order_by_competition_key[competitionKey]).toEqual({
       "1": ["team-1"],
       "2": ["team-3", "team-2"],
+    });
+  });
+
+  it("aplica o novo cruzamento por padrão no feminino da divisão de acesso do Futebol Society", () => {
+    const competitionKey = "sport-society::FEMININO::DIVISAO_ACESSO";
+    const teams = [
+      buildTeam({ id: "team-1", name: "Atlética 1", division: TeamDivision.DIVISAO_ACESSO }),
+      buildTeam({ id: "team-2", name: "Atlética 2", division: TeamDivision.DIVISAO_ACESSO }),
+    ];
+
+    const sanitizedDraft = sanitizeChampionshipBracketWizardDraft({
+      draftFormValues: buildDraft({
+        selected_team_ids: teams.map((team) => team.id),
+        selected_sport_ids_by_team_id: {
+          "team-1": ["sport-society"],
+          "team-2": ["sport-society"],
+        },
+        selected_competition_keys_by_team_id: {
+          "team-1": [competitionKey],
+          "team-2": [competitionKey],
+        },
+      }),
+      teams,
+      championshipSports: [
+        buildChampionshipSport({
+          sport_id: "sport-society",
+          sports: {
+            id: "sport-society",
+            name: "Futebol Society",
+            default_match_duration_minutes: 40,
+            created_at: "2026-05-08T00:00:00.000Z",
+          },
+        }),
+      ],
+      usesDivisions: true,
+    });
+
+    expect(sanitizedDraft.competition_config_by_key[competitionKey]).toEqual({
+      groups_count: 2,
+      qualifiers_per_group: 1,
+      should_complete_knockout_with_best_second_placed_teams: true,
+      knockout_pairing_mode: "FUTEBOL_SOCIETY_FEM_ACCESS_CROSS_GROUPS",
     });
   });
 });

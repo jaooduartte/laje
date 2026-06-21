@@ -326,7 +326,20 @@
   }
 
   .app-announcement-viewport {
+    position: relative;
     overflow: hidden;
+  }
+
+  .app-announcement-measure {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    white-space: nowrap;
+    visibility: hidden;
+    pointer-events: none;
   }
 
   .app-announcement-inline {
@@ -352,7 +365,7 @@
     display: inline-block;
     white-space: nowrap;
     font-size: 0.875rem;
-    font-weight: 600;
+    font-weight: 500;
     line-height: 1.4;
     color: hsl(36 92% 24%);
   }

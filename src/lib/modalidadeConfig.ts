@@ -28,7 +28,8 @@ export type TieBreakCriterion =
 export type KnockoutPairingMode =
   | "LINEAR"
   | "FUTEVOLEI_FEM_INVERTED"
-  | "BEACH_SOCCER_FEM_DIRECT_SEMI";
+  | "BEACH_SOCCER_FEM_DIRECT_SEMI"
+  | "FUTEBOL_SOCIETY_FEM_ACCESS_CROSS_GROUPS";
 
 export interface ModalidadeConfig {
   sport_code: string;

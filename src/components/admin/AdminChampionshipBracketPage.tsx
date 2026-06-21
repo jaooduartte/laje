@@ -32,6 +32,13 @@ import {
   type QualificationModeOption,
 } from "@/domain/championship-brackets/championshipBracketQualification";
 import {
+  CHAMPIONSHIP_KNOCKOUT_PAIRING_MODE_OPTIONS,
+  resolveCompetitionKnockoutPairingModeControlValue,
+  resolveCompetitionKnockoutPairingModeLabel,
+  resolveDefaultCompetitionKnockoutPairingMode,
+  resolveIsCrossGroupKnockoutPairingAvailable,
+} from "@/domain/championship-brackets/championshipBracketPairing";
+import {
   resolveGroupEditorColumns,
   resolveOrderedAssignedTeamIds,
   sanitizeGroupAssignments,
@@ -598,6 +605,7 @@ function resolveScheduleLocationCourtCountSummaryBySport(
 
 function resolveDefaultCompetitionConfig(
   team_count: number,
+  competition_option?: ChampionshipBracketWizardCompetitionOption | null,
 ): CompetitionConfig {
   const safe_group_count = Math.max(1, Math.min(2, team_count));
 
@@ -605,6 +613,13 @@ function resolveDefaultCompetitionConfig(
     groups_count: safe_group_count,
     qualifiers_per_group: CHAMPIONSHIP_BRACKET_DEFAULT_QUALIFIERS_PER_GROUP,
     should_complete_knockout_with_best_second_placed_teams: true,
+    knockout_pairing_mode: competition_option
+      ? resolveDefaultCompetitionKnockoutPairingMode({
+          sport_name: competition_option.sport_name,
+          naipe: competition_option.naipe,
+          division: competition_option.division,
+        })
+      : "LINEAR",
   };
 }
 
@@ -1042,6 +1057,7 @@ export function AdminChampionshipBracketPage({
               qualifiers_per_group: competition_config.qualifiers_per_group,
               should_complete_knockout_with_best_second_placed_teams:
                 competition_config.should_complete_knockout_with_best_second_placed_teams,
+              knockout_pairing_mode: competition_config.knockout_pairing_mode,
             };
             return carry;
           },
@@ -1261,6 +1277,16 @@ export function AdminChampionshipBracketPage({
               `${competitionLabel}: completar chave com melhores 2º ${
                 nextConfig.should_complete_knockout_with_best_second_placed_teams ? "ativado" : "desativado"
               }`,
+            );
+          }
+
+          if (previousConfig.knockout_pairing_mode != nextConfig.knockout_pairing_mode) {
+            changeLines.push(
+              `${competitionLabel}: cruzamento de ${resolveCompetitionKnockoutPairingModeLabel(
+                resolveCompetitionKnockoutPairingModeControlValue(previousConfig.knockout_pairing_mode),
+              )} para ${resolveCompetitionKnockoutPairingModeLabel(
+                resolveCompetitionKnockoutPairingModeControlValue(nextConfig.knockout_pairing_mode),
+              )}`,
             );
           }
         });
@@ -1601,15 +1627,18 @@ export function AdminChampionshipBracketPage({
 
         const participantCount =
           teamIdsByCompetitionKey[competitionKey]?.length ?? 2;
+        const competitionOption =
+          competitionOptionsByKey.get(competitionKey) ?? null;
 
         nextCompetitionConfigByKey[competitionKey] =
-          resolveDefaultCompetitionConfig(participantCount);
+          resolveDefaultCompetitionConfig(participantCount, competitionOption);
       });
 
       return nextCompetitionConfigByKey;
     });
   }, [
     activeCompetitionKeys,
+    competitionOptionsByKey,
     hasResolvedInitialDraftSnapshot,
     teamIdsByCompetitionKey,
   ]);
@@ -3085,9 +3114,11 @@ export function AdminChampionshipBracketPage({
     useCallback((): ChampionshipBracketCompetitionInput[] => {
       return sortedActiveCompetitionKeys.map((competitionKey) => {
         const parsedCompetitionKey = parseCompetitionKey(competitionKey);
+        const competitionOption =
+          competitionOptionsByKey.get(competitionKey) ?? null;
         const competitionConfig =
           competitionConfigByKey[competitionKey] ??
-          resolveDefaultCompetitionConfig(2);
+          resolveDefaultCompetitionConfig(2, competitionOption);
         const assignments =
           groupAssignmentsByCompetitionKey[competitionKey] ?? {};
         const orderedTeamIdsByGroupNumber =
@@ -3118,11 +3149,13 @@ export function AdminChampionshipBracketPage({
           qualifiers_per_group: competitionConfig.qualifiers_per_group,
           should_complete_knockout_with_best_second_placed_teams:
             competitionConfig.should_complete_knockout_with_best_second_placed_teams,
+          knockout_pairing_mode: competitionConfig.knockout_pairing_mode,
           third_place_mode: BracketThirdPlaceMode.CHAMPION_SEMIFINAL_LOSER,
           groups,
         };
       });
     }, [
+      competitionOptionsByKey,
       competitionConfigByKey,
       groupAssignmentsByCompetitionKey,
       groupOrderByCompetitionKey,
@@ -4482,6 +4515,16 @@ export function AdminChampionshipBracketPage({
                                     should_complete_knockout_with_best_second_placed_teams: competitionConfig.should_complete_knockout_with_best_second_placed_teams,
                                   })}
                                 </span>
+                                <span>
+                                  Cruzamento:{" "}
+                                  <strong>
+                                    {resolveCompetitionKnockoutPairingModeLabel(
+                                      resolveCompetitionKnockoutPairingModeControlValue(
+                                        competitionConfig.knockout_pairing_mode,
+                                      ),
+                                    )}
+                                  </strong>
+                                </span>
                               </div>
                             </div>
 
@@ -4566,7 +4609,8 @@ export function AdminChampionshipBracketPage({
                                       (prev) => ({
                                         ...prev,
                                         [competitionKey]: resolveCompetitionConfigByQualificationMode(
-                                          prev[competitionKey] ?? resolveDefaultCompetitionConfig(2),
+                                          prev[competitionKey] ??
+                                            resolveDefaultCompetitionConfig(2, competitionOption),
                                           value as QualificationModeOption,
                                         ),
                                       }),
@@ -4594,6 +4638,69 @@ export function AdminChampionshipBracketPage({
                                       </div>
                                     </label>
                                   ))}
+                                </RadioGroup>
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                  Tipo de cruzamento
+                                </Label>
+                                <RadioGroup
+                                  value={resolveCompetitionKnockoutPairingModeControlValue(
+                                    competitionConfig.knockout_pairing_mode,
+                                  )}
+                                  onValueChange={(value) =>
+                                    setCompetitionConfigByKey((prev) => ({
+                                      ...prev,
+                                      [competitionKey]: {
+                                        ...(prev[competitionKey] ??
+                                          resolveDefaultCompetitionConfig(2, competitionOption)),
+                                        knockout_pairing_mode: value as CompetitionConfig["knockout_pairing_mode"],
+                                      },
+                                    }))
+                                  }
+                                  className="flex flex-col gap-2"
+                                >
+                                  {CHAMPIONSHIP_KNOCKOUT_PAIRING_MODE_OPTIONS.map((option) => {
+                                    const isCrossGroupOption =
+                                      option.value == "FUTEBOL_SOCIETY_FEM_ACCESS_CROSS_GROUPS";
+                                    const isOptionEnabled =
+                                      !isCrossGroupOption ||
+                                      resolveIsCrossGroupKnockoutPairingAvailable({
+                                        sport_name: competitionOption.sport_name,
+                                        naipe: competitionOption.naipe,
+                                        division: competitionOption.division,
+                                      });
+
+                                    return (
+                                      <label
+                                        key={option.value}
+                                        className={cn(
+                                          "flex items-start gap-3 rounded-lg border p-2.5 transition-all",
+                                          resolveCompetitionKnockoutPairingModeControlValue(
+                                            competitionConfig.knockout_pairing_mode,
+                                          ) == option.value
+                                            ? "border-primary/40 bg-primary/5 ring-1 ring-primary/10"
+                                            : "border-border/40 bg-background/20",
+                                          isOptionEnabled
+                                            ? "cursor-pointer hover:bg-background/40"
+                                            : "cursor-not-allowed opacity-60",
+                                        )}
+                                      >
+                                        <RadioGroupItem
+                                          value={option.value}
+                                          disabled={!isOptionEnabled}
+                                          id={`pairing-${competitionKey}-${option.value}`}
+                                        />
+                                        <div className="space-y-1">
+                                          <p className="text-xs font-semibold">{option.label}</p>
+                                          <p className="text-[11px] leading-relaxed text-muted-foreground">
+                                            {option.helper}
+                                          </p>
+                                        </div>
+                                      </label>
+                                    );
+                                  })}
                                 </RadioGroup>
                               </div>
                             </div>
@@ -5322,6 +5429,14 @@ export function AdminChampionshipBracketPage({
                                     <span>{participantTeamIds.length} atléticas</span>
                                     <div className="h-1 w-1 rounded-full bg-border" />
                                     <span>{competitionConfig.groups_count} grupos</span>
+                                    <div className="h-1 w-1 rounded-full bg-border" />
+                                    <span>
+                                      {resolveCompetitionKnockoutPairingModeLabel(
+                                        resolveCompetitionKnockoutPairingModeControlValue(
+                                          competitionConfig.knockout_pairing_mode,
+                                        ),
+                                      )}
+                                    </span>
                                   </div>
                                 </div>
                                 <div className="text-right">

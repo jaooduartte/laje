@@ -44,6 +44,7 @@ import type {
 import {
   AppBadgeTone,
   BracketPhase,
+  ChampionshipCode,
   ChampionshipAwardType,
   ChampionshipSportResultRule,
   ChampionshipSportTieBreakerRule,
@@ -100,6 +101,7 @@ import {
   resolveMatchQueueLabel,
   resolveMatchNaipeBadgeTone,
   resolveMatchNaipeLabel,
+  resolveMatchPenaltyShootoutSummary,
   resolveRecordedMatchSets,
   resolveMatchScheduledDateValue,
   resolveMatchSetSummary,
@@ -108,6 +110,7 @@ import {
   resolveMatchStatusBadgeTone,
   resolveMatchTieBreakRuleLabel,
   resolveKnockoutRoundLabel,
+  isSocietyKnockoutMatch,
 } from "@/lib/championship";
 import { AppBadge } from "@/components/ui/app-badge";
 import { scrollToTopOfPage } from "@/lib/scroll";
@@ -334,6 +337,8 @@ interface MatchEditDraft {
   awayTeamId: string;
   homeScore: number;
   awayScore: number;
+  homePenaltyScore: number | null;
+  awayPenaltyScore: number | null;
   homeYellowCards: number;
   homeRedCards: number;
   awayYellowCards: number;
@@ -416,6 +421,16 @@ function resolveParsedScoreInputValue(value: string): number {
 
   if (trimmedValue.length == 0) {
     return 0;
+  }
+
+  return resolveSafeScoreValue(Number.parseInt(trimmedValue, 10));
+}
+
+function resolveParsedNullableScoreInputValue(value: string): number | null {
+  const trimmedValue = value.trim();
+
+  if (trimmedValue.length == 0) {
+    return null;
   }
 
   return resolveSafeScoreValue(Number.parseInt(trimmedValue, 10));
@@ -511,6 +526,8 @@ function resolveInitialEditingMatchDraft(match: Match, selectedGroupOptionValue:
     awayTeamId: match.away_team_id,
     homeScore: match.home_score,
     awayScore: match.away_score,
+    homePenaltyScore: match.home_penalty_score ?? null,
+    awayPenaltyScore: match.away_penalty_score ?? null,
     homeYellowCards: match.home_yellow_cards ?? 0,
     homeRedCards: match.home_red_cards ?? 0,
     awayYellowCards: match.away_yellow_cards ?? 0,
@@ -527,6 +544,21 @@ function resolveInitialEditingMatchDraft(match: Match, selectedGroupOptionValue:
     selectedGroupOptionValue,
     resolvedTieBreakerRule: match.resolved_tie_breaker_rule ?? "",
   };
+}
+
+function shouldUseSocietyPenaltyShootout(params: {
+  championship: Pick<Championship, "code">;
+  bracketContext?: MatchBracketContext | null;
+  status: MatchStatus;
+  homeScore: number;
+  awayScore: number;
+}): boolean {
+  return (
+    params.championship.code == ChampionshipCode.SOCIETY &&
+    params.bracketContext?.phase == BracketPhase.KNOCKOUT &&
+    params.status == MatchStatus.FINISHED &&
+    params.homeScore == params.awayScore
+  );
 }
 
 function resolveScheduledQueueSummary(
@@ -546,9 +578,14 @@ function resolveScheduledQueueSummary(
 function resolveAdminMatchesOperationalErrorMessage(error: { code?: string; message: string }): string {
   if (
     error.code == "PGRST204" &&
-    (error.message.includes("current_set_home_score") || error.message.includes("current_set_away_score"))
+    (
+      error.message.includes("current_set_home_score") ||
+      error.message.includes("current_set_away_score") ||
+      error.message.includes("home_penalty_score") ||
+      error.message.includes("away_penalty_score")
+    )
   ) {
-    return "A migration 20260316013000_add_match_live_set_progress_and_tie_break_metadata.sql ainda não foi aplicada no banco. Rode npx supabase db push e recarregue o schema.";
+    return "As migrations de placar ao vivo e pênaltis ainda não foram aplicadas no banco. Rode npx supabase db push e recarregue o schema.";
   }
 
   if (error.code == "42702" && error.message.includes("team_id_value")) {
@@ -1646,6 +1683,40 @@ export function AdminMatches({
 
     return resolveAllowedEditingStatuses(editingMatch.status);
   }, [editingMatch]);
+
+  const editingShouldUseSocietyPenaltyShootout = useMemo(() => {
+    if (!editingMatch || !editingMatchDraft) {
+      return false;
+    }
+
+    return shouldUseSocietyPenaltyShootout({
+      championship: selectedChampionship,
+      bracketContext: matchBracketContextByMatchId[editingMatch.id] ?? null,
+      status: editingMatchDraft.status,
+      homeScore: editingMatchDraft.homeScore,
+      awayScore: editingMatchDraft.awayScore,
+    });
+  }, [editingMatch, editingMatchDraft, matchBracketContextByMatchId, selectedChampionship]);
+
+  useEffect(() => {
+    if (!editingShouldUseSocietyPenaltyShootout) {
+      setEditingMatchDraft((currentDraft) => {
+        if (!currentDraft) {
+          return currentDraft;
+        }
+
+        if (currentDraft.homePenaltyScore == null && currentDraft.awayPenaltyScore == null) {
+          return currentDraft;
+        }
+
+        return {
+          ...currentDraft,
+          homePenaltyScore: null,
+          awayPenaltyScore: null,
+        };
+      });
+    }
+  }, [editingShouldUseSocietyPenaltyShootout]);
 
   const canEditScheduledMatchSetup = editingMatch?.status == MatchStatus.SCHEDULED && editingMatchDraft?.status == MatchStatus.SCHEDULED;
 
@@ -3301,10 +3372,44 @@ export function AdminMatches({
       editingMatchDraft.status == MatchStatus.LIVE && editingMatch.status == MatchStatus.FINISHED;
     const shouldTransitionMatchToFinished =
       editingMatchDraft.status == MatchStatus.FINISHED && editingMatch.status == MatchStatus.LIVE;
+    const editingMatchBracketContext = matchBracketContextByMatchId[editingMatch.id] ?? null;
     const shouldPreserveTieBreakResolution = editingMatchDraft.status == MatchStatus.FINISHED;
     const resolvedSetWins = isEditingSetRuleBySelectedSport ? resolveSetWins(normalizedEditingMatchSetsDraft) : null;
     const resolvedHomeScore = resolvedSetWins ? resolvedSetWins.home_sets : resolveSafeScoreValue(editingMatchDraft.homeScore);
     const resolvedAwayScore = resolvedSetWins ? resolvedSetWins.away_sets : resolveSafeScoreValue(editingMatchDraft.awayScore);
+    const shouldPersistSocietyPenaltyShootout = shouldUseSocietyPenaltyShootout({
+      championship: selectedChampionship,
+      bracketContext: editingMatchBracketContext,
+      status: editingMatchDraft.status,
+      homeScore: resolvedHomeScore,
+      awayScore: resolvedAwayScore,
+    });
+    const resolvedHomePenaltyScore = shouldPersistSocietyPenaltyShootout ? editingMatchDraft.homePenaltyScore : null;
+    const resolvedAwayPenaltyScore = shouldPersistSocietyPenaltyShootout ? editingMatchDraft.awayPenaltyScore : null;
+
+    if (shouldPersistSocietyPenaltyShootout && (resolvedHomePenaltyScore == null || resolvedAwayPenaltyScore == null)) {
+      setSavingEditingMatch(false);
+      toast.error("Informe o placar dos pênaltis para as duas atléticas.");
+      return;
+    }
+
+    if (
+      shouldPersistSocietyPenaltyShootout &&
+      resolvedHomePenaltyScore != null &&
+      resolvedAwayPenaltyScore != null &&
+      resolvedHomePenaltyScore == resolvedAwayPenaltyScore
+    ) {
+      setSavingEditingMatch(false);
+      toast.error("O placar dos pênaltis precisa definir um vencedor.");
+      return;
+    }
+
+    const resolvedSocietyPenaltyWinnerTeamId =
+      shouldPersistSocietyPenaltyShootout && resolvedHomePenaltyScore != null && resolvedAwayPenaltyScore != null
+        ? resolvedHomePenaltyScore > resolvedAwayPenaltyScore
+          ? editingMatchDraft.homeTeamId
+          : editingMatchDraft.awayTeamId
+        : null;
     const resolvedHomeYellowCards = isEditingSportWithCardsBySelectedSport
       ? resolveSafeScoreValue(editingMatchDraft.homeYellowCards)
       : 0;
@@ -3324,13 +3429,28 @@ export function AdminMatches({
       resolvedHomeRedCards != editingMatch.home_red_cards ||
       resolvedAwayYellowCards != editingMatch.away_yellow_cards ||
       resolvedAwayRedCards != editingMatch.away_red_cards;
-    const didChangeTieBreakRule =
-      (editingMatchDraft.resolvedTieBreakerRule || "") != (originalEditingDraft.resolvedTieBreakerRule || "");
+    const didChangePenaltyShootoutFields =
+      resolvedHomePenaltyScore != (editingMatch.home_penalty_score ?? null) ||
+      resolvedAwayPenaltyScore != (editingMatch.away_penalty_score ?? null);
     const resolvedReviewFlag = editingMatchDraft.status == MatchStatus.FINISHED ? shouldKeepScoreSheetReview : false;
     const didChangeReviewFlag = resolvedReviewFlag != (editingMatch.is_score_sheet_reviewed ?? false);
-    const resolvedTieBreakWinnerTeamId = shouldPreserveTieBreakResolution
-      ? editingMatch.resolved_tie_break_winner_team_id ?? null
-      : null;
+    const resolvedTieBreakRule =
+      shouldPersistSocietyPenaltyShootout
+        ? ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY
+        : shouldPreserveTieBreakResolution &&
+            editingMatch.resolved_tie_breaker_rule != ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY
+          ? editingMatchDraft.resolvedTieBreakerRule || null
+          : null;
+    const resolvedTieBreakWinnerTeamId =
+      shouldPersistSocietyPenaltyShootout
+        ? resolvedSocietyPenaltyWinnerTeamId
+        : shouldPreserveTieBreakResolution &&
+            editingMatch.resolved_tie_breaker_rule != ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY
+          ? editingMatch.resolved_tie_break_winner_team_id ?? null
+          : null;
+    const didChangeResolvedTieBreakFields =
+      resolvedTieBreakRule != (editingMatch.resolved_tie_breaker_rule ?? null) ||
+      resolvedTieBreakWinnerTeamId != (editingMatch.resolved_tie_break_winner_team_id ?? null);
     const resolvedCourtName = normalizedCourtName;
     const resolvedSlotNumber = selectedEditingScheduleSlot?.slot_number ?? editingMatch.scheduled_slot ?? null;
     const shouldUpdateScheduledMatchSetup = canEditScheduledMatchSetup && (didChangeLogisticsFields || didChangeStructuralFields);
@@ -3406,6 +3526,8 @@ export function AdminMatches({
       if (shouldTransitionMatchToLive || shouldReopenFinishedMatchAsLive) {
         matchUpdatePayload.start_time = editingMatch.start_time ?? resolvedStartTimeValue ?? new Date().toISOString();
         matchUpdatePayload.end_time = null;
+        matchUpdatePayload.home_penalty_score = null;
+        matchUpdatePayload.away_penalty_score = null;
         matchUpdatePayload.is_walkover = false;
         matchUpdatePayload.is_double_walkover = false;
         matchUpdatePayload.walkover_loser_team_id = null;
@@ -3435,14 +3557,17 @@ export function AdminMatches({
         matchUpdatePayload.away_red_cards = resolvedAwayRedCards;
       }
 
+      if (didChangePenaltyShootoutFields || shouldTransitionMatchToFinished || shouldReopenFinishedMatchAsLive) {
+        matchUpdatePayload.home_penalty_score = resolvedHomePenaltyScore;
+        matchUpdatePayload.away_penalty_score = resolvedAwayPenaltyScore;
+      }
+
       if (didChangeReviewFlag || shouldReopenFinishedMatchAsLive) {
         matchUpdatePayload.is_score_sheet_reviewed = resolvedReviewFlag;
       }
 
-      if (didChangeTieBreakRule || shouldReopenFinishedMatchAsLive) {
-        matchUpdatePayload.resolved_tie_breaker_rule = shouldPreserveTieBreakResolution
-          ? editingMatchDraft.resolvedTieBreakerRule || null
-          : null;
+      if (didChangeResolvedTieBreakFields || shouldReopenFinishedMatchAsLive) {
+        matchUpdatePayload.resolved_tie_breaker_rule = resolvedTieBreakRule;
         matchUpdatePayload.resolved_tie_break_winner_team_id = resolvedTieBreakWinnerTeamId;
       }
     }
@@ -4495,6 +4620,7 @@ export function AdminMatches({
 	              const matchBracketContext = matchBracketContextByMatchId[match.id];
 	              const startedAtLabel = resolveMatchStartedAtLabel(match.start_time, match.status);
 	              const tieBreakRuleLabel = resolveMatchTieBreakRuleLabel(match.resolved_tie_breaker_rule);
+	              const penaltyShootoutSummary = resolveMatchPenaltyShootoutSummary(match, matchBracketContext);
 	              const isSetMatch = match.result_rule == ChampionshipSportResultRule.SETS;
 	              const supportsCards = championshipSportSupportsCardsBySportId.get(match.sport_id) == true || match.supports_cards;
 	              const isSavingMatchReviewState = savingReviewStateByMatchId[match.id] == true;
@@ -4660,6 +4786,12 @@ export function AdminMatches({
 	                        <span className="shrink-0 text-base font-bold score-text">{displayedAwayScore}</span>
 	                        <span className="min-w-0 flex-1 truncate">{match.away_team?.name}</span>
 	                      </div>
+
+                        {penaltyShootoutSummary ? (
+                          <p className="text-center text-xs font-medium text-muted-foreground">
+                            Pênaltis: ({penaltyShootoutSummary.homePenaltyScore} × {penaltyShootoutSummary.awayPenaltyScore})
+                          </p>
+                        ) : null}
 
 	                      {/* Sets em árvore — × alinhado com o placar principal */}
 	                      {setSummary.length > 0 && match.status != MatchStatus.SCHEDULED ? (
@@ -4986,7 +5118,7 @@ export function AdminMatches({
           }
         }}
       >
-        <DialogContent className="flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col overflow-hidden sm:max-h-none sm:w-full sm:max-w-6xl sm:overflow-visible">
+        <DialogContent className="flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col overflow-hidden sm:max-h-none sm:w-full sm:max-w-[min(96vw,1500px)] sm:overflow-visible">
           <DialogHeader>
             <DialogTitle>Revisão de súmula e premiações</DialogTitle>
             <DialogDescription>
@@ -5017,6 +5149,14 @@ export function AdminMatches({
                 </div>
                 {activeScoreSheetAwardsDraft.isWalkover ? (
                   <p className="mt-1 text-xs text-muted-foreground">Jogo com W.O.: não exige premiações individuais para revisão.</p>
+                ) : null}
+                {resolveMatchPenaltyShootoutSummary(
+                  activeScoreSheetReviewMatch,
+                  matchBracketContextByMatchId[activeScoreSheetReviewMatch.id],
+                ) ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Os pênaltis desempataram o jogo, mas não entram na artilharia. Informe apenas os autores dos gols do tempo normal.
+                  </p>
                 ) : null}
               </div>
 
@@ -5070,193 +5210,197 @@ export function AdminMatches({
                         </div>
                       </div>
 
-                      <div className="space-y-2">
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Autores dos gols</p>
-                        {teamSection.goalSelections.length > 0 ? (
-                          teamSection.playerOptions.length > 0 ? (
-                            <div className="space-y-2">
-                              {teamSection.goalSelections.map((goalSelection, goalIndex) => (
-                                <div key={`${teamSection.key}-goal-${goalIndex + 1}`} className="space-y-1">
-                                  <Label className="text-xs text-muted-foreground">{goalIndex + 1}º gol</Label>
-                                  <Select
-                                    value={goalSelection.scorerId || EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE}
-                                    onValueChange={(value) => {
-                                      handleUpdateScoreSheetAwardsDraft(activeScoreSheetReviewMatch.id, (draft) => {
-                                        const nextSelections = [...(teamSection.key == "home" ? draft.homeGoalSelections : draft.awayGoalSelections)];
-                                        nextSelections[goalIndex] = {
-                                          ...nextSelections[goalIndex],
-                                          scorerId: value == EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE ? "" : value,
-                                        };
-                                        return {
-                                          ...draft,
-                                          homeGoalSelections: teamSection.key == "home" ? nextSelections : draft.homeGoalSelections,
-                                          awayGoalSelections: teamSection.key == "away" ? nextSelections : draft.awayGoalSelections,
-                                        };
-                                      });
-                                    }}
-                                  >
-                                    <SelectTrigger className="app-input-field" aria-label={`${teamSection.title} gol ${goalIndex + 1}`}>
-                                      <SelectValue placeholder={`Selecione o autor do ${goalIndex + 1}º gol`} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value={EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE}>Selecione o jogador</SelectItem>
-                                      {teamSection.playerOptions.map((playerOption) => (
-                                        <SelectItem key={playerOption.id} value={playerOption.id}>
-                                          {playerOption.name}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              ))}
-                            </div>
+                      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)] xl:items-start">
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Autores dos gols</p>
+                          {teamSection.goalSelections.length > 0 ? (
+                            teamSection.playerOptions.length > 0 ? (
+                              <div className="space-y-2">
+                                {teamSection.goalSelections.map((goalSelection, goalIndex) => (
+                                  <div key={`${teamSection.key}-goal-${goalIndex + 1}`} className="space-y-1">
+                                    <Label className="text-xs text-muted-foreground">{goalIndex + 1}º gol</Label>
+                                    <Select
+                                      value={goalSelection.scorerId || EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE}
+                                      onValueChange={(value) => {
+                                        handleUpdateScoreSheetAwardsDraft(activeScoreSheetReviewMatch.id, (draft) => {
+                                          const nextSelections = [...(teamSection.key == "home" ? draft.homeGoalSelections : draft.awayGoalSelections)];
+                                          nextSelections[goalIndex] = {
+                                            ...nextSelections[goalIndex],
+                                            scorerId: value == EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE ? "" : value,
+                                          };
+                                          return {
+                                            ...draft,
+                                            homeGoalSelections: teamSection.key == "home" ? nextSelections : draft.homeGoalSelections,
+                                            awayGoalSelections: teamSection.key == "away" ? nextSelections : draft.awayGoalSelections,
+                                          };
+                                        });
+                                      }}
+                                    >
+                                      <SelectTrigger className="app-input-field" aria-label={`${teamSection.title} gol ${goalIndex + 1}`}>
+                                        <SelectValue placeholder={`Selecione o autor do ${goalIndex + 1}º gol`} />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value={EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE}>Selecione o jogador</SelectItem>
+                                        {teamSection.playerOptions.map((playerOption) => (
+                                          <SelectItem key={playerOption.id} value={playerOption.id}>
+                                            {playerOption.name}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-background/70 px-3 py-3 text-sm text-muted-foreground">
+                                Nenhum atleta cadastrado ainda. Cadastre um atleta para vincular os gols desta atlética.
+                              </div>
+                            )
                           ) : (
                             <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-background/70 px-3 py-3 text-sm text-muted-foreground">
-                              Nenhum atleta cadastrado ainda. Cadastre um atleta para vincular os gols desta atlética.
+                              Esta atlética não marcou gols nesta partida.
                             </div>
-                          )
-                        ) : (
-                          <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-background/70 px-3 py-3 text-sm text-muted-foreground">
-                            Esta atlética não marcou gols nesta partida.
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Atletas cadastrados</p>
-                          <span className="text-xs text-muted-foreground">
-                            {teamSection.playerOptions.length} atleta{teamSection.playerOptions.length == 1 ? "" : "s"}
-                          </span>
+                          )}
                         </div>
-                        {teamSection.playerOptions.length > 0 ? (
-                          <div className="space-y-1.5">
-                            {teamSection.playerOptions.map((playerOption) => {
-                              const editKey = `${activeScoreSheetReviewMatch.id}:${teamSection.key}`;
-                              const editingState = editingPlayerByKey[editKey];
-                              const isEditing = editingState?.playerId == playerOption.id;
 
-                              if (isEditing) {
-                                return (
-                                  <div key={playerOption.id} className="space-y-1.5 rounded-lg border border-primary/30 bg-primary/5 px-2.5 py-2">
-                                    <div className="flex gap-1.5">
-                                      <Input
-                                        value={editingState.name}
-                                        onChange={(e) => {
-                                          const v = e.target.value;
-                                          setEditingPlayerByKey((prev) => ({
-                                            ...prev,
-                                            [editKey]: editingState ? { ...editingState, name: v } : null,
-                                          }));
-                                        }}
-                                        onKeyDown={(e) => {
-                                          if (e.key == "Enter") handleConfirmEditAwardPlayer(activeScoreSheetReviewMatch.id, teamSection.key);
-                                          if (e.key == "Escape") setEditingPlayerByKey((prev) => ({ ...prev, [editKey]: null }));
-                                        }}
-                                        className="h-8 text-sm"
-                                        autoFocus
-                                      />
+                        <div className="space-y-3">
+                          <div className="space-y-2">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Atletas cadastrados</p>
+                              <span className="text-xs text-muted-foreground">
+                                {teamSection.playerOptions.length} atleta{teamSection.playerOptions.length == 1 ? "" : "s"}
+                              </span>
+                            </div>
+                            {teamSection.playerOptions.length > 0 ? (
+                              <div className="space-y-1.5">
+                                {teamSection.playerOptions.map((playerOption) => {
+                                  const editKey = `${activeScoreSheetReviewMatch.id}:${teamSection.key}`;
+                                  const editingState = editingPlayerByKey[editKey];
+                                  const isEditing = editingState?.playerId == playerOption.id;
+
+                                  if (isEditing) {
+                                    return (
+                                      <div key={playerOption.id} className="space-y-1.5 rounded-lg border border-primary/30 bg-primary/5 px-2.5 py-2">
+                                        <div className="flex gap-1.5">
+                                          <Input
+                                            value={editingState.name}
+                                            onChange={(e) => {
+                                              const v = e.target.value;
+                                              setEditingPlayerByKey((prev) => ({
+                                                ...prev,
+                                                [editKey]: editingState ? { ...editingState, name: v } : null,
+                                              }));
+                                            }}
+                                            onKeyDown={(e) => {
+                                              if (e.key == "Enter") handleConfirmEditAwardPlayer(activeScoreSheetReviewMatch.id, teamSection.key);
+                                              if (e.key == "Escape") setEditingPlayerByKey((prev) => ({ ...prev, [editKey]: null }));
+                                            }}
+                                            className="h-8 text-sm"
+                                            autoFocus
+                                          />
+                                          <Button
+                                            type="button"
+                                            size="icon"
+                                            className="h-8 w-8 shrink-0"
+                                            onClick={() => handleConfirmEditAwardPlayer(activeScoreSheetReviewMatch.id, teamSection.key)}
+                                          >
+                                            <Check className="h-3.5 w-3.5" />
+                                          </Button>
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8 shrink-0"
+                                            onClick={() => setEditingPlayerByKey((prev) => ({ ...prev, [editKey]: null }))}
+                                          >
+                                            <X className="h-3.5 w-3.5" />
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+
+                                  return (
+                                    <div key={playerOption.id} className="flex items-center gap-1.5 rounded-lg bg-muted/30 px-2.5 py-1.5">
+                                      <span className="min-w-0 flex-1 truncate text-sm">{playerOption.name}</span>
                                       <Button
                                         type="button"
+                                        variant="ghost"
                                         size="icon"
-                                        className="h-8 w-8 shrink-0"
-                                        onClick={() => handleConfirmEditAwardPlayer(activeScoreSheetReviewMatch.id, teamSection.key)}
+                                        className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+                                        onClick={() => {
+                                          setEditingPlayerByKey((prev) => ({
+                                            ...prev,
+                                            [editKey]: { playerId: playerOption.id, name: playerOption.name },
+                                          }));
+                                        }}
                                       >
-                                        <Check className="h-3.5 w-3.5" />
+                                        <Pencil className="h-3 w-3" />
                                       </Button>
                                       <Button
                                         type="button"
                                         variant="ghost"
                                         size="icon"
-                                        className="h-8 w-8 shrink-0"
-                                        onClick={() => setEditingPlayerByKey((prev) => ({ ...prev, [editKey]: null }))}
+                                        className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
+                                        onClick={() => handleDeleteAwardPlayer(activeScoreSheetReviewMatch.id, teamSection.key, playerOption.id)}
                                       >
-                                        <X className="h-3.5 w-3.5" />
+                                        <Trash2 className="h-3 w-3" />
                                       </Button>
                                     </div>
-                                  </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-background/70 px-3 py-3 text-sm text-muted-foreground">
+                                Sem atletas cadastrados para esta atlética.
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Cadastrar atleta</p>
+                            <p className="text-xs text-muted-foreground">
+                              Use este campo apenas se o autor do gol ainda não estiver na lista acima.
+                            </p>
+                            <div className="flex gap-2">
+                              <Input
+                                ref={(el) => { newPlayerInputRefs.current[`${activeScoreSheetReviewMatch.id}:${teamSection.key}`] = el; }}
+                                value={teamSection.newPlayerName}
+                                onChange={(event) => {
+                                  const value = event.target.value;
+                                  handleUpdateScoreSheetAwardsDraft(activeScoreSheetReviewMatch.id, (draft) => ({
+                                    ...draft,
+                                    newHomePlayerName: teamSection.key == "home" ? value : draft.newHomePlayerName,
+                                    newAwayPlayerName: teamSection.key == "away" ? value : draft.newAwayPlayerName,
+                                  }));
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    handleAddInlineAwardPlayer(activeScoreSheetReviewMatch.id, teamSection.key);
+                                  }
+                                }}
+                                placeholder="Nome do atleta"
+                              />
+                              {(() => {
+                                const btnState = addPlayerButtonStateByKey[`${activeScoreSheetReviewMatch.id}:${teamSection.key}`];
+                                return (
+                                  <Button
+                                    type="button"
+                                    variant={btnState == "success" ? "default" : "outline"}
+                                    disabled={!!btnState}
+                                    onClick={() => handleAddInlineAwardPlayer(activeScoreSheetReviewMatch.id, teamSection.key)}
+                                    className={btnState == "success" ? "border-green-600 bg-green-600 text-white hover:bg-green-600" : ""}
+                                  >
+                                    {btnState == "loading" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    {btnState == "success" && <Check className="mr-2 h-4 w-4" />}
+                                    {!btnState && <Plus className="mr-2 h-4 w-4" />}
+                                    {btnState == "loading" ? "Adicionando..." : btnState == "success" ? "Adicionado!" : "Adicionar"}
+                                  </Button>
                                 );
-                              }
-
-                              return (
-                                <div key={playerOption.id} className="flex items-center gap-1.5 rounded-lg bg-muted/30 px-2.5 py-1.5">
-                                  <span className="min-w-0 flex-1 truncate text-sm">{playerOption.name}</span>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
-                                    onClick={() => {
-                                      setEditingPlayerByKey((prev) => ({
-                                        ...prev,
-                                        [editKey]: { playerId: playerOption.id, name: playerOption.name },
-                                      }));
-                                    }}
-                                  >
-                                    <Pencil className="h-3 w-3" />
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
-                                    onClick={() => handleDeleteAwardPlayer(activeScoreSheetReviewMatch.id, teamSection.key, playerOption.id)}
-                                  >
-                                    <Trash2 className="h-3 w-3" />
-                                  </Button>
-                                </div>
-                              );
-                            })}
+                              })()}
+                            </div>
                           </div>
-                        ) : (
-                          <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-background/70 px-3 py-3 text-sm text-muted-foreground">
-                            Sem atletas cadastrados para esta atlética.
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="space-y-2">
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Cadastrar atleta</p>
-                        <p className="text-xs text-muted-foreground">
-                          Use este campo apenas se o autor do gol ainda não estiver na lista acima.
-                        </p>
-                        <div className="flex gap-2">
-                          <Input
-                            ref={(el) => { newPlayerInputRefs.current[`${activeScoreSheetReviewMatch.id}:${teamSection.key}`] = el; }}
-                            value={teamSection.newPlayerName}
-                            onChange={(event) => {
-                              const value = event.target.value;
-                              handleUpdateScoreSheetAwardsDraft(activeScoreSheetReviewMatch.id, (draft) => ({
-                                ...draft,
-                                newHomePlayerName: teamSection.key == "home" ? value : draft.newHomePlayerName,
-                                newAwayPlayerName: teamSection.key == "away" ? value : draft.newAwayPlayerName,
-                              }));
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.preventDefault();
-                                handleAddInlineAwardPlayer(activeScoreSheetReviewMatch.id, teamSection.key);
-                              }
-                            }}
-                            placeholder="Nome do atleta"
-                          />
-                          {(() => {
-                            const btnState = addPlayerButtonStateByKey[`${activeScoreSheetReviewMatch.id}:${teamSection.key}`];
-                            return (
-                              <Button
-                                type="button"
-                                variant={btnState == "success" ? "default" : "outline"}
-                                disabled={!!btnState}
-                                onClick={() => handleAddInlineAwardPlayer(activeScoreSheetReviewMatch.id, teamSection.key)}
-                                className={btnState == "success" ? "border-green-600 bg-green-600 text-white hover:bg-green-600" : ""}
-                              >
-                                {btnState == "loading" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                {btnState == "success" && <Check className="mr-2 h-4 w-4" />}
-                                {!btnState && <Plus className="mr-2 h-4 w-4" />}
-                                {btnState == "loading" ? "Adicionando..." : btnState == "success" ? "Adicionado!" : "Adicionar"}
-                              </Button>
-                            );
-                          })()}
                         </div>
                       </div>
                     </div>
@@ -5267,7 +5411,7 @@ export function AdminMatches({
             </div>
           )}
 
-          <DialogFooter className="mt-2 gap-2 sm:items-center sm:justify-between">
+          <DialogFooter className="mt-2 flex-col gap-3 sm:flex-col sm:space-x-0">
             {!activeScoreSheetAwardsDraft?.isWalkover && hasIncompleteActiveScoreSheetGoalSelections ? (
               <p className="text-sm text-amber-700">
                 Preencha os {activeScoreSheetGoalSelectionSummary.pendingGoals} autor{activeScoreSheetGoalSelectionSummary.pendingGoals == 1 ? "" : "es"} restante{activeScoreSheetGoalSelectionSummary.pendingGoals == 1 ? "" : "s"} para salvar.
@@ -5275,22 +5419,24 @@ export function AdminMatches({
             ) : (
               <div />
             )}
-            <Button type="button" variant="outline" onClick={handleCloseScoreSheetReviewDialog} disabled={isSavingActiveScoreSheetAwardsContext}>
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              onClick={() => void handleSaveScoreSheetAwards()}
-              disabled={
-                isLoadingActiveScoreSheetAwardsContext ||
-                isSavingActiveScoreSheetAwardsContext ||
-                !activeScoreSheetAwardsDraft ||
-                hasIncompleteActiveScoreSheetGoalSelections
-              }
-            >
-              {isSavingActiveScoreSheetAwardsContext ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Salvar revisão
-            </Button>
+            <div className="flex w-full justify-center gap-3">
+              <Button type="button" variant="outline" onClick={handleCloseScoreSheetReviewDialog} disabled={isSavingActiveScoreSheetAwardsContext}>
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                onClick={() => void handleSaveScoreSheetAwards()}
+                disabled={
+                  isLoadingActiveScoreSheetAwardsContext ||
+                  isSavingActiveScoreSheetAwardsContext ||
+                  !activeScoreSheetAwardsDraft ||
+                  hasIncompleteActiveScoreSheetGoalSelections
+                }
+              >
+                {isSavingActiveScoreSheetAwardsContext ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Salvar revisão
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -5859,54 +6005,110 @@ export function AdminMatches({
               </div>
 
               {editingMatchDraft.status === MatchStatus.FINISHED ? (
-              <div className="space-y-3">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Placar</p>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground">Casa</p>
-                    <Input
-                      type="number"
-                      min={0}
-                      step={1}
-                      value={editingMatchDraft.homeScore}
-                      onChange={(event) =>
-                        setEditingMatchDraft((currentDraft) =>
-                          currentDraft
-                            ? {
-                                ...currentDraft,
-                                homeScore: resolveParsedScoreInputValue(event.target.value),
-                              }
-                            : currentDraft,
-                        )
-                      }
-                      className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                      aria-label="Placar do mandante"
-                    />
+                <div className="space-y-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Placar</p>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground">Casa</p>
+                      <Input
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={editingMatchDraft.homeScore}
+                        onChange={(event) =>
+                          setEditingMatchDraft((currentDraft) =>
+                            currentDraft
+                              ? {
+                                  ...currentDraft,
+                                  homeScore: resolveParsedScoreInputValue(event.target.value),
+                                }
+                              : currentDraft,
+                          )
+                        }
+                        className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        aria-label="Placar do mandante"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground">Visitante</p>
+                      <Input
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={editingMatchDraft.awayScore}
+                        onChange={(event) =>
+                          setEditingMatchDraft((currentDraft) =>
+                            currentDraft
+                              ? {
+                                  ...currentDraft,
+                                  awayScore: resolveParsedScoreInputValue(event.target.value),
+                                }
+                              : currentDraft,
+                          )
+                        }
+                        className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        aria-label="Placar do visitante"
+                      />
+                    </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground">Visitante</p>
-                    <Input
-                      type="number"
-                      min={0}
-                      step={1}
-                      value={editingMatchDraft.awayScore}
-                      onChange={(event) =>
-                        setEditingMatchDraft((currentDraft) =>
-                          currentDraft
-                            ? {
-                                ...currentDraft,
-                                awayScore: resolveParsedScoreInputValue(event.target.value),
-                              }
-                            : currentDraft,
-                        )
-                      }
-                      className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                      aria-label="Placar do visitante"
-                    />
-                  </div>
+                  {editingShouldUseSocietyPenaltyShootout ? (
+                    <div className="space-y-3 rounded-2xl border border-border/60 bg-muted/30 p-4">
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Pênaltis</p>
+                        <p className="text-xs text-muted-foreground">
+                          Os pênaltis definem o vencedor oficial do mata-mata, mas não entram na artilharia.
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium text-muted-foreground">Casa</p>
+                          <Input
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={editingMatchDraft.homePenaltyScore ?? ""}
+                            onChange={(event) =>
+                              setEditingMatchDraft((currentDraft) =>
+                                currentDraft
+                                  ? {
+                                      ...currentDraft,
+                                      homePenaltyScore: resolveParsedNullableScoreInputValue(event.target.value),
+                                    }
+                                  : currentDraft,
+                              )
+                            }
+                            className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            aria-label="Pênaltis da casa"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium text-muted-foreground">Visitante</p>
+                          <Input
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={editingMatchDraft.awayPenaltyScore ?? ""}
+                            onChange={(event) =>
+                              setEditingMatchDraft((currentDraft) =>
+                                currentDraft
+                                  ? {
+                                      ...currentDraft,
+                                      awayPenaltyScore: resolveParsedNullableScoreInputValue(event.target.value),
+                                    }
+                                  : currentDraft,
+                              )
+                            }
+                            className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            aria-label="Pênaltis do visitante"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
-              </div>
               ) : null}
 
               {isEditingSportWithCards && editingMatchDraft.status === MatchStatus.FINISHED ? (

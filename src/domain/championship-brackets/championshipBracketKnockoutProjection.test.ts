@@ -131,6 +131,10 @@ describe("resolveBracketPairingByMode", () => {
     // Seeding [1,4,2,3]: slot1=1ºA×2ºB, slot2=1ºB×2ºA
     expect(resolveBracketPairingByMode("BEACH_SOCCER_FEM_DIRECT_SEMI", 4)).toEqual([1, 4, 2, 3]);
   });
+
+  it("FUTEBOL_SOCIETY_FEM_ACCESS_CROSS_GROUPS mantém o seeding linear da chave", () => {
+    expect(resolveBracketPairingByMode("FUTEBOL_SOCIETY_FEM_ACCESS_CROSS_GROUPS", 4)).toEqual([1, 4, 2, 3]);
+  });
 });
 
 describe("resolveChampionshipBracketSeedPlaceholderLabels", () => {

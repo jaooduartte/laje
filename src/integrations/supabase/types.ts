@@ -1103,6 +1103,7 @@ export type Database = {
           created_at: string
           division: Database["public"]["Enums"]["team_division"] | null
           end_time: string | null
+          home_penalty_score: number | null
           home_red_cards: number
           home_score: number
           home_yellow_cards: number
@@ -1111,6 +1112,7 @@ export type Database = {
           location: string
           manual_representation_mode: string
           naipe: Database["public"]["Enums"]["match_naipe"]
+          away_penalty_score: number | null
           queue_position: number | null
           scheduled_slot: number | null
           walkover_loser_team_id: string | null
@@ -1139,6 +1141,7 @@ export type Database = {
           created_at?: string
           division?: Database["public"]["Enums"]["team_division"] | null
           end_time?: string | null
+          home_penalty_score?: number | null
           home_red_cards?: number
           home_score?: number
           home_yellow_cards?: number
@@ -1147,6 +1150,7 @@ export type Database = {
           location: string
           manual_representation_mode?: string
           naipe?: Database["public"]["Enums"]["match_naipe"]
+          away_penalty_score?: number | null
           queue_position?: number | null
           scheduled_slot?: number | null
           walkover_loser_team_id?: string | null
@@ -1175,6 +1179,7 @@ export type Database = {
           created_at?: string
           division?: Database["public"]["Enums"]["team_division"] | null
           end_time?: string | null
+          home_penalty_score?: number | null
           home_red_cards?: number
           home_score?: number
           home_yellow_cards?: number
@@ -1183,6 +1188,7 @@ export type Database = {
           location?: string
           manual_representation_mode?: string
           naipe?: Database["public"]["Enums"]["match_naipe"]
+          away_penalty_score?: number | null
           queue_position?: number | null
           scheduled_slot?: number | null
           walkover_loser_team_id?: string | null

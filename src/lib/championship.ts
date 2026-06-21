@@ -131,7 +131,7 @@ export const CHAMPIONSHIP_SPORT_TIE_BREAKER_RULE_LABELS: Record<ChampionshipSpor
   [ChampionshipSportTieBreakerRule.POINTS_AVERAGE]: "Pontos Average",
   [ChampionshipSportTieBreakerRule.BEACH_SOCCER]: "Beach Soccer",
   [ChampionshipSportTieBreakerRule.BEACH_TENNIS]: "Beach Tennis",
-  [ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY]: "Futebol Society",
+  [ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY]: "Pênaltis",
 };
 
 export const CHAMPIONSHIP_SPORT_RESULT_RULE_LABELS: Record<ChampionshipSportResultRule, string> = {
@@ -1322,6 +1322,34 @@ export function resolveMatchTieBreakRuleLabel(
   }
 
   return CHAMPIONSHIP_SPORT_TIE_BREAKER_RULE_LABELS[tieBreakerRule];
+}
+
+export function isSocietyKnockoutMatch(
+  match: Pick<Match, "championships">,
+  bracketContext?: Pick<MatchBracketContext, "phase"> | null,
+): boolean {
+  return match.championships?.code == ChampionshipCode.SOCIETY && bracketContext?.phase == BracketPhase.KNOCKOUT;
+}
+
+export function resolveMatchPenaltyShootoutSummary(
+  match: Pick<Match, "status" | "home_score" | "away_score" | "home_penalty_score" | "away_penalty_score" | "championships">,
+  bracketContext?: Pick<MatchBracketContext, "phase"> | null,
+) {
+  if (
+    match.status != MatchStatus.FINISHED ||
+    !isSocietyKnockoutMatch(match, bracketContext) ||
+    match.home_score != match.away_score ||
+    typeof match.home_penalty_score != "number" ||
+    typeof match.away_penalty_score != "number" ||
+    match.home_penalty_score == match.away_penalty_score
+  ) {
+    return null;
+  }
+
+  return {
+    homePenaltyScore: match.home_penalty_score,
+    awayPenaltyScore: match.away_penalty_score,
+  };
 }
 
 export function isRecordedMatchSet(matchSet: MatchSetInput | null | undefined): matchSet is MatchSetInput {

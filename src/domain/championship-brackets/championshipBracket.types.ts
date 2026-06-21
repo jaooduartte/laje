@@ -5,6 +5,7 @@ import type {
   MatchNaipe,
   TeamDivision,
 } from "@/lib/enums";
+import type { ChampionshipKnockoutPairingMode } from "@/domain/championship-brackets/championshipBracketPairing";
 
 export interface ChampionshipBracketParticipantModalityInput {
   sport_id: string;
@@ -29,6 +30,7 @@ export interface ChampionshipBracketCompetitionInput {
   groups_count: number;
   qualifiers_per_group: number;
   should_complete_knockout_with_best_second_placed_teams: boolean;
+  knockout_pairing_mode: ChampionshipKnockoutPairingMode;
   third_place_mode: BracketThirdPlaceMode;
   groups: ChampionshipBracketGroupInput[];
 }
@@ -163,6 +165,7 @@ export interface ChampionshipBracketCompetitionConfigDraft {
   groups_count: number;
   qualifiers_per_group: number;
   should_complete_knockout_with_best_second_placed_teams: boolean;
+  knockout_pairing_mode: ChampionshipKnockoutPairingMode;
 }
 
 export type ChampionshipBracketGroupOrderedTeamIdsByGroupNumberDraft = Record<string, string[]>;

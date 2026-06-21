@@ -1,4 +1,5 @@
 import type { ChampionshipBracketSetupFormValues } from "@/domain/championship-brackets/championshipBracket.types";
+import { resolveCompetitionKnockoutPairingModeValue } from "@/domain/championship-brackets/championshipBracketPairing";
 
 export class ChampionshipBracketSetupDTO {
   private readonly form_values: ChampionshipBracketSetupFormValues;
@@ -175,6 +176,9 @@ export class ChampionshipBracketSetupDTO {
         qualifiers_per_group: competition.qualifiers_per_group,
         should_complete_knockout_with_best_second_placed_teams:
           competition.should_complete_knockout_with_best_second_placed_teams,
+        knockout_pairing_mode: resolveCompetitionKnockoutPairingModeValue(
+          competition.knockout_pairing_mode,
+        ),
         third_place_mode: competition.third_place_mode,
         groups: competition.groups.map((group) => ({
           group_number: group.group_number,

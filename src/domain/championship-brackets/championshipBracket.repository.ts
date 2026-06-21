@@ -23,6 +23,7 @@ import type {
   EditableMatchScheduleSlotQueryInput,
   ScheduledMatchLogisticsUpdateInput,
 } from "@/domain/championship-brackets/championshipBracket.types";
+import type { ChampionshipKnockoutPairingMode } from "@/domain/championship-brackets/championshipBracketPairing";
 import type { ChampionshipBracketView } from "@/lib/types";
 import type { MatchNaipe, TeamDivision } from "@/lib/enums";
 
@@ -327,8 +328,46 @@ export async function fetchChampionshipBracketView(
     };
   }
 
+  const data = (response.data as ChampionshipBracketView | null) ?? null;
+
+  if (!data || data.competitions.length == 0) {
+    return {
+      data,
+      error: null,
+    };
+  }
+
+  const competitionIds = data.competitions.map((competition) => competition.id);
+  const pairingModesResponse = await supabase
+    .from("championship_bracket_competitions")
+    .select("id, knockout_pairing_mode")
+    .in("id", competitionIds);
+
+  if (pairingModesResponse.error) {
+    return {
+      data,
+      error: null,
+    };
+  }
+
+  const knockoutPairingModeByCompetitionId = new Map(
+    (pairingModesResponse.data ?? []).map((competition) => [
+      competition.id,
+      competition.knockout_pairing_mode,
+    ]),
+  );
+
   return {
-    data: (response.data as ChampionshipBracketView | null) ?? null,
+    data: {
+      ...data,
+      competitions: data.competitions.map((competition) => ({
+        ...competition,
+        knockout_pairing_mode:
+          knockoutPairingModeByCompetitionId.get(competition.id) ??
+          competition.knockout_pairing_mode ??
+          "LINEAR",
+      })),
+    },
     error: null,
   };
 }
@@ -472,16 +511,18 @@ export async function updateBracketDaySchedule(
   return { error: response.error };
 }
 
-export async function updateBracketCompetitionQualification(
+export async function updateBracketCompetitionSettings(
   competitionId: string,
   qualifiersPerGroup: number,
   shouldCompleteKnockoutWithBestSecondPlacedTeams: boolean,
+  knockoutPairingMode: ChampionshipKnockoutPairingMode,
 ): Promise<{ error: Error | null }> {
-  const response = await supabase.rpc("update_bracket_competition_qualification", {
+  const response = await supabase.rpc("update_bracket_competition_settings", {
     _competition_id: competitionId,
     _qualifiers_per_group: qualifiersPerGroup,
     _should_complete_knockout_with_best_second_placed_teams:
       shouldCompleteKnockoutWithBestSecondPlacedTeams,
+    _knockout_pairing_mode: knockoutPairingMode,
   });
   return { error: response.error };
 }
