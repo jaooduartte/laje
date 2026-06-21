@@ -389,7 +389,16 @@ export function ChampionshipsPageView({
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                       {championshipChampionYearGroup.champions.map((championshipChampion) => {
                         const isCurrentYear = String(awardsSeasonYear) === championshipChampionYearGroup.year;
-                        const awardsReady = isCurrentYear && awardsRankings != null && awardsRankings.pending_matches_count === 0;
+                        const pendingAwardContext = awardsRankings?.pending_award_contexts?.find(
+                          (pendingContext) =>
+                            pendingContext.naipe === championshipChampion.naipe &&
+                            pendingContext.division === (championshipChampion.division ?? null)
+                        ) ?? null;
+                        const awardsReady = isCurrentYear && awardsRankings != null && (
+                          awardsRankings.pending_award_contexts != null
+                            ? pendingAwardContext == null
+                            : awardsRankings.pending_matches_count === 0
+                        );
                         const scorerDrawResult = awardsRankings?.award_draw_results?.find(
                           (r) =>
                             r.award_type === "TOP_SCORER" &&

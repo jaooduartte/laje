@@ -68,6 +68,7 @@ describe("ChampionshipsPageView", () => {
     const awardsRankings: ChampionshipAwardsRankings = {
       season_year: 2026,
       pending_matches_count: 0,
+      pending_award_contexts: [],
       top_scorers: [
         {
           player_id: "player-final",
@@ -163,5 +164,138 @@ describe("ChampionshipsPageView", () => {
     expect(screen.getByText(/1,00 de média/)).toBeInTheDocument();
     expect(screen.getByText("Artilheiro da Final")).toBeInTheDocument();
     expect(screen.queryByText("Artilheiro da Semi")).not.toBeInTheDocument();
+  });
+
+  it("exibe premiações de uma divisão sem bloquear por pendência de outro recorte", async () => {
+    const championship: Championship = {
+      id: "championship-1",
+      code: ChampionshipCode.SOCIETY,
+      name: "Copa Laje Society",
+      status: ChampionshipStatus.IN_PROGRESS,
+      current_season_year: 2026,
+      uses_divisions: true,
+      default_location: null,
+      created_at: "2026-06-18T00:00:00.000Z",
+    };
+
+    const championshipChampionHistory: ChampionshipChampionYearGroup[] = [
+      {
+        year: "2026",
+        champions: [
+          {
+            year: "2026",
+            sport_id: "sport-1",
+            sport_name: "Futebol Society",
+            naipe: MatchNaipe.FEMININO,
+            division: TeamDivision.DIVISAO_ACESSO,
+            champion_team_name: "AGUA",
+            runner_up_team_name: "AFA",
+            third_place_team_name: "AMEN",
+            match_id: "final-access-fem",
+          },
+        ],
+      },
+    ];
+
+    const awardsRankings: ChampionshipAwardsRankings = {
+      season_year: 2026,
+      pending_matches_count: 2,
+      pending_award_contexts: [
+        {
+          naipe: MatchNaipe.FEMININO,
+          division: TeamDivision.DIVISAO_PRINCIPAL,
+          pending_matches_count: 1,
+        },
+        {
+          naipe: MatchNaipe.MASCULINO,
+          division: TeamDivision.DIVISAO_PRINCIPAL,
+          pending_matches_count: 1,
+        },
+      ],
+      top_scorers: [
+        {
+          player_id: "player-agua",
+          player_name: "Aline das Graças",
+          team_id: "team-agua",
+          team_name: "AGUA",
+          naipe: MatchNaipe.FEMININO,
+          division: TeamDivision.DIVISAO_ACESSO,
+          goals: 6,
+          team_advancement_rank: 2,
+        },
+      ],
+      best_defenses: [
+        {
+          team_id: "team-agua",
+          team_name: "AGUA",
+          naipe: MatchNaipe.FEMININO,
+          division: TeamDivision.DIVISAO_ACESSO,
+          matches_count: 3,
+          goals_against: 2,
+          goals_against_average: 2 / 3,
+        },
+      ],
+      award_draw_results: [],
+    };
+
+    render(
+      <TooltipProvider>
+        <ChampionshipsPageView
+          isLoading={false}
+          isStandingsLoading={false}
+          championships={[championship]}
+          selectedChampionship={championship}
+          selectedChampionshipCode={ChampionshipCode.SOCIETY}
+          selectedChampionshipIsFinished={false}
+          championshipCardImageByCode={{ [ChampionshipCode.SOCIETY]: "/society.svg" } as Record<ChampionshipCode, string>}
+          sports={[]}
+          nextMatches={[]}
+          isNextMatchesFetching={false}
+          standingsSportFilter="ALL"
+          standingsNaipeFilter="ALL"
+          standingsYearFilter="2026"
+          standingsDivisionFilter="ALL"
+          allStandingsSportFilter="ALL"
+          allStandingsNaipeFilter="ALL"
+          allStandingsDivisionFilter="ALL"
+          selectedChampionshipHasDivisions
+          filteredStandings={[]}
+          isStandingsNaipeFilterLocked={false}
+          standingsModalidadeConfig={undefined}
+          teamFilter="ALL"
+          yearFilter="ALL"
+          groupFilter="ALL"
+          allTeamFilter="ALL"
+          allYearFilter="ALL"
+          availableStandingsYears={["2026"]}
+          historyGroupOptions={[]}
+          historyTeams={[]}
+          historyYears={["2026"]}
+          filteredHistoryMatches={[]}
+          isHistoryMatchesFetching={false}
+          championshipChampionHistory={championshipChampionHistory}
+          overallPodiumStandings={[]}
+          awardsRankings={awardsRankings}
+          awardsSeasonYear={2026}
+          matchBracketContextByMatchId={{}}
+          matchRepresentationByMatchId={{}}
+          estimatedStartTimeByMatchId={{}}
+          onSelectChampionshipCode={vi.fn()}
+          onStandingsSportFilterChange={vi.fn()}
+          onStandingsNaipeFilterChange={vi.fn()}
+          onStandingsDivisionFilterChange={vi.fn()}
+          onStandingsYearFilterChange={vi.fn()}
+          onTeamFilterChange={vi.fn()}
+          onYearFilterChange={vi.fn()}
+          onGroupFilterChange={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    expect(await screen.findByText("Aline das Graças")).toBeInTheDocument();
+    expect(screen.getByText(/AGUA • 6 gols/)).toBeInTheDocument();
+    expect(screen.getAllByText("AGUA").length).toBeGreaterThan(0);
+    expect(screen.getByText(/0,67 de média/)).toBeInTheDocument();
+    expect(screen.getByText(/2 gols sofridos/)).toBeInTheDocument();
   });
 });

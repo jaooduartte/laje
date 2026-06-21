@@ -25,6 +25,7 @@ const {
   rankingsMock: {
     season_year: 2026,
     pending_matches_count: 0,
+    pending_award_contexts: [],
     top_scorers: [
       {
         player_id: "player-1",

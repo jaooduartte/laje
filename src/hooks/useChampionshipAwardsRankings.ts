@@ -31,9 +31,16 @@ export interface AwardsRankingDrawResult {
   winner_team_id: string | null;
 }
 
+export interface AwardsRankingPendingContext {
+  naipe: MatchNaipe;
+  division: TeamDivision | null;
+  pending_matches_count: number;
+}
+
 export interface ChampionshipAwardsRankings {
   season_year: number;
   pending_matches_count: number;
+  pending_award_contexts: AwardsRankingPendingContext[];
   top_scorers: AwardsRankingGoalScorer[];
   best_defenses: AwardsRankingBestDefense[];
   award_draw_results: AwardsRankingDrawResult[];
