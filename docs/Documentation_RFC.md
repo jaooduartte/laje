@@ -225,7 +225,7 @@ Desenvolver uma aplicação web capaz de centralizar a gestão operacional e a d
 
 ### Objetivos Específicos
 
-1. Administrar campeonatos, modalidades, times, jogos e eventos da liga em uma estrutura integrada e organizada.
+1. Administrar campeonatos, modalidades, atléticas, jogos e eventos da liga em uma estrutura integrada e organizada.
 2. Operar partidas ao vivo com atualização em tempo real para público e equipe administrativa.
 3. Automatizar a classificação e a progressão de chaveamento com base no estado persistido das partidas e nas regras configuradas.
 4. Disponibilizar uma experiência pública clara para consulta de agenda, campeonatos, resultados, classificações, chaveamentos e calendário institucional.
@@ -331,7 +331,7 @@ Os principais casos de uso identificados no projeto são:
 - autenticar usuário administrativo e tratar primeiro acesso com senha pendente;
 - gerenciar campeonatos, temporadas e status operacionais;
 - gerenciar modalidades e suas regras por campeonato;
-- gerenciar atléticas, times e divisões;
+- gerenciar atléticas e divisões;
 - cadastrar, editar e excluir jogos;
 - operar partida ao vivo;
 - atualizar placar, sets, cartões e status da partida;
@@ -391,15 +391,15 @@ Os requisitos funcionais a seguir foram sintetizados a partir do comportamento j
 - **RF04** — O sistema deve permitir que administradores gerenciem campeonatos com código, nome, temporada, local padrão e status operacional.
 - **RF05** — O sistema deve permitir que administradores alterem o status do campeonato entre planejamento, em breve, em andamento e encerrado.
 - **RF06** — O sistema deve permitir que administradores gerenciem modalidades por campeonato, incluindo regra de resultado, desempate, pontuação, cartões e duração padrão de partida.
-- **RF07** — O sistema deve permitir que administradores gerenciem atléticas e times com nome, cidade e divisão quando aplicável.
-- **RF08** — O sistema deve permitir que administradores cadastrem, editem e excluam jogos com campeonato, temporada, modalidade, naipe, times, local, quadra, data, horário e status.
+- **RF07** — O sistema deve permitir que administradores gerenciem atléticas com nome, cidade e divisão quando aplicável.
+- **RF08** — O sistema deve permitir que administradores cadastrem, editem e excluam jogos com campeonato, temporada, modalidade, naipe, atléticas, local, quadra, data, horário e status.
 - **RF09** — O sistema deve permitir que usuários com permissão de edição na aba de controle iniciem, atualizem e encerrem partidas ao vivo.
 - **RF10** — O sistema deve permitir que o operador atualize placar por pontos ou por sets, conforme a regra da modalidade.
 - **RF11** — O sistema deve permitir que o operador registre cartões por time quando a modalidade suportar essa regra.
 - **RF12** — O sistema deve calcular automaticamente a classificação a partir dos jogos concluídos, segmentando o resultado por campeonato, temporada, modalidade, naipe e divisão.
 - **RF13** — O sistema deve ordenar a classificação com base nas regras de desempate configuradas para a modalidade no contexto do campeonato.
 - **RF14** — O sistema deve permitir a geração de fase de grupos por assistente de chaveamento com participantes, grupos, agenda e revisão.
-- **RF15** — O sistema deve permitir a distribuição manual de times nos grupos antes da confirmação da estrutura de chaveamento.
+- **RF15** — O sistema deve permitir a distribuição manual de atléticas nos grupos antes da confirmação da estrutura de chaveamento.
 - **RF16** — O sistema deve gerar o mata-mata a partir da classificação dos grupos quando os pré-requisitos do chaveamento estiverem satisfeitos.
 - **RF17** — O sistema deve permitir que o visitante consulte páginas públicas de Ao Vivo, Campeonatos, Agenda e Calendário da Liga.
 - **RF18** — O sistema deve permitir que o visitante visualize classificação, chaveamento, jogos e eventos da liga nas páginas públicas compatíveis com o contexto selecionado.
@@ -810,7 +810,7 @@ Responsável por Home, Ao Vivo, Campeonatos, Agenda e Calendário da Liga, com f
 
 ### Painel administrativo
 
-Centraliza jogos, controle ao vivo, modalidades, times, eventos, usuários, logs, conta, configurações e demais abas disponíveis conforme perfil.
+Centraliza jogos, controle ao vivo, modalidades, atléticas, eventos, usuários, logs, conta, configurações e demais abas disponíveis conforme perfil.
 
 ### Backend API
 
@@ -830,7 +830,7 @@ Componente derivado que recalcula estatísticas e ordenação a partir dos resul
 
 ### Chaveamento
 
-Abrange geração de grupos, distribuição de times, agenda inicial, formação do mata-mata e progressão automática dos confrontos.
+Abrange geração de grupos, distribuição de atléticas, agenda inicial, formação do mata-mata e progressão automática dos confrontos.
 
 ### Eventos e calendário
 
@@ -895,3 +895,127 @@ Prevista para reforçar qualidade contínua, padronização e prevenção de reg
 
 **Ferramenta de observabilidade**  
 Prevista para ampliar logs, métricas e monitoramento do ambiente implantado, especialmente em cenários de operação ao vivo e suporte.
+
+---
+
+# 6. Segurança e Privacidade
+
+No estado atual, o LAJE App já utiliza autenticação administrativa apoiada em Supabase Auth, permissões por perfil e por aba do painel, políticas de acesso no banco e logs administrativos para rastreabilidade. Esses pontos cobrem as preocupações básicas de segurança hoje evidenciadas no repositório, na Wiki e nas migrations.
+
+Também fazem parte do estado atual do sistema:
+
+- uso de variáveis de ambiente no frontend para configuração do Supabase;
+- controle de acesso ao painel por perfil e nível de permissão;
+- registros de auditoria para ações administrativas relevantes;
+- atualização quase em tempo real em fluxos que dependem do estado persistido das partidas.
+
+No estado-alvo, a evolução já registrada nesta RFC e na Wiki é concentrar autenticação, autorização e regras críticas no backend dedicado `laje-api`, preservando PostgreSQL como persistência principal e reforçando a solução com CI/CD, análise estática e observabilidade. A preocupação com riscos como controle de acesso inadequado, exposição indevida de dados e configuração insegura permanece como requisito de evolução, sem afirmar mecanismos que ainda não existam no aplicativo atual.
+
+## 6.1 Privacidade e LGPD
+
+Com base nas estruturas e fluxos documentados no app e na Wiki, o sistema trata principalmente:
+
+- **dados administrativos:** nome, identificador de login, perfil, permissões, status de senha e último acesso;
+- **dados operacionais:** campeonatos, modalidades, atléticas, jogos, placares, cartões, eventos, classificação, chaveamento e logs de ações administrativas;
+- **dados públicos:** informações de partidas, resultados, agenda, calendário, classificação e chaveamento disponibilizadas para visitantes;
+- **dados técnicos:** registros de auditoria, contexto de autenticação, metadados operacionais e informações necessárias para a operação atual e para a observabilidade prevista no estado-alvo.
+
+Pelo escopo atualmente implementado e documentado, o sistema não foi projetado para tratar dados sensíveis de saúde, biometria, pagamentos ou informações acadêmicas privadas.
+
+No estado atual, esses dados ficam apoiados na estrutura já utilizada pelo app com Supabase Auth, Supabase/Postgres e funções SQL. No estado-alvo, a persistência principal continua relacional em PostgreSQL, com acesso mediado pelo backend dedicado `laje-api`.
+
+Nesta etapa, a RFC registra o tema de privacidade e LGPD como preocupação de conformidade do projeto, mas não afirma a existência de uma política formal já implantada para retenção, anonimização ou remoção de dados. O que está evidenciado no estado atual é que o painel permite correção de dados operacionais e que o sistema mantém logs e estruturas de autenticação voltados a controle de acesso e rastreabilidade.
+
+Para o estado-alvo, a expectativa documentada é manter a coleta restrita ao necessário para os fluxos do produto e definir com mais formalidade como o usuário poderá solicitar revisão ou remoção de dados, quando aplicável, dentro da arquitetura futura com `laje-api`.
+
+---
+
+# 7. Planejamento do Projeto
+
+O planejamento abaixo combina marcos históricos do repositório, edições relevantes da própria RFC, validações já realizadas com usuários finais e os próximos passos da evolução técnica e documental do projeto. As datas históricas foram ancoradas no histórico Git do projeto e do arquivo `docs/Documentation_RFC.md`. As datas de validação com usuários finais foram ancoradas nas datas finais registradas no sistema para a Copa Laje de Verão e para a Copa Laje Society.
+
+| Marco | Descrição | Data |
+|---|---|---|
+| M1 | Criação da base inicial do projeto no repositório | 01/01/2025 |
+| M2 | Criação inicial do documento RFC do LAJE App | 09/04/2026 |
+| M3 | Revisão da RFC para explicitar o estado-alvo de entrega e a arquitetura futura | 09/04/2026 |
+| M4 | Ajuste da RFC para registrar com mais clareza o estado atual com React e Supabase, além de metas iniciais | 10/04/2026 |
+| M5 | Validação com usuários finais durante a Copa Laje de Verão | 12/04/2026 |
+| M6 | Consolidação da RFC técnica com os capítulos 1 a 5 | 24/05/2026 |
+| M7 | Ajustes pontuais da RFC para refletir a evolução funcional do app | 28/05/2026 |
+| M8 | Validação com usuários finais durante a Copa Laje Society | 21/06/2026 |
+| M9 | Complementação da RFC com as seções 6 a 10 e revisão de aderência ao modelo oficial | 23/06/2026 |
+| M10 | Consolidação final da RFC alinhada ao app, à Wiki e ao modelo oficial | 29/06/2026 |
+| M11 | Planejamento técnico da refatoração para `laje-api` | 27/07/2026 |
+| M12 | Estrutura inicial do backend dedicado com PostgreSQL e autenticação base | 17/08/2026 |
+| M13 | Migração dos fluxos centrais do produto para a arquitetura-alvo | 21/09/2026 |
+| M14 | CI/CD, análise estática, observabilidade e evolução de testes | 19/10/2026 |
+| M15 | Preparação do ambiente público, documentação final e demonstração | 09/11/2026 |
+
+---
+
+# 8. Referências
+
+- Católica SC Portfolio. [The Portfolio Playbook](https://github.com/CatolicaSC-Portfolio/The-Portfolio-Playbook/?tab=readme-ov-file).
+- Católica SC Portfolio. [PAC Extensionista VII](https://github.com/CatolicaSC-Portfolio/The-Portfolio-Playbook/blob/main/PAC%20Extensionista%20VII.md).
+- Católica SC Portfolio. [Portfólio Directions — Geral](https://github.com/CatolicaSC-Portfolio/The-Portfolio-Playbook/blob/main/directions/portfolio-directions-GERAL.md).
+- Católica SC Portfolio. [Portfólio Directions — Web Apps](https://github.com/CatolicaSC-Portfolio/The-Portfolio-Playbook/blob/main/directions/portfolio-directions-webapp.md).
+- Católica SC Portfolio. [Diretrizes de Avaliação para Professores](https://github.com/CatolicaSC-Portfolio/The-Portfolio-Playbook/blob/main/documentation/diretrizes-avaliacao-professores.md).
+- Católica SC Portfolio. [Normas e Regulamentações](https://github.com/CatolicaSC-Portfolio/The-Portfolio-Playbook/blob/main/documentation/normas.md).
+- Católica SC Portfolio. [Modelo de RFC](https://github.com/CatolicaSC-Portfolio/The-Portfolio-Playbook/blob/main/documentation/RFC/modelo-de-RFC.md).
+- WINCK, Diogo Vinícius. [Mais Que Código](https://medium.com/@diogo.winck/mais-que-c%C3%B3digo-541676f3d78d). Medium.
+- WINCK, Diogo Vinícius. [O TCC além do TCC](https://medium.com/@diogo.winck/o-tcc-al%C3%A9m-do-tcc-86f539650527). Medium.
+- LAJE App. [README](../README.md).
+- LAJE App. [Requisitos Funcionais e Não Funcionais](./Functional_and_non_functional_requirements.md).
+- LAJE App. [Histórias de Usuário e Critérios de Aceite](./User_stories_and_acceptance_criteria.md).
+- LAJE App. Wiki do projeto: [Home](https://github.com/jaooduartte/laje/wiki), [Arquitetura](https://github.com/jaooduartte/laje/wiki/Arquitetura), [Fluxos do Sistema](https://github.com/jaooduartte/laje/wiki/Fluxos-do-Sistema), [Modelagem de Dados](https://github.com/jaooduartte/laje/wiki/Modelagem-de-Dados), [Requisitos do Sistema](https://github.com/jaooduartte/laje/wiki/Requisitos-do-Sistema) e [Histórias de Usuário](https://github.com/jaooduartte/laje/wiki/Hist%C3%B3rias-de-Usu%C3%A1rio).
+- React. [Documentação oficial](https://react.dev/).
+- TypeScript. [Documentação oficial](https://www.typescriptlang.org/docs/).
+- Vite. [Documentação oficial](https://vite.dev/).
+- Tailwind CSS. [Documentação oficial](https://tailwindcss.com/docs).
+- shadcn/ui. [Documentação oficial](https://ui.shadcn.com/).
+- Supabase. [Documentação oficial](https://supabase.com/docs).
+- PostgreSQL. [Documentação oficial](https://www.postgresql.org/docs/).
+- Express. [Documentação oficial](https://expressjs.com/).
+
+---
+
+# 9. Apêndices
+
+Podem ser consultados como material complementar desta RFC:
+
+- evidências visuais em `docs/assets`, incluindo as telas de Ao Vivo, Campeonatos, Agenda, Calendário da Liga, Painel Admin, Controle ao Vivo, Chaveamento e Eventos da Liga;
+- evidências de feedback inicial em `docs/assets/reviews`;
+- documentos complementares do projeto em `docs/Functional_and_non_functional_requirements.md` e `docs/User_stories_and_acceptance_criteria.md`;
+- versões exportadas da RFC em `docs/Documentation_RFC.pdf`, `docs/LAJE_RFC_v1.docx` e `docs/LAJE_RFC_v2.docx`;
+- Wiki do projeto como documentação funcional e técnica contínua.
+
+---
+
+# 10. Parecer do Comitê de Avaliação
+
+**Avaliador 1:** __________________________
+
+**Status:** [ ] Aprovado [ ] Ajustar
+
+**Observações:**
+
+
+
+---
+
+**Avaliador 2:** __________________________
+
+**Status:** [ ] Aprovado [ ] Ajustar
+
+**Observações:**
+
+
+
+---
+
+**Avaliador 3:** __________________________
+
+**Status:** [ ] Aprovado [ ] Ajustar
+
+**Observações:**
