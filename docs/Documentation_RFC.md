@@ -1012,10 +1012,3 @@ Podem ser consultados como material complementar desta RFC:
 
 
 
----
-
-**Avaliador 3:** __________________________
-
-**Status:** [ ] Aprovado [ ] Ajustar
-
-**Observações:**
