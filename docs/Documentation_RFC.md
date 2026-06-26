@@ -27,7 +27,7 @@
 
 O LAJE App é uma aplicação web voltada à gestão operacional e à divulgação pública de campeonatos universitários organizados pela Liga das Atléticas de Joinville (LAJE). A proposta do projeto consiste em centralizar, em um único sistema, a administração de jogos, classificações, chaveamentos, agenda e eventos institucionais, além de disponibilizar essas informações ao público de forma estruturada e atualizada em tempo quase real.
 
-Atualmente, o projeto já possui base funcional implementada no repositório, bem como documentação técnica organizada em `README`, diretório `docs/` e Wiki do GitHub. No estado atual, a aplicação opera com frontend React integrado ao ecossistema Supabase, utilizando autenticação, persistência e atualização em tempo real por meio da plataforma. Para fins de Portfólio, esta RFC passa a documentar também o **estado-alvo da entrega**, que será alcançado por meio de refatoração arquitetural da solução atual. Isso significa que a evolução planejada passa a ser descrita como uma aplicação web completa com frontend desacoplado, backend dedicado em `laje-api`, banco relacional PostgreSQL e infraestrutura pública compatível com as diretrizes da linha de Web Apps, tendo AWS apenas como referência inicial de estado-alvo.
+Atualmente, o projeto já possui base funcional implementada no repositório, bem como documentação técnica organizada em `README`, diretório `docs/` e Wiki do GitHub. No estado atual, a aplicação opera com frontend React integrado ao ecossistema Supabase, utilizando autenticação, persistência e atualização em tempo real por meio da plataforma. Nesta RFC, o **estado atual comprovado** é a referência principal do documento. Quando necessário, o texto também registra o **estado-alvo** como direção de evolução arquitetural, sem tratar como entrega concluída aquilo que ainda permanece em refatoração ou planejamento.
 
 ---
 
@@ -109,9 +109,9 @@ Na presente etapa, a evidência adotada para sustentar a demanda é a **dor oper
 - a presença de fluxos de negócio completos no sistema, como autenticação administrativa, controle ao vivo, classificação automática, chaveamento e calendário da liga;
 - a existência de modelagem e regras específicas para o contexto competitivo da LAJE.
 
-Essas evidências demonstram aderência a um problema real do domínio, embora **ainda não substituam uma validação formal com usuários finais**.
+Essas evidências demonstram aderência a um problema real do domínio e foram complementadas por validação empírica já realizada com usuários finais em contexto real de uso.
 
-### Evidência empírica inicial (interações reais — 2026)
+### Evidência empírica já coletada (interações reais — 2026)
 
 Além da análise do domínio e da modelagem funcional já implementada, foram observadas interações reais em grupos da LAJE (ano de 2026) envolvendo membros da organização e participantes da liga durante o uso inicial e apresentação do sistema.
 
@@ -139,18 +139,18 @@ Como ponto de melhoria inicial identificado:
 
 Esse feedback evidencia necessidade de evolução em usabilidade, onboarding ou documentação para operadores.
 
-Embora esses registros não constituam ainda uma validação formal estruturada, eles funcionam como **evidência empírica inicial de aderência ao problema e aceitação da solução**, complementando a análise do domínio apresentada nesta RFC.
+Embora esses registros não constituam, por si só, um estudo formal de usabilidade, eles funcionam como **evidência empírica já coletada de aderência ao problema e aceitação da solução**, complementando a análise do domínio apresentada nesta RFC.
 
-### Evidências futuras planejadas
+### Síntese da validação já realizada com usuários finais
 
-Como evolução da RFC e do projeto, será realizada uma etapa posterior de validação com usuários experimentando a versão de testes do app. Essa próxima fase deverá coletar evidências como:
+Além dos registros qualitativos apresentados acima, esta RFC considera como marcos de validação já realizados:
 
-- feedback de organizadores e operadores sobre os fluxos administrativos;
-- percepção de torcedores e comunidade acadêmica sobre clareza, navegabilidade e atualização das páginas públicas;
-- observações de uso em cenários reais ou simulados;
-- oportunidades de melhoria priorizadas a partir de teste com usuários.
+- validação durante a **Copa Laje de Verão**, com data final registrada em `12/04/2026`;
+- validação durante a **Copa Laje Society**, com data final registrada em `21/06/2026`;
+- coleta de feedbacks espontâneos preservados em `docs/assets/reviews`;
+- confirmação de interesse nas funcionalidades de tabela, pontuação, classificação e organização pública das informações.
 
-Portanto, nesta RFC, a origem da demanda é assumida como **demanda comunitária da LAJE**, baseada em dor operacional observada, enquanto a validação empírica com usuários permanece registrada como **evidência a coletar nas próximas entregas**.
+Assim, nesta versão do documento, a origem da demanda é registrada como **demanda comunitária da LAJE** sustentada por dor operacional observada e por validação empírica inicial já realizada com usuários finais. Novas rodadas de validação podem ampliar esse conjunto de evidências, mas não são o ponto de partida desta RFC.
 
 ---
 
@@ -236,63 +236,51 @@ Desenvolver uma aplicação web capaz de centralizar a gestão operacional e a d
 
 ## 1.6 Métricas de Sucesso (KPIs)
 
-As métricas de sucesso do projeto devem combinar impacto funcional, experiência do usuário e maturidade técnica. Nesta etapa, parte dessas métricas já pode ser usada como referência de construção; outras dependem de coleta futura e evolução da infraestrutura do projeto.
+As métricas de sucesso do projeto foram separadas em dois blocos: indicadores **já verificáveis no estado atual** e critérios de **evolução técnica ainda não comprovados**. Essa separação evita tratar planejamento como evidência concluída.
 
-### KPIs de produto e operação
+### Indicadores verificáveis no estado atual
 
-1. **Cobertura dos fluxos de negócio principais**  
-   O sistema deve contemplar ao menos três fluxos de negócio completos e utilizáveis, com prioridade para autenticação administrativa, operação de jogos ao vivo e atualização de classificação/chaveamento.
+1. **Cobertura dos fluxos de negócio principais**
+   O sistema já deve demonstrar ao menos três fluxos completos e utilizáveis, com prioridade para autenticação administrativa, operação de jogos ao vivo e consulta pública de classificação, chaveamento e agenda.
 
-2. **Redução de retrabalho operacional**  
-   Em validações futuras com usuários, espera-se evidenciar redução perceptível de esforço manual na gestão de jogos, resultados, classificação e agenda.
-
-3. **Atualização pública em tempo quase real**  
+2. **Atualização pública em tempo quase real**
    Alterações realizadas no contexto operacional devem refletir nas páginas públicas sem necessidade de recarregamento manual, dentro de uma janela compatível com uso real do sistema.
 
-4. **Centralização da informação**  
-   O projeto deve demonstrar capacidade de concentrar em um único ambiente os dados principais de campeonatos, jogos, standings, chaveamentos e calendário institucional.
+3. **Centralização da informação**
+   O projeto já deve demonstrar capacidade de concentrar em um único ambiente os dados principais de campeonatos, jogos, standings, chaveamentos e calendário institucional.
 
-### KPIs de entrega técnica
+4. **Base mínima de qualidade local**
+   O repositório principal deve preservar `build`, `lint` e testes automatizados executáveis como linha mínima de qualidade técnica.
 
-5. **Disponibilidade de ambiente acessível publicamente**  
-   Na entrega-alvo, o sistema deve possuir ambiente público funcional e acessível, com hospedagem estável em infraestrutura aderente à linha de Web Apps.
+5. **Evidência de validação com usuários finais**
+   A RFC deve registrar feedbacks e uso real do sistema em contexto de campeonato, com evidências documentais e datas de referência.
 
-6. **Banco relacional aderente ao desenho arquitetural**  
-   Ao final da refatoração arquitetural planejada, a solução-alvo deve operar com `PostgreSQL` como banco principal, reduzindo a dependência da plataforma gerenciada utilizada no estado atual.
+### Critérios de evolução técnica ainda não comprovados
 
-7. **Pipeline e qualidade contínua**  
-   Como evolução da entrega técnica, o projeto deverá incorporar `GitHub Actions`, análise estática de código e segurança, e fluxo de deploy contínuo para frontend e backend.
+1. **Ambiente público estável em infraestrutura aderente à linha Web Apps**
+   A solução final deve possuir disponibilidade pública sustentada por infraestrutura compatível com as diretrizes da linha.
 
-8. **Observabilidade e monitoramento**  
-   Como parte do estado-alvo, a solução deverá incorporar ferramentas de logs, métricas e visibilidade operacional do ambiente implantado.
+2. **Backend dedicado e persistência do desenho final**
+   A evolução arquitetural prevista deve concentrar contratos e regras críticas em `laje-api`, preservando PostgreSQL como pilar do desenho final.
 
-9. **Evolução de testes alinhada ao Portfólio**  
-   A meta futura é amadurecer a estratégia de testes em direção aos percentuais esperados pela linha de Web Apps, com expansão progressiva da cobertura unitária e fortalecimento da abordagem orientada por testes.
+3. **CI/CD e análise estática formalizados**
+   A solução final deve incorporar esteira automatizada de build, testes, verificação estática e deploy controlado.
 
-### Metas iniciais mensuráveis
+4. **Observabilidade e monitoramento do ambiente implantado**
+   A solução final deve incorporar logs, métricas e visibilidade operacional do ambiente de produção.
 
-Para tornar os indicadores mais objetivos já nesta etapa, o projeto adota como metas iniciais de referência:
+5. **Cobertura de testes amadurecida para a entrega final**
+   A estratégia de testes ainda precisa evoluir para o patamar exigido pela linha Web Apps.
 
-- refletir atualizações operacionais críticas na interface pública em até **5 segundos** após persistência do dado;
-- manter ao menos **3 fluxos de negócio completos** documentados e utilizáveis na entrega atual;
-- manter, no estado atual, **build**, **lint** e **testes automatizados** executáveis no repositório principal;
-- evoluir a cobertura de testes unitários para um patamar mínimo inicial de **30%** nas próximas etapas da refatoração arquitetural;
-- disponibilizar ou preservar uma **URL pública funcional** da solução durante a fase de demonstração e validação.
+### Leitura objetiva desta etapa
 
-Essas metas não substituem os critérios formais futuros da linha de Web Apps, mas ajudam a tornar o acompanhamento do projeto mais objetivo e verificável desde a primeira entrega.
-
-### Leitura crítica dos KPIs
-
-Nem todos os indicadores acima estão plenamente comprovados nesta fase. Alguns já podem ser avaliados pela base funcional e documental existente; outros dependem de deploy público definitivo, instrumentação técnica e coleta estruturada de feedback com usuários reais. Por isso, esta RFC registra os KPIs em dois horizontes:
-
-- **estado atual:** base funcional, documentação consolidada e fluxos centrais implementados;
-- **direcionamento futuro:** backend `Express`, banco `PostgreSQL`, infraestrutura de hospedagem compatível com o Portfólio tendo AWS como referência inicial, CI/CD, observabilidade, análise estática e evolução formal da cobertura de testes.
+Na data desta RFC, o primeiro bloco é o que pode ser tratado como evidência do estado atual do projeto. O segundo bloco registra pendências de aderência à linha Web Apps e não deve ser interpretado como item já concluído.
 
 ---
 
 ## Nota de Situação da RFC nesta Etapa
 
-O projeto já possui base funcional implementada e documentação suficiente para sustentar a formulação inicial da RFC. Entretanto, parte das evidências de validação com usuários ainda será coletada na próxima etapa, por meio de testes com a versão de demonstração do sistema. Além disso, requisitos técnicos adicionais recomendados ou obrigatórios pelo Playbook — como backend dedicado, banco relacional explícito, infraestrutura de hospedagem compatível com o Portfólio, maturidade de CI/CD, observabilidade, análise estática e metas formais de testes — estão registrados nesta documentação como evolução planejada para as próximas entregas, e não como itens já concluídos.
+O projeto já possui base funcional implementada, documentação consolidada e evidências empíricas iniciais de validação com usuários finais. Por outro lado, a RFC também registra pendências objetivas para aderência integral à linha Web Apps, como backend dedicado, infraestrutura pública compatível com a entrega final, CI/CD, observabilidade e amadurecimento da estratégia de testes. Nesta versão, esses pontos permanecem identificados como **não comprovados no estado atual**.
 
 ---
 
@@ -325,60 +313,53 @@ Esta seção consolida os requisitos do LAJE App com base no comportamento já i
 
 ## 2.2 Casos de Uso Principais
 
-Os principais casos de uso identificados no projeto são:
+Para fins desta RFC, os casos de uso foram organizados em torno dos fluxos centrais que o sistema já sustenta hoje e que melhor representam seu valor para a operação da LAJE e para o público.
 
-- acessar o painel administrativo;
-- autenticar usuário administrativo e tratar primeiro acesso com senha pendente;
-- gerenciar campeonatos, temporadas e status operacionais;
-- gerenciar modalidades e suas regras por campeonato;
-- gerenciar atléticas e divisões;
-- cadastrar, editar e excluir jogos;
-- operar partida ao vivo;
-- atualizar placar, sets, cartões e status da partida;
-- consultar classificação automática;
-- visualizar chaveamento da fase de grupos e do mata-mata;
-- consultar agenda pública de jogos;
-- consultar calendário institucional da liga;
-- gerenciar usuários administrativos e permissões por aba;
-- consultar logs administrativos e auditoria;
-- controlar bloqueio público por página ou globalmente.
+### Casos de uso centrais
+
+| ID | Ator principal | Caso de uso | Resultado esperado |
+|---|---|---|---|
+| UC01 | Administrador | Autenticar-se no painel administrativo e concluir primeiro acesso quando necessário | Sessão administrativa iniciada, permissões carregadas e ação de login registrada |
+| UC02 | Administrador | Gerenciar campeonatos, modalidades, atléticas e jogos | Base operacional atualizada para suportar agenda, classificação e chaveamento |
+| UC03 | Operador de mesa | Operar partida ao vivo, alterando placar, sets, cartões e status | Resultado persistido, público atualizado e impactos refletidos em standings e chaveamento quando aplicável |
+| UC04 | Visitante, atleta ou torcedor | Consultar páginas públicas de Ao Vivo, Campeonatos e Agenda | Informações de jogos, classificação e chave disponíveis em fluxo único de consulta |
+| UC05 | Visitante, atleta ou torcedor | Consultar o Calendário da Liga | Eventos institucionais exibidos por data e contexto organizador |
+| UC06 | Administrador | Gerenciar usuários, permissões, bloqueio público e logs administrativos | Governança do painel preservada, acesso controlado e trilha de auditoria disponível |
+
+### Fluxos completos priorizados nesta RFC
+
+Os três fluxos mais importantes para comprovação funcional do projeto são:
+
+1. **Fluxo administrativo de acesso e governança:** login administrativo, primeiro acesso, carregamento de permissões e consulta de logs.
+2. **Fluxo operacional de partida ao vivo:** seleção do jogo, atualização do estado da partida e propagação da informação para a área pública.
+3. **Fluxo público de acompanhamento do campeonato:** consulta de agenda, partidas, classificação e chaveamento a partir do estado persistido do sistema.
 
 ```mermaid
 flowchart LR
-  Visitante([Visitante])
-  Operador([Administrador ou Operador])
+  Administrador([Administrador])
+  Operador([Operador de mesa])
+  Visitante([Visitante / atleta / torcedor])
 
-  subgraph AreaPublica[Area publica]
-    ConsultarJogos[Consultar jogos]
-    ConsultarClassificacao[Consultar classificacao]
-    ConsultarChaveamento[Visualizar chaveamento]
-    ConsultarAgenda[Consultar agenda]
-    ConsultarCalendario[Consultar calendario da liga]
-  end
+  UC01[UC01 Autenticar e acessar painel]
+  UC02[UC02 Gerenciar campeonatos, modalidades, atleticas e jogos]
+  UC03[UC03 Operar partida ao vivo]
+  UC04[UC04 Consultar Ao Vivo, Campeonatos e Agenda]
+  UC05[UC05 Consultar Calendario da Liga]
+  UC06[UC06 Gerenciar acessos, bloqueios publicos e logs]
 
-  subgraph AreaAdmin[Area administrativa]
-    AcessarPainel[Acessar painel administrativo]
-    GerenciarCampeonatos[Gerenciar campeonatos e modalidades]
-    GerenciarJogos[Gerenciar jogos]
-    OperarPartida[Operar partida ao vivo]
-    GerenciarAcessos[Gerenciar usuarios e permissoes]
-    ConsultarAuditoria[Consultar logs]
-  end
+  Administrador --> UC01
+  Administrador --> UC02
+  Administrador --> UC06
+  Operador --> UC01
+  Operador --> UC03
+  Visitante --> UC04
+  Visitante --> UC05
 
-  Visitante --> ConsultarJogos
-  Visitante --> ConsultarClassificacao
-  Visitante --> ConsultarChaveamento
-  Visitante --> ConsultarAgenda
-  Visitante --> ConsultarCalendario
-
-  Operador --> AcessarPainel
-  Operador --> GerenciarCampeonatos
-  Operador --> GerenciarJogos
-  Operador --> OperarPartida
-  Operador --> GerenciarAcessos
-  Operador --> ConsultarAuditoria
-  OperarPartida --> ConsultarJogos
-  GerenciarJogos --> ConsultarAgenda
+  UC01 --> UC02
+  UC01 --> UC03
+  UC01 --> UC06
+  UC02 --> UC04
+  UC03 --> UC04
 ```
 
 ## 2.3 Requisitos Funcionais
@@ -662,70 +643,21 @@ Para evitar ambiguidade entre a arquitetura já implementada e a arquitetura pre
 
 ### Nível 1 — Contexto
 
-O diagrama de contexto mostra o LAJE App como ponte entre a operação administrativa da liga e a visualização pública de campeonatos, jogos e eventos, deixando explícita a plataforma atualmente utilizada.
+O diagrama de contexto mostra o LAJE App como sistema central do produto, evidenciando as principais personas que interagem com ele e o papel do sistema na operação da liga e no acompanhamento público dos campeonatos.
 
-```mermaid
-flowchart TD
-  Publico([Usuario publico])
-  Admin([Administrador ou operador])
-  Sistema[Sistema LAJE App]
-  Supabase[Supabase plataforma atual]
-
-  Publico --> Sistema
-  Admin --> Sistema
-  Sistema --> Supabase
-```
+![Diagrama C4 nível 1 - contexto do LAJE App](./assets/nivel-1.png)
 
 ### Nível 2 — Containers
 
 O diagrama de containers abaixo representa o **estado-alvo** da solução, no qual o frontend web passa a consumir backend dedicado e banco PostgreSQL. A decisão de hospedagem permanece descrita no texto da RFC, tendo AWS como referência inicial registrada na etapa 1, sem transformar a infraestrutura em container funcional do sistema.
 
-```mermaid
-flowchart LR
-  Usuario([Usuarios])
-  FE[Frontend web React Vite]
-  API[API backend Node Express]
-  DB[(PostgreSQL)]
-
-  Usuario --> FE
-  FE --> API
-  API --> DB
-```
+![Diagrama C4 nível 2 - containers do LAJE App](./assets/nivel-2.png)
 
 ### Nível 3 — Componentes
 
 O nível de componentes abaixo representa uma **arquitetura-alvo de referência** para o backend `laje-api`, organizada a partir dos módulos funcionais já evidenciados pelo domínio atual do projeto. Como o backend dedicado ainda não está implementado neste repositório, o diagrama deve ser lido como decomposição lógica prevista, e não como reflexo literal de arquivos já existentes.
 
-```mermaid
-flowchart TD
-  APIEntrada[API Backend]
-  Auth[Autenticacao e permissoes]
-  Campeonatos[Campeonatos e modalidades]
-  Jogos[Jogos e controle ao vivo]
-  Classificacao[Classificacao]
-  Chaveamento[Chaveamento]
-  Eventos[Eventos da liga]
-  Administracao[Usuarios e auditoria]
-  Repositorios[Repositorios]
-  Banco[(PostgreSQL)]
-
-  APIEntrada --> Auth
-  APIEntrada --> Campeonatos
-  APIEntrada --> Jogos
-  APIEntrada --> Classificacao
-  APIEntrada --> Chaveamento
-  APIEntrada --> Eventos
-  APIEntrada --> Administracao
-
-  Auth --> Repositorios
-  Campeonatos --> Repositorios
-  Jogos --> Repositorios
-  Classificacao --> Repositorios
-  Chaveamento --> Repositorios
-  Eventos --> Repositorios
-  Administracao --> Repositorios
-  Repositorios --> Banco
-```
+![Diagrama C4 nível 3 - componentes da API LAJE](./assets/nivel-3.png)
 
 ## 5.2 Modelo de Dados
 
@@ -989,26 +921,3 @@ Podem ser consultados como material complementar desta RFC:
 - documentos complementares do projeto em `docs/Functional_and_non_functional_requirements.md` e `docs/User_stories_and_acceptance_criteria.md`;
 - versões exportadas da RFC em `docs/Documentation_RFC.pdf`, `docs/LAJE_RFC_v1.docx` e `docs/LAJE_RFC_v2.docx`;
 - Wiki do projeto como documentação funcional e técnica contínua.
-
----
-
-# 10. Parecer do Comitê de Avaliação
-
-**Avaliador 1:** __________________________
-
-**Status:** [ ] Aprovado [ ] Ajustar
-
-**Observações:**
-
-
-
----
-
-**Avaliador 2:** __________________________
-
-**Status:** [ ] Aprovado [ ] Ajustar
-
-**Observações:**
-
-
-
