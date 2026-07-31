@@ -131,9 +131,9 @@ function buildLeagueEvent(overrides: Partial<LeagueEvent> & Pick<LeagueEvent, "i
     event_type: overrides.event_type ?? LeagueEventType.LAJE_EVENT,
     organizer_type: overrides.organizer_type ?? LeagueEventOrganizerType.LAJE,
     organizer_team_id: overrides.organizer_team_id ?? null,
-    event_date: overrides.event_date ?? "2026-05-12",
-    created_at: overrides.created_at ?? "2026-05-12T00:00:00.000Z",
-    updated_at: overrides.updated_at ?? "2026-05-12T00:00:00.000Z",
+    event_date: overrides.event_date ?? "2026-07-12",
+    created_at: overrides.created_at ?? "2026-07-12T00:00:00.000Z",
+    updated_at: overrides.updated_at ?? "2026-07-12T00:00:00.000Z",
     organizer_team: overrides.organizer_team ?? null,
     organizer_teams: overrides.organizer_teams ?? [],
   };
@@ -272,14 +272,19 @@ describe("AdminLeagueEvents loading states", () => {
     fireEvent.click(actionsButton);
     fireEvent.click(await screen.findByText("Apagar"));
 
-    expect(actionsButton.querySelector("svg.animate-spin")).not.toBeNull();
+    const alertDialog = await screen.findByRole("alertdialog");
+    const confirmDeleteButton = within(alertDialog).getByRole("button", { name: "Excluir" });
+    fireEvent.click(confirmDeleteButton);
+
+    expect(confirmDeleteButton).toBeDisabled();
+    expect(confirmDeleteButton.querySelector("svg.animate-spin")).not.toBeNull();
 
     await act(async () => {
       deleteResolver.current?.();
     });
 
     await waitFor(() => {
-      expect(actionsButton.querySelector("svg.animate-spin")).toBeNull();
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
       expect(removeLeagueEventMock).toHaveBeenCalledWith("league-event-1");
     });
   });

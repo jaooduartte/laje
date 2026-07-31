@@ -1782,6 +1782,10 @@ export type Database = {
         }
         Returns: Json
       }
+      advance_championship_season: {
+        Args: { _championship_id: string }
+        Returns: Json
+      }
       sync_championship_season_rollover: {
         Args: never
         Returns: undefined

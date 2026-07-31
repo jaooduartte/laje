@@ -39,6 +39,7 @@ interface SchedulePageViewProps {
   divisionFilter: string;
   statusFilter: string;
   yearFilter: string;
+  availableSeasonYears: number[];
   orderedDates: string[];
   groupedMatches: Record<string, Match[]>;
   matches: Match[];
@@ -84,6 +85,7 @@ export function SchedulePageView({
   divisionFilter,
   statusFilter,
   yearFilter,
+  availableSeasonYears,
   orderedDates,
   groupedMatches,
   matches,
@@ -319,11 +321,11 @@ export function SchedulePageView({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL_YEARS">Todos os anos</SelectItem>
-              {selectedChampionship.current_season_year && (
-                <SelectItem value={String(selectedChampionship.current_season_year)}>
-                  {selectedChampionship.current_season_year}
+              {availableSeasonYears.map((seasonYear) => (
+                <SelectItem key={seasonYear} value={String(seasonYear)}>
+                  {seasonYear}
                 </SelectItem>
-              )}
+              ))}
             </SelectContent>
           </Select>
         </div>

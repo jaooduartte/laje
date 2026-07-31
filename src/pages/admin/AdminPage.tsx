@@ -49,6 +49,7 @@ enum ChampionshipStatusFlowDialog {
   RETURN_TO_PLANNING_WITH_GAMES = "RETURN_TO_PLANNING_WITH_GAMES",
   MOVE_TO_UPCOMING_WITH_GAMES = "MOVE_TO_UPCOMING_WITH_GAMES",
   MOBILE_CONFIGURATION_WARNING = "MOBILE_CONFIGURATION_WARNING",
+  ADVANCE_SEASON = "ADVANCE_SEASON",
 }
 
 export function AdminPage() {
@@ -66,6 +67,7 @@ export function AdminPage() {
   const { championships, loading: championshipsLoading, refetch: refetchChampionships } = useChampionships();
   const { selectedChampionshipCode, setSelectedChampionshipCode } = useSelectedChampionship();
   const [updatingChampionshipStatus, setUpdatingChampionshipStatus] = useState(false);
+  const [advancingChampionshipSeason, setAdvancingChampionshipSeason] = useState(false);
   const [processingChampionshipStatusFlowAction, setProcessingChampionshipStatusFlowAction] = useState(false);
   const [_activeTab, setActiveTab] = useState<string>("");
   const [matchesSeasonYear, setMatchesSeasonYear] = useState<number | null>(null);
@@ -238,19 +240,11 @@ export function AdminPage() {
       return;
     }
 
+    const preferredChampionshipCode = resolvePreferredAdminChampionshipCode(championships);
     const championshipSelectionSignature = championships
       .map((championship) => `${championship.code}:${championship.current_season_year}:${championship.status}`)
       .join("|");
-    const preferredChampionshipCode = resolvePreferredAdminChampionshipCode(championships);
-    const hasChampionshipSelectionSignatureChanged =
-      lastChampionshipSelectionSignatureRef.current != null &&
-      lastChampionshipSelectionSignatureRef.current != championshipSelectionSignature;
-    const shouldResetToClvAfterSeasonRollover =
-      hasChampionshipSelectionSignatureChanged &&
-      preferredChampionshipCode == ChampionshipCode.CLV &&
-      championships.every((championship) => championship.status == ChampionshipStatus.PLANNING);
-    const shouldApplyPreferredChampionshipSelection =
-      !hasAppliedInitialAdminChampionshipSelectionRef.current || shouldResetToClvAfterSeasonRollover;
+    const shouldApplyPreferredChampionshipSelection = !hasAppliedInitialAdminChampionshipSelectionRef.current;
 
     if (shouldApplyPreferredChampionshipSelection && selectedChampionshipCode != preferredChampionshipCode) {
       setSelectedChampionshipCode(preferredChampionshipCode);
@@ -294,6 +288,29 @@ export function AdminPage() {
     toast.success("Status do campeonato atualizado.");
     await refetchChampionships();
     return true;
+  };
+
+  const handleAdvanceChampionshipSeason = async () => {
+    if (!selectedChampionship) {
+      return;
+    }
+
+    setAdvancingChampionshipSeason(true);
+
+    const { error } = await supabase.rpc("advance_championship_season", {
+      _championship_id: selectedChampionship.id,
+    });
+
+    setAdvancingChampionshipSeason(false);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success(`Temporada ${selectedChampionship.current_season_year + 1} aberta para configuração.`);
+    setChampionshipStatusFlowDialog(ChampionshipStatusFlowDialog.NONE);
+    await refetchChampionships();
   };
 
   const deleteCurrentChampionshipMatches = async () => {
@@ -578,6 +595,7 @@ export function AdminPage() {
         canManageSchedule={canManageSchedule}
         canManageMatches={canManageMatches}
         canManageChampionshipStatus={canManageChampionshipStatus}
+        advancingChampionshipSeason={advancingChampionshipSeason}
         canManageScoreboard={canManageScoreboard}
         canManageTeams={canManageTeams}
         canManageSports={canManageSports}
@@ -591,6 +609,7 @@ export function AdminPage() {
         updatingChampionshipStatus={updatingChampionshipStatus || processingChampionshipStatusFlowAction}
         onChampionshipCodeChange={handleChampionshipCodeChange}
         onChampionshipStatusChange={handleChampionshipStatusChange}
+        onAdvanceChampionshipSeason={() => setChampionshipStatusFlowDialog(ChampionshipStatusFlowDialog.ADVANCE_SEASON)}
         onSelectedMatchesSeasonYearChange={setMatchesSeasonYear}
         onSignOut={signOut}
         onRefetchMatches={handleRefetchMatches}
@@ -724,6 +743,45 @@ export function AdminPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog
+        open={championshipStatusFlowDialog == ChampionshipStatusFlowDialog.ADVANCE_SEASON}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            closeChampionshipStatusFlowDialog();
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="text-center">Abrir nova temporada?</DialogTitle>
+            <DialogDescription className="text-center">
+              Essa ação muda o campeonato para Em breve e avança a temporada de{" "}
+              {selectedChampionship.current_season_year} para {selectedChampionship.current_season_year + 1}. Ela não
+              acontece mais automaticamente ao abrir as telas.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="gap-2 sm:justify-center">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={closeChampionshipStatusFlowDialog}
+              disabled={advancingChampionshipSeason}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={handleAdvanceChampionshipSeason}
+              disabled={advancingChampionshipSeason}
+            >
+              {advancingChampionshipSeason ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Abrir temporada {selectedChampionship.current_season_year + 1}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

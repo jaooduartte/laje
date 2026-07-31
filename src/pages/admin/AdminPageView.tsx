@@ -73,6 +73,7 @@ interface AdminPageViewProps {
   canManageSchedule: boolean;
   canManageMatches: boolean;
   canManageChampionshipStatus: boolean;
+  advancingChampionshipSeason: boolean;
   canManageScoreboard: boolean;
   canManageTeams: boolean;
   canManageSports: boolean;
@@ -87,6 +88,7 @@ interface AdminPageViewProps {
   updatingChampionshipStatus: boolean;
   onChampionshipCodeChange: (value: string) => void;
   onChampionshipStatusChange: (value: string) => void;
+  onAdvanceChampionshipSeason: () => void;
   onSelectedMatchesSeasonYearChange: (seasonYear: number) => void;
   onSignOut: () => void;
   onRefetchMatches: (options?: { showLoading?: boolean; showFetching?: boolean }) => void | Promise<void>;
@@ -156,6 +158,7 @@ export function AdminPageView({
   canManageSchedule,
   canManageMatches,
   canManageChampionshipStatus,
+  advancingChampionshipSeason,
   canManageScoreboard,
   canManageTeams,
   canManageSports,
@@ -170,6 +173,7 @@ export function AdminPageView({
   updatingChampionshipStatus,
   onChampionshipCodeChange,
   onChampionshipStatusChange,
+  onAdvanceChampionshipSeason,
   onSelectedMatchesSeasonYearChange,
   onSignOut,
   onRefetchMatches,
@@ -422,8 +426,24 @@ export function AdminPageView({
         </div>
 
         {canViewChampionshipStatus ? (
-          <div className="glass-panel enter-section flex flex-col gap-2 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center">
-            <span className="text-sm font-medium">Status do campeonato</span>
+          <div className="glass-panel enter-section flex flex-col gap-3 px-4 py-3">
+            <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <span className="text-sm font-medium">Status do campeonato</span>
+                <p className="text-xs text-muted-foreground">Temporada atual: {selectedChampionship.current_season_year}</p>
+              </div>
+
+              {selectedChampionship.status == ChampionshipStatus.FINISHED ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onAdvanceChampionshipSeason}
+                  disabled={!canManageChampionshipStatus || advancingChampionshipSeason}
+                >
+                  Abrir temporada {selectedChampionship.current_season_year + 1}
+                </Button>
+              ) : null}
+            </div>
 
             <Select
               value={selectedChampionship.status}

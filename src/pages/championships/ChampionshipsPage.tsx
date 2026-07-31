@@ -12,6 +12,7 @@ import { useSelectedChampionship } from "@/hooks/useSelectedChampionship";
 import { useChampionshipSelection } from "@/hooks/useChampionshipSelection";
 import { useChampionshipAwardsRankings, type ChampionshipAwardsRankings } from "@/hooks/useChampionshipAwardsRankings";
 import { useCompetitionTeamDisqualifications } from "@/hooks/useCompetitionTeamDisqualifications";
+import { useChampionshipSeasonYears } from "@/hooks/useChampionshipSeasonYears";
 import type { ChampionshipBracketResolvedTieBreakOrderContext } from "@/domain/championship-brackets/championshipBracket.types";
 import type { MatchBracketContext } from "@/lib/championship";
 import {
@@ -72,6 +73,10 @@ export function ChampionshipsPage() {
 
   const selectedChampionshipIsFinished = selectedChampionship?.status == ChampionshipStatus.FINISHED;
   const selectedChampionshipSeasonYear = selectedChampionship?.current_season_year ?? null;
+  const { seasonYears: championshipSeasonYears } = useChampionshipSeasonYears({
+    championshipId: selectedChampionshipId,
+    currentSeasonYear: selectedChampionshipSeasonYear,
+  });
 
   const standingsDbDivisionFilter = undefined;
   const [teamFilter, setTeamFilter] = useState<string>(ALL_TEAM_FILTER);
@@ -123,17 +128,12 @@ export function ChampionshipsPage() {
   const nextMatches: Match[] = [];
   const historyTeams: Team[] = [];
   const historyYears = useMemo(() => {
-    const years = new Set<string>();
-    if (selectedChampionshipSeasonYear != null) {
-      years.add(String(selectedChampionshipSeasonYear));
-    }
-    // We could still add years from championshipBracketHistory if needed
-    return [...years].sort((a, b) => b.localeCompare(a));
-  }, [selectedChampionshipSeasonYear]);
+    return championshipSeasonYears.map(String);
+  }, [championshipSeasonYears]);
 
   const championshipBracketSeasonYears = useMemo(() => {
-    return historyYears.map(Number).filter((seasonYear) => Number.isFinite(seasonYear));
-  }, [historyYears]);
+    return championshipSeasonYears;
+  }, [championshipSeasonYears]);
 
   const { championshipBracketSeasonViews, loading: championshipBracketHistoryLoading } = useChampionshipBracketHistory({
     championshipId: selectedChampionshipId,
@@ -523,7 +523,7 @@ export function ChampionshipsPage() {
       onSelectChampionshipCode={setSelectedChampionshipCode}
       standingsDivisionFilter={standingsDivisionFilter}
       allStandingsDivisionFilter={ALL_STANDINGS_DIVISION_FILTER}
-      selectedChampionshipHasDivisions={standings.some((s) => s.division != null)}
+      selectedChampionshipHasDivisions={selectedChampionshipHasDivisions}
       awardsRankings={awardsRankings}
       awardsSeasonYear={selectedChampionshipSeasonYear}
       disqualifiedTeamKeys={standingsDisqualifiedTeamKeys}

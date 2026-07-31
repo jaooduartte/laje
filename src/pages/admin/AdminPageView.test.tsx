@@ -208,6 +208,7 @@ describe("AdminPageView tabs", () => {
         canManageSchedule={false}
         canManageMatches
         canManageChampionshipStatus={false}
+        advancingChampionshipSeason={false}
         canManageScoreboard
         canManageTeams={false}
         canManageSports={false}
@@ -222,6 +223,7 @@ describe("AdminPageView tabs", () => {
         updatingChampionshipStatus={false}
         onChampionshipCodeChange={() => undefined}
         onChampionshipStatusChange={() => undefined}
+        onAdvanceChampionshipSeason={() => undefined}
         onSelectedMatchesSeasonYearChange={() => undefined}
         onSignOut={() => undefined}
         onRefetchMatches={() => undefined}
@@ -306,6 +308,7 @@ describe("AdminPageView tabs", () => {
         canManageSchedule={false}
         canManageMatches
         canManageChampionshipStatus={false}
+        advancingChampionshipSeason={false}
         canManageScoreboard
         canManageTeams={false}
         canManageSports={false}
@@ -320,6 +323,7 @@ describe("AdminPageView tabs", () => {
         updatingChampionshipStatus={false}
         onChampionshipCodeChange={() => undefined}
         onChampionshipStatusChange={() => undefined}
+        onAdvanceChampionshipSeason={() => undefined}
         onSelectedMatchesSeasonYearChange={() => undefined}
         onSignOut={() => undefined}
         onRefetchMatches={() => undefined}
@@ -383,6 +387,7 @@ describe("AdminPageView tabs", () => {
         canManageSchedule={false}
         canManageMatches
         canManageChampionshipStatus={false}
+        advancingChampionshipSeason={false}
         canManageScoreboard
         canManageTeams={false}
         canManageSports={false}
@@ -397,6 +402,7 @@ describe("AdminPageView tabs", () => {
         updatingChampionshipStatus={false}
         onChampionshipCodeChange={() => undefined}
         onChampionshipStatusChange={() => undefined}
+        onAdvanceChampionshipSeason={() => undefined}
         onSelectedMatchesSeasonYearChange={() => undefined}
         onSignOut={() => undefined}
         onRefetchMatches={() => undefined}
@@ -463,6 +469,7 @@ describe("AdminPageView tabs", () => {
         canManageSchedule={false}
         canManageMatches
         canManageChampionshipStatus={false}
+        advancingChampionshipSeason={false}
         canManageScoreboard
         canManageTeams={false}
         canManageSports={false}
@@ -477,6 +484,7 @@ describe("AdminPageView tabs", () => {
         updatingChampionshipStatus={false}
         onChampionshipCodeChange={() => undefined}
         onChampionshipStatusChange={() => undefined}
+        onAdvanceChampionshipSeason={() => undefined}
         onSelectedMatchesSeasonYearChange={() => undefined}
         onSignOut={() => undefined}
         onRefetchMatches={() => undefined}
@@ -489,5 +497,87 @@ describe("AdminPageView tabs", () => {
     );
 
     expect(screen.queryByRole("tab", { name: "Classificação" })).not.toBeInTheDocument();
+  });
+
+  it("mostra a ação manual de abrir nova temporada quando o campeonato está encerrado", () => {
+    const championship = buildChampionship({
+      status: ChampionshipStatus.FINISHED,
+      current_season_year: 2026,
+    });
+
+    render(
+      <AdminPageView
+        championships={[championship]}
+        selectedChampionship={championship}
+        selectedChampionshipCode={championship.code}
+        matches={[]}
+        matchesTabMatches={[]}
+        teams={[]}
+        sports={[]}
+        championshipSports={[]}
+        liveAndScheduledMatches={[]}
+        championshipBracketView={buildBracketView()}
+        matchesTabChampionshipBracketView={buildBracketView()}
+        loadingChampionshipBracket={false}
+        loadingMatchesTabChampionshipBracket={false}
+        matchBracketContextByMatchId={{}}
+        matchesTabMatchBracketContextByMatchId={{}}
+        matchRepresentationByMatchId={{}}
+        matchesTabMatchRepresentationByMatchId={{}}
+        estimatedStartTimeByMatchId={{}}
+        matchesTabEstimatedStartTimeByMatchId={{}}
+        matchesFetching={false}
+        matchesTabFetching={false}
+        availableMatchSeasonYears={[2026]}
+        selectedMatchesSeasonYear={2026}
+        profileName="Admin"
+        canViewMatchesTab={false}
+        canViewControlTab={false}
+        canViewTeamsTab={false}
+        canViewSportsTab={false}
+        canViewEventsTab={false}
+        canViewLinksTab={false}
+        canViewLogsTab={false}
+        canViewUsersTab={false}
+        canViewAccountTab={false}
+        canViewStandingsTab={false}
+        canViewSettingsTab={false}
+        canViewScoreSheetReviewTab={false}
+        canViewTieBreaksTab={false}
+        canViewChampionshipStatus
+        canViewBracketSetupTab={false}
+        canViewScheduleTab={false}
+        canManageSchedule={false}
+        canManageMatches={false}
+        canManageChampionshipStatus
+        advancingChampionshipSeason={false}
+        canManageScoreboard={false}
+        canManageTeams={false}
+        canManageSports={false}
+        canManageLeagueEvents={false}
+        canManageLinks={false}
+        canManageUsers={false}
+        canManageAccount={false}
+        canManageSettings={false}
+        activeTab=""
+        onActiveTabChange={() => undefined}
+        onBracketGenerated={async () => undefined}
+        updatingChampionshipStatus={false}
+        onChampionshipCodeChange={() => undefined}
+        onChampionshipStatusChange={() => undefined}
+        onAdvanceChampionshipSeason={() => undefined}
+        onSelectedMatchesSeasonYearChange={() => undefined}
+        onSignOut={() => undefined}
+        onRefetchMatches={() => undefined}
+        onRefetchChampionshipBracket={() => undefined}
+        onRefetchTeams={() => undefined}
+        liveMatchesCount={0}
+        pendingLeagueEventReservationsCount={0}
+        pendingTieBreaksCount={0}
+      />,
+    );
+
+    expect(screen.getByText("Temporada atual: 2026")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Abrir temporada 2027" })).toBeInTheDocument();
   });
 });

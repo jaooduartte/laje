@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { useMatches } from "@/hooks/useMatches";
 import { useSports } from "@/hooks/useSports";
 import { useTeams } from "@/hooks/useTeams";
 import { useChampionships } from "@/hooks/useChampionships";
 import { useChampionshipBracket } from "@/hooks/useChampionshipBracket";
+import { useChampionshipSeasonYears } from "@/hooks/useChampionshipSeasonYears";
 import { useSelectedChampionship } from "@/hooks/useSelectedChampionship";
 import { useChampionshipSelection } from "@/hooks/useChampionshipSelection";
 import { MatchNaipe, MatchStatus, TeamDivision } from "@/lib/enums";
@@ -14,6 +16,7 @@ import {
   resolveChampionshipBracketGroupStageOptions,
   resolveChampionshipGroupLabel,
   resolveMatchBracketContextByMatchId,
+  resolveMatchDisplaySlotValue,
   resolveOrderedScheduledMatchesByVisualTime,
   resolveMatchScheduledDateValue,
 } from "@/lib/championship";
@@ -21,6 +24,33 @@ import { DEFAULT_PAGINATION_ITEMS_PER_PAGE } from "@/components/ui/app-paginatio
 import { SchedulePageView } from "@/pages/schedule/SchedulePageView";
 
 const ALL_SCHEDULE_DIVISIONS_FILTER = "ALL_SCHEDULE_DIVISIONS_FILTER";
+
+function resolveScheduleGroupNumber(groupFilterValue: string | null): number | null {
+  if (!groupFilterValue) {
+    return null;
+  }
+
+  const groupFilterMatch = /^grupo\s+([a-z]+)$/i.exec(groupFilterValue.trim());
+
+  if (!groupFilterMatch) {
+    return null;
+  }
+
+  const alphabeticalSuffix = groupFilterMatch[1].toUpperCase();
+  let parsedGroupNumber = 0;
+
+  for (let characterIndex = 0; characterIndex < alphabeticalSuffix.length; characterIndex += 1) {
+    const characterValue = alphabeticalSuffix.charCodeAt(characterIndex) - 64;
+
+    if (characterValue < 1 || characterValue > 26) {
+      return null;
+    }
+
+    parsedGroupNumber = parsedGroupNumber * 26 + characterValue;
+  }
+
+  return parsedGroupNumber > 0 ? parsedGroupNumber : null;
+}
 
 export function SchedulePage() {
   const { championships, loading: championshipsLoading } = useChampionships();
@@ -38,6 +68,10 @@ export function SchedulePage() {
   });
 
   const selectedChampionshipSeasonYear = selectedChampionship?.current_season_year ?? null;
+  const { seasonYears: availableSeasonYears } = useChampionshipSeasonYears({
+    championshipId: selectedChampionshipId,
+    currentSeasonYear: selectedChampionshipSeasonYear,
+  });
   const [yearFilter, setYearFilter] = useState<string>(
     selectedChampionshipSeasonYear != null ? String(selectedChampionshipSeasonYear) : "ALL_YEARS"
   );
@@ -63,6 +97,7 @@ export function SchedulePage() {
   const [statusFilter, setStatusFilter] = useState<MatchStatus>(MatchStatus.SCHEDULED);
   const [matchesCurrentPage, setMatchesCurrentPage] = useState(1);
   const [matchesItemsPerPage, setMatchesItemsPerPage] = useState(DEFAULT_PAGINATION_ITEMS_PER_PAGE);
+  const [filterOptionRows, setFilterOptionRows] = useState<Array<{ location: string | null; court_name: string | null }>>([]);
 
   useEffect(() => {
     setSportFilter(null);
@@ -92,6 +127,74 @@ export function SchedulePage() {
     teamFilter,
     statusFilter,
     yearFilter,
+  ]);
+
+  useEffect(() => {
+    const fetchFilterOptionRows = async () => {
+      if (!selectedChampionshipId) {
+        setFilterOptionRows([]);
+        return;
+      }
+
+      const groupNumber = resolveScheduleGroupNumber(groupFilter);
+
+      if (groupFilter && groupNumber == null) {
+        setFilterOptionRows([]);
+        return;
+      }
+
+      let query = supabase
+        .from("matches")
+        .select("location, court_name")
+        .eq("championship_id", selectedChampionshipId)
+        .eq("status", statusFilter);
+
+      if (correctedYearFilter != null) {
+        query = query.eq("season_year", correctedYearFilter);
+      }
+
+      if (sportFilter) {
+        query = query.eq("sport_id", sportFilter);
+      }
+
+      if (naipeFilter) {
+        query = query.eq("naipe", naipeFilter);
+      }
+
+      if (teamFilter) {
+        query = query.or(`home_team_id.eq.${teamFilter},away_team_id.eq.${teamFilter}`);
+      }
+
+      if (selectedChampionshipHasDivisions && divisionFilter != ALL_SCHEDULE_DIVISIONS_FILTER) {
+        query = query.eq("division", divisionFilter);
+      }
+
+      if (groupNumber != null) {
+        query = query.eq("group_number", groupNumber);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error("Erro ao carregar filtros de local e quadra da agenda:", error.message);
+        setFilterOptionRows([]);
+        return;
+      }
+
+      setFilterOptionRows((data ?? []) as Array<{ location: string | null; court_name: string | null }>);
+    };
+
+    void fetchFilterOptionRows();
+  }, [
+    correctedYearFilter,
+    divisionFilter,
+    groupFilter,
+    naipeFilter,
+    selectedChampionshipHasDivisions,
+    selectedChampionshipId,
+    sportFilter,
+    statusFilter,
+    teamFilter,
   ]);
 
   const matchBracketContextByMatchId = useMemo(() => {
@@ -151,15 +254,15 @@ export function SchedulePage() {
   });
 
   const locationOptions = useMemo(() => {
-    return [...new Set(visibleMatches.map((match) => match.location).filter(Boolean))].sort((firstLocation, secondLocation) =>
+    return [...new Set(filterOptionRows.map((match) => match.location).filter(Boolean))].sort((firstLocation, secondLocation) =>
       firstLocation.localeCompare(secondLocation)
     );
-  }, [visibleMatches]);
+  }, [filterOptionRows]);
 
   const courtOptions = useMemo(() => {
     const uniqueCourtNames = new Set<string>();
 
-    visibleMatches.forEach((match) => {
+    filterOptionRows.forEach((match) => {
       if (!match.court_name) {
         return;
       }
@@ -172,7 +275,7 @@ export function SchedulePage() {
     });
 
     return [...uniqueCourtNames].sort((firstCourtName, secondCourtName) => firstCourtName.localeCompare(secondCourtName));
-  }, [locationFilter, visibleMatches]);
+  }, [filterOptionRows, locationFilter]);
 
   useEffect(() => {
     if (locationFilter && !locationOptions.includes(locationFilter)) {
@@ -208,9 +311,9 @@ export function SchedulePage() {
     if (statusFilter === MatchStatus.FINISHED) {
       Object.keys(groupedMatchesResult).forEach((dateKey) => {
         groupedMatchesResult[dateKey].sort((a, b) => {
-          const firstQueue = a.queue_position ?? 0;
-          const secondQueue = b.queue_position ?? 0;
-          return secondQueue - firstQueue;
+          const firstSlot = resolveMatchDisplaySlotValue(a) ?? 0;
+          const secondSlot = resolveMatchDisplaySlotValue(b) ?? 0;
+          return secondSlot - firstSlot;
         });
       });
       // Sort dates DESC
@@ -270,6 +373,7 @@ export function SchedulePage() {
       divisionFilter={divisionFilter}
       statusFilter={statusFilter}
       yearFilter={yearFilter}
+      availableSeasonYears={availableSeasonYears}
       orderedDates={orderedDates}
       groupedMatches={groupedMatches}
       matches={visibleMatches}

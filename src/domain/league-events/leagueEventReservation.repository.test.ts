@@ -10,7 +10,7 @@ describe("bindLeagueEventReservationRequestPayload", () => {
       eventType: LeagueEventType.OPEN_BAR,
       eventDate: new Date("2026-07-18T20:00:00.000Z"),
       requesterName: "  João Duarte ",
-      requesterContact: "  (47)99991-9004 ",
+      requesterEmail: "  Joao.Duarte@Email.com ",
     });
 
     expect(payload).toEqual({
@@ -19,12 +19,12 @@ describe("bindLeagueEventReservationRequestPayload", () => {
       event_type: LeagueEventType.OPEN_BAR,
       event_date: "2026-07-18",
       requester_name: "João Duarte",
-      requester_contact: "47999919004",
+      requester_email: "joao.duarte@email.com",
       status: LeagueEventReservationRequestStatus.PENDING,
     });
   });
 
-  it("exige nome e contato do solicitante", () => {
+  it("exige nome e email do solicitante", () => {
     expect(() => {
       bindLeagueEventReservationRequestPayload({
         teamId: "team-1",
@@ -32,30 +32,30 @@ describe("bindLeagueEventReservationRequestPayload", () => {
         eventType: LeagueEventType.HH,
         eventDate: new Date("2026-07-18T20:00:00.000Z"),
         requesterName: "   ",
-        requesterContact: "(47)99991-9004",
+        requesterEmail: "solicitante@email.com",
       });
     }).toThrow("Informe o nome do solicitante.");
 
     expect(() => {
       bindLeagueEventReservationRequestPayload({
         teamId: "team-1",
-        eventName: "Reserva sem contato",
+        eventName: "Reserva sem email",
         eventType: LeagueEventType.HH,
         eventDate: new Date("2026-07-18T20:00:00.000Z"),
         requesterName: "Solicitante",
-        requesterContact: "   ",
+        requesterEmail: "   ",
       });
-    }).toThrow("Informe um contato do solicitante.");
+    }).toThrow("Informe o email do solicitante.");
 
     expect(() => {
       bindLeagueEventReservationRequestPayload({
         teamId: "team-1",
-        eventName: "Reserva com contato inválido",
+        eventName: "Reserva com email inválido",
         eventType: LeagueEventType.HH,
         eventDate: new Date("2026-07-18T20:00:00.000Z"),
         requesterName: "Solicitante",
-        requesterContact: "(47)9999-123",
+        requesterEmail: "email-invalido",
       });
-    }).toThrow("Informe um contato válido com DDD.");
+    }).toThrow("Informe um email válido.");
   });
 });

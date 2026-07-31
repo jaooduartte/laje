@@ -531,19 +531,19 @@ describe("compareAdminMatchCardOrder", () => {
 });
 
 describe("resolveDisplayedMatchQueuePosition", () => {
-  it("prioriza queue_position da planilha e só usa fila visual como fallback", () => {
+  it("prioriza a fila visual e usa slot planejado como fallback antes do legado", () => {
     const match = buildMatch({
       id: "displayed-queue-match",
       queue_position: 7,
       scheduled_slot: 1,
     });
 
-    expect(resolveDisplayedMatchQueuePosition(match, 3)).toBe(7);
-    expect(resolveDisplayedMatchQueuePosition(match)).toBe(7);
-    expect(resolveDisplayedMatchQueueLabel(match, 1)).toBe("Jogo 7");
+    expect(resolveDisplayedMatchQueuePosition(match, 3)).toBe(3);
+    expect(resolveDisplayedMatchQueuePosition(match)).toBe(1);
+    expect(resolveDisplayedMatchQueueLabel(match, 3)).toBe("Jogo 3");
   });
 
-  it("usa a fila visual só quando o jogo ainda não tem queue_position persistido", () => {
+  it("usa o queue_position legado apenas quando não há fila visual nem slot planejado", () => {
     const match = buildMatch({
       id: "displayed-queue-fallback-match",
       scheduled_slot: 4,

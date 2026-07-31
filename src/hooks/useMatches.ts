@@ -732,7 +732,24 @@ export function useMatches({
           table: "matches",
           filter: championshipId ? `championship_id=eq.${championshipId}` : undefined,
         },
-        () => {
+        (payload) => {
+          const relevantRows = [payload.new, payload.old].filter((row) => row && typeof row == "object");
+          const shouldRefetch = relevantRows.length == 0 || relevantRows.some((row) => {
+            if (championshipId && row.championship_id != championshipId) {
+              return false;
+            }
+
+            if (typeof seasonYear == "number" && row.season_year != seasonYear) {
+              return false;
+            }
+
+            return true;
+          });
+
+          if (!shouldRefetch) {
+            return;
+          }
+
           if (scheduledRefetchTimeoutRef.current) {
             clearTimeout(scheduledRefetchTimeoutRef.current);
           }
@@ -768,7 +785,24 @@ export function useMatches({
           table: "championship_bracket_editions",
           filter: championshipId ? `championship_id=eq.${championshipId}` : undefined,
         },
-        () => {
+        (payload) => {
+          const relevantRows = [payload.new, payload.old].filter((row) => row && typeof row == "object");
+          const shouldRefetch = relevantRows.length == 0 || relevantRows.some((row) => {
+            if (championshipId && row.championship_id != championshipId) {
+              return false;
+            }
+
+            if (typeof seasonYear == "number" && row.season_year != seasonYear) {
+              return false;
+            }
+
+            return true;
+          });
+
+          if (!shouldRefetch) {
+            return;
+          }
+
           if (scheduledRefetchTimeoutRef.current) {
             clearTimeout(scheduledRefetchTimeoutRef.current);
           }

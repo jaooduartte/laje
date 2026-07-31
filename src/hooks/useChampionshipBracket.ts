@@ -2,10 +2,20 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { EMPTY_CHAMPIONSHIP_BRACKET_VIEW } from "@/lib/championship";
 import { fetchChampionshipBracketView } from "@/domain/championship-brackets/championshipBracket.repository";
+import type { ChampionshipBracketView } from "@/lib/types";
 
 interface UseChampionshipBracketOptions {
   championshipId?: string | null;
   seasonYear?: number | null;
+}
+
+interface ChampionshipScopedRealtimeRow {
+  championship_id?: string | null;
+  season_year?: number | null;
+}
+
+function isChampionshipScopedRealtimeRow(value: unknown): value is ChampionshipScopedRealtimeRow {
+  return value != null && typeof value == "object";
 }
 
 export function useChampionshipBracket({ championshipId, seasonYear }: UseChampionshipBracketOptions = {}) {
@@ -62,7 +72,24 @@ export function useChampionshipBracket({ championshipId, seasonYear }: UseChampi
           table: "matches",
           filter: `championship_id=eq.${championshipId}`,
         },
-        () => {
+        (payload) => {
+          const relevantRows = [payload.new, payload.old].filter(isChampionshipScopedRealtimeRow);
+          const shouldRefetch = relevantRows.length == 0 || relevantRows.some((row) => {
+            if (row.championship_id != championshipId) {
+              return false;
+            }
+
+            if (typeof seasonYear == "number" && row.season_year != seasonYear) {
+              return false;
+            }
+
+            return true;
+          });
+
+          if (!shouldRefetch) {
+            return;
+          }
+
           if (scheduledRefetchTimeoutRef.current) {
             clearTimeout(scheduledRefetchTimeoutRef.current);
           }
@@ -107,7 +134,24 @@ export function useChampionshipBracket({ championshipId, seasonYear }: UseChampi
           table: "championship_bracket_editions",
           filter: `championship_id=eq.${championshipId}`,
         },
-        () => {
+        (payload) => {
+          const relevantRows = [payload.new, payload.old].filter(isChampionshipScopedRealtimeRow);
+          const shouldRefetch = relevantRows.length == 0 || relevantRows.some((row) => {
+            if (row.championship_id != championshipId) {
+              return false;
+            }
+
+            if (typeof seasonYear == "number" && row.season_year != seasonYear) {
+              return false;
+            }
+
+            return true;
+          });
+
+          if (!shouldRefetch) {
+            return;
+          }
+
           if (scheduledRefetchTimeoutRef.current) {
             clearTimeout(scheduledRefetchTimeoutRef.current);
           }

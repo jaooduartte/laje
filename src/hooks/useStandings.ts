@@ -79,9 +79,45 @@ export function useStandings({ championshipId, seasonYear, division, naipe }: Us
 
     const channel = supabase
       .channel(`standings-realtime-${championshipId ?? "all"}-${seasonYear ?? "all"}-${division ?? "any"}-${naipe ?? "all"}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "standings" }, () => {
-        fetchStandings();
-      })
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "standings",
+          filter: championshipId ? `championship_id=eq.${championshipId}` : undefined,
+        },
+        (payload) => {
+          const relevantRows = [payload.new, payload.old].filter((row) => row && typeof row == "object");
+          const shouldRefetch = relevantRows.length == 0 || relevantRows.some((row) => {
+            if (championshipId && row.championship_id != championshipId) {
+              return false;
+            }
+
+            if (typeof seasonYear == "number" && row.season_year != seasonYear) {
+              return false;
+            }
+
+            if (division === null && row.division != null) {
+              return false;
+            }
+
+            if (division !== undefined && division !== null && row.division != division) {
+              return false;
+            }
+
+            if (naipe && row.naipe != naipe) {
+              return false;
+            }
+
+            return true;
+          });
+
+          if (shouldRefetch) {
+            fetchStandings();
+          }
+        },
+      )
       .subscribe();
 
     return () => {
