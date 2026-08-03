@@ -8,11 +8,18 @@ import {
   saveMatchSets,
   swapChampionshipKnockoutBracketTeams,
 } from "@/domain/championship-brackets/championshipBracket.repository";
+import {
+  finishChampionshipIndividualSession,
+  previewChampionshipIndividualSessionScoreboard,
+  reopenChampionshipIndividualSession,
+  startChampionshipIndividualSession,
+} from "@/domain/individual-events/championshipIndividualEvents.repository";
 import type {
   BracketDayCourtSports,
   ChampionshipBracketScheduleDayInput,
   MatchSetInput,
 } from "@/domain/championship-brackets/championshipBracket.types";
+import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividualEvents";
 import type { ChampionshipBracketView, ChampionshipSport, Match, Sport } from "@/lib/types";
 import {
   AppBadgeTone,
@@ -63,9 +70,13 @@ import {
   resolveMatchTieBreakRuleLabel,
   isSocietyKnockoutMatch,
 } from "@/lib/championship";
+import { resolveSportCode } from "@/lib/modalidadeConfig";
 import { scrollToTopOfPage } from "@/lib/scroll";
+import { INDIVIDUAL_SESSION_STATUS_LABELS } from "@/lib/individualEvents";
 
 interface Props {
+  championshipId: string;
+  seasonYear: number;
   matches: Match[];
   championshipStatus: ChampionshipStatus;
   championshipSports: ChampionshipSport[];
@@ -85,8 +96,12 @@ interface MatchControlDraft {
   awayScore: number;
   homeYellowCards: number;
   homeRedCards: number;
+  homeBlueCards: number;
+  homeTwoMinutePenalties: number;
   awayYellowCards: number;
   awayRedCards: number;
+  awayBlueCards: number;
+  awayTwoMinutePenalties: number;
 }
 
 interface MatchSetEditDraft {
@@ -103,7 +118,7 @@ interface MatchPenaltyShootoutDraft {
 
 type SaveStatus = "saving" | "saved" | "error";
 type MatchSide = "home" | "away";
-type CardColor = "yellow" | "red";
+type CardColor = "yellow" | "red" | "blue" | "twoMinute";
 type WalkoverMode = "NONE" | "HOME_LOST" | "AWAY_LOST" | "DOUBLE";
 
 const SAVE_STATUS_LABELS: Record<SaveStatus, string> = {
@@ -147,8 +162,12 @@ function areMatchControlDraftsEqual(firstDraft: MatchControlDraft, secondDraft: 
     firstDraft.awayScore == secondDraft.awayScore &&
     firstDraft.homeYellowCards == secondDraft.homeYellowCards &&
     firstDraft.homeRedCards == secondDraft.homeRedCards &&
+    firstDraft.homeBlueCards == secondDraft.homeBlueCards &&
+    firstDraft.homeTwoMinutePenalties == secondDraft.homeTwoMinutePenalties &&
     firstDraft.awayYellowCards == secondDraft.awayYellowCards &&
-    firstDraft.awayRedCards == secondDraft.awayRedCards
+    firstDraft.awayRedCards == secondDraft.awayRedCards &&
+    firstDraft.awayBlueCards == secondDraft.awayBlueCards &&
+    firstDraft.awayTwoMinutePenalties == secondDraft.awayTwoMinutePenalties
   );
 }
 
@@ -163,8 +182,12 @@ function isMatchControlDraftValue(value: unknown): value is MatchControlDraft {
     draftCandidate.awayScore,
     draftCandidate.homeYellowCards,
     draftCandidate.homeRedCards,
+    draftCandidate.homeBlueCards,
+    draftCandidate.homeTwoMinutePenalties,
     draftCandidate.awayYellowCards,
     draftCandidate.awayRedCards,
+    draftCandidate.awayBlueCards,
+    draftCandidate.awayTwoMinutePenalties,
   ];
 
   return requiredNumericFields.every((fieldValue) => typeof fieldValue == "number" && Number.isFinite(fieldValue));
@@ -266,8 +289,12 @@ function resolveDefaultMatchControlDraft(match: Match, shouldUseCurrentSetScore:
     awayScore: shouldUseCurrentSetScore ? match.current_set_away_score ?? 0 : match.away_score,
     homeYellowCards: match.home_yellow_cards,
     homeRedCards: match.home_red_cards,
+    homeBlueCards: match.home_blue_cards ?? 0,
+    homeTwoMinutePenalties: match.home_two_minute_penalties ?? 0,
     awayYellowCards: match.away_yellow_cards,
     awayRedCards: match.away_red_cards,
+    awayBlueCards: match.away_blue_cards ?? 0,
+    awayTwoMinutePenalties: match.away_two_minute_penalties ?? 0,
   };
 }
 
@@ -326,6 +353,7 @@ function resolveMatchUpdatePayload(
   draft: MatchControlDraft,
   options: {
     supportsCards: boolean;
+    isHandball: boolean;
     shouldUseCurrentSetScore: boolean;
   },
 ) {
@@ -336,9 +364,17 @@ function resolveMatchUpdatePayload(
     current_set_away_score: options.shouldUseCurrentSetScore ? Math.max(0, draft.awayScore) : null,
     home_yellow_cards: options.supportsCards ? Math.max(0, draft.homeYellowCards) : 0,
     home_red_cards: options.supportsCards ? Math.max(0, draft.homeRedCards) : 0,
+    home_blue_cards: options.isHandball ? Math.max(0, draft.homeBlueCards) : 0,
+    home_two_minute_penalties: options.isHandball ? Math.max(0, draft.homeTwoMinutePenalties) : 0,
     away_yellow_cards: options.supportsCards ? Math.max(0, draft.awayYellowCards) : 0,
     away_red_cards: options.supportsCards ? Math.max(0, draft.awayRedCards) : 0,
+    away_blue_cards: options.isHandball ? Math.max(0, draft.awayBlueCards) : 0,
+    away_two_minute_penalties: options.isHandball ? Math.max(0, draft.awayTwoMinutePenalties) : 0,
   };
+}
+
+function isHandballMatch(match: Match): boolean {
+  return resolveSportCode(match.sports?.name ?? "") == "HANDEBOL";
 }
 
 function resolveSetWins(matchSets: MatchSetInput[]) {
@@ -377,10 +413,14 @@ function resolveAdminMatchControlErrorMessage(
       error.message.includes("current_set_home_score") ||
       error.message.includes("current_set_away_score") ||
       error.message.includes("home_penalty_score") ||
-      error.message.includes("away_penalty_score")
+      error.message.includes("away_penalty_score") ||
+      error.message.includes("home_blue_cards") ||
+      error.message.includes("away_blue_cards") ||
+      error.message.includes("home_two_minute_penalties") ||
+      error.message.includes("away_two_minute_penalties")
     )
   ) {
-    return "As migrations de placar ao vivo e pênaltis ainda não foram aplicadas no banco. Rode npx supabase db push e recarregue o schema.";
+    return "As migrations operacionais de placar/cartões ainda não foram aplicadas no banco. Rode npx supabase db push e recarregue o schema.";
   }
 
   return fallbackMessage;
@@ -401,6 +441,8 @@ function resolveChampionshipBracketScheduleDays(
 }
 
 export function AdminMatchControl({
+  championshipId,
+  seasonYear,
   matches,
   championshipStatus,
   championshipSports,
@@ -439,6 +481,8 @@ export function AdminMatchControl({
   const [pendingReturnToScheduledMatch, setPendingReturnToScheduledMatch] = useState<Match | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_PAGINATION_ITEMS_PER_PAGE);
+  const [sessionScoreboardBySessionId, setSessionScoreboardBySessionId] = useState<Record<string, Awaited<ReturnType<typeof previewChampionshipIndividualSessionScoreboard>>["data"]>>({});
+  const [sessionActionLoadingById, setSessionActionLoadingById] = useState<Record<string, boolean>>({});
 
   const isDraftDirtyByMatchIdRef = useRef<Record<string, boolean>>({});
   const persistedDraftByMatchIdRef = useRef<Record<string, PersistedMatchControlDraftEntry>>(
@@ -658,6 +702,25 @@ export function AdminMatchControl({
     return [...sportById.values()].sort((leftSport, rightSport) => leftSport.name.localeCompare(rightSport.name));
   }, [matches]);
 
+  const individualSportIds = useMemo(() => {
+    return championshipSports
+      .filter((championshipSport) => {
+        const sportCode = resolveSportCode(championshipSport.sports?.name ?? "");
+        return sportCode == "ATLETISMO" || sportCode == "NATACAO";
+      })
+      .map((championshipSport) => championshipSport.sport_id);
+  }, [championshipSports]);
+
+  const {
+    sessions: individualSessions,
+    events: individualEvents,
+    refetch: refetchIndividualEvents,
+  } = useChampionshipIndividualEvents({
+    championshipId,
+    seasonYear,
+    sportIds: individualSportIds,
+  });
+
   useEffect(() => {
     if (!sportFilter) {
       return;
@@ -669,6 +732,84 @@ export function AdminMatchControl({
       setSportFilter(null);
     }
   }, [controlSports, sportFilter]);
+
+  useEffect(() => {
+    if (individualSessions.length == 0) {
+      setSessionScoreboardBySessionId({});
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadSessionScoreboards = async () => {
+      const sessionScoreboards = await Promise.all(
+        individualSessions.map(async (session) => {
+          const response = await previewChampionshipIndividualSessionScoreboard(session.id);
+          return [session.id, response.data] as const;
+        }),
+      );
+
+      if (!isMounted) {
+        return;
+      }
+
+      setSessionScoreboardBySessionId(
+        sessionScoreboards.reduce<Record<string, Awaited<ReturnType<typeof previewChampionshipIndividualSessionScoreboard>>["data"]>>(
+          (carry, [sessionId, rows]) => {
+            carry[sessionId] = rows;
+            return carry;
+          },
+          {},
+        ),
+      );
+    };
+
+    void loadSessionScoreboards();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [individualSessions]);
+
+  const runSessionAction = useCallback(
+    async (
+      sessionId: string,
+      action: "start" | "finish" | "reopen",
+    ) => {
+      if (!canManageScoreboard) {
+        return;
+      }
+
+      setSessionActionLoadingById((current) => ({
+        ...current,
+        [sessionId]: true,
+      }));
+
+      const response =
+        action == "start"
+          ? await startChampionshipIndividualSession(sessionId)
+          : action == "finish"
+            ? await finishChampionshipIndividualSession(sessionId)
+            : await reopenChampionshipIndividualSession(sessionId);
+
+      setSessionActionLoadingById((current) => ({
+        ...current,
+        [sessionId]: false,
+      }));
+
+      if (response.error) {
+        toast.error(response.error.message);
+        return;
+      }
+
+      await Promise.all([
+        refetchIndividualEvents(),
+        onRefetch({ showFetching: true }),
+      ]);
+      onRefetchChampionshipBracket();
+    },
+    [canManageScoreboard, onRefetch, onRefetchChampionshipBracket, refetchIndividualEvents],
+  );
 
   const championshipBracketScheduleDays = useMemo(() => {
     return resolveChampionshipBracketScheduleDays(championshipBracketView);
@@ -882,6 +1023,7 @@ export function AdminMatchControl({
           .from("matches")
           .update(resolveMatchUpdatePayload(match, matchDraft, {
             supportsCards: doesMatchSupportCardsRef.current(match),
+            isHandball: isHandballMatch(match),
             shouldUseCurrentSetScore: isSetRuleMatchRef.current(match),
           }))
           .eq("id", match.id);
@@ -1102,6 +1244,7 @@ export function AdminMatchControl({
       .from("matches")
       .update(resolveMatchUpdatePayload(match, matchDraft, {
         supportsCards: doesMatchSupportCards(match),
+        isHandball: isHandballMatch(match),
         shouldUseCurrentSetScore: isSetRuleMatch(match),
       }))
       .eq("id", match.id);
@@ -1205,10 +1348,18 @@ export function AdminMatchControl({
         nextMatchDraft.homeYellowCards = Math.max(0, currentMatchDraft.homeYellowCards + delta);
       } else if (side == "home" && color == "red") {
         nextMatchDraft.homeRedCards = Math.max(0, currentMatchDraft.homeRedCards + delta);
+      } else if (side == "home" && color == "blue") {
+        nextMatchDraft.homeBlueCards = Math.max(0, currentMatchDraft.homeBlueCards + delta);
+      } else if (side == "home" && color == "twoMinute") {
+        nextMatchDraft.homeTwoMinutePenalties = Math.max(0, currentMatchDraft.homeTwoMinutePenalties + delta);
       } else if (side == "away" && color == "yellow") {
         nextMatchDraft.awayYellowCards = Math.max(0, currentMatchDraft.awayYellowCards + delta);
-      } else {
+      } else if (side == "away" && color == "red") {
         nextMatchDraft.awayRedCards = Math.max(0, currentMatchDraft.awayRedCards + delta);
+      } else if (side == "away" && color == "blue") {
+        nextMatchDraft.awayBlueCards = Math.max(0, currentMatchDraft.awayBlueCards + delta);
+      } else {
+        nextMatchDraft.awayTwoMinutePenalties = Math.max(0, currentMatchDraft.awayTwoMinutePenalties + delta);
       }
 
       setDraftDirty(match.id, true);
@@ -1238,10 +1389,18 @@ export function AdminMatchControl({
         nextMatchDraft.homeYellowCards = parsedValue;
       } else if (side == "home" && color == "red") {
         nextMatchDraft.homeRedCards = parsedValue;
+      } else if (side == "home" && color == "blue") {
+        nextMatchDraft.homeBlueCards = parsedValue;
+      } else if (side == "home" && color == "twoMinute") {
+        nextMatchDraft.homeTwoMinutePenalties = parsedValue;
       } else if (side == "away" && color == "yellow") {
         nextMatchDraft.awayYellowCards = parsedValue;
-      } else {
+      } else if (side == "away" && color == "red") {
         nextMatchDraft.awayRedCards = parsedValue;
+      } else if (side == "away" && color == "blue") {
+        nextMatchDraft.awayBlueCards = parsedValue;
+      } else {
+        nextMatchDraft.awayTwoMinutePenalties = parsedValue;
       }
 
       setDraftDirty(match.id, true);
@@ -1495,8 +1654,12 @@ export function AdminMatchControl({
         current_set_away_score: null,
         home_yellow_cards: 0,
         home_red_cards: 0,
+        home_blue_cards: 0,
+        home_two_minute_penalties: 0,
         away_yellow_cards: 0,
         away_red_cards: 0,
+        away_blue_cards: 0,
+        away_two_minute_penalties: 0,
         home_penalty_score: null,
         away_penalty_score: null,
         resolved_tie_breaker_rule: null,
@@ -1615,8 +1778,12 @@ export function AdminMatchControl({
           current_set_away_score: null,
           home_yellow_cards: 0,
           home_red_cards: 0,
+          home_blue_cards: 0,
+          home_two_minute_penalties: 0,
           away_yellow_cards: 0,
           away_red_cards: 0,
+          away_blue_cards: 0,
+          away_two_minute_penalties: 0,
           home_penalty_score: null,
           away_penalty_score: null,
           resolved_tie_breaker_rule: null,
@@ -1703,8 +1870,12 @@ export function AdminMatchControl({
         current_set_away_score: null,
         home_yellow_cards: 0,
         home_red_cards: 0,
+        home_blue_cards: 0,
+        home_two_minute_penalties: 0,
         away_yellow_cards: 0,
         away_red_cards: 0,
+        away_blue_cards: 0,
+        away_two_minute_penalties: 0,
         home_penalty_score: null,
         away_penalty_score: null,
         resolved_tie_breaker_rule: null,
@@ -1772,6 +1943,7 @@ export function AdminMatchControl({
     const currentMatchDraft = getMatchDraft(match);
     const isSetMatch = isSetRuleMatch(match);
     const supportsCards = doesMatchSupportCards(match);
+    const handballMatch = isHandballMatch(match);
     const displayedSetWins = resolveDisplayedSetWins(match);
 
     if (isSetMatch && (currentMatchDraft.homeScore > 0 || currentMatchDraft.awayScore > 0)) {
@@ -1822,6 +1994,7 @@ export function AdminMatchControl({
       .update({
         ...resolveMatchUpdatePayload(match, currentMatchDraft, {
           supportsCards,
+          isHandball: handballMatch,
           shouldUseCurrentSetScore: isSetMatch,
         }),
         home_score: resolvedHomeScore,
@@ -1830,8 +2003,12 @@ export function AdminMatchControl({
         current_set_away_score: isSetMatch ? null : null,
         home_yellow_cards: supportsCards ? Math.max(0, currentMatchDraft.homeYellowCards) : 0,
         home_red_cards: supportsCards ? Math.max(0, currentMatchDraft.homeRedCards) : 0,
+        home_blue_cards: handballMatch ? Math.max(0, currentMatchDraft.homeBlueCards) : 0,
+        home_two_minute_penalties: handballMatch ? Math.max(0, currentMatchDraft.homeTwoMinutePenalties) : 0,
         away_yellow_cards: supportsCards ? Math.max(0, currentMatchDraft.awayYellowCards) : 0,
         away_red_cards: supportsCards ? Math.max(0, currentMatchDraft.awayRedCards) : 0,
+        away_blue_cards: handballMatch ? Math.max(0, currentMatchDraft.awayBlueCards) : 0,
+        away_two_minute_penalties: handballMatch ? Math.max(0, currentMatchDraft.awayTwoMinutePenalties) : 0,
         home_penalty_score: penaltyShootoutScores?.homePenaltyScore ?? null,
         away_penalty_score: penaltyShootoutScores?.awayPenaltyScore ?? null,
         resolved_tie_breaker_rule: resolvedPenaltyShootoutWinnerTeamId
@@ -2042,6 +2219,45 @@ export function AdminMatchControl({
     }));
   }, [estimatedStartTimeByMatchId, filteredMatches, visualQueuePositionByMatchId]);
 
+  const visibleIndividualSessions = useMemo(() => {
+    return individualSessions.filter((session) => {
+      if (sportFilter && session.sport_id != sportFilter) {
+        return false;
+      }
+
+      if (naipeFilter != ALL_CONTROL_NAIPE_FILTER && session.naipe != naipeFilter) {
+        return false;
+      }
+
+      if (
+        divisionFilter != ALL_CONTROL_DIVISION_FILTER &&
+        session.division != divisionFilter
+      ) {
+        return false;
+      }
+
+      if (
+        locationFilter != ALL_CONTROL_LOCATION_FILTER &&
+        (session.location_name ?? "") != locationFilter
+      ) {
+        return false;
+      }
+
+      if (
+        courtFilter != ALL_CONTROL_COURT_FILTER &&
+        (session.court_name ?? "") != courtFilter
+      ) {
+        return false;
+      }
+
+      return (
+        session.status == "SCHEDULED" ||
+        session.status == "LIVE" ||
+        session.status == "FINISHED"
+      );
+    });
+  }, [courtFilter, divisionFilter, individualSessions, locationFilter, naipeFilter, sportFilter]);
+
   const totalPages = Math.max(1, Math.ceil(sortedMatches.length / itemsPerPage));
 
   const paginatedMatches = useMemo(() => {
@@ -2068,6 +2284,127 @@ export function AdminMatchControl({
 
   return (
     <div className="enter-section space-y-4">
+      {visibleIndividualSessions.length > 0 ? (
+        <div className="glass-card enter-section space-y-4 p-4">
+          <div>
+            <p className="text-sm font-semibold text-foreground">Sessões Individuais</p>
+            <p className="text-xs text-muted-foreground">
+              Atletismo e Natação operam por sessão geral no controle ao vivo.
+            </p>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-2">
+            {visibleIndividualSessions.map((session) => {
+              const linkedEvents = individualEvents.filter((event) => event.session_id == session.id);
+              const scoreboardRows = sessionScoreboardBySessionId[session.id] ?? [];
+              const isSessionActionLoading = sessionActionLoadingById[session.id] == true;
+
+              return (
+                <div key={session.id} className="rounded-2xl border border-border/60 bg-background/40 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <p className="font-display text-base font-semibold">
+                        {session.sports?.name} • {MATCH_NAIPE_LABELS[session.naipe]}
+                        {session.division ? ` • ${TEAM_DIVISION_LABELS[session.division]}` : ""}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {session.scheduled_date ?? "Sem data"}
+                        {session.period ? ` • ${session.period == "MATUTINO" ? "Matutino" : "Vespertino"}` : ""}
+                        {session.location_name ? ` • ${session.location_name}` : ""}
+                        {session.court_name ? ` • ${session.court_name}` : ""}
+                      </p>
+                    </div>
+
+                    <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">
+                      {INDIVIDUAL_SESSION_STATUS_LABELS[session.status]}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-xl border border-border/50 px-3 py-2">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Provas</p>
+                      <p className="mt-1 text-lg font-semibold">{linkedEvents.length}</p>
+                    </div>
+                    <div className="rounded-xl border border-border/50 px-3 py-2">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Atléticas na prévia</p>
+                      <p className="mt-1 text-lg font-semibold">{scoreboardRows.length}</p>
+                    </div>
+                    <div className="rounded-xl border border-border/50 px-3 py-2">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Lock do recurso</p>
+                      <p className="mt-1 text-sm font-semibold">
+                        {session.exclusive_lock_enabled ? "Bloqueio duro" : "Sem lock duro"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {session.status == "DRAFT" || session.status == "SCHEDULED" ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={isSessionActionLoading || !canManageScoreboard}
+                        onClick={() => void runSessionAction(session.id, "start")}
+                      >
+                        <Play className="h-4 w-4" />
+                        Iniciar sessão
+                      </Button>
+                    ) : null}
+
+                    {session.status == "LIVE" ? (
+                      <Button
+                        type="button"
+                        disabled={isSessionActionLoading || !canManageScoreboard}
+                        onClick={() => void runSessionAction(session.id, "finish")}
+                      >
+                        <Square className="h-4 w-4" />
+                        Encerrar sessão
+                      </Button>
+                    ) : null}
+
+                    {session.status == "FINISHED" ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={isSessionActionLoading || !canManageScoreboard}
+                        onClick={() => void runSessionAction(session.id, "reopen")}
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                        Reabrir sessão
+                      </Button>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-4 space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Prévia parcial da sessão
+                    </p>
+                    {scoreboardRows.length == 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        Nenhum resultado parcial salvo nesta sessão.
+                      </p>
+                    ) : (
+                      scoreboardRows.slice(0, 5).map((row, index) => (
+                        <div key={`${session.id}-${row.team_id}`} className="flex items-center justify-between rounded-xl border border-border/50 px-3 py-2 text-sm">
+                          <div className="min-w-0">
+                            <p className="truncate font-medium">
+                              {index + 1}. {row.teams?.name ?? "Atlética"}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground">
+                              {row.first_places}x 1º • {row.second_places}x 2º • {row.third_places}x 3º
+                            </p>
+                          </div>
+                          <p className="font-display text-base font-semibold">{row.total_points}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+
       <div className="glass-card enter-section space-y-4 p-4">
         <p className="text-sm text-muted-foreground">{sortedMatches.length} jogo(s) encontrado(s)</p>
 
@@ -2209,6 +2546,7 @@ export function AdminMatchControl({
               : queueLabel;
             const isSetMatch = isSetRuleMatch(match);
             const supportsCards = doesMatchSupportCards(match);
+            const handballMatch = isHandballMatch(match);
             const closedMatchSets = resolveClosedMatchSets(match);
             const displayedSetWins = resolveDisplayedSetWins(match);
             const setSummary = resolveMatchSetSummary({
@@ -2817,6 +3155,93 @@ export function AdminMatchControl({
                               onClick={() => updateCards(match, "away", "red", 1)}
                               disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
                             >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {supportsCards && handballMatch ? (
+                  <div className="grid gap-3 glass-panel-muted p-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <p className="truncate text-xs font-semibold uppercase text-muted-foreground">{match.home_team?.name}</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-semibold uppercase text-sky-700">Cartões Azuis</p>
+                          <div className="flex items-center gap-1">
+                            <Button size="icon" variant="outline" className="h-8 w-10" onClick={() => updateCards(match, "home", "blue", -1)} disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}>
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <Input
+                              type="number"
+                              value={matchDraft.homeBlueCards}
+                              onChange={(event) => updateManualInputCards(match, "home", "blue", event.target.value)}
+                              className="h-9 w-20 app-input-field text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
+                            />
+                            <Button size="icon" variant="outline" className="h-8 w-10" onClick={() => updateCards(match, "home", "blue", 1)} disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}>
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-semibold uppercase text-slate-700 dark:text-slate-300">Penalidades de 2 Min</p>
+                          <div className="flex items-center gap-1">
+                            <Button size="icon" variant="outline" className="h-8 w-10" onClick={() => updateCards(match, "home", "twoMinute", -1)} disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}>
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <Input
+                              type="number"
+                              value={matchDraft.homeTwoMinutePenalties}
+                              onChange={(event) => updateManualInputCards(match, "home", "twoMinute", event.target.value)}
+                              className="h-9 w-20 app-input-field text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
+                            />
+                            <Button size="icon" variant="outline" className="h-8 w-10" onClick={() => updateCards(match, "home", "twoMinute", 1)} disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}>
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="truncate text-xs font-semibold uppercase text-muted-foreground">{match.away_team?.name}</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-semibold uppercase text-sky-700">Cartões Azuis</p>
+                          <div className="flex items-center gap-1">
+                            <Button size="icon" variant="outline" className="h-8 w-10" onClick={() => updateCards(match, "away", "blue", -1)} disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}>
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <Input
+                              type="number"
+                              value={matchDraft.awayBlueCards}
+                              onChange={(event) => updateManualInputCards(match, "away", "blue", event.target.value)}
+                              className="h-9 w-20 app-input-field text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
+                            />
+                            <Button size="icon" variant="outline" className="h-8 w-10" onClick={() => updateCards(match, "away", "blue", 1)} disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}>
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-semibold uppercase text-slate-700 dark:text-slate-300">Penalidades de 2 Min</p>
+                          <div className="flex items-center gap-1">
+                            <Button size="icon" variant="outline" className="h-8 w-10" onClick={() => updateCards(match, "away", "twoMinute", -1)} disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}>
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <Input
+                              type="number"
+                              value={matchDraft.awayTwoMinutePenalties}
+                              onChange={(event) => updateManualInputCards(match, "away", "twoMinute", event.target.value)}
+                              className="h-9 w-20 app-input-field text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}
+                            />
+                            <Button size="icon" variant="outline" className="h-8 w-10" onClick={() => updateCards(match, "away", "twoMinute", 1)} disabled={match.status != MatchStatus.LIVE || !canManageScoreboard}>
                               <Plus className="h-3 w-3" />
                             </Button>
                           </div>

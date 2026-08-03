@@ -116,24 +116,8 @@ describe("resolveChampionshipBracketFirstRoundSeedIndexes", () => {
 });
 
 describe("resolveBracketPairingByMode", () => {
-  it("LINEAR produz seeding padrão para chave de 8", () => {
+  it("produz seeding padrão para chave de 8", () => {
     expect(resolveBracketPairingByMode("LINEAR", 8)).toEqual([1, 8, 2, 7, 3, 6, 4, 5]);
-  });
-
-  it("FUTEVOLEI_FEM_INVERTED produz o mesmo seeding linear para chave de 8", () => {
-    // O cruzamento invertido emerge naturalmente da ordem [1ºA,1ºB,1ºC,1ºD,2ºA,2ºB,2ºC,2ºD]
-    // com seeding linear: 1ºA×2ºD, 1ºB×2ºC, 1ºC×2ºB, 1ºD×2ºA
-    expect(resolveBracketPairingByMode("FUTEVOLEI_FEM_INVERTED", 8)).toEqual([1, 8, 2, 7, 3, 6, 4, 5]);
-  });
-
-  it("BEACH_SOCCER_FEM_DIRECT_SEMI produz seeding linear para chave de 4 (semis diretas)", () => {
-    // 2 grupos × 2 classificados = 4 times → [1ºA,1ºB,2ºA,2ºB]
-    // Seeding [1,4,2,3]: slot1=1ºA×2ºB, slot2=1ºB×2ºA
-    expect(resolveBracketPairingByMode("BEACH_SOCCER_FEM_DIRECT_SEMI", 4)).toEqual([1, 4, 2, 3]);
-  });
-
-  it("FUTEBOL_SOCIETY_FEM_ACCESS_CROSS_GROUPS mantém o seeding linear da chave", () => {
-    expect(resolveBracketPairingByMode("FUTEBOL_SOCIETY_FEM_ACCESS_CROSS_GROUPS", 4)).toEqual([1, 4, 2, 3]);
   });
 });
 

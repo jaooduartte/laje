@@ -135,6 +135,116 @@ export type Database = {
         }
         Relationships: []
       }
+      championship_season_division_movements: {
+        Row: {
+          championship_id: string
+          confirmed_at: string | null
+          confirmed_by: string | null
+          created_at: string
+          id: string
+          next_division: Database["public"]["Enums"]["team_division"] | null
+          previous_division: Database["public"]["Enums"]["team_division"] | null
+          ranking_position: number
+          rule_code: string
+          season_year: number
+          source_division: Database["public"]["Enums"]["team_division"] | null
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          championship_id: string
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          id?: string
+          next_division?: Database["public"]["Enums"]["team_division"] | null
+          previous_division?: Database["public"]["Enums"]["team_division"] | null
+          ranking_position: number
+          rule_code: string
+          season_year: number
+          source_division?: Database["public"]["Enums"]["team_division"] | null
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          championship_id?: string
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          id?: string
+          next_division?: Database["public"]["Enums"]["team_division"] | null
+          previous_division?: Database["public"]["Enums"]["team_division"] | null
+          ranking_position?: number
+          rule_code?: string
+          season_year?: number
+          source_division?: Database["public"]["Enums"]["team_division"] | null
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "championship_season_division_movements_championship_id_fkey"
+            columns: ["championship_id"]
+            isOneToOne: false
+            referencedRelation: "championships"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "championship_season_division_movements_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      championship_season_settings: {
+        Row: {
+          access_promotion_count: number | null
+          championship_id: string
+          created_at: string
+          division_format: Database["public"]["Enums"]["championship_season_division_format"]
+          division_settlement_mode: Database["public"]["Enums"]["championship_season_division_settlement_mode"]
+          id: string
+          principal_relegation_count: number | null
+          principal_slots_count: number | null
+          season_year: number
+          updated_at: string
+        }
+        Insert: {
+          access_promotion_count?: number | null
+          championship_id: string
+          created_at?: string
+          division_format?: Database["public"]["Enums"]["championship_season_division_format"]
+          division_settlement_mode?: Database["public"]["Enums"]["championship_season_division_settlement_mode"]
+          id?: string
+          principal_relegation_count?: number | null
+          principal_slots_count?: number | null
+          season_year: number
+          updated_at?: string
+        }
+        Update: {
+          access_promotion_count?: number | null
+          championship_id?: string
+          created_at?: string
+          division_format?: Database["public"]["Enums"]["championship_season_division_format"]
+          division_settlement_mode?: Database["public"]["Enums"]["championship_season_division_settlement_mode"]
+          id?: string
+          principal_relegation_count?: number | null
+          principal_slots_count?: number | null
+          season_year?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "championship_season_settings_championship_id_fkey"
+            columns: ["championship_id"]
+            isOneToOne: false
+            referencedRelation: "championships"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       championship_sports: {
         Row: {
           championship_id: string
@@ -1088,8 +1198,10 @@ export type Database = {
       }
       matches: {
         Row: {
+          away_blue_cards: number
           away_red_cards: number
           away_score: number
+          away_two_minute_penalties: number
           away_yellow_cards: number
           away_team_id: string
           championship_id: string
@@ -1103,9 +1215,11 @@ export type Database = {
           created_at: string
           division: Database["public"]["Enums"]["team_division"] | null
           end_time: string | null
+          home_blue_cards: number
           home_penalty_score: number | null
           home_red_cards: number
           home_score: number
+          home_two_minute_penalties: number
           home_yellow_cards: number
           home_team_id: string
           id: string
@@ -1126,8 +1240,10 @@ export type Database = {
           supports_cards: boolean
         }
         Insert: {
+          away_blue_cards?: number
           away_red_cards?: number
           away_score?: number
+          away_two_minute_penalties?: number
           away_yellow_cards?: number
           away_team_id: string
           championship_id: string
@@ -1141,9 +1257,11 @@ export type Database = {
           created_at?: string
           division?: Database["public"]["Enums"]["team_division"] | null
           end_time?: string | null
+          home_blue_cards?: number
           home_penalty_score?: number | null
           home_red_cards?: number
           home_score?: number
+          home_two_minute_penalties?: number
           home_yellow_cards?: number
           home_team_id: string
           id?: string
@@ -1164,8 +1282,10 @@ export type Database = {
           supports_cards?: boolean
         }
         Update: {
+          away_blue_cards?: number
           away_red_cards?: number
           away_score?: number
+          away_two_minute_penalties?: number
           away_yellow_cards?: number
           away_team_id?: string
           championship_id?: string
@@ -1179,9 +1299,11 @@ export type Database = {
           created_at?: string
           division?: Database["public"]["Enums"]["team_division"] | null
           end_time?: string | null
+          home_blue_cards?: number
           home_penalty_score?: number | null
           home_red_cards?: number
           home_score?: number
+          home_two_minute_penalties?: number
           home_yellow_cards?: number
           home_team_id?: string
           id?: string
@@ -1314,6 +1436,7 @@ export type Database = {
       }
       standings: {
         Row: {
+          blue_cards: number
           championship_id: string
           division: Database["public"]["Enums"]["team_division"] | null
           draws: number
@@ -1329,11 +1452,13 @@ export type Database = {
           season_year: number
           sport_id: string
           team_id: string
+          two_minute_penalties: number
           updated_at: string
           wins: number
           yellow_cards: number
         }
         Insert: {
+          blue_cards?: number
           championship_id: string
           division?: Database["public"]["Enums"]["team_division"] | null
           draws?: number
@@ -1349,11 +1474,13 @@ export type Database = {
           season_year: number
           sport_id: string
           team_id: string
+          two_minute_penalties?: number
           updated_at?: string
           wins?: number
           yellow_cards?: number
         }
         Update: {
+          blue_cards?: number
           championship_id?: string
           division?: Database["public"]["Enums"]["team_division"] | null
           draws?: number
@@ -1369,6 +1496,7 @@ export type Database = {
           season_year?: number
           sport_id?: string
           team_id?: string
+          two_minute_penalties?: number
           updated_at?: string
           wins?: number
           yellow_cards?: number
@@ -1516,6 +1644,7 @@ export type Database = {
           created_at: string
           division: Database["public"]["Enums"]["team_division"] | null
           id: string
+          is_active: boolean
           name: string
         }
         Insert: {
@@ -1523,6 +1652,7 @@ export type Database = {
           created_at?: string
           division?: Database["public"]["Enums"]["team_division"] | null
           id?: string
+          is_active?: boolean
           name: string
         }
         Update: {
@@ -1530,6 +1660,7 @@ export type Database = {
           created_at?: string
           division?: Database["public"]["Enums"]["team_division"] | null
           id?: string
+          is_active?: boolean
           name?: string
         }
         Relationships: []
@@ -1667,6 +1798,7 @@ export type Database = {
       get_championship_corrected_group_standings: {
         Args: { _championship_id: string; _season_year?: number | null }
         Returns: {
+          blue_cards: number
           competition_id: string
           correction_factor: number
           corrected_points: number
@@ -1685,6 +1817,7 @@ export type Database = {
           sport_name: string
           team_id: string
           team_name: string
+          two_minute_penalties: number
           wins: number
           yellow_cards: number
         }[]
@@ -1971,6 +2104,11 @@ export type Database = {
       bracket_phase: "GROUP_STAGE" | "KNOCKOUT"
       bracket_third_place_mode: "NONE" | "MATCH" | "CHAMPION_SEMIFINAL_LOSER"
       championship_code: "CLV" | "SOCIETY" | "INTERLAJE"
+      championship_season_division_format: "SEPARATED" | "UNIFIED"
+      championship_season_division_settlement_mode:
+        | "NONE"
+        | "PROMOTION_RELEGATION"
+        | "TOP_N_TO_PRINCIPAL"
       championship_sport_naipe_mode: "MISTO" | "MASCULINO_FEMININO"
       championship_sport_result_rule: "POINTS" | "SETS"
       championship_sport_tie_breaker_rule:
@@ -1979,6 +2117,7 @@ export type Database = {
         | "BEACH_SOCCER"
         | "BEACH_TENNIS"
         | "FUTEBOL_SOCIETY"
+        | "HANDEBOL"
       championship_bracket_tie_break_context_type: "GROUP" | "QUALIFICATION_POOL"
       championship_status: "PLANNING" | "UPCOMING" | "IN_PROGRESS" | "FINISHED"
       league_calendar_holiday_day_kind: "HOLIDAY" | "OPTIONAL"
@@ -2150,6 +2289,12 @@ export const Constants = {
       bracket_phase: ["GROUP_STAGE", "KNOCKOUT"],
       bracket_third_place_mode: ["NONE", "MATCH", "CHAMPION_SEMIFINAL_LOSER"],
       championship_code: ["CLV", "SOCIETY", "INTERLAJE"],
+      championship_season_division_format: ["SEPARATED", "UNIFIED"],
+      championship_season_division_settlement_mode: [
+        "NONE",
+        "PROMOTION_RELEGATION",
+        "TOP_N_TO_PRINCIPAL",
+      ],
       championship_sport_naipe_mode: ["MISTO", "MASCULINO_FEMININO"],
       championship_sport_result_rule: ["POINTS", "SETS"],
       championship_sport_tie_breaker_rule: [
@@ -2158,6 +2303,7 @@ export const Constants = {
         "BEACH_SOCCER",
         "BEACH_TENNIS",
         "FUTEBOL_SOCIETY",
+        "HANDEBOL",
       ],
       championship_status: ["PLANNING", "UPCOMING", "IN_PROGRESS", "FINISHED"],
       league_calendar_holiday_day_kind: ["HOLIDAY", "OPTIONAL"],

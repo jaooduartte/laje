@@ -4,7 +4,11 @@ import { ChampionshipsPageView } from "@/pages/championships/ChampionshipsPageVi
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ChampionshipCode, ChampionshipStatus, MatchNaipe, TeamDivision } from "@/lib/enums";
 import type { ReactNode } from "react";
-import type { Championship } from "@/lib/types";
+import type {
+  Championship,
+  ChampionshipIndividualEvent,
+  ChampionshipIndividualEventEntry,
+} from "@/lib/types";
 import type { ChampionshipChampionYearGroup } from "@/lib/championshipHistory";
 import type { ChampionshipAwardsRankings } from "@/hooks/useChampionshipAwardsRankings";
 
@@ -18,6 +22,10 @@ vi.mock("@/components/MatchCard", () => ({
 
 vi.mock("@/components/TeamStandingsTable", () => ({
   TeamStandingsTable: () => <div>Standings table</div>,
+}));
+
+vi.mock("@/components/IndividualSportStandingsTable", () => ({
+  IndividualSportStandingsTable: () => <div>Individual standings table</div>,
 }));
 
 vi.mock("@/components/ui/tabs", () => ({
@@ -297,5 +305,225 @@ describe("ChampionshipsPageView", () => {
     expect(screen.getAllByText("AGUA").length).toBeGreaterThan(0);
     expect(screen.getByText(/0,67 de média/)).toBeInTheDocument();
     expect(screen.getByText(/2 gols sofridos/)).toBeInTheDocument();
+  });
+
+  it("não exibe artilheiro nem melhor defesa para campeãs do Interlaje", async () => {
+    const championship: Championship = {
+      id: "championship-interlaje",
+      code: ChampionshipCode.INTERLAJE,
+      name: "Interlaje",
+      status: ChampionshipStatus.IN_PROGRESS,
+      current_season_year: 2026,
+      uses_divisions: true,
+      default_location: null,
+      created_at: "2026-08-01T00:00:00.000Z",
+    };
+
+    const championshipChampionHistory: ChampionshipChampionYearGroup[] = [
+      {
+        year: "2026",
+        champions: [
+          {
+            year: "2026",
+            sport_id: "sport-futsal",
+            sport_name: "Futsal",
+            naipe: MatchNaipe.MASCULINO,
+            division: TeamDivision.DIVISAO_PRINCIPAL,
+            champion_team_name: "Atlética Campeã",
+            runner_up_team_name: "Atlética Vice",
+            third_place_team_name: null,
+            match_id: "interlaje-final-1",
+          },
+        ],
+      },
+    ];
+
+    const awardsRankings: ChampionshipAwardsRankings = {
+      season_year: 2026,
+      pending_matches_count: 0,
+      pending_award_contexts: [],
+      top_scorers: [
+        {
+          player_id: "player-1",
+          player_name: "Jogador que não deve aparecer",
+          team_id: "team-1",
+          team_name: "Atlética Campeã",
+          naipe: MatchNaipe.MASCULINO,
+          division: TeamDivision.DIVISAO_PRINCIPAL,
+          goals: 5,
+          team_advancement_rank: 3,
+        },
+      ],
+      best_defenses: [
+        {
+          team_id: "team-1",
+          team_name: "Atlética Campeã",
+          naipe: MatchNaipe.MASCULINO,
+          division: TeamDivision.DIVISAO_PRINCIPAL,
+          matches_count: 3,
+          goals_against: 2,
+          goals_against_average: 2 / 3,
+        },
+      ],
+      award_draw_results: [],
+    };
+
+    render(
+      <TooltipProvider>
+        <ChampionshipsPageView
+          isLoading={false}
+          isStandingsLoading={false}
+          championships={[championship]}
+          selectedChampionship={championship}
+          selectedChampionshipCode={ChampionshipCode.INTERLAJE}
+          selectedChampionshipIsFinished={false}
+          championshipCardImageByCode={{ [ChampionshipCode.INTERLAJE]: "/interlaje.svg" } as Record<ChampionshipCode, string>}
+          sports={[]}
+          nextMatches={[]}
+          isNextMatchesFetching={false}
+          standingsSportFilter="ALL"
+          standingsNaipeFilter="ALL"
+          standingsYearFilter="2026"
+          standingsDivisionFilter="ALL"
+          allStandingsSportFilter="ALL"
+          allStandingsNaipeFilter="ALL"
+          allStandingsDivisionFilter="ALL"
+          selectedChampionshipHasDivisions
+          filteredStandings={[]}
+          isStandingsNaipeFilterLocked={false}
+          standingsModalidadeConfig={undefined}
+          teamFilter="ALL"
+          yearFilter="ALL"
+          groupFilter="ALL"
+          allTeamFilter="ALL"
+          allYearFilter="ALL"
+          availableStandingsYears={["2026"]}
+          historyGroupOptions={[]}
+          historyTeams={[]}
+          historyYears={["2026"]}
+          filteredHistoryMatches={[]}
+          isHistoryMatchesFetching={false}
+          championshipChampionHistory={championshipChampionHistory}
+          overallPodiumStandings={[]}
+          awardsRankings={awardsRankings}
+          awardsSeasonYear={2026}
+          matchBracketContextByMatchId={{}}
+          matchRepresentationByMatchId={{}}
+          estimatedStartTimeByMatchId={{}}
+          onSelectChampionshipCode={vi.fn()}
+          onStandingsSportFilterChange={vi.fn()}
+          onStandingsNaipeFilterChange={vi.fn()}
+          onStandingsDivisionFilterChange={vi.fn()}
+          onStandingsYearFilterChange={vi.fn()}
+          onTeamFilterChange={vi.fn()}
+          onYearFilterChange={vi.fn()}
+          onGroupFilterChange={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    expect(await screen.findByText("Atlética Campeã")).toBeInTheDocument();
+    expect(screen.queryByText("Artilheiro")).not.toBeInTheDocument();
+    expect(screen.queryByText("Melhor defesa")).not.toBeInTheDocument();
+    expect(screen.queryByText("Jogador que não deve aparecer")).not.toBeInTheDocument();
+  });
+
+  it("renderiza classificação e resultados por prova para modalidades individuais do Interlaje", () => {
+    const championship: Championship = {
+      id: "championship-interlaje",
+      code: ChampionshipCode.INTERLAJE,
+      name: "Interlaje",
+      status: ChampionshipStatus.IN_PROGRESS,
+      current_season_year: 2026,
+      uses_divisions: true,
+      default_location: null,
+      created_at: "2026-08-01T00:00:00.000Z",
+    };
+
+    render(
+      <TooltipProvider>
+        <ChampionshipsPageView
+          isLoading={false}
+          isStandingsLoading={false}
+          championships={[championship]}
+          selectedChampionship={championship}
+          selectedChampionshipCode={ChampionshipCode.INTERLAJE}
+          selectedChampionshipIsFinished={false}
+          championshipCardImageByCode={{ [ChampionshipCode.INTERLAJE]: "/interlaje.svg" } as Record<ChampionshipCode, string>}
+          sports={[]}
+          nextMatches={[]}
+          isNextMatchesFetching={false}
+          standingsSportFilter="ALL"
+          standingsNaipeFilter="ALL"
+          standingsYearFilter="2026"
+          standingsDivisionFilter="ALL"
+          allStandingsSportFilter="ALL"
+          allStandingsNaipeFilter="ALL"
+          allStandingsDivisionFilter="ALL"
+          selectedChampionshipHasDivisions
+          filteredStandings={[]}
+          isIndividualStandingsView
+          individualStandingsRows={[]}
+          individualEvents={[
+            {
+              id: "event-1",
+              name: "100m",
+              naipe: MatchNaipe.MASCULINO,
+              scheduled_date: "2026-08-10",
+              location: "Pista Central",
+            } as ChampionshipIndividualEvent,
+          ]}
+          individualEntriesByEventId={{
+            "event-1": [
+              {
+                id: "entry-1",
+                status: "CONFIRMED",
+                final_position: 1,
+                athlete_name: "João",
+                points_awarded: 24,
+                teams: {
+                  name: "Atlética A",
+                },
+              } as ChampionshipIndividualEventEntry,
+            ],
+          }}
+          isStandingsNaipeFilterLocked={false}
+          standingsModalidadeConfig={undefined}
+          teamFilter="ALL"
+          yearFilter="ALL"
+          groupFilter="ALL"
+          allTeamFilter="ALL"
+          allYearFilter="ALL"
+          availableStandingsYears={["2026"]}
+          historyGroupOptions={[]}
+          historyTeams={[]}
+          historyYears={["2026"]}
+          filteredHistoryMatches={[]}
+          isHistoryMatchesFetching={false}
+          championshipChampionHistory={[]}
+          overallPodiumStandings={[]}
+          awardsRankings={null}
+          awardsSeasonYear={2026}
+          matchBracketContextByMatchId={{}}
+          matchRepresentationByMatchId={{}}
+          estimatedStartTimeByMatchId={{}}
+          onSelectChampionshipCode={vi.fn()}
+          onStandingsSportFilterChange={vi.fn()}
+          onStandingsNaipeFilterChange={vi.fn()}
+          onStandingsDivisionFilterChange={vi.fn()}
+          onStandingsYearFilterChange={vi.fn()}
+          onTeamFilterChange={vi.fn()}
+          onYearFilterChange={vi.fn()}
+          onGroupFilterChange={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByText("Individual standings table")).toBeInTheDocument();
+    expect(screen.getByText("Resultados por prova")).toBeInTheDocument();
+    expect(screen.getByText("100m")).toBeInTheDocument();
+    expect(screen.getByText("Atlética A")).toBeInTheDocument();
+    expect(screen.getByText("João")).toBeInTheDocument();
+    expect(screen.getByText("24 pts")).toBeInTheDocument();
   });
 });

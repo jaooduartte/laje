@@ -47,38 +47,7 @@ describe("AdminChampionshipQualificationSection", () => {
     mocks.toast.success.mockReset();
   });
 
-  it("habilita o cruzamento especial apenas no recorte elegível", () => {
-    render(
-      <AdminChampionshipQualificationSection
-        competitions={[
-          buildCompetition({
-            id: "competition-eligible",
-            sport_id: "sport-society",
-            sport_name: "Futebol Society",
-            naipe: MatchNaipe.FEMININO,
-            division: TeamDivision.DIVISAO_ACESSO,
-          }),
-          buildCompetition({
-            id: "competition-ineligible",
-            sport_id: "sport-society",
-            sport_name: "Futebol Society",
-            naipe: MatchNaipe.MASCULINO,
-            division: TeamDivision.DIVISAO_ACESSO,
-          }),
-        ]}
-        isEditable
-        onSaved={vi.fn()}
-      />,
-    );
-
-    const crossGroupRadios = screen.getAllByRole("radio", { name: /Cruzar 2 chaves/i });
-
-    expect(crossGroupRadios).toHaveLength(2);
-    expect(crossGroupRadios[0]).toBeEnabled();
-    expect(crossGroupRadios[1]).toBeDisabled();
-  });
-
-  it("preserva o modo legado ao salvar apenas a classificação", async () => {
+  it("salva apenas a configuração de classificação usando LINEAR internamente", async () => {
     mocks.updateBracketCompetitionSettings.mockResolvedValue({ error: null });
     const onSaved = vi.fn();
 
@@ -86,7 +55,7 @@ describe("AdminChampionshipQualificationSection", () => {
       <AdminChampionshipQualificationSection
         competitions={[
           buildCompetition({
-            id: "competition-legacy",
+            id: "competition-1",
             sport_id: "sport-beach-soccer",
             sport_name: "Beach Soccer",
             naipe: MatchNaipe.FEMININO,
@@ -100,21 +69,26 @@ describe("AdminChampionshipQualificationSection", () => {
       />,
     );
 
+    expect(screen.queryByText("Tipo de cruzamento")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Salvar classificação e cruzamento" }),
+    ).not.toBeInTheDocument();
+
     fireEvent.click(screen.getByRole("radio", { name: /1º e 2º por grupo/i }));
-    fireEvent.click(screen.getByRole("button", { name: "Salvar classificação e cruzamento" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salvar classificação" }));
 
     await waitFor(() => {
       expect(mocks.updateBracketCompetitionSettings).toHaveBeenCalledWith(
-        "competition-legacy",
+        "competition-1",
         2,
         false,
-        "BEACH_SOCCER_FEM_DIRECT_SEMI",
+        "LINEAR",
       );
     });
 
     expect(onSaved).toHaveBeenCalled();
     expect(mocks.toast.success).toHaveBeenCalledWith(
-      "Configuração de classificação e cruzamento atualizada.",
+      "Configuração de classificação atualizada.",
     );
   });
 
@@ -160,7 +134,7 @@ describe("AdminChampionshipQualificationSection", () => {
 
     expect(screen.getByText("Mata-mata já gerado")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Salvar classificação e cruzamento" }),
+      screen.queryByRole("button", { name: "Salvar classificação" }),
     ).not.toBeInTheDocument();
   });
 });

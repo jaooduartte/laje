@@ -31,12 +31,11 @@ export function useCompetitionTeamDisqualifications({
     setLoading(true);
 
     try {
-      const rpc = (supabase as unknown as {
-        rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
-      }).rpc;
       const responses = await Promise.all(
         resolvedSeasonYears.map((resolvedSeasonYear) => {
-          return rpc("list_championship_competition_team_disqualifications", {
+          return (supabase as unknown as {
+            rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
+          }).rpc("list_championship_competition_team_disqualifications", {
             _championship_id: championshipId,
             _season_year: resolvedSeasonYear,
           });

@@ -5,17 +5,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { AppBadge } from "@/components/ui/app-badge";
+import { useAuth } from "@/hooks/useAuth";
 import { useStandings } from "@/hooks/useStandings";
 import { useMatches } from "@/hooks/useMatches";
 import { useChampionshipBracketResolvedTieBreakOrders } from "@/hooks/useChampionshipBracketResolvedTieBreakOrders";
 import { useChampionshipCorrectedGroupStandings } from "@/hooks/useChampionshipCorrectedGroupStandings";
 import { useChampionshipBracketHistory } from "@/hooks/useChampionshipBracketHistory";
 import { useCompetitionTeamDisqualifications } from "@/hooks/useCompetitionTeamDisqualifications";
+import { useChampionshipSeasonRuntime } from "@/hooks/useChampionshipSeasonRuntime";
 import { supabase } from "@/integrations/supabase/client";
 import {
   compareAwardsRankingGoalScorers,
   useChampionshipAwardsRankings,
 } from "@/hooks/useChampionshipAwardsRankings";
+import { replaceChampionshipSeasonDivisionMovements } from "@/domain/championship-seasons/championshipSeason.repository";
 import { resolveChampionshipCompetitionPodiums } from "@/lib/championshipPodium";
 import {
   applyOfficialThirdPlacementToStandings,
@@ -27,7 +30,22 @@ import {
   resolveManualTieBreakWinnerTeamIdByPairKey,
   resolveTeamStandingAggregateKey,
 } from "@/lib/standings";
-import { ChampionshipAwardType, ChampionshipCode, ChampionshipSportTieBreakerRule, MatchNaipe, MatchStatus, TeamDivision } from "@/lib/enums";
+import {
+  AppBadgeTone,
+  ChampionshipAwardType,
+  ChampionshipCode,
+  ChampionshipSeasonDivisionSettlementMode,
+  ChampionshipSportTieBreakerRule,
+  MatchNaipe,
+  MatchStatus,
+  TeamDivision,
+} from "@/lib/enums";
+import {
+  type ChampionshipSeasonDivisionMovementPreview,
+  type ChampionshipSeasonSettingsShape,
+  resolveChampionshipOverallSeasonStandings,
+  resolveSeasonDivisionMovementPreview,
+} from "@/lib/championshipSeason";
 import { resolveModalidadeConfigBySportId } from "@/lib/modalidadeConfig";
 import {
   MATCH_NAIPE_LABELS,
@@ -38,6 +56,8 @@ import {
   resolveMatchNaipeBadgeTone,
 } from "@/lib/championship";
 import { TeamStandingsTable } from "@/components/TeamStandingsTable";
+import { IndividualSportStandingsTable } from "@/components/IndividualSportStandingsTable";
+import { isIndividualSportId } from "@/lib/individualEvents";
 import type {
   Championship,
   ChampionshipBracketView,
@@ -53,12 +73,30 @@ interface Props {
   sports: Sport[];
   championshipBracketView: ChampionshipBracketView;
   availableSeasonYears?: number[];
+  onRefetchTeams?: () => void | Promise<void>;
 }
 
 const ALL_SPORTS_FILTER = "all";
 const ALL_NAIPES_FILTER = "all";
 const ALL_GROUPS_FILTER = "all";
 const EMPTY_DISQUALIFICATION_FILTER = "";
+const DIVISION_MOVEMENT_RULE_LABELS: Record<string, string> = {
+  TOP_N_TO_PRINCIPAL: "Top colocadas para a principal",
+  PROMOTED_FROM_ACCESS: "Acesso promovida",
+  RELEGATED_FROM_PRINCIPAL: "Principal rebaixada",
+};
+
+function resolveDivisionMovementSummary(seasonSettings: ChampionshipSeasonSettingsShape): string {
+  if (seasonSettings.division_settlement_mode == ChampionshipSeasonDivisionSettlementMode.TOP_N_TO_PRINCIPAL) {
+    return `Os ${seasonSettings.principal_slots_count ?? 0} primeiros da geral irão para a divisão principal.`;
+  }
+
+  if (seasonSettings.division_settlement_mode == ChampionshipSeasonDivisionSettlementMode.PROMOTION_RELEGATION) {
+    return `${seasonSettings.access_promotion_count ?? 0} sobem do acesso e ${seasonSettings.principal_relegation_count ?? 0} caem da principal.`;
+  }
+
+  return "Não há movimentação sazonal configurada para este campeonato.";
+}
 
 export function AdminStandings({
   selectedChampionship,
@@ -66,7 +104,9 @@ export function AdminStandings({
   sports,
   championshipBracketView,
   availableSeasonYears = [],
+  onRefetchTeams = () => {},
 }: Props) {
+  const { user } = useAuth();
   const [sportFilter, setSportFilter] = useState<string>(ALL_SPORTS_FILTER);
   const [naipeFilter, setNaipeFilter] = useState<string>(ALL_NAIPES_FILTER);
   const [groupFilter, setGroupFilter] = useState<string>(ALL_GROUPS_FILTER);
@@ -79,12 +119,16 @@ export function AdminStandings({
   const [disqualificationDivisionFilter, setDisqualificationDivisionFilter] = useState<string>(EMPTY_DISQUALIFICATION_FILTER);
   const [selectedDisqualificationTeamId, setSelectedDisqualificationTeamId] = useState<string>("");
   const [isSavingDisqualification, setIsSavingDisqualification] = useState(false);
+  const [isDivisionMovementDialogOpen, setIsDivisionMovementDialogOpen] = useState(false);
+  const [isPreparingDivisionMovementPreview, setIsPreparingDivisionMovementPreview] = useState(false);
+  const [isApplyingDivisionMovements, setIsApplyingDivisionMovements] = useState(false);
 
   const selectedChampionshipSeasonYear = selectedChampionship?.current_season_year ?? null;
   const [yearFilter, setYearFilter] = useState<string>(
     selectedChampionshipSeasonYear != null ? String(selectedChampionshipSeasonYear) : "all",
   );
   const correctedYearFilter = yearFilter === "all" ? null : Number(yearFilter);
+  const displayedSeasonYear = correctedYearFilter ?? selectedChampionshipSeasonYear;
   const selectedDisqualificationSeasonYear = useMemo(() => {
     const parsedYear = Number(disqualificationYearFilter);
     return Number.isFinite(parsedYear) ? parsedYear : null;
@@ -126,6 +170,15 @@ export function AdminStandings({
     ])].sort((firstYear, secondYear) => secondYear - firstYear);
   }, [availableSeasonYears, championshipBracketSeasonViews]);
 
+  const {
+    resolvedSeasonSettings,
+    loading: seasonSettingsLoading,
+    usesDivisions: championshipUsesDivisions,
+  } = useChampionshipSeasonRuntime({
+    championship: selectedChampionship,
+    seasonYear: displayedSeasonYear,
+  });
+
   const disqualificationSeasonYears = useMemo(() => {
     return [...new Set([selectedChampionshipSeasonYear, ...historyYears])]
       .filter((year): year is number => year != null)
@@ -155,15 +208,28 @@ export function AdminStandings({
     }
   }, [historyYears, selectedChampionshipSeasonYear, yearFilter]);
 
-  const { standings, loading: standingsLoading } = useStandings({
+  const { standings, loading: standingsLoading, refetch: refetchDisplayedStandings } = useStandings({
     championshipId: selectedChampionship.id,
     seasonYear: correctedYearFilter,
-    division: selectedChampionship.uses_divisions ? divisionFilter : null,
+    division: championshipUsesDivisions ? divisionFilter : null,
+  });
+
+  const {
+    standings: seasonClosureStandings,
+    loading: seasonClosureStandingsLoading,
+    refetch: refetchSeasonClosureStandings,
+  } = useStandings({
+    championshipId: selectedChampionship.id,
+    seasonYear: selectedChampionshipSeasonYear,
   });
 
   const { correctedGroupStandings, loading: correctedStandingsLoading } = useChampionshipCorrectedGroupStandings({
     championshipId: selectedChampionship.id,
     seasonYear: correctedYearFilter,
+  });
+  const { correctedGroupStandings: seasonClosureCorrectedGroupStandings } = useChampionshipCorrectedGroupStandings({
+    championshipId: selectedChampionship.id,
+    seasonYear: selectedChampionshipSeasonYear,
   });
   const {
     disqualifications: competitionDisqualifications,
@@ -172,6 +238,7 @@ export function AdminStandings({
     championshipId: selectedChampionship.id,
     seasonYears: [...new Set([
       correctedYearFilter,
+      selectedChampionshipSeasonYear,
       selectedDisqualificationSeasonYear,
     ])].filter((seasonYear): seasonYear is number => seasonYear != null && Number.isFinite(seasonYear)),
   });
@@ -304,7 +371,7 @@ export function AdminStandings({
         return false;
       }
 
-      if (selectedChampionship.uses_divisions && disqualification.division != divisionFilter) {
+      if (championshipUsesDivisions && disqualification.division != divisionFilter) {
         return false;
       }
 
@@ -314,7 +381,7 @@ export function AdminStandings({
     competitionDisqualifications,
     divisionFilter,
     naipeFilter,
-    selectedChampionship.uses_divisions,
+    championshipUsesDivisions,
     sportFilter,
   ]);
 
@@ -407,6 +474,32 @@ export function AdminStandings({
     visibleCompetitionDisqualifiedTeamKeys,
   ]);
 
+  const isIndividualStandingsView = useMemo(() => {
+    return sportFilter != ALL_SPORTS_FILTER && isIndividualSportId(sportFilter, sports);
+  }, [sportFilter, sports]);
+
+  const filteredIndividualStandingsRows = useMemo(() => {
+    if (!isIndividualStandingsView) {
+      return [];
+    }
+
+    return standings.filter((standing) => {
+      if (standing.sport_id != sportFilter) {
+        return false;
+      }
+
+      if (naipeFilter != ALL_NAIPES_FILTER && standing.naipe != naipeFilter) {
+        return false;
+      }
+
+      if (championshipUsesDivisions && standing.division != divisionFilter) {
+        return false;
+      }
+
+      return standing.is_individual_sport == true;
+    });
+  }, [championshipUsesDivisions, divisionFilter, isIndividualStandingsView, naipeFilter, sportFilter, standings]);
+
   const standingsWithOfficialThirdPlacement = useMemo(() => {
     if (!shouldUseManualTieBreakOnStandings) {
       return {
@@ -426,7 +519,7 @@ export function AdminStandings({
           return false;
         }
 
-        if (!selectedChampionship.uses_divisions) {
+        if (!championshipUsesDivisions) {
           return true;
         }
 
@@ -443,7 +536,7 @@ export function AdminStandings({
     divisionFilter,
     filteredStandings,
     naipeFilter,
-    selectedChampionship.uses_divisions,
+    championshipUsesDivisions,
     selectedSeasonBracketView,
     shouldUseManualTieBreakOnStandings,
     sportFilter,
@@ -532,7 +625,7 @@ export function AdminStandings({
         return false;
       }
 
-      if (!selectedChampionship.uses_divisions) {
+      if (!championshipUsesDivisions) {
         return true;
       }
 
@@ -543,7 +636,7 @@ export function AdminStandings({
     disqualificationDivisionFilter,
     disqualificationNaipeFilter,
     disqualificationSportFilter,
-    selectedChampionship.uses_divisions,
+    championshipUsesDivisions,
   ]);
 
   const selectedCompetitionDisqualifications = useMemo(() => {
@@ -578,6 +671,69 @@ export function AdminStandings({
       })
       .sort((firstTeam, secondTeam) => firstTeam.team_name.localeCompare(secondTeam.team_name, "pt-BR", { sensitivity: "base" }));
   }, [selectedCompetitionDisqualifications, selectedDisqualificationCompetition]);
+
+  const seasonClosureCorrectedStandingByKey = useMemo(() => {
+    return seasonClosureCorrectedGroupStandings.reduce<
+      Record<string, { points_base: number; corrected_points: number }>
+    >((carry, correctedGroupStanding) => {
+      carry[resolveCorrectedStandingKey(correctedGroupStanding)] = {
+        points_base: correctedGroupStanding.points_base,
+        corrected_points: correctedGroupStanding.corrected_points,
+      };
+      return carry;
+    }, {});
+  }, [seasonClosureCorrectedGroupStandings]);
+
+  const seasonClosureCompetitionDisqualifications = useMemo(() => {
+    if (selectedChampionshipSeasonYear == null) {
+      return [];
+    }
+
+    return competitionDisqualifications.filter((disqualification) => {
+      return disqualification.season_year == selectedChampionshipSeasonYear;
+    });
+  }, [competitionDisqualifications, selectedChampionshipSeasonYear]);
+
+  const seasonClosureDisqualifiedTeamKeys = useMemo(() => {
+    if (seasonClosureCompetitionDisqualifications.length == 0) {
+      return undefined;
+    }
+
+    return new Set(
+      seasonClosureCompetitionDisqualifications.map((disqualification) => resolveTeamStandingAggregateKey(disqualification)),
+    );
+  }, [seasonClosureCompetitionDisqualifications]);
+
+  const overallSeasonStandings = useMemo(() => {
+    if (selectedChampionshipSeasonYear == null) {
+      return [];
+    }
+
+    return resolveChampionshipOverallSeasonStandings({
+      standings: seasonClosureStandings,
+      correctedStandingsByKey: seasonClosureCorrectedStandingByKey,
+      disqualifiedTeamKeys: seasonClosureDisqualifiedTeamKeys,
+    });
+  }, [
+    seasonClosureCorrectedStandingByKey,
+    seasonClosureDisqualifiedTeamKeys,
+    seasonClosureStandings,
+    selectedChampionshipSeasonYear,
+  ]);
+
+  const seasonDivisionMovementPreview = useMemo<ChampionshipSeasonDivisionMovementPreview[]>(() => {
+    return resolveSeasonDivisionMovementPreview({
+      seasonSettings: resolvedSeasonSettings,
+      standings: overallSeasonStandings,
+    }).filter((movement) => movement.previous_division != movement.next_division);
+  }, [overallSeasonStandings, resolvedSeasonSettings]);
+
+  const canPreviewDivisionMovements =
+    selectedChampionshipSeasonYear != null &&
+    resolvedSeasonSettings.division_settlement_mode != ChampionshipSeasonDivisionSettlementMode.NONE;
+  const divisionMovementSummary = useMemo(() => {
+    return resolveDivisionMovementSummary(resolvedSeasonSettings);
+  }, [resolvedSeasonSettings]);
 
   useEffect(() => {
     if (disqualificationSeasonYears.length == 0) {
@@ -619,7 +775,7 @@ export function AdminStandings({
   }, [disqualificationNaipeFilter, disqualificationNaipeOptions]);
 
   useEffect(() => {
-    if (!selectedChampionship.uses_divisions) {
+    if (!championshipUsesDivisions) {
       if (disqualificationDivisionFilter != EMPTY_DISQUALIFICATION_FILTER) {
         setDisqualificationDivisionFilter(EMPTY_DISQUALIFICATION_FILTER);
       }
@@ -639,7 +795,7 @@ export function AdminStandings({
   }, [
     disqualificationDivisionFilter,
     disqualificationDivisionOptions,
-    selectedChampionship.uses_divisions,
+    championshipUsesDivisions,
   ]);
 
   useEffect(() => {
@@ -658,9 +814,10 @@ export function AdminStandings({
   const isLoading = standingsLoading || correctedStandingsLoading || tieBreaksLoading || finishedMatchesLoading;
 
   const awardsSeasonYear = correctedYearFilter ?? selectedChampionshipSeasonYear;
+  const shouldLoadAwardsRankings = selectedChampionship.code == ChampionshipCode.SOCIETY;
   const { rankings: awardsRankings } = useChampionshipAwardsRankings({
-    championshipId: selectedChampionship.id,
-    seasonYear: awardsSeasonYear,
+    championshipId: shouldLoadAwardsRankings ? selectedChampionship.id : null,
+    seasonYear: shouldLoadAwardsRankings ? awardsSeasonYear : null,
   });
 
   const formatDefenseAverage = (value: number) => value.toLocaleString("pt-BR", {
@@ -684,13 +841,13 @@ export function AdminStandings({
         return false;
       }
 
-      if (selectedChampionship.uses_divisions && groupDivision !== divisionFilter) {
+      if (championshipUsesDivisions && groupDivision !== divisionFilter) {
         return false;
       }
 
       return true;
     });
-  }, [awardsRankings, divisionFilter, naipeFilter, selectedChampionship.uses_divisions]);
+  }, [awardsRankings, championshipUsesDivisions, divisionFilter, naipeFilter]);
 
   const groupLabelByTeamId = useMemo(() => {
     if (sportFilter == ALL_SPORTS_FILTER || naipeFilter == ALL_NAIPES_FILTER) {
@@ -725,6 +882,51 @@ export function AdminStandings({
     setDisqualificationDivisionFilter(EMPTY_DISQUALIFICATION_FILTER);
     setSelectedDisqualificationTeamId("");
     setIsDisqualificationDialogOpen(true);
+  }
+
+  async function handleOpenDivisionMovementDialog() {
+    if (
+      selectedChampionshipSeasonYear == null ||
+      isPreparingDivisionMovementPreview ||
+      isApplyingDivisionMovements
+    ) {
+      return;
+    }
+
+    if (seasonDivisionMovementPreview.length == 0) {
+      toast.info("Nenhuma mudança de divisão foi identificada com a classificação atual.");
+      return;
+    }
+
+    setIsPreparingDivisionMovementPreview(true);
+
+    try {
+      const { error } = await replaceChampionshipSeasonDivisionMovements({
+        championshipId: selectedChampionship.id,
+        seasonYear: selectedChampionshipSeasonYear,
+        payload: seasonDivisionMovementPreview.map((movement) => ({
+          championship_id: selectedChampionship.id,
+          season_year: selectedChampionshipSeasonYear,
+          team_id: movement.team_id,
+          previous_division: movement.previous_division,
+          next_division: movement.next_division,
+          source_division: movement.source_division,
+          ranking_position: movement.ranking_position,
+          rule_code: movement.rule_code,
+          confirmed_by: null,
+          confirmed_at: null,
+        })),
+      });
+
+      if (error) {
+        toast.error("Não foi possível preparar a prévia de movimentação.");
+        return;
+      }
+
+      setIsDivisionMovementDialogOpen(true);
+    } finally {
+      setIsPreparingDivisionMovementPreview(false);
+    }
   }
 
   async function handleConfirmDisqualification() {
@@ -771,24 +973,106 @@ export function AdminStandings({
     }
   }
 
+  async function handleApplyDivisionMovements() {
+    if (
+      selectedChampionshipSeasonYear == null ||
+      seasonDivisionMovementPreview.length == 0 ||
+      isApplyingDivisionMovements
+    ) {
+      return;
+    }
+
+    setIsApplyingDivisionMovements(true);
+
+    try {
+      for (const movement of seasonDivisionMovementPreview) {
+        const { error } = await supabase
+          .from("teams")
+          .update({ division: movement.next_division })
+          .eq("id", movement.team_id);
+
+        if (error) {
+          throw error;
+        }
+      }
+
+      const confirmedAt = new Date().toISOString();
+      const { error } = await replaceChampionshipSeasonDivisionMovements({
+        championshipId: selectedChampionship.id,
+        seasonYear: selectedChampionshipSeasonYear,
+        payload: seasonDivisionMovementPreview.map((movement) => ({
+          championship_id: selectedChampionship.id,
+          season_year: selectedChampionshipSeasonYear,
+          team_id: movement.team_id,
+          previous_division: movement.previous_division,
+          next_division: movement.next_division,
+          source_division: movement.source_division,
+          ranking_position: movement.ranking_position,
+          rule_code: movement.rule_code,
+          confirmed_by: user?.id ?? null,
+          confirmed_at: confirmedAt,
+        })),
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      await Promise.all([
+        refetchDisplayedStandings(),
+        refetchSeasonClosureStandings(),
+        refetchCompetitionDisqualifications(),
+        Promise.resolve(onRefetchTeams()),
+      ]);
+
+      setIsDivisionMovementDialogOpen(false);
+      toast.success("Movimentação de divisões aplicada com sucesso.");
+    } catch (error) {
+      console.error("Erro ao aplicar movimentação de divisões:", error);
+      toast.error("Não foi possível aplicar a movimentação de divisões.");
+    } finally {
+      setIsApplyingDivisionMovements(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="glass-card enter-section flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-foreground">Ações da competição</p>
           <p className="text-xs text-muted-foreground">
-            Desclassifique uma atlética escolhendo ano, modalidade, naipe, divisão e equipe diretamente no formulário.
+            Desclassifique atléticas e confirme a movimentação sazonal usando a classificação oficial final da temporada.
           </p>
         </div>
 
-        <Button
-          type="button"
-          className="w-full sm:w-auto"
-          onClick={handleOpenDisqualificationDialog}
-        >
-          <ShieldAlert className="h-4 w-4" />
-          Desclassificar atlética
-        </Button>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+          {canPreviewDivisionMovements ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => void handleOpenDivisionMovementDialog()}
+              disabled={
+                isPreparingDivisionMovementPreview ||
+                isApplyingDivisionMovements ||
+                seasonSettingsLoading ||
+                seasonClosureStandingsLoading
+              }
+            >
+              {isPreparingDivisionMovementPreview ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trophy className="h-4 w-4" />}
+              Prévia de divisões
+            </Button>
+          ) : null}
+
+          <Button
+            type="button"
+            className="w-full sm:w-auto"
+            onClick={handleOpenDisqualificationDialog}
+          >
+            <ShieldAlert className="h-4 w-4" />
+            Desclassificar atlética
+          </Button>
+        </div>
       </div>
 
       <div className="space-y-3">
@@ -849,7 +1133,7 @@ export function AdminStandings({
           </Select>
         </div>
 
-        {selectedChampionship.uses_divisions && (
+        {championshipUsesDivisions && (
           <div>
             <Select value={divisionFilter} onValueChange={(value) => setDivisionFilter(value as TeamDivision)}>
               <SelectTrigger className="app-input-field">
@@ -893,15 +1177,19 @@ export function AdminStandings({
           </div>
         </div>
 
-        <TeamStandingsTable
-          standings={standingsWithOfficialThirdPlacement.adjustedStandings}
-          modalidadeConfig={activeModalidadeConfig}
-          isLoading={isLoading}
-          variant="full"
-          drawWinners={drawWinners}
-          groupLabelByTeamId={groupLabelByTeamId}
-          disqualifiedTeamKeys={visibleCompetitionDisqualifiedTeamKeys}
-        />
+        {isIndividualStandingsView ? (
+          <IndividualSportStandingsTable standings={filteredIndividualStandingsRows} isLoading={isLoading} />
+        ) : (
+          <TeamStandingsTable
+            standings={standingsWithOfficialThirdPlacement.adjustedStandings}
+            modalidadeConfig={activeModalidadeConfig}
+            isLoading={isLoading}
+            variant="full"
+            drawWinners={drawWinners}
+            groupLabelByTeamId={groupLabelByTeamId}
+            disqualifiedTeamKeys={visibleCompetitionDisqualifiedTeamKeys}
+          />
+        )}
       </div>
 
       {awardsRankings && selectedChampionship.code === ChampionshipCode.SOCIETY ? (
@@ -1146,7 +1434,7 @@ export function AdminStandings({
                 </Select>
               </div>
 
-              {selectedChampionship.uses_divisions ? (
+              {championshipUsesDivisions ? (
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground" htmlFor="competition-disqualification-division">
                     Divisão
@@ -1207,6 +1495,74 @@ export function AdminStandings({
             >
               {isSavingDisqualification ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Confirmar desclassificação
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDivisionMovementDialogOpen} onOpenChange={setIsDivisionMovementDialogOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Prévia de movimentação das divisões</DialogTitle>
+            <DialogDescription>
+              {divisionMovementSummary} A confirmação abaixo aplica a nova divisão nas atléticas e grava o histórico desta temporada.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="rounded-xl border border-border/60 bg-secondary/30 p-3 text-sm text-muted-foreground">
+              Base de cálculo: classificação geral oficial final da temporada {selectedChampionshipSeasonYear ?? "-"}, já considerando correções e desclassificações.
+            </div>
+
+            {seasonDivisionMovementPreview.length == 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhuma mudança de divisão foi identificada na prévia atual.</p>
+            ) : (
+              <div className="space-y-2">
+                {seasonDivisionMovementPreview.map((movement) => (
+                  <div key={movement.team_id} className="rounded-xl border border-border/60 bg-background/80 p-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{movement.team_name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {DIVISION_MOVEMENT_RULE_LABELS[movement.rule_code] ?? movement.rule_code} • posição {movement.ranking_position}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {movement.previous_division ? (
+                          <AppBadge tone={TEAM_DIVISION_BADGE_TONES[movement.previous_division]}>
+                            {TEAM_DIVISION_LABELS[movement.previous_division]}
+                          </AppBadge>
+                        ) : (
+                          <AppBadge tone={AppBadgeTone.NEUTRAL}>Sem divisão</AppBadge>
+                        )}
+                        <span className="text-xs text-muted-foreground">→</span>
+                        {movement.next_division ? (
+                          <AppBadge tone={TEAM_DIVISION_BADGE_TONES[movement.next_division]}>
+                            {TEAM_DIVISION_LABELS[movement.next_division]}
+                          </AppBadge>
+                        ) : (
+                          <AppBadge tone={AppBadgeTone.NEUTRAL}>Sem divisão</AppBadge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsDivisionMovementDialogOpen(false)} disabled={isApplyingDivisionMovements}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void handleApplyDivisionMovements()}
+              disabled={seasonDivisionMovementPreview.length == 0 || isApplyingDivisionMovements}
+            >
+              {isApplyingDivisionMovements ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Confirmar movimentação
             </Button>
           </DialogFooter>
         </DialogContent>

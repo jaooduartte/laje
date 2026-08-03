@@ -6,20 +6,12 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { AppBadge } from "@/components/ui/app-badge";
 import { AppBadgeTone } from "@/lib/enums";
 import { MATCH_NAIPE_LABELS, TEAM_DIVISION_LABELS } from "@/lib/championship";
-import { cn } from "@/lib/utils";
 import {
   QUALIFICATION_MODE_OPTIONS,
   resolveCompetitionConfigByQualificationMode,
   resolveQualificationModeOption,
   type QualificationModeOption,
 } from "@/domain/championship-brackets/championshipBracketQualification";
-import {
-  CHAMPIONSHIP_KNOCKOUT_PAIRING_MODE_OPTIONS,
-  resolveCompetitionKnockoutPairingModeControlValue,
-  resolveIsCrossGroupKnockoutPairingAvailable,
-  resolveIsLegacyKnockoutPairingMode,
-  type ChampionshipKnockoutPairingMode,
-} from "@/domain/championship-brackets/championshipBracketPairing";
 import { updateBracketCompetitionSettings } from "@/domain/championship-brackets/championshipBracket.repository";
 import type { ChampionshipBracketCompetition } from "@/lib/types";
 
@@ -41,9 +33,6 @@ export function AdminChampionshipQualificationSection({ competitions, isEditable
   const [selectedModeByCompetitionId, setSelectedModeByCompetitionId] = useState<
     Record<string, QualificationModeOption>
   >({});
-  const [selectedPairingModeByCompetitionId, setSelectedPairingModeByCompetitionId] = useState<
-    Record<string, ChampionshipKnockoutPairingMode>
-  >({});
   const [savingCompetitionId, setSavingCompetitionId] = useState<string | null>(null);
 
   if (competitions.length === 0) {
@@ -63,18 +52,13 @@ export function AdminChampionshipQualificationSection({ competitions, isEditable
       },
       mode,
     );
-    const nextKnockoutPairingMode =
-      selectedPairingModeByCompetitionId[competition.id] ??
-      competition.knockout_pairing_mode ??
-      "LINEAR";
-
     setSavingCompetitionId(competition.id);
 
     const { error } = await updateBracketCompetitionSettings(
       competition.id,
       nextConfig.qualifiers_per_group,
       nextConfig.should_complete_knockout_with_best_second_placed_teams,
-      nextKnockoutPairingMode,
+      "LINEAR",
     );
 
     setSavingCompetitionId(null);
@@ -84,13 +68,8 @@ export function AdminChampionshipQualificationSection({ competitions, isEditable
       return;
     }
 
-    toast.success("Configuração de classificação e cruzamento atualizada.");
+    toast.success("Configuração de classificação atualizada.");
     setSelectedModeByCompetitionId((prev) => {
-      const next = { ...prev };
-      delete next[competition.id];
-      return next;
-    });
-    setSelectedPairingModeByCompetitionId((prev) => {
       const next = { ...prev };
       delete next[competition.id];
       return next;
@@ -107,22 +86,10 @@ export function AdminChampionshipQualificationSection({ competitions, isEditable
             competition.should_complete_knockout_with_best_second_placed_teams ?? false,
         });
         const selectedMode = selectedModeByCompetitionId[competition.id] ?? persistedMode;
-        const persistedPairingMode = competition.knockout_pairing_mode ?? "LINEAR";
-        const selectedPairingMode =
-          selectedPairingModeByCompetitionId[competition.id] ?? persistedPairingMode;
-        const selectedPairingControlValue =
-          resolveCompetitionKnockoutPairingModeControlValue(selectedPairingMode);
         const isKnockoutGenerated = competition.knockout_matches.length > 0;
         const isCompetitionEditable = isEditable && !isKnockoutGenerated;
         const isSaving = savingCompetitionId === competition.id;
-        const hasPendingChange =
-          selectedMode !== persistedMode || selectedPairingMode !== persistedPairingMode;
-        const isCrossGroupAvailable = resolveIsCrossGroupKnockoutPairingAvailable({
-          sport_name: competition.sport_name,
-          naipe: competition.naipe,
-          division: competition.division,
-        });
-        const showsLegacyHint = resolveIsLegacyKnockoutPairingMode(persistedPairingMode);
+        const hasPendingChange = selectedMode !== persistedMode;
 
         return (
           <div key={competition.id} className="glass-card flex h-full flex-col space-y-3 p-4">
@@ -158,53 +125,6 @@ export function AdminChampionshipQualificationSection({ competitions, isEditable
               ))}
             </RadioGroup>
 
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Tipo de cruzamento</p>
-              <RadioGroup
-                value={selectedPairingControlValue}
-                disabled={!isCompetitionEditable || isSaving}
-                onValueChange={(value) =>
-                  setSelectedPairingModeByCompetitionId((prev) => ({
-                    ...prev,
-                    [competition.id]: value as ChampionshipKnockoutPairingMode,
-                  }))
-                }
-                className="space-y-2"
-              >
-                {CHAMPIONSHIP_KNOCKOUT_PAIRING_MODE_OPTIONS.map((modeOption) => {
-                  const isCrossGroupOption =
-                    modeOption.value == "FUTEBOL_SOCIETY_FEM_ACCESS_CROSS_GROUPS";
-                  const isOptionEnabled =
-                    !isCrossGroupOption || isCrossGroupAvailable;
-
-                  return (
-                    <label
-                      key={modeOption.value}
-                      className={cn(
-                        "app-card-muted flex items-start gap-3 p-3",
-                        isOptionEnabled ? "cursor-pointer" : "cursor-not-allowed opacity-60",
-                      )}
-                    >
-                      <RadioGroupItem
-                        value={modeOption.value}
-                        className="mt-0.5"
-                        disabled={!isOptionEnabled}
-                      />
-                      <span className="space-y-0.5">
-                        <span className="block text-sm font-medium">{modeOption.label}</span>
-                        <span className="block text-xs text-muted-foreground">{modeOption.helper}</span>
-                      </span>
-                    </label>
-                  );
-                })}
-              </RadioGroup>
-              {showsLegacyHint ? (
-                <p className="text-xs text-muted-foreground">
-                  Esta competição está com um modo legado preservado. Ele só será trocado se você salvar um novo tipo de cruzamento.
-                </p>
-              ) : null}
-            </div>
-
             {isCompetitionEditable ? (
               <div className="mt-auto flex justify-end pt-1">
                 <Button
@@ -214,7 +134,7 @@ export function AdminChampionshipQualificationSection({ competitions, isEditable
                   onClick={() => saveCompetition(competition, selectedMode)}
                 >
                   {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-                  Salvar classificação e cruzamento
+                  Salvar classificação
                 </Button>
               </div>
             ) : null}

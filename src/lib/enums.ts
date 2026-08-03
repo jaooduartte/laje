@@ -54,6 +54,51 @@ export enum TeamDivision {
   DIVISAO_ACESSO = "DIVISAO_ACESSO",
 }
 
+export enum ChampionshipSeasonDivisionFormat {
+  SEPARATED = "SEPARATED",
+  UNIFIED = "UNIFIED",
+}
+
+export enum ChampionshipSeasonDivisionSettlementMode {
+  NONE = "NONE",
+  PROMOTION_RELEGATION = "PROMOTION_RELEGATION",
+  TOP_N_TO_PRINCIPAL = "TOP_N_TO_PRINCIPAL",
+}
+
+export enum ChampionshipSchedulePeriod {
+  MATUTINO = "MATUTINO",
+  VESPERTINO = "VESPERTINO",
+}
+
+export enum ChampionshipIndividualEventKind {
+  INDIVIDUAL = "INDIVIDUAL",
+  RELAY = "RELAY",
+}
+
+export enum ChampionshipIndividualEventStatus {
+  DRAFT = "DRAFT",
+  SCHEDULED = "SCHEDULED",
+  FINISHED = "FINISHED",
+  CANCELLED = "CANCELLED",
+}
+
+export enum ChampionshipIndividualSessionStatus {
+  DRAFT = "DRAFT",
+  SCHEDULED = "SCHEDULED",
+  LIVE = "LIVE",
+  FINISHED = "FINISHED",
+  CANCELLED = "CANCELLED",
+}
+
+export enum ChampionshipIndividualEntryStatus {
+  PENDING = "PENDING",
+  CONFIRMED = "CONFIRMED",
+  DNS = "DNS",
+  DSQ = "DSQ",
+  CANCELLED = "CANCELLED",
+  DSQ_OVER_LIMIT = "DSQ_OVER_LIMIT",
+}
+
 export enum TeamDivisionSelection {
   DIVISAO_PRINCIPAL = "DIVISAO_PRINCIPAL",
   DIVISAO_ACESSO = "DIVISAO_ACESSO",
@@ -82,6 +127,7 @@ export enum ChampionshipSportTieBreakerRule {
   BEACH_SOCCER = "BEACH_SOCCER",
   BEACH_TENNIS = "BEACH_TENNIS",
   FUTEBOL_SOCIETY = "FUTEBOL_SOCIETY",
+  HANDEBOL = "HANDEBOL",
 }
 
 export enum ChampionshipSportResultRule {
@@ -156,6 +202,7 @@ export enum AdminPanelTab {
   BRACKET_SETUP = "bracket_setup",
   MATCHES = "matches",
   CONTROL = "control",
+  INDIVIDUAL_EVENTS = "individual_events",
   TEAMS = "teams",
   SPORTS = "sports",
   EVENTS = "events",

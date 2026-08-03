@@ -12,7 +12,12 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Championship, ChampionshipSport, Team } from "@/lib/types";
 import {
+  AppBadgeTone,
   BracketThirdPlaceMode,
+  ChampionshipCode,
+  ChampionshipSchedulePeriod,
+  ChampionshipSeasonDivisionFormat,
+  ChampionshipSeasonDivisionSettlementMode,
   ChampionshipSportNaipeMode,
   MatchNaipe,
   TeamDivision,
@@ -32,11 +37,7 @@ import {
   type QualificationModeOption,
 } from "@/domain/championship-brackets/championshipBracketQualification";
 import {
-  CHAMPIONSHIP_KNOCKOUT_PAIRING_MODE_OPTIONS,
-  resolveCompetitionKnockoutPairingModeControlValue,
-  resolveCompetitionKnockoutPairingModeLabel,
   resolveDefaultCompetitionKnockoutPairingMode,
-  resolveIsCrossGroupKnockoutPairingAvailable,
 } from "@/domain/championship-brackets/championshipBracketPairing";
 import {
   resolveGroupEditorColumns,
@@ -60,7 +61,13 @@ import {
 } from "@/domain/championship-brackets/championshipBracketKnockoutProjection";
 import { ChampionshipBracketSetupDTO } from "@/domain/championship-brackets/ChampionshipBracketSetupDTO";
 import { ChampionshipBracketWizardDraftDTO } from "@/domain/championship-brackets/ChampionshipBracketWizardDraftDTO";
-import { sanitizeChampionshipBracketWizardDraft } from "@/domain/championship-brackets/championshipBracketWizardSync";
+import {
+  resolveSelectableChampionshipTeams,
+  sanitizeIndividualEventConfigsValues,
+  sanitizeIndividualSessionConfigsValues,
+  sanitizeResourceLocksValues,
+  sanitizeChampionshipBracketWizardDraft,
+} from "@/domain/championship-brackets/championshipBracketWizardSync";
 import {
   clearChampionshipBracketWizardDraft,
   fetchChampionshipBracketWizardDraft,
@@ -72,6 +79,12 @@ import {
   fetchChampionshipBracketLocationTemplates,
   saveChampionshipBracketLocationTemplate,
 } from "@/domain/championship-brackets/championshipBracket.repository";
+import { saveChampionshipSeasonSettings } from "@/domain/championship-seasons/championshipSeason.repository";
+import {
+  syncChampionshipIndividualEventsFromSetup,
+  syncChampionshipIndividualSessionsFromSetup,
+} from "@/domain/individual-events/championshipIndividualEvents.repository";
+import { useChampionshipSeasonSettings } from "@/hooks/useChampionshipSeasonSettings";
 import type {
   ChampionshipBracketCompetitionConfigDraft,
   ChampionshipBracketCompetitionInput,
@@ -79,13 +92,18 @@ import type {
   ChampionshipBracketLocationTemplate,
   ChampionshipBracketLocationTemplateSaveInput,
   ChampionshipBracketRemoteDraftMetadata,
+  ChampionshipBracketCompetitionPeriodAvailabilityInput,
+  ChampionshipBracketIndividualEventConfigInput,
   ChampionshipBracketSetupFormValues,
   ChampionshipBracketLocationInput,
   ChampionshipBracketParticipantInput,
+  ChampionshipBracketSchedulePeriodInput,
+  ChampionshipSeasonSettingsInput,
   ChampionshipBracketScheduleCourtDraft,
   ChampionshipBracketScheduleDayDraft,
   ChampionshipBracketScheduleDayInput,
   ChampionshipBracketScheduleLocationDraft,
+  ChampionshipBracketTeamCompetitionAvailabilityInput,
   ChampionshipBracketWizardDraftFormValues,
 } from "@/domain/championship-brackets/championshipBracket.types";
 import { Button } from "@/components/ui/button";
@@ -111,6 +129,10 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AdminBracketDrawModal } from "@/components/admin/AdminBracketDrawModal";
+import {
+  resolveLocationCatalogSportOptions,
+  resolveLocationCatalogSupportSummary,
+} from "@/components/admin/adminChampionshipLocationCatalog.utils";
 
 interface Props {
   selectedChampionship: Championship;
@@ -172,17 +194,33 @@ interface LocationTemplateDeletionTarget {
 
 const COMPETITION_DIVISION_WITHOUT_DIVISION = "WITHOUT_DIVISION";
 const NORMALIZED_BEACH_SOCCER_NAME = "beach soccer";
+const INDIVIDUAL_SPORT_NAMES = new Set(["atletismo", "natacao"]);
+const SCHEDULE_PERIOD_LABELS: Record<ChampionshipSchedulePeriod, string> = {
+  [ChampionshipSchedulePeriod.MATUTINO]: "Matutino",
+  [ChampionshipSchedulePeriod.VESPERTINO]: "Vespertino",
+};
+const SCHEDULE_PERIODS = [
+  ChampionshipSchedulePeriod.MATUTINO,
+  ChampionshipSchedulePeriod.VESPERTINO,
+] as const;
 
 const WIZARD_STEP_LABELS = [
+  "Formato da Temporada",
+  "Modalidades do Campeonato",
   "Participantes",
-  "Modalidades",
+  "Atléticas por Modalidade",
   "Naipes",
   "Configuração de Grupos",
-  "Sorteio dos Grupos",
   "Agenda",
-  "Prioridade de Quadras",
+  "Sessões das Modalidades Individuais",
+  "Disponibilidade por Modalidade",
+  "Disponibilidade das Atléticas",
+  "Prioridade e Reserva de Quadras",
+  "Sorteio dos Grupos",
   "Revisão",
 ] as const;
+
+const WIZARD_STEP_ROW_BREAK_INDEX = 7;
 
 const SQUARE_CHECKBOX_CLASS_NAME = "h-4 w-4 rounded-[3px]";
 const WIZARD_NAIPE_TAB_DEFAULT_ORDER = [
@@ -209,6 +247,10 @@ function resolveNormalizedSportName(sportName: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
+}
+
+function resolveIsIndividualSportName(sportName: string): boolean {
+  return INDIVIDUAL_SPORT_NAMES.has(resolveNormalizedSportName(sportName));
 }
 
 function resolveCompetitionKey(
@@ -484,9 +526,44 @@ function resolveScheduleDayClone(
   };
 }
 
-function resolveInitialWizardDraftFormValues(): ChampionshipBracketWizardDraftFormValues {
+function resolveDefaultSeasonSettings(
+  championshipCode?: ChampionshipCode,
+): ChampionshipSeasonSettingsInput {
+  if (championshipCode == ChampionshipCode.INTERLAJE) {
+    return {
+      division_format: ChampionshipSeasonDivisionFormat.SEPARATED,
+      division_settlement_mode:
+        ChampionshipSeasonDivisionSettlementMode.PROMOTION_RELEGATION,
+      principal_slots_count: null,
+      principal_relegation_count: 2,
+      access_promotion_count: 2,
+    };
+  }
+
+  return {
+    division_format: ChampionshipSeasonDivisionFormat.UNIFIED,
+    division_settlement_mode:
+      ChampionshipSeasonDivisionSettlementMode.NONE,
+    principal_slots_count: null,
+    principal_relegation_count: null,
+    access_promotion_count: null,
+  };
+}
+
+function resolveUsesSeasonDivisions(
+  seasonSettings: ChampionshipSeasonSettingsInput,
+) {
+  return seasonSettings.division_format == ChampionshipSeasonDivisionFormat.SEPARATED;
+}
+
+function resolveInitialWizardDraftFormValues(
+  seasonSettings: ChampionshipSeasonSettingsInput = resolveDefaultSeasonSettings(),
+  enabledSportIds: string[] = [],
+): ChampionshipBracketWizardDraftFormValues {
   return {
     current_step_index: 0,
+    season_settings: seasonSettings,
+    enabled_sport_ids: [...enabledSportIds],
     selected_team_ids: [],
     selected_sport_ids_by_team_id: {},
     show_estimated_start_time_on_cards_by_sport_id: {},
@@ -498,6 +575,67 @@ function resolveInitialWizardDraftFormValues(): ChampionshipBracketWizardDraftFo
     group_assignments_by_competition_key: {},
     group_order_by_competition_key: {},
     schedule_days: [resolveInitialScheduleDay()],
+    schedule_periods: [],
+    competition_period_availability: [],
+    team_competition_availability: [],
+    individual_event_configs: [],
+    individual_session_configs: [],
+    resource_locks: [],
+  };
+}
+
+function areRemoteDraftMetadataEqual(
+  left: ChampionshipBracketRemoteDraftMetadata | null,
+  right: ChampionshipBracketRemoteDraftMetadata | null,
+) {
+  if (left == right) {
+    return true;
+  }
+
+  if (!left || !right) {
+    return false;
+  }
+
+  return (
+    left.updated_at == right.updated_at &&
+    left.updated_by_name == right.updated_by_name &&
+    left.updated_by == right.updated_by
+  );
+}
+
+function resolveIndividualSessionConfigKey(input: {
+  sport_id: string;
+  naipe: MatchNaipe;
+  division: TeamDivision | null;
+}) {
+  return resolveCompetitionKey(input.sport_id, input.naipe, input.division);
+}
+
+function resolveResourceLockFromIndividualSession(
+  sessionConfig: ChampionshipBracketWizardDraftFormValues["individual_session_configs"][number],
+) {
+  if (
+    !sessionConfig.exclusive_lock_enabled ||
+    !sessionConfig.scheduled_date ||
+    !sessionConfig.period ||
+    !sessionConfig.location_key ||
+    !sessionConfig.court_key
+  ) {
+    return null;
+  }
+
+  return {
+    date: sessionConfig.scheduled_date,
+    period: sessionConfig.period,
+    location_key: sessionConfig.location_key,
+    court_key: sessionConfig.court_key,
+    location_name: sessionConfig.location_name,
+    court_name: sessionConfig.court_name,
+    lock_mode: "HARD" as const,
+    competition_key: null,
+    sport_id: sessionConfig.sport_id,
+    naipe: sessionConfig.naipe,
+    division: sessionConfig.division,
   };
 }
 
@@ -561,48 +699,6 @@ function resolveScheduleLocationFromTemplate(
   };
 }
 
-function resolveScheduleLocationCourtCountSummaryBySport(
-  schedule_location: ScheduleLocationFormValue,
-  competition_options: ChampionshipBracketWizardCompetitionOption[],
-): string {
-  const sportNameBySportId = competition_options.reduce<Record<string, string>>(
-    (carry, competitionOption) => {
-      carry[competitionOption.sport_id] = competitionOption.sport_name;
-      return carry;
-    },
-    {},
-  );
-
-  const courtCountBySportName = schedule_location.courts.reduce<
-    Record<string, number>
-  >((carry, court) => {
-    const supportedSportNames = [
-      ...new Set(
-        court.sport_ids
-          .map((sportId) => sportNameBySportId[sportId])
-          .filter(Boolean),
-      ),
-    ];
-
-    supportedSportNames.forEach((sportName) => {
-      carry[sportName] = (carry[sportName] ?? 0) + 1;
-    });
-
-    return carry;
-  }, {});
-
-  return Object.entries(courtCountBySportName)
-    .sort(([leftSportName], [rightSportName]) =>
-      leftSportName.localeCompare(rightSportName, "pt-BR", {
-        sensitivity: "base",
-      }),
-    )
-    .map(([sportName, courtCount]) => {
-      return `${courtCount} quadra${courtCount == 1 ? "" : "s"} ${sportName}`;
-    })
-    .join(" • ");
-}
-
 function resolveDefaultCompetitionConfig(
   team_count: number,
   competition_option?: ChampionshipBracketWizardCompetitionOption | null,
@@ -614,11 +710,7 @@ function resolveDefaultCompetitionConfig(
     qualifiers_per_group: CHAMPIONSHIP_BRACKET_DEFAULT_QUALIFIERS_PER_GROUP,
     should_complete_knockout_with_best_second_placed_teams: true,
     knockout_pairing_mode: competition_option
-      ? resolveDefaultCompetitionKnockoutPairingMode({
-          sport_name: competition_option.sport_name,
-          naipe: competition_option.naipe,
-          division: competition_option.division,
-        })
+      ? resolveDefaultCompetitionKnockoutPairingMode()
       : "LINEAR",
   };
 }
@@ -699,6 +791,169 @@ function resolveBrazilianDateString(date_value: string): string {
   }
 
   return `${day_value}/${month_value}/${year_value}`;
+}
+
+function resolveDatePeriodKey(
+  date: string,
+  period: ChampionshipSchedulePeriod,
+): string {
+  return `${date}::${period}`;
+}
+
+function resolveDatePeriodEnabledMap(
+  schedulePeriods: ChampionshipBracketSchedulePeriodInput[],
+): Record<string, boolean> {
+  return schedulePeriods.reduce<Record<string, boolean>>((carry, schedulePeriod) => {
+    carry[resolveDatePeriodKey(schedulePeriod.date, schedulePeriod.period)] =
+      schedulePeriod.enabled != false;
+    return carry;
+  }, {});
+}
+
+function sanitizeSchedulePeriodsForDates(
+  dates: string[],
+  schedulePeriods: ChampionshipBracketSchedulePeriodInput[],
+): ChampionshipBracketSchedulePeriodInput[] {
+  const periodByDatePeriodKey = new Map(
+    schedulePeriods.map((schedulePeriod) => [
+      resolveDatePeriodKey(schedulePeriod.date, schedulePeriod.period),
+      schedulePeriod,
+    ]),
+  );
+
+  return dates.flatMap((date) =>
+    SCHEDULE_PERIODS.map((period) => {
+      const existingSchedulePeriod = periodByDatePeriodKey.get(
+        resolveDatePeriodKey(date, period),
+      );
+
+      return {
+        date,
+        period,
+        enabled: existingSchedulePeriod?.enabled != false,
+      } satisfies ChampionshipBracketSchedulePeriodInput;
+    }),
+  );
+}
+
+function sanitizeCompetitionPeriodAvailabilityValues({
+  schedulePeriods,
+  competitionKeys,
+  competitionPeriodAvailability,
+}: {
+  schedulePeriods: ChampionshipBracketSchedulePeriodInput[];
+  competitionKeys: string[];
+  competitionPeriodAvailability: ChampionshipBracketCompetitionPeriodAvailabilityInput[];
+}): ChampionshipBracketCompetitionPeriodAvailabilityInput[] {
+  const validCompetitionKeySet = new Set(competitionKeys);
+  const availabilityByKey = new Map(
+    competitionPeriodAvailability
+      .filter((availabilityItem) => validCompetitionKeySet.has(availabilityItem.competition_key))
+      .map((availabilityItem) => [
+        `${availabilityItem.competition_key}::${resolveDatePeriodKey(
+          availabilityItem.date,
+          availabilityItem.period,
+        )}`,
+        availabilityItem,
+      ]),
+  );
+
+  return competitionKeys.flatMap((competitionKey) =>
+    schedulePeriods.map((schedulePeriod) => {
+      const availabilityKey = `${competitionKey}::${resolveDatePeriodKey(
+        schedulePeriod.date,
+        schedulePeriod.period,
+      )}`;
+      const existingAvailability = availabilityByKey.get(availabilityKey);
+
+      return {
+        competition_key: competitionKey,
+        date: schedulePeriod.date,
+        period: schedulePeriod.period,
+        enabled: existingAvailability?.enabled != false,
+      } satisfies ChampionshipBracketCompetitionPeriodAvailabilityInput;
+    }),
+  );
+}
+
+function sanitizeTeamCompetitionAvailabilityValues({
+  schedulePeriods,
+  teamCompetitionKeysByTeamId,
+  teamCompetitionAvailability,
+}: {
+  schedulePeriods: ChampionshipBracketSchedulePeriodInput[];
+  teamCompetitionKeysByTeamId: Record<string, string[]>;
+  teamCompetitionAvailability: ChampionshipBracketTeamCompetitionAvailabilityInput[];
+}): ChampionshipBracketTeamCompetitionAvailabilityInput[] {
+  const validTeamCompetitionKeySet = new Set(
+    Object.entries(teamCompetitionKeysByTeamId).flatMap(([teamId, competitionKeys]) =>
+      competitionKeys.map((competitionKey) => `${teamId}::${competitionKey}`),
+    ),
+  );
+  const availabilityByKey = new Map(
+    teamCompetitionAvailability
+      .filter((availabilityItem) =>
+        validTeamCompetitionKeySet.has(
+          `${availabilityItem.team_id}::${availabilityItem.competition_key}`,
+        ),
+      )
+      .map((availabilityItem) => [
+        `${availabilityItem.team_id}::${availabilityItem.competition_key}::${resolveDatePeriodKey(
+          availabilityItem.date,
+          availabilityItem.period,
+        )}`,
+        availabilityItem,
+      ]),
+  );
+
+  return Object.entries(teamCompetitionKeysByTeamId).flatMap(
+    ([teamId, competitionKeys]) =>
+      competitionKeys.flatMap((competitionKey) =>
+        schedulePeriods.map((schedulePeriod) => {
+          const availabilityKey = `${teamId}::${competitionKey}::${resolveDatePeriodKey(
+            schedulePeriod.date,
+            schedulePeriod.period,
+          )}`;
+          const existingAvailability = availabilityByKey.get(availabilityKey);
+
+          return {
+            team_id: teamId,
+            competition_key: competitionKey,
+            date: schedulePeriod.date,
+            period: schedulePeriod.period,
+            enabled: existingAvailability?.enabled != false,
+          } satisfies ChampionshipBracketTeamCompetitionAvailabilityInput;
+        }),
+      ),
+  );
+}
+
+function sanitizeIndividualEventConfigsValues({
+  individualSports,
+  individualEventConfigs,
+}: {
+  individualSports: Array<{ sport_id: string }>;
+  individualEventConfigs: ChampionshipBracketIndividualEventConfigInput[];
+}): ChampionshipBracketIndividualEventConfigInput[] {
+  const validSportIdSet = new Set(individualSports.map((sport) => sport.sport_id));
+  const configBySportId = new Map(
+    individualEventConfigs
+      .filter((configItem) => validSportIdSet.has(configItem.sport_id))
+      .map((configItem) => [configItem.sport_id, configItem]),
+  );
+
+  return individualSports.map((sport) => {
+    const existingConfig = configBySportId.get(sport.sport_id);
+
+    return {
+      sport_id: sport.sport_id,
+      scoring_mode: "DEFAULT_24_TO_1",
+      relay_multiplier:
+        existingConfig && existingConfig.relay_multiplier > 0
+          ? existingConfig.relay_multiplier
+          : 2,
+    } satisfies ChampionshipBracketIndividualEventConfigInput;
+  });
 }
 
 function resolveScheduleDayDateTimeValue(
@@ -803,8 +1058,37 @@ export function AdminChampionshipBracketPage({
   championshipSports,
   onGenerated,
 }: Props) {
+  const defaultEnabledSportIds = useMemo(
+    () => championshipSports.map((championshipSport) => championshipSport.sport_id),
+    [championshipSports],
+  );
+  const defaultSeasonSettings = useMemo(
+    () => resolveDefaultSeasonSettings(selectedChampionship.code),
+    [selectedChampionship.code],
+  );
+  const { seasonSettings: persistedSeasonSettings } = useChampionshipSeasonSettings({
+    championshipId: selectedChampionship.id,
+    seasonYear: selectedChampionship.current_season_year,
+  });
+  const resolvedDefaultSeasonSettings = useMemo(() => {
+    if (!persistedSeasonSettings) {
+      return defaultSeasonSettings;
+    }
+
+    return {
+      division_format: persistedSeasonSettings.division_format,
+      division_settlement_mode: persistedSeasonSettings.division_settlement_mode,
+      principal_slots_count: persistedSeasonSettings.principal_slots_count,
+      principal_relegation_count: persistedSeasonSettings.principal_relegation_count,
+      access_promotion_count: persistedSeasonSettings.access_promotion_count,
+    } satisfies ChampionshipSeasonSettingsInput;
+  }, [defaultSeasonSettings, persistedSeasonSettings]);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [seasonSettings, setSeasonSettings] = useState<ChampionshipSeasonSettingsInput>(
+    resolvedDefaultSeasonSettings,
+  );
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
+  const [enabledSportIds, setEnabledSportIds] = useState<string[]>([]);
   const [selectedSportIdsByTeamId, setSelectedSportIdsByTeamId] = useState<
     Record<string, string[]>
   >({});
@@ -848,12 +1132,32 @@ export function AdminChampionshipBracketPage({
   const [scheduleDays, setScheduleDays] = useState<ScheduleDayFormValue[]>([
     resolveInitialScheduleDay(),
   ]);
+  const [schedulePeriods, setSchedulePeriods] = useState<
+    ChampionshipBracketSchedulePeriodInput[]
+  >([]);
+  const [
+    competitionPeriodAvailability,
+    setCompetitionPeriodAvailability,
+  ] = useState<ChampionshipBracketCompetitionPeriodAvailabilityInput[]>([]);
+  const [
+    teamCompetitionAvailability,
+    setTeamCompetitionAvailability,
+  ] = useState<ChampionshipBracketTeamCompetitionAvailabilityInput[]>([]);
+  const [individualEventConfigs, setIndividualEventConfigs] = useState<
+    ChampionshipBracketIndividualEventConfigInput[]
+  >([]);
+  const [individualSessionConfigs, setIndividualSessionConfigs] = useState<
+    ChampionshipBracketWizardDraftFormValues["individual_session_configs"]
+  >([]);
+  const [resourceLocks, setResourceLocks] = useState<
+    ChampionshipBracketWizardDraftFormValues["resource_locks"]
+  >([]);
   const [locationTemplates, setLocationTemplates] = useState<
     ChampionshipBracketLocationTemplate[]
   >([]);
   const [locationTemplatesLoading, setLocationTemplatesLoading] =
     useState(false);
-  const [locationTemplatePickerDayId, setLocationTemplatePickerDayId] =
+  const [locationTemplateSelectionDayId, setLocationTemplateSelectionDayId] =
     useState<string | null>(null);
   const [locationTemplateModalOpen, setLocationTemplateModalOpen] =
     useState(false);
@@ -881,10 +1185,22 @@ export function AdminChampionshipBracketPage({
   const [lastSavedEditableDraftSnapshot, setLastSavedEditableDraftSnapshot] =
     useState<string>(() => {
       return resolveEditableDraftSnapshot(
-        resolveInitialWizardDraftFormValues(),
+        resolveInitialWizardDraftFormValues(
+          resolvedDefaultSeasonSettings,
+          defaultEnabledSportIds,
+        ),
       );
     });
   const saveErrorBannerReference = useRef<HTMLDivElement | null>(null);
+  const applyWizardDraftReference = useRef<
+    | ((
+        draft_form_values: ChampionshipBracketWizardDraftFormValues,
+        options?: { persistAsSavedSnapshot?: boolean; resetVisualState?: boolean },
+      ) => void)
+    | null
+  >(null);
+  const resetWizardStateReference = useRef<(() => void) | null>(null);
+  const lastAutoSanitizedSnapshotReference = useRef<string | null>(null);
   const [drawingCompetitionKey, setDrawingCompetitionKey] = useState<string | null>(null);
   const [showDrawModal, setShowDrawModal] = useState(false);
   const [pendingDrawResult, setPendingDrawResult] = useState<{
@@ -899,16 +1215,17 @@ export function AdminChampionshipBracketPage({
         draftFormValues,
         teams,
         championshipSports,
-        usesDivisions: selectedChampionship.uses_divisions,
+        seasonSettings:
+          draftFormValues.season_settings ?? resolvedDefaultSeasonSettings,
       });
     },
-    [championshipSports, selectedChampionship.uses_divisions, teams],
+    [championshipSports, resolvedDefaultSeasonSettings, teams],
   );
 
   const applyWizardDraft = useCallback(
     (
       draft_form_values: ChampionshipBracketWizardDraftFormValues,
-      options: { persistAsSavedSnapshot?: boolean } = {},
+      options: { persistAsSavedSnapshot?: boolean; resetVisualState?: boolean } = {},
     ) => {
       const sanitizedDraftFormValues = sanitizeDraftFormValues(draft_form_values);
       const defaultShowEstimatedStartTimeOnCardsBySportId = championshipSports.reduce<Record<string, boolean>>(
@@ -940,6 +1257,8 @@ export function AdminChampionshipBracketPage({
       };
 
       setCurrentStepIndex(nextCurrentStepIndex);
+      setSeasonSettings(appliedDraftFormValues.season_settings);
+      setEnabledSportIds(appliedDraftFormValues.enabled_sport_ids);
       setSelectedTeamIds(appliedDraftFormValues.selected_team_ids);
       setSelectedSportIdsByTeamId(
         appliedDraftFormValues.selected_sport_ids_by_team_id,
@@ -961,25 +1280,39 @@ export function AdminChampionshipBracketPage({
         appliedDraftFormValues.should_replicate_previous_schedule_day,
       );
       setCompetitionConfigByKey(appliedDraftFormValues.competition_config_by_key);
-      setGroupCountInputByCompetitionKey({});
       setGroupAssignmentsByCompetitionKey(
         appliedDraftFormValues.group_assignments_by_competition_key,
       );
       setGroupOrderByCompetitionKey(
         appliedDraftFormValues.group_order_by_competition_key,
       );
-      setAutoOpenCompetitionGroupSlotKey(null);
-      setActiveNaipeTabBySportId({});
-      setTransientGroupSlotIdsByCompetitionKey({});
-      setLocationTemplatePickerDayId(null);
-      setLocationTemplateModalOpen(false);
-      setLocationTemplateModalTarget(null);
-      setLocationTemplateModalFormValues(
-        resolveInitialLocationTemplateModalFormValue(),
-      );
-      setLocationTemplateDeletionTarget(null);
       setScheduleDays(resolvedScheduleDays);
+      setSchedulePeriods(appliedDraftFormValues.schedule_periods);
+      setCompetitionPeriodAvailability(
+        appliedDraftFormValues.competition_period_availability,
+      );
+      setTeamCompetitionAvailability(
+        appliedDraftFormValues.team_competition_availability,
+      );
+      setIndividualEventConfigs(appliedDraftFormValues.individual_event_configs);
+      setIndividualSessionConfigs(appliedDraftFormValues.individual_session_configs);
+      setResourceLocks(appliedDraftFormValues.resource_locks);
       setSaveErrorBannerData(null);
+
+      if (options.resetVisualState == true) {
+        setGroupCountInputByCompetitionKey({});
+        setAutoOpenCompetitionGroupSlotKey(null);
+        setActiveNaipeTabBySportId({});
+        setTransientGroupSlotIdsByCompetitionKey({});
+        setLocationTemplateSelectionDayId(null);
+        setLocationTemplateModalOpen(false);
+        setLocationTemplateModalTarget(null);
+        setLocationTemplateModalFormValues(
+          resolveInitialLocationTemplateModalFormValue(),
+        );
+        setLocationTemplateDeletionTarget(null);
+      }
+
       if (options.persistAsSavedSnapshot !== false) {
         setLastSavedEditableDraftSnapshot(
           resolveEditableDraftSnapshot(appliedDraftFormValues),
@@ -990,9 +1323,19 @@ export function AdminChampionshipBracketPage({
     [championshipSports, sanitizeDraftFormValues],
   );
 
+  applyWizardDraftReference.current = applyWizardDraft;
+
   const resetWizardState = useCallback(() => {
-    applyWizardDraft(resolveInitialWizardDraftFormValues());
-  }, [applyWizardDraft]);
+    applyWizardDraft(
+      resolveInitialWizardDraftFormValues(
+        resolvedDefaultSeasonSettings,
+        defaultEnabledSportIds,
+      ),
+      { resetVisualState: true },
+    );
+  }, [applyWizardDraft, defaultEnabledSportIds, resolvedDefaultSeasonSettings]);
+
+  resetWizardStateReference.current = resetWizardState;
 
   const loadLocationTemplates = useCallback(async () => {
     setLocationTemplatesLoading(true);
@@ -1016,6 +1359,8 @@ export function AdminChampionshipBracketPage({
     useCallback((): ChampionshipBracketWizardDraftFormValues => {
       return {
         current_step_index: currentStepIndex,
+        season_settings: seasonSettings,
+        enabled_sport_ids: [...enabledSportIds],
         selected_team_ids: [...selectedTeamIds],
         selected_sport_ids_by_team_id: Object.entries(
           selectedSportIdsByTeamId,
@@ -1091,17 +1436,54 @@ export function AdminChampionshipBracketPage({
         schedule_days: scheduleDays.map((schedule_day) =>
           resolveScheduleDayClone(schedule_day),
         ),
+        schedule_periods: schedulePeriods.map((schedulePeriod) => ({
+          date: schedulePeriod.date,
+          period: schedulePeriod.period,
+          enabled: schedulePeriod.enabled != false,
+        })),
+        competition_period_availability: competitionPeriodAvailability.map((availabilityItem) => ({
+          competition_key: availabilityItem.competition_key,
+          date: availabilityItem.date,
+          period: availabilityItem.period,
+          enabled: availabilityItem.enabled != false,
+        })),
+        team_competition_availability: teamCompetitionAvailability.map((availabilityItem) => ({
+          team_id: availabilityItem.team_id,
+          competition_key: availabilityItem.competition_key,
+          date: availabilityItem.date,
+          period: availabilityItem.period,
+          enabled: availabilityItem.enabled != false,
+        })),
+        individual_event_configs: individualEventConfigs.map((configItem) => ({
+          sport_id: configItem.sport_id,
+          scoring_mode: "DEFAULT_24_TO_1",
+          relay_multiplier: configItem.relay_multiplier,
+        })),
+        individual_session_configs: individualSessionConfigs.map((sessionConfig) => ({
+          ...sessionConfig,
+        })),
+        resource_locks: resourceLocks.map((resourceLock) => ({
+          ...resourceLock,
+        })),
       };
     }, [
+      competitionPeriodAvailability,
       competitionConfigByKey,
       currentStepIndex,
+      enabledSportIds,
       groupAssignmentsByCompetitionKey,
       groupOrderByCompetitionKey,
+      individualEventConfigs,
+      individualSessionConfigs,
+      resourceLocks,
       scheduleDays,
+      schedulePeriods,
+      seasonSettings,
       showEstimatedStartTimeOnCardsBySportId,
       selectedCompetitionKeysByTeamId,
       selectedSportIdsByTeamId,
       selectedTeamIds,
+      teamCompetitionAvailability,
       shouldApplyModalitiesToAllTeams,
       shouldApplyNaipesToAllTeams,
       shouldReplicatePreviousScheduleDay,
@@ -1212,7 +1594,20 @@ export function AdminChampionshipBracketPage({
         return [];
       }
 
-      if (stepIndex == 0) {
+      if (stepIndex == 1) {
+        const previousEnabledSports = previousDraftFormValues.enabled_sport_ids.length;
+        const nextEnabledSports = nextDraftFormValues.enabled_sport_ids.length;
+
+        if (previousEnabledSports != nextEnabledSports) {
+          return [
+            `Modalidades habilitadas: ${previousEnabledSports} para ${nextEnabledSports}`,
+          ];
+        }
+
+        return [];
+      }
+
+      if (stepIndex == 2) {
         const previousSelectedTeams = previousDraftFormValues.selected_team_ids.length;
         const nextSelectedTeams = nextDraftFormValues.selected_team_ids.length;
 
@@ -1225,7 +1620,7 @@ export function AdminChampionshipBracketPage({
         return [];
       }
 
-      if (stepIndex == 3) {
+      if (stepIndex == 5) {
         const previousConfigByKey = previousDraftFormValues.competition_config_by_key;
         const nextConfigByKey = nextDraftFormValues.competition_config_by_key;
         const competitionKeys = [
@@ -1280,21 +1675,12 @@ export function AdminChampionshipBracketPage({
             );
           }
 
-          if (previousConfig.knockout_pairing_mode != nextConfig.knockout_pairing_mode) {
-            changeLines.push(
-              `${competitionLabel}: cruzamento de ${resolveCompetitionKnockoutPairingModeLabel(
-                resolveCompetitionKnockoutPairingModeControlValue(previousConfig.knockout_pairing_mode),
-              )} para ${resolveCompetitionKnockoutPairingModeLabel(
-                resolveCompetitionKnockoutPairingModeControlValue(nextConfig.knockout_pairing_mode),
-              )}`,
-            );
-          }
         });
 
         return changeLines.slice(0, 10);
       }
 
-      if (stepIndex == 5) {
+      if (stepIndex == 6) {
         const previousScheduleDays = previousDraftFormValues.schedule_days.length;
         const nextScheduleDays = nextDraftFormValues.schedule_days.length;
 
@@ -1321,10 +1707,19 @@ export function AdminChampionshipBracketPage({
         return;
       }
 
-      setRemoteDraftMetadata(storedDraftResult.metadata);
+      setRemoteDraftMetadata((currentRemoteDraftMetadata) =>
+        areRemoteDraftMetadataEqual(
+          currentRemoteDraftMetadata,
+          storedDraftResult.metadata,
+        )
+          ? currentRemoteDraftMetadata
+          : storedDraftResult.metadata,
+      );
 
       if (storedDraftResult.draft_form_values) {
-        applyWizardDraft(storedDraftResult.draft_form_values);
+        applyWizardDraftReference.current?.(storedDraftResult.draft_form_values, {
+          resetVisualState: true,
+        });
         toast.success(
           storedDraftResult.source == "local"
             ? "Rascunho local restaurado e sincronizado com sucesso."
@@ -1333,7 +1728,7 @@ export function AdminChampionshipBracketPage({
         return;
       }
 
-      resetWizardState();
+      resetWizardStateReference.current?.();
     };
 
     void loadDraft();
@@ -1342,9 +1737,7 @@ export function AdminChampionshipBracketPage({
       isMounted = false;
     };
   }, [
-    applyWizardDraft,
     loadLocationTemplates,
-    resetWizardState,
     selectedChampionship.id,
   ]);
 
@@ -1387,11 +1780,19 @@ export function AdminChampionshipBracketPage({
     );
 
     if (currentSnapshot == sanitizedSnapshot) {
+      lastAutoSanitizedSnapshotReference.current = null;
       return;
     }
 
+    if (lastAutoSanitizedSnapshotReference.current == sanitizedSnapshot) {
+      return;
+    }
+
+    lastAutoSanitizedSnapshotReference.current = sanitizedSnapshot;
+
     applyWizardDraft(sanitizedCurrentWizardDraftFormValues, {
       persistAsSavedSnapshot: false,
+      resetVisualState: false,
     });
   }, [
     applyWizardDraft,
@@ -1412,19 +1813,13 @@ export function AdminChampionshipBracketPage({
   );
 
   const selectableTeams = useMemo(() => {
-    return teams
-      .filter((team) => {
-        return (
-          team.division == TeamDivision.DIVISAO_PRINCIPAL ||
-          team.division == TeamDivision.DIVISAO_ACESSO
-        );
-      })
+    return resolveSelectableChampionshipTeams(teams, seasonSettings)
       .sort((firstTeam, secondTeam) =>
         firstTeam.name.localeCompare(secondTeam.name, "pt-BR", {
           sensitivity: "base",
         }),
       );
-  }, [teams]);
+  }, [seasonSettings, teams]);
 
   const selectableTeamIds = useMemo(() => {
     return selectableTeams.map((team) => team.id);
@@ -1444,6 +1839,46 @@ export function AdminChampionshipBracketPage({
       return carry;
     }, {});
   }, [teams]);
+
+  const selectedSportIdSet = useMemo(() => {
+    return new Set(
+      selectedTeamIds.flatMap((teamId) => selectedSportIdsByTeamId[teamId] ?? []),
+    );
+  }, [selectedSportIdsByTeamId, selectedTeamIds]);
+
+  const enabledSportIdSet = useMemo(() => {
+    return new Set(enabledSportIds);
+  }, [enabledSportIds]);
+
+  const enabledChampionshipSports = useMemo(() => {
+    return championshipSports.filter((championshipSport) =>
+      enabledSportIdSet.has(championshipSport.sport_id),
+    );
+  }, [championshipSports, enabledSportIdSet]);
+
+  const championshipSportCards = useMemo(() => {
+    return [...championshipSports].sort((leftChampionshipSport, rightChampionshipSport) =>
+      (leftChampionshipSport.sports?.name ?? "Modalidade").localeCompare(
+        rightChampionshipSport.sports?.name ?? "Modalidade",
+        "pt-BR",
+        { sensitivity: "base" },
+      ),
+    );
+  }, [championshipSports]);
+
+  const selectedIndividualSports = useMemo(() => {
+    return enabledChampionshipSports
+      .filter((championshipSport) => {
+        return (
+          selectedSportIdSet.has(championshipSport.sport_id) &&
+          resolveIsIndividualSportName(championshipSport.sports?.name ?? "")
+        );
+      })
+      .map((championshipSport) => ({
+        sport_id: championshipSport.sport_id,
+        sport_name: championshipSport.sports?.name ?? "Modalidade",
+      }));
+  }, [enabledChampionshipSports, selectedSportIdSet]);
 
   useEffect(() => {
     if (!hasResolvedInitialDraftSnapshot) {
@@ -1524,11 +1959,11 @@ export function AdminChampionshipBracketPage({
     > = {};
 
     selectedTeams.forEach((team) => {
-      const teamDivision = selectedChampionship.uses_divisions
+      const teamDivision = resolveUsesSeasonDivisions(seasonSettings)
         ? team.division
         : null;
 
-      if (selectedChampionship.uses_divisions && teamDivision == null) {
+      if (resolveUsesSeasonDivisions(seasonSettings) && teamDivision == null) {
         nextCompetitionOptionsByTeamId[team.id] = [];
         return;
       }
@@ -1541,7 +1976,7 @@ export function AdminChampionshipBracketPage({
           const sportName = championshipSport.sports?.name ?? "Modalidade";
 
           return supportedNaipes.map((naipe) => {
-            const optionDivision = selectedChampionship.uses_divisions
+            const optionDivision = resolveUsesSeasonDivisions(seasonSettings)
               ? teamDivision
               : null;
 
@@ -1562,7 +1997,7 @@ export function AdminChampionshipBracketPage({
     });
 
     return nextCompetitionOptionsByTeamId;
-  }, [championshipSports, selectedChampionship.uses_divisions, selectedTeams]);
+  }, [championshipSports, seasonSettings, selectedTeams]);
 
   const competitionOptionsByKey = useMemo(() => {
     const map = new Map<string, ChampionshipBracketWizardCompetitionOption>();
@@ -1596,9 +2031,21 @@ export function AdminChampionshipBracketPage({
 
   const activeCompetitionKeys = useMemo(() => {
     return Object.keys(teamIdsByCompetitionKey).filter(
-      (competitionKey) => teamIdsByCompetitionKey[competitionKey].length >= 2,
+      (competitionKey) => {
+        if (teamIdsByCompetitionKey[competitionKey].length < 2) {
+          return false;
+        }
+
+        const competitionOption = competitionOptionsByKey.get(competitionKey);
+
+        if (!competitionOption) {
+          return false;
+        }
+
+        return !resolveIsIndividualSportName(competitionOption.sport_name);
+      },
     );
-  }, [teamIdsByCompetitionKey]);
+  }, [competitionOptionsByKey, teamIdsByCompetitionKey]);
 
   const sortedActiveCompetitionKeys = useMemo(() => {
     return resolveSortedChampionshipBracketCompetitionKeys(
@@ -1606,6 +2053,118 @@ export function AdminChampionshipBracketPage({
       competitionOptionsByKey,
     );
   }, [activeCompetitionKeys, competitionOptionsByKey]);
+
+  const activeCompetitionKeySet = useMemo(() => {
+    return new Set(activeCompetitionKeys);
+  }, [activeCompetitionKeys]);
+
+  const selectedIndividualCompetitionOptions = useMemo(() => {
+    return [
+      ...new Map(
+        Object.values(selectedCompetitionKeysByTeamId)
+          .flat()
+          .map((competitionKey) => competitionOptionsByKey.get(competitionKey) ?? null)
+          .filter(
+            (
+              competitionOption,
+            ): competitionOption is ChampionshipBracketWizardCompetitionOption =>
+              competitionOption != null &&
+              resolveIsIndividualSportName(competitionOption.sport_name),
+          )
+          .map((competitionOption) => [competitionOption.key, competitionOption]),
+      ).values(),
+    ].sort((leftCompetitionOption, rightCompetitionOption) =>
+      resolveSortedChampionshipBracketCompetitionKeys(
+        [leftCompetitionOption.key, rightCompetitionOption.key],
+        new Map([
+          [leftCompetitionOption.key, leftCompetitionOption],
+          [rightCompetitionOption.key, rightCompetitionOption],
+        ]),
+      )[0] == leftCompetitionOption.key
+        ? -1
+        : 1,
+    );
+  }, [competitionOptionsByKey, selectedCompetitionKeysByTeamId]);
+
+  const scheduleDayDates = useMemo(() => {
+    return [...new Set(scheduleDays.map((scheduleDay) => scheduleDay.date).filter(Boolean))];
+  }, [scheduleDays]);
+
+  const scheduleResourcesByDate = useMemo(() => {
+    return scheduleDays.reduce<
+      Record<
+        string,
+        Array<{
+          location_key: string;
+          location_name: string;
+          court_key: string;
+          court_name: string;
+          sport_ids: string[];
+        }>
+      >
+    >((carry, scheduleDay) => {
+      if (!scheduleDay.date) {
+        return carry;
+      }
+
+      carry[scheduleDay.date] = scheduleDay.locations.flatMap((location) =>
+        location.courts.map((court) => ({
+          location_key: location.id,
+          location_name: location.name,
+          court_key: court.id,
+          court_name: court.name,
+          sport_ids: court.sport_ids,
+        })),
+      );
+
+      return carry;
+    }, {});
+  }, [scheduleDays]);
+
+  const teamCompetitionKeysByTeamId = useMemo(() => {
+    return Object.entries(selectedCompetitionKeysByTeamId).reduce<Record<string, string[]>>(
+      (carry, [teamId, competitionKeys]) => {
+        const filteredCompetitionKeys = competitionKeys.filter((competitionKey) =>
+          activeCompetitionKeySet.has(competitionKey),
+        );
+
+        if (filteredCompetitionKeys.length > 0) {
+          carry[teamId] = filteredCompetitionKeys;
+        }
+
+        return carry;
+      },
+      {},
+    );
+  }, [activeCompetitionKeySet, selectedCompetitionKeysByTeamId]);
+
+  const schedulePeriodEnabledByDatePeriodKey = useMemo(() => {
+    return resolveDatePeriodEnabledMap(schedulePeriods);
+  }, [schedulePeriods]);
+
+  const competitionPeriodAvailabilityByKey = useMemo(() => {
+    return competitionPeriodAvailability.reduce<Record<string, boolean>>((carry, availabilityItem) => {
+      carry[
+        `${availabilityItem.competition_key}::${resolveDatePeriodKey(
+          availabilityItem.date,
+          availabilityItem.period,
+        )}`
+      ] = availabilityItem.enabled != false;
+      return carry;
+    }, {});
+  }, [competitionPeriodAvailability]);
+
+  const teamCompetitionAvailabilityByKey = useMemo(() => {
+    return teamCompetitionAvailability.reduce<Record<string, boolean>>((carry, availabilityItem) => {
+      carry[
+        `${availabilityItem.team_id}::${availabilityItem.competition_key}::${resolveDatePeriodKey(
+          availabilityItem.date,
+          availabilityItem.period,
+        )}`
+      ] = availabilityItem.enabled != false;
+      return carry;
+    }, {});
+  }, [teamCompetitionAvailability]);
 
   useEffect(() => {
     if (!hasResolvedInitialDraftSnapshot) {
@@ -1641,6 +2200,184 @@ export function AdminChampionshipBracketPage({
     competitionOptionsByKey,
     hasResolvedInitialDraftSnapshot,
     teamIdsByCompetitionKey,
+  ]);
+
+  useEffect(() => {
+    if (!hasResolvedInitialDraftSnapshot) {
+      return;
+    }
+
+    setSchedulePeriods((currentSchedulePeriods) => {
+      const nextSchedulePeriods = sanitizeSchedulePeriodsForDates(
+        scheduleDayDates,
+        currentSchedulePeriods,
+      );
+
+      if (JSON.stringify(nextSchedulePeriods) == JSON.stringify(currentSchedulePeriods)) {
+        return currentSchedulePeriods;
+      }
+
+      return nextSchedulePeriods;
+    });
+  }, [hasResolvedInitialDraftSnapshot, scheduleDayDates]);
+
+  useEffect(() => {
+    if (!hasResolvedInitialDraftSnapshot) {
+      return;
+    }
+
+    setCompetitionPeriodAvailability((currentCompetitionPeriodAvailability) => {
+      const nextCompetitionPeriodAvailability =
+        sanitizeCompetitionPeriodAvailabilityValues({
+          schedulePeriods,
+          competitionKeys: sortedActiveCompetitionKeys,
+          competitionPeriodAvailability: currentCompetitionPeriodAvailability,
+        });
+
+      if (
+        JSON.stringify(nextCompetitionPeriodAvailability) ==
+        JSON.stringify(currentCompetitionPeriodAvailability)
+      ) {
+        return currentCompetitionPeriodAvailability;
+      }
+
+      return nextCompetitionPeriodAvailability;
+    });
+  }, [hasResolvedInitialDraftSnapshot, schedulePeriods, sortedActiveCompetitionKeys]);
+
+  useEffect(() => {
+    if (!hasResolvedInitialDraftSnapshot) {
+      return;
+    }
+
+    setTeamCompetitionAvailability((currentTeamCompetitionAvailability) => {
+      const nextTeamCompetitionAvailability =
+        sanitizeTeamCompetitionAvailabilityValues({
+          schedulePeriods,
+          teamCompetitionKeysByTeamId,
+          teamCompetitionAvailability: currentTeamCompetitionAvailability,
+        });
+
+      if (
+        JSON.stringify(nextTeamCompetitionAvailability) ==
+        JSON.stringify(currentTeamCompetitionAvailability)
+      ) {
+        return currentTeamCompetitionAvailability;
+      }
+
+      return nextTeamCompetitionAvailability;
+    });
+  }, [
+    hasResolvedInitialDraftSnapshot,
+    schedulePeriods,
+    teamCompetitionKeysByTeamId,
+  ]);
+
+  useEffect(() => {
+    if (!hasResolvedInitialDraftSnapshot) {
+      return;
+    }
+
+    setIndividualEventConfigs((currentIndividualEventConfigs) => {
+      const nextIndividualEventConfigs = sanitizeIndividualEventConfigsValues({
+        individualSports: selectedIndividualSports,
+        individualEventConfigs: currentIndividualEventConfigs,
+      });
+
+      if (
+        JSON.stringify(nextIndividualEventConfigs) ==
+        JSON.stringify(currentIndividualEventConfigs)
+      ) {
+        return currentIndividualEventConfigs;
+      }
+
+      return nextIndividualEventConfigs;
+    });
+  }, [hasResolvedInitialDraftSnapshot, selectedIndividualSports]);
+
+  useEffect(() => {
+    if (!hasResolvedInitialDraftSnapshot) {
+      return;
+    }
+
+    setIndividualSessionConfigs((currentIndividualSessionConfigs) => {
+      const nextIndividualSessionConfigs =
+        sanitizeIndividualSessionConfigsValues({
+          schedulePeriods,
+          individualCompetitionOptions: selectedIndividualCompetitionOptions,
+          individualSessionConfigs: currentIndividualSessionConfigs,
+        });
+
+      if (
+        JSON.stringify(nextIndividualSessionConfigs) ==
+        JSON.stringify(currentIndividualSessionConfigs)
+      ) {
+        return currentIndividualSessionConfigs;
+      }
+
+      return nextIndividualSessionConfigs;
+    });
+  }, [
+    hasResolvedInitialDraftSnapshot,
+    schedulePeriods,
+    selectedIndividualCompetitionOptions,
+  ]);
+
+  useEffect(() => {
+    if (!hasResolvedInitialDraftSnapshot) {
+      return;
+    }
+
+    setResourceLocks((currentResourceLocks) => {
+      const individualSessionKeySet = new Set(
+        selectedIndividualCompetitionOptions.map((competitionOption) =>
+          resolveIndividualSessionConfigKey(competitionOption),
+        ),
+      );
+      const preservedManualLocks = currentResourceLocks.filter((resourceLock) => {
+        if (
+          resourceLock.lock_mode != "HARD" ||
+          !resourceLock.sport_id ||
+          resourceLock.naipe == null
+        ) {
+          return true;
+        }
+
+        return !individualSessionKeySet.has(
+          resolveIndividualSessionConfigKey({
+            sport_id: resourceLock.sport_id,
+            naipe: resourceLock.naipe,
+            division: resourceLock.division ?? null,
+          }),
+        );
+      });
+      const derivedSessionLocks = individualSessionConfigs
+        .map((sessionConfig) =>
+          resolveResourceLockFromIndividualSession(sessionConfig),
+        )
+        .filter(
+          (
+            resourceLock,
+          ): resourceLock is NonNullable<
+            ReturnType<typeof resolveResourceLockFromIndividualSession>
+          > => resourceLock != null,
+        );
+      const nextResourceLocks = sanitizeResourceLocksValues({
+        schedulePeriods,
+        resourceLocks: [...preservedManualLocks, ...derivedSessionLocks],
+      });
+
+      if (JSON.stringify(nextResourceLocks) == JSON.stringify(currentResourceLocks)) {
+        return currentResourceLocks;
+      }
+
+      return nextResourceLocks;
+    });
+  }, [
+    hasResolvedInitialDraftSnapshot,
+    individualSessionConfigs,
+    schedulePeriods,
+    selectedIndividualCompetitionOptions,
   ]);
 
   useEffect(() => {
@@ -1777,27 +2514,11 @@ export function AdminChampionshipBracketPage({
   ]);
 
   const selectedSportOptions = useMemo(() => {
-    const sportsById = new Map<string, { id: string; name: string }>();
-
-    activeCompetitionKeys.forEach((competitionKey) => {
-      const competitionOption = competitionOptionsByKey.get(competitionKey);
-
-      if (!competitionOption) {
-        return;
-      }
-
-      sportsById.set(competitionOption.sport_id, {
-        id: competitionOption.sport_id,
-        name: competitionOption.sport_name,
-      });
-    });
-
-    return [...sportsById.values()].sort((leftSportOption, rightSportOption) =>
-      leftSportOption.name.localeCompare(rightSportOption.name, "pt-BR", {
-        sensitivity: "base",
-      }),
+    return resolveLocationCatalogSportOptions(
+      championshipSports,
+      enabledSportIdSet,
     );
-  }, [activeCompetitionKeys, competitionOptionsByKey]);
+  }, [championshipSports, enabledSportIdSet]);
 
   const locationTemplateById = useMemo(() => {
     return locationTemplates.reduce<
@@ -1837,13 +2558,13 @@ export function AdminChampionshipBracketPage({
 
   const modalityCards = useMemo(() => {
     return resolveChampionshipBracketWizardModalityCards({
-      championship_sports: championshipSports,
+      championship_sports: enabledChampionshipSports,
       selected_teams: selectedTeams,
       selected_sport_ids_by_team_id: selectedSportIdsByTeamId,
       competition_options_by_team_id: competitionOptionsByTeamId,
     });
   }, [
-    championshipSports,
+    enabledChampionshipSports,
     competitionOptionsByTeamId,
     selectedSportIdsByTeamId,
     selectedTeams,
@@ -1851,14 +2572,14 @@ export function AdminChampionshipBracketPage({
 
   const naipeCards = useMemo(() => {
     return resolveChampionshipBracketWizardNaipeCards({
-      championship_sports: championshipSports,
+      championship_sports: enabledChampionshipSports,
       selected_teams: selectedTeams,
       selected_sport_ids_by_team_id: selectedSportIdsByTeamId,
       selected_competition_keys_by_team_id: selectedCompetitionKeysByTeamId,
       competition_options_by_team_id: competitionOptionsByTeamId,
     });
   }, [
-    championshipSports,
+    enabledChampionshipSports,
     competitionOptionsByTeamId,
     selectedCompetitionKeysByTeamId,
     selectedSportIdsByTeamId,
@@ -1997,6 +2718,41 @@ export function AdminChampionshipBracketPage({
         }, {});
       },
     );
+  };
+
+  const enabledSportsSummary = useMemo(() => {
+    const eligibleSportsCount = championshipSports.length;
+    const selectedSportsCount = enabledSportIds.length;
+
+    return {
+      eligible_sports_count: eligibleSportsCount,
+      selected_sports_count: selectedSportsCount,
+    };
+  }, [championshipSports.length, enabledSportIds.length]);
+
+  const handleToggleEnabledSport = (sportId: string, checked: boolean) => {
+    setEnabledSportIds((currentEnabledSportIds) => {
+      if (checked) {
+        if (currentEnabledSportIds.includes(sportId)) {
+          return currentEnabledSportIds;
+        }
+
+        return [...currentEnabledSportIds, sportId];
+      }
+
+      return currentEnabledSportIds.filter(
+        (currentEnabledSportId) => currentEnabledSportId != sportId,
+      );
+    });
+  };
+
+  const handleToggleAllEnabledSports = (checked: boolean) => {
+    if (!checked) {
+      setEnabledSportIds([]);
+      return;
+    }
+
+    setEnabledSportIds(championshipSports.map((championshipSport) => championshipSport.sport_id));
   };
 
   const handleToggleTeamSport = (
@@ -2719,6 +3475,27 @@ export function AdminChampionshipBracketPage({
     );
   };
 
+  const drawingTeamIds = useMemo(() => {
+    if (!drawingCompetitionKey) {
+      return [];
+    }
+
+    const allTeamIds = teamIdsByCompetitionKey[drawingCompetitionKey] ?? [];
+    const assignedIds = new Set(
+      Object.keys(groupAssignmentsByCompetitionKey[drawingCompetitionKey] ?? {}),
+    );
+
+    return allTeamIds.filter((id) => !assignedIds.has(id));
+  }, [drawingCompetitionKey, groupAssignmentsByCompetitionKey, teamIdsByCompetitionKey]);
+
+  const drawingCompetitionOption = useMemo(() => {
+    if (!drawingCompetitionKey) {
+      return null;
+    }
+
+    return competitionOptionsByKey.get(drawingCompetitionKey) ?? null;
+  }, [competitionOptionsByKey, drawingCompetitionKey]);
+
   const handleCloseDrawModal = () => {
     setShowDrawModal(false);
     setPendingDrawResult(null);
@@ -2744,13 +3521,47 @@ export function AdminChampionshipBracketPage({
 
   const validateCurrentStep = () => {
     if (currentStepIndex == 0) {
+      if (
+        seasonSettings.division_format ==
+          ChampionshipSeasonDivisionFormat.SEPARATED &&
+        seasonSettings.division_settlement_mode ==
+          ChampionshipSeasonDivisionSettlementMode.PROMOTION_RELEGATION &&
+        (
+          (seasonSettings.principal_relegation_count ?? 0) <= 0 ||
+          (seasonSettings.access_promotion_count ?? 0) <= 0
+        )
+      ) {
+        toast.error("Informe quantas atléticas sobem e caem na temporada separada.");
+        return false;
+      }
+
+      if (
+        seasonSettings.division_format ==
+          ChampionshipSeasonDivisionFormat.UNIFIED &&
+        seasonSettings.division_settlement_mode ==
+          ChampionshipSeasonDivisionSettlementMode.TOP_N_TO_PRINCIPAL &&
+        (seasonSettings.principal_slots_count ?? 0) <= 0
+      ) {
+        toast.error("Informe quantas atléticas irão compor a divisão principal após a temporada unificada.");
+        return false;
+      }
+    }
+
+    if (currentStepIndex == 1) {
+      if (enabledSportIds.length == 0) {
+        toast.error("Selecione ao menos uma modalidade ativa para a temporada.");
+        return false;
+      }
+    }
+
+    if (currentStepIndex == 2) {
       if (selectedTeamIds.length == 0) {
         toast.error("Selecione ao menos uma atlética participante.");
         return false;
       }
     }
 
-    if (currentStepIndex == 1) {
+    if (currentStepIndex == 3) {
       const hasSelectedTeamWithoutSport = selectedTeamIds.some((team_id) => {
         return (selectedSportIdsByTeamId[team_id] ?? []).length == 0;
       });
@@ -2763,7 +3574,7 @@ export function AdminChampionshipBracketPage({
       }
     }
 
-    if (currentStepIndex == 2) {
+    if (currentStepIndex == 4) {
       const hasSelectedTeamSportWithoutNaipe = selectedTeamIds.some(
         (team_id) => {
           const selectedSportIds = selectedSportIdsByTeamId[team_id] ?? [];
@@ -2807,7 +3618,7 @@ export function AdminChampionshipBracketPage({
       }
     }
 
-    if (currentStepIndex == 3) {
+    if (currentStepIndex == 5) {
       const hasInvalidCompetition = activeCompetitionKeys.some(
         (competitionKey) => {
           const competitionConfig = competitionConfigByKey[competitionKey];
@@ -2831,7 +3642,7 @@ export function AdminChampionshipBracketPage({
       }
     }
 
-    if (currentStepIndex == 4) {
+    if (currentStepIndex == 11) {
       for (const competitionKey of activeCompetitionKeys) {
         const teamIds = teamIdsByCompetitionKey[competitionKey] ?? [];
         const assignments =
@@ -2884,7 +3695,7 @@ export function AdminChampionshipBracketPage({
       }
     }
 
-    if (currentStepIndex == 5) {
+    if (currentStepIndex == 6) {
       if (scheduleDays.length == 0) {
         toast.error("Configure ao menos um dia de agenda.");
         return false;
@@ -2968,24 +3779,129 @@ export function AdminChampionshipBracketPage({
           }
 
           if (location.courts.length == 0) {
-            toast.error("Todo local precisa de ao menos uma quadra.");
+            toast.error("Todo local precisa de ao menos um recurso/quadra.");
             return false;
           }
 
           for (const court of location.courts) {
             if (!court.name.trim()) {
-              toast.error("Toda quadra precisa ter um nome.");
+              toast.error("Todo recurso/quadra precisa ter um nome.");
               return false;
             }
 
             if (court.sport_ids.length == 0) {
               toast.error(
-                "Toda quadra precisa ter ao menos uma modalidade vinculada.",
+                "Todo recurso/quadra precisa ter ao menos uma modalidade vinculada.",
               );
               return false;
             }
           }
         }
+      }
+    }
+
+    if (currentStepIndex == 7) {
+      if (selectedIndividualCompetitionOptions.length > 0) {
+        const sessionConfigByKey = new Map(
+          individualSessionConfigs.map((sessionConfig) => [
+            resolveIndividualSessionConfigKey(sessionConfig),
+            sessionConfig,
+          ]),
+        );
+        const hasSessionWithoutSlot = selectedIndividualCompetitionOptions.some(
+          (competitionOption) => {
+            const sessionConfig = sessionConfigByKey.get(
+              resolveIndividualSessionConfigKey(competitionOption),
+            );
+
+            return (
+              !sessionConfig ||
+              !sessionConfig.scheduled_date ||
+              sessionConfig.period == null ||
+              !sessionConfig.location_key ||
+              !sessionConfig.court_key
+            );
+          },
+        );
+
+        if (hasSessionWithoutSlot) {
+          toast.error("Toda sessão individual precisa ter dia, período e recurso oficial definidos.");
+          return false;
+        }
+      }
+    }
+
+    if (currentStepIndex == 8) {
+      const hasEnabledSchedulePeriod = schedulePeriods.some(
+        (schedulePeriod) => schedulePeriod.enabled != false,
+      );
+
+      if (!hasEnabledSchedulePeriod) {
+        toast.error("Habilite ao menos um período global na agenda do campeonato.");
+        return false;
+      }
+
+      const hasCompetitionWithoutAvailability = sortedActiveCompetitionKeys.some(
+        (competitionKey) => {
+          return !schedulePeriods.some((schedulePeriod) => {
+            if (schedulePeriod.enabled == false) {
+              return false;
+            }
+
+            return (
+              competitionPeriodAvailabilityByKey[
+                `${competitionKey}::${resolveDatePeriodKey(
+                  schedulePeriod.date,
+                  schedulePeriod.period,
+                )}`
+              ] != false
+            );
+          });
+        },
+      );
+
+      if (hasCompetitionWithoutAvailability) {
+        toast.error("Toda competição precisa ter ao menos um dia/período disponível.");
+        return false;
+      }
+    }
+
+    if (currentStepIndex == 9) {
+      const hasTeamCompetitionWithoutAvailability = Object.entries(
+        teamCompetitionKeysByTeamId,
+      ).some(([teamId, competitionKeys]) => {
+        return competitionKeys.some((competitionKey) => {
+          return !schedulePeriods.some((schedulePeriod) => {
+            if (schedulePeriod.enabled == false) {
+              return false;
+            }
+
+            if (
+              competitionPeriodAvailabilityByKey[
+                `${competitionKey}::${resolveDatePeriodKey(
+                  schedulePeriod.date,
+                  schedulePeriod.period,
+                )}`
+              ] == false
+            ) {
+              return false;
+            }
+
+            return (
+              teamCompetitionAvailabilityByKey[
+                `${teamId}::${competitionKey}::${resolveDatePeriodKey(
+                  schedulePeriod.date,
+                  schedulePeriod.period,
+                )}`
+              ] != false
+            );
+          });
+        });
+      });
+
+      if (hasTeamCompetitionWithoutAvailability) {
+        toast.error("Toda atlética precisa ter ao menos um período jogável em cada competição selecionada.");
+        return false;
       }
     }
 
@@ -3173,9 +4089,11 @@ export function AdminChampionshipBracketPage({
         break_end_time: scheduleDay.break_end_time.trim() || null,
         locations: scheduleDay.locations.map(
           (location, locationIndex): ChampionshipBracketLocationInput => ({
+            location_key: location.id,
             name: location.name,
             position: locationIndex + 1,
             courts: location.courts.map((court, courtIndex) => ({
+              court_key: court.id,
               name: court.name,
               position: courtIndex + 1,
               sport_ids: court.sport_ids,
@@ -3193,14 +4111,30 @@ export function AdminChampionshipBracketPage({
   const resolveSetupPayload =
     useCallback((): ChampionshipBracketSetupFormValues => {
       return ChampionshipBracketSetupDTO.fromFormValues({
+        season_settings: seasonSettings,
+        enabled_sport_ids: enabledSportIds,
         participants: resolveParticipantsPayload(),
         competitions: resolveCompetitionsPayload(),
         schedule_days: resolveScheduleDaysPayload(),
+        schedule_periods: schedulePeriods,
+        competition_period_availability: competitionPeriodAvailability,
+        team_competition_availability: teamCompetitionAvailability,
+        individual_event_configs: individualEventConfigs,
+        individual_session_configs: individualSessionConfigs,
+        resource_locks: resourceLocks,
       }).bindToSave();
     }, [
+      competitionPeriodAvailability,
+      enabledSportIds,
+      individualEventConfigs,
+      individualSessionConfigs,
+      resourceLocks,
+      seasonSettings,
       resolveCompetitionsPayload,
       resolveParticipantsPayload,
       resolveScheduleDaysPayload,
+      schedulePeriods,
+      teamCompetitionAvailability,
     ]);
 
   const persistBeachSoccerEstimatedStartTimeSetting = useCallback(async () => {
@@ -3243,6 +4177,22 @@ export function AdminChampionshipBracketPage({
 
     try {
       await persistBeachSoccerEstimatedStartTimeSetting();
+      const seasonSettingsSaveResponse = await saveChampionshipSeasonSettings({
+        championship_id: selectedChampionship.id,
+        season_year: selectedChampionship.current_season_year,
+        division_format: seasonSettings.division_format,
+        division_settlement_mode: seasonSettings.division_settlement_mode,
+        principal_slots_count: seasonSettings.principal_slots_count,
+        principal_relegation_count: seasonSettings.principal_relegation_count,
+        access_promotion_count: seasonSettings.access_promotion_count,
+      });
+
+      if (seasonSettingsSaveResponse.error) {
+        throw new Error(
+          seasonSettingsSaveResponse.error.message ||
+            "Não foi possível salvar a configuração sazonal do campeonato.",
+        );
+      }
 
       const response = await generateChampionshipBracketGroups(
         selectedChampionship.id,
@@ -3254,6 +4204,27 @@ export function AdminChampionshipBracketPage({
           response.error?.message ??
             "Não foi possível gerar os grupos automaticamente.",
         );
+      }
+
+      if (selectedChampionship.code == ChampionshipCode.INTERLAJE) {
+        const [eventsSyncResponse, sessionsSyncResponse] = await Promise.all([
+          syncChampionshipIndividualEventsFromSetup(
+            selectedChampionship.id,
+            selectedChampionship.current_season_year,
+          ),
+          syncChampionshipIndividualSessionsFromSetup(
+            selectedChampionship.id,
+            selectedChampionship.current_season_year,
+          ),
+        ]);
+
+        if (eventsSyncResponse.error || sessionsSyncResponse.error) {
+          throw new Error(
+            eventsSyncResponse.error?.message ??
+              sessionsSyncResponse.error?.message ??
+              "Não foi possível sincronizar as sessões individuais do campeonato.",
+          );
+        }
       }
 
       clearChampionshipBracketWizardDraft(selectedChampionship.id);
@@ -3338,6 +4309,125 @@ export function AdminChampionshipBracketPage({
     [updateScheduleDay],
   );
 
+  const updateSchedulePeriodAvailability = useCallback(
+    (
+      date: string,
+      period: ChampionshipSchedulePeriod,
+      enabled: boolean,
+    ) => {
+      setSchedulePeriods((currentSchedulePeriods) =>
+        currentSchedulePeriods.map((schedulePeriod) => {
+          if (schedulePeriod.date != date || schedulePeriod.period != period) {
+            return schedulePeriod;
+          }
+
+          return {
+            ...schedulePeriod,
+            enabled,
+          };
+        }),
+      );
+    },
+    [],
+  );
+
+  const updateCompetitionPeriodAvailability = useCallback(
+    (
+      competitionKey: string,
+      date: string,
+      period: ChampionshipSchedulePeriod,
+      enabled: boolean,
+    ) => {
+      setCompetitionPeriodAvailability((currentCompetitionPeriodAvailability) =>
+        currentCompetitionPeriodAvailability.map((availabilityItem) => {
+          if (
+            availabilityItem.competition_key != competitionKey ||
+            availabilityItem.date != date ||
+            availabilityItem.period != period
+          ) {
+            return availabilityItem;
+          }
+
+          return {
+            ...availabilityItem,
+            enabled,
+          };
+        }),
+      );
+    },
+    [],
+  );
+
+  const updateTeamCompetitionPeriodAvailability = useCallback(
+    (
+      teamId: string,
+      competitionKey: string,
+      date: string,
+      period: ChampionshipSchedulePeriod,
+      enabled: boolean,
+    ) => {
+      setTeamCompetitionAvailability((currentTeamCompetitionAvailability) =>
+        currentTeamCompetitionAvailability.map((availabilityItem) => {
+          if (
+            availabilityItem.team_id != teamId ||
+            availabilityItem.competition_key != competitionKey ||
+            availabilityItem.date != date ||
+            availabilityItem.period != period
+          ) {
+            return availabilityItem;
+          }
+
+          return {
+            ...availabilityItem,
+            enabled,
+          };
+        }),
+      );
+    },
+    [],
+  );
+
+  const updateIndividualEventConfig = useCallback(
+    (sportId: string, relayMultiplier: number) => {
+      setIndividualEventConfigs((currentIndividualEventConfigs) =>
+        currentIndividualEventConfigs.map((configItem) => {
+          if (configItem.sport_id != sportId) {
+            return configItem;
+          }
+
+          return {
+            ...configItem,
+            relay_multiplier: relayMultiplier,
+          };
+        }),
+      );
+    },
+    [],
+  );
+
+  const updateIndividualSessionConfig = useCallback(
+    (
+      sessionKey: string,
+      changes: Partial<
+        ChampionshipBracketWizardDraftFormValues["individual_session_configs"][number]
+      >,
+    ) => {
+      setIndividualSessionConfigs((currentIndividualSessionConfigs) =>
+        currentIndividualSessionConfigs.map((sessionConfig) => {
+          if (resolveIndividualSessionConfigKey(sessionConfig) != sessionKey) {
+            return sessionConfig;
+          }
+
+          return {
+            ...sessionConfig,
+            ...changes,
+          };
+        }),
+      );
+    },
+    [],
+  );
+
   const handleSelectLocationTemplateForDay = useCallback(
     (scheduleDayId: string, locationTemplateId: string) => {
       const locationTemplate = locationTemplateById[locationTemplateId];
@@ -3367,17 +4457,29 @@ export function AdminChampionshipBracketPage({
           ],
         };
       });
-      setLocationTemplatePickerDayId((currentLocationTemplatePickerDayId) => {
-        return currentLocationTemplatePickerDayId == scheduleDayId
+      setLocationTemplateSelectionDayId((currentLocationTemplateSelectionDayId) => {
+        return currentLocationTemplateSelectionDayId == scheduleDayId
           ? null
-          : currentLocationTemplatePickerDayId;
+          : currentLocationTemplateSelectionDayId;
       });
     },
     [locationTemplateById, updateScheduleDay],
   );
 
+  const handleOpenLocationTemplateSelectionModal = useCallback(
+    (scheduleDayId: string) => {
+      setLocationTemplateSelectionDayId(scheduleDayId);
+    },
+    [],
+  );
+
+  const handleCloseLocationTemplateSelectionModal = useCallback(() => {
+    setLocationTemplateSelectionDayId(null);
+  }, []);
+
   const handleOpenCreateLocationTemplateModal = useCallback(
     (scheduleDayId: string) => {
+      setLocationTemplateSelectionDayId(null);
       setLocationTemplateModalTarget({
         schedule_day_id: scheduleDayId,
         location_id: null,
@@ -3437,19 +4539,19 @@ export function AdminChampionshipBracketPage({
     }
 
     if (locationTemplateModalFormValues.courts.length == 0) {
-      toast.error("O local precisa ter ao menos uma quadra.");
+      toast.error("O local precisa ter ao menos um recurso/quadra.");
       return;
     }
 
     for (const court of locationTemplateModalFormValues.courts) {
       if (!court.name.trim()) {
-        toast.error("Toda quadra precisa ter um nome.");
+        toast.error("Todo recurso/quadra precisa ter um nome.");
         return;
       }
 
       if (court.sport_ids.length == 0) {
         toast.error(
-          "Toda quadra precisa ter ao menos uma modalidade vinculada.",
+          "Todo recurso/quadra precisa ter ao menos uma modalidade vinculada.",
         );
         return;
       }
@@ -3571,7 +4673,7 @@ export function AdminChampionshipBracketPage({
     setLocationTemplateModalFormValues(
       resolveInitialLocationTemplateModalFormValue(),
     );
-    setLocationTemplatePickerDayId(null);
+    setLocationTemplateSelectionDayId(null);
     toast.success("Local salvo no catálogo.");
   }, [locationTemplateModalFormValues, locationTemplateModalTarget]);
 
@@ -3703,6 +4805,32 @@ export function AdminChampionshipBracketPage({
     }, {});
   }, [locationTemplates, scheduleDays]);
 
+  const selectedLocationTemplateScheduleDay = useMemo(() => {
+    if (locationTemplateSelectionDayId == null) {
+      return null;
+    }
+
+    return (
+      scheduleDays.find(
+        (scheduleDay) => scheduleDay.id == locationTemplateSelectionDayId,
+      ) ?? null
+    );
+  }, [locationTemplateSelectionDayId, scheduleDays]);
+
+  const availableLocationTemplatesForSelection = useMemo(() => {
+    if (locationTemplateSelectionDayId == null) {
+      return [];
+    }
+
+    return (
+      availableLocationTemplatesByScheduleDayId[locationTemplateSelectionDayId] ??
+      []
+    );
+  }, [
+    availableLocationTemplatesByScheduleDayId,
+    locationTemplateSelectionDayId,
+  ]);
+
   const reviewScheduleDaySummaries = useMemo(() => {
     return scheduleDays.map((scheduleDay, scheduleDayIndex) => {
       const totalCourts = scheduleDay.locations.reduce(
@@ -3771,6 +4899,274 @@ export function AdminChampionshipBracketPage({
           competitionOption != null,
       );
   }, [competitionOptionsByKey, sortedActiveCompetitionKeys]);
+
+  const competitionLabelByKey = useMemo(() => {
+    return activeCompetitionOptions.reduce<Record<string, string>>(
+      (carry, competitionOption) => {
+        const divisionSuffix = competitionOption.division
+          ? ` • ${TEAM_DIVISION_LABELS[competitionOption.division]}`
+          : "";
+
+        carry[
+          competitionOption.key
+        ] = `${competitionOption.sport_name} • ${MATCH_NAIPE_LABELS[competitionOption.naipe]}${divisionSuffix}`;
+        return carry;
+      },
+      {},
+    );
+  }, [activeCompetitionOptions]);
+
+  const reviewSchedulePeriodEnabledCount = useMemo(() => {
+    return schedulePeriods.filter((schedulePeriod) => schedulePeriod.enabled != false)
+      .length;
+  }, [schedulePeriods]);
+
+  const reviewCompetitionAvailabilityEnabledCount = useMemo(() => {
+    return competitionPeriodAvailability.filter(
+      (availabilityItem) => availabilityItem.enabled != false,
+    ).length;
+  }, [competitionPeriodAvailability]);
+
+  const reviewTeamAvailabilityEnabledCount = useMemo(() => {
+    return teamCompetitionAvailability.filter(
+      (availabilityItem) => availabilityItem.enabled != false,
+    ).length;
+  }, [teamCompetitionAvailability]);
+
+  const individualSessionConfigByKey = useMemo(() => {
+    return new Map(
+      individualSessionConfigs.map((sessionConfig) => [
+        resolveIndividualSessionConfigKey(sessionConfig),
+        sessionConfig,
+      ]),
+    );
+  }, [individualSessionConfigs]);
+
+  const reviewEnabledSportSummaries = useMemo(() => {
+    return enabledChampionshipSports
+      .map((championshipSport) => ({
+        key: championshipSport.sport_id,
+        name: championshipSport.sports?.name ?? "Modalidade",
+        type: resolveIsIndividualSportName(
+          championshipSport.sports?.name ?? "",
+        )
+          ? "Individual"
+          : "Coletiva",
+      }))
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }, [enabledChampionshipSports]);
+
+  const reviewIndividualSessionSummaries = useMemo(() => {
+    return selectedIndividualCompetitionOptions.map((competitionOption) => {
+      const sessionKey = resolveIndividualSessionConfigKey(competitionOption);
+      const sessionConfig = individualSessionConfigByKey.get(sessionKey) ?? null;
+      const divisionSuffix = competitionOption.division
+        ? ` • ${TEAM_DIVISION_LABELS[competitionOption.division]}`
+        : "";
+
+      return {
+        key: sessionKey,
+        label: `${competitionOption.sport_name} • ${
+          MATCH_NAIPE_LABELS[competitionOption.naipe]
+        }${divisionSuffix}`,
+        scheduled_date: sessionConfig?.scheduled_date ?? null,
+        period: sessionConfig?.period ?? null,
+        resource_label:
+          sessionConfig?.location_name && sessionConfig?.court_name
+            ? `${sessionConfig.location_name} • ${sessionConfig.court_name}`
+            : null,
+        exclusive_lock_enabled: sessionConfig?.exclusive_lock_enabled == true,
+        has_slot:
+          Boolean(sessionConfig?.scheduled_date) &&
+          sessionConfig?.period != null &&
+          Boolean(sessionConfig?.location_key) &&
+          Boolean(sessionConfig?.court_key),
+      };
+    });
+  }, [
+    individualSessionConfigByKey,
+    selectedIndividualCompetitionOptions,
+  ]);
+
+  const reviewResourceLockSummaries = useMemo(() => {
+    return resourceLocks.map((resourceLock) => ({
+      key: [
+        resourceLock.date,
+        resourceLock.period,
+        resourceLock.location_key,
+        resourceLock.court_key,
+      ].join("::"),
+      label: `${
+        resourceLock.location_name ?? "Local"
+      } • ${resourceLock.court_name ?? "Recurso"}`,
+      slot_label: `${resolveBrazilianDateString(resourceLock.date)} • ${
+        SCHEDULE_PERIOD_LABELS[resourceLock.period]
+      }`,
+      lock_mode_label:
+        resourceLock.lock_mode == "HARD" ? "Bloqueio duro" : "Preferência flexível",
+    }));
+  }, [resourceLocks]);
+
+  const reviewDiagnosticItems = useMemo(() => {
+    const diagnostics: Array<{
+      key: string;
+      tone: "amber" | "red";
+      title: string;
+      description: string;
+    }> = [];
+
+    enabledChampionshipSports.forEach((championshipSport) => {
+      const hasSelectedParticipant = selectedTeamIds.some((teamId) =>
+        (selectedSportIdsByTeamId[teamId] ?? []).includes(
+          championshipSport.sport_id,
+        ),
+      );
+
+      if (!hasSelectedParticipant) {
+        diagnostics.push({
+          key: `enabled-sport-without-participants-${championshipSport.sport_id}`,
+          tone: "amber",
+          title: `${championshipSport.sports?.name ?? "Modalidade"} sem participantes`,
+          description:
+            "A modalidade está habilitada na temporada, mas nenhuma atlética foi vinculada a ela nas etapas seguintes.",
+        });
+      }
+    });
+
+    reviewIndividualSessionSummaries.forEach((sessionSummary) => {
+      if (!sessionSummary.has_slot) {
+        diagnostics.push({
+          key: `session-without-slot-${sessionSummary.key}`,
+          tone: "red",
+          title: `${sessionSummary.label} sem slot oficial`,
+          description:
+            "Defina dia, período e recurso para a sessão individual antes de fechar o setup.",
+        });
+      }
+    });
+
+    const resourceLockCounts = resourceLocks.reduce<Record<string, number>>(
+      (carry, resourceLock) => {
+        const key = [
+          resourceLock.date,
+          resourceLock.period,
+          resourceLock.location_key,
+          resourceLock.court_key,
+        ].join("::");
+        carry[key] = (carry[key] ?? 0) + 1;
+        return carry;
+      },
+      {},
+    );
+
+    Object.entries(resourceLockCounts).forEach(([lockKey, count]) => {
+      if (count > 1) {
+        const resourceLock = resourceLocks.find(
+          (currentResourceLock) =>
+            [
+              currentResourceLock.date,
+              currentResourceLock.period,
+              currentResourceLock.location_key,
+              currentResourceLock.court_key,
+            ].join("::") == lockKey,
+        );
+
+        diagnostics.push({
+          key: `resource-lock-collision-${lockKey}`,
+          tone: "red",
+          title: "Reserva de recurso conflitante",
+          description: `${
+            resourceLock?.location_name ?? "Local"
+          } • ${resourceLock?.court_name ?? "Recurso"} aparece reservado ${count} vezes no mesmo dia/período.`,
+        });
+      }
+    });
+
+    sortedActiveCompetitionKeys.forEach((competitionKey) => {
+      const hasValidWindow = schedulePeriods.some((schedulePeriod) => {
+        if (schedulePeriod.enabled == false) {
+          return false;
+        }
+
+        return (
+          competitionPeriodAvailabilityByKey[
+            `${competitionKey}::${resolveDatePeriodKey(
+              schedulePeriod.date,
+              schedulePeriod.period,
+            )}`
+          ] != false
+        );
+      });
+
+      if (!hasValidWindow) {
+        diagnostics.push({
+          key: `competition-without-window-${competitionKey}`,
+          tone: "red",
+          title: `${competitionLabelByKey[competitionKey] ?? "Competição"} sem janela válida`,
+          description:
+            "Nenhum dia/período ficou habilitado para essa competição coletiva.",
+        });
+      }
+    });
+
+    Object.entries(teamCompetitionKeysByTeamId).forEach(
+      ([teamId, competitionKeys]) => {
+        competitionKeys.forEach((competitionKey) => {
+          const hasValidWindow = schedulePeriods.some((schedulePeriod) => {
+            if (schedulePeriod.enabled == false) {
+              return false;
+            }
+
+            if (
+              competitionPeriodAvailabilityByKey[
+                `${competitionKey}::${resolveDatePeriodKey(
+                  schedulePeriod.date,
+                  schedulePeriod.period,
+                )}`
+              ] == false
+            ) {
+              return false;
+            }
+
+            return (
+              teamCompetitionAvailabilityByKey[
+                `${teamId}::${competitionKey}::${resolveDatePeriodKey(
+                  schedulePeriod.date,
+                  schedulePeriod.period,
+                )}`
+              ] != false
+            );
+          });
+
+          if (!hasValidWindow) {
+            diagnostics.push({
+              key: `team-without-window-${teamId}-${competitionKey}`,
+              tone: "red",
+              title: `${teamNameById[teamId] ?? "Atlética"} sem janela jogável`,
+              description: `${
+                competitionLabelByKey[competitionKey] ?? "Competição"
+              } não tem interseção válida entre agenda, modalidade e restrições da atlética.`,
+            });
+          }
+        });
+      },
+    );
+
+    return diagnostics;
+  }, [
+    competitionLabelByKey,
+    competitionPeriodAvailabilityByKey,
+    enabledChampionshipSports,
+    resourceLocks,
+    reviewIndividualSessionSummaries,
+    schedulePeriods,
+    selectedSportIdsByTeamId,
+    selectedTeamIds,
+    sortedActiveCompetitionKeys,
+    teamCompetitionAvailabilityByKey,
+    teamCompetitionKeysByTeamId,
+    teamNameById,
+  ]);
 
   const courtPriorityStepGroups = useMemo(() => {
     const naipesBySportId = activeCompetitionOptions.reduce<Record<string, MatchNaipe[]>>(
@@ -3998,28 +5394,285 @@ export function AdminChampionshipBracketPage({
             ) : null}
 
             <div className="rounded-2xl border border-transparent bg-background/60 p-1 shadow-[0_12px_24px_rgba(15,23,42,0.14)] dark:shadow-none dark:border-border/60">
-              <div className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-7">
-                {WIZARD_STEP_LABELS.map((label, stepIndex) => (
-                  <div
-                    key={label}
-                    className={`flex min-h-[56px] items-center justify-center rounded-xl px-3 py-2 text-center text-xs font-semibold transition-colors ${
-                      stepIndex == currentStepIndex
-                        ? "bg-primary text-primary-foreground shadow-[0_6px_14px_rgba(220,38,38,0.32)] dark:shadow-none"
-                        : stepIndex < currentStepIndex
-                          ? "bg-primary/10 text-primary"
-                          : "bg-transparent text-muted-foreground"
-                    }`}
-                  >
-                    <div className="leading-tight">
-                      {stepIndex + 1}. {label}
+              <div className="space-y-1">
+                {[0, WIZARD_STEP_ROW_BREAK_INDEX].map((startIndex) => {
+                  const stepLabels =
+                    startIndex == 0
+                      ? WIZARD_STEP_LABELS.slice(0, WIZARD_STEP_ROW_BREAK_INDEX)
+                      : WIZARD_STEP_LABELS.slice(WIZARD_STEP_ROW_BREAK_INDEX);
+
+                  return (
+                    <div
+                      key={`wizard-step-row-${startIndex}`}
+                      className="grid gap-1"
+                      style={{
+                        gridTemplateColumns: `repeat(${stepLabels.length}, minmax(0, 1fr))`,
+                      }}
+                    >
+                      {stepLabels.map((label, stepOffset) => {
+                        const stepIndex = startIndex + stepOffset;
+
+                        return (
+                          <div
+                            key={label}
+                            className={`flex min-h-[56px] items-center justify-center rounded-xl px-3 py-2 text-center text-xs font-semibold transition-colors ${
+                              stepIndex == currentStepIndex
+                                ? "bg-primary text-primary-foreground shadow-[0_6px_14px_rgba(220,38,38,0.32)] dark:shadow-none"
+                                : stepIndex < currentStepIndex
+                                  ? "bg-primary/10 text-primary"
+                                  : "bg-transparent text-muted-foreground"
+                            }`}
+                          >
+                            <div className="leading-tight">
+                              {stepIndex + 1}. {label}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
             <div className="flex-1 px-2 py-2">
               {currentStepIndex == 0 ? (
+                <div className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
+                  <div className="glass-card rounded-xl border border-border/50 p-6 shadow-sm">
+                    <div className="border-b border-border/50 pb-4 mb-6">
+                      <p className="text-lg font-bold">Formato da temporada</p>
+                      <p className="text-sm text-muted-foreground">
+                        Defina como a temporada {selectedChampionship.current_season_year} será disputada. O formato
+                        escolhido passa a dirigir participantes, competições e o fechamento sazonal.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-6 lg:grid-cols-2">
+                      <div className="space-y-3 rounded-xl border border-border/40 bg-background/30 p-4">
+                        <p className="text-sm font-bold">Formato de divisões</p>
+                        <RadioGroup
+                          value={seasonSettings.division_format}
+                          onValueChange={(value) =>
+                            setSeasonSettings((currentSeasonSettings) => {
+                              const nextDivisionFormat = value as ChampionshipSeasonDivisionFormat;
+
+                              if (nextDivisionFormat == ChampionshipSeasonDivisionFormat.SEPARATED) {
+                                return {
+                                  ...currentSeasonSettings,
+                                  division_format: nextDivisionFormat,
+                                  division_settlement_mode:
+                                    ChampionshipSeasonDivisionSettlementMode.PROMOTION_RELEGATION,
+                                  principal_slots_count: null,
+                                  principal_relegation_count:
+                                    currentSeasonSettings.principal_relegation_count ?? 2,
+                                  access_promotion_count:
+                                    currentSeasonSettings.access_promotion_count ?? 2,
+                                };
+                              }
+
+                              return {
+                                ...currentSeasonSettings,
+                                division_format: nextDivisionFormat,
+                                division_settlement_mode:
+                                  ChampionshipSeasonDivisionSettlementMode.TOP_N_TO_PRINCIPAL,
+                                principal_slots_count:
+                                  currentSeasonSettings.principal_slots_count ??
+                                  (selectedChampionship.code == ChampionshipCode.INTERLAJE ? 12 : null),
+                              };
+                            })
+                          }
+                        >
+                          <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/40 bg-background/40 p-3">
+                            <RadioGroupItem value={ChampionshipSeasonDivisionFormat.SEPARATED} />
+                            <div className="space-y-1">
+                              <p className="text-sm font-semibold">Divisões separadas</p>
+                              <p className="text-xs text-muted-foreground">
+                                A divisão principal e a divisão de acesso seguem em trilhas independentes.
+                              </p>
+                            </div>
+                          </label>
+
+                          <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/40 bg-background/40 p-3">
+                            <RadioGroupItem value={ChampionshipSeasonDivisionFormat.UNIFIED} />
+                            <div className="space-y-1">
+                              <p className="text-sm font-semibold">Divisão unificada</p>
+                              <p className="text-xs text-muted-foreground">
+                                Todas as atléticas jogam juntas na temporada atual e a divisão futura é definida no encerramento.
+                              </p>
+                            </div>
+                          </label>
+                        </RadioGroup>
+                      </div>
+
+                      <div className="space-y-4 rounded-xl border border-border/40 bg-background/30 p-4">
+                        <div className="space-y-1">
+                          <p className="text-sm font-bold">Fechamento da temporada</p>
+                          <p className="text-xs text-muted-foreground">
+                            A movimentação de divisões é gerada como prévia e aplicada só após confirmação administrativa.
+                          </p>
+                        </div>
+
+                        {seasonSettings.division_format == ChampionshipSeasonDivisionFormat.SEPARATED ? (
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="space-y-1.5">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                Caem da principal
+                              </Label>
+                              <Input
+                                type="number"
+                                min={1}
+                                value={seasonSettings.principal_relegation_count ?? ""}
+                                onChange={(event) =>
+                                  setSeasonSettings((currentSeasonSettings) => ({
+                                    ...currentSeasonSettings,
+                                    principal_relegation_count: event.target.value ? Number(event.target.value) : null,
+                                  }))
+                                }
+                              />
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                Sobem do acesso
+                              </Label>
+                              <Input
+                                type="number"
+                                min={1}
+                                value={seasonSettings.access_promotion_count ?? ""}
+                                onChange={(event) =>
+                                  setSeasonSettings((currentSeasonSettings) => ({
+                                    ...currentSeasonSettings,
+                                    access_promotion_count: event.target.value ? Number(event.target.value) : null,
+                                  }))
+                                }
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                              Vagas na principal
+                            </Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              value={seasonSettings.principal_slots_count ?? ""}
+                              onChange={(event) =>
+                                setSeasonSettings((currentSeasonSettings) => ({
+                                  ...currentSeasonSettings,
+                                  principal_slots_count: event.target.value ? Number(event.target.value) : null,
+                                }))
+                              }
+                            />
+                          </div>
+                        )}
+
+                        <div className="rounded-lg border border-border/40 bg-background/40 p-3 text-xs text-muted-foreground">
+                          {seasonSettings.division_format == ChampionshipSeasonDivisionFormat.SEPARATED
+                            ? `Prévia esperada: ${seasonSettings.principal_relegation_count ?? 0} caem da principal e ${seasonSettings.access_promotion_count ?? 0} sobem do acesso, filtrando a classificação geral oficial final pela divisão de origem.`
+                            : `Prévia esperada: os ${seasonSettings.principal_slots_count ?? 0} primeiros da classificação geral oficial final formam a divisão principal da próxima temporada.`}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {currentStepIndex == 1 ? (
+                <div className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
+                  <div className="glass-card rounded-xl border border-border/50 p-6 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/50 pb-4 mb-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-lg font-bold">
+                            Modalidades do Campeonato
+                          </p>
+                          <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                            {enabledSportsSummary.selected_sports_count}/
+                            {enabledSportsSummary.eligible_sports_count} ativas
+                          </span>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Escolha quais modalidades entram na temporada atual antes de selecionar participantes e naipes.
+                        </p>
+                      </div>
+                      <label className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium cursor-pointer transition-colors">
+                        <Checkbox
+                          className={SQUARE_CHECKBOX_CLASS_NAME}
+                          checked={resolveCheckboxCheckedState(
+                            enabledSportsSummary.selected_sports_count,
+                            enabledSportsSummary.eligible_sports_count,
+                          )}
+                          onCheckedChange={(checked) =>
+                            handleToggleAllEnabledSports(checked == true)
+                          }
+                        />
+                        Selecionar todas
+                      </label>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                      {championshipSportCards.map((championshipSport) => {
+                        const isEnabled = enabledSportIdSet.has(
+                          championshipSport.sport_id,
+                        );
+                        const sportName =
+                          championshipSport.sports?.name ?? "Modalidade";
+                        const isIndividualSport =
+                          resolveIsIndividualSportName(sportName);
+
+                        return (
+                          <label
+                            key={`enabled-sport-${championshipSport.sport_id}`}
+                            className={cn(
+                              "flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-all",
+                              isEnabled
+                                ? "border-primary/30 bg-primary/5 ring-1 ring-primary/20"
+                                : "border-border/40 bg-background/30",
+                            )}
+                          >
+                            <Checkbox
+                              className={SQUARE_CHECKBOX_CLASS_NAME}
+                              checked={isEnabled}
+                              onCheckedChange={(checked) =>
+                                handleToggleEnabledSport(
+                                  championshipSport.sport_id,
+                                  checked == true,
+                                )
+                              }
+                            />
+                            <div className="min-w-0 space-y-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="text-sm font-semibold">
+                                  {sportName}
+                                </p>
+                                <AppBadge
+                                  tone={
+                                    isIndividualSport
+                                      ? AppBadgeTone.SKY
+                                      : AppBadgeTone.NEUTRAL
+                                  }
+                                  className="shrink-0"
+                                >
+                                  {isIndividualSport ? "Individual" : "Coletiva"}
+                                </AppBadge>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {championshipSport.naipe_mode ==
+                                ChampionshipSportNaipeMode.MISTO
+                                  ? "Naipe misto."
+                                  : "Naipes masculino e feminino."}
+                              </p>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {currentStepIndex == 2 ? (
                 <div className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
                   <div className="glass-card rounded-xl border border-border/50 p-6 shadow-sm">
                     <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/50 pb-4 mb-4">
@@ -4058,8 +5711,8 @@ export function AdminChampionshipBracketPage({
                             key={team.id}
                             className={cn(
                               "mb-3 flex w-full break-inside-avoid-column items-center gap-3 rounded-xl border p-3 transition-all cursor-pointer",
-                              isSelected 
-                                ? "border-primary/30 bg-primary/5 ring-1 ring-primary/20" 
+                              isSelected
+                                ? "border-primary/30 bg-primary/5 ring-1 ring-primary/20"
                                 : ""
                             )}
                           >
@@ -4090,15 +5743,14 @@ export function AdminChampionshipBracketPage({
                     </div>
                     {selectableTeams.length == 0 ? (
                       <p className="mt-3 text-sm text-muted-foreground text-center py-8">
-                        Nenhuma atlética com divisão configurada
-                        (principal/acesso) foi encontrada.
+                        Nenhuma atlética elegível foi encontrada para o formato sazonal selecionado.
                       </p>
                     ) : null}
                   </div>
                 </div>
               ) : null}
 
-              {currentStepIndex == 1 ? (
+              {currentStepIndex == 3 ? (
                 <div className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
                   <div className="glass-card rounded-xl border border-border/50 p-6 shadow-sm">
                     <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/50 pb-4 mb-4">
@@ -4280,7 +5932,7 @@ export function AdminChampionshipBracketPage({
                 </div>
               ) : null}
 
-              {currentStepIndex == 2 ? (
+              {currentStepIndex == 4 ? (
                 <div className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
                   <div className="glass-card rounded-xl border border-border/50 p-6 shadow-sm">
                     <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/50 pb-4 mb-4">
@@ -4456,7 +6108,7 @@ export function AdminChampionshipBracketPage({
                 </div>
               ) : null}
 
-              {currentStepIndex == 3 ? (
+              {currentStepIndex == 5 ? (
                 <div className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
                   <div className="glass-card rounded-xl border border-border/50 p-6 shadow-sm">
                     <div className="border-b border-border/50 pb-4 mb-6">
@@ -4514,16 +6166,6 @@ export function AdminChampionshipBracketPage({
                                     qualifiers_per_group: competitionConfig.qualifiers_per_group,
                                     should_complete_knockout_with_best_second_placed_teams: competitionConfig.should_complete_knockout_with_best_second_placed_teams,
                                   })}
-                                </span>
-                                <span>
-                                  Cruzamento:{" "}
-                                  <strong>
-                                    {resolveCompetitionKnockoutPairingModeLabel(
-                                      resolveCompetitionKnockoutPairingModeControlValue(
-                                        competitionConfig.knockout_pairing_mode,
-                                      ),
-                                    )}
-                                  </strong>
                                 </span>
                               </div>
                             </div>
@@ -4641,68 +6283,6 @@ export function AdminChampionshipBracketPage({
                                 </RadioGroup>
                               </div>
 
-                              <div className="space-y-2">
-                                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                                  Tipo de cruzamento
-                                </Label>
-                                <RadioGroup
-                                  value={resolveCompetitionKnockoutPairingModeControlValue(
-                                    competitionConfig.knockout_pairing_mode,
-                                  )}
-                                  onValueChange={(value) =>
-                                    setCompetitionConfigByKey((prev) => ({
-                                      ...prev,
-                                      [competitionKey]: {
-                                        ...(prev[competitionKey] ??
-                                          resolveDefaultCompetitionConfig(2, competitionOption)),
-                                        knockout_pairing_mode: value as CompetitionConfig["knockout_pairing_mode"],
-                                      },
-                                    }))
-                                  }
-                                  className="flex flex-col gap-2"
-                                >
-                                  {CHAMPIONSHIP_KNOCKOUT_PAIRING_MODE_OPTIONS.map((option) => {
-                                    const isCrossGroupOption =
-                                      option.value == "FUTEBOL_SOCIETY_FEM_ACCESS_CROSS_GROUPS";
-                                    const isOptionEnabled =
-                                      !isCrossGroupOption ||
-                                      resolveIsCrossGroupKnockoutPairingAvailable({
-                                        sport_name: competitionOption.sport_name,
-                                        naipe: competitionOption.naipe,
-                                        division: competitionOption.division,
-                                      });
-
-                                    return (
-                                      <label
-                                        key={option.value}
-                                        className={cn(
-                                          "flex items-start gap-3 rounded-lg border p-2.5 transition-all",
-                                          resolveCompetitionKnockoutPairingModeControlValue(
-                                            competitionConfig.knockout_pairing_mode,
-                                          ) == option.value
-                                            ? "border-primary/40 bg-primary/5 ring-1 ring-primary/10"
-                                            : "border-border/40 bg-background/20",
-                                          isOptionEnabled
-                                            ? "cursor-pointer hover:bg-background/40"
-                                            : "cursor-not-allowed opacity-60",
-                                        )}
-                                      >
-                                        <RadioGroupItem
-                                          value={option.value}
-                                          disabled={!isOptionEnabled}
-                                          id={`pairing-${competitionKey}-${option.value}`}
-                                        />
-                                        <div className="space-y-1">
-                                          <p className="text-xs font-semibold">{option.label}</p>
-                                          <p className="text-[11px] leading-relaxed text-muted-foreground">
-                                            {option.helper}
-                                          </p>
-                                        </div>
-                                      </label>
-                                    );
-                                  })}
-                                </RadioGroup>
-                              </div>
                             </div>
                           </div>
                         );
@@ -4712,7 +6292,7 @@ export function AdminChampionshipBracketPage({
                 </div>
               ) : null}
 
-              {currentStepIndex == 4 ? (
+              {currentStepIndex == 11 ? (
                 <div className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
                   <div className="glass-card rounded-xl border border-border/50 p-6 shadow-sm">
                     <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/50 pb-4 mb-6">
@@ -4986,7 +6566,7 @@ export function AdminChampionshipBracketPage({
                 </div>
               ) : null}
 
-              {currentStepIndex == 5 ? (
+              {currentStepIndex == 6 ? (
                 <div className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
                   <div className="glass-card rounded-xl border border-border/50 p-6 shadow-sm">
                     <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/50 pb-4 mb-6">
@@ -5104,8 +6684,12 @@ export function AdminChampionshipBracketPage({
                                     size="sm"
                                     variant="outline"
                                     className="h-7 text-[10px] font-bold bg-background/40 border-border/40"
-                                    onClick={() => setLocationTemplatePickerDayId(prev => prev == scheduleDay.id ? null : scheduleDay.id)}
-                                    disabled={locationTemplatesLoading || (availableLocationTemplatesByScheduleDayId[scheduleDay.id]?.length ?? 0) == 0}
+                                    onClick={() =>
+                                      handleOpenLocationTemplateSelectionModal(
+                                        scheduleDay.id,
+                                      )
+                                    }
+                                    disabled={locationTemplatesLoading}
                                   >
                                     <Plus className="mr-1 h-3 w-3" /> Adicionar local
                                   </Button>
@@ -5129,7 +6713,10 @@ export function AdminChampionshipBracketPage({
                                     <div className="space-y-1">
                                       <p className="text-sm font-bold">{location.name}</p>
                                       <p className="text-xs text-muted-foreground">
-                                        {resolveScheduleLocationCourtCountSummaryBySport(location, activeCompetitionOptions)}
+                                        {resolveLocationCatalogSupportSummary(
+                                          location,
+                                          selectedSportOptions,
+                                        )}
                                       </p>
                                     </div>
                                     <div className="flex gap-1">
@@ -5185,17 +6772,674 @@ export function AdminChampionshipBracketPage({
                 </div>
               ) : null}
 
-              {currentStepIndex == 6 ? (
+              {currentStepIndex == 7 ? (
                 <div className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
                   <div className="glass-card rounded-xl border border-border/50 p-6 shadow-sm">
                     <div className="border-b border-border/50 pb-4 mb-6">
-                      <p className="text-lg font-bold">Prioridade de Quadras</p>
+                      <p className="text-lg font-bold">Sessões das Modalidades Individuais</p>
+                      <p className="text-sm text-muted-foreground">
+                        Defina o slot oficial de cada sessão de atletismo e natação por modalidade,
+                        naipe e divisão. Esse slot passa a ser a reserva operacional da sessão ao vivo.
+                      </p>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div className="rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm">
+                        <div className="mb-4">
+                          <p className="text-sm font-bold">Configuração de pontuação</p>
+                          <p className="text-xs text-muted-foreground">
+                            A pontuação base segue fixa em 24 a 1. Ajuste apenas o multiplicador das
+                            provas de revezamento para as modalidades individuais habilitadas.
+                          </p>
+                        </div>
+
+                        {selectedIndividualSports.length == 0 ? (
+                          <div className="rounded-lg border border-dashed border-border/40 bg-background/20 p-6 text-center text-sm text-muted-foreground">
+                            Nenhuma modalidade individual ativa nesta temporada.
+                          </div>
+                        ) : (
+                          <div className="grid gap-4 md:grid-cols-2">
+                            {selectedIndividualSports.map((individualSport) => {
+                              const individualConfig =
+                                individualEventConfigs.find(
+                                  (configItem) =>
+                                    configItem.sport_id == individualSport.sport_id,
+                                ) ?? null;
+
+                              return (
+                                <div
+                                  key={`individual-sport-${individualSport.sport_id}`}
+                                  className="rounded-lg border border-border/30 bg-background/40 p-4"
+                                >
+                                  <p className="text-sm font-bold">
+                                    {individualSport.sport_name}
+                                  </p>
+                                  <p className="mt-1 text-xs text-muted-foreground">
+                                    Pontuação individual padrão: 24, 22, 20, 18... até 1 ponto.
+                                  </p>
+
+                                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                                    <div className="space-y-1.5">
+                                      <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                        Regra de pontuação
+                                      </Label>
+                                      <Input
+                                        value="24 a 1 (fixo)"
+                                        disabled
+                                        className="h-10 bg-background/50 border-border/40"
+                                      />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                        Multiplicador do revezamento
+                                      </Label>
+                                      <Input
+                                        type="number"
+                                        min={1}
+                                        step={1}
+                                        value={individualConfig?.relay_multiplier ?? 2}
+                                        onChange={(event) =>
+                                          updateIndividualEventConfig(
+                                            individualSport.sport_id,
+                                            Math.max(1, Number(event.target.value) || 1),
+                                          )
+                                        }
+                                        className="h-10 bg-background/50 border-border/40"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm">
+                        <div className="mb-4">
+                          <p className="text-sm font-bold">Sessões oficiais</p>
+                          <p className="text-xs text-muted-foreground">
+                            Cada sessão individual precisa de um único dia, período e recurso oficial.
+                            Se marcar bloqueio duro, o recurso fica reservado exclusivamente para a sessão.
+                          </p>
+                        </div>
+
+                        {selectedIndividualCompetitionOptions.length == 0 ? (
+                          <div className="rounded-lg border border-dashed border-border/40 bg-background/20 p-6 text-center text-sm text-muted-foreground">
+                            Nenhuma sessão individual foi gerada com a seleção atual de modalidades, naipes e divisões.
+                          </div>
+                        ) : (
+                          <div className="grid gap-4 xl:grid-cols-2">
+                            {selectedIndividualCompetitionOptions.map((competitionOption) => {
+                              const sessionKey =
+                                resolveIndividualSessionConfigKey(competitionOption);
+                              const sessionConfig =
+                                individualSessionConfigByKey.get(sessionKey) ??
+                                null;
+                              const divisionSuffix = competitionOption.division
+                                ? ` • ${TEAM_DIVISION_LABELS[competitionOption.division]}`
+                                : "";
+                              const selectedDate =
+                                sessionConfig?.scheduled_date ?? null;
+                              const availableResources = selectedDate
+                                ? (scheduleResourcesByDate[selectedDate] ?? []).filter(
+                                    (resource) =>
+                                      resource.sport_ids.includes(
+                                        competitionOption.sport_id,
+                                      ),
+                                  )
+                                : [];
+                              const selectedResourceValue =
+                                sessionConfig?.location_key && sessionConfig?.court_key
+                                  ? `${sessionConfig.location_key}::${sessionConfig.court_key}`
+                                  : "UNSELECTED";
+
+                              return (
+                                <div
+                                  key={`individual-session-${sessionKey}`}
+                                  className="rounded-lg border border-border/30 bg-background/40 p-4"
+                                >
+                                  <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                                    <div>
+                                      <p className="text-sm font-bold">
+                                        {competitionOption.sport_name} •{" "}
+                                        {MATCH_NAIPE_LABELS[competitionOption.naipe]}
+                                        {divisionSuffix}
+                                      </p>
+                                      <p className="mt-1 text-xs text-muted-foreground">
+                                        Sessão única que aparecerá no controle ao vivo e na agenda pública.
+                                      </p>
+                                    </div>
+                                    <label className="flex items-center gap-2 rounded-md border border-border/40 bg-background/40 px-3 py-2 text-xs font-medium">
+                                      <Checkbox
+                                        className={SQUARE_CHECKBOX_CLASS_NAME}
+                                        checked={sessionConfig?.exclusive_lock_enabled == true}
+                                        onCheckedChange={(checked) =>
+                                          updateIndividualSessionConfig(sessionKey, {
+                                            exclusive_lock_enabled: checked == true,
+                                          })
+                                        }
+                                      />
+                                      Bloqueio duro
+                                    </label>
+                                  </div>
+
+                                  <div className="grid gap-4 sm:grid-cols-3">
+                                    <div className="space-y-1.5">
+                                      <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                        Dia oficial
+                                      </Label>
+                                      <Select
+                                        value={selectedDate ?? "UNSELECTED"}
+                                        onValueChange={(value) => {
+                                          const nextDate =
+                                            value == "UNSELECTED" ? null : value;
+                                          const nextPeriod =
+                                            nextDate &&
+                                            sessionConfig?.period &&
+                                            schedulePeriodEnabledByDatePeriodKey[
+                                              resolveDatePeriodKey(
+                                                nextDate,
+                                                sessionConfig.period,
+                                              )
+                                            ] != false
+                                              ? sessionConfig.period
+                                              : null;
+
+                                          updateIndividualSessionConfig(sessionKey, {
+                                            scheduled_date: nextDate,
+                                            period: nextPeriod,
+                                            location_key: null,
+                                            court_key: null,
+                                            location_name: null,
+                                            court_name: null,
+                                          });
+                                        }}
+                                      >
+                                        <SelectTrigger className="h-10 bg-background/50 border-border/40">
+                                          <SelectValue placeholder="Selecione o dia" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="UNSELECTED">
+                                            Selecione
+                                          </SelectItem>
+                                          {scheduleDayDates.map((scheduleDate) => (
+                                            <SelectItem
+                                              key={`${sessionKey}-date-${scheduleDate}`}
+                                              value={scheduleDate}
+                                            >
+                                              {resolveBrazilianDateString(scheduleDate)}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                      <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                        Período
+                                      </Label>
+                                      <Select
+                                        value={sessionConfig?.period ?? "UNSELECTED"}
+                                        onValueChange={(value) =>
+                                          updateIndividualSessionConfig(sessionKey, {
+                                            period:
+                                              value == "UNSELECTED"
+                                                ? null
+                                                : (value as ChampionshipSchedulePeriod),
+                                          })
+                                        }
+                                        disabled={!selectedDate}
+                                      >
+                                        <SelectTrigger className="h-10 bg-background/50 border-border/40">
+                                          <SelectValue placeholder="Selecione o período" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="UNSELECTED">
+                                            Selecione
+                                          </SelectItem>
+                                          {SCHEDULE_PERIODS.map((period) => (
+                                            <SelectItem
+                                              key={`${sessionKey}-period-${period}`}
+                                              value={period}
+                                              disabled={
+                                                !selectedDate ||
+                                                schedulePeriodEnabledByDatePeriodKey[
+                                                  resolveDatePeriodKey(
+                                                    selectedDate,
+                                                    period,
+                                                  )
+                                                ] == false
+                                              }
+                                            >
+                                              {SCHEDULE_PERIOD_LABELS[period]}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                      <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                        Recurso
+                                      </Label>
+                                      <Select
+                                        value={selectedResourceValue}
+                                        onValueChange={(value) => {
+                                          if (value == "UNSELECTED") {
+                                            updateIndividualSessionConfig(sessionKey, {
+                                              location_key: null,
+                                              court_key: null,
+                                              location_name: null,
+                                              court_name: null,
+                                            });
+                                            return;
+                                          }
+
+                                          const nextResource = availableResources.find(
+                                            (resource) =>
+                                              `${resource.location_key}::${resource.court_key}` ==
+                                              value,
+                                          );
+
+                                          if (!nextResource) {
+                                            return;
+                                          }
+
+                                          updateIndividualSessionConfig(sessionKey, {
+                                            location_key: nextResource.location_key,
+                                            court_key: nextResource.court_key,
+                                            location_name: nextResource.location_name,
+                                            court_name: nextResource.court_name,
+                                          });
+                                        }}
+                                        disabled={!selectedDate}
+                                      >
+                                        <SelectTrigger className="h-10 bg-background/50 border-border/40">
+                                          <SelectValue placeholder="Selecione o recurso" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="UNSELECTED">
+                                            Selecione
+                                          </SelectItem>
+                                          {availableResources.map((resource) => (
+                                            <SelectItem
+                                              key={`${sessionKey}-resource-${resource.location_key}-${resource.court_key}`}
+                                              value={`${resource.location_key}::${resource.court_key}`}
+                                            >
+                                              {resource.location_name} • {resource.court_name}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </div>
+
+                                  <div className="mt-4 rounded-lg border border-border/30 bg-background/30 px-3 py-2 text-xs text-muted-foreground">
+                                    {sessionConfig?.scheduled_date &&
+                                    sessionConfig?.period &&
+                                    sessionConfig?.location_name &&
+                                    sessionConfig?.court_name
+                                      ? `${resolveBrazilianDateString(
+                                          sessionConfig.scheduled_date,
+                                        )} • ${
+                                          SCHEDULE_PERIOD_LABELS[sessionConfig.period]
+                                        } • ${sessionConfig.location_name} • ${
+                                          sessionConfig.court_name
+                                        }${
+                                          sessionConfig.exclusive_lock_enabled
+                                            ? " • bloqueio duro ativo"
+                                            : " • sem bloqueio duro"
+                                        }`
+                                      : "Sessão ainda sem slot oficial completo."}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {currentStepIndex == 8 ? (
+                <div className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
+                  <div className="glass-card rounded-xl border border-border/50 p-6 shadow-sm">
+                    <div className="border-b border-border/50 pb-4 mb-6">
+                      <p className="text-lg font-bold">Disponibilidade por Modalidade</p>
+                      <p className="text-sm text-muted-foreground">
+                        Defina os períodos globais da agenda e, na sequência, os dias e períodos
+                        válidos para cada competição coletiva. As modalidades individuais seguem o
+                        slot oficial configurado na etapa anterior.
+                      </p>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div className="rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm">
+                        <div className="mb-4">
+                          <p className="text-sm font-bold">Períodos globais da agenda</p>
+                          <p className="text-xs text-muted-foreground">
+                            Esses períodos definem a janela base do campeonato em cada dia.
+                          </p>
+                        </div>
+
+                        {scheduleDayDates.length == 0 ? (
+                          <div className="rounded-lg border border-dashed border-border/40 bg-background/20 p-6 text-center text-sm text-muted-foreground">
+                            Adicione ao menos um dia na agenda para liberar a configuração de períodos.
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {scheduleDayDates.map((scheduleDate) => (
+                              <div
+                                key={`schedule-periods-${scheduleDate}`}
+                                className="rounded-lg border border-border/30 bg-background/40 p-4"
+                              >
+                                <div className="flex flex-wrap items-center justify-between gap-4">
+                                  <p className="text-sm font-bold">
+                                    {resolveBrazilianDateString(scheduleDate)}
+                                  </p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {SCHEDULE_PERIODS.map((period) => {
+                                      const datePeriodKey = resolveDatePeriodKey(
+                                        scheduleDate,
+                                        period,
+                                      );
+                                      const isEnabled =
+                                        schedulePeriodEnabledByDatePeriodKey[datePeriodKey] !=
+                                        false;
+
+                                      return (
+                                        <label
+                                          key={datePeriodKey}
+                                          className="flex items-center gap-2 rounded-md border border-border/40 bg-background/50 px-3 py-2 text-xs font-medium cursor-pointer hover:bg-background/70 transition-colors"
+                                        >
+                                          <Checkbox
+                                            className={SQUARE_CHECKBOX_CLASS_NAME}
+                                            checked={isEnabled}
+                                            onCheckedChange={(checked) =>
+                                              updateSchedulePeriodAvailability(
+                                                scheduleDate,
+                                                period,
+                                                checked == true,
+                                              )
+                                            }
+                                          />
+                                          {SCHEDULE_PERIOD_LABELS[period]}
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm">
+                        <div className="mb-4">
+                          <p className="text-sm font-bold">Competições coletivas</p>
+                          <p className="text-xs text-muted-foreground">
+                            Cada competição só poderá receber jogos nos períodos habilitados abaixo.
+                          </p>
+                        </div>
+
+                        {activeCompetitionOptions.length == 0 ? (
+                          <div className="rounded-lg border border-dashed border-border/40 bg-background/20 p-6 text-center text-sm text-muted-foreground">
+                            Nenhuma competição coletiva ativa para configurar nesta etapa.
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            {activeCompetitionOptions.map((competitionOption) => (
+                              <div
+                                key={`competition-period-${competitionOption.key}`}
+                                className="rounded-lg border border-border/30 bg-background/40 p-4"
+                              >
+                                <div className="mb-3">
+                                  <p className="text-sm font-bold">
+                                    {competitionLabelByKey[competitionOption.key]}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Períodos não habilitados globalmente ficam bloqueados aqui.
+                                  </p>
+                                </div>
+
+                                <div className="space-y-3">
+                                  {scheduleDayDates.map((scheduleDate) => (
+                                    <div
+                                      key={`${competitionOption.key}-${scheduleDate}`}
+                                      className="rounded-md border border-border/20 bg-background/30 p-3"
+                                    >
+                                      <div className="flex flex-wrap items-center justify-between gap-3">
+                                        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                          {resolveBrazilianDateString(scheduleDate)}
+                                        </p>
+                                        <div className="flex flex-wrap gap-2">
+                                          {SCHEDULE_PERIODS.map((period) => {
+                                            const datePeriodKey = resolveDatePeriodKey(
+                                              scheduleDate,
+                                              period,
+                                            );
+                                            const availabilityKey = `${competitionOption.key}::${datePeriodKey}`;
+                                            const isGloballyEnabled =
+                                              schedulePeriodEnabledByDatePeriodKey[
+                                                datePeriodKey
+                                              ] != false;
+                                            const isEnabled =
+                                              competitionPeriodAvailabilityByKey[
+                                                availabilityKey
+                                              ] != false;
+
+                                            return (
+                                              <label
+                                                key={availabilityKey}
+                                                className={cn(
+                                                  "flex items-center gap-2 rounded-md border border-border/40 bg-background/50 px-3 py-2 text-xs font-medium transition-colors",
+                                                  isGloballyEnabled
+                                                    ? "cursor-pointer hover:bg-background/70"
+                                                    : "cursor-not-allowed opacity-50",
+                                                )}
+                                              >
+                                                <Checkbox
+                                                  className={SQUARE_CHECKBOX_CLASS_NAME}
+                                                  checked={isEnabled}
+                                                  disabled={!isGloballyEnabled}
+                                                  onCheckedChange={(checked) =>
+                                                    updateCompetitionPeriodAvailability(
+                                                      competitionOption.key,
+                                                      scheduleDate,
+                                                      period,
+                                                      checked == true,
+                                                    )
+                                                  }
+                                                />
+                                                {SCHEDULE_PERIOD_LABELS[period]}
+                                              </label>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {currentStepIndex == 9 ? (
+                <div className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
+                  <div className="glass-card rounded-xl border border-border/50 p-6 shadow-sm">
+                    <div className="border-b border-border/50 pb-4 mb-6">
+                      <p className="text-lg font-bold">Disponibilidade das Atléticas</p>
+                      <p className="text-sm text-muted-foreground">
+                        Restrinja em quais dias e períodos cada atlética poderá jogar por competição.
+                        O gerador vai usar a interseção entre agenda, modalidade e atlética.
+                      </p>
+                    </div>
+
+                    {Object.keys(teamCompetitionKeysByTeamId).length == 0 ? (
+                      <div className="rounded-xl border border-dashed border-border/40 bg-background/20 p-8 text-center text-sm text-muted-foreground">
+                        Nenhuma combinação válida de atlética e competição coletiva para configurar.
+                      </div>
+                    ) : (
+                      <div className="space-y-6">
+                        {Object.entries(teamCompetitionKeysByTeamId).map(
+                          ([teamId, competitionKeys]) => (
+                            <div
+                              key={`team-availability-${teamId}`}
+                              className="rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm"
+                            >
+                              <div className="mb-4">
+                                <p className="text-sm font-bold">
+                                  {teamNameById[teamId] ?? "Atlética"}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  Desmarque os períodos em que esta atlética não pode jogar.
+                                </p>
+                              </div>
+
+                              <div className="space-y-4">
+                                {competitionKeys.map((competitionKey) => (
+                                  <div
+                                    key={`team-competition-${teamId}-${competitionKey}`}
+                                    className="rounded-lg border border-border/30 bg-background/40 p-4"
+                                  >
+                                    <p className="text-sm font-bold">
+                                      {competitionLabelByKey[competitionKey] ??
+                                        "Competição"}
+                                    </p>
+
+                                    <div className="mt-3 space-y-3">
+                                      {scheduleDayDates.map((scheduleDate) => (
+                                        <div
+                                          key={`${teamId}-${competitionKey}-${scheduleDate}`}
+                                          className="rounded-md border border-border/20 bg-background/30 p-3"
+                                        >
+                                          <div className="flex flex-wrap items-center justify-between gap-3">
+                                            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                              {resolveBrazilianDateString(scheduleDate)}
+                                            </p>
+                                            <div className="flex flex-wrap gap-2">
+                                              {SCHEDULE_PERIODS.map((period) => {
+                                                const datePeriodKey = resolveDatePeriodKey(
+                                                  scheduleDate,
+                                                  period,
+                                                );
+                                                const competitionAvailabilityKey = `${competitionKey}::${datePeriodKey}`;
+                                                const teamAvailabilityKey = `${teamId}::${competitionKey}::${datePeriodKey}`;
+                                                const isGloballyEnabled =
+                                                  schedulePeriodEnabledByDatePeriodKey[
+                                                    datePeriodKey
+                                                  ] != false;
+                                                const isCompetitionEnabled =
+                                                  competitionPeriodAvailabilityByKey[
+                                                    competitionAvailabilityKey
+                                                  ] != false;
+                                                const isAvailable =
+                                                  teamCompetitionAvailabilityByKey[
+                                                    teamAvailabilityKey
+                                                  ] != false;
+                                                const isEnabled =
+                                                  isGloballyEnabled &&
+                                                  isCompetitionEnabled;
+
+                                                return (
+                                                  <label
+                                                    key={teamAvailabilityKey}
+                                                    className={cn(
+                                                      "flex items-center gap-2 rounded-md border border-border/40 bg-background/50 px-3 py-2 text-xs font-medium transition-colors",
+                                                      isEnabled
+                                                        ? "cursor-pointer hover:bg-background/70"
+                                                        : "cursor-not-allowed opacity-50",
+                                                    )}
+                                                  >
+                                                    <Checkbox
+                                                      className={SQUARE_CHECKBOX_CLASS_NAME}
+                                                      checked={isAvailable}
+                                                      disabled={!isEnabled}
+                                                      onCheckedChange={(checked) =>
+                                                        updateTeamCompetitionPeriodAvailability(
+                                                          teamId,
+                                                          competitionKey,
+                                                          scheduleDate,
+                                                          period,
+                                                          checked == true,
+                                                        )
+                                                      }
+                                                    />
+                                                    {SCHEDULE_PERIOD_LABELS[period]}
+                                                  </label>
+                                                );
+                                              })}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ),
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+
+              {currentStepIndex == 10 ? (
+                <div className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
+                  <div className="glass-card rounded-xl border border-border/50 p-6 shadow-sm">
+                    <div className="border-b border-border/50 pb-4 mb-6">
+                      <p className="text-lg font-bold">Prioridade e Reserva de Quadras</p>
                       <p className="text-sm text-muted-foreground">
                         Quando duas ou mais quadras atendem a mesma modalidade, defina a preferência de
-                        naipe{selectedChampionship.uses_divisions ? " ou divisão" : ""} de cada quadra.
+                        naipe{resolveUsesSeasonDivisions(seasonSettings) ? " ou divisão" : ""} de cada quadra.
                         A preferência é flexível: a quadra aceita outros jogos quando não há jogo do tipo
-                        preferido pendente. Esta etapa é opcional.
+                        preferido pendente. Sessões individuais podem gerar bloqueios duros opcionais
+                        para o recurso escolhido.
                       </p>
+                    </div>
+
+                    <div className="mb-6 rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm">
+                      <div className="mb-4">
+                        <p className="text-sm font-bold">Reservas de recurso ativas</p>
+                        <p className="text-xs text-muted-foreground">
+                          Bloqueios duros derivados das sessões individuais aparecem aqui para auditoria.
+                        </p>
+                      </div>
+
+                      {reviewResourceLockSummaries.length == 0 ? (
+                        <div className="rounded-lg border border-dashed border-border/40 bg-background/20 p-4 text-center text-sm text-muted-foreground">
+                          Nenhuma reserva ativa até o momento.
+                        </div>
+                      ) : (
+                        <div className="grid gap-3 md:grid-cols-2">
+                          {reviewResourceLockSummaries.map((resourceLockSummary) => (
+                            <div
+                              key={`resource-lock-${resourceLockSummary.key}`}
+                              className="rounded-lg border border-border/30 bg-background/40 px-3 py-2 text-xs"
+                            >
+                              <p className="font-bold text-foreground">
+                                {resourceLockSummary.label}
+                              </p>
+                              <p className="mt-1 text-muted-foreground">
+                                {resourceLockSummary.slot_label} •{" "}
+                                {resourceLockSummary.lock_mode_label}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     {courtPriorityStepGroups.length == 0 ? (
@@ -5263,7 +7507,7 @@ export function AdminChampionshipBracketPage({
                                         </Select>
                                       </div>
 
-                                      {selectedChampionship.uses_divisions ? (
+                                      {resolveUsesSeasonDivisions(seasonSettings) ? (
                                         <div className="flex-1">
                                           <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                                             Divisão preferencial
@@ -5310,7 +7554,7 @@ export function AdminChampionshipBracketPage({
                 </div>
               ) : null}
 
-              {currentStepIndex == 7 ? (
+              {currentStepIndex == 12 ? (
                 <div className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
                   <div className="glass-card rounded-xl border border-border/50 p-6 shadow-sm">
                     <div className="border-b border-border/50 pb-4 mb-6">
@@ -5320,30 +7564,124 @@ export function AdminChampionshipBracketPage({
                       </p>
                     </div>
 
-                    <div className="grid gap-6 sm:grid-cols-3">
+                    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+                      <div className="rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm">
+                        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                          Modalidades ativas
+                        </p>
+                        <p className="mt-2 text-2xl font-bold">
+                          {enabledSportIds.length}
+                        </p>
+                      </div>
                       <div className="rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm">
                         <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                           Atléticas participantes
                         </p>
-                        <p className="mt-2 text-2xl font-bold">
-                          {selectedTeamIds.length}
-                        </p>
+                        <p className="mt-2 text-2xl font-bold">{selectedTeamIds.length}</p>
                       </div>
                       <div className="rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm">
                         <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                           Competições ativas
                         </p>
-                        <p className="mt-2 text-2xl font-bold">
-                          {activeCompetitionKeys.length}
-                        </p>
+                        <p className="mt-2 text-2xl font-bold">{activeCompetitionKeys.length}</p>
                       </div>
                       <div className="rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm">
                         <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                           Dias de agenda
                         </p>
-                        <p className="mt-2 text-2xl font-bold">
-                          {scheduleDays.length}
+                        <p className="mt-2 text-2xl font-bold">{scheduleDays.length}</p>
+                      </div>
+                      <div className="rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm">
+                        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                          Períodos globais ativos
                         </p>
+                        <p className="mt-2 text-2xl font-bold">
+                          {reviewSchedulePeriodEnabledCount}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm">
+                        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                          Janelas por competição
+                        </p>
+                        <p className="mt-2 text-2xl font-bold">
+                          {reviewCompetitionAvailabilityEnabledCount}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm">
+                        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                          Janelas por atlética
+                        </p>
+                        <p className="mt-2 text-2xl font-bold">
+                          {reviewTeamAvailabilityEnabledCount}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm">
+                        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                          Sessões individuais
+                        </p>
+                        <p className="mt-2 text-2xl font-bold">
+                          {reviewIndividualSessionSummaries.length}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm">
+                        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                          Reservas de recurso
+                        </p>
+                        <p className="mt-2 text-2xl font-bold">
+                          {reviewResourceLockSummaries.length}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-8 grid gap-6 xl:grid-cols-2">
+                      <div className="rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm">
+                        <p className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-4">
+                          Modalidades habilitadas
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {reviewEnabledSportSummaries.map((enabledSportSummary) => (
+                            <AppBadge
+                              key={`review-enabled-sport-${enabledSportSummary.key}`}
+                              tone={
+                                enabledSportSummary.type == "Individual"
+                                  ? AppBadgeTone.SKY
+                                  : AppBadgeTone.NEUTRAL
+                              }
+                            >
+                              {enabledSportSummary.name}
+                            </AppBadge>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm">
+                        <p className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-4">
+                          Diagnóstico final
+                        </p>
+                        {reviewDiagnosticItems.length == 0 ? (
+                          <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-3 text-sm text-emerald-200">
+                            Nenhum conflito estrutural encontrado no setup atual.
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {reviewDiagnosticItems.map((diagnosticItem) => (
+                              <div
+                                key={diagnosticItem.key}
+                                className={cn(
+                                  "rounded-lg border px-3 py-3 text-sm",
+                                  diagnosticItem.tone == "red"
+                                    ? "border-rose-500/20 bg-rose-500/10 text-rose-100"
+                                    : "border-amber-500/20 bg-amber-500/10 text-amber-100",
+                                )}
+                              >
+                                <p className="font-bold">{diagnosticItem.title}</p>
+                                <p className="mt-1 text-xs opacity-90">
+                                  {diagnosticItem.description}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -5356,8 +7694,7 @@ export function AdminChampionshipBracketPage({
                             className="rounded-lg border border-border/30 bg-background/40 px-3 py-2 text-xs"
                           >
                             <span className="font-bold text-foreground">{scheduleDaySummary.day_label}:</span>{" "}
-                            {scheduleDaySummary.date} •{" "}
-                            {scheduleDaySummary.start_time} até{" "}
+                            {scheduleDaySummary.date} • {scheduleDaySummary.start_time} até{" "}
                             {scheduleDaySummary.end_time}
                             {scheduleDaySummary.break_start_time &&
                             scheduleDaySummary.break_end_time
@@ -5371,6 +7708,57 @@ export function AdminChampionshipBracketPage({
                           </div>
                         ))}
                       </div>
+                    </div>
+
+                    <div className="mt-8 grid gap-6 lg:grid-cols-2">
+                      <div className="rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm">
+                        <p className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-4">
+                          Resumo das disponibilidades
+                        </p>
+                        <div className="space-y-2 text-xs text-muted-foreground">
+                          <p>{reviewSchedulePeriodEnabledCount} períodos globais habilitados.</p>
+                          <p>{reviewCompetitionAvailabilityEnabledCount} combinações ativas de competição, dia e período.</p>
+                          <p>{reviewTeamAvailabilityEnabledCount} combinações ativas de atlética, competição, dia e período.</p>
+                        </div>
+                      </div>
+
+                      {selectedIndividualSports.length > 0 ? (
+                        <div className="rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm">
+                          <p className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-4">
+                            Sessões individuais
+                          </p>
+                          <div className="space-y-2">
+                            {reviewIndividualSessionSummaries.map((sessionSummary) => {
+                              return (
+                                <div
+                                  key={`review-individual-session-${sessionSummary.key}`}
+                                  className="rounded-lg border border-border/30 bg-background/40 px-3 py-2 text-xs"
+                                >
+                                  <span className="font-bold text-foreground">
+                                    {sessionSummary.label}
+                                  </span>
+                                  {sessionSummary.has_slot
+                                    ? ` • ${resolveBrazilianDateString(
+                                        sessionSummary.scheduled_date ?? "",
+                                      )} • ${
+                                        sessionSummary.period
+                                          ? SCHEDULE_PERIOD_LABELS[sessionSummary.period]
+                                          : "--"
+                                      } • ${
+                                        sessionSummary.resource_label ??
+                                        "recurso pendente"
+                                      }${
+                                        sessionSummary.exclusive_lock_enabled
+                                          ? " • bloqueio duro"
+                                          : ""
+                                      }`
+                                    : " • slot oficial pendente"}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
 
                     <div className="mt-8 space-y-6">
@@ -5430,13 +7818,6 @@ export function AdminChampionshipBracketPage({
                                     <div className="h-1 w-1 rounded-full bg-border" />
                                     <span>{competitionConfig.groups_count} grupos</span>
                                     <div className="h-1 w-1 rounded-full bg-border" />
-                                    <span>
-                                      {resolveCompetitionKnockoutPairingModeLabel(
-                                        resolveCompetitionKnockoutPairingModeControlValue(
-                                          competitionConfig.knockout_pairing_mode,
-                                        ),
-                                      )}
-                                    </span>
                                   </div>
                                 </div>
                                 <div className="text-right">
@@ -5551,6 +7932,99 @@ export function AdminChampionshipBracketPage({
         </div>
 
       <Dialog
+        open={locationTemplateSelectionDayId != null}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            handleCloseLocationTemplateSelectionModal();
+          }
+        }}
+      >
+        <DialogContent className="max-h-[88vh] w-[960px] max-w-[95vw] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Adicionar local do catálogo</DialogTitle>
+            <DialogDescription>
+              Reaproveite um local global já cadastrado e adicione-o ao dia atual
+              da agenda.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="rounded-lg border border-border/40 bg-background/30 px-3 py-2 text-sm text-muted-foreground">
+              {selectedLocationTemplateScheduleDay?.date
+                ? `Dia ${resolveBrazilianDateString(selectedLocationTemplateScheduleDay.date)}`
+                : "Selecione um local do catálogo para este dia."}
+            </div>
+
+            {availableLocationTemplatesForSelection.length == 0 ? (
+              <div className="rounded-xl border border-dashed border-border/40 bg-background/20 p-8 text-center">
+                <p className="text-sm font-bold">Nenhum local disponível</p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Todos os locais do catálogo já foram adicionados a este dia ou
+                  ainda não existe local global cadastrado.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2">
+                {availableLocationTemplatesForSelection.map((locationTemplate) => (
+                  <div
+                    key={`location-template-selection-${locationTemplate.id}`}
+                    className="rounded-xl border border-border/40 bg-background/30 p-4 shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <p className="text-sm font-bold">
+                          {locationTemplate.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {locationTemplate.courts.length}{" "}
+                          {locationTemplate.courts.length == 1
+                            ? "recurso/quadra cadastrado"
+                            : "recursos/quadras cadastrados"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {resolveLocationCatalogSupportSummary(
+                            locationTemplate,
+                            selectedSportOptions,
+                          ) || "Sem modalidades vinculadas"}
+                        </p>
+                      </div>
+
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => {
+                          if (locationTemplateSelectionDayId == null) {
+                            return;
+                          }
+
+                          handleSelectLocationTemplateForDay(
+                            locationTemplateSelectionDayId,
+                            locationTemplate.id,
+                          );
+                        }}
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Adicionar
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end">
+              <Button
+                variant="outline"
+                onClick={handleCloseLocationTemplateSelectionModal}
+              >
+                Fechar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
         open={locationTemplateModalOpen}
         onOpenChange={(nextOpen) => {
           if (!nextOpen) {
@@ -5564,8 +8038,8 @@ export function AdminChampionshipBracketPage({
               {isEditingLocationTemplate ? "Editar local" : "Cadastrar local"}
             </DialogTitle>
             <DialogDescription>
-              Defina o local, as quadras e as modalidades suportadas para
-              reutilizar esse cadastro em próximos campeonatos.
+              Defina o local, os recursos/quadras e as modalidades suportadas
+              para reutilizar esse cadastro em próximos campeonatos.
             </DialogDescription>
           </DialogHeader>
 
@@ -5590,10 +8064,12 @@ export function AdminChampionshipBracketPage({
 
             <div className="space-y-3">
               <div>
-                <p className="text-sm font-semibold">Quadras do local</p>
+                <p className="text-sm font-semibold">
+                  Recursos/quadras do local
+                </p>
                 <p className="text-xs text-muted-foreground">
-                  Organize as quadras em cards compactos e marque as modalidades
-                  que podem usar cada uma delas.
+                  Organize os recursos em cards compactos e marque as modalidades
+                  que podem usar cada um deles.
                 </p>
               </div>
 
@@ -5606,15 +8082,15 @@ export function AdminChampionshipBracketPage({
                     >
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-sm font-semibold">
-                          Quadra {courtIndex + 1}
+                          Recurso {courtIndex + 1}
                         </p>
                         {locationTemplateModalFormValues.courts.length > 1 ? (
                           <Button
                             size="icon"
                             variant="ghost"
                             className="h-8 w-8"
-                            title="Remover quadra"
-                            aria-label="Remover quadra"
+                            title="Remover recurso"
+                            aria-label="Remover recurso"
                             onClick={() =>
                               handleRemoveLocationTemplateModalCourt(court.id)
                             }
@@ -5626,7 +8102,7 @@ export function AdminChampionshipBracketPage({
 
                       <div className="mt-3 space-y-3">
                         <div className="space-y-1.5">
-                          <Label>Nome da quadra</Label>
+                          <Label>Nome do recurso/quadra</Label>
                           <Input
                             value={court.name}
                             onChange={(event) => {
@@ -5639,7 +8115,7 @@ export function AdminChampionshipBracketPage({
                                 }),
                               );
                             }}
-                            placeholder={`Quadra ${courtIndex + 1}`}
+                            placeholder={`Recurso ${courtIndex + 1}`}
                             className="app-input-field h-9"
                           />
                         </div>
@@ -5649,7 +8125,7 @@ export function AdminChampionshipBracketPage({
                           {selectedSportOptions.length == 0 ? (
                             <p className="text-xs text-muted-foreground">
                               Nenhuma modalidade selecionada no wizard para
-                              vincular a esta quadra.
+                              vincular a este recurso/quadra.
                             </p>
                           ) : (
                             <div className="grid gap-2 sm:grid-cols-2">
@@ -5720,9 +8196,9 @@ export function AdminChampionshipBracketPage({
                   <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-lg bg-destructive/10">
                     <Plus className="h-5 w-5" />
                   </span>
-                  <span className="font-semibold">Adicionar quadra</span>
+                  <span className="font-semibold">Adicionar recurso</span>
                   <span className="mt-1 text-xs text-destructive/80">
-                    Novo card para este local
+                    Novo recurso/quadra para este local
                   </span>
                 </button>
               </div>
@@ -5797,28 +8273,23 @@ export function AdminChampionshipBracketPage({
         </DialogContent>
       </Dialog>
 
-      <AdminBracketDrawModal
-        open={showDrawModal}
-        onOpenChange={(isOpen) => {
-          if (!isOpen) {
-            handleCloseDrawModal();
-          }
-        }}
-        onConfirm={handleDrawConfirm}
-        onResultReady={handleDrawResultReady}
-        drawnTeamId={pendingDrawResult?.teamId ?? null}
-        drawingTeamIds={(() => {
-          if (!drawingCompetitionKey) return [];
-          const allTeamIds = teamIdsByCompetitionKey[drawingCompetitionKey] ?? [];
-          const assignedIds = new Set(Object.keys(groupAssignmentsByCompetitionKey[drawingCompetitionKey] ?? {}));
-          return allTeamIds.filter((id) => !assignedIds.has(id));
-        })()}
-        teamNameById={teamNameById}
-        competitionOption={
-          drawingCompetitionKey ? (competitionOptionsByKey.get(drawingCompetitionKey) ?? null) : null
-        }
-        groupNumber={pendingDrawResult?.groupNumber ?? null}
-      />
+      {showDrawModal ? (
+        <AdminBracketDrawModal
+          open={showDrawModal}
+          onOpenChange={(isOpen) => {
+            if (!isOpen) {
+              handleCloseDrawModal();
+            }
+          }}
+          onConfirm={handleDrawConfirm}
+          onResultReady={handleDrawResultReady}
+          drawnTeamId={pendingDrawResult?.teamId ?? null}
+          drawingTeamIds={drawingTeamIds}
+          teamNameById={teamNameById}
+          competitionOption={drawingCompetitionOption}
+          groupNumber={pendingDrawResult?.groupNumber ?? null}
+        />
+      ) : null}
     </>
   );
 }

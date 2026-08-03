@@ -81,12 +81,10 @@ export function resolveChampionshipBracketFirstRoundSeedIndexes(
 }
 
 /**
- * Retorna a ordem de seeds para o primeiro round do mata-mata conforme o modo de pareamento.
+ * Retorna a ordem de seeds para o primeiro round do mata-mata.
  *
- * Todos os modos atualmente usam seeding LINEAR — o resultado correto por modalidade emerge
- * naturalmente da ordenação dos times (1ºs seguidos de 2ºs, por grupo):
- *   - LINEAR / FUTEVOLEI_FEM_INVERTED (8 times): 1ºA×2ºD, 1ºB×2ºC, 1ºC×2ºB, 1ºD×2ºA.
- *   - BEACH_SOCCER_FEM_DIRECT_SEMI (4 times): semis diretas 1ºA×2ºB e 1ºB×2ºA.
+ * O sistema agora usa apenas seeding LINEAR. O cruzamento final continua emergindo
+ * da ordem dos classificados (1ºs seguidos de 2ºs, por grupo).
  */
 export function resolveBracketPairingByMode(
   _mode: KnockoutPairingMode,

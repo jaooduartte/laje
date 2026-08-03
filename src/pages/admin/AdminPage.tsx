@@ -40,7 +40,10 @@ import {
   isChampionshipStatus,
   resolveMatchBracketContextByMatchId,
 } from "@/lib/championship";
-import { resolveCanViewBracketSetupTab } from "@/pages/admin/adminPageVisibility";
+import {
+  resolveCanViewBracketSetupTab,
+  resolveCanViewOperationalAdminTabs,
+} from "@/pages/admin/adminPageVisibility";
 import { resolvePreferredAdminChampionshipCode } from "@/pages/admin/adminPage.helpers";
 import { AdminPageView } from "@/pages/admin/AdminPageView";
 
@@ -128,6 +131,9 @@ export function AdminPage() {
     seasonYear: resolvedMatchesSeasonYear,
   });
   const { teams, refetch: refetchTeams } = useTeams();
+  const { teams: allTeams, refetch: refetchAllTeams } = useTeams({
+    includeInactive: true,
+  });
   const { sports } = useSports();
   const { championshipSports } = useSports({
     championshipId: selectedChampionshipId,
@@ -193,13 +199,17 @@ export function AdminPage() {
       refetchOperationalChampionshipBracket(),
       refetchMatchesTabChampionshipBracket(),
       refetchChampionships(),
+      refetchTeams(),
+      refetchAllTeams(),
     ]);
   }, [
     refetchChampionships,
+    refetchAllTeams,
     refetchMatchesTabChampionshipBracket,
     refetchMatchesTabMatches,
     refetchOperationalChampionshipBracket,
     refetchOperationalMatches,
+    refetchTeams,
   ]);
 
   const closeChampionshipStatusFlowDialog = () => {
@@ -214,6 +224,12 @@ export function AdminPage() {
     !operationalMatchesFetching && !loadingOperationalChampionshipBracket;
   const operationalBracketEditionStatus = operationalChampionshipBracketView.edition?.status ?? null;
   const canViewBracketSetupTab = resolveCanViewBracketSetupTab({
+    championshipStatus: selectedChampionship?.status ?? ChampionshipStatus.PLANNING,
+    hasFinishedLoadingOperationalState,
+    matchesCount: operationalMatches.length,
+    bracketEditionStatus: operationalBracketEditionStatus,
+  });
+  const canViewOperationalAdminTabs = resolveCanViewOperationalAdminTabs({
     championshipStatus: selectedChampionship?.status ?? ChampionshipStatus.PLANNING,
     hasFinishedLoadingOperationalState,
     matchesCount: operationalMatches.length,
@@ -497,20 +513,26 @@ export function AdminPage() {
     );
   }
 
-  const canViewMatchesTab = canViewAdminTab(AdminPanelTab.MATCHES);
-  const canViewControlTab = canViewAdminTab(AdminPanelTab.CONTROL);
+  const canViewMatchesTab =
+    canViewOperationalAdminTabs && canViewAdminTab(AdminPanelTab.MATCHES);
+  const canViewControlTab =
+    canViewOperationalAdminTabs && canViewAdminTab(AdminPanelTab.CONTROL);
   const canViewTeamsTab = canViewAdminTab(AdminPanelTab.TEAMS);
   const canViewSportsTab = canViewAdminTab(AdminPanelTab.SPORTS);
   const canViewEventsTab = canViewAdminTab(AdminPanelTab.EVENTS);
+  const canViewIndividualEventsTab = canViewAdminTab(AdminPanelTab.INDIVIDUAL_EVENTS);
   const canViewLinksTab = canViewAdminTab(AdminPanelTab.LINKS);
   const canViewLogsTab = canViewAdminTab(AdminPanelTab.LOGS);
   const canViewUsersTab = canViewAdminTab(AdminPanelTab.USERS);
   const canViewAccountTab = canViewAdminTab(AdminPanelTab.ACCOUNT);
-  const canViewStandingsTab = canViewAdminTab(AdminPanelTab.STANDINGS);
+  const canViewStandingsTab =
+    canViewOperationalAdminTabs && canViewAdminTab(AdminPanelTab.STANDINGS);
   const canViewSettingsTab = canViewAdminTab(AdminPanelTab.SETTINGS);
   const canViewChampionshipStatus = canViewAdminTab(AdminPanelTab.CHAMPIONSHIP_STATUS);
-  const canViewScoreSheetReviewTab = canViewAdminTab(AdminPanelTab.SCORE_SHEET_REVIEW);
-  const canViewTieBreaksTab = canViewAdminTab(AdminPanelTab.TIE_BREAKS);
+  const canViewScoreSheetReviewTab =
+    canViewOperationalAdminTabs && canViewAdminTab(AdminPanelTab.SCORE_SHEET_REVIEW);
+  const canViewTieBreaksTab =
+    canViewOperationalAdminTabs && canViewAdminTab(AdminPanelTab.TIE_BREAKS);
   const canViewScheduleTab =
     canViewAdminTab(AdminPanelTab.CHAMPIONSHIP_SCHEDULE) &&
     visibleOperationalChampionshipBracketView.edition != null &&
@@ -522,28 +544,31 @@ export function AdminPage() {
   const canManageTeams = canEditAdminTab(AdminPanelTab.TEAMS);
   const canManageSports = canEditAdminTab(AdminPanelTab.SPORTS);
   const canManageLeagueEvents = canEditAdminTab(AdminPanelTab.EVENTS);
+  const canManageIndividualEvents = canEditAdminTab(AdminPanelTab.INDIVIDUAL_EVENTS);
   const canManageLinks = canEditAdminTab(AdminPanelTab.LINKS);
   const canManageUsers = canEditAdminTab(AdminPanelTab.USERS);
   const canManageAccount = canEditAdminTab(AdminPanelTab.ACCOUNT);
   const canManageSettings = canEditAdminTab(AdminPanelTab.SETTINGS);
 
-  const tabPriority: AdminPanelTab[] = [
-    AdminPanelTab.CONTROL,
-    AdminPanelTab.MATCHES,
-    AdminPanelTab.STANDINGS,
-    AdminPanelTab.TEAMS,
-    AdminPanelTab.SPORTS,
-    AdminPanelTab.EVENTS,
-    AdminPanelTab.LINKS,
-    AdminPanelTab.LOGS,
-    AdminPanelTab.USERS,
-    AdminPanelTab.ACCOUNT,
-    AdminPanelTab.CHAMPIONSHIP_SCHEDULE,
-    AdminPanelTab.SETTINGS,
-  ];
-
   const defaultTabValue =
-    tabPriority.find((adminPanelTab) => canViewAdminTab(adminPanelTab)) ?? AdminPanelTab.CONTROL;
+    [
+      canViewBracketSetupTab ? AdminPanelTab.BRACKET_SETUP : null,
+      canViewControlTab ? AdminPanelTab.CONTROL : null,
+      canViewMatchesTab ? AdminPanelTab.MATCHES : null,
+      canViewScoreSheetReviewTab ? AdminPanelTab.SCORE_SHEET_REVIEW : null,
+      canViewTieBreaksTab ? AdminPanelTab.TIE_BREAKS : null,
+      canViewStandingsTab ? AdminPanelTab.STANDINGS : null,
+      canViewIndividualEventsTab ? AdminPanelTab.INDIVIDUAL_EVENTS : null,
+      canViewTeamsTab ? AdminPanelTab.TEAMS : null,
+      canViewSportsTab ? AdminPanelTab.SPORTS : null,
+      canViewEventsTab ? AdminPanelTab.EVENTS : null,
+      canViewLinksTab ? AdminPanelTab.LINKS : null,
+      canViewLogsTab ? AdminPanelTab.LOGS : null,
+      canViewUsersTab ? AdminPanelTab.USERS : null,
+      canViewAccountTab ? AdminPanelTab.ACCOUNT : null,
+      canViewScheduleTab ? AdminPanelTab.CHAMPIONSHIP_SCHEDULE : null,
+      canViewSettingsTab ? AdminPanelTab.SETTINGS : null,
+    ].find((adminPanelTab): adminPanelTab is AdminPanelTab => adminPanelTab != null) ?? "";
 
   const activeTab = _activeTab || defaultTabValue;
 
@@ -556,6 +581,7 @@ export function AdminPage() {
         matches={operationalMatches}
         matchesTabMatches={matchesTabMatches}
         teams={teams}
+        allTeams={allTeams}
         sports={sports}
         championshipSports={championshipSports}
         liveAndScheduledMatches={liveAndScheduledMatches}
@@ -581,6 +607,7 @@ export function AdminPage() {
         canViewTeamsTab={canViewTeamsTab}
         canViewSportsTab={canViewSportsTab}
         canViewEventsTab={canViewEventsTab}
+        canViewIndividualEventsTab={canViewIndividualEventsTab}
         canViewLinksTab={canViewLinksTab}
         canViewLogsTab={canViewLogsTab}
         canViewUsersTab={canViewUsersTab}
@@ -600,6 +627,7 @@ export function AdminPage() {
         canManageTeams={canManageTeams}
         canManageSports={canManageSports}
         canManageLeagueEvents={canManageLeagueEvents}
+        canManageIndividualEvents={canManageIndividualEvents}
         canManageLinks={canManageLinks}
         canManageUsers={canManageUsers}
         canManageAccount={canManageAccount}
@@ -614,7 +642,9 @@ export function AdminPage() {
         onSignOut={signOut}
         onRefetchMatches={handleRefetchMatches}
         onRefetchChampionshipBracket={handleRefetchChampionshipBracket}
-        onRefetchTeams={refetchTeams}
+        onRefetchTeams={async () => {
+          await Promise.all([refetchTeams(), refetchAllTeams()]);
+        }}
         onBracketGenerated={handleBracketGenerated}
         liveMatchesCount={liveMatches.length}
         pendingLeagueEventReservationsCount={pendingLeagueEventReservationRequestsCount}

@@ -15,10 +15,12 @@ import { AdminChampionshipQualificationSection } from "@/components/admin/AdminC
 import { AdminChampionshipCourtPrioritySection } from "@/components/admin/AdminChampionshipCourtPrioritySection";
 import { AdminChampionshipGeneratedLocationsSection } from "@/components/admin/AdminChampionshipGeneratedLocationsSection";
 import { AdminChampionshipKnockoutPrioritySection } from "@/components/admin/AdminChampionshipKnockoutPrioritySection";
+import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividualEvents";
 import {
   resolveDivisionOptionsBySportId,
   resolveNaipeOptionsBySportId,
 } from "@/components/admin/adminCourtPriority.utils";
+import { resolveIndividualSportIds } from "@/lib/individualEvents";
 import { ChampionshipStatus } from "@/lib/enums";
 import { getBracketDaySchedules, updateBracketDaySchedule } from "@/domain/championship-brackets/championshipBracket.repository";
 import type {
@@ -28,10 +30,13 @@ import type {
   BracketDaySchedule,
   BracketDayScheduleUpdate,
 } from "@/domain/championship-brackets/championshipBracket.types";
-import type { ChampionshipBracketCompetition } from "@/lib/types";
+import type { ChampionshipBracketCompetition, Sport } from "@/lib/types";
 
 interface Props {
   bracketEditionId: string;
+  championshipId: string;
+  seasonYear: number;
+  sports: Sport[];
   canManageSchedule: boolean;
   championshipStatus: ChampionshipStatus;
   usesDivisions: boolean;
@@ -99,6 +104,9 @@ function validationError(day: DayScheduleDraft): string | null {
 
 export function AdminChampionshipSchedule({
   bracketEditionId,
+  championshipId,
+  seasonYear,
+  sports,
   canManageSchedule,
   championshipStatus,
   usesDivisions,
@@ -109,6 +117,12 @@ export function AdminChampionshipSchedule({
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState<DayScheduleDraft[]>([]);
   const savedDaysRef = useRef<DayScheduleSnapshot[]>([]);
+  const individualSportIds = useMemo(() => resolveIndividualSportIds(sports), [sports]);
+  const { events: individualEvents, sessions: individualSessions } = useChampionshipIndividualEvents({
+    championshipId,
+    seasonYear,
+    sportIds: individualSportIds,
+  });
 
   const isEditable = canManageSchedule && championshipStatus === ChampionshipStatus.UPCOMING;
 
@@ -466,6 +480,43 @@ export function AdminChampionshipSchedule({
           </div>
         )}
       </section>
+
+      {individualSessions.length > 0 ? (
+        <section className="space-y-4">
+          <div className="flex items-center gap-2">
+            <CalendarClock className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Sessões individuais agendadas
+            </h3>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {individualSessions.map((session) => (
+              <div key={session.id} className="glass-card space-y-2 p-4">
+                <div>
+                  <p className="font-medium">{session.sports?.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {session.naipe}
+                  </p>
+                </div>
+                <p className="text-sm">
+                  {session.scheduled_date ? formatDate(session.scheduled_date) : "Sem data"}
+                  {session.period ? ` • ${session.period == "MATUTINO" ? "Matutino" : "Vespertino"}` : ""}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {session.location_name ?? "Local a definir"}
+                  {session.court_name ? ` • ${session.court_name}` : ""}
+                </p>
+                {individualEvents.some((event) => event.session_id == session.id) ? (
+                  <p className="text-[11px] text-muted-foreground">
+                    {individualEvents.filter((event) => event.session_id == session.id).length} provas vinculadas
+                  </p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="space-y-4">
         <div className="flex items-center gap-2">

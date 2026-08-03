@@ -68,17 +68,34 @@ vi.mock("sonner", () => ({
   toast: {
     error: vi.fn(),
     success: vi.fn(),
+    info: vi.fn(),
   },
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     rpc: rpcMock,
+    from: vi.fn(() => ({
+      update: vi.fn(() => ({
+        eq: vi.fn().mockResolvedValue({ error: null }),
+      })),
+      delete: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          eq: vi.fn().mockResolvedValue({ error: null }),
+        })),
+      })),
+    })),
   },
 }));
 
+vi.mock("@/hooks/useAuth", () => ({
+  useAuth: () => ({
+    user: { id: "user-1" },
+  }),
+}));
+
 vi.mock("@/hooks/useStandings", () => ({
-  useStandings: () => ({ standings: [], loading: false }),
+  useStandings: () => ({ standings: [], loading: false, refetch: vi.fn() }),
 }));
 
 vi.mock("@/hooks/useMatches", () => ({
@@ -102,6 +119,20 @@ vi.mock("@/hooks/useCompetitionTeamDisqualifications", () => ({
     disqualifications: disqualificationsState.current,
     loading: false,
     refetch: vi.fn(),
+  }),
+}));
+
+vi.mock("@/hooks/useChampionshipSeasonRuntime", () => ({
+  useChampionshipSeasonRuntime: () => ({
+    resolvedSeasonSettings: {
+      division_format: "SEPARATED",
+      division_settlement_mode: "NONE",
+      principal_slots_count: null,
+      principal_relegation_count: null,
+      access_promotion_count: null,
+    },
+    usesDivisions: true,
+    loading: false,
   }),
 }));
 

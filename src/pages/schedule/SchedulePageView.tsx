@@ -9,7 +9,14 @@ import { AppPaginationControls } from "@/components/ui/app-pagination-controls";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { Championship, Match, Sport, Team } from "@/lib/types";
+import type {
+  Championship,
+  ChampionshipIndividualEvent,
+  ChampionshipIndividualSession,
+  Match,
+  Sport,
+  Team,
+} from "@/lib/types";
 import type { BracketGroupFilterOption, MatchBracketContext } from "@/lib/championship";
 import { MatchNaipe, MatchStatus, TeamDivision } from "@/lib/enums";
 import { scrollToTopOfPage } from "@/lib/scroll";
@@ -42,6 +49,8 @@ interface SchedulePageViewProps {
   availableSeasonYears: number[];
   orderedDates: string[];
   groupedMatches: Record<string, Match[]>;
+  individualEvents: ChampionshipIndividualEvent[];
+  individualSessions?: ChampionshipIndividualSession[];
   matches: Match[];
   isMatchesFetching: boolean;
   matchesCurrentPage: number;
@@ -88,6 +97,8 @@ export function SchedulePageView({
   availableSeasonYears,
   orderedDates,
   groupedMatches,
+  individualEvents,
+  individualSessions = [],
   matches,
   isMatchesFetching,
   matchesCurrentPage,
@@ -145,6 +156,7 @@ export function SchedulePageView({
     });
   }, [matches, statusFilter]);
   const hasVisibleMatches = statusFilter == MatchStatus.FINISHED ? orderedFinishedMatches.length > 0 : orderedMatches.length > 0;
+  const hasVisibleIndividualSessions = individualSessions.length > 0;
 
   useEffect(() => {
     if (!hasHandledPaginationScrollRef.current) {
@@ -406,6 +418,45 @@ export function SchedulePageView({
               />
             </div>
           )}
+
+          {hasVisibleIndividualSessions ? (
+            <section className="glass-panel enter-section space-y-4 p-4">
+              <div>
+                <h3 className="text-sm font-display font-semibold uppercase tracking-wider text-muted-foreground">
+                  Sessões Individuais
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Atletismo e Natação aparecem como sessões gerais por modalidade e naipe, respeitando o slot oficial configurado no campeonato.
+                </p>
+              </div>
+
+              <div className="grid items-center gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {individualSessions.map((session) => (
+                  <div key={session.id} className="rounded-2xl border border-border/60 bg-background/40 p-4">
+                    <p className="font-display font-semibold">{session.sports?.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {session.naipe}
+                    </p>
+                    <p className="mt-2 text-sm">
+                      {session.scheduled_date
+                        ? format(new Date(`${session.scheduled_date}T12:00:00`), "dd/MM/yyyy", { locale: ptBR })
+                        : "Sem data"}
+                      {session.period ? ` • ${session.period == "MATUTINO" ? "Matutino" : "Vespertino"}` : ""}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {session.location_name ?? "Local a definir"}
+                      {session.court_name ? ` • ${session.court_name}` : ""}
+                    </p>
+                    {individualEvents.some((event) => event.session_id == session.id) ? (
+                      <p className="mt-2 text-[11px] text-muted-foreground">
+                        {individualEvents.filter((event) => event.session_id == session.id).length} provas oficiais vinculadas
+                      </p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
         </div>
       </main>
     </div>

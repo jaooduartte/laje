@@ -131,9 +131,9 @@ function buildLeagueEvent(overrides: Partial<LeagueEvent> & Pick<LeagueEvent, "i
     event_type: overrides.event_type ?? LeagueEventType.LAJE_EVENT,
     organizer_type: overrides.organizer_type ?? LeagueEventOrganizerType.LAJE,
     organizer_team_id: overrides.organizer_team_id ?? null,
-    event_date: overrides.event_date ?? "2026-07-12",
-    created_at: overrides.created_at ?? "2026-07-12T00:00:00.000Z",
-    updated_at: overrides.updated_at ?? "2026-07-12T00:00:00.000Z",
+    event_date: overrides.event_date ?? "2026-08-12",
+    created_at: overrides.created_at ?? "2026-08-12T00:00:00.000Z",
+    updated_at: overrides.updated_at ?? "2026-08-12T00:00:00.000Z",
     organizer_team: overrides.organizer_team ?? null,
     organizer_teams: overrides.organizer_teams ?? [],
   };
@@ -318,5 +318,28 @@ describe("AdminLeagueEvents loading states", () => {
       expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
       expect(createLeagueEventMock).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it("deixa os cards de eventos passados mais apagados sem afetar os futuros", () => {
+    mockedLeagueEvents.current = [
+      buildLeagueEvent({
+        id: "past-event",
+        name: "Evento passado",
+        event_date: "2026-08-01",
+      }),
+      buildLeagueEvent({
+        id: "future-event",
+        name: "Evento futuro",
+        event_date: "2026-08-08",
+      }),
+    ];
+
+    renderAdminLeagueEvents();
+
+    const pastEventCard = screen.getByText("Evento passado").closest(".list-item-card");
+    const futureEventCard = screen.getByText("Evento futuro").closest(".list-item-card");
+
+    expect(pastEventCard).toHaveClass("opacity-70");
+    expect(futureEventCard).not.toHaveClass("opacity-70");
   });
 });

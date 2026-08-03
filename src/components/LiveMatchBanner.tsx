@@ -9,6 +9,7 @@ import {
   resolveMatchStartedAtLabel,
 } from "@/lib/championship";
 import { AppBadgeTone, ChampionshipSportResultRule, MatchStatus } from "@/lib/enums";
+import { resolveSportCode } from "@/lib/modalidadeConfig";
 
 interface Props {
   matches: Match[];
@@ -51,6 +52,9 @@ export function LiveMatchBanner({
           const setSummary = isSetMatch ? resolveMatchSetSummary(match) : [];
           const displayedHomeScore = isSetMatch ? match.current_set_home_score ?? 0 : match.home_score;
           const displayedAwayScore = isSetMatch ? match.current_set_away_score ?? 0 : match.away_score;
+          const isHandballMatch = resolveSportCode(match.sports?.name ?? "") == "HANDEBOL";
+          const blueCards = (match.home_blue_cards ?? 0) + (match.away_blue_cards ?? 0);
+          const twoMinutePenalties = (match.home_two_minute_penalties ?? 0) + (match.away_two_minute_penalties ?? 0);
 
           return (
             <div
@@ -114,6 +118,12 @@ export function LiveMatchBanner({
                         ))}
                       </div>
                     ) : null}
+                  </div>
+                ) : null}
+
+                {isHandballMatch && (blueCards > 0 || twoMinutePenalties > 0) ? (
+                  <div className="mt-3 text-center text-xs font-medium text-sky-700 dark:text-sky-300">
+                    CAZ: {blueCards} • 2M: {twoMinutePenalties}
                   </div>
                 ) : null}
               </div>

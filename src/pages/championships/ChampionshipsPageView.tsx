@@ -3,12 +3,13 @@ import { Award, HelpCircle, Loader2, Medal, Trophy } from "lucide-react";
 import { Header } from "@/components/Header";
 import { MatchCard } from "@/components/MatchCard";
 import { TeamStandingsTable } from "@/components/TeamStandingsTable";
+import { IndividualSportStandingsTable } from "@/components/IndividualSportStandingsTable";
 import { Tabs, TabsContent, TabsNavigationList, TabsNavigationTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatStandingsPoints, type TeamStandingAggregate } from "@/lib/standings";
-import type { Championship, CompetitionTeamDisqualification, Match, Sport, Team } from "@/lib/types";
+import type { Championship, ChampionshipIndividualEvent, ChampionshipIndividualEventEntry, CompetitionTeamDisqualification, Match, Sport, Standing, Team } from "@/lib/types";
 import type {
   BracketGroupFilterOption,
   MatchBracketContext,
@@ -20,7 +21,9 @@ import {
 } from "@/hooks/useChampionshipAwardsRankings";
 import { ChampionshipCode, MatchNaipe, TeamDivision } from "@/lib/enums";
 import { MATCH_NAIPE_LABELS, TEAM_DIVISION_LABELS } from "@/lib/championship";
+import { resolveChampionshipSportSupportsAwards } from "@/lib/championshipAwards";
 import type { ModalidadeConfig } from "@/lib/modalidadeConfig";
+import { INDIVIDUAL_ENTRY_STATUS_LABELS } from "@/lib/individualEvents";
 
 interface ChampionshipsPageViewProps {
   isLoading: boolean;
@@ -42,6 +45,10 @@ interface ChampionshipsPageViewProps {
   allStandingsDivisionFilter: string;
   selectedChampionshipHasDivisions: boolean;
   filteredStandings: TeamStandingAggregate[];
+  isIndividualStandingsView?: boolean;
+  individualStandingsRows?: Standing[];
+  individualEvents?: ChampionshipIndividualEvent[];
+  individualEntriesByEventId?: Record<string, ChampionshipIndividualEventEntry[]>;
   disqualifiedTeamKeys?: ReadonlySet<string>;
   isStandingsNaipeFilterLocked: boolean;
   standingsModalidadeConfig?: ModalidadeConfig;
@@ -94,6 +101,10 @@ export function ChampionshipsPageView({
   allStandingsDivisionFilter,
   selectedChampionshipHasDivisions,
   filteredStandings,
+  isIndividualStandingsView = false,
+  individualStandingsRows = [],
+  individualEvents = [],
+  individualEntriesByEventId = {},
   disqualifiedTeamKeys,
   isStandingsNaipeFilterLocked,
   standingsModalidadeConfig,
@@ -313,14 +324,66 @@ export function ChampionshipsPageView({
                 ) : null}
               </div>
 
-              <TeamStandingsTable
-                standings={filteredStandings}
-                modalidadeConfig={standingsModalidadeConfig}
-                isLoading={isStandingsLoading}
-                variant="public"
-                disqualifiedTeamKeys={disqualifiedTeamKeys}
-              />
+              {isIndividualStandingsView ? (
+                <IndividualSportStandingsTable standings={individualStandingsRows} isLoading={isStandingsLoading} />
+              ) : (
+                <TeamStandingsTable
+                  standings={filteredStandings}
+                  modalidadeConfig={standingsModalidadeConfig}
+                  isLoading={isStandingsLoading}
+                  variant="public"
+                  disqualifiedTeamKeys={disqualifiedTeamKeys}
+                />
+              )}
             </section>
+
+            {isIndividualStandingsView && individualEvents.length > 0 ? (
+              <section className="glass-panel enter-section space-y-3 p-5">
+                <div>
+                  <h3 className="text-lg font-display font-bold">Resultados por prova</h3>
+                  <p className="text-xs text-muted-foreground">
+                    O app registra a ordem oficial final definida pela CO para Atletismo e Natação.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  {individualEvents.map((event) => (
+                    <details key={event.id} className="rounded-2xl border border-border/60 bg-background/40 p-4">
+                      <summary className="cursor-pointer list-none">
+                        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                          <span className="font-medium">{event.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {event.naipe} • {event.scheduled_date ?? "Sem data"} • {event.location ?? "Local a definir"}
+                          </span>
+                        </div>
+                      </summary>
+                      <div className="mt-4 space-y-2">
+                        {(individualEntriesByEventId[event.id] ?? []).length == 0 ? (
+                          <p className="text-xs text-muted-foreground">Nenhum resultado lançado até o momento.</p>
+                        ) : (
+                          (individualEntriesByEventId[event.id] ?? []).map((entry) => (
+                            <div key={entry.id} className="flex items-center justify-between gap-3 rounded-xl border border-border/40 px-3 py-2 text-sm">
+                              <div>
+                                <p className="font-medium">{entry.teams?.name ?? "-"}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {entry.athlete_name ?? entry.members?.filter((member) => member.is_starter).map((member) => member.athlete_name).join(", ") ?? "-"}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-semibold">
+                                  {entry.final_position != null ? `${entry.final_position}º` : INDIVIDUAL_ENTRY_STATUS_LABELS[entry.status]}
+                                </p>
+                                <p className="text-xs text-muted-foreground">{entry.points_awarded} pts</p>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </details>
+                  ))}
+                </div>
+              </section>
+            ) : null}
 
 
           </TabsContent>
@@ -389,12 +452,16 @@ export function ChampionshipsPageView({
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                       {championshipChampionYearGroup.champions.map((championshipChampion) => {
                         const isCurrentYear = String(awardsSeasonYear) === championshipChampionYearGroup.year;
+                        const supportsAwards = resolveChampionshipSportSupportsAwards(
+                          selectedChampionship.code,
+                          championshipChampion.sport_name,
+                        );
                         const pendingAwardContext = awardsRankings?.pending_award_contexts?.find(
                           (pendingContext) =>
                             pendingContext.naipe === championshipChampion.naipe &&
                             pendingContext.division === (championshipChampion.division ?? null)
                         ) ?? null;
-                        const awardsReady = isCurrentYear && awardsRankings != null && (
+                        const awardsReady = supportsAwards && isCurrentYear && awardsRankings != null && (
                           awardsRankings.pending_award_contexts != null
                             ? pendingAwardContext == null
                             : awardsRankings.pending_matches_count === 0
@@ -521,7 +588,7 @@ export function ChampionshipsPageView({
                             ) : null}
                           </div>
 
-                          {isCurrentYear ? (
+                          {supportsAwards && isCurrentYear ? (
                             <div className="mt-3 border-t border-border/40 pt-3 space-y-1.5">
                               <div className="flex items-center justify-between gap-2 text-xs">
                                 <span className="text-muted-foreground shrink-0">Artilheiro</span>

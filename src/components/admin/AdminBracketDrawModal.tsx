@@ -43,19 +43,27 @@ export function AdminBracketDrawModal({
   const [isAnimating, setIsAnimating] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [showConfirmButton, setShowConfirmButton] = useState(false);
-  const [lastAnimatedTeamId, setLastAnimatedTeamId] = useState<string | null>(null);
   const onResultReadyRef = useRef(onResultReady);
+  const animatedDrawnTeamIdRef = useRef<string | null>(null);
+  const confirmButtonTimeoutReference = useRef<number | null>(null);
   onResultReadyRef.current = onResultReady;
 
   useEffect(() => {
+    if (confirmButtonTimeoutReference.current != null) {
+      window.clearTimeout(confirmButtonTimeoutReference.current);
+      confirmButtonTimeoutReference.current = null;
+    }
+
     if (!open || !drawnTeamId || drawingTeamIds.length === 0) {
+      animatedDrawnTeamIdRef.current = null;
+      setDisplayedTeamId(null);
+      setIsAnimating(false);
       setShowResult(false);
       setShowConfirmButton(false);
       return;
     }
 
-    // Se já rodou a animação para este ID de time, apenas mostre o resultado
-    if (drawnTeamId === lastAnimatedTeamId) {
+    if (animatedDrawnTeamIdRef.current === drawnTeamId) {
       setDisplayedTeamId(drawnTeamId);
       setIsAnimating(false);
       setShowResult(true);
@@ -63,6 +71,7 @@ export function AdminBracketDrawModal({
       return;
     }
 
+    animatedDrawnTeamIdRef.current = drawnTeamId;
     setIsAnimating(true);
     setShowResult(false);
     setShowConfirmButton(false);
@@ -80,20 +89,22 @@ export function AdminBracketDrawModal({
         setDisplayedTeamId(drawnTeamId);
         setIsAnimating(false);
         setShowResult(true);
-        setLastAnimatedTeamId(drawnTeamId);
-        
-        // Notifica que o resultado está pronto para posicionamento imediato
         onResultReadyRef.current?.();
-        
-        // Atrasa a exibição do botão para sincronizar com as badges
-        setTimeout(() => {
+
+        confirmButtonTimeoutReference.current = window.setTimeout(() => {
           setShowConfirmButton(true);
         }, 1000);
       }
     }, 80);
 
-    return () => clearInterval(interval);
-  }, [open, drawnTeamId, drawingTeamIds, lastAnimatedTeamId]);
+    return () => {
+      clearInterval(interval);
+      if (confirmButtonTimeoutReference.current != null) {
+        window.clearTimeout(confirmButtonTimeoutReference.current);
+        confirmButtonTimeoutReference.current = null;
+      }
+    };
+  }, [open, drawnTeamId, drawingTeamIds]);
 
   const displayedTeamName = teamNameById[displayedTeamId ?? ""] ?? "...";
 

@@ -281,6 +281,8 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
     });
   }, [leagueEventOrganizerFilter, leagueEventSearch, leagueEventTypeFilter, leagueEvents, selectedMonthDate]);
 
+  const todayDateKey = format(new Date(), "yyyy-MM-dd");
+
   const monthControlClassName = "h-9 rounded-xl border border-transparent app-input-field text-secondary-foreground";
 
   const editingLeagueEvent = useMemo(() => {
@@ -668,12 +670,6 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
 
   return (
     <div className="space-y-6">
-      <div className="enter-section flex flex-col items-center gap-3 glass-card px-4 py-3 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
-        <div className="space-y-0.5">
-          <p className="text-sm font-medium">Eventos da Liga</p>
-          <p className="text-xs text-muted-foreground">Gestão anual dos eventos públicos da liga.</p>
-        </div>
-      </div>
 
       <div className="glass-card enter-section flex flex-col gap-3 p-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -887,9 +883,16 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
       <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
         {filteredLeagueEvents.map((leagueEvent) => {
           const organizerName = resolveLeagueEventOrganizerName(leagueEvent);
+          const isPastLeagueEvent = leagueEvent.event_date < todayDateKey;
 
           return (
-            <div key={leagueEvent.id} className="list-item-card list-item-card-hover p-4">
+            <div
+              key={leagueEvent.id}
+              className={cn(
+                "list-item-card list-item-card-hover p-4 transition-opacity",
+                isPastLeagueEvent && "opacity-70",
+              )}
+            >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1 space-y-3">
                   <div className="flex items-start justify-between gap-2">

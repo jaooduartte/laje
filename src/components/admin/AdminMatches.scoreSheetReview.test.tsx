@@ -213,7 +213,9 @@ vi.mock("@/integrations/supabase/client", () => ({
         },
       }),
       delete: () => ({
-        eq: async () => ({ error: null }),
+        eq: () => ({
+          eq: async () => ({ error: null }),
+        }),
         in: async () => ({ error: null }),
       }),
       insert: () => ({
@@ -221,13 +223,18 @@ vi.mock("@/integrations/supabase/client", () => ({
           single: async () => ({ data: { id: "inserted-match" }, error: null }),
         }),
       }),
-      select: () => ({
-        eq: () => ({
-          order: () => ({
+      select: () => {
+        const selectBuilder = {
+          eq: vi.fn(() => selectBuilder),
+          order: vi.fn(() => ({
             limit: async () => ({ data: [], error: null }),
-          }),
-        }),
-      }),
+          })),
+          maybeSingle: async () => ({ data: null, error: null }),
+          single: async () => ({ data: null, error: null }),
+        };
+
+        return selectBuilder;
+      },
     }),
   },
 }));
@@ -488,6 +495,17 @@ describe("AdminMatches score sheet review", () => {
     shouldDelaySupabaseUpdate.value = false;
     resolveDelayedSupabaseUpdate.current = null;
     vi.clearAllMocks();
+  });
+
+  it("renderiza sem quebrar quando a aba abre antes da geração do campeonato", async () => {
+    renderAdminMatches({
+      matches: [],
+      bracketView: buildBracketView(),
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("sport-filter-mock")).toBeInTheDocument();
+    });
   });
 
   it("exibe somente jogos encerrados na aba de conferência", async () => {
@@ -1832,8 +1850,8 @@ describe("AdminMatches score sheet review", () => {
     expect(within(contextCard).getByRole("columnheader", { name: "PTS (corr.)" })).toBeInTheDocument();
     expect(within(contextCard).getByRole("columnheader", { name: "PA" })).toBeInTheDocument();
     expect(within(contextCard).getByRole("columnheader", { name: "SG" })).toBeInTheDocument();
-    expect(within(contextCard).getByRole("columnheader", { name: "CA" })).toBeInTheDocument();
-    expect(within(contextCard).getByRole("columnheader", { name: "CV" })).toBeInTheDocument();
+    expect(within(contextCard).getByRole("columnheader", { name: "CAZ" })).toBeInTheDocument();
+    expect(within(contextCard).getByRole("columnheader", { name: "2M" })).toBeInTheDocument();
     expect(within(contextCard).getByRole("columnheader", { name: "GP" })).toBeInTheDocument();
     expect(within(contextCard).getByRole("columnheader", { name: "GC" })).toBeInTheDocument();
     expect(within(contextCard).getByRole("columnheader", { name: "V" })).toBeInTheDocument();

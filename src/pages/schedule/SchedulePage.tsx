@@ -6,9 +6,11 @@ import { useTeams } from "@/hooks/useTeams";
 import { useChampionships } from "@/hooks/useChampionships";
 import { useChampionshipBracket } from "@/hooks/useChampionshipBracket";
 import { useChampionshipSeasonYears } from "@/hooks/useChampionshipSeasonYears";
+import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividualEvents";
 import { useSelectedChampionship } from "@/hooks/useSelectedChampionship";
 import { useChampionshipSelection } from "@/hooks/useChampionshipSelection";
 import { MatchNaipe, MatchStatus, TeamDivision } from "@/lib/enums";
+import { resolveIndividualSportIds } from "@/lib/individualEvents";
 import {
   EMPTY_CHAMPIONSHIP_BRACKET_VIEW,
   isTeamDivision,
@@ -82,7 +84,8 @@ export function SchedulePage() {
     seasonYear: correctedYearFilter,
   });
   const { sports } = useSports({ championshipId: selectedChampionshipId });
-  const { teams } = useTeams();
+  const individualSportIds = useMemo(() => resolveIndividualSportIds(sports), [sports]);
+  const { teams } = useTeams({ includeInactive: true });
   const visibleChampionshipBracketView = useMemo(() => {
     return championshipBracketView.competitions.length == 0 ? EMPTY_CHAMPIONSHIP_BRACKET_VIEW : championshipBracketView;
   }, [championshipBracketView]);
@@ -252,12 +255,51 @@ export function SchedulePage() {
     itemsPerPage: matchesItemsPerPage,
     sortMode: statusFilter === MatchStatus.SCHEDULED ? "SCHEDULED" : "FINISHED",
   });
+  const { events: championshipIndividualEvents, sessions: championshipIndividualSessions } = useChampionshipIndividualEvents({
+    championshipId: selectedChampionshipId,
+    seasonYear: correctedYearFilter,
+    sportIds: individualSportIds,
+    sportId: sportFilter,
+    naipe: naipeFilter,
+    division:
+      selectedChampionshipHasDivisions && divisionFilter != ALL_SCHEDULE_DIVISIONS_FILTER
+        ? (divisionFilter as TeamDivision)
+        : undefined,
+  });
 
   const locationOptions = useMemo(() => {
     return [...new Set(filterOptionRows.map((match) => match.location).filter(Boolean))].sort((firstLocation, secondLocation) =>
       firstLocation.localeCompare(secondLocation)
     );
   }, [filterOptionRows]);
+
+  const visibleIndividualEvents = useMemo(() => {
+    return championshipIndividualEvents.filter((event) => {
+      if (locationFilter && event.location != locationFilter) {
+        return false;
+      }
+
+      if (statusFilter == MatchStatus.SCHEDULED) {
+        return event.status != "FINISHED" && event.status != "CANCELLED";
+      }
+
+      return event.status == "FINISHED";
+    });
+  }, [championshipIndividualEvents, locationFilter, statusFilter]);
+
+  const visibleIndividualSessions = useMemo(() => {
+    return championshipIndividualSessions.filter((session) => {
+      if (locationFilter && session.location_name != locationFilter) {
+        return false;
+      }
+
+      if (statusFilter == MatchStatus.SCHEDULED) {
+        return session.status != "FINISHED" && session.status != "CANCELLED";
+      }
+
+      return session.status == "FINISHED";
+    });
+  }, [championshipIndividualSessions, locationFilter, statusFilter]);
 
   const courtOptions = useMemo(() => {
     const uniqueCourtNames = new Set<string>();
@@ -376,6 +418,8 @@ export function SchedulePage() {
       availableSeasonYears={availableSeasonYears}
       orderedDates={orderedDates}
       groupedMatches={groupedMatches}
+      individualEvents={visibleIndividualEvents}
+      individualSessions={visibleIndividualSessions}
       matches={visibleMatches}
       isMatchesFetching={matchesFetching}
       matchesCurrentPage={matchesCurrentPage}

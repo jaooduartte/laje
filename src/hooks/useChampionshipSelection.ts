@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from "react";
+import { useChampionshipSeasonRuntime } from "@/hooks/useChampionshipSeasonRuntime";
 import type { Championship } from "@/lib/types";
 import { isChampionshipCode } from "@/lib/championship";
 import type { ChampionshipCode } from "@/lib/enums";
@@ -17,6 +18,10 @@ export function useChampionshipSelection({
   const selectedChampionship = useMemo(() => {
     return championships.find((championship) => championship.code == selectedChampionshipCode) ?? null;
   }, [championships, selectedChampionshipCode]);
+  const { usesDivisions: selectedChampionshipHasDivisions } = useChampionshipSeasonRuntime({
+    championship: selectedChampionship,
+    seasonYear: selectedChampionship?.current_season_year ?? null,
+  });
 
   useEffect(() => {
     if (championships.length == 0) {
@@ -41,7 +46,7 @@ export function useChampionshipSelection({
   return {
     selectedChampionship,
     selectedChampionshipId: selectedChampionship?.id ?? null,
-    selectedChampionshipHasDivisions: selectedChampionship?.uses_divisions ?? false,
+    selectedChampionshipHasDivisions,
     handleChampionshipCodeChange,
   };
 }

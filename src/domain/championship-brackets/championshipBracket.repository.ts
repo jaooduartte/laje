@@ -276,6 +276,8 @@ export async function fetchChampionshipCorrectedGroupStandings(
     goal_diff: Number(row.goal_diff),
     yellow_cards: Number(row.yellow_cards),
     red_cards: Number(row.red_cards),
+    blue_cards: Number(row.blue_cards ?? 0),
+    two_minute_penalties: Number(row.two_minute_penalties ?? 0),
     points_average: Number(row.points_average),
   }));
 

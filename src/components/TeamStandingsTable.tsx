@@ -47,6 +47,8 @@ function renderCell(col: StandingsColumnKey, standing: TeamStandingAggregate): R
     case "PA": return formatPointsAverageForStandings(standing.goals_for, standing.goals_against);
     case "CA": return standing.yellow_cards;
     case "CV": return standing.red_cards;
+    case "CAZ": return standing.blue_cards;
+    case "2M": return standing.two_minute_penalties;
   }
 }
 

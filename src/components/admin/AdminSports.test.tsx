@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AdminSports } from "@/components/admin/AdminSports";
 import {
@@ -10,9 +10,23 @@ import {
 } from "@/lib/enums";
 import type { Championship, ChampionshipSport, Sport } from "@/lib/types";
 
+const {
+  championshipSportsUpdateMock,
+} = vi.hoisted(() => ({
+  championshipSportsUpdateMock: vi.fn(),
+}));
+
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
-    from: vi.fn(),
+    from: vi.fn((table: string) => {
+      if (table == "championship_sports") {
+        return {
+          update: (...args: unknown[]) => championshipSportsUpdateMock(...args),
+        };
+      }
+
+      return {};
+    }),
   },
 }));
 
@@ -62,6 +76,13 @@ describe("AdminSports", () => {
     },
   ];
 
+  beforeEach(() => {
+    championshipSportsUpdateMock.mockReset();
+    championshipSportsUpdateMock.mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    });
+  });
+
   it("prioriza o valor salvo em sports para preencher a duração da modalidade", () => {
     render(
       <AdminSports
@@ -108,5 +129,127 @@ describe("AdminSports", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/Melhor defesa:/)).toBeInTheDocument();
     expect(screen.getByText(/A plataforma define a atlética vencedora da melhor defesa/)).toBeInTheDocument();
+  });
+
+  it("não exibe blocos de premiação para modalidades do Interlaje", () => {
+    const interlajeChampionship: Championship = {
+      ...championship,
+      code: ChampionshipCode.INTERLAJE,
+      name: "Interlaje",
+    };
+
+    render(
+      <AdminSports
+        sports={[
+          {
+            id: "sport-basket",
+            name: "Basquetebol",
+            default_match_duration_minutes: 35,
+            created_at: "2026-06-15T00:00:00.000Z",
+          },
+        ]}
+        championshipSports={[
+          {
+            ...championshipSports[0],
+            championship_id: interlajeChampionship.id,
+            sport_id: "sport-basket",
+            supports_cards: false,
+            tie_breaker_rule: ChampionshipSportTieBreakerRule.STANDARD,
+            supports_individual_awards: false,
+            awards_include_knockout_phase: false,
+          },
+        ]}
+        selectedChampionship={interlajeChampionship}
+      />,
+    );
+
+    expect(screen.queryByText("Cadastro de atletas na súmula")).not.toBeInTheDocument();
+    expect(screen.queryByText("Contabilização de prêmios (artilheiro e melhor defesa)")).not.toBeInTheDocument();
+    expect(screen.queryByText("Critérios de premiação")).not.toBeInTheDocument();
+  });
+
+  it("renderiza as modalidades oficiais do Interlaje já vinculadas sem mensagem de estado morto", () => {
+    const interlajeChampionship: Championship = {
+      ...championship,
+      code: ChampionshipCode.INTERLAJE,
+      name: "Interlaje",
+    };
+
+    const interlajeSports: Sport[] = [
+      { id: "sport-basket", name: "Basquetebol", default_match_duration_minutes: 35, created_at: championship.created_at },
+      { id: "sport-futsal", name: "Futsal", default_match_duration_minutes: 35, created_at: championship.created_at },
+      { id: "sport-hand", name: "Handebol", default_match_duration_minutes: 35, created_at: championship.created_at },
+      { id: "sport-volley", name: "Voleibol", default_match_duration_minutes: 35, created_at: championship.created_at },
+      { id: "sport-athletics", name: "Atletismo", default_match_duration_minutes: 35, created_at: championship.created_at },
+      { id: "sport-swimming", name: "Natação", default_match_duration_minutes: 35, created_at: championship.created_at },
+    ];
+
+    const interlajeChampionshipSports: ChampionshipSport[] = interlajeSports.map((sport) => ({
+      ...championshipSports[0],
+      id: `championship-${sport.id}`,
+      championship_id: interlajeChampionship.id,
+      sport_id: sport.id,
+      tie_breaker_rule:
+        sport.name == "Futsal"
+          ? ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY
+          : sport.name == "Voleibol"
+            ? ChampionshipSportTieBreakerRule.POINTS_AVERAGE
+            : ChampionshipSportTieBreakerRule.STANDARD,
+      supports_cards: sport.name == "Futsal" || sport.name == "Handebol",
+      result_rule: sport.name == "Voleibol" ? ChampionshipSportResultRule.SETS : ChampionshipSportResultRule.POINTS,
+      points_win: ["Atletismo", "Natação"].includes(sport.name) ? 24 : 3,
+      points_draw: ["Voleibol", "Atletismo", "Natação"].includes(sport.name) ? 0 : 1,
+      supports_individual_awards: false,
+      awards_include_knockout_phase: false,
+    }));
+
+    render(
+      <AdminSports
+        sports={interlajeSports}
+        championshipSports={interlajeChampionshipSports}
+        selectedChampionship={interlajeChampionship}
+      />,
+    );
+
+    expect(screen.getByText("Basquetebol")).toBeInTheDocument();
+    expect(screen.getByText("Futsal")).toBeInTheDocument();
+    expect(screen.getByText("Handebol")).toBeInTheDocument();
+    expect(screen.getByText("Voleibol")).toBeInTheDocument();
+    expect(screen.getByText("Atletismo")).toBeInTheDocument();
+    expect(screen.getByText("Natação")).toBeInTheDocument();
+    expect(screen.queryByText("Modalidade oficial ainda não cadastrada na plataforma.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Disponível na plataforma, mas ainda não vinculada ao campeonato selecionado.")).not.toBeInTheDocument();
+  });
+
+  it("desabilita novamente o botão de salvar W.O. após persistir a configuração", async () => {
+    render(
+      <AdminSports
+        sports={sports}
+        championshipSports={championshipSports}
+        selectedChampionship={championship}
+      />,
+    );
+
+    const walkoverInput = screen.getByDisplayValue("3");
+    fireEvent.change(walkoverInput, {
+      target: { value: "4" },
+    });
+
+    const saveButtons = screen.getAllByRole("button", { name: "Salvar" });
+    const walkoverSaveButton = saveButtons[1]!;
+
+    expect(walkoverSaveButton).toBeEnabled();
+
+    fireEvent.click(walkoverSaveButton);
+
+    await waitFor(() => {
+      expect(championshipSportsUpdateMock).toHaveBeenCalledWith({
+        walkover_winner_points: 4,
+      });
+    });
+
+    await waitFor(() => {
+      expect(walkoverSaveButton).toBeDisabled();
+    });
   });
 });
