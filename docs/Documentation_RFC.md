@@ -77,7 +77,7 @@ O LAJE App propõe uma solução integrada, com base única de dados e fluxos au
 - frontend web consumindo API dedicada;
 - backend próprio em `Node.js + Express` no repositório `laje-api`;
 - banco relacional `PostgreSQL` como fonte principal de persistência;
-- infraestrutura pública compatível com a linha de Web Apps, tendo `AWS` como referência inicial de estado-alvo;
+- infraestrutura pública compatível com a linha de Web Apps, com frontend publicável na `Vercel` e backend/banco em infraestrutura dedicada;
 - pipeline CI/CD, análise estática, observabilidade e estratégia de testes alinhadas ao Portfólio.
 
 ---
@@ -184,7 +184,7 @@ O diferencial do LAJE App não está em reinventar funcionalidades básicas de t
 - calendário institucional que vai além das partidas;
 - base única de dados para reduzir divergência entre operação interna e experiência pública.
 
-Além do diferencial de domínio, a entrega final também buscará diferencial técnico, com arquitetura controlada pelo próprio projeto, backend dedicado, banco relacional explícito e infraestrutura pública compatível com a linha de Web Apps do Portfólio, tendo AWS como referência inicial para essa transição arquitetural.
+Além do diferencial de domínio, a entrega final também buscará diferencial técnico, com arquitetura controlada pelo próprio projeto, backend dedicado, banco relacional explícito e infraestrutura pública compatível com a linha de Web Apps do Portfólio, mantendo o frontend publicável na `Vercel` e a operação principal sob infraestrutura dedicada.
 
 ---
 
@@ -229,7 +229,7 @@ Desenvolver uma aplicação web capaz de centralizar a gestão operacional e a d
 2. Operar partidas ao vivo com atualização em tempo real para público e equipe administrativa.
 3. Automatizar a classificação e a progressão de chaveamento com base no estado persistido das partidas e nas regras configuradas.
 4. Disponibilizar uma experiência pública clara para consulta de agenda, campeonatos, resultados, classificações, chaveamentos e calendário institucional.
-5. Estruturar a solução-alvo com backend dedicado em `laje-api`, banco PostgreSQL e infraestrutura de hospedagem compatível com a linha de Web Apps, mantendo AWS como referência inicial dessa evolução.
+5. Estruturar a solução-alvo com backend dedicado em `laje-api`, banco PostgreSQL e infraestrutura de hospedagem compatível com a linha de Web Apps, mantendo frontend publicável na `Vercel` e backend/banco em infraestrutura dedicada.
 6. Garantir controle de acesso administrativo, rastreabilidade das alterações e base técnica para evolução contínua do produto conforme as diretrizes do Portfólio.
 
 ---
@@ -412,7 +412,7 @@ Os requisitos funcionais a seguir foram sintetizados a partir do comportamento j
 Observação de aderência:
 
 - **Estado atual comprovado:** frontend React 18 + TypeScript + Vite, Tailwind, shadcn/ui, Supabase Auth, Postgres, funções SQL, Realtime e migrations.
-- **Estado-alvo planejado:** backend dedicado `Node.js + Express`, PostgreSQL como persistência principal do desenho final, infraestrutura de hospedagem compatível com o Portfólio tendo AWS como referência inicial, CI/CD formal, análise estática e observabilidade ampliada.
+- **Estado-alvo planejado:** backend dedicado `Node.js + Express`, PostgreSQL como persistência principal do desenho final, frontend publicável na `Vercel`, backend e banco em infraestrutura dedicada, CI/CD formal, análise estática e observabilidade ampliada.
 
 ## 2.5 Regras de Negócio
 
@@ -649,7 +649,7 @@ O diagrama de contexto mostra o LAJE App como sistema central do produto, eviden
 
 ### Nível 2 — Containers
 
-O diagrama de containers abaixo representa o **estado-alvo** da solução, no qual o frontend web passa a consumir backend dedicado e banco PostgreSQL. A decisão de hospedagem permanece descrita no texto da RFC, tendo AWS como referência inicial registrada na etapa 1, sem transformar a infraestrutura em container funcional do sistema.
+O diagrama de containers abaixo representa o **estado-alvo** da solução, no qual o frontend web passa a consumir backend dedicado e banco PostgreSQL. A decisão de hospedagem permanece descrita no texto da RFC, com frontend publicável na `Vercel` e backend/banco em infraestrutura dedicada, sem transformar a infraestrutura em container funcional do sistema.
 
 ![Diagrama C4 nível 2 - containers do LAJE App](./assets/nivel-2.png)
 
@@ -817,7 +817,7 @@ Previstos para o backend dedicado `laje-api`, concentrando autenticação, autor
 Previsto como banco relacional principal do desenho final por oferecer integridade de dados, consultas estruturadas e aderência ao domínio transacional do projeto.
 
 **Infraestrutura de hospedagem compatível com o Portfólio**  
-Prevista para sustentar frontend, backend e banco relacional fora do Supabase. A etapa 1 registra AWS como referência de estado-alvo, mas a escolha final deve permanecer dentro dos provedores e modelos de hospedagem permitidos pelas diretrizes do Portfólio.
+Prevista para sustentar frontend, backend e banco relacional fora do Supabase. O direcionamento aprovado registra frontend publicável na `Vercel`, enquanto a escolha final do provedor do backend e do banco deve permanecer dentro dos modelos de hospedagem permitidos pelas diretrizes do Portfólio.
 
 **GitHub Actions**  
 Previsto para estruturar CI/CD, reforçando build, lint, testes e automação de deploy nas próximas etapas.
