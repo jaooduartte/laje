@@ -10,6 +10,14 @@ import {
   TeamDivision,
 } from "@/lib/enums";
 
+function buildPlacementPoints(count = 20) {
+  const defaults = [24, 22, 20, 18, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+  return Array.from({ length: count }, (_, index) => ({
+    placement: index + 1,
+    points: defaults[index] ?? 0,
+  }));
+}
+
 function buildFormValues(
   overrides: Partial<ChampionshipBracketSetupFormValues> = {},
 ): ChampionshipBracketSetupFormValues {
@@ -137,12 +145,14 @@ function buildFormValues(
     individual_event_configs: overrides.individual_event_configs ?? [
       {
         sport_id: "sport-1",
-        scoring_mode: "DEFAULT_24_TO_1",
+        placements_count: 20,
+        placement_points: buildPlacementPoints(),
         relay_multiplier: 2,
       },
     ],
     individual_session_configs: overrides.individual_session_configs ?? [],
     resource_locks: overrides.resource_locks ?? [],
+    knockout_program_blocks: overrides.knockout_program_blocks ?? [],
   };
 }
 
@@ -250,5 +260,54 @@ describe("ChampionshipBracketSetupDTO", () => {
         preferred_division: null,
       },
     ]);
+  });
+
+  it("rejeita configuração individual com colocação sem pontuação", () => {
+    const dto = ChampionshipBracketSetupDTO.fromFormValues(
+      buildFormValues({
+        individual_event_configs: [
+          {
+            sport_id: "sport-1",
+            placements_count: 3,
+            placement_points: [
+              { placement: 1, points: 24 },
+              { placement: 2, points: null },
+              { placement: 3, points: 20 },
+            ],
+            relay_multiplier: 2,
+          },
+        ],
+      }),
+    );
+
+    expect(() => dto.bindToSave()).toThrow(
+      "Toda colocação pontuada precisa ter pontuação definida.",
+    );
+  });
+
+  it("rejeita bloco manual de final sem competição ativa correspondente", () => {
+    const dto = ChampionshipBracketSetupDTO.fromFormValues(
+      buildFormValues({
+        knockout_program_blocks: [
+          {
+            date: "2026-08-10",
+            period: ChampionshipSchedulePeriod.MATUTINO,
+            location_key: "loc-1",
+            court_key: "court-1",
+            location_name: "Ginásio Central",
+            court_name: "Quadra 1",
+            sport_id: "sport-1",
+            phase: "FINAL",
+            division_scope: TeamDivision.DIVISAO_ACESSO,
+            naipe_sequence: [MatchNaipe.FEMININO],
+            display_order: 1,
+          },
+        ],
+      }),
+    );
+
+    expect(() => dto.bindToSave()).toThrow(
+      "Bloco manual de final sem competição ativa correspondente.",
+    );
   });
 });

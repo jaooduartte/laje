@@ -24,6 +24,27 @@ import {
 } from "@/lib/championship";
 import { DEFAULT_PAGINATION_ITEMS_PER_PAGE } from "@/components/ui/app-pagination-controls";
 import { SchedulePageView } from "@/pages/schedule/SchedulePageView";
+import { resolveKnockoutRoundLabel } from "@/lib/championship";
+
+interface ScheduledKnockoutPlaceholder {
+  id: string;
+  competition_id: string;
+  sport_id: string;
+  sport_name: string;
+  naipe: MatchNaipe;
+  division: TeamDivision | null;
+  round_number: number;
+  slot_number: number;
+  is_third_place: boolean;
+  scheduled_date: string;
+  queue_position: number | null;
+  scheduled_slot: number | null;
+  start_time: string | null;
+  end_time: string | null;
+  location: string | null;
+  court_name: string | null;
+  stage_label: string;
+}
 
 const ALL_SCHEDULE_DIVISIONS_FILTER = "ALL_SCHEDULE_DIVISIONS_FILTER";
 
@@ -268,10 +289,24 @@ export function SchedulePage() {
   });
 
   const locationOptions = useMemo(() => {
-    return [...new Set(filterOptionRows.map((match) => match.location).filter(Boolean))].sort((firstLocation, secondLocation) =>
-      firstLocation.localeCompare(secondLocation)
-    );
-  }, [filterOptionRows]);
+    const optionValues = new Set<string>();
+
+    filterOptionRows.forEach((match) => {
+      if (match.location) {
+        optionValues.add(match.location);
+      }
+    });
+
+    visibleChampionshipBracketView.competitions.forEach((competition) => {
+      competition.knockout_matches.forEach((knockoutMatch) => {
+        if (!knockoutMatch.match_id && knockoutMatch.location) {
+          optionValues.add(knockoutMatch.location);
+        }
+      });
+    });
+
+    return [...optionValues].sort((firstLocation, secondLocation) => firstLocation.localeCompare(secondLocation));
+  }, [filterOptionRows, visibleChampionshipBracketView]);
 
   const visibleIndividualEvents = useMemo(() => {
     return championshipIndividualEvents.filter((event) => {
@@ -316,8 +351,22 @@ export function SchedulePage() {
       uniqueCourtNames.add(match.court_name);
     });
 
+    visibleChampionshipBracketView.competitions.forEach((competition) => {
+      competition.knockout_matches.forEach((knockoutMatch) => {
+        if (!knockoutMatch.match_id || !knockoutMatch.court_name) {
+          return;
+        }
+
+        if (locationFilter && knockoutMatch.location != locationFilter) {
+          return;
+        }
+
+        uniqueCourtNames.add(knockoutMatch.court_name);
+      });
+    });
+
     return [...uniqueCourtNames].sort((firstCourtName, secondCourtName) => firstCourtName.localeCompare(secondCourtName));
-  }, [filterOptionRows, locationFilter]);
+  }, [filterOptionRows, locationFilter, visibleChampionshipBracketView]);
 
   useEffect(() => {
     if (locationFilter && !locationOptions.includes(locationFilter)) {
@@ -375,6 +424,119 @@ export function SchedulePage() {
     };
   }, [estimatedStartTimeByMatchId, statusFilter, visibleMatches]);
 
+  const knockoutPlaceholders = useMemo(() => {
+    if (statusFilter != MatchStatus.SCHEDULED) {
+      return [] as ScheduledKnockoutPlaceholder[];
+    }
+
+    return visibleChampionshipBracketView.competitions.flatMap((competition) => {
+      const totalRounds = competition.knockout_matches.reduce((currentMaxRound, knockoutMatch) => {
+        if (knockoutMatch.is_third_place) {
+          return currentMaxRound;
+        }
+
+        return Math.max(currentMaxRound, knockoutMatch.round_number);
+      }, 0);
+
+      return competition.knockout_matches
+        .filter((knockoutMatch) => {
+          if (knockoutMatch.match_id || !knockoutMatch.scheduled_date) {
+            return false;
+          }
+
+          if (sportFilter && competition.sport_id != sportFilter) {
+            return false;
+          }
+
+          if (naipeFilter && competition.naipe != naipeFilter) {
+            return false;
+          }
+
+          if (
+            selectedChampionshipHasDivisions &&
+            divisionFilter != ALL_SCHEDULE_DIVISIONS_FILTER &&
+            competition.division != divisionFilter
+          ) {
+            return false;
+          }
+
+          if (locationFilter && knockoutMatch.location != locationFilter) {
+            return false;
+          }
+
+          if (courtFilter && knockoutMatch.court_name != courtFilter) {
+            return false;
+          }
+
+          // Placeholder do mata-mata não é associado a grupo/atlética antes da definição dos classificados.
+          if (teamFilter || groupFilter) {
+            return false;
+          }
+
+          return true;
+        })
+        .map((knockoutMatch) => ({
+          id: knockoutMatch.id,
+          competition_id: competition.id,
+          sport_id: competition.sport_id,
+          sport_name: competition.sport_name,
+          naipe: competition.naipe,
+          division: competition.division,
+          round_number: knockoutMatch.round_number,
+          slot_number: knockoutMatch.slot_number,
+          is_third_place: knockoutMatch.is_third_place,
+          scheduled_date: knockoutMatch.scheduled_date!,
+          queue_position: knockoutMatch.queue_position,
+          scheduled_slot: knockoutMatch.scheduled_slot ?? null,
+          start_time: knockoutMatch.start_time,
+          end_time: knockoutMatch.end_time,
+          location: knockoutMatch.location,
+          court_name: knockoutMatch.court_name,
+          stage_label: resolveKnockoutRoundLabel(
+            knockoutMatch.round_number,
+            Math.max(totalRounds, knockoutMatch.round_number),
+            knockoutMatch.is_third_place,
+          ),
+        }));
+    });
+  }, [
+    courtFilter,
+    divisionFilter,
+    groupFilter,
+    locationFilter,
+    naipeFilter,
+    selectedChampionshipHasDivisions,
+    sportFilter,
+    statusFilter,
+    teamFilter,
+    visibleChampionshipBracketView,
+  ]);
+
+  const groupedKnockoutPlaceholdersByDate = useMemo(() => {
+    return knockoutPlaceholders.reduce<Record<string, ScheduledKnockoutPlaceholder[]>>((carry, placeholder) => {
+      if (!carry[placeholder.scheduled_date]) {
+        carry[placeholder.scheduled_date] = [];
+      }
+
+      carry[placeholder.scheduled_date].push(placeholder);
+      return carry;
+    }, {});
+  }, [knockoutPlaceholders]);
+
+  const orderedPlaceholderDates = useMemo(() => {
+    return Object.keys(groupedKnockoutPlaceholdersByDate).sort((firstDate, secondDate) => firstDate.localeCompare(secondDate));
+  }, [groupedKnockoutPlaceholdersByDate]);
+
+  const orderedDatesWithPlaceholders = useMemo(() => {
+    if (statusFilter == MatchStatus.FINISHED) {
+      return orderedDates;
+    }
+
+    return [...new Set([...orderedDates, ...orderedPlaceholderDates])].sort((firstDate, secondDate) =>
+      firstDate.localeCompare(secondDate)
+    );
+  }, [orderedDates, orderedPlaceholderDates, statusFilter]);
+
   const matchesTotalPages = Math.max(1, Math.ceil(totalMatches / matchesItemsPerPage));
 
   useEffect(() => {
@@ -416,8 +578,9 @@ export function SchedulePage() {
       statusFilter={statusFilter}
       yearFilter={yearFilter}
       availableSeasonYears={availableSeasonYears}
-      orderedDates={orderedDates}
+      orderedDates={orderedDatesWithPlaceholders}
       groupedMatches={groupedMatches}
+      groupedKnockoutPlaceholdersByDate={groupedKnockoutPlaceholdersByDate}
       individualEvents={visibleIndividualEvents}
       individualSessions={visibleIndividualSessions}
       matches={visibleMatches}

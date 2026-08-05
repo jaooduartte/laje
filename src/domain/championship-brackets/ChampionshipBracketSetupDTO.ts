@@ -430,6 +430,46 @@ export class ChampionshipBracketSetupDTO {
         throw new Error("Configuração de modalidade individual duplicada.");
       }
 
+      if (
+        !Number.isInteger(configItem.placements_count) ||
+        configItem.placements_count < 1
+      ) {
+        throw new Error("Quantidade de colocações pontuadas inválida.");
+      }
+
+      const placementPointByPlacement = new Map<number, number | null>();
+
+      configItem.placement_points.forEach((placementPoint) => {
+        if (
+          !Number.isInteger(placementPoint.placement) ||
+          placementPoint.placement < 1 ||
+          placementPoint.placement > configItem.placements_count
+        ) {
+          throw new Error("Posição de pontuação individual inválida.");
+        }
+
+        if (placementPointByPlacement.has(placementPoint.placement)) {
+          throw new Error("Pontuação individual duplicada para a mesma colocação.");
+        }
+
+        if (placementPoint.points == null) {
+          throw new Error("Toda colocação pontuada precisa ter pontuação definida.");
+        }
+
+        if (placementPoint.points < 0) {
+          throw new Error("Pontuação individual não pode ser negativa.");
+        }
+
+        placementPointByPlacement.set(
+          placementPoint.placement,
+          placementPoint.points,
+        );
+      });
+
+      if (placementPointByPlacement.size != configItem.placements_count) {
+        throw new Error("Toda colocação de 1 até N precisa ter pontuação definida.");
+      }
+
       if (configItem.relay_multiplier <= 0) {
         throw new Error("Multiplicador de revezamento inválido.");
       }
@@ -538,6 +578,108 @@ export class ChampionshipBracketSetupDTO {
     });
   }
 
+  private validateKnockoutProgramBlocks() {
+    const schedulePeriodEnabledByKey = this.form_values.schedule_periods.reduce<Record<string, boolean>>(
+      (carry, schedulePeriod) => {
+        carry[
+          this.resolveDatePeriodKey(schedulePeriod.date, schedulePeriod.period)
+        ] = schedulePeriod.enabled != false;
+        return carry;
+      },
+      {},
+    );
+    const competitionKeySet = new Set(
+      this.form_values.competitions.map((competition) =>
+        this.resolveCompetitionKey(
+          competition.sport_id,
+          competition.naipe,
+          competition.division,
+        ),
+      ),
+    );
+
+    this.form_values.knockout_program_blocks.forEach((programBlock) => {
+      if (programBlock.phase != "FINAL") {
+        throw new Error("Programação manual da eliminatória inválida.");
+      }
+
+      if (
+        !programBlock.location_key ||
+        !programBlock.court_key ||
+        !programBlock.sport_id
+      ) {
+        throw new Error("Bloco manual de final inválido.");
+      }
+
+      if (
+        !Number.isInteger(programBlock.display_order) ||
+        programBlock.display_order < 1
+      ) {
+        throw new Error("Ordem do bloco manual de final inválida.");
+      }
+
+      const schedulePeriodKey = this.resolveDatePeriodKey(
+        programBlock.date,
+        programBlock.period,
+      );
+
+      if (!(schedulePeriodKey in schedulePeriodEnabledByKey)) {
+        throw new Error("Bloco manual de final fora da agenda configurada.");
+      }
+
+      if (schedulePeriodEnabledByKey[schedulePeriodKey] != true) {
+        throw new Error("Bloco manual de final precisa usar um período global habilitado.");
+      }
+
+      if (programBlock.naipe_sequence.length == 0) {
+        throw new Error("Defina ao menos um naipe para o bloco manual de final.");
+      }
+
+      if (
+        this.form_values.season_settings.division_format ==
+          ChampionshipSeasonDivisionFormat.UNIFIED &&
+        programBlock.division_scope != "ALL"
+      ) {
+        throw new Error("Blocos manuais de final unificados não podem carregar divisão específica.");
+      }
+
+      const seenNaipes = new Set<string>();
+
+      programBlock.naipe_sequence.forEach((naipe) => {
+        if (seenNaipes.has(naipe)) {
+          throw new Error("Bloco manual de final com naipe duplicado.");
+        }
+
+        seenNaipes.add(naipe);
+
+        const resolvedCompetitionKey = this.resolveCompetitionKey(
+          programBlock.sport_id,
+          naipe,
+          this.form_values.season_settings.division_format ==
+            ChampionshipSeasonDivisionFormat.UNIFIED
+            ? null
+            : programBlock.division_scope == "ALL"
+              ? null
+              : programBlock.division_scope,
+        );
+
+        const hasExactCompetition = competitionKeySet.has(resolvedCompetitionKey);
+        const hasAnyCompetitionForNaipe =
+          programBlock.division_scope == "ALL" &&
+          this.form_values.competitions.some((competition) => {
+            return (
+              competition.sport_id == programBlock.sport_id &&
+              competition.naipe == naipe
+            );
+          });
+
+        if (!hasExactCompetition && !hasAnyCompetitionForNaipe) {
+          throw new Error("Bloco manual de final sem competição ativa correspondente.");
+        }
+      });
+    });
+  }
+
   private resolveTimeValueToMinutes(timeValue: string): number | null {
     const [hourPart, minutePart] = timeValue.split(":").map(Number);
 
@@ -563,6 +705,7 @@ export class ChampionshipBracketSetupDTO {
     this.validateIndividualEventConfigs();
     this.validateIndividualSessionConfigs();
     this.validateResourceLocks();
+    this.validateKnockoutProgramBlocks();
 
     const normalizedParticipants = this.form_values.participants.map(
       (participant) => ({
@@ -669,7 +812,11 @@ export class ChampionshipBracketSetupDTO {
       })),
       individual_event_configs: this.form_values.individual_event_configs.map((configItem) => ({
         sport_id: configItem.sport_id,
-        scoring_mode: configItem.scoring_mode,
+        placements_count: configItem.placements_count,
+        placement_points: configItem.placement_points.map((placementPoint) => ({
+          placement: placementPoint.placement,
+          points: placementPoint.points,
+        })),
         relay_multiplier: configItem.relay_multiplier,
       })),
       individual_session_configs: this.form_values.individual_session_configs.map((sessionConfig) => ({
@@ -696,6 +843,23 @@ export class ChampionshipBracketSetupDTO {
         sport_id: resourceLock.sport_id ?? null,
         naipe: resourceLock.naipe ?? null,
         division: resourceLock.division ?? null,
+      })),
+      knockout_program_blocks: this.form_values.knockout_program_blocks.map((programBlock) => ({
+        date: programBlock.date,
+        period: programBlock.period,
+        location_key: programBlock.location_key,
+        court_key: programBlock.court_key,
+        location_name: programBlock.location_name ?? null,
+        court_name: programBlock.court_name ?? null,
+        sport_id: programBlock.sport_id,
+        phase: "FINAL" as const,
+        division_scope:
+          this.form_values.season_settings.division_format ==
+          ChampionshipSeasonDivisionFormat.UNIFIED
+            ? "ALL"
+            : programBlock.division_scope,
+        naipe_sequence: [...new Set(programBlock.naipe_sequence)],
+        display_order: programBlock.display_order,
       })),
     };
   }

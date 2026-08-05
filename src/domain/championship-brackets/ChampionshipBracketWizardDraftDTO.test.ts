@@ -6,6 +6,14 @@ import {
   ChampionshipSeasonDivisionSettlementMode,
 } from "@/lib/enums";
 
+function buildPlacementPoints(count = 20) {
+  const defaults = [24, 22, 20, 18, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+  return Array.from({ length: count }, (_, index) => ({
+    placement: index + 1,
+    points: defaults[index] ?? null,
+  }));
+}
+
 function buildDraft(
   overrides: Partial<ChampionshipBracketWizardDraftFormValues> = {},
 ): ChampionshipBracketWizardDraftFormValues {
@@ -46,6 +54,7 @@ function buildDraft(
     individual_event_configs: overrides.individual_event_configs ?? [],
     individual_session_configs: overrides.individual_session_configs ?? [],
     resource_locks: overrides.resource_locks ?? [],
+    knockout_program_blocks: overrides.knockout_program_blocks ?? [],
   };
 }
 
@@ -86,5 +95,68 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
 
     expect(dto?.bindToSave().step_flow_version).toBe(2);
     expect(dto?.bindToSave().current_step_index).toBe(11);
+  });
+
+  it("normaliza config legada de modalidades individuais ao carregar do storage", () => {
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      JSON.stringify({
+        ...buildDraft(),
+        individual_event_configs: [
+          {
+            sport_id: "sport-1",
+            scoring_mode: "DEFAULT_24_TO_1",
+            relay_multiplier: 4,
+          },
+        ],
+      }),
+    );
+
+    expect(dto?.bindToSave().individual_event_configs).toEqual([
+      {
+        sport_id: "sport-1",
+        placements_count: 20,
+        placement_points: buildPlacementPoints(),
+        relay_multiplier: 4,
+      },
+    ]);
+  });
+
+  it("preserva blocos manuais de finais no rascunho", () => {
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      JSON.stringify({
+        ...buildDraft(),
+        knockout_program_blocks: [
+          {
+            date: "2026-08-19",
+            period: "VESPERTINO",
+            location_key: "loc-final",
+            court_key: "court-final",
+            location_name: "Arena",
+            court_name: "Quadra Interna",
+            sport_id: "sport-1",
+            phase: "FINAL",
+            division_scope: "ALL",
+            naipe_sequence: ["FEMININO", "MASCULINO"],
+            display_order: 3,
+          },
+        ],
+      }),
+    );
+
+    expect(dto?.bindToSave().knockout_program_blocks).toEqual([
+      {
+        date: "2026-08-19",
+        period: "VESPERTINO",
+        location_key: "loc-final",
+        court_key: "court-final",
+        location_name: "Arena",
+        court_name: "Quadra Interna",
+        sport_id: "sport-1",
+        phase: "FINAL",
+        division_scope: "ALL",
+        naipe_sequence: ["FEMININO", "MASCULINO"],
+        display_order: 3,
+      },
+    ]);
   });
 });

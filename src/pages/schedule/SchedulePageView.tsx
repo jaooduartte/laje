@@ -26,6 +26,26 @@ import { resolveMatchDisplaySlotValue, resolveMatchScheduledDateValue } from "@/
 
 const ALL_SCHEDULE_DIVISIONS_FILTER = "ALL_SCHEDULE_DIVISIONS_FILTER";
 
+interface ScheduledKnockoutPlaceholder {
+  id: string;
+  competition_id: string;
+  sport_id: string;
+  sport_name: string;
+  naipe: MatchNaipe;
+  division: TeamDivision | null;
+  round_number: number;
+  slot_number: number;
+  is_third_place: boolean;
+  scheduled_date: string;
+  queue_position: number | null;
+  scheduled_slot: number | null;
+  start_time: string | null;
+  end_time: string | null;
+  location: string | null;
+  court_name: string | null;
+  stage_label: string;
+}
+
 interface SchedulePageViewProps {
   isLoading: boolean;
   selectedChampionship: Championship | null;
@@ -49,6 +69,7 @@ interface SchedulePageViewProps {
   availableSeasonYears: number[];
   orderedDates: string[];
   groupedMatches: Record<string, Match[]>;
+  groupedKnockoutPlaceholdersByDate?: Record<string, ScheduledKnockoutPlaceholder[]>;
   individualEvents: ChampionshipIndividualEvent[];
   individualSessions?: ChampionshipIndividualSession[];
   matches: Match[];
@@ -97,6 +118,7 @@ export function SchedulePageView({
   availableSeasonYears,
   orderedDates,
   groupedMatches,
+  groupedKnockoutPlaceholdersByDate = {},
   individualEvents,
   individualSessions = [],
   matches,
@@ -129,6 +151,12 @@ export function SchedulePageView({
     }, []);
   }, [groupedMatches, orderedDates]);
 
+  const orderedKnockoutPlaceholders = useMemo(() => {
+    return orderedDates.reduce<ScheduledKnockoutPlaceholder[]>((carry, date) => {
+      return carry.concat(groupedKnockoutPlaceholdersByDate[date] ?? []);
+    }, []);
+  }, [groupedKnockoutPlaceholdersByDate, orderedDates]);
+
   const orderedFinishedMatches = useMemo(() => {
     if (statusFilter != MatchStatus.FINISHED) {
       return [];
@@ -156,6 +184,7 @@ export function SchedulePageView({
     });
   }, [matches, statusFilter]);
   const hasVisibleMatches = statusFilter == MatchStatus.FINISHED ? orderedFinishedMatches.length > 0 : orderedMatches.length > 0;
+  const hasVisibleKnockoutPlaceholders = statusFilter == MatchStatus.SCHEDULED && orderedKnockoutPlaceholders.length > 0;
   const hasVisibleIndividualSessions = individualSessions.length > 0;
 
   useEffect(() => {
@@ -358,7 +387,7 @@ export function SchedulePageView({
                 </div>
               </section>
             </div>
-          ) : !hasVisibleMatches ? (
+          ) : !hasVisibleMatches && !hasVisibleKnockoutPlaceholders ? (
             <p className="text-muted-foreground">Nenhum jogo encontrado.</p>
           ) : statusFilter == MatchStatus.FINISHED ? (
             <div className="space-y-4">
@@ -404,6 +433,73 @@ export function SchedulePageView({
                         visualQueuePosition={visualQueuePositionByMatchId[match.id]}
                         estimatedStartTime={estimatedStartTimeByMatchId[match.id]}
                       />
+                    ))}
+                    {(groupedKnockoutPlaceholdersByDate[date] ?? []).map((placeholder) => (
+                      <div
+                        key={placeholder.id}
+                        className="list-item-card list-item-card-hover flex h-full w-full flex-col p-4 dark:bg-[hsl(0_0%_12%)] dark:hover:bg-[hsl(0_0%_14%)]"
+                      >
+                        <div className="mb-3 flex flex-col gap-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                              {placeholder.sport_name}
+                            </span>
+                            <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-400">
+                              A definir
+                            </span>
+                          </div>
+                          <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                            <span className="rounded-full border border-border/60 bg-background/40 px-2.5 py-1 text-[11px] font-medium">
+                              {placeholder.naipe == MatchNaipe.MASCULINO
+                                ? "Masculino"
+                                : placeholder.naipe == MatchNaipe.FEMININO
+                                  ? "Feminino"
+                                  : "Misto"}
+                            </span>
+                            {placeholder.division ? (
+                              <span className="rounded-full border border-border/60 bg-background/40 px-2.5 py-1 text-[11px] font-medium">
+                                {placeholder.division == TeamDivision.DIVISAO_PRINCIPAL ? "Divisão Principal" : "Divisão de Acesso"}
+                              </span>
+                            ) : null}
+                            <span className="rounded-full border border-border/60 bg-background/40 px-2.5 py-1 text-[11px] font-medium">
+                              {placeholder.stage_label}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-1 flex-col justify-center">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1 text-right">
+                              <p className="font-display text-sm font-semibold text-muted-foreground">A definir</p>
+                            </div>
+                            <div className="mx-4 text-center">
+                              <p className="text-xl font-display font-bold text-muted-foreground">×</p>
+                            </div>
+                            <div className="flex-1">
+                              <p className="font-display text-sm font-semibold text-muted-foreground">A definir</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1 pt-3 text-xs text-muted-foreground">
+                          <p>Representação: {placeholder.stage_label}</p>
+                          {placeholder.start_time ? <p>Horário planejado: {placeholder.start_time.slice(0, 5)}</p> : null}
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span>
+                              {placeholder.location ?? "Local a definir"}
+                              {placeholder.court_name ? ` • ${placeholder.court_name}` : ""}
+                            </span>
+                            <span>
+                              {format(new Date(`${placeholder.scheduled_date}T12:00:00`), "dd/MM", { locale: ptBR })}
+                              {placeholder.scheduled_slot != null
+                                ? ` • Jogo ${placeholder.scheduled_slot}`
+                                : placeholder.queue_position != null
+                                  ? ` • Fila ${placeholder.queue_position}`
+                                  : ""}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </section>

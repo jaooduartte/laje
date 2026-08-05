@@ -247,4 +247,86 @@ describe("SchedulePageView", () => {
     expect(screen.getByText("1 provas oficiais vinculadas")).toBeInTheDocument();
     expect(screen.getByText(/Matutino/)).toBeInTheDocument();
   });
+
+  it("exibe placeholder do mata-mata planejado como A definir na agenda pública", () => {
+    const championship = buildChampionship();
+
+    render(
+      <SchedulePageView
+        isLoading={false}
+        selectedChampionship={championship}
+        championships={[championship]}
+        selectedChampionshipCode={championship.code}
+        selectedChampionshipHasDivisions
+        teams={[]}
+        sports={[]}
+        sportFilter={null}
+        naipeFilter={null}
+        teamFilter={null}
+        groupFilter={null}
+        locationFilter={null}
+        courtFilter={null}
+        locationOptions={["Arena Central"]}
+        courtOptions={["Quadra 1"]}
+        groupOptions={[]}
+        divisionFilter="ALL_SCHEDULE_DIVISIONS_FILTER"
+        statusFilter={MatchStatus.SCHEDULED}
+        yearFilter="2026"
+        availableSeasonYears={[2026]}
+        orderedDates={["2026-08-19"]}
+        groupedMatches={{ "2026-08-19": [] }}
+        groupedKnockoutPlaceholdersByDate={{
+          "2026-08-19": [
+            {
+              id: "placeholder-1",
+              competition_id: "competition-1",
+              sport_id: "sport-1",
+              sport_name: "Futsal",
+              naipe: MatchNaipe.FEMININO,
+              division: null,
+              round_number: 3,
+              slot_number: 1,
+              is_third_place: false,
+              scheduled_date: "2026-08-19",
+              queue_position: 1,
+              scheduled_slot: 1,
+              start_time: null,
+              end_time: null,
+              location: "Arena Central",
+              court_name: "Quadra 1",
+              stage_label: "Final",
+            },
+          ],
+        }}
+        individualEvents={[]}
+        individualSessions={[]}
+        matches={[]}
+        isMatchesFetching={false}
+        matchesCurrentPage={1}
+        matchesItemsPerPage={12}
+        matchesTotalPages={1}
+        matchBracketContextByMatchId={{}}
+        matchRepresentationByMatchId={{}}
+        visualQueuePositionByMatchId={{}}
+        estimatedStartTimeByMatchId={{}}
+        onChampionshipCodeChange={vi.fn()}
+        onSportFilterChange={vi.fn()}
+        onNaipeFilterChange={vi.fn()}
+        onTeamFilterChange={vi.fn()}
+        onGroupFilterChange={vi.fn()}
+        onLocationFilterChange={vi.fn()}
+        onCourtFilterChange={vi.fn()}
+        onDivisionChange={vi.fn()}
+        onStatusFilterChange={vi.fn()}
+        onYearFilterChange={vi.fn()}
+        onMatchesPageChange={vi.fn()}
+        onMatchesItemsPerPageChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Futsal")).toBeInTheDocument();
+    expect(screen.getAllByText("A definir")).toHaveLength(3);
+    expect(screen.getByText("Representação: Final")).toBeInTheDocument();
+    expect(screen.getByText("Arena Central • Quadra 1")).toBeInTheDocument();
+  });
 });

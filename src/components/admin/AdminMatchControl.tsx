@@ -143,7 +143,7 @@ const NAIPE_OPTIONS: MatchNaipe[] = [MatchNaipe.MASCULINO, MatchNaipe.FEMININO, 
 const MATCH_CONTROL_AUTOSAVE_DEBOUNCE_IN_MILLISECONDS = 150;
 const MATCH_CONTROL_PERSISTED_DRAFT_STORAGE_KEY = "admin_match_control_draft_by_match_id";
 const MATCH_CONTROL_PERSISTED_DRAFT_TTL_IN_MILLISECONDS = 10 * 60 * 1000;
-const WALKOVER_MODE_NONE: WalkoverMode = "NONE";
+const WALKOVER_MODE_NONE = "NONE" as const;
 const WALKOVER_MODE_HOME_LOST: WalkoverMode = "HOME_LOST";
 const WALKOVER_MODE_AWAY_LOST: WalkoverMode = "AWAY_LOST";
 const WALKOVER_MODE_DOUBLE: WalkoverMode = "DOUBLE";
@@ -1935,7 +1935,7 @@ export function AdminMatchControl({
 
     const selectedWalkoverMode = resolveSelectedWalkoverMode(match);
 
-    if (selectedWalkoverMode != WALKOVER_MODE_NONE) {
+    if (selectedWalkoverMode !== WALKOVER_MODE_NONE) {
       await handleFinishWithWalkover(match, selectedWalkoverMode);
       return;
     }

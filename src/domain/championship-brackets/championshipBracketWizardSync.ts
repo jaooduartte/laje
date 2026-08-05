@@ -291,6 +291,92 @@ function sanitizeTeamCompetitionAvailabilityValues({
   );
 }
 
+export const DEFAULT_INDIVIDUAL_EVENT_PLACEMENT_POINTS = [
+  24, 22, 20, 18, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
+] as const;
+
+function sanitizeIndividualPlacementPointsValues({
+  placementPoints,
+  placementsCount,
+}: {
+  placementPoints: ChampionshipBracketWizardDraftFormValues["individual_event_configs"][number]["placement_points"] | unknown;
+  placementsCount: number;
+}) {
+  const normalizedPlacementsCount = Math.max(1, Math.trunc(placementsCount));
+  const parsedPlacementPoints = Array.isArray(placementPoints) ? placementPoints : [];
+  const placementPointByPlacement = new Map<number, number | null>();
+
+  parsedPlacementPoints.forEach((placementPoint) => {
+    if (
+      !placementPoint ||
+      typeof placementPoint != "object" ||
+      Array.isArray(placementPoint)
+    ) {
+      return;
+    }
+
+    const parsedPlacement =
+      typeof placementPoint.placement == "number"
+        ? Math.trunc(placementPoint.placement)
+        : Number.NaN;
+    const parsedPoints =
+      typeof placementPoint.points == "number" && placementPoint.points >= 0
+        ? placementPoint.points
+        : placementPoint.points == null
+          ? null
+          : Number.NaN;
+
+    if (
+      Number.isNaN(parsedPlacement) ||
+      parsedPlacement < 1 ||
+      parsedPlacement > normalizedPlacementsCount ||
+      Number.isNaN(parsedPoints) ||
+      placementPointByPlacement.has(parsedPlacement)
+    ) {
+      return;
+    }
+
+    placementPointByPlacement.set(parsedPlacement, parsedPoints);
+  });
+
+  return Array.from({ length: normalizedPlacementsCount }, (_, index) => {
+    const placement = index + 1;
+    const defaultPoints =
+      DEFAULT_INDIVIDUAL_EVENT_PLACEMENT_POINTS[index] ?? null;
+
+    return {
+      placement,
+      points: placementPointByPlacement.has(placement)
+        ? placementPointByPlacement.get(placement) ?? null
+        : defaultPoints,
+    };
+  });
+}
+
+export function sanitizeIndividualEventConfigValue(
+  configItem: Partial<ChampionshipBracketWizardDraftFormValues["individual_event_configs"][number]> & {
+    scoring_mode?: unknown;
+  },
+) {
+  const placementsCount =
+    typeof configItem.placements_count == "number" && configItem.placements_count > 0
+      ? Math.trunc(configItem.placements_count)
+      : DEFAULT_INDIVIDUAL_EVENT_PLACEMENT_POINTS.length;
+
+  return {
+    sport_id: configItem.sport_id ?? "",
+    placements_count: placementsCount,
+    placement_points: sanitizeIndividualPlacementPointsValues({
+      placementPoints: configItem.placement_points,
+      placementsCount,
+    }),
+    relay_multiplier:
+      typeof configItem.relay_multiplier == "number" && configItem.relay_multiplier > 0
+        ? configItem.relay_multiplier
+        : 2,
+  } satisfies ChampionshipBracketWizardDraftFormValues["individual_event_configs"][number];
+}
+
 export function sanitizeIndividualEventConfigsValues({
   individualSports,
   individualEventConfigs,
@@ -308,14 +394,10 @@ export function sanitizeIndividualEventConfigsValues({
   return individualSports.map((sport) => {
     const existingConfig = configBySportId.get(sport.sport_id);
 
-    return {
+    return sanitizeIndividualEventConfigValue({
+      ...existingConfig,
       sport_id: sport.sport_id,
-      scoring_mode: "DEFAULT_24_TO_1" as const,
-      relay_multiplier:
-        existingConfig && existingConfig.relay_multiplier > 0
-          ? existingConfig.relay_multiplier
-          : 2,
-    };
+    });
   });
 }
 
@@ -399,6 +481,120 @@ export function sanitizeResourceLocksValues({
       )
     );
   });
+}
+
+function resolveDefaultKnockoutProgramNaipeSequence(
+  availableNaipes: MatchNaipe[],
+) {
+  const orderedNaipes = [
+    MatchNaipe.FEMININO,
+    MatchNaipe.MASCULINO,
+    MatchNaipe.MISTO,
+  ];
+
+  return orderedNaipes.filter((naipe) => availableNaipes.includes(naipe));
+}
+
+export function sanitizeKnockoutProgramBlocksValues({
+  schedulePeriods,
+  seasonSettings,
+  collectiveCompetitionOptions,
+  knockoutProgramBlocks,
+}: {
+  schedulePeriods: ChampionshipBracketWizardDraftFormValues["schedule_periods"];
+  seasonSettings: ChampionshipSeasonSettingsInput;
+  collectiveCompetitionOptions: WizardCompetitionOption[];
+  knockoutProgramBlocks: ChampionshipBracketWizardDraftFormValues["knockout_program_blocks"];
+}) {
+  const enabledDatePeriodKeySet = new Set(
+    schedulePeriods
+      .filter((schedulePeriod) => schedulePeriod.enabled != false)
+      .map((schedulePeriod) =>
+        resolveDatePeriodKey(schedulePeriod.date, schedulePeriod.period),
+      ),
+  );
+  const competitionOptionsBySportId = collectiveCompetitionOptions.reduce<
+    Record<string, WizardCompetitionOption[]>
+  >((carry, competitionOption) => {
+    if (!carry[competitionOption.sport_id]) {
+      carry[competitionOption.sport_id] = [];
+    }
+
+    carry[competitionOption.sport_id].push(competitionOption);
+    return carry;
+  }, {});
+
+  return knockoutProgramBlocks
+    .filter((block) => {
+      return (
+        block.location_key &&
+        block.court_key &&
+        block.sport_id &&
+        enabledDatePeriodKeySet.has(
+          resolveDatePeriodKey(block.date, block.period),
+        ) &&
+        Array.isArray(competitionOptionsBySportId[block.sport_id]) &&
+        competitionOptionsBySportId[block.sport_id].length > 0
+      );
+    })
+    .map((block, index) => {
+      const sportCompetitionOptions =
+        competitionOptionsBySportId[block.sport_id] ?? [];
+      const availableNaipes = [
+        ...new Set(
+          sportCompetitionOptions
+            .filter((competitionOption) => {
+              if (
+                seasonSettings.division_format ==
+                ChampionshipSeasonDivisionFormat.UNIFIED
+              ) {
+                return true;
+              }
+
+              if (block.division_scope == "ALL") {
+                return true;
+              }
+
+              return competitionOption.division == block.division_scope;
+            })
+            .map((competitionOption) => competitionOption.naipe),
+        ),
+      ];
+      const fallbackNaipeSequence =
+        resolveDefaultKnockoutProgramNaipeSequence(availableNaipes);
+      const nextNaipeSequence = [
+        ...new Set(
+          block.naipe_sequence.filter((naipe) =>
+            availableNaipes.includes(naipe),
+          ),
+        ),
+      ];
+
+      return {
+        date: block.date,
+        period: block.period,
+        location_key: block.location_key,
+        court_key: block.court_key,
+        location_name: block.location_name ?? null,
+        court_name: block.court_name ?? null,
+        sport_id: block.sport_id,
+        phase: "FINAL" as const,
+        division_scope:
+          seasonSettings.division_format ==
+          ChampionshipSeasonDivisionFormat.UNIFIED
+            ? "ALL"
+            : block.division_scope ?? "ALL",
+        naipe_sequence:
+          nextNaipeSequence.length > 0
+            ? nextNaipeSequence
+            : fallbackNaipeSequence,
+        display_order:
+          typeof block.display_order == "number" && block.display_order > 0
+            ? Math.trunc(block.display_order)
+            : index + 1,
+      };
+    })
+    .sort((left, right) => left.display_order - right.display_order);
 }
 
 export function sanitizeChampionshipBracketWizardDraft({
@@ -524,6 +720,15 @@ export function sanitizeChampionshipBracketWizardDraft({
         .map((competitionOption) => [competitionOption.key, competitionOption]),
     ).values(),
   ];
+  const collectiveCompetitionOptions = activeCompetitionKeys
+    .map((competitionKey) => competitionOptionsByKey[competitionKey] ?? null)
+    .filter(
+      (
+        competitionOption,
+      ): competitionOption is WizardCompetitionOption =>
+        competitionOption != null &&
+        !resolveIsIndividualSportName(competitionOption.sport_name),
+    );
 
   const nextCompetitionConfigByKey = activeCompetitionKeys.reduce<Record<string, ChampionshipBracketCompetitionConfigDraft>>(
     (carry, competitionKey) => {
@@ -624,6 +829,12 @@ export function sanitizeChampionshipBracketWizardDraft({
     resource_locks: sanitizeResourceLocksValues({
       schedulePeriods: nextSchedulePeriods,
       resourceLocks: draftFormValues.resource_locks ?? [],
+    }),
+    knockout_program_blocks: sanitizeKnockoutProgramBlocksValues({
+      schedulePeriods: nextSchedulePeriods,
+      seasonSettings,
+      collectiveCompetitionOptions,
+      knockoutProgramBlocks: draftFormValues.knockout_program_blocks ?? [],
     }),
   };
 }

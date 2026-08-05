@@ -12,6 +12,14 @@ import {
 } from "@/lib/enums";
 import type { ChampionshipSport, Team } from "@/lib/types";
 
+function buildPlacementPoints(count = 20) {
+  const defaults = [24, 22, 20, 18, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+  return Array.from({ length: count }, (_, index) => ({
+    placement: index + 1,
+    points: defaults[index] ?? null,
+  }));
+}
+
 function buildTeam(overrides: Partial<Team> & Pick<Team, "id" | "name">): Team {
   return {
     id: overrides.id,
@@ -72,6 +80,7 @@ function buildDraft(overrides: Partial<ChampionshipBracketWizardDraftFormValues>
     individual_event_configs: overrides.individual_event_configs ?? [],
     individual_session_configs: overrides.individual_session_configs ?? [],
     resource_locks: overrides.resource_locks ?? [],
+    knockout_program_blocks: overrides.knockout_program_blocks ?? [],
   };
 }
 
@@ -392,12 +401,20 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
         individual_event_configs: [
           {
             sport_id: "sport-individual",
-            scoring_mode: "DEFAULT_24_TO_1",
+            placements_count: 5,
+            placement_points: [
+              { placement: 1, points: 30 },
+              { placement: 2, points: 25 },
+              { placement: 3, points: 20 },
+              { placement: 4, points: 15 },
+              { placement: 5, points: 10 },
+            ],
             relay_multiplier: 4,
           },
           {
             sport_id: "sport-invalid",
-            scoring_mode: "DEFAULT_24_TO_1",
+            placements_count: 3,
+            placement_points: buildPlacementPoints(3),
             relay_multiplier: 9,
           },
         ],
@@ -491,8 +508,67 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
     expect(sanitizedDraft.individual_event_configs).toEqual([
       {
         sport_id: "sport-individual",
-        scoring_mode: "DEFAULT_24_TO_1",
+        placements_count: 5,
+        placement_points: [
+          { placement: 1, points: 30 },
+          { placement: 2, points: 25 },
+          { placement: 3, points: 20 },
+          { placement: 4, points: 15 },
+          { placement: 5, points: 10 },
+        ],
         relay_multiplier: 4,
+      },
+    ]);
+  });
+
+  it("reidrata configurações individuais legadas com preset 24 a 1", () => {
+    const sanitizedDraft = sanitizeChampionshipBracketWizardDraft({
+      draftFormValues: buildDraft({
+        enabled_sport_ids: ["sport-individual"],
+        selected_team_ids: ["team-1"],
+        selected_sport_ids_by_team_id: {
+          "team-1": ["sport-individual"],
+        },
+        individual_event_configs: [
+          {
+            sport_id: "sport-individual",
+            relay_multiplier: 3,
+          } as ChampionshipBracketWizardDraftFormValues["individual_event_configs"][number],
+        ],
+      }),
+      teams: [
+        buildTeam({
+          id: "team-1",
+          name: "Atlética 1",
+          division: TeamDivision.DIVISAO_PRINCIPAL,
+        }),
+      ],
+      championshipSports: [
+        buildChampionshipSport({
+          sport_id: "sport-individual",
+          sports: {
+            id: "sport-individual",
+            name: "Atletismo",
+            default_match_duration_minutes: 0,
+            created_at: "2026-05-08T00:00:00.000Z",
+          },
+        }),
+      ],
+      seasonSettings: {
+        division_format: ChampionshipSeasonDivisionFormat.UNIFIED,
+        division_settlement_mode: ChampionshipSeasonDivisionSettlementMode.NONE,
+        principal_slots_count: null,
+        principal_relegation_count: null,
+        access_promotion_count: null,
+      },
+    });
+
+    expect(sanitizedDraft.individual_event_configs).toEqual([
+      {
+        sport_id: "sport-individual",
+        placements_count: 20,
+        placement_points: buildPlacementPoints(),
+        relay_multiplier: 3,
       },
     ]);
   });
@@ -526,5 +602,122 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
     expect(sanitizedDraft.enabled_sport_ids).toEqual([]);
     expect(sanitizedDraft.selected_sport_ids_by_team_id).toEqual({});
     expect(sanitizedDraft.selected_competition_keys_by_team_id).toEqual({});
+  });
+
+  it("sanitiza blocos manuais de final conforme esportes coletivos ativos e agenda", () => {
+    const competitionKey = "sport-1::MASCULINO::DIVISAO_PRINCIPAL";
+    const teams = [
+      buildTeam({ id: "team-1", name: "Atlética 1", division: TeamDivision.DIVISAO_PRINCIPAL }),
+      buildTeam({ id: "team-2", name: "Atlética 2", division: TeamDivision.DIVISAO_PRINCIPAL }),
+    ];
+
+    const sanitizedDraft = sanitizeChampionshipBracketWizardDraft({
+      draftFormValues: buildDraft({
+        enabled_sport_ids: ["sport-1"],
+        selected_team_ids: ["team-1", "team-2"],
+        selected_sport_ids_by_team_id: {
+          "team-1": ["sport-1"],
+          "team-2": ["sport-1"],
+        },
+        selected_competition_keys_by_team_id: {
+          "team-1": [competitionKey],
+          "team-2": [competitionKey],
+        },
+        schedule_days: [
+          {
+            id: "day-1",
+            date: "2026-08-19",
+            start_time: "08:00",
+            end_time: "20:00",
+            break_start_time: "",
+            break_end_time: "",
+            locations: [],
+          },
+        ],
+        schedule_periods: [
+          {
+            date: "2026-08-19",
+            period: ChampionshipSchedulePeriod.VESPERTINO,
+            enabled: true,
+          },
+        ],
+        knockout_program_blocks: [
+          {
+            date: "2026-08-19",
+            period: ChampionshipSchedulePeriod.MATUTINO,
+            location_key: "loc-1",
+            court_key: "court-1",
+            location_name: "Arena",
+            court_name: "Quadra Interna",
+            sport_id: "sport-1",
+            phase: "FINAL",
+            division_scope: TeamDivision.DIVISAO_PRINCIPAL,
+            naipe_sequence: ["MASCULINO"],
+            display_order: 1,
+          },
+          {
+            date: "2026-08-19",
+            period: ChampionshipSchedulePeriod.VESPERTINO,
+            location_key: "loc-1",
+            court_key: "court-1",
+            location_name: "Arena",
+            court_name: "Quadra Interna",
+            sport_id: "sport-1",
+            phase: "FINAL",
+            division_scope: TeamDivision.DIVISAO_PRINCIPAL,
+            naipe_sequence: ["FEMININO", "MASCULINO"],
+            display_order: 2,
+          },
+        ],
+      }),
+      teams,
+      championshipSports: [
+        buildChampionshipSport({
+          sport_id: "sport-1",
+          sports: {
+            id: "sport-1",
+            name: "Basquetebol",
+            default_match_duration_minutes: 40,
+            created_at: "2026-05-08T00:00:00.000Z",
+          },
+        }),
+      ],
+      seasonSettings: {
+        division_format: ChampionshipSeasonDivisionFormat.SEPARATED,
+        division_settlement_mode: ChampionshipSeasonDivisionSettlementMode.NONE,
+        principal_slots_count: null,
+        principal_relegation_count: null,
+        access_promotion_count: null,
+      },
+    });
+
+    expect(sanitizedDraft.knockout_program_blocks).toEqual([
+      {
+        date: "2026-08-19",
+        period: ChampionshipSchedulePeriod.MATUTINO,
+        location_key: "loc-1",
+        court_key: "court-1",
+        location_name: "Arena",
+        court_name: "Quadra Interna",
+        sport_id: "sport-1",
+        phase: "FINAL",
+        division_scope: TeamDivision.DIVISAO_PRINCIPAL,
+        naipe_sequence: ["MASCULINO"],
+        display_order: 1,
+      },
+      {
+        date: "2026-08-19",
+        period: ChampionshipSchedulePeriod.VESPERTINO,
+        location_key: "loc-1",
+        court_key: "court-1",
+        location_name: "Arena",
+        court_name: "Quadra Interna",
+        sport_id: "sport-1",
+        phase: "FINAL",
+        division_scope: TeamDivision.DIVISAO_PRINCIPAL,
+        naipe_sequence: ["MASCULINO"],
+        display_order: 2,
+      },
+    ]);
   });
 });

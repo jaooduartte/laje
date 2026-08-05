@@ -12,8 +12,10 @@ import type { Championship, ChampionshipSport, Sport } from "@/lib/types";
 
 const {
   championshipSportsUpdateMock,
+  sportsUpdateMock,
 } = vi.hoisted(() => ({
   championshipSportsUpdateMock: vi.fn(),
+  sportsUpdateMock: vi.fn(),
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -22,6 +24,12 @@ vi.mock("@/integrations/supabase/client", () => ({
       if (table == "championship_sports") {
         return {
           update: (...args: unknown[]) => championshipSportsUpdateMock(...args),
+        };
+      }
+
+      if (table == "sports") {
+        return {
+          update: (...args: unknown[]) => sportsUpdateMock(...args),
         };
       }
 
@@ -78,7 +86,11 @@ describe("AdminSports", () => {
 
   beforeEach(() => {
     championshipSportsUpdateMock.mockReset();
+    sportsUpdateMock.mockReset();
     championshipSportsUpdateMock.mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    });
+    sportsUpdateMock.mockReturnValue({
       eq: vi.fn().mockResolvedValue({ error: null }),
     });
   });
@@ -250,6 +262,48 @@ describe("AdminSports", () => {
 
     await waitFor(() => {
       expect(walkoverSaveButton).toBeDisabled();
+    });
+  });
+
+  it("mantém a duração salva visível e refaz as modalidades após salvar", async () => {
+    const onRefetchSports = vi.fn().mockResolvedValue(undefined);
+    const onRefetchMatches = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <AdminSports
+        sports={sports}
+        championshipSports={championshipSports}
+        selectedChampionship={championship}
+        onRefetchSports={onRefetchSports}
+        onRefetchMatches={onRefetchMatches}
+      />,
+    );
+
+    const durationInput = screen.getByDisplayValue("40");
+    fireEvent.change(durationInput, {
+      target: { value: "45" },
+    });
+
+    const saveButtons = screen.getAllByRole("button", { name: "Salvar" });
+    const durationSaveButton = saveButtons[0]!;
+
+    fireEvent.click(durationSaveButton);
+
+    await waitFor(() => {
+      expect(sportsUpdateMock).toHaveBeenCalledWith({
+        default_match_duration_minutes: 45,
+      });
+    });
+
+    await waitFor(() => {
+      expect(onRefetchSports).toHaveBeenCalledTimes(1);
+      expect(onRefetchMatches).toHaveBeenCalledWith({ showFetching: true });
+    });
+
+    expect(screen.getByDisplayValue("45")).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(durationSaveButton).toBeDisabled();
     });
   });
 });

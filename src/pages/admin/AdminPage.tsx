@@ -134,8 +134,8 @@ export function AdminPage() {
   const { teams: allTeams, refetch: refetchAllTeams } = useTeams({
     includeInactive: true,
   });
-  const { sports } = useSports();
-  const { championshipSports } = useSports({
+  const { sports, refetch: refetchSports } = useSports();
+  const { championshipSports, refetch: refetchChampionshipSports } = useSports({
     championshipId: selectedChampionshipId,
   });
   const liveMatches = operationalMatches.filter((match) => match.status == MatchStatus.LIVE);
@@ -191,6 +191,13 @@ export function AdminPage() {
     await refetchPendingTieBreaks();
   }, [refetchMatchesTabChampionshipBracket, refetchOperationalChampionshipBracket, refetchPendingTieBreaks]);
 
+  const handleRefetchSports = useCallback(async () => {
+    await Promise.all([
+      refetchSports(),
+      refetchChampionshipSports(),
+    ]);
+  }, [refetchChampionshipSports, refetchSports]);
+
   const handleBracketGenerated = useCallback(async () => {
     setActiveTab(AdminPanelTab.CONTROL);
     await Promise.all([
@@ -237,10 +244,10 @@ export function AdminPage() {
   });
 
   useEffect(() => {
-    if (canViewBracketSetupTab) {
+    if (canViewBracketSetupTab && _activeTab == "") {
       setActiveTab(AdminPanelTab.BRACKET_SETUP);
     }
-  }, [canViewBracketSetupTab]);
+  }, [_activeTab, canViewBracketSetupTab]);
 
   useEffect(() => {
     if (!selectedChampionshipId) {
@@ -642,6 +649,7 @@ export function AdminPage() {
         onSignOut={signOut}
         onRefetchMatches={handleRefetchMatches}
         onRefetchChampionshipBracket={handleRefetchChampionshipBracket}
+        onRefetchSports={handleRefetchSports}
         onRefetchTeams={async () => {
           await Promise.all([refetchTeams(), refetchAllTeams()]);
         }}

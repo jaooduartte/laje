@@ -22,7 +22,7 @@ import { useChampionshipSeasonRuntime } from "@/hooks/useChampionshipSeasonRunti
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AdminPanelTab, BracketEditionStatus, ChampionshipCode, ChampionshipStatus, MatchStatus } from "@/lib/enums";
+import { AdminPanelTab, ChampionshipCode, ChampionshipStatus, MatchStatus } from "@/lib/enums";
 import type { MatchBracketContext } from "@/lib/championship";
 import type { AwardDrawPendingContext } from "@/hooks/usePendingAwardDraws";
 import { CHAMPIONSHIP_STATUS_LABELS } from "@/lib/championship";
@@ -98,6 +98,7 @@ interface AdminPageViewProps {
   onSignOut: () => void;
   onRefetchMatches: (options?: { showLoading?: boolean; showFetching?: boolean }) => void | Promise<void>;
   onRefetchChampionshipBracket: () => void;
+  onRefetchSports?: () => void | Promise<void>;
   onRefetchTeams: () => void;
   liveMatchesCount: number;
   pendingLeagueEventReservationsCount: number;
@@ -186,6 +187,7 @@ export function AdminPageView({
   onSignOut,
   onRefetchMatches,
   onRefetchChampionshipBracket,
+  onRefetchSports,
   onRefetchTeams,
   liveMatchesCount,
   pendingLeagueEventReservationsCount,
@@ -699,6 +701,7 @@ export function AdminPageView({
                 bracketEditionId={championshipBracketView.edition?.id ?? null}
                 canManageSports={canManageSports}
                 onRefetchMatches={onRefetchMatches}
+                onRefetchSports={onRefetchSports}
               />
             </TabsContent>
           ) : null}

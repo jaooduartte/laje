@@ -24,6 +24,7 @@ interface Props {
   bracketEditionId?: string | null;
   canManageSports?: boolean;
   onRefetchMatches?: (options?: { showLoading?: boolean; showFetching?: boolean }) => void | Promise<void>;
+  onRefetchSports?: () => void | Promise<void>;
 }
 
 function normalizePositiveIntegerDraftValue(value: string): number | null {
@@ -49,6 +50,7 @@ export function AdminSports({
   bracketEditionId = null,
   canManageSports = true,
   onRefetchMatches,
+  onRefetchSports,
 }: Props) {
   const [savingSportIdById, setSavingSportIdById] = useState<Record<string, boolean>>({});
   const [optimisticEstimatedStartTimeBySportId, setOptimisticEstimatedStartTimeBySportId] = useState<
@@ -307,7 +309,6 @@ export function AdminSports({
       }
     }
 
-    setSavingSportIdById((current) => ({ ...current, [savingKey]: false }));
     setOptimisticDurationBySportId((current) => ({
       ...current,
       [sport.id]: parsedValue,
@@ -317,7 +318,12 @@ export function AdminSports({
       [sport.id]: String(parsedValue),
     }));
 
-    await onRefetchMatches?.({ showFetching: true });
+    await Promise.all([
+      onRefetchSports?.(),
+      onRefetchMatches?.({ showFetching: true }),
+    ]);
+
+    setSavingSportIdById((current) => ({ ...current, [savingKey]: false }));
 
     toast.success(
       bracketEditionId
@@ -432,6 +438,9 @@ export function AdminSports({
             const resolvedPointsLoss = championshipSport?.points_loss ?? platformSportRule.pointsLoss;
             const resolvedSupportsCards = championshipSport?.supports_cards ?? platformSportRule.supportsCards;
             const resolvedResultRule = championshipSport?.result_rule ?? platformSportRule.resultRule;
+            const isIndividualSport =
+              resolveNormalizedSportName(platformSportRule.sportName) == "atletismo" ||
+              resolveNormalizedSportName(platformSportRule.sportName) == "natacao";
             const resolvedDefaultMatchDurationMinutes =
               optimisticDurationBySportId[sport?.id ?? ""] ??
               sport?.default_match_duration_minutes ??
@@ -507,45 +516,47 @@ export function AdminSports({
                   </div>
                 </div>
 
-                <div className="app-card-muted space-y-2 px-3 py-2">
-                  <p className="text-xs font-medium text-muted-foreground">Duração padrão da partida</p>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      min={1}
-                      placeholder="Minutos"
-                      className="h-8 w-32 text-sm"
-                      disabled={!canManageSports || !sport || isSavingSport}
-                      value={sport ? (durationDraftBySportId[sport.id] ?? "") : ""}
-                      onChange={(e) => {
-                        if (!sport) return;
-                        setDurationDraftBySportId((current) => ({
-                          ...current,
-                          [sport.id]: e.target.value,
-                        }));
-                      }}
-                    />
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      disabled={!canManageSports || !sport || isSavingSport || !hasDurationChanges}
-                      onClick={() => {
-                        if (!sport) return;
-                        void handleSaveDefaultMatchDuration(sport, championshipSport);
-                      }}
-                    >
-                      {isSavingSport ? "Salvando…" : "Salvar"}
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Ao salvar, a agenda da edição atual é redistribuída com a nova duração da modalidade.
-                  </p>
-                  {!sport ? (
+                {!isIndividualSport ? (
+                  <div className="app-card-muted space-y-2 px-3 py-2">
+                    <p className="text-xs font-medium text-muted-foreground">Duração padrão da partida</p>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={1}
+                        placeholder="Minutos"
+                        className="h-8 w-32 text-sm"
+                        disabled={!canManageSports || !sport || isSavingSport}
+                        value={sport ? (durationDraftBySportId[sport.id] ?? "") : ""}
+                        onChange={(e) => {
+                          if (!sport) return;
+                          setDurationDraftBySportId((current) => ({
+                            ...current,
+                            [sport.id]: e.target.value,
+                          }));
+                        }}
+                      />
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={!canManageSports || !sport || isSavingSport || !hasDurationChanges}
+                        onClick={() => {
+                          if (!sport) return;
+                          void handleSaveDefaultMatchDuration(sport, championshipSport);
+                        }}
+                      >
+                        {isSavingSport ? "Salvando…" : "Salvar"}
+                      </Button>
+                    </div>
                     <p className="text-xs text-muted-foreground">
-                      A modalidade precisa existir no banco para editar esta configuração.
+                      Ao salvar, a agenda da edição atual é redistribuída com a nova duração da modalidade.
                     </p>
-                  ) : null}
-                </div>
+                    {!sport ? (
+                      <p className="text-xs text-muted-foreground">
+                        A modalidade precisa existir no banco para editar esta configuração.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 <div className="app-card-muted px-3 py-2">
                   <p className="text-xs font-medium text-muted-foreground">Critérios de desempate (ordem de prioridade)</p>
@@ -606,47 +617,49 @@ export function AdminSports({
                   ) : null}
                 </div>
 
-                <div className="app-card-muted space-y-2 px-3 py-2">
-                  <p className="text-xs font-medium text-muted-foreground">Pontuação máxima (W.O.)</p>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      min={1}
-                      placeholder="Desabilitado"
-                      className="h-8 w-32 text-sm"
-                      disabled={!canManageSports || !championshipSport || isSavingSport}
-                      value={sport ? (walkoverDraftBySportId[sport.id] ?? "") : ""}
-                      onChange={(e) => {
-                        if (!sport) return;
-                        setWalkoverDraftBySportId((current) => ({
-                          ...current,
-                          [sport.id]: e.target.value,
-                        }));
-                      }}
-                    />
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      disabled={!canManageSports || !championshipSport || isSavingSport || !hasWalkoverChanges}
-                      onClick={() => {
-                        if (!championshipSport || !sport) return;
-                        void handleSaveWalkoverWinnerPoints(championshipSport, sport.id);
-                      }}
-                    >
-                      {isSavingSport ? "Salvando…" : "Salvar"}
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {sport && walkoverDraftBySportId[sport.id]
-                      ? `Vencedor recebe ${walkoverDraftBySportId[sport.id]} ponto(s) em caso de W.O.`
-                      : "W.O. desabilitado — deixe o campo vazio para desabilitar."}
-                  </p>
-                  {!championshipSport ? (
+                {!isIndividualSport ? (
+                  <div className="app-card-muted space-y-2 px-3 py-2">
+                    <p className="text-xs font-medium text-muted-foreground">Pontuação máxima (W.O.)</p>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={1}
+                        placeholder="Desabilitado"
+                        className="h-8 w-32 text-sm"
+                        disabled={!canManageSports || !championshipSport || isSavingSport}
+                        value={sport ? (walkoverDraftBySportId[sport.id] ?? "") : ""}
+                        onChange={(e) => {
+                          if (!sport) return;
+                          setWalkoverDraftBySportId((current) => ({
+                            ...current,
+                            [sport.id]: e.target.value,
+                          }));
+                        }}
+                      />
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={!canManageSports || !championshipSport || isSavingSport || !hasWalkoverChanges}
+                        onClick={() => {
+                          if (!championshipSport || !sport) return;
+                          void handleSaveWalkoverWinnerPoints(championshipSport, sport.id);
+                        }}
+                      >
+                        {isSavingSport ? "Salvando…" : "Salvar"}
+                      </Button>
+                    </div>
                     <p className="text-xs text-muted-foreground">
-                      Vincule a modalidade ao campeonato para editar esta configuração.
+                      {sport && walkoverDraftBySportId[sport.id]
+                        ? `Vencedor recebe ${walkoverDraftBySportId[sport.id]} ponto(s) em caso de W.O.`
+                        : "W.O. desabilitado — deixe o campo vazio para desabilitar."}
                     </p>
-                  ) : null}
-                </div>
+                    {!championshipSport ? (
+                      <p className="text-xs text-muted-foreground">
+                        Vincule a modalidade ao campeonato para editar esta configuração.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 {supportsAwards ? (
                   <>

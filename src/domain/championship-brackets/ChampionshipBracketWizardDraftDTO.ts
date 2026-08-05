@@ -4,6 +4,7 @@ import type {
   ChampionshipBracketGroupOrderedTeamIdsByGroupNumberDraft,
   ChampionshipBracketIndividualSessionConfigInput,
   ChampionshipBracketIndividualEventConfigInput,
+  ChampionshipBracketKnockoutProgramBlockInput,
   ChampionshipBracketResourceLockInput,
   ChampionshipBracketScheduleCourtDraft,
   ChampionshipBracketScheduleDayDraft,
@@ -14,10 +15,12 @@ import type {
   ChampionshipBracketWizardDraftFormValues,
 } from "@/domain/championship-brackets/championshipBracket.types";
 import { resolveCompetitionKnockoutPairingModeValue } from "@/domain/championship-brackets/championshipBracketPairing";
+import { sanitizeIndividualEventConfigValue } from "@/domain/championship-brackets/championshipBracketWizardSync";
 import {
   ChampionshipSchedulePeriod,
   ChampionshipSeasonDivisionFormat,
   ChampionshipSeasonDivisionSettlementMode,
+  MatchNaipe,
 } from "@/lib/enums";
 import { resolveRandomUuid } from "@/lib/random";
 
@@ -564,14 +567,12 @@ function resolveIndividualEventConfigs(
         return carry;
       }
 
-      carry.push({
-        sport_id: parsedConfig.sport_id,
-        scoring_mode: "DEFAULT_24_TO_1",
-        relay_multiplier:
-          typeof parsedConfig.relay_multiplier == "number"
-            ? parsedConfig.relay_multiplier
-            : 2,
-      });
+      carry.push(
+        sanitizeIndividualEventConfigValue({
+          ...parsedConfig,
+          sport_id: parsedConfig.sport_id,
+        }),
+      );
       return carry;
     },
     [],
@@ -637,6 +638,79 @@ function resolveIndividualSessionConfigs(
             : null,
         exclusive_lock_enabled: parsedSessionConfig.exclusive_lock_enabled == true,
       });
+      return carry;
+    },
+    [],
+  );
+}
+
+function resolveKnockoutProgramBlocks(
+  value: unknown,
+): ChampionshipBracketKnockoutProgramBlockInput[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.reduce<ChampionshipBracketKnockoutProgramBlockInput[]>(
+    (carry, knockoutProgramBlock) => {
+      if (
+        !knockoutProgramBlock ||
+        typeof knockoutProgramBlock != "object" ||
+        Array.isArray(knockoutProgramBlock)
+      ) {
+        return carry;
+      }
+
+      const parsedKnockoutProgramBlock =
+        knockoutProgramBlock as Partial<ChampionshipBracketKnockoutProgramBlockInput>;
+
+      if (
+        typeof parsedKnockoutProgramBlock.date != "string" ||
+        typeof parsedKnockoutProgramBlock.location_key != "string" ||
+        typeof parsedKnockoutProgramBlock.court_key != "string" ||
+        typeof parsedKnockoutProgramBlock.sport_id != "string" ||
+        (parsedKnockoutProgramBlock.period != ChampionshipSchedulePeriod.MATUTINO &&
+          parsedKnockoutProgramBlock.period != ChampionshipSchedulePeriod.VESPERTINO)
+      ) {
+        return carry;
+      }
+
+      const naipeSequence = Array.isArray(parsedKnockoutProgramBlock.naipe_sequence)
+        ? parsedKnockoutProgramBlock.naipe_sequence.filter(
+            (naipe): naipe is MatchNaipe =>
+              naipe == "MASCULINO" ||
+              naipe == "FEMININO" ||
+              naipe == "MISTO",
+          )
+        : [];
+
+      carry.push({
+        date: parsedKnockoutProgramBlock.date,
+        period: parsedKnockoutProgramBlock.period,
+        location_key: parsedKnockoutProgramBlock.location_key,
+        court_key: parsedKnockoutProgramBlock.court_key,
+        location_name:
+          typeof parsedKnockoutProgramBlock.location_name == "string"
+            ? parsedKnockoutProgramBlock.location_name
+            : null,
+        court_name:
+          typeof parsedKnockoutProgramBlock.court_name == "string"
+            ? parsedKnockoutProgramBlock.court_name
+            : null,
+        sport_id: parsedKnockoutProgramBlock.sport_id,
+        phase: "FINAL",
+        division_scope:
+          parsedKnockoutProgramBlock.division_scope == "DIVISAO_PRINCIPAL" ||
+          parsedKnockoutProgramBlock.division_scope == "DIVISAO_ACESSO"
+            ? parsedKnockoutProgramBlock.division_scope
+            : "ALL",
+        naipe_sequence: naipeSequence,
+        display_order: Math.max(
+          1,
+          resolveNumberValue(parsedKnockoutProgramBlock.display_order, 1),
+        ),
+      });
+
       return carry;
     },
     [],
@@ -817,6 +891,9 @@ export class ChampionshipBracketWizardDraftDTO {
         resource_locks: resolveResourceLocks(
           parsed_storage_value.resource_locks,
         ),
+        knockout_program_blocks: resolveKnockoutProgramBlocks(
+          parsed_storage_value.knockout_program_blocks,
+        ),
       });
     } catch {
       return null;
@@ -967,7 +1044,11 @@ export class ChampionshipBracketWizardDraftDTO {
       })),
       individual_event_configs: this.form_values.individual_event_configs.map((configItem) => ({
         sport_id: configItem.sport_id,
-        scoring_mode: "DEFAULT_24_TO_1",
+        placements_count: configItem.placements_count,
+        placement_points: configItem.placement_points.map((placementPoint) => ({
+          placement: placementPoint.placement,
+          points: placementPoint.points,
+        })),
         relay_multiplier: configItem.relay_multiplier,
       })),
       individual_session_configs: this.form_values.individual_session_configs.map((sessionConfig) => ({
@@ -994,6 +1075,19 @@ export class ChampionshipBracketWizardDraftDTO {
         sport_id: resourceLock.sport_id ?? null,
         naipe: resourceLock.naipe ?? null,
         division: resourceLock.division ?? null,
+      })),
+      knockout_program_blocks: this.form_values.knockout_program_blocks.map((programBlock) => ({
+        date: programBlock.date,
+        period: programBlock.period,
+        location_key: programBlock.location_key,
+        court_key: programBlock.court_key,
+        location_name: programBlock.location_name,
+        court_name: programBlock.court_name,
+        sport_id: programBlock.sport_id,
+        phase: "FINAL" as const,
+        division_scope: programBlock.division_scope,
+        naipe_sequence: [...new Set(programBlock.naipe_sequence)],
+        display_order: Math.max(1, programBlock.display_order),
       })),
     };
   }

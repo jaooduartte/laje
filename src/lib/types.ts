@@ -105,9 +105,15 @@ export interface ChampionshipTeamCompetitionAvailability {
   enabled: boolean;
 }
 
+export interface ChampionshipIndividualPlacementPoint {
+  placement: number;
+  points: number | null;
+}
+
 export interface ChampionshipIndividualEventConfig {
   sport_id: string;
-  scoring_mode: "DEFAULT_24_TO_1";
+  placements_count: number;
+  placement_points: ChampionshipIndividualPlacementPoint[];
   relay_multiplier: number;
 }
 

@@ -118,9 +118,15 @@ export interface ChampionshipBracketTeamCompetitionAvailabilityInput {
   enabled: boolean;
 }
 
+export interface ChampionshipBracketIndividualPlacementPointInput {
+  placement: number;
+  points: number | null;
+}
+
 export interface ChampionshipBracketIndividualEventConfigInput {
   sport_id: string;
-  scoring_mode: "DEFAULT_24_TO_1";
+  placements_count: number;
+  placement_points: ChampionshipBracketIndividualPlacementPointInput[];
   relay_multiplier: number;
 }
 
@@ -155,6 +161,20 @@ export interface ChampionshipBracketResourceLockInput {
   division?: TeamDivision | null;
 }
 
+export interface ChampionshipBracketKnockoutProgramBlockInput {
+  date: string;
+  period: ChampionshipSchedulePeriod;
+  location_key: string;
+  court_key: string;
+  location_name: string | null;
+  court_name: string | null;
+  sport_id: string;
+  phase: "FINAL";
+  division_scope: TeamDivision | "ALL";
+  naipe_sequence: MatchNaipe[];
+  display_order: number;
+}
+
 export interface ChampionshipBracketSetupFormValues {
   season_settings: ChampionshipSeasonSettingsInput;
   enabled_sport_ids: string[];
@@ -167,6 +187,7 @@ export interface ChampionshipBracketSetupFormValues {
   individual_event_configs: ChampionshipBracketIndividualEventConfigInput[];
   individual_session_configs: ChampionshipBracketIndividualSessionConfigInput[];
   resource_locks: ChampionshipBracketResourceLockInput[];
+  knockout_program_blocks: ChampionshipBracketKnockoutProgramBlockInput[];
 }
 
 export interface ChampionshipBracketPreviewResult {
@@ -299,6 +320,7 @@ export interface ChampionshipBracketWizardDraftFormValues {
   individual_event_configs: ChampionshipBracketIndividualEventConfigInput[];
   individual_session_configs: ChampionshipBracketIndividualSessionConfigInput[];
   resource_locks: ChampionshipBracketResourceLockInput[];
+  knockout_program_blocks: ChampionshipBracketKnockoutProgramBlockInput[];
 }
 
 export interface ChampionshipBracketRemoteDraftMetadata {
