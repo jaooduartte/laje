@@ -4177,21 +4177,13 @@ export function AdminChampionshipBracketPage({
         return false;
       }
 
-      const hasDuplicatedKnockoutProgramSlot =
-        new Set(
-          knockoutProgramBlocks.map((programBlock) =>
-            [
-              programBlock.date,
-              programBlock.period,
-              programBlock.location_key,
-              programBlock.court_key,
-            ].join("::"),
-          ),
-        ).size != knockoutProgramBlocks.length;
+      const hasDuplicatedKnockoutProgramBlock =
+        new Set(knockoutProgramBlocks.map(resolveKnockoutProgramBlockKey))
+          .size != knockoutProgramBlocks.length;
 
-      if (hasDuplicatedKnockoutProgramSlot) {
+      if (hasDuplicatedKnockoutProgramBlock) {
         toast.error(
-          "Não é possível programar mais de um bloco manual de final no mesmo recurso e período.",
+          "Não é possível repetir a mesma modalidade e o mesmo escopo de divisão no mesmo recurso e período. Para ordenar os naipes, utilize a sequência de naipes do próprio bloco.",
         );
         return false;
       }
@@ -5867,13 +5859,10 @@ export function AdminChampionshipBracketPage({
     const knockoutBlockCounts = knockoutProgramBlocks.reduce<
       Record<string, number>
     >((carry, programBlock) => {
-      const key = [
-        programBlock.date,
-        programBlock.period,
-        programBlock.location_key,
-        programBlock.court_key,
-      ].join("::");
+      const key = resolveKnockoutProgramBlockKey(programBlock);
+
       carry[key] = (carry[key] ?? 0) + 1;
+
       return carry;
     }, {});
 
@@ -5884,23 +5873,16 @@ export function AdminChampionshipBracketPage({
 
       const knockoutProgramBlock = knockoutProgramBlocks.find(
         (currentProgramBlock) =>
-          [
-            currentProgramBlock.date,
-            currentProgramBlock.period,
-            currentProgramBlock.location_key,
-            currentProgramBlock.court_key,
-          ].join("::") == blockKey,
+          resolveKnockoutProgramBlockKey(currentProgramBlock) == blockKey,
       );
 
       diagnostics.push({
         key: `knockout-block-collision-${blockKey}`,
         tone: "red",
-        title: "Bloco manual de final conflitante",
-        description: `${
-          knockoutProgramBlock?.location_name ?? "Local"
-        } • ${knockoutProgramBlock?.court_name ?? "Quadra"} aparece ${
-          count
-        } vezes no mesmo dia/período para finais.`,
+        title: "Bloco manual de final duplicado",
+        description: `${knockoutProgramBlock?.location_name ?? "Local"} • ${
+          knockoutProgramBlock?.court_name ?? "Quadra"
+        } possui ${count} blocos da mesma modalidade e do mesmo escopo de divisão no mesmo dia/período.`,
       });
     });
 
@@ -6004,7 +5986,7 @@ export function AdminChampionshipBracketPage({
     knockoutProgramBlocks,
   ]);
 
-  const courtPreferenceStepCards = useMemo(() => {
+  const courtPreferenceStepRows = useMemo(() => {
     const sportConfigurationById = activeCompetitionOptions.reduce<
       Record<
         string,
@@ -6041,8 +6023,8 @@ export function AdminChampionshipBracketPage({
       return carry;
     }, {});
 
-    return scheduleDays.flatMap((scheduleDay, scheduleDayIndex) =>
-      scheduleDay.locations.flatMap((scheduleLocation) =>
+    return scheduleDays.flatMap((scheduleDay, scheduleDayIndex) => {
+      const courtCards = scheduleDay.locations.flatMap((scheduleLocation) =>
         scheduleLocation.courts.flatMap((court) => {
           const sportOptions = court.sport_ids
             .flatMap((sportId) => {
@@ -6072,21 +6054,38 @@ export function AdminChampionshipBracketPage({
           return [
             {
               key: [scheduleDay.id, scheduleLocation.id, court.id].join("::"),
+
               schedule_day_id: scheduleDay.id,
-              day_label: `Dia ${scheduleDayIndex + 1}${
-                scheduleDay.date
-                  ? ` • ${scheduleDay.date.split("-").reverse().join("/")}`
-                  : ""
-              }`,
+
               location_id: scheduleLocation.id,
+
               location_name: scheduleLocation.name || "Local sem nome",
+
               court,
               sport_options: sportOptions,
             },
           ];
         }),
-      ),
-    );
+      );
+
+      if (courtCards.length == 0) {
+        return [];
+      }
+
+      return [
+        {
+          key: `court-preference-day-${scheduleDay.id}`,
+
+          day_label: `Dia ${scheduleDayIndex + 1}`,
+
+          date_label: scheduleDay.date
+            ? resolveBrazilianDateString(scheduleDay.date)
+            : "Data não informada",
+
+          court_cards: courtCards,
+        },
+      ];
+    });
   }, [activeCompetitionOptions, scheduleDays]);
 
   const collectiveSportOptions = useMemo(() => {
@@ -9499,211 +9498,262 @@ export function AdminChampionshipBracketPage({
                     )}
                   </div>
 
-                  {courtPreferenceStepCards.length == 0 ? (
+                  {courtPreferenceStepRows.length == 0 ? (
                     <div className="rounded-xl border border-dashed border-border/40 bg-background/20 p-8 text-center text-sm text-muted-foreground">
                       Nenhuma quadra possui modalidades coletivas disponíveis
                       para configuração.
                     </div>
                   ) : (
-                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                      {courtPreferenceStepCards.map((preferenceCard) => {
-                        const currentPreference =
-                          preferenceCard.court.sport_preference;
-
-                        const preferredSportId =
-                          currentPreference?.preferred_sport_id ?? null;
-
-                        const preferredSportOption =
-                          preferenceCard.sport_options.find(
-                            (sportOption) =>
-                              sportOption.sport_id == preferredSportId,
-                          ) ?? null;
-
-                        const availableNaipeOptions =
-                          preferredSportOption?.naipe_options ?? [];
-
-                        return (
-                          <div
-                            key={preferenceCard.key}
-                            className="rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm"
-                          >
-                            <div className="border-b border-border/40 pb-4">
+                    <div className="space-y-4">
+                      {courtPreferenceStepRows.map((preferenceRow) => (
+                        <section
+                          key={preferenceRow.key}
+                          className="overflow-hidden rounded-xl border border-border/40 bg-background/30 shadow-sm"
+                        >
+                          <div className="flex flex-col gap-2 border-b border-border/40 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
                               <p className="text-base font-bold">
-                                {preferenceCard.court.name || "Quadra sem nome"}
+                                {preferenceRow.day_label}
                               </p>
 
                               <p className="mt-1 text-xs text-muted-foreground">
-                                {preferenceCard.day_label} •{" "}
-                                {preferenceCard.location_name}
+                                {preferenceRow.date_label}
                               </p>
                             </div>
 
-                            <div className="mt-4 space-y-4">
-                              <div>
-                                <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                  Modalidade preferencial
-                                </p>
+                            <p className="text-xs font-medium text-muted-foreground">
+                              {preferenceRow.court_cards.length}{" "}
+                              {preferenceRow.court_cards.length == 1
+                                ? "quadra"
+                                : "quadras"}
+                            </p>
+                          </div>
 
-                                <Select
-                                  value={preferredSportId ?? "NONE"}
-                                  onValueChange={(value) =>
-                                    updateCourtSportPreference(
-                                      preferenceCard.schedule_day_id,
-                                      preferenceCard.location_id,
-                                      preferenceCard.court.id,
-                                      value == "NONE" ? null : value,
-                                    )
-                                  }
-                                >
-                                  <SelectTrigger className="h-9">
-                                    <SelectValue placeholder="Sem preferência" />
-                                  </SelectTrigger>
+                          <div className="overflow-x-auto">
+                            <div
+                              className="grid min-w-full gap-px bg-border/40"
+                              style={{
+                                gridTemplateColumns: `repeat(${Math.max(
+                                  preferenceRow.court_cards.length,
+                                  1,
+                                )}, minmax(280px, 1fr))`,
+                              }}
+                            >
+                              {preferenceRow.court_cards.map(
+                                (preferenceCard) => {
+                                  const currentPreference =
+                                    preferenceCard.court.sport_preference;
 
-                                  <SelectContent>
-                                    <SelectItem value="NONE">
-                                      Sem preferência
-                                    </SelectItem>
+                                  const preferredSportId =
+                                    currentPreference?.preferred_sport_id ??
+                                    null;
 
-                                    {preferenceCard.sport_options.map(
-                                      (sportOption) => (
-                                        <SelectItem
-                                          key={sportOption.sport_id}
-                                          value={sportOption.sport_id}
-                                        >
-                                          {sportOption.sport_name}
-                                        </SelectItem>
-                                      ),
-                                    )}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-
-                              <div>
-                                <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                  Naipe preferencial
-                                </p>
-
-                                <Select
-                                  disabled={preferredSportId == null}
-                                  value={
-                                    currentPreference?.preferred_naipe ?? "NONE"
-                                  }
-                                  onValueChange={(value) => {
-                                    if (!preferredSportId) {
-                                      return;
-                                    }
-
-                                    updateCourtSportPreference(
-                                      preferenceCard.schedule_day_id,
-                                      preferenceCard.location_id,
-                                      preferenceCard.court.id,
-                                      preferredSportId,
-                                      {
-                                        preferred_naipe:
-                                          value == "NONE"
-                                            ? null
-                                            : (value as MatchNaipe),
-                                      },
-                                    );
-                                  }}
-                                >
-                                  <SelectTrigger className="h-9">
-                                    <SelectValue
-                                      placeholder={
-                                        preferredSportId
-                                          ? "Sem preferência"
-                                          : "Selecione uma modalidade"
-                                      }
-                                    />
-                                  </SelectTrigger>
-
-                                  <SelectContent>
-                                    <SelectItem value="NONE">
-                                      Sem preferência
-                                    </SelectItem>
-
-                                    {availableNaipeOptions.map(
-                                      (naipeOption) => (
-                                        <SelectItem
-                                          key={naipeOption}
-                                          value={naipeOption}
-                                        >
-                                          {MATCH_NAIPE_LABELS[naipeOption]}
-                                        </SelectItem>
-                                      ),
-                                    )}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-
-                              {resolveUsesSeasonDivisions(seasonSettings) ? (
-                                <div>
-                                  <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                    Divisão preferencial
-                                  </p>
-
-                                  <Select
-                                    disabled={preferredSportId == null}
-                                    value={
-                                      currentPreference?.preferred_division ??
-                                      "NONE"
-                                    }
-                                    onValueChange={(value) => {
-                                      if (!preferredSportId) {
-                                        return;
-                                      }
-
-                                      updateCourtSportPreference(
-                                        preferenceCard.schedule_day_id,
-                                        preferenceCard.location_id,
-                                        preferenceCard.court.id,
+                                  const preferredSportOption =
+                                    preferenceCard.sport_options.find(
+                                      (sportOption) =>
+                                        sportOption.sport_id ==
                                         preferredSportId,
-                                        {
-                                          preferred_division:
-                                            value == "NONE"
-                                              ? null
-                                              : (value as TeamDivision),
-                                        },
-                                      );
-                                    }}
-                                  >
-                                    <SelectTrigger className="h-9">
-                                      <SelectValue
-                                        placeholder={
-                                          preferredSportId
-                                            ? "Sem preferência"
-                                            : "Selecione uma modalidade"
-                                        }
-                                      />
-                                    </SelectTrigger>
+                                    ) ?? null;
 
-                                    <SelectContent>
-                                      <SelectItem value="NONE">
-                                        Sem preferência
-                                      </SelectItem>
+                                  const availableNaipeOptions =
+                                    preferredSportOption?.naipe_options ?? [];
 
-                                      {Object.values(TeamDivision).map(
-                                        (divisionOption) => (
-                                          <SelectItem
-                                            key={divisionOption}
-                                            value={divisionOption}
-                                          >
-                                            {
-                                              TEAM_DIVISION_LABELS[
-                                                divisionOption
-                                              ]
+                                  return (
+                                    <div
+                                      key={preferenceCard.key}
+                                      className="min-w-0 bg-background/60 p-5"
+                                    >
+                                      <div className="border-b border-border/30 pb-4">
+                                        <p className="text-sm font-bold">
+                                          {preferenceCard.court.name ||
+                                            "Quadra sem nome"}
+                                        </p>
+
+                                        <p className="mt-1 text-xs text-muted-foreground">
+                                          {preferenceCard.location_name}
+                                        </p>
+                                      </div>
+
+                                      <div className="mt-4 space-y-4">
+                                        <div>
+                                          <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                            Modalidade preferencial
+                                          </p>
+
+                                          <Select
+                                            value={preferredSportId ?? "NONE"}
+                                            onValueChange={(value) =>
+                                              updateCourtSportPreference(
+                                                preferenceCard.schedule_day_id,
+                                                preferenceCard.location_id,
+                                                preferenceCard.court.id,
+                                                value == "NONE" ? null : value,
+                                              )
                                             }
-                                          </SelectItem>
-                                        ),
-                                      )}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              ) : null}
+                                          >
+                                            <SelectTrigger className="h-9">
+                                              <SelectValue placeholder="Sem preferência" />
+                                            </SelectTrigger>
+
+                                            <SelectContent>
+                                              <SelectItem value="NONE">
+                                                Sem preferência
+                                              </SelectItem>
+
+                                              {preferenceCard.sport_options.map(
+                                                (sportOption) => (
+                                                  <SelectItem
+                                                    key={sportOption.sport_id}
+                                                    value={sportOption.sport_id}
+                                                  >
+                                                    {sportOption.sport_name}
+                                                  </SelectItem>
+                                                ),
+                                              )}
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
+
+                                        <div>
+                                          <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                            Naipe preferencial
+                                          </p>
+
+                                          <Select
+                                            disabled={preferredSportId == null}
+                                            value={
+                                              currentPreference?.preferred_naipe ??
+                                              "NONE"
+                                            }
+                                            onValueChange={(value) => {
+                                              if (!preferredSportId) {
+                                                return;
+                                              }
+
+                                              updateCourtSportPreference(
+                                                preferenceCard.schedule_day_id,
+                                                preferenceCard.location_id,
+                                                preferenceCard.court.id,
+                                                preferredSportId,
+                                                {
+                                                  preferred_naipe:
+                                                    value == "NONE"
+                                                      ? null
+                                                      : (value as MatchNaipe),
+                                                },
+                                              );
+                                            }}
+                                          >
+                                            <SelectTrigger className="h-9">
+                                              <SelectValue
+                                                placeholder={
+                                                  preferredSportId
+                                                    ? "Sem preferência"
+                                                    : "Selecione uma modalidade"
+                                                }
+                                              />
+                                            </SelectTrigger>
+
+                                            <SelectContent>
+                                              <SelectItem value="NONE">
+                                                Sem preferência
+                                              </SelectItem>
+
+                                              {availableNaipeOptions.map(
+                                                (naipeOption) => (
+                                                  <SelectItem
+                                                    key={naipeOption}
+                                                    value={naipeOption}
+                                                  >
+                                                    {
+                                                      MATCH_NAIPE_LABELS[
+                                                        naipeOption
+                                                      ]
+                                                    }
+                                                  </SelectItem>
+                                                ),
+                                              )}
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
+
+                                        {resolveUsesSeasonDivisions(
+                                          seasonSettings,
+                                        ) ? (
+                                          <div>
+                                            <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                              Divisão preferencial
+                                            </p>
+
+                                            <Select
+                                              disabled={
+                                                preferredSportId == null
+                                              }
+                                              value={
+                                                currentPreference?.preferred_division ??
+                                                "NONE"
+                                              }
+                                              onValueChange={(value) => {
+                                                if (!preferredSportId) {
+                                                  return;
+                                                }
+
+                                                updateCourtSportPreference(
+                                                  preferenceCard.schedule_day_id,
+                                                  preferenceCard.location_id,
+                                                  preferenceCard.court.id,
+                                                  preferredSportId,
+                                                  {
+                                                    preferred_division:
+                                                      value == "NONE"
+                                                        ? null
+                                                        : (value as TeamDivision),
+                                                  },
+                                                );
+                                              }}
+                                            >
+                                              <SelectTrigger className="h-9">
+                                                <SelectValue
+                                                  placeholder={
+                                                    preferredSportId
+                                                      ? "Sem preferência"
+                                                      : "Selecione uma modalidade"
+                                                  }
+                                                />
+                                              </SelectTrigger>
+
+                                              <SelectContent>
+                                                <SelectItem value="NONE">
+                                                  Sem preferência
+                                                </SelectItem>
+
+                                                {Object.values(
+                                                  TeamDivision,
+                                                ).map((divisionOption) => (
+                                                  <SelectItem
+                                                    key={divisionOption}
+                                                    value={divisionOption}
+                                                  >
+                                                    {
+                                                      TEAM_DIVISION_LABELS[
+                                                        divisionOption
+                                                      ]
+                                                    }
+                                                  </SelectItem>
+                                                ))}
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                    </div>
+                                  );
+                                },
+                              )}
                             </div>
                           </div>
-                        );
-                      })}
+                        </section>
+                      ))}
                     </div>
                   )}
                 </div>
