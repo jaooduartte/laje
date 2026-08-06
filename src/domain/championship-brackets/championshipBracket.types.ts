@@ -46,8 +46,8 @@ export interface ChampionshipBracketCompetitionInput {
   groups: ChampionshipBracketGroupInput[];
 }
 
-export interface ChampionshipBracketCourtSportPriorityInput {
-  sport_id: string;
+export interface ChampionshipBracketCourtSportPreferenceInput {
+  preferred_sport_id: string;
   preferred_naipe: MatchNaipe | null;
   preferred_division: TeamDivision | null;
 }
@@ -57,7 +57,7 @@ export interface ChampionshipBracketCourtInput {
   name: string;
   position: number;
   sport_ids: string[];
-  sport_priorities?: ChampionshipBracketCourtSportPriorityInput[];
+  sport_preference?: ChampionshipBracketCourtSportPreferenceInput | null;
 }
 
 export interface ChampionshipBracketLocationInput {
@@ -277,7 +277,7 @@ export interface ChampionshipBracketScheduleCourtDraft {
   name: string;
   position: number;
   sport_ids: string[];
-  sport_priorities?: ChampionshipBracketCourtSportPriorityInput[];
+  sport_preference?: ChampionshipBracketCourtSportPreferenceInput | null;
 }
 
 export interface ChampionshipBracketScheduleLocationDraft {

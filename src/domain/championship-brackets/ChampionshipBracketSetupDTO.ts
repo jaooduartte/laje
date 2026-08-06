@@ -41,7 +41,9 @@ export class ChampionshipBracketSetupDTO {
 
       participant.modalities.forEach((modality) => {
         if (!enabledSportIdSet.has(modality.sport_id)) {
-          throw new Error("Participante com modalidade fora do catálogo ativo do campeonato.");
+          throw new Error(
+            "Participante com modalidade fora do catálogo ativo do campeonato.",
+          );
         }
       });
     });
@@ -49,7 +51,9 @@ export class ChampionshipBracketSetupDTO {
 
   private validateEnabledSports() {
     if (this.form_values.enabled_sport_ids.length == 0) {
-      throw new Error("Selecione ao menos uma modalidade ativa para o campeonato.");
+      throw new Error(
+        "Selecione ao menos uma modalidade ativa para o campeonato.",
+      );
     }
   }
 
@@ -60,26 +64,33 @@ export class ChampionshipBracketSetupDTO {
       throw new Error("Configure o formato sazonal do campeonato.");
     }
 
-    if (seasonSettings.division_format == ChampionshipSeasonDivisionFormat.SEPARATED) {
+    if (
+      seasonSettings.division_format ==
+      ChampionshipSeasonDivisionFormat.SEPARATED
+    ) {
       if (
         seasonSettings.division_settlement_mode ==
           ChampionshipSeasonDivisionSettlementMode.PROMOTION_RELEGATION &&
-        (
-          (seasonSettings.principal_relegation_count ?? 0) <= 0 ||
-          (seasonSettings.access_promotion_count ?? 0) <= 0
-        )
+        ((seasonSettings.principal_relegation_count ?? 0) <= 0 ||
+          (seasonSettings.access_promotion_count ?? 0) <= 0)
       ) {
-        throw new Error("Informe quantas atléticas sobem e caem no formato separado.");
+        throw new Error(
+          "Informe quantas atléticas sobem e caem no formato separado.",
+        );
       }
     }
 
-    if (seasonSettings.division_format == ChampionshipSeasonDivisionFormat.UNIFIED) {
+    if (
+      seasonSettings.division_format == ChampionshipSeasonDivisionFormat.UNIFIED
+    ) {
       if (
         seasonSettings.division_settlement_mode ==
           ChampionshipSeasonDivisionSettlementMode.TOP_N_TO_PRINCIPAL &&
         (seasonSettings.principal_slots_count ?? 0) <= 0
       ) {
-        throw new Error("Informe a quantidade de vagas da divisão principal no formato unificado.");
+        throw new Error(
+          "Informe a quantidade de vagas da divisão principal no formato unificado.",
+        );
       }
     }
   }
@@ -121,7 +132,9 @@ export class ChampionshipBracketSetupDTO {
           ChampionshipSeasonDivisionFormat.UNIFIED &&
         competition.division != null
       ) {
-        throw new Error("Competições unificadas não podem carregar divisão definida.");
+        throw new Error(
+          "Competições unificadas não podem carregar divisão definida.",
+        );
       }
 
       if (
@@ -148,11 +161,19 @@ export class ChampionshipBracketSetupDTO {
         throw new Error("Dia de agenda inválido: preencha data, início e fim.");
       }
 
-      const startMinutes = this.resolveTimeValueToMinutes(schedule_day.start_time);
+      const startMinutes = this.resolveTimeValueToMinutes(
+        schedule_day.start_time,
+      );
       const endMinutes = this.resolveTimeValueToMinutes(schedule_day.end_time);
 
-      if (startMinutes == null || endMinutes == null || endMinutes <= startMinutes) {
-        throw new Error("Dia de agenda inválido: fim precisa ser maior que início.");
+      if (
+        startMinutes == null ||
+        endMinutes == null ||
+        endMinutes <= startMinutes
+      ) {
+        throw new Error(
+          "Dia de agenda inválido: fim precisa ser maior que início.",
+        );
       }
 
       const breakStartTimeValue = schedule_day.break_start_time?.trim() ?? "";
@@ -161,23 +182,31 @@ export class ChampionshipBracketSetupDTO {
       const hasBreakEndTime = breakEndTimeValue.length > 0;
 
       if (hasBreakStartTime != hasBreakEndTime) {
-        throw new Error("Dia de agenda inválido: preencha início e fim do intervalo.");
+        throw new Error(
+          "Dia de agenda inválido: preencha início e fim do intervalo.",
+        );
       }
 
       if (hasBreakStartTime && hasBreakEndTime) {
-        const breakStartMinutes = this.resolveTimeValueToMinutes(breakStartTimeValue);
-        const breakEndMinutes = this.resolveTimeValueToMinutes(breakEndTimeValue);
+        const breakStartMinutes =
+          this.resolveTimeValueToMinutes(breakStartTimeValue);
+        const breakEndMinutes =
+          this.resolveTimeValueToMinutes(breakEndTimeValue);
 
         if (
           breakStartMinutes == null ||
           breakEndMinutes == null ||
           breakEndMinutes <= breakStartMinutes
         ) {
-          throw new Error("Dia de agenda inválido: o fim do intervalo precisa ser maior que o início.");
+          throw new Error(
+            "Dia de agenda inválido: o fim do intervalo precisa ser maior que o início.",
+          );
         }
 
         if (breakStartMinutes < startMinutes || breakEndMinutes > endMinutes) {
-          throw new Error("Dia de agenda inválido: intervalo fora da janela do dia.");
+          throw new Error(
+            "Dia de agenda inválido: intervalo fora da janela do dia.",
+          );
         }
       }
 
@@ -206,6 +235,77 @@ export class ChampionshipBracketSetupDTO {
               `A quadra ${court.name} precisa ter ao menos uma modalidade vinculada.`,
             );
           }
+          const sportPreference = court.sport_preference;
+
+          if (!sportPreference) {
+            return;
+          }
+
+          if (!court.sport_ids.includes(sportPreference.preferred_sport_id)) {
+            throw new Error(
+              `A modalidade preferencial da quadra ${court.name} não está vinculada à quadra.`,
+            );
+          }
+
+          const preferredSportCompetitions =
+            this.form_values.competitions.filter(
+              (competition) =>
+                competition.sport_id == sportPreference.preferred_sport_id,
+            );
+
+          if (preferredSportCompetitions.length == 0) {
+            throw new Error(
+              `A modalidade preferencial da quadra ${court.name} não possui competição ativa.`,
+            );
+          }
+
+          if (
+            sportPreference.preferred_naipe != null &&
+            !preferredSportCompetitions.some(
+              (competition) =>
+                competition.naipe == sportPreference.preferred_naipe,
+            )
+          ) {
+            throw new Error(
+              `O naipe preferencial da quadra ${court.name} não está disponível para a modalidade selecionada.`,
+            );
+          }
+
+          if (
+            this.form_values.season_settings.division_format ==
+              ChampionshipSeasonDivisionFormat.UNIFIED &&
+            sportPreference.preferred_division != null
+          ) {
+            throw new Error(
+              `A quadra ${court.name} não pode possuir divisão preferencial em uma temporada unificada.`,
+            );
+          }
+
+          if (
+            sportPreference.preferred_division != null &&
+            !preferredSportCompetitions.some(
+              (competition) =>
+                competition.division == sportPreference.preferred_division,
+            )
+          ) {
+            throw new Error(
+              `A divisão preferencial da quadra ${court.name} não está disponível para a modalidade selecionada.`,
+            );
+          }
+
+          if (
+            sportPreference.preferred_naipe != null &&
+            sportPreference.preferred_division != null &&
+            !preferredSportCompetitions.some(
+              (competition) =>
+                competition.naipe == sportPreference.preferred_naipe &&
+                competition.division == sportPreference.preferred_division,
+            )
+          ) {
+            throw new Error(
+              `A combinação de naipe e divisão preferencial da quadra ${court.name} não possui competição ativa correspondente.`,
+            );
+          }
         });
       });
     });
@@ -223,7 +323,10 @@ export class ChampionshipBracketSetupDTO {
     ].join("::");
   }
 
-  private resolveDatePeriodKey(date: string, period: ChampionshipSchedulePeriod) {
+  private resolveDatePeriodKey(
+    date: string,
+    period: ChampionshipSchedulePeriod,
+  ) {
     return `${date}::${period}`;
   }
 
@@ -246,7 +349,9 @@ export class ChampionshipBracketSetupDTO {
 
     this.form_values.schedule_periods.forEach((schedulePeriod) => {
       if (!scheduleDayDateSet.has(schedulePeriod.date)) {
-        throw new Error("Período da agenda inválido: dia não encontrado na agenda.");
+        throw new Error(
+          "Período da agenda inválido: dia não encontrado na agenda.",
+        );
       }
 
       if (
@@ -268,21 +373,26 @@ export class ChampionshipBracketSetupDTO {
       seenDatePeriodKeys.add(datePeriodKey);
     });
 
-    if (!this.form_values.schedule_periods.some((schedulePeriod) => schedulePeriod.enabled != false)) {
-      throw new Error("Habilite ao menos um período global na agenda do campeonato.");
+    if (
+      !this.form_values.schedule_periods.some(
+        (schedulePeriod) => schedulePeriod.enabled != false,
+      )
+    ) {
+      throw new Error(
+        "Habilite ao menos um período global na agenda do campeonato.",
+      );
     }
   }
 
   private validateAvailability() {
-    const schedulePeriodEnabledByKey = this.form_values.schedule_periods.reduce<Record<string, boolean>>(
-      (carry, schedulePeriod) => {
-        carry[
-          this.resolveDatePeriodKey(schedulePeriod.date, schedulePeriod.period)
-        ] = schedulePeriod.enabled != false;
-        return carry;
-      },
-      {},
-    );
+    const schedulePeriodEnabledByKey = this.form_values.schedule_periods.reduce<
+      Record<string, boolean>
+    >((carry, schedulePeriod) => {
+      carry[
+        this.resolveDatePeriodKey(schedulePeriod.date, schedulePeriod.period)
+      ] = schedulePeriod.enabled != false;
+      return carry;
+    }, {});
     const competitionKeySet = new Set(
       this.form_values.competitions.map((competition) =>
         this.resolveCompetitionKey(
@@ -292,27 +402,31 @@ export class ChampionshipBracketSetupDTO {
         ),
       ),
     );
-    const competitionPeriodAvailabilityByKey = this.form_values.competition_period_availability.reduce<Record<string, boolean>>(
-      (carry, availabilityItem) => {
+    const competitionPeriodAvailabilityByKey =
+      this.form_values.competition_period_availability.reduce<
+        Record<string, boolean>
+      >((carry, availabilityItem) => {
         const datePeriodKey = this.resolveDatePeriodKey(
           availabilityItem.date,
           availabilityItem.period,
         );
 
         if (!competitionKeySet.has(availabilityItem.competition_key)) {
-          throw new Error("Disponibilidade por modalidade inválida: competição não encontrada.");
+          throw new Error(
+            "Disponibilidade por modalidade inválida: competição não encontrada.",
+          );
         }
 
         if (!(datePeriodKey in schedulePeriodEnabledByKey)) {
-          throw new Error("Disponibilidade por modalidade inválida: período fora da agenda.");
+          throw new Error(
+            "Disponibilidade por modalidade inválida: período fora da agenda.",
+          );
         }
 
         carry[`${availabilityItem.competition_key}::${datePeriodKey}`] =
           availabilityItem.enabled != false;
         return carry;
-      },
-      {},
-    );
+      }, {});
 
     this.form_values.competitions.forEach((competition) => {
       const competitionKey = this.resolveCompetitionKey(
@@ -320,76 +434,8 @@ export class ChampionshipBracketSetupDTO {
         competition.naipe,
         competition.division,
       );
-      const hasAvailableWindow = this.form_values.schedule_periods.some((schedulePeriod) => {
-        const datePeriodKey = this.resolveDatePeriodKey(
-          schedulePeriod.date,
-          schedulePeriod.period,
-        );
-
-        return (
-          schedulePeriod.enabled != false &&
-          competitionPeriodAvailabilityByKey[
-            `${competitionKey}::${datePeriodKey}`
-          ] != false
-        );
-      });
-
-      if (!hasAvailableWindow) {
-        throw new Error("Toda competição precisa ter ao menos um dia/período disponível.");
-      }
-    });
-
-    const teamCompetitionKeysByTeamId = this.form_values.participants.reduce<Record<string, string[]>>(
-      (carry, participant) => {
-        const participantCompetitionKeys = participant.modalities
-          .map((modality) =>
-            this.resolveCompetitionKey(
-              modality.sport_id,
-              modality.naipe,
-              modality.division,
-            ),
-          )
-          .filter((competitionKey) => competitionKeySet.has(competitionKey));
-
-        if (participantCompetitionKeys.length > 0) {
-          carry[participant.team_id] = [...new Set(participantCompetitionKeys)];
-        }
-
-        return carry;
-      },
-      {},
-    );
-    const validTeamCompetitionPairSet = new Set(
-      Object.entries(teamCompetitionKeysByTeamId).flatMap(([team_id, competitionKeys]) =>
-        competitionKeys.map((competitionKey) => `${team_id}::${competitionKey}`),
-      ),
-    );
-    const teamCompetitionAvailabilityByKey = this.form_values.team_competition_availability.reduce<Record<string, boolean>>(
-      (carry, availabilityItem) => {
-        const datePeriodKey = this.resolveDatePeriodKey(
-          availabilityItem.date,
-          availabilityItem.period,
-        );
-        const teamCompetitionKey = `${availabilityItem.team_id}::${availabilityItem.competition_key}`;
-
-        if (!validTeamCompetitionPairSet.has(teamCompetitionKey)) {
-          throw new Error("Disponibilidade da atlética inválida para a competição configurada.");
-        }
-
-        if (!(datePeriodKey in schedulePeriodEnabledByKey)) {
-          throw new Error("Disponibilidade da atlética inválida: período fora da agenda.");
-        }
-
-        carry[`${teamCompetitionKey}::${datePeriodKey}`] =
-          availabilityItem.enabled != false;
-        return carry;
-      },
-      {},
-    );
-
-    Object.entries(teamCompetitionKeysByTeamId).forEach(([team_id, competitionKeys]) => {
-      competitionKeys.forEach((competitionKey) => {
-        const hasAvailableWindow = this.form_values.schedule_periods.some((schedulePeriod) => {
+      const hasAvailableWindow = this.form_values.schedule_periods.some(
+        (schedulePeriod) => {
           const datePeriodKey = this.resolveDatePeriodKey(
             schedulePeriod.date,
             schedulePeriod.period,
@@ -399,18 +445,102 @@ export class ChampionshipBracketSetupDTO {
             schedulePeriod.enabled != false &&
             competitionPeriodAvailabilityByKey[
               `${competitionKey}::${datePeriodKey}`
-            ] != false &&
-            teamCompetitionAvailabilityByKey[
-              `${team_id}::${competitionKey}::${datePeriodKey}`
             ] != false
           );
-        });
+        },
+      );
 
-        if (!hasAvailableWindow) {
-          throw new Error("Toda atlética precisa ter ao menos um dia/período disponível por competição.");
-        }
-      });
+      if (!hasAvailableWindow) {
+        throw new Error(
+          "Toda competição precisa ter ao menos um dia/período disponível.",
+        );
+      }
     });
+
+    const teamCompetitionKeysByTeamId = this.form_values.participants.reduce<
+      Record<string, string[]>
+    >((carry, participant) => {
+      const participantCompetitionKeys = participant.modalities
+        .map((modality) =>
+          this.resolveCompetitionKey(
+            modality.sport_id,
+            modality.naipe,
+            modality.division,
+          ),
+        )
+        .filter((competitionKey) => competitionKeySet.has(competitionKey));
+
+      if (participantCompetitionKeys.length > 0) {
+        carry[participant.team_id] = [...new Set(participantCompetitionKeys)];
+      }
+
+      return carry;
+    }, {});
+    const validTeamCompetitionPairSet = new Set(
+      Object.entries(teamCompetitionKeysByTeamId).flatMap(
+        ([team_id, competitionKeys]) =>
+          competitionKeys.map(
+            (competitionKey) => `${team_id}::${competitionKey}`,
+          ),
+      ),
+    );
+    const teamCompetitionAvailabilityByKey =
+      this.form_values.team_competition_availability.reduce<
+        Record<string, boolean>
+      >((carry, availabilityItem) => {
+        const datePeriodKey = this.resolveDatePeriodKey(
+          availabilityItem.date,
+          availabilityItem.period,
+        );
+        const teamCompetitionKey = `${availabilityItem.team_id}::${availabilityItem.competition_key}`;
+
+        if (!validTeamCompetitionPairSet.has(teamCompetitionKey)) {
+          throw new Error(
+            "Disponibilidade da atlética inválida para a competição configurada.",
+          );
+        }
+
+        if (!(datePeriodKey in schedulePeriodEnabledByKey)) {
+          throw new Error(
+            "Disponibilidade da atlética inválida: período fora da agenda.",
+          );
+        }
+
+        carry[`${teamCompetitionKey}::${datePeriodKey}`] =
+          availabilityItem.enabled != false;
+        return carry;
+      }, {});
+
+    Object.entries(teamCompetitionKeysByTeamId).forEach(
+      ([team_id, competitionKeys]) => {
+        competitionKeys.forEach((competitionKey) => {
+          const hasAvailableWindow = this.form_values.schedule_periods.some(
+            (schedulePeriod) => {
+              const datePeriodKey = this.resolveDatePeriodKey(
+                schedulePeriod.date,
+                schedulePeriod.period,
+              );
+
+              return (
+                schedulePeriod.enabled != false &&
+                competitionPeriodAvailabilityByKey[
+                  `${competitionKey}::${datePeriodKey}`
+                ] != false &&
+                teamCompetitionAvailabilityByKey[
+                  `${team_id}::${competitionKey}::${datePeriodKey}`
+                ] != false
+              );
+            },
+          );
+
+          if (!hasAvailableWindow) {
+            throw new Error(
+              "Toda atlética precisa ter ao menos um dia/período disponível por competição.",
+            );
+          }
+        });
+      },
+    );
   }
 
   private validateIndividualEventConfigs() {
@@ -423,7 +553,9 @@ export class ChampionshipBracketSetupDTO {
       }
 
       if (!enabledSportIdSet.has(configItem.sport_id)) {
-        throw new Error("Configuração individual vinculada a uma modalidade inativa.");
+        throw new Error(
+          "Configuração individual vinculada a uma modalidade inativa.",
+        );
       }
 
       if (seenSportIds.has(configItem.sport_id)) {
@@ -449,11 +581,15 @@ export class ChampionshipBracketSetupDTO {
         }
 
         if (placementPointByPlacement.has(placementPoint.placement)) {
-          throw new Error("Pontuação individual duplicada para a mesma colocação.");
+          throw new Error(
+            "Pontuação individual duplicada para a mesma colocação.",
+          );
         }
 
         if (placementPoint.points == null) {
-          throw new Error("Toda colocação pontuada precisa ter pontuação definida.");
+          throw new Error(
+            "Toda colocação pontuada precisa ter pontuação definida.",
+          );
         }
 
         if (placementPoint.points < 0) {
@@ -467,7 +603,9 @@ export class ChampionshipBracketSetupDTO {
       });
 
       if (placementPointByPlacement.size != configItem.placements_count) {
-        throw new Error("Toda colocação de 1 até N precisa ter pontuação definida.");
+        throw new Error(
+          "Toda colocação de 1 até N precisa ter pontuação definida.",
+        );
       }
 
       if (configItem.relay_multiplier <= 0) {
@@ -479,15 +617,14 @@ export class ChampionshipBracketSetupDTO {
   }
 
   private validateIndividualSessionConfigs() {
-    const schedulePeriodEnabledByKey = this.form_values.schedule_periods.reduce<Record<string, boolean>>(
-      (carry, schedulePeriod) => {
-        carry[
-          this.resolveDatePeriodKey(schedulePeriod.date, schedulePeriod.period)
-        ] = schedulePeriod.enabled != false;
-        return carry;
-      },
-      {},
-    );
+    const schedulePeriodEnabledByKey = this.form_values.schedule_periods.reduce<
+      Record<string, boolean>
+    >((carry, schedulePeriod) => {
+      carry[
+        this.resolveDatePeriodKey(schedulePeriod.date, schedulePeriod.period)
+      ] = schedulePeriod.enabled != false;
+      return carry;
+    }, {});
     const seenSessionKeys = new Set<string>();
     const participantCompetitionKeySet = new Set(
       this.form_values.participants.flatMap((participant) =>
@@ -509,13 +646,17 @@ export class ChampionshipBracketSetupDTO {
       );
 
       if (seenSessionKeys.has(sessionKey)) {
-        throw new Error("Sessão individual duplicada para a mesma modalidade/naipe/divisão.");
+        throw new Error(
+          "Sessão individual duplicada para a mesma modalidade/naipe/divisão.",
+        );
       }
 
       seenSessionKeys.add(sessionKey);
 
       if (!participantCompetitionKeySet.has(sessionKey)) {
-        throw new Error("Sessão individual sem participantes válidos no campeonato.");
+        throw new Error(
+          "Sessão individual sem participantes válidos no campeonato.",
+        );
       }
 
       if (
@@ -524,7 +665,9 @@ export class ChampionshipBracketSetupDTO {
         !sessionConfig.location_key ||
         !sessionConfig.court_key
       ) {
-        throw new Error("Toda sessão individual ativa precisa ter slot oficial e recurso definidos.");
+        throw new Error(
+          "Toda sessão individual ativa precisa ter slot oficial e recurso definidos.",
+        );
       }
 
       const schedulePeriodKey = this.resolveDatePeriodKey(
@@ -537,21 +680,22 @@ export class ChampionshipBracketSetupDTO {
       }
 
       if (schedulePeriodEnabledByKey[schedulePeriodKey] != true) {
-        throw new Error("Sessão individual precisa usar um período global habilitado.");
+        throw new Error(
+          "Sessão individual precisa usar um período global habilitado.",
+        );
       }
     });
   }
 
   private validateResourceLocks() {
-    const schedulePeriodEnabledByKey = this.form_values.schedule_periods.reduce<Record<string, boolean>>(
-      (carry, schedulePeriod) => {
-        carry[
-          this.resolveDatePeriodKey(schedulePeriod.date, schedulePeriod.period)
-        ] = schedulePeriod.enabled != false;
-        return carry;
-      },
-      {},
-    );
+    const schedulePeriodEnabledByKey = this.form_values.schedule_periods.reduce<
+      Record<string, boolean>
+    >((carry, schedulePeriod) => {
+      carry[
+        this.resolveDatePeriodKey(schedulePeriod.date, schedulePeriod.period)
+      ] = schedulePeriod.enabled != false;
+      return carry;
+    }, {});
     const seenLockKeys = new Set<string>();
 
     this.form_values.resource_locks.forEach((resourceLock) => {
@@ -571,7 +715,9 @@ export class ChampionshipBracketSetupDTO {
       const lockKey = `${resourceLock.date}::${resourceLock.period}::${resourceLock.location_key}::${resourceLock.court_key}`;
 
       if (resourceLock.lock_mode == "HARD" && seenLockKeys.has(lockKey)) {
-        throw new Error("Existe mais de um bloqueio duro para o mesmo recurso no mesmo período.");
+        throw new Error(
+          "Existe mais de um bloqueio duro para o mesmo recurso no mesmo período.",
+        );
       }
 
       seenLockKeys.add(lockKey);
@@ -579,15 +725,14 @@ export class ChampionshipBracketSetupDTO {
   }
 
   private validateKnockoutProgramBlocks() {
-    const schedulePeriodEnabledByKey = this.form_values.schedule_periods.reduce<Record<string, boolean>>(
-      (carry, schedulePeriod) => {
-        carry[
-          this.resolveDatePeriodKey(schedulePeriod.date, schedulePeriod.period)
-        ] = schedulePeriod.enabled != false;
-        return carry;
-      },
-      {},
-    );
+    const schedulePeriodEnabledByKey = this.form_values.schedule_periods.reduce<
+      Record<string, boolean>
+    >((carry, schedulePeriod) => {
+      carry[
+        this.resolveDatePeriodKey(schedulePeriod.date, schedulePeriod.period)
+      ] = schedulePeriod.enabled != false;
+      return carry;
+    }, {});
     const competitionKeySet = new Set(
       this.form_values.competitions.map((competition) =>
         this.resolveCompetitionKey(
@@ -628,11 +773,15 @@ export class ChampionshipBracketSetupDTO {
       }
 
       if (schedulePeriodEnabledByKey[schedulePeriodKey] != true) {
-        throw new Error("Bloco manual de final precisa usar um período global habilitado.");
+        throw new Error(
+          "Bloco manual de final precisa usar um período global habilitado.",
+        );
       }
 
       if (programBlock.naipe_sequence.length == 0) {
-        throw new Error("Defina ao menos um naipe para o bloco manual de final.");
+        throw new Error(
+          "Defina ao menos um naipe para o bloco manual de final.",
+        );
       }
 
       if (
@@ -640,7 +789,9 @@ export class ChampionshipBracketSetupDTO {
           ChampionshipSeasonDivisionFormat.UNIFIED &&
         programBlock.division_scope != "ALL"
       ) {
-        throw new Error("Blocos manuais de final unificados não podem carregar divisão específica.");
+        throw new Error(
+          "Blocos manuais de final unificados não podem carregar divisão específica.",
+        );
       }
 
       const seenNaipes = new Set<string>();
@@ -663,7 +814,9 @@ export class ChampionshipBracketSetupDTO {
               : programBlock.division_scope,
         );
 
-        const hasExactCompetition = competitionKeySet.has(resolvedCompetitionKey);
+        const hasExactCompetition = competitionKeySet.has(
+          resolvedCompetitionKey,
+        );
         const hasAnyCompetitionForNaipe =
           programBlock.division_scope == "ALL" &&
           this.form_values.competitions.some((competition) => {
@@ -674,7 +827,9 @@ export class ChampionshipBracketSetupDTO {
           });
 
         if (!hasExactCompetition && !hasAnyCompetitionForNaipe) {
-          throw new Error("Bloco manual de final sem competição ativa correspondente.");
+          throw new Error(
+            "Bloco manual de final sem competição ativa correspondente.",
+          );
         }
       });
     });
@@ -743,33 +898,37 @@ export class ChampionshipBracketSetupDTO {
         date: scheduleDay.date,
         start_time: scheduleDay.start_time,
         end_time: scheduleDay.end_time,
-        break_start_time: scheduleDay.break_start_time?.trim() ? scheduleDay.break_start_time.trim() : null,
-        break_end_time: scheduleDay.break_end_time?.trim() ? scheduleDay.break_end_time.trim() : null,
+        break_start_time: scheduleDay.break_start_time?.trim()
+          ? scheduleDay.break_start_time.trim()
+          : null,
+        break_end_time: scheduleDay.break_end_time?.trim()
+          ? scheduleDay.break_end_time.trim()
+          : null,
         locations: scheduleDay.locations.map((location) => ({
           location_key: location.location_key,
           name: location.name.trim(),
           position: location.position,
           courts: location.courts.map((court) => {
             const normalizedSportIds = [...new Set(court.sport_ids)];
-            const seenPrioritySportIds = new Set<string>();
+
+            const sportPreference = court.sport_preference;
 
             return {
               court_key: court.court_key,
               name: court.name.trim(),
               position: court.position,
               sport_ids: normalizedSportIds,
-              sport_priorities: (court.sport_priorities ?? []).filter((sportPriority) => {
-                if (
-                  !normalizedSportIds.includes(sportPriority.sport_id) ||
-                  seenPrioritySportIds.has(sportPriority.sport_id) ||
-                  (sportPriority.preferred_naipe == null && sportPriority.preferred_division == null)
-                ) {
-                  return false;
-                }
-
-                seenPrioritySportIds.add(sportPriority.sport_id);
-                return true;
-              }),
+              sport_preference: sportPreference
+                ? {
+                    preferred_sport_id: sportPreference.preferred_sport_id,
+                    preferred_naipe: sportPreference.preferred_naipe ?? null,
+                    preferred_division:
+                      this.form_values.season_settings.division_format ==
+                      ChampionshipSeasonDivisionFormat.SEPARATED
+                        ? (sportPreference.preferred_division ?? null)
+                        : null,
+                  }
+                : null,
             };
           }),
         })),
@@ -792,45 +951,58 @@ export class ChampionshipBracketSetupDTO {
       participants: normalizedParticipants,
       competitions: normalizedCompetitions,
       schedule_days: normalizedScheduleDays,
-      schedule_periods: this.form_values.schedule_periods.map((schedulePeriod) => ({
-        date: schedulePeriod.date,
-        period: schedulePeriod.period,
-        enabled: schedulePeriod.enabled != false,
-      })),
-      competition_period_availability: this.form_values.competition_period_availability.map((availabilityItem) => ({
-        competition_key: availabilityItem.competition_key,
-        date: availabilityItem.date,
-        period: availabilityItem.period,
-        enabled: availabilityItem.enabled != false,
-      })),
-      team_competition_availability: this.form_values.team_competition_availability.map((availabilityItem) => ({
-        team_id: availabilityItem.team_id,
-        competition_key: availabilityItem.competition_key,
-        date: availabilityItem.date,
-        period: availabilityItem.period,
-        enabled: availabilityItem.enabled != false,
-      })),
-      individual_event_configs: this.form_values.individual_event_configs.map((configItem) => ({
-        sport_id: configItem.sport_id,
-        placements_count: configItem.placements_count,
-        placement_points: configItem.placement_points.map((placementPoint) => ({
-          placement: placementPoint.placement,
-          points: placementPoint.points,
+      schedule_periods: this.form_values.schedule_periods.map(
+        (schedulePeriod) => ({
+          date: schedulePeriod.date,
+          period: schedulePeriod.period,
+          enabled: schedulePeriod.enabled != false,
+        }),
+      ),
+      competition_period_availability:
+        this.form_values.competition_period_availability.map(
+          (availabilityItem) => ({
+            competition_key: availabilityItem.competition_key,
+            date: availabilityItem.date,
+            period: availabilityItem.period,
+            enabled: availabilityItem.enabled != false,
+          }),
+        ),
+      team_competition_availability:
+        this.form_values.team_competition_availability.map(
+          (availabilityItem) => ({
+            team_id: availabilityItem.team_id,
+            competition_key: availabilityItem.competition_key,
+            date: availabilityItem.date,
+            period: availabilityItem.period,
+            enabled: availabilityItem.enabled != false,
+          }),
+        ),
+      individual_event_configs: this.form_values.individual_event_configs.map(
+        (configItem) => ({
+          sport_id: configItem.sport_id,
+          placements_count: configItem.placements_count,
+          placement_points: configItem.placement_points.map(
+            (placementPoint) => ({
+              placement: placementPoint.placement,
+              points: placementPoint.points,
+            }),
+          ),
+          relay_multiplier: configItem.relay_multiplier,
+        }),
+      ),
+      individual_session_configs:
+        this.form_values.individual_session_configs.map((sessionConfig) => ({
+          sport_id: sessionConfig.sport_id,
+          naipe: sessionConfig.naipe,
+          division: sessionConfig.division,
+          scheduled_date: sessionConfig.scheduled_date,
+          period: sessionConfig.period,
+          location_key: sessionConfig.location_key,
+          court_key: sessionConfig.court_key,
+          location_name: sessionConfig.location_name,
+          court_name: sessionConfig.court_name,
+          exclusive_lock_enabled: sessionConfig.exclusive_lock_enabled == true,
         })),
-        relay_multiplier: configItem.relay_multiplier,
-      })),
-      individual_session_configs: this.form_values.individual_session_configs.map((sessionConfig) => ({
-        sport_id: sessionConfig.sport_id,
-        naipe: sessionConfig.naipe,
-        division: sessionConfig.division,
-        scheduled_date: sessionConfig.scheduled_date,
-        period: sessionConfig.period,
-        location_key: sessionConfig.location_key,
-        court_key: sessionConfig.court_key,
-        location_name: sessionConfig.location_name,
-        court_name: sessionConfig.court_name,
-        exclusive_lock_enabled: sessionConfig.exclusive_lock_enabled == true,
-      })),
       resource_locks: this.form_values.resource_locks.map((resourceLock) => ({
         date: resourceLock.date,
         period: resourceLock.period,
@@ -844,23 +1016,25 @@ export class ChampionshipBracketSetupDTO {
         naipe: resourceLock.naipe ?? null,
         division: resourceLock.division ?? null,
       })),
-      knockout_program_blocks: this.form_values.knockout_program_blocks.map((programBlock) => ({
-        date: programBlock.date,
-        period: programBlock.period,
-        location_key: programBlock.location_key,
-        court_key: programBlock.court_key,
-        location_name: programBlock.location_name ?? null,
-        court_name: programBlock.court_name ?? null,
-        sport_id: programBlock.sport_id,
-        phase: "FINAL" as const,
-        division_scope:
-          this.form_values.season_settings.division_format ==
-          ChampionshipSeasonDivisionFormat.UNIFIED
-            ? "ALL"
-            : programBlock.division_scope,
-        naipe_sequence: [...new Set(programBlock.naipe_sequence)],
-        display_order: programBlock.display_order,
-      })),
+      knockout_program_blocks: this.form_values.knockout_program_blocks.map(
+        (programBlock, programBlockIndex) => ({
+          date: programBlock.date,
+          period: programBlock.period,
+          location_key: programBlock.location_key,
+          court_key: programBlock.court_key,
+          location_name: programBlock.location_name ?? null,
+          court_name: programBlock.court_name ?? null,
+          sport_id: programBlock.sport_id,
+          phase: "FINAL" as const,
+          division_scope:
+            this.form_values.season_settings.division_format ==
+            ChampionshipSeasonDivisionFormat.UNIFIED
+              ? "ALL"
+              : programBlock.division_scope,
+          naipe_sequence: [...new Set(programBlock.naipe_sequence)],
+          display_order: programBlockIndex + 1,
+        }),
+      ),
     };
   }
 }

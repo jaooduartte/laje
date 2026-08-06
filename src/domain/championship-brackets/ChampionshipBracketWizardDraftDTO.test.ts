@@ -2,16 +2,66 @@ import { describe, expect, it } from "vitest";
 import { ChampionshipBracketWizardDraftDTO } from "@/domain/championship-brackets/ChampionshipBracketWizardDraftDTO";
 import type { ChampionshipBracketWizardDraftFormValues } from "@/domain/championship-brackets/championshipBracket.types";
 import {
+  ChampionshipSchedulePeriod,
   ChampionshipSeasonDivisionFormat,
   ChampionshipSeasonDivisionSettlementMode,
+  MatchNaipe,
+  TeamDivision,
 } from "@/lib/enums";
 
 function buildPlacementPoints(count = 20) {
-  const defaults = [24, 22, 20, 18, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+  const defaults = [
+    24, 22, 20, 18, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
+  ];
   return Array.from({ length: count }, (_, index) => ({
     placement: index + 1,
     points: defaults[index] ?? null,
   }));
+}
+
+function buildStoredScheduleDays({
+  sportIds = ["sport-1", "sport-1"],
+  sportPreference,
+  sportPriorities,
+}: {
+  sportIds?: string[];
+  sportPreference?: unknown;
+  sportPriorities?: unknown;
+} = {}) {
+  const storedCourt: Record<string, unknown> = {
+    id: "court-1",
+    name: "Quadra 1",
+    position: 1,
+    sport_ids: sportIds,
+  };
+
+  if (sportPreference !== undefined) {
+    storedCourt.sport_preference = sportPreference;
+  }
+
+  if (sportPriorities !== undefined) {
+    storedCourt.sport_priorities = sportPriorities;
+  }
+
+  return [
+    {
+      id: "day-1",
+      date: "2026-08-19",
+      start_time: "08:00",
+      end_time: "18:00",
+      break_start_time: "",
+      break_end_time: "",
+      locations: [
+        {
+          id: "location-1",
+          location_template_id: null,
+          name: "Arena",
+          position: 1,
+          courts: [storedCourt],
+        },
+      ],
+    },
+  ];
 }
 
 function buildDraft(
@@ -97,6 +147,127 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
     expect(dto?.bindToSave().current_step_index).toBe(11);
   });
 
+  it("preserva a preferência singular da quadra ao carregar e salvar", () => {
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      JSON.stringify({
+        ...buildDraft(),
+        step_flow_version: 2,
+        schedule_days: buildStoredScheduleDays({
+          sportPreference: {
+            preferred_sport_id: "sport-1",
+            preferred_naipe: MatchNaipe.MASCULINO,
+            preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
+          },
+        }),
+      }),
+    );
+
+    const savedCourt =
+      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0];
+
+    expect(savedCourt?.sport_ids).toEqual(["sport-1"]);
+
+    expect(savedCourt?.sport_preference).toEqual({
+      preferred_sport_id: "sport-1",
+      preferred_naipe: MatchNaipe.MASCULINO,
+      preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
+    });
+  });
+
+  it("converte a primeira prioridade legada válida para preferência singular", () => {
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      JSON.stringify({
+        ...buildDraft(),
+        step_flow_version: 2,
+        schedule_days: buildStoredScheduleDays({
+          sportPriorities: [
+            {
+              sport_id: "sport-x",
+              preferred_naipe: MatchNaipe.MASCULINO,
+              preferred_division: null,
+            },
+            {
+              sport_id: "sport-1",
+              preferred_naipe: MatchNaipe.FEMININO,
+              preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
+            },
+            {
+              sport_id: "sport-1",
+              preferred_naipe: null,
+              preferred_division: null,
+            },
+          ],
+        }),
+      }),
+    );
+
+    const savedPreference =
+      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0]
+        ?.sport_preference;
+
+    expect(savedPreference).toEqual({
+      preferred_sport_id: "sport-1",
+      preferred_naipe: MatchNaipe.FEMININO,
+      preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
+    });
+  });
+
+  it("remove preferência cuja modalidade não pertence à quadra", () => {
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      JSON.stringify({
+        ...buildDraft(),
+        step_flow_version: 2,
+        schedule_days: buildStoredScheduleDays({
+          sportPreference: {
+            preferred_sport_id: "sport-x",
+            preferred_naipe: MatchNaipe.MASCULINO,
+            preferred_division: null,
+          },
+        }),
+      }),
+    );
+
+    const savedPreference =
+      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0]
+        ?.sport_preference;
+
+    expect(savedPreference).toBeNull();
+  });
+
+  it("remove divisão preferencial ao salvar temporada unificada", () => {
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      JSON.stringify({
+        ...buildDraft(),
+        step_flow_version: 2,
+        season_settings: {
+          division_format: ChampionshipSeasonDivisionFormat.UNIFIED,
+          division_settlement_mode:
+            ChampionshipSeasonDivisionSettlementMode.NONE,
+          principal_slots_count: null,
+          principal_relegation_count: null,
+          access_promotion_count: null,
+        },
+        schedule_days: buildStoredScheduleDays({
+          sportPreference: {
+            preferred_sport_id: "sport-1",
+            preferred_naipe: MatchNaipe.MASCULINO,
+            preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
+          },
+        }),
+      }),
+    );
+
+    const savedPreference =
+      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0]
+        ?.sport_preference;
+
+    expect(savedPreference).toEqual({
+      preferred_sport_id: "sport-1",
+      preferred_naipe: MatchNaipe.MASCULINO,
+      preferred_division: null,
+    });
+  });
+
   it("normaliza config legada de modalidades individuais ao carregar do storage", () => {
     const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
       JSON.stringify({
@@ -121,41 +292,57 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
     ]);
   });
 
-  it("preserva blocos manuais de finais no rascunho", () => {
+  it("ordena e renumera os blocos manuais de finais ao carregar o rascunho", () => {
     const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
       JSON.stringify({
         ...buildDraft(),
+        step_flow_version: 2,
         knockout_program_blocks: [
           {
             date: "2026-08-19",
-            period: "VESPERTINO",
+            period: ChampionshipSchedulePeriod.VESPERTINO,
             location_key: "loc-final",
-            court_key: "court-final",
+            court_key: "court-second",
             location_name: "Arena",
-            court_name: "Quadra Interna",
+            court_name: "Quadra 2",
             sport_id: "sport-1",
             phase: "FINAL",
             division_scope: "ALL",
-            naipe_sequence: ["FEMININO", "MASCULINO"],
-            display_order: 3,
+            naipe_sequence: [MatchNaipe.MASCULINO],
+            display_order: 8,
+          },
+          {
+            date: "2026-08-19",
+            period: ChampionshipSchedulePeriod.VESPERTINO,
+            location_key: "loc-final",
+            court_key: "court-first",
+            location_name: "Arena",
+            court_name: "Quadra 1",
+            sport_id: "sport-1",
+            phase: "FINAL",
+            division_scope: "ALL",
+            naipe_sequence: [MatchNaipe.FEMININO],
+            display_order: 2,
           },
         ],
       }),
     );
 
-    expect(dto?.bindToSave().knockout_program_blocks).toEqual([
+    const savedBlocks = dto?.bindToSave().knockout_program_blocks;
+
+    expect(
+      savedBlocks?.map((programBlock) => ({
+        court_key: programBlock.court_key,
+        display_order: programBlock.display_order,
+      })),
+    ).toEqual([
       {
-        date: "2026-08-19",
-        period: "VESPERTINO",
-        location_key: "loc-final",
-        court_key: "court-final",
-        location_name: "Arena",
-        court_name: "Quadra Interna",
-        sport_id: "sport-1",
-        phase: "FINAL",
-        division_scope: "ALL",
-        naipe_sequence: ["FEMININO", "MASCULINO"],
-        display_order: 3,
+        court_key: "court-first",
+        display_order: 1,
+      },
+      {
+        court_key: "court-second",
+        display_order: 2,
       },
     ]);
   });

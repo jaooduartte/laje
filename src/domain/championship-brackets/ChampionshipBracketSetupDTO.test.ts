@@ -11,7 +11,9 @@ import {
 } from "@/lib/enums";
 
 function buildPlacementPoints(count = 20) {
-  const defaults = [24, 22, 20, 18, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+  const defaults = [
+    24, 22, 20, 18, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
+  ];
   return Array.from({ length: count }, (_, index) => ({
     placement: index + 1,
     points: defaults[index] ?? 0,
@@ -24,7 +26,8 @@ function buildFormValues(
   return {
     season_settings: overrides.season_settings ?? {
       division_format: ChampionshipSeasonDivisionFormat.SEPARATED,
-      division_settlement_mode: ChampionshipSeasonDivisionSettlementMode.PROMOTION_RELEGATION,
+      division_settlement_mode:
+        ChampionshipSeasonDivisionSettlementMode.PROMOTION_RELEGATION,
       principal_slots_count: null,
       principal_relegation_count: 2,
       access_promotion_count: 2,
@@ -88,23 +91,11 @@ function buildFormValues(
                 name: "Quadra 1",
                 position: 1,
                 sport_ids: ["sport-1", "sport-1"],
-                sport_priorities: [
-                  {
-                    sport_id: "sport-1",
-                    preferred_naipe: MatchNaipe.MASCULINO,
-                    preferred_division: null,
-                  },
-                  {
-                    sport_id: "sport-1",
-                    preferred_naipe: null,
-                    preferred_division: null,
-                  },
-                  {
-                    sport_id: "sport-x",
-                    preferred_naipe: MatchNaipe.FEMININO,
-                    preferred_division: null,
-                  },
-                ],
+                sport_preference: {
+                  preferred_sport_id: "sport-1",
+                  preferred_naipe: MatchNaipe.MASCULINO,
+                  preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
+                },
               },
             ],
           },
@@ -118,14 +109,15 @@ function buildFormValues(
         enabled: true,
       },
     ],
-    competition_period_availability: overrides.competition_period_availability ?? [
-      {
-        competition_key: "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
-        date: "2026-08-10",
-        period: ChampionshipSchedulePeriod.MATUTINO,
-        enabled: true,
-      },
-    ],
+    competition_period_availability:
+      overrides.competition_period_availability ?? [
+        {
+          competition_key: "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
+          date: "2026-08-10",
+          period: ChampionshipSchedulePeriod.MATUTINO,
+          enabled: true,
+        },
+      ],
     team_competition_availability: overrides.team_competition_availability ?? [
       {
         team_id: "team-1",
@@ -162,7 +154,8 @@ describe("ChampionshipBracketSetupDTO", () => {
       buildFormValues({
         season_settings: {
           division_format: ChampionshipSeasonDivisionFormat.UNIFIED,
-          division_settlement_mode: ChampionshipSeasonDivisionSettlementMode.TOP_N_TO_PRINCIPAL,
+          division_settlement_mode:
+            ChampionshipSeasonDivisionSettlementMode.TOP_N_TO_PRINCIPAL,
           principal_slots_count: 12,
           principal_relegation_count: null,
           access_promotion_count: null,
@@ -246,20 +239,99 @@ describe("ChampionshipBracketSetupDTO", () => {
     );
   });
 
-  it("normaliza esportes habilitados e prioridades válidas de quadra ao salvar", () => {
+  it("normaliza esportes habilitados e a preferência da quadra ao salvar", () => {
     const dto = ChampionshipBracketSetupDTO.fromFormValues(buildFormValues());
 
     const payload = dto.bindToSave();
 
     expect(payload.enabled_sport_ids).toEqual(["sport-1"]);
-    expect(payload.schedule_days[0]?.locations[0]?.courts[0]?.sport_ids).toEqual(["sport-1"]);
-    expect(payload.schedule_days[0]?.locations[0]?.courts[0]?.sport_priorities).toEqual([
-      {
-        sport_id: "sport-1",
-        preferred_naipe: MatchNaipe.MASCULINO,
-        preferred_division: null,
-      },
-    ]);
+
+    expect(
+      payload.schedule_days[0]?.locations[0]?.courts[0]?.sport_ids,
+    ).toEqual(["sport-1"]);
+
+    expect(
+      payload.schedule_days[0]?.locations[0]?.courts[0]?.sport_preference,
+    ).toEqual({
+      preferred_sport_id: "sport-1",
+      preferred_naipe: MatchNaipe.MASCULINO,
+      preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
+    });
+  });
+
+  it("preserva preferência somente pela modalidade", () => {
+    const formValues = buildFormValues();
+
+    const court = formValues.schedule_days[0]?.locations[0]?.courts[0];
+
+    if (!court) {
+      throw new Error("Quadra padrão do teste não encontrada.");
+    }
+
+    court.sport_preference = {
+      preferred_sport_id: "sport-1",
+      preferred_naipe: null,
+      preferred_division: null,
+    };
+
+    const payload =
+      ChampionshipBracketSetupDTO.fromFormValues(formValues).bindToSave();
+
+    expect(
+      payload.schedule_days[0]?.locations[0]?.courts[0]?.sport_preference,
+    ).toEqual({
+      preferred_sport_id: "sport-1",
+      preferred_naipe: null,
+      preferred_division: null,
+    });
+  });
+
+  it("rejeita preferência por modalidade não vinculada à quadra", () => {
+    const formValues = buildFormValues();
+
+    const court = formValues.schedule_days[0]?.locations[0]?.courts[0];
+
+    if (!court) {
+      throw new Error("Quadra padrão do teste não encontrada.");
+    }
+
+    court.sport_preference = {
+      preferred_sport_id: "sport-x",
+      preferred_naipe: null,
+      preferred_division: null,
+    };
+
+    const dto = ChampionshipBracketSetupDTO.fromFormValues(formValues);
+
+    expect(() => dto.bindToSave()).toThrow(
+      "A modalidade preferencial da quadra Quadra 1 não está vinculada à quadra.",
+    );
+  });
+
+  it("deriva a ordem do bloco final pela posição no array", () => {
+    const dto = ChampionshipBracketSetupDTO.fromFormValues(
+      buildFormValues({
+        knockout_program_blocks: [
+          {
+            date: "2026-08-10",
+            period: ChampionshipSchedulePeriod.MATUTINO,
+            location_key: "loc-1",
+            court_key: "court-1",
+            location_name: "Ginásio Central",
+            court_name: "Quadra 1",
+            sport_id: "sport-1",
+            phase: "FINAL",
+            division_scope: TeamDivision.DIVISAO_PRINCIPAL,
+            naipe_sequence: [MatchNaipe.MASCULINO],
+            display_order: 99,
+          },
+        ],
+      }),
+    );
+
+    const payload = dto.bindToSave();
+
+    expect(payload.knockout_program_blocks[0]?.display_order).toBe(1);
   });
 
   it("rejeita configuração individual com colocação sem pontuação", () => {
