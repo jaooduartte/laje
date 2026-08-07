@@ -388,6 +388,7 @@ describe("ChampionshipBracketSetupDTO", () => {
             phase: "FINAL",
             division_scope: TeamDivision.DIVISAO_PRINCIPAL,
             naipe_sequence: [MatchNaipe.MASCULINO],
+            match_duration_minutes_override: 75,
             display_order: 99,
           },
         ],
@@ -397,6 +398,36 @@ describe("ChampionshipBracketSetupDTO", () => {
     const payload = dto.bindToSave();
 
     expect(payload.knockout_program_blocks[0]?.display_order).toBe(1);
+    expect(
+      payload.knockout_program_blocks[0]?.match_duration_minutes_override,
+    ).toBe(75);
+  });
+
+  it("rejeita duração especial inválida no bloco manual de final", () => {
+    const dto = ChampionshipBracketSetupDTO.fromFormValues(
+      buildFormValues({
+        knockout_program_blocks: [
+          {
+            date: "2026-08-10",
+            period: ChampionshipSchedulePeriod.MATUTINO,
+            location_key: "loc-1",
+            court_key: "court-1",
+            location_name: "Ginásio Central",
+            court_name: "Quadra 1",
+            sport_id: "sport-1",
+            phase: "FINAL",
+            division_scope: TeamDivision.DIVISAO_PRINCIPAL,
+            naipe_sequence: [MatchNaipe.MASCULINO],
+            match_duration_minutes_override: 0,
+            display_order: 1,
+          },
+        ],
+      }),
+    );
+
+    expect(() => dto.bindToSave()).toThrow(
+      "A duração especial do bloco manual de final precisa ser um número inteiro maior que zero.",
+    );
   });
 
   it("rejeita configuração individual com colocação sem pontuação", () => {
@@ -437,6 +468,7 @@ describe("ChampionshipBracketSetupDTO", () => {
             phase: "FINAL",
             division_scope: TeamDivision.DIVISAO_ACESSO,
             naipe_sequence: [MatchNaipe.FEMININO],
+            match_duration_minutes_override: null,
             display_order: 1,
           },
         ],

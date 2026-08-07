@@ -860,6 +860,16 @@ export class ChampionshipBracketSetupDTO {
         throw new Error("Ordem do bloco manual de final inválida.");
       }
 
+      if (
+        programBlock.match_duration_minutes_override != null &&
+        (!Number.isInteger(programBlock.match_duration_minutes_override) ||
+          programBlock.match_duration_minutes_override <= 0)
+      ) {
+        throw new Error(
+          "A duração especial do bloco manual de final precisa ser um número inteiro maior que zero.",
+        );
+      }
+
       const schedulePeriodKey = this.resolveDatePeriodKey(
         programBlock.date,
         programBlock.period,
@@ -1135,6 +1145,8 @@ export class ChampionshipBracketSetupDTO {
               ? "ALL"
               : programBlock.division_scope,
           naipe_sequence: [...new Set(programBlock.naipe_sequence)],
+          match_duration_minutes_override:
+            programBlock.match_duration_minutes_override ?? null,
           display_order: programBlockIndex + 1,
         }),
       ),

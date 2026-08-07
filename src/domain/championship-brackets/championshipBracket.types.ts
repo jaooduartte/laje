@@ -178,6 +178,7 @@ export interface ChampionshipBracketKnockoutProgramBlockInput {
   phase: "FINAL";
   division_scope: TeamDivision | "ALL";
   naipe_sequence: MatchNaipe[];
+  match_duration_minutes_override: number | null;
   display_order: number;
 }
 

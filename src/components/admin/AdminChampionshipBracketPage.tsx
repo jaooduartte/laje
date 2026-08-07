@@ -4178,6 +4178,23 @@ export function AdminChampionshipBracketPage({
         return false;
       }
 
+      const hasInvalidKnockoutProgramBlockDuration = knockoutProgramBlocks.some(
+        (programBlock) => {
+          const duration = programBlock.match_duration_minutes_override;
+
+          return (
+            duration != null && (!Number.isInteger(duration) || duration <= 0)
+          );
+        },
+      );
+
+      if (hasInvalidKnockoutProgramBlockDuration) {
+        toast.error(
+          "A duração especial das finais precisa ser informada em minutos inteiros e ser maior que zero.",
+        );
+        return false;
+      }
+
       const hasDuplicatedKnockoutProgramBlock =
         new Set(knockoutProgramBlocks.map(resolveKnockoutProgramBlockKey))
           .size != knockoutProgramBlocks.length;
@@ -5610,7 +5627,7 @@ export function AdminChampionshipBracketPage({
 
       if (
         JSON.stringify(nextKnockoutProgramBlocks) ==
-        JSON.stringify(currentKnockoutProgramBlocks)
+      JSON.stringify(currentKnockoutProgramBlocks)
       ) {
         return currentKnockoutProgramBlocks;
       }
@@ -5756,9 +5773,15 @@ export function AdminChampionshipBracketPage({
         programBlock.division_scope == "ALL"
           ? "Todas as divisões"
           : TEAM_DIVISION_LABELS[programBlock.division_scope];
+
       const naipeLabel = programBlock.naipe_sequence
         .map((naipe) => MATCH_NAIPE_LABELS[naipe])
         .join(" → ");
+
+      const durationLabel =
+        programBlock.match_duration_minutes_override == null
+          ? "Duração padrão da modalidade"
+          : `${programBlock.match_duration_minutes_override} min por final`;
 
       return {
         key: resolveKnockoutProgramBlockKey(programBlock),
@@ -5770,6 +5793,7 @@ export function AdminChampionshipBracketPage({
         }`,
         division_label: divisionLabel,
         naipe_label: naipeLabel,
+        duration_label: durationLabel,
         display_order: programBlockIndex + 1,
       };
     });
@@ -6302,6 +6326,7 @@ export function AdminChampionshipBracketPage({
         phase: "FINAL",
         division_scope: defaultDivisionScope,
         naipe_sequence: defaultNaipeSequence,
+        match_duration_minutes_override: null,
         display_order: currentKnockoutProgramBlocks.length + 1,
       },
     ]);
@@ -9408,6 +9433,8 @@ export function AdminChampionshipBracketPage({
                                             sport_id: nextSportId,
                                             division_scope: nextDivisionScope,
                                             naipe_sequence: nextNaipeSequence,
+                                            match_duration_minutes_override:
+                                              null,
                                           }),
                                         );
                                       }}
@@ -9488,13 +9515,14 @@ export function AdminChampionshipBracketPage({
                                   </div>
                                 </div>
 
-                                {seasonSettings.division_format !=
-                                ChampionshipSeasonDivisionFormat.UNIFIED ? (
-                                  <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                                <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                                  {seasonSettings.division_format !=
+                                  ChampionshipSeasonDivisionFormat.UNIFIED ? (
                                     <div>
                                       <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                                         Escopo da divisão
                                       </p>
+
                                       <Select
                                         value={programBlock.division_scope}
                                         onValueChange={(value) =>
@@ -9513,10 +9541,12 @@ export function AdminChampionshipBracketPage({
                                         <SelectTrigger className="h-9">
                                           <SelectValue placeholder="Selecione o escopo" />
                                         </SelectTrigger>
+
                                         <SelectContent>
                                           <SelectItem value="ALL">
                                             Todas as divisões
                                           </SelectItem>
+
                                           {Object.values(TeamDivision).map(
                                             (divisionOption) => (
                                               <SelectItem
@@ -9534,8 +9564,45 @@ export function AdminChampionshipBracketPage({
                                         </SelectContent>
                                       </Select>
                                     </div>
+                                  ) : null}
+
+                                  <div>
+                                    <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                      Duração de cada final
+                                    </p>
+
+                                    <Input
+                                      type="number"
+                                      min={1}
+                                      step={1}
+                                      placeholder="Usar duração padrão"
+                                      value={
+                                        programBlock.match_duration_minutes_override ??
+                                        ""
+                                      }
+                                      onChange={(event) => {
+                                        const nextValue = event.target.value;
+
+                                        updateKnockoutProgramBlock(
+                                          programBlockKey,
+                                          (currentProgramBlock) => ({
+                                            ...currentProgramBlock,
+                                            match_duration_minutes_override:
+                                              nextValue == ""
+                                                ? null
+                                                : Number(nextValue),
+                                          }),
+                                        );
+                                      }}
+                                    />
+
+                                    <p className="mt-1 text-[11px] text-muted-foreground">
+                                      Opcional. Deixe vazio para usar a duração
+                                      padrão da modalidade. O valor é aplicado a
+                                      cada final deste bloco.
+                                    </p>
                                   </div>
-                                ) : null}
+                                </div>
                               </div>
                             );
                           },
@@ -10284,6 +10351,9 @@ export function AdminChampionshipBracketPage({
                                 {programBlockSummary.division_label} •{" "}
                                 {programBlockSummary.naipe_label} • bloco{" "}
                                 {programBlockSummary.display_order}
+                              </p>
+                              <p className="mt-1 text-muted-foreground">
+                                {programBlockSummary.duration_label}
                               </p>
                             </div>
                           ),

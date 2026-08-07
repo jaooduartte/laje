@@ -1372,6 +1372,7 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
             phase: "FINAL",
             division_scope: TeamDivision.DIVISAO_PRINCIPAL,
             naipe_sequence: [MatchNaipe.MASCULINO],
+            match_duration_minutes_override: 0,
             display_order: 9,
           },
           {
@@ -1385,6 +1386,7 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
             phase: "FINAL",
             division_scope: TeamDivision.DIVISAO_PRINCIPAL,
             naipe_sequence: [MatchNaipe.FEMININO, MatchNaipe.MASCULINO],
+            match_duration_minutes_override: 75,
             display_order: 3,
           },
         ],
@@ -1415,17 +1417,21 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
         period: programBlock.period,
         display_order: programBlock.display_order,
         naipe_sequence: programBlock.naipe_sequence,
+        match_duration_minutes_override:
+          programBlock.match_duration_minutes_override,
       })),
     ).toEqual([
       {
         period: ChampionshipSchedulePeriod.VESPERTINO,
         display_order: 1,
         naipe_sequence: [MatchNaipe.MASCULINO],
+        match_duration_minutes_override: 75,
       },
       {
         period: ChampionshipSchedulePeriod.MATUTINO,
         display_order: 2,
         naipe_sequence: [MatchNaipe.MASCULINO],
+        match_duration_minutes_override: null,
       },
     ]);
   });

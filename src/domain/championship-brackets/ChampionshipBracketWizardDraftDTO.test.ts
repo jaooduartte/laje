@@ -429,6 +429,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
             phase: "FINAL",
             division_scope: "ALL",
             naipe_sequence: [MatchNaipe.MASCULINO],
+            match_duration_minutes_override: null,
             display_order: 8,
           },
           {
@@ -442,6 +443,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
             phase: "FINAL",
             division_scope: "ALL",
             naipe_sequence: [MatchNaipe.FEMININO],
+            match_duration_minutes_override: null,
             display_order: 2,
           },
         ],
@@ -465,5 +467,62 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
         display_order: 2,
       },
     ]);
+  });
+
+  it("normaliza duração especial ausente em bloco legado para null", () => {
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      JSON.stringify({
+        step_flow_version: 2,
+        current_step_index: 10,
+        knockout_program_blocks: [
+          {
+            date: "2026-08-29",
+            period: ChampionshipSchedulePeriod.VESPERTINO,
+            location_key: "loc-final",
+            court_key: "court-final",
+            location_name: "Campus Park",
+            court_name: "Quadra Interna",
+            sport_id: "sport-1",
+            phase: "FINAL",
+            division_scope: "ALL",
+            naipe_sequence: [MatchNaipe.FEMININO, MatchNaipe.MASCULINO],
+            display_order: 1,
+          },
+        ],
+      }),
+    );
+
+    const savedBlock = dto?.bindToSave().knockout_program_blocks[0];
+
+    expect(savedBlock?.match_duration_minutes_override).toBeNull();
+  });
+
+  it("preserva duração especial válida do bloco manual de final", () => {
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      JSON.stringify({
+        step_flow_version: 2,
+        current_step_index: 10,
+        knockout_program_blocks: [
+          {
+            date: "2026-08-29",
+            period: ChampionshipSchedulePeriod.VESPERTINO,
+            location_key: "loc-final",
+            court_key: "court-final",
+            location_name: "Campus Park",
+            court_name: "Quadra Interna",
+            sport_id: "sport-1",
+            phase: "FINAL",
+            division_scope: "ALL",
+            naipe_sequence: [MatchNaipe.FEMININO, MatchNaipe.MASCULINO],
+            match_duration_minutes_override: 75,
+            display_order: 1,
+          },
+        ],
+      }),
+    );
+
+    const savedBlock = dto?.bindToSave().knockout_program_blocks[0];
+
+    expect(savedBlock?.match_duration_minutes_override).toBe(75);
   });
 });

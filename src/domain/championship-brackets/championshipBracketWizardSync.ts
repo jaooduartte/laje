@@ -792,6 +792,14 @@ export function sanitizeKnockoutProgramBlocksValues({
           nextNaipeSequence.length > 0
             ? nextNaipeSequence
             : fallbackNaipeSequence,
+
+        match_duration_minutes_override:
+          typeof block.match_duration_minutes_override == "number" &&
+          Number.isInteger(block.match_duration_minutes_override) &&
+          block.match_duration_minutes_override > 0
+            ? block.match_duration_minutes_override
+            : null,
+
         display_order:
           typeof block.display_order == "number" && block.display_order > 0
             ? Math.trunc(block.display_order)

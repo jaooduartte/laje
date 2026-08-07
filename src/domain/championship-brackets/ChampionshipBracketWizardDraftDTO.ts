@@ -878,6 +878,15 @@ function resolveKnockoutProgramBlocks(
           ? parsedKnockoutProgramBlock.division_scope
           : "ALL",
       naipe_sequence: naipeSequence,
+      match_duration_minutes_override:
+        typeof parsedKnockoutProgramBlock.match_duration_minutes_override ==
+          "number" &&
+        Number.isInteger(
+          parsedKnockoutProgramBlock.match_duration_minutes_override,
+        ) &&
+        parsedKnockoutProgramBlock.match_duration_minutes_override > 0
+          ? parsedKnockoutProgramBlock.match_duration_minutes_override
+          : null,
       display_order: Math.max(
         1,
         resolveNumberValue(parsedKnockoutProgramBlock.display_order, 1),
@@ -1316,6 +1325,8 @@ export class ChampionshipBracketWizardDraftDTO {
           phase: "FINAL" as const,
           division_scope: programBlock.division_scope,
           naipe_sequence: [...new Set(programBlock.naipe_sequence)],
+          match_duration_minutes_override:
+            programBlock.match_duration_minutes_override ?? null,
           display_order: programBlockIndex + 1,
         }),
       ),
