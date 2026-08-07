@@ -669,7 +669,8 @@ export async function getBracketCourtSports(
           championship_bracket_court_sports (
             sport_id,
             preferred_naipe,
-            preferred_division
+            preferred_division,
+            sequence_mode
           )
         )
       )
@@ -700,6 +701,7 @@ export async function getBracketCourtSports(
             sport_id: string;
             preferred_naipe: string | null;
             preferred_division: string | null;
+            sequence_mode: ChampionshipBracketCourtSequenceMode;
           }>;
         }>;
       }>) ?? []
@@ -726,7 +728,7 @@ export async function getBracketCourtSports(
                   (courtSport.preferred_division as TeamDivision | null) ??
                   null,
 
-                sequence_mode: "FLEXIBLE" as const,
+                sequence_mode: courtSport.sequence_mode,
               }),
             ),
           }))
@@ -770,7 +772,8 @@ export async function getBracketLocationSportPriorities(
             position,
             court_group_id,
             championship_bracket_court_sports (
-              sport_id
+              sport_id,
+              sequence_mode
             )
           )
         )
@@ -821,6 +824,7 @@ export async function getBracketLocationSportPriorities(
           court_group_id: string;
           championship_bracket_court_sports?: Array<{
             sport_id: string;
+            sequence_mode: ChampionshipBracketCourtSequenceMode;
           }>;
         }>;
       }>;
@@ -871,12 +875,30 @@ export async function getBracketLocationSportPriorities(
         }
 
         matchingCourts.forEach((court) => {
+          const sequenceModes = [
+            ...new Set(
+              (court.championship_bracket_court_sports ?? [])
+                .filter((courtSport) => courtSport.sport_id === sportId)
+                .map((courtSport) => courtSport.sequence_mode),
+            ),
+          ];
+
           const existingCourt = currentGroup.courts.find(
             (currentCourt) =>
               currentCourt.court_group_id === court.court_group_id,
           );
 
           if (existingCourt) {
+            const mergedSequenceModes = [
+              ...new Set([...existingCourt.sequence_modes, ...sequenceModes]),
+            ];
+
+            existingCourt.sequence_modes = mergedSequenceModes;
+
+            existingCourt.is_sequence_locked = mergedSequenceModes.some(
+              (mode) => mode !== "FLEXIBLE",
+            );
+
             return;
           }
 
@@ -884,8 +906,10 @@ export async function getBracketLocationSportPriorities(
             court_group_id: court.court_group_id,
             court_name: court.name,
             position: court.position,
-            sequence_modes: ["FLEXIBLE"],
-            is_sequence_locked: false,
+            sequence_modes: sequenceModes,
+            is_sequence_locked: sequenceModes.some(
+              (mode) => mode !== "FLEXIBLE",
+            ),
           });
         });
       });
