@@ -97,6 +97,7 @@ import { useChampionshipSeasonSettings } from "@/hooks/useChampionshipSeasonSett
 import type {
   ChampionshipBracketCompetitionConfigDraft,
   ChampionshipBracketCompetitionInput,
+  ChampionshipBracketCourtSequenceMode,
   ChampionshipBracketCourtSportPreferenceInput,
   ChampionshipBracketLocationTemplate,
   ChampionshipBracketLocationTemplateSaveInput,
@@ -4389,12 +4390,17 @@ export function AdminChampionshipBracketPage({
                   ? {
                       preferred_sport_id:
                         court.sport_preference.preferred_sport_id,
+
                       preferred_naipe: court.sport_preference.preferred_naipe,
+
                       preferred_division:
                         seasonSettings.division_format ==
                         ChampionshipSeasonDivisionFormat.SEPARATED
                           ? court.sport_preference.preferred_division
                           : null,
+
+                      sequence_mode:
+                        court.sport_preference.sequence_mode ?? "FLEXIBLE",
                     }
                   : null,
             })),
@@ -5994,6 +6000,7 @@ export function AdminChampionshipBracketPage({
           sport_id: string;
           sport_name: string;
           naipe_options: MatchNaipe[];
+          division_options: TeamDivision[];
         }
       >
     >((carry, competitionOption) => {
@@ -6004,6 +6011,10 @@ export function AdminChampionshipBracketPage({
           sport_id: competitionOption.sport_id,
           sport_name: competitionOption.sport_name,
           naipe_options: [competitionOption.naipe],
+          division_options:
+            competitionOption.division != null
+              ? [competitionOption.division]
+              : [],
         };
 
         return carry;
@@ -6017,6 +6028,18 @@ export function AdminChampionshipBracketPage({
         currentSportConfiguration.naipe_options = [
           ...currentSportConfiguration.naipe_options,
           competitionOption.naipe,
+        ];
+      }
+
+      if (
+        competitionOption.division != null &&
+        !currentSportConfiguration.division_options.includes(
+          competitionOption.division,
+        )
+      ) {
+        currentSportConfiguration.division_options = [
+          ...currentSportConfiguration.division_options,
+          competitionOption.division,
         ];
       }
 
@@ -6037,7 +6060,10 @@ export function AdminChampionshipBracketPage({
               return [
                 {
                   ...sportConfiguration,
+
                   naipe_options: [...sportConfiguration.naipe_options],
+
+                  division_options: [...sportConfiguration.division_options],
                 },
               ];
             })
@@ -6300,6 +6326,7 @@ export function AdminChampionshipBracketPage({
     ) => {
       updateScheduleDay(scheduleDayId, (scheduleDay) => ({
         ...scheduleDay,
+
         locations: scheduleDay.locations.map((scheduleLocation) => {
           if (scheduleLocation.id != locationId) {
             return scheduleLocation;
@@ -6307,6 +6334,7 @@ export function AdminChampionshipBracketPage({
 
           return {
             ...scheduleLocation,
+
             courts: scheduleLocation.courts.map((court) => {
               if (court.id != courtId) {
                 return court;
@@ -6324,26 +6352,44 @@ export function AdminChampionshipBracketPage({
                   ? court.sport_preference
                   : null;
 
-              const nextPreferredNaipe =
+              const nextSequenceMode =
+                patch.sequence_mode ??
+                currentPreference?.sequence_mode ??
+                "FLEXIBLE";
+
+              let nextPreferredNaipe =
                 patch.preferred_naipe !== undefined
                   ? patch.preferred_naipe
                   : (currentPreference?.preferred_naipe ?? null);
 
-              const nextPreferredDivision =
+              let nextPreferredDivision =
                 patch.preferred_division !== undefined
                   ? patch.preferred_division
                   : (currentPreference?.preferred_division ?? null);
 
+              if (nextSequenceMode == "GROUP_NAIPE") {
+                nextPreferredDivision = null;
+              }
+
+              if (nextSequenceMode == "GROUP_DIVISION") {
+                nextPreferredNaipe = null;
+              }
+
               return {
                 ...court,
+
                 sport_preference: {
                   preferred_sport_id: preferredSportId,
+
                   preferred_naipe: nextPreferredNaipe,
+
                   preferred_division:
                     seasonSettings.division_format ==
                     ChampionshipSeasonDivisionFormat.SEPARATED
                       ? nextPreferredDivision
                       : null,
+
+                  sequence_mode: nextSequenceMode,
                 },
               };
             }),
@@ -9558,6 +9604,22 @@ export function AdminChampionshipBracketPage({
                                   const availableNaipeOptions =
                                     preferredSportOption?.naipe_options ?? [];
 
+                                  const availableDivisionOptions =
+                                    preferredSportOption?.division_options ??
+                                    [];
+
+                                  const currentSequenceMode: ChampionshipBracketCourtSequenceMode =
+                                    currentPreference?.sequence_mode ??
+                                    "FLEXIBLE";
+
+                                  const canGroupByNaipe =
+                                    availableNaipeOptions.length > 1;
+
+                                  const canGroupByDivision =
+                                    resolveUsesSeasonDivisions(
+                                      seasonSettings,
+                                    ) && availableDivisionOptions.length > 1;
+
                                   return (
                                     <div
                                       key={preferenceCard.key}
@@ -9616,17 +9678,83 @@ export function AdminChampionshipBracketPage({
 
                                         <div>
                                           <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                            Naipe preferencial
+                                            Estratégia de sequenciamento
                                           </p>
 
                                           <Select
                                             disabled={preferredSportId == null}
-                                            value={
-                                              currentPreference?.preferred_naipe ??
-                                              "NONE"
-                                            }
+                                            value={currentSequenceMode}
                                             onValueChange={(value) => {
                                               if (!preferredSportId) {
+                                                return;
+                                              }
+
+                                              const nextSequenceMode =
+                                                value as ChampionshipBracketCourtSequenceMode;
+
+                                              if (
+                                                nextSequenceMode ==
+                                                "GROUP_NAIPE"
+                                              ) {
+                                                const nextPreferredNaipe =
+                                                  currentPreference?.preferred_naipe !=
+                                                    null &&
+                                                  availableNaipeOptions.includes(
+                                                    currentPreference.preferred_naipe,
+                                                  )
+                                                    ? currentPreference.preferred_naipe
+                                                    : (availableNaipeOptions[0] ??
+                                                      null);
+
+                                                updateCourtSportPreference(
+                                                  preferenceCard.schedule_day_id,
+                                                  preferenceCard.location_id,
+                                                  preferenceCard.court.id,
+                                                  preferredSportId,
+                                                  {
+                                                    sequence_mode:
+                                                      "GROUP_NAIPE",
+
+                                                    preferred_naipe:
+                                                      nextPreferredNaipe,
+
+                                                    preferred_division: null,
+                                                  },
+                                                );
+
+                                                return;
+                                              }
+
+                                              if (
+                                                nextSequenceMode ==
+                                                "GROUP_DIVISION"
+                                              ) {
+                                                const nextPreferredDivision =
+                                                  currentPreference?.preferred_division !=
+                                                    null &&
+                                                  availableDivisionOptions.includes(
+                                                    currentPreference.preferred_division,
+                                                  )
+                                                    ? currentPreference.preferred_division
+                                                    : (availableDivisionOptions[0] ??
+                                                      null);
+
+                                                updateCourtSportPreference(
+                                                  preferenceCard.schedule_day_id,
+                                                  preferenceCard.location_id,
+                                                  preferenceCard.court.id,
+                                                  preferredSportId,
+                                                  {
+                                                    sequence_mode:
+                                                      "GROUP_DIVISION",
+
+                                                    preferred_naipe: null,
+
+                                                    preferred_division:
+                                                      nextPreferredDivision,
+                                                  },
+                                                );
+
                                                 return;
                                               }
 
@@ -9636,10 +9764,7 @@ export function AdminChampionshipBracketPage({
                                                 preferenceCard.court.id,
                                                 preferredSportId,
                                                 {
-                                                  preferred_naipe:
-                                                    value == "NONE"
-                                                      ? null
-                                                      : (value as MatchNaipe),
+                                                  sequence_mode: "FLEXIBLE",
                                                 },
                                               );
                                             }}
@@ -9648,41 +9773,138 @@ export function AdminChampionshipBracketPage({
                                               <SelectValue
                                                 placeholder={
                                                   preferredSportId
-                                                    ? "Sem preferência"
+                                                    ? "Distribuição flexível"
                                                     : "Selecione uma modalidade"
                                                 }
                                               />
                                             </SelectTrigger>
 
                                             <SelectContent>
-                                              <SelectItem value="NONE">
-                                                Sem preferência
+                                              <SelectItem value="FLEXIBLE">
+                                                Distribuição flexível
                                               </SelectItem>
 
-                                              {availableNaipeOptions.map(
-                                                (naipeOption) => (
-                                                  <SelectItem
-                                                    key={naipeOption}
-                                                    value={naipeOption}
-                                                  >
-                                                    {
-                                                      MATCH_NAIPE_LABELS[
-                                                        naipeOption
-                                                      ]
-                                                    }
-                                                  </SelectItem>
-                                                ),
-                                              )}
+                                              {canGroupByNaipe ? (
+                                                <SelectItem value="GROUP_NAIPE">
+                                                  Agrupar por naipe
+                                                </SelectItem>
+                                              ) : null}
+
+                                              {canGroupByDivision ? (
+                                                <SelectItem value="GROUP_DIVISION">
+                                                  Agrupar por divisão
+                                                </SelectItem>
+                                              ) : null}
                                             </SelectContent>
                                           </Select>
+
+                                          {currentSequenceMode ==
+                                          "GROUP_NAIPE" ? (
+                                            <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                                              O primeiro naipe será concluído
+                                              antes do início do próximo. Um
+                                              horário poderá permanecer livre
+                                              quando nenhum jogo respeitar o
+                                              descanso necessário.
+                                            </p>
+                                          ) : null}
+
+                                          {currentSequenceMode ==
+                                          "GROUP_DIVISION" ? (
+                                            <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                                              A primeira divisão será concluída
+                                              antes do início da próxima. Um
+                                              horário poderá permanecer livre
+                                              quando nenhum jogo respeitar o
+                                              descanso necessário.
+                                            </p>
+                                          ) : null}
                                         </div>
+
+                                        {currentSequenceMode !=
+                                        "GROUP_DIVISION" ? (
+                                          <div>
+                                            <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                              {currentSequenceMode ==
+                                              "GROUP_NAIPE"
+                                                ? "Primeiro naipe"
+                                                : "Naipe preferencial"}
+                                            </p>
+
+                                            <Select
+                                              disabled={
+                                                preferredSportId == null
+                                              }
+                                              value={
+                                                currentPreference?.preferred_naipe ??
+                                                "NONE"
+                                              }
+                                              onValueChange={(value) => {
+                                                if (!preferredSportId) {
+                                                  return;
+                                                }
+
+                                                updateCourtSportPreference(
+                                                  preferenceCard.schedule_day_id,
+                                                  preferenceCard.location_id,
+                                                  preferenceCard.court.id,
+                                                  preferredSportId,
+                                                  {
+                                                    preferred_naipe:
+                                                      value == "NONE"
+                                                        ? null
+                                                        : (value as MatchNaipe),
+                                                  },
+                                                );
+                                              }}
+                                            >
+                                              <SelectTrigger className="h-9">
+                                                <SelectValue
+                                                  placeholder={
+                                                    preferredSportId
+                                                      ? "Sem preferência"
+                                                      : "Selecione uma modalidade"
+                                                  }
+                                                />
+                                              </SelectTrigger>
+
+                                              <SelectContent>
+                                                {currentSequenceMode ==
+                                                "FLEXIBLE" ? (
+                                                  <SelectItem value="NONE">
+                                                    Sem preferência
+                                                  </SelectItem>
+                                                ) : null}
+
+                                                {availableNaipeOptions.map(
+                                                  (naipeOption) => (
+                                                    <SelectItem
+                                                      key={naipeOption}
+                                                      value={naipeOption}
+                                                    >
+                                                      {
+                                                        MATCH_NAIPE_LABELS[
+                                                          naipeOption
+                                                        ]
+                                                      }
+                                                    </SelectItem>
+                                                  ),
+                                                )}
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                        ) : null}
 
                                         {resolveUsesSeasonDivisions(
                                           seasonSettings,
-                                        ) ? (
+                                        ) &&
+                                        currentSequenceMode != "GROUP_NAIPE" ? (
                                           <div>
                                             <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                              Divisão preferencial
+                                              {currentSequenceMode ==
+                                              "GROUP_DIVISION"
+                                                ? "Primeira divisão"
+                                                : "Divisão preferencial"}
                                             </p>
 
                                             <Select
@@ -9723,24 +9945,27 @@ export function AdminChampionshipBracketPage({
                                               </SelectTrigger>
 
                                               <SelectContent>
-                                                <SelectItem value="NONE">
-                                                  Sem preferência
-                                                </SelectItem>
-
-                                                {Object.values(
-                                                  TeamDivision,
-                                                ).map((divisionOption) => (
-                                                  <SelectItem
-                                                    key={divisionOption}
-                                                    value={divisionOption}
-                                                  >
-                                                    {
-                                                      TEAM_DIVISION_LABELS[
-                                                        divisionOption
-                                                      ]
-                                                    }
+                                                {currentSequenceMode ==
+                                                "FLEXIBLE" ? (
+                                                  <SelectItem value="NONE">
+                                                    Sem preferência
                                                   </SelectItem>
-                                                ))}
+                                                ) : null}
+
+                                                {availableDivisionOptions.map(
+                                                  (divisionOption) => (
+                                                    <SelectItem
+                                                      key={divisionOption}
+                                                      value={divisionOption}
+                                                    >
+                                                      {
+                                                        TEAM_DIVISION_LABELS[
+                                                          divisionOption
+                                                        ]
+                                                      }
+                                                    </SelectItem>
+                                                  ),
+                                                )}
                                               </SelectContent>
                                             </Select>
                                           </div>

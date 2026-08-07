@@ -95,6 +95,7 @@ function buildFormValues(
                   preferred_sport_id: "sport-1",
                   preferred_naipe: MatchNaipe.MASCULINO,
                   preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
+                  sequence_mode: "FLEXIBLE",
                 },
               },
             ],
@@ -146,6 +147,66 @@ function buildFormValues(
     resource_locks: overrides.resource_locks ?? [],
     knockout_program_blocks: overrides.knockout_program_blocks ?? [],
   };
+}
+
+function addCompetitionVariant(
+  formValues: ChampionshipBracketSetupFormValues,
+  naipe: MatchNaipe,
+  division: TeamDivision,
+) {
+  const baseCompetition = formValues.competitions[0];
+
+  if (!baseCompetition) {
+    throw new Error("Competição padrão do teste não encontrada.");
+  }
+
+  formValues.competitions.push({
+    ...baseCompetition,
+    naipe,
+    division,
+
+    groups: baseCompetition.groups.map((group) => ({
+      ...group,
+      team_ids: [...group.team_ids],
+    })),
+  });
+
+  formValues.participants.forEach((participant) => {
+    participant.modalities.push({
+      sport_id: "sport-1",
+      naipe,
+      division,
+    });
+  });
+
+  const competitionKey = `sport-1::${naipe}::${division}`;
+
+  formValues.competition_period_availability.push({
+    competition_key: competitionKey,
+    date: "2026-08-10",
+    period: ChampionshipSchedulePeriod.MATUTINO,
+    enabled: true,
+  });
+
+  formValues.participants.forEach((participant) => {
+    formValues.team_competition_availability.push({
+      team_id: participant.team_id,
+      competition_key: competitionKey,
+      date: "2026-08-10",
+      period: ChampionshipSchedulePeriod.MATUTINO,
+      enabled: true,
+    });
+  });
+}
+
+function resolveDefaultCourt(formValues: ChampionshipBracketSetupFormValues) {
+  const court = formValues.schedule_days[0]?.locations[0]?.courts[0];
+
+  if (!court) {
+    throw new Error("Quadra padrão do teste não encontrada.");
+  }
+
+  return court;
 }
 
 describe("ChampionshipBracketSetupDTO", () => {
@@ -256,6 +317,7 @@ describe("ChampionshipBracketSetupDTO", () => {
       preferred_sport_id: "sport-1",
       preferred_naipe: MatchNaipe.MASCULINO,
       preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
+      sequence_mode: "FLEXIBLE",
     });
   });
 
@@ -272,6 +334,7 @@ describe("ChampionshipBracketSetupDTO", () => {
       preferred_sport_id: "sport-1",
       preferred_naipe: null,
       preferred_division: null,
+      sequence_mode: "FLEXIBLE",
     };
 
     const payload =
@@ -283,6 +346,7 @@ describe("ChampionshipBracketSetupDTO", () => {
       preferred_sport_id: "sport-1",
       preferred_naipe: null,
       preferred_division: null,
+      sequence_mode: "FLEXIBLE",
     });
   });
 
@@ -299,6 +363,7 @@ describe("ChampionshipBracketSetupDTO", () => {
       preferred_sport_id: "sport-x",
       preferred_naipe: null,
       preferred_division: null,
+      sequence_mode: "FLEXIBLE",
     };
 
     const dto = ChampionshipBracketSetupDTO.fromFormValues(formValues);
@@ -380,6 +445,147 @@ describe("ChampionshipBracketSetupDTO", () => {
 
     expect(() => dto.bindToSave()).toThrow(
       "Bloco manual de final sem competição ativa correspondente.",
+    );
+  });
+
+  it("converte preferência antiga sem modo para FLEXIBLE", () => {
+    const formValues = buildFormValues();
+    const court = resolveDefaultCourt(formValues);
+
+    const legacyPreference = court.sport_preference as
+      | (NonNullable<typeof court.sport_preference> & {
+          sequence_mode?: unknown;
+        })
+      | null;
+
+    if (!legacyPreference) {
+      throw new Error("Preferência padrão do teste não encontrada.");
+    }
+
+    delete legacyPreference.sequence_mode;
+
+    const payload =
+      ChampionshipBracketSetupDTO.fromFormValues(formValues).bindToSave();
+
+    expect(
+      payload.schedule_days[0]?.locations[0]?.courts[0]?.sport_preference
+        ?.sequence_mode,
+    ).toBe("FLEXIBLE");
+  });
+
+  it("preserva agrupamento válido por naipe", () => {
+    const formValues = buildFormValues();
+
+    addCompetitionVariant(
+      formValues,
+      MatchNaipe.FEMININO,
+      TeamDivision.DIVISAO_PRINCIPAL,
+    );
+
+    const court = resolveDefaultCourt(formValues);
+
+    court.sport_preference = {
+      preferred_sport_id: "sport-1",
+      preferred_naipe: MatchNaipe.FEMININO,
+      preferred_division: null,
+      sequence_mode: "GROUP_NAIPE",
+    };
+
+    const payload =
+      ChampionshipBracketSetupDTO.fromFormValues(formValues).bindToSave();
+
+    expect(
+      payload.schedule_days[0]?.locations[0]?.courts[0]?.sport_preference,
+    ).toEqual({
+      preferred_sport_id: "sport-1",
+      preferred_naipe: MatchNaipe.FEMININO,
+      preferred_division: null,
+      sequence_mode: "GROUP_NAIPE",
+    });
+  });
+
+  it("rejeita agrupamento por naipe sem dois naipes ativos", () => {
+    const formValues = buildFormValues();
+    const court = resolveDefaultCourt(formValues);
+
+    court.sport_preference = {
+      preferred_sport_id: "sport-1",
+      preferred_naipe: MatchNaipe.MASCULINO,
+      preferred_division: null,
+      sequence_mode: "GROUP_NAIPE",
+    };
+
+    const dto = ChampionshipBracketSetupDTO.fromFormValues(formValues);
+
+    expect(() => dto.bindToSave()).toThrow(
+      "A modalidade selecionada na quadra Quadra 1 precisa possuir ao menos dois naipes ativos para agrupamento por naipe.",
+    );
+  });
+
+  it("preserva agrupamento válido por divisão", () => {
+    const formValues = buildFormValues();
+
+    addCompetitionVariant(
+      formValues,
+      MatchNaipe.MASCULINO,
+      TeamDivision.DIVISAO_ACESSO,
+    );
+
+    const court = resolveDefaultCourt(formValues);
+
+    court.sport_preference = {
+      preferred_sport_id: "sport-1",
+      preferred_naipe: null,
+      preferred_division: TeamDivision.DIVISAO_ACESSO,
+      sequence_mode: "GROUP_DIVISION",
+    };
+
+    const payload =
+      ChampionshipBracketSetupDTO.fromFormValues(formValues).bindToSave();
+
+    expect(
+      payload.schedule_days[0]?.locations[0]?.courts[0]?.sport_preference,
+    ).toEqual({
+      preferred_sport_id: "sport-1",
+      preferred_naipe: null,
+      preferred_division: TeamDivision.DIVISAO_ACESSO,
+      sequence_mode: "GROUP_DIVISION",
+    });
+  });
+
+  it("rejeita agrupamento por divisão sem duas divisões ativas", () => {
+    const formValues = buildFormValues();
+    const court = resolveDefaultCourt(formValues);
+
+    court.sport_preference = {
+      preferred_sport_id: "sport-1",
+      preferred_naipe: null,
+      preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
+      sequence_mode: "GROUP_DIVISION",
+    };
+
+    const dto = ChampionshipBracketSetupDTO.fromFormValues(formValues);
+
+    expect(() => dto.bindToSave()).toThrow(
+      "A modalidade selecionada na quadra Quadra 1 precisa possuir ao menos duas divisões ativas para agrupamento por divisão.",
+    );
+  });
+
+  it("rejeita modo de sequenciamento desconhecido", () => {
+    const formValues = buildFormValues();
+    const court = resolveDefaultCourt(formValues);
+
+    court.sport_preference = {
+      preferred_sport_id: "sport-1",
+      preferred_naipe: null,
+      preferred_division: null,
+      sequence_mode: "UNKNOWN" as "FLEXIBLE",
+    };
+
+    const dto = ChampionshipBracketSetupDTO.fromFormValues(formValues);
+
+    expect(() => dto.bindToSave()).toThrow(
+      "Estratégia de sequenciamento da quadra inválida.",
     );
   });
 });

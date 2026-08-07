@@ -157,6 +157,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
             preferred_sport_id: "sport-1",
             preferred_naipe: MatchNaipe.MASCULINO,
             preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
+            sequence_mode: "FLEXIBLE",
           },
         }),
       }),
@@ -171,6 +172,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
       preferred_sport_id: "sport-1",
       preferred_naipe: MatchNaipe.MASCULINO,
       preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
+      sequence_mode: "FLEXIBLE",
     });
   });
 
@@ -209,6 +211,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
       preferred_sport_id: "sport-1",
       preferred_naipe: MatchNaipe.FEMININO,
       preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
+      sequence_mode: "FLEXIBLE",
     });
   });
 
@@ -252,6 +255,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
             preferred_sport_id: "sport-1",
             preferred_naipe: MatchNaipe.MASCULINO,
             preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
+            sequence_mode: "FLEXIBLE",
           },
         }),
       }),
@@ -265,6 +269,122 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
       preferred_sport_id: "sport-1",
       preferred_naipe: MatchNaipe.MASCULINO,
       preferred_division: null,
+      sequence_mode: "FLEXIBLE",
+    });
+  });
+
+  it("converte preferência antiga sem sequence_mode para FLEXIBLE", () => {
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      JSON.stringify({
+        ...buildDraft(),
+        step_flow_version: 2,
+
+        schedule_days: buildStoredScheduleDays({
+          sportPreference: {
+            preferred_sport_id: "sport-1",
+            preferred_naipe: MatchNaipe.MASCULINO,
+            preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
+          },
+        }),
+      }),
+    );
+
+    const savedPreference =
+      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0]
+        ?.sport_preference;
+
+    expect(savedPreference).toEqual({
+      preferred_sport_id: "sport-1",
+      preferred_naipe: MatchNaipe.MASCULINO,
+      preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
+      sequence_mode: "FLEXIBLE",
+    });
+  });
+
+  it("preserva agrupamento por naipe ao carregar e salvar", () => {
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      JSON.stringify({
+        ...buildDraft(),
+        step_flow_version: 2,
+
+        schedule_days: buildStoredScheduleDays({
+          sportPreference: {
+            preferred_sport_id: "sport-1",
+            preferred_naipe: MatchNaipe.FEMININO,
+            preferred_division: null,
+            sequence_mode: "GROUP_NAIPE",
+          },
+        }),
+      }),
+    );
+
+    const savedPreference =
+      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0]
+        ?.sport_preference;
+
+    expect(savedPreference).toEqual({
+      preferred_sport_id: "sport-1",
+      preferred_naipe: MatchNaipe.FEMININO,
+      preferred_division: null,
+      sequence_mode: "GROUP_NAIPE",
+    });
+  });
+
+  it("preserva agrupamento por divisão ao carregar e salvar", () => {
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      JSON.stringify({
+        ...buildDraft(),
+        step_flow_version: 2,
+
+        schedule_days: buildStoredScheduleDays({
+          sportPreference: {
+            preferred_sport_id: "sport-1",
+            preferred_naipe: null,
+            preferred_division: TeamDivision.DIVISAO_ACESSO,
+            sequence_mode: "GROUP_DIVISION",
+          },
+        }),
+      }),
+    );
+
+    const savedPreference =
+      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0]
+        ?.sport_preference;
+
+    expect(savedPreference).toEqual({
+      preferred_sport_id: "sport-1",
+      preferred_naipe: null,
+      preferred_division: TeamDivision.DIVISAO_ACESSO,
+      sequence_mode: "GROUP_DIVISION",
+    });
+  });
+
+  it("normaliza modo de sequenciamento desconhecido para FLEXIBLE", () => {
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      JSON.stringify({
+        ...buildDraft(),
+        step_flow_version: 2,
+
+        schedule_days: buildStoredScheduleDays({
+          sportPreference: {
+            preferred_sport_id: "sport-1",
+            preferred_naipe: MatchNaipe.MASCULINO,
+            preferred_division: null,
+            sequence_mode: "UNKNOWN",
+          },
+        }),
+      }),
+    );
+
+    const savedPreference =
+      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0]
+        ?.sport_preference;
+
+    expect(savedPreference).toEqual({
+      preferred_sport_id: "sport-1",
+      preferred_naipe: MatchNaipe.MASCULINO,
+      preferred_division: null,
+      sequence_mode: "FLEXIBLE",
     });
   });
 

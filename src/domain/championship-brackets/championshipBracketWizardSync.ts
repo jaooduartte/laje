@@ -6,6 +6,7 @@ import {
 import { resolveDefaultCompetitionKnockoutPairingMode } from "@/domain/championship-brackets/championshipBracketPairing";
 import type {
   ChampionshipBracketCompetitionConfigDraft,
+  ChampionshipBracketCourtSequenceMode,
   ChampionshipSeasonSettingsInput,
   ChampionshipBracketWizardDraftFormValues,
 } from "@/domain/championship-brackets/championshipBracket.types";
@@ -533,6 +534,22 @@ function resolveDefaultKnockoutProgramNaipeSequence(
   return orderedNaipes.filter((naipe) => availableNaipes.includes(naipe));
 }
 
+function resolveCourtSequenceModeValue(
+  value: unknown,
+): ChampionshipBracketCourtSequenceMode {
+  switch (value) {
+    case "GROUP_NAIPE":
+      return "GROUP_NAIPE";
+
+    case "GROUP_DIVISION":
+      return "GROUP_DIVISION";
+
+    case "FLEXIBLE":
+    default:
+      return "FLEXIBLE";
+  }
+}
+
 function sanitizeScheduleDaysValues({
   scheduleDays,
   seasonSettings,
@@ -587,12 +604,25 @@ function sanitizeScheduleDaysValues({
           };
         }
 
+        const availableNaipes = [
+          ...new Set(
+            preferredSportOptions.map(
+              (competitionOption) => competitionOption.naipe,
+            ),
+          ),
+        ];
+
+        const availableDivisions = [
+          ...new Set(
+            preferredSportOptions
+              .map((competitionOption) => competitionOption.division)
+              .filter((division): division is TeamDivision => division != null),
+          ),
+        ];
+
         const preferredNaipe =
           sportPreference.preferred_naipe != null &&
-          preferredSportOptions.some(
-            (competitionOption) =>
-              competitionOption.naipe == sportPreference.preferred_naipe,
-          )
+          availableNaipes.includes(sportPreference.preferred_naipe)
             ? sportPreference.preferred_naipe
             : null;
 
@@ -600,21 +630,55 @@ function sanitizeScheduleDaysValues({
           seasonSettings.division_format ==
             ChampionshipSeasonDivisionFormat.SEPARATED &&
           sportPreference.preferred_division != null &&
-          preferredSportOptions.some(
-            (competitionOption) =>
-              competitionOption.division == sportPreference.preferred_division,
-          )
+          availableDivisions.includes(sportPreference.preferred_division)
             ? sportPreference.preferred_division
             : null;
 
+        let sequenceMode = resolveCourtSequenceModeValue(
+          sportPreference.sequence_mode,
+        );
+
+        if (
+          sequenceMode == "GROUP_NAIPE" &&
+          (preferredNaipe == null || availableNaipes.length < 2)
+        ) {
+          sequenceMode = "FLEXIBLE";
+        }
+
+        if (
+          sequenceMode == "GROUP_DIVISION" &&
+          (seasonSettings.division_format !=
+            ChampionshipSeasonDivisionFormat.SEPARATED ||
+            preferredDivision == null ||
+            availableDivisions.length < 2)
+        ) {
+          sequenceMode = "FLEXIBLE";
+        }
+
+        let nextPreferredNaipe = preferredNaipe;
+
+        let nextPreferredDivision = preferredDivision;
+
+        if (sequenceMode == "GROUP_NAIPE") {
+          nextPreferredDivision = null;
+        }
+
+        if (sequenceMode == "GROUP_DIVISION") {
+          nextPreferredNaipe = null;
+        }
+
         const hasExactPreferenceCombination =
-          preferredNaipe == null ||
-          preferredDivision == null ||
+          nextPreferredNaipe == null ||
+          nextPreferredDivision == null ||
           preferredSportOptions.some(
             (competitionOption) =>
-              competitionOption.naipe == preferredNaipe &&
-              competitionOption.division == preferredDivision,
+              competitionOption.naipe == nextPreferredNaipe &&
+              competitionOption.division == nextPreferredDivision,
           );
+
+        if (!hasExactPreferenceCombination) {
+          nextPreferredDivision = null;
+        }
 
         return {
           ...court,
@@ -623,11 +687,11 @@ function sanitizeScheduleDaysValues({
           sport_preference: {
             preferred_sport_id: sportPreference.preferred_sport_id,
 
-            preferred_naipe: preferredNaipe,
+            preferred_naipe: nextPreferredNaipe,
 
-            preferred_division: hasExactPreferenceCombination
-              ? preferredDivision
-              : null,
+            preferred_division: nextPreferredDivision,
+
+            sequence_mode: sequenceMode,
           },
         };
       }),

@@ -46,10 +46,16 @@ export interface ChampionshipBracketCompetitionInput {
   groups: ChampionshipBracketGroupInput[];
 }
 
+export type ChampionshipBracketCourtSequenceMode =
+  | "FLEXIBLE"
+  | "GROUP_NAIPE"
+  | "GROUP_DIVISION";
+
 export interface ChampionshipBracketCourtSportPreferenceInput {
   preferred_sport_id: string;
   preferred_naipe: MatchNaipe | null;
   preferred_division: TeamDivision | null;
+  sequence_mode: ChampionshipBracketCourtSequenceMode;
 }
 
 export interface ChampionshipBracketCourtInput {
@@ -270,7 +276,10 @@ export interface ChampionshipBracketCompetitionConfigDraft {
   knockout_pairing_mode: ChampionshipKnockoutPairingMode;
 }
 
-export type ChampionshipBracketGroupOrderedTeamIdsByGroupNumberDraft = Record<string, string[]>;
+export type ChampionshipBracketGroupOrderedTeamIdsByGroupNumberDraft = Record<
+  string,
+  string[]
+>;
 
 export interface ChampionshipBracketScheduleCourtDraft {
   id: string;
@@ -310,9 +319,15 @@ export interface ChampionshipBracketWizardDraftFormValues {
   should_apply_modalities_to_all_teams: boolean;
   should_apply_naipes_to_all_teams: boolean;
   should_replicate_previous_schedule_day: boolean;
-  competition_config_by_key: Record<string, ChampionshipBracketCompetitionConfigDraft>;
+  competition_config_by_key: Record<
+    string,
+    ChampionshipBracketCompetitionConfigDraft
+  >;
   group_assignments_by_competition_key: Record<string, Record<string, number>>;
-  group_order_by_competition_key: Record<string, ChampionshipBracketGroupOrderedTeamIdsByGroupNumberDraft>;
+  group_order_by_competition_key: Record<
+    string,
+    ChampionshipBracketGroupOrderedTeamIdsByGroupNumberDraft
+  >;
   schedule_days: ChampionshipBracketScheduleDayDraft[];
   schedule_periods: ChampionshipBracketSchedulePeriodInput[];
   competition_period_availability: ChampionshipBracketCompetitionPeriodAvailabilityInput[];
@@ -427,6 +442,7 @@ export interface BracketCourtSportEntry {
   sport_id: string;
   preferred_naipe: MatchNaipe | null;
   preferred_division: TeamDivision | null;
+  sequence_mode: ChampionshipBracketCourtSequenceMode;
 }
 
 export interface BracketCourtWithSports {
@@ -461,6 +477,8 @@ export interface BracketLocationSportPriorityCourtGroup {
   court_group_id: string;
   court_name: string;
   position: number;
+  sequence_modes: ChampionshipBracketCourtSequenceMode[];
+  is_sequence_locked: boolean;
 }
 
 export interface BracketLocationSportPriorityGroup {

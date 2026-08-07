@@ -7,6 +7,7 @@ import type {
   ChampionshipBracketKnockoutProgramBlockInput,
   ChampionshipBracketResourceLockInput,
   ChampionshipBracketCourtSportPreferenceInput,
+  ChampionshipBracketCourtSequenceMode,
   ChampionshipBracketScheduleCourtDraft,
   ChampionshipBracketScheduleDayDraft,
   ChampionshipBracketSchedulePeriodInput,
@@ -239,9 +240,7 @@ function resolveGroupOrderByCompetitionKey(
   }, {});
 }
 
-function resolveMatchNaipeValue(
-  value: unknown,
-): MatchNaipe | null {
+function resolveMatchNaipeValue(value: unknown): MatchNaipe | null {
   switch (value) {
     case MatchNaipe.MASCULINO:
       return MatchNaipe.MASCULINO;
@@ -257,9 +256,7 @@ function resolveMatchNaipeValue(
   }
 }
 
-function resolveTeamDivisionValue(
-  value: unknown,
-): TeamDivision | null {
+function resolveTeamDivisionValue(value: unknown): TeamDivision | null {
   switch (value) {
     case TeamDivision.DIVISAO_PRINCIPAL:
       return TeamDivision.DIVISAO_PRINCIPAL;
@@ -269,6 +266,22 @@ function resolveTeamDivisionValue(
 
     default:
       return null;
+  }
+}
+
+function resolveCourtSequenceModeValue(
+  value: unknown,
+): ChampionshipBracketCourtSequenceMode {
+  switch (value) {
+    case "GROUP_NAIPE":
+      return "GROUP_NAIPE";
+
+    case "GROUP_DIVISION":
+      return "GROUP_DIVISION";
+
+    case "FLEXIBLE":
+    default:
+      return "FLEXIBLE";
   }
 }
 
@@ -302,6 +315,10 @@ function resolveCourtSportPreferenceCandidate(
     parsedPreference["preferred_division"],
   );
 
+  const sequenceMode = resolveCourtSequenceModeValue(
+    parsedPreference["sequence_mode"],
+  );
+
   if (
     !allowPreferenceWithoutRefinement &&
     preferredNaipe == null &&
@@ -314,6 +331,7 @@ function resolveCourtSportPreferenceCandidate(
     preferred_sport_id: preferredSportId,
     preferred_naipe: preferredNaipe,
     preferred_division: preferredDivision,
+    sequence_mode: sequenceMode,
   };
 }
 
@@ -1211,6 +1229,10 @@ export class ChampionshipBracketWizardDraftDTO {
                         ChampionshipSeasonDivisionFormat.SEPARATED
                           ? (sportPreference.preferred_division ?? null)
                           : null,
+
+                      sequence_mode: resolveCourtSequenceModeValue(
+                        sportPreference.sequence_mode,
+                      ),
                     }
                   : null,
             };

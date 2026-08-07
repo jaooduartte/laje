@@ -1,10 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import type {
   ChampionshipCorrectedGroupStanding,
   ChampionshipBracketLocationTemplate,
   ChampionshipBracketLocationTemplateSaveInput,
   ChampionshipBracketPreviewResult,
   ChampionshipBracketResolvedTieBreakOrderContext,
+  ChampionshipBracketCourtSequenceMode,
   ChampionshipBracketSetupFormValues,
   ChampionshipBracketTieBreakPendingContext,
   ChampionshipBracketTieBreakResolutionSaveInput,
@@ -27,23 +29,30 @@ import type { ChampionshipKnockoutPairingMode } from "@/domain/championship-brac
 import type { ChampionshipBracketView } from "@/lib/types";
 import type { MatchNaipe, TeamDivision } from "@/lib/enums";
 
+function toSupabaseJson(value: unknown): Json {
+  return value as Json;
+}
+
 export async function generateChampionshipBracketGroups(
   championship_id: string,
   payload: ChampionshipBracketSetupFormValues,
 ) {
   return supabase.rpc("generate_championship_bracket_groups", {
     _championship_id: championship_id,
-    _payload: payload,
+    _payload: toSupabaseJson(payload),
   });
 }
 
 export async function previewChampionshipBracketGroups(
   championship_id: string,
   payload: ChampionshipBracketSetupFormValues,
-): Promise<{ data: ChampionshipBracketPreviewResult | null; error: Error | null }> {
+): Promise<{
+  data: ChampionshipBracketPreviewResult | null;
+  error: Error | null;
+}> {
   const response = await supabase.rpc("preview_championship_bracket_groups", {
     _championship_id: championship_id,
-    _payload: payload,
+    _payload: toSupabaseJson(payload),
   });
 
   if (response.error) {
@@ -54,7 +63,9 @@ export async function previewChampionshipBracketGroups(
   }
 
   return {
-    data: (response.data as ChampionshipBracketPreviewResult | null) ?? null,
+    data:
+      (response.data as unknown as ChampionshipBracketPreviewResult | null) ??
+      null,
     error: null,
   };
 }
@@ -75,7 +86,9 @@ export async function fetchChampionshipBracketLocationTemplates(): Promise<{
     };
   }
 
-  const templateIds = (templatesResponse.data ?? []).map((locationTemplate) => locationTemplate.id);
+  const templateIds = (templatesResponse.data ?? []).map(
+    (locationTemplate) => locationTemplate.id,
+  );
 
   if (templateIds.length == 0) {
     return {
@@ -97,7 +110,9 @@ export async function fetchChampionshipBracketLocationTemplates(): Promise<{
     };
   }
 
-  const courtIds = (courtsResponse.data ?? []).map((locationTemplateCourt) => locationTemplateCourt.id);
+  const courtIds = (courtsResponse.data ?? []).map(
+    (locationTemplateCourt) => locationTemplateCourt.id,
+  );
   const courtSportsResponse =
     courtIds.length == 0
       ? { data: [], error: null }
@@ -113,8 +128,13 @@ export async function fetchChampionshipBracketLocationTemplates(): Promise<{
     };
   }
 
-  const sportIdsByCourtId = (courtSportsResponse.data ?? []).reduce<Record<string, string[]>>((carry, courtSport) => {
-    carry[courtSport.location_template_court_id] = [...(carry[courtSport.location_template_court_id] ?? []), courtSport.sport_id];
+  const sportIdsByCourtId = (courtSportsResponse.data ?? []).reduce<
+    Record<string, string[]>
+  >((carry, courtSport) => {
+    carry[courtSport.location_template_court_id] = [
+      ...(carry[courtSport.location_template_court_id] ?? []),
+      courtSport.sport_id,
+    ];
     return carry;
   }, {});
 
@@ -127,7 +147,9 @@ export async function fetchChampionshipBracketLocationTemplates(): Promise<{
         id: locationTemplateCourt.id,
         name: locationTemplateCourt.name,
         position: locationTemplateCourt.position,
-        sport_ids: [...new Set(sportIdsByCourtId[locationTemplateCourt.id] ?? [])],
+        sport_ids: [
+          ...new Set(sportIdsByCourtId[locationTemplateCourt.id] ?? []),
+        ],
       },
     ];
     return carry;
@@ -140,15 +162,23 @@ export async function fetchChampionshipBracketLocationTemplates(): Promise<{
         name: locationTemplate.name,
         created_at: locationTemplate.created_at,
         updated_at: locationTemplate.updated_at,
-        courts: (courtsByTemplateId[locationTemplate.id] ?? []).sort((leftCourt, rightCourt) => {
-          if (leftCourt.position == rightCourt.position) {
-            return leftCourt.name.localeCompare(rightCourt.name, "pt-BR", { sensitivity: "base" });
-          }
+        courts: (courtsByTemplateId[locationTemplate.id] ?? []).sort(
+          (leftCourt, rightCourt) => {
+            if (leftCourt.position == rightCourt.position) {
+              return leftCourt.name.localeCompare(rightCourt.name, "pt-BR", {
+                sensitivity: "base",
+              });
+            }
 
-          return leftCourt.position - rightCourt.position;
-        }),
+            return leftCourt.position - rightCourt.position;
+          },
+        ),
       }))
-      .sort((leftTemplate, rightTemplate) => leftTemplate.name.localeCompare(rightTemplate.name, "pt-BR", { sensitivity: "base" })),
+      .sort((leftTemplate, rightTemplate) =>
+        leftTemplate.name.localeCompare(rightTemplate.name, "pt-BR", {
+          sensitivity: "base",
+        }),
+      ),
     error: null,
   };
 }
@@ -156,18 +186,21 @@ export async function fetchChampionshipBracketLocationTemplates(): Promise<{
 export async function saveChampionshipBracketLocationTemplate(
   payload: ChampionshipBracketLocationTemplateSaveInput,
 ): Promise<{ data: string | null; error: Error | null }> {
-  const response = await supabase.rpc("save_championship_bracket_location_template", {
-    _payload: {
-      id: payload.id ?? null,
-      name: payload.name,
-      courts: payload.courts.map((court) => ({
-        id: court.id,
-        name: court.name,
-        position: court.position,
-        sport_ids: court.sport_ids,
-      })),
+  const response = await supabase.rpc(
+    "save_championship_bracket_location_template",
+    {
+      _payload: {
+        id: payload.id ?? null,
+        name: payload.name,
+        courts: payload.courts.map((court) => ({
+          id: court.id,
+          name: court.name,
+          position: court.position,
+          sport_ids: court.sport_ids,
+        })),
+      },
     },
-  });
+  );
 
   if (response.error) {
     return {
@@ -208,11 +241,17 @@ export async function generateChampionshipKnockout(
 export async function fetchChampionshipBracketPendingTieBreaks(
   championship_id: string,
   bracket_edition_id?: string,
-): Promise<{ data: ChampionshipBracketTieBreakPendingContext[]; error: Error | null }> {
-  const response = await supabase.rpc("get_championship_bracket_pending_tie_breaks", {
-    _championship_id: championship_id,
-    _bracket_edition_id: bracket_edition_id ?? null,
-  });
+): Promise<{
+  data: ChampionshipBracketTieBreakPendingContext[];
+  error: Error | null;
+}> {
+  const response = await supabase.rpc(
+    "get_championship_bracket_pending_tie_breaks",
+    {
+      _championship_id: championship_id,
+      _bracket_edition_id: bracket_edition_id ?? null,
+    },
+  );
 
   if (response.error) {
     return {
@@ -222,7 +261,10 @@ export async function fetchChampionshipBracketPendingTieBreaks(
   }
 
   return {
-    data: (response.data as ChampionshipBracketTieBreakPendingContext[] | null) ?? [],
+    data:
+      (response.data as unknown as
+        | ChampionshipBracketTieBreakPendingContext[]
+        | null) ?? [],
     error: null,
   };
 }
@@ -230,11 +272,17 @@ export async function fetchChampionshipBracketPendingTieBreaks(
 export async function fetchChampionshipBracketResolvedTieBreakOrders(
   championship_id: string,
   season_year?: number | null,
-): Promise<{ data: ChampionshipBracketResolvedTieBreakOrderContext[]; error: Error | null }> {
-  const response = await supabase.rpc("get_championship_bracket_resolved_tie_break_orders", {
-    _championship_id: championship_id,
-    _season_year: season_year ?? null,
-  });
+): Promise<{
+  data: ChampionshipBracketResolvedTieBreakOrderContext[];
+  error: Error | null;
+}> {
+  const response = await supabase.rpc(
+    "get_championship_bracket_resolved_tie_break_orders",
+    {
+      _championship_id: championship_id,
+      _season_year: season_year ?? null,
+    },
+  );
 
   if (response.error) {
     return {
@@ -244,7 +292,10 @@ export async function fetchChampionshipBracketResolvedTieBreakOrders(
   }
 
   return {
-    data: (response.data as ChampionshipBracketResolvedTieBreakOrderContext[] | null) ?? [],
+    data:
+      (response.data as unknown as
+        | ChampionshipBracketResolvedTieBreakOrderContext[]
+        | null) ?? [],
     error: null,
   };
 }
@@ -252,11 +303,17 @@ export async function fetchChampionshipBracketResolvedTieBreakOrders(
 export async function fetchChampionshipCorrectedGroupStandings(
   championship_id: string,
   season_year?: number | null,
-): Promise<{ data: ChampionshipCorrectedGroupStanding[]; error: Error | null }> {
-  const response = await supabase.rpc("get_championship_corrected_group_standings", {
-    _championship_id: championship_id,
-    _season_year: season_year ?? null,
-  });
+): Promise<{
+  data: ChampionshipCorrectedGroupStanding[];
+  error: Error | null;
+}> {
+  const response = await supabase.rpc(
+    "get_championship_corrected_group_standings",
+    {
+      _championship_id: championship_id,
+      _season_year: season_year ?? null,
+    },
+  );
 
   if (response.error) {
     return {
@@ -265,7 +322,9 @@ export async function fetchChampionshipCorrectedGroupStandings(
     };
   }
 
-  const normalizedRows = ((response.data as ChampionshipCorrectedGroupStanding[] | null) ?? []).map((row) => ({
+  const normalizedRows = (
+    (response.data as ChampionshipCorrectedGroupStanding[] | null) ?? []
+  ).map((row) => ({
     ...row,
     wins: Number(row.wins),
     points_base: Number(row.points_base),
@@ -290,16 +349,19 @@ export async function fetchChampionshipCorrectedGroupStandings(
 export async function saveChampionshipBracketTieBreakResolution(
   payload: ChampionshipBracketTieBreakResolutionSaveInput,
 ): Promise<{ data: string | null; error: Error | null }> {
-  const response = await supabase.rpc("save_championship_bracket_tie_break_resolution", {
-    _payload: {
-      context_key: payload.context_key,
-      competition_id: payload.competition_id,
-      context_type: payload.context_type,
-      group_id: payload.group_id ?? null,
-      qualification_rank: payload.qualification_rank ?? null,
-      team_ids: payload.team_ids,
+  const response = await supabase.rpc(
+    "save_championship_bracket_tie_break_resolution",
+    {
+      _payload: {
+        context_key: payload.context_key,
+        competition_id: payload.competition_id,
+        context_type: payload.context_type,
+        group_id: payload.group_id ?? null,
+        qualification_rank: payload.qualification_rank ?? null,
+        team_ids: payload.team_ids,
+      },
     },
-  });
+  );
 
   if (response.error) {
     return {
@@ -330,7 +392,8 @@ export async function fetchChampionshipBracketView(
     };
   }
 
-  const data = (response.data as ChampionshipBracketView | null) ?? null;
+  const data =
+    (response.data as unknown as ChampionshipBracketView | null) ?? null;
 
   if (!data || data.competitions.length == 0) {
     return {
@@ -352,10 +415,14 @@ export async function fetchChampionshipBracketView(
     };
   }
 
-  const knockoutPairingModeByCompetitionId = new Map(
+  const knockoutPairingModeByCompetitionId = new Map<
+    string,
+    ChampionshipKnockoutPairingMode
+  >(
     (pairingModesResponse.data ?? []).map((competition) => [
       competition.id,
-      competition.knockout_pairing_mode,
+      (competition.knockout_pairing_mode as ChampionshipKnockoutPairingMode | null) ??
+        "LINEAR",
     ]),
   );
 
@@ -377,11 +444,13 @@ export async function fetchChampionshipBracketView(
 export async function saveMatchSets(match_id: string, sets: MatchSetInput[]) {
   return supabase.rpc("save_match_sets", {
     _match_id: match_id,
-    _sets: sets,
+    _sets: toSupabaseJson(sets),
   });
 }
 
-export async function fetchMatchSets(match_id: string): Promise<{ data: MatchSetInput[]; error: Error | null }> {
+export async function fetchMatchSets(
+  match_id: string,
+): Promise<{ data: MatchSetInput[]; error: Error | null }> {
   const response = await supabase.rpc("get_match_sets", {
     _match_id: match_id,
   });
@@ -394,7 +463,7 @@ export async function fetchMatchSets(match_id: string): Promise<{ data: MatchSet
   }
 
   return {
-    data: (response.data as MatchSetInput[] | null) ?? [],
+    data: (response.data as unknown as MatchSetInput[] | null) ?? [],
     error: null,
   };
 }
@@ -404,11 +473,14 @@ export async function swapChampionshipKnockoutBracketTeams(
   team_a_id: string,
   team_b_id: string,
 ): Promise<{ error: Error | null }> {
-  const response = await supabase.rpc("swap_championship_knockout_bracket_teams", {
-    _competition_id: competition_id,
-    _team_a_id: team_a_id,
-    _team_b_id: team_b_id,
-  });
+  const response = await supabase.rpc(
+    "swap_championship_knockout_bracket_teams",
+    {
+      _competition_id: competition_id,
+      _team_a_id: team_a_id,
+      _team_b_id: team_b_id,
+    },
+  );
   return { error: response.error };
 }
 
@@ -417,7 +489,8 @@ export async function getBracketDaySchedules(
 ): Promise<{ data: BracketDaySchedule[]; error: Error | null }> {
   const response = await supabase
     .from("championship_bracket_days")
-    .select(`
+    .select(
+      `
       id,
       event_date,
       start_time,
@@ -441,7 +514,8 @@ export async function getBracketDaySchedules(
         scope_type,
         bracket_court_id
       )
-    `)
+    `,
+    )
     .eq("bracket_edition_id", bracketEditionId)
     .order("event_date", { ascending: true });
 
@@ -479,14 +553,15 @@ export async function getBracketDaySchedules(
     const breaks = (rawDay.championship_bracket_day_breaks ?? []).sort(
       (a, b) => a.position - b.position,
     );
-    const courts = (rawDay.championship_bracket_locations ?? []).flatMap((location) =>
-      (location.championship_bracket_courts ?? []).map((court) => ({
-        id: court.id,
-        court_group_id: court.court_group_id,
-        name: court.name,
-        location_name: location.name,
-        label: `${location.name} • ${court.name}`,
-      })),
+    const courts = (rawDay.championship_bracket_locations ?? []).flatMap(
+      (location) =>
+        (location.championship_bracket_courts ?? []).map((court) => ({
+          id: court.id,
+          court_group_id: court.court_group_id,
+          name: court.name,
+          location_name: location.name,
+          label: `${location.name} • ${court.name}`,
+        })),
     );
 
     return {
@@ -508,7 +583,7 @@ export async function updateBracketDaySchedule(
 ): Promise<{ error: Error | null }> {
   const response = await supabase.rpc("update_bracket_day_schedule", {
     _bracket_edition_id: bracketEditionId,
-    _schedule_updates: updates,
+    _schedule_updates: toSupabaseJson(updates),
   });
   return { error: response.error };
 }
@@ -577,7 +652,8 @@ export async function getBracketCourtSports(
 ): Promise<{ data: BracketDayCourtSports[]; error: Error | null }> {
   const response = await supabase
     .from("championship_bracket_days")
-    .select(`
+    .select(
+      `
       id,
       event_date,
       championship_bracket_locations (
@@ -597,7 +673,8 @@ export async function getBracketCourtSports(
           )
         )
       )
-    `)
+    `,
+    )
     .eq("bracket_edition_id", bracketEditionId)
     .order("event_date", { ascending: true });
 
@@ -608,23 +685,25 @@ export async function getBracketCourtSports(
   const data: BracketDayCourtSports[] = (response.data ?? []).map((day) => ({
     bracket_day_id: day.id,
     event_date: day.event_date,
-    locations: ((day.championship_bracket_locations as unknown as Array<{
-      id: string;
-      name: string;
-      position: number;
-      location_group_id: string;
-      championship_bracket_courts: Array<{
+    locations: (
+      (day.championship_bracket_locations as unknown as Array<{
         id: string;
         name: string;
         position: number;
-        court_group_id: string;
-        championship_bracket_court_sports: Array<{
-          sport_id: string;
-          preferred_naipe: string | null;
-          preferred_division: string | null;
+        location_group_id: string;
+        championship_bracket_courts: Array<{
+          id: string;
+          name: string;
+          position: number;
+          court_group_id: string;
+          championship_bracket_court_sports: Array<{
+            sport_id: string;
+            preferred_naipe: string | null;
+            preferred_division: string | null;
+          }>;
         }>;
-      }>;
-    }>) ?? [])
+      }>) ?? []
+    )
       .map((location) => ({
         id: location.id,
         name: location.name,
@@ -636,11 +715,20 @@ export async function getBracketCourtSports(
             name: court.name,
             position: court.position,
             court_group_id: court.court_group_id,
-            sports: (court.championship_bracket_court_sports ?? []).map((courtSport) => ({
-              sport_id: courtSport.sport_id,
-              preferred_naipe: (courtSport.preferred_naipe as MatchNaipe | null) ?? null,
-              preferred_division: (courtSport.preferred_division as TeamDivision | null) ?? null,
-            })),
+            sports: (court.championship_bracket_court_sports ?? []).map(
+              (courtSport) => ({
+                sport_id: courtSport.sport_id,
+
+                preferred_naipe:
+                  (courtSport.preferred_naipe as MatchNaipe | null) ?? null,
+
+                preferred_division:
+                  (courtSport.preferred_division as TeamDivision | null) ??
+                  null,
+
+                sequence_mode: "FLEXIBLE" as const,
+              }),
+            ),
           }))
           .sort((a, b) => a.position - b.position),
       }))
@@ -656,7 +744,7 @@ export async function updateBracketCourtPriorities(
 ): Promise<{ error: Error | null }> {
   const response = await supabase.rpc("update_bracket_court_priorities", {
     _bracket_edition_id: bracketEditionId,
-    _court_priorities: items,
+    _court_priorities: toSupabaseJson(items),
   });
   return { error: response.error };
 }
@@ -667,7 +755,8 @@ export async function getBracketLocationSportPriorities(
   const [daysResponse, prioritiesResponse] = await Promise.all([
     supabase
       .from("championship_bracket_days")
-      .select(`
+      .select(
+        `
         id,
         event_date,
         championship_bracket_locations (
@@ -685,7 +774,8 @@ export async function getBracketLocationSportPriorities(
             )
           )
         )
-      `)
+      `,
+      )
       .eq("bracket_edition_id", bracketEditionId)
       .order("event_date", { ascending: true }),
     supabase
@@ -702,49 +792,63 @@ export async function getBracketLocationSportPriorities(
     return { data: [], error: prioritiesResponse.error };
   }
 
-  const priorityModeByKey = ((prioritiesResponse.data as Array<{
-    location_group_id: string;
-    sport_id: string;
-    priority_mode: BracketLocationSportPriorityGroup["priority_mode"];
-  }> | null) ?? []).reduce<Record<string, BracketLocationSportPriorityGroup["priority_mode"]>>((carry, item) => {
-    carry[`${item.location_group_id}:${item.sport_id}`] = item.priority_mode;
-    return carry;
-  }, {});
+  const priorityModeByKey = (
+    (prioritiesResponse.data as Array<{
+      location_group_id: string;
+      sport_id: string;
+      priority_mode: BracketLocationSportPriorityGroup["priority_mode"];
+    }> | null) ?? []
+  ).reduce<Record<string, BracketLocationSportPriorityGroup["priority_mode"]>>(
+    (carry, item) => {
+      carry[`${item.location_group_id}:${item.sport_id}`] = item.priority_mode;
+      return carry;
+    },
+    {},
+  );
 
   const grouped = new Map<string, BracketLocationSportPriorityGroup>();
-  const orderedDays = (daysResponse.data as Array<{
-    championship_bracket_locations?: Array<{
-      id: string;
-      name: string;
-      position: number;
-      location_group_id: string;
-      championship_bracket_courts?: Array<{
+  const orderedDays =
+    (daysResponse.data as Array<{
+      championship_bracket_locations?: Array<{
         id: string;
         name: string;
         position: number;
-        court_group_id: string;
-        championship_bracket_court_sports?: Array<{
-          sport_id: string;
+        location_group_id: string;
+        championship_bracket_courts?: Array<{
+          id: string;
+          name: string;
+          position: number;
+          court_group_id: string;
+          championship_bracket_court_sports?: Array<{
+            sport_id: string;
+          }>;
         }>;
       }>;
-    }>;
-  }> | null) ?? [];
+    }> | null) ?? [];
 
   orderedDays.forEach((day) => {
     (day.championship_bracket_locations ?? []).forEach((location) => {
-      const uniqueSportIds = [...new Set(
-        (location.championship_bracket_courts ?? []).flatMap((court) =>
-          (court.championship_bracket_court_sports ?? []).map((courtSport) => courtSport.sport_id),
+      const uniqueSportIds = [
+        ...new Set(
+          (location.championship_bracket_courts ?? []).flatMap((court) =>
+            (court.championship_bracket_court_sports ?? []).map(
+              (courtSport) => courtSport.sport_id,
+            ),
+          ),
         ),
-      )];
+      ];
 
       uniqueSportIds.forEach((sportId) => {
         const key = `${location.location_group_id}:${sportId}`;
         const matchingCourts = (location.championship_bracket_courts ?? [])
           .filter((court) =>
-            (court.championship_bracket_court_sports ?? []).some((courtSport) => courtSport.sport_id === sportId),
+            (court.championship_bracket_court_sports ?? []).some(
+              (courtSport) => courtSport.sport_id === sportId,
+            ),
           )
-          .sort((leftCourt, rightCourt) => leftCourt.position - rightCourt.position);
+          .sort(
+            (leftCourt, rightCourt) => leftCourt.position - rightCourt.position,
+          );
 
         if (matchingCourts.length < 2) {
           return;
@@ -767,7 +871,12 @@ export async function getBracketLocationSportPriorities(
         }
 
         matchingCourts.forEach((court) => {
-          if (currentGroup.courts.some((existingCourt) => existingCourt.court_group_id === court.court_group_id)) {
+          const existingCourt = currentGroup.courts.find(
+            (currentCourt) =>
+              currentCourt.court_group_id === court.court_group_id,
+          );
+
+          if (existingCourt) {
             return;
           }
 
@@ -775,6 +884,8 @@ export async function getBracketLocationSportPriorities(
             court_group_id: court.court_group_id,
             court_name: court.name,
             position: court.position,
+            sequence_modes: ["FLEXIBLE"],
+            is_sequence_locked: false,
           });
         });
       });
@@ -785,14 +896,20 @@ export async function getBracketLocationSportPriorities(
     data: [...grouped.values()]
       .map((group) => ({
         ...group,
-        courts: [...group.courts].sort((leftCourt, rightCourt) => leftCourt.position - rightCourt.position),
+        courts: [...group.courts].sort(
+          (leftCourt, rightCourt) => leftCourt.position - rightCourt.position,
+        ),
       }))
       .sort((leftGroup, rightGroup) => {
         if (leftGroup.location_name === rightGroup.location_name) {
           return leftGroup.sport_id.localeCompare(rightGroup.sport_id);
         }
 
-        return leftGroup.location_name.localeCompare(rightGroup.location_name, "pt-BR", { sensitivity: "base" });
+        return leftGroup.location_name.localeCompare(
+          rightGroup.location_name,
+          "pt-BR",
+          { sensitivity: "base" },
+        );
       }),
     error: null,
   };
@@ -802,10 +919,13 @@ export async function updateBracketLocationSportPriorities(
   bracketEditionId: string,
   items: BracketLocationSportPriorityUpdate[],
 ): Promise<{ error: Error | null }> {
-  const response = await supabase.rpc("update_bracket_location_sport_priorities", {
-    _bracket_edition_id: bracketEditionId,
-    _priority_updates: items,
-  });
+  const response = await supabase.rpc(
+    "update_bracket_location_sport_priorities",
+    {
+      _bracket_edition_id: bracketEditionId,
+      _priority_updates: toSupabaseJson(items),
+    },
+  );
 
   return { error: response.error };
 }
@@ -813,10 +933,12 @@ export async function updateBracketLocationSportPriorities(
 export async function getBracketKnockoutCourtPriorities(
   bracketEditionId: string,
 ): Promise<{ data: BracketKnockoutCourtPriorityGroup[]; error: Error | null }> {
-  const [daysResponse, competitionsResponse, prioritiesResponse] = await Promise.all([
-    supabase
-      .from("championship_bracket_days")
-      .select(`
+  const [daysResponse, competitionsResponse, prioritiesResponse] =
+    await Promise.all([
+      supabase
+        .from("championship_bracket_days")
+        .select(
+          `
         championship_bracket_locations (
           id,
           name,
@@ -832,17 +954,20 @@ export async function getBracketKnockoutCourtPriorities(
             )
           )
         )
-      `)
-      .eq("bracket_edition_id", bracketEditionId),
-    supabase
-      .from("championship_bracket_competitions")
-      .select("sport_id, division")
-      .eq("bracket_edition_id", bracketEditionId),
-    supabase
-      .from("championship_bracket_knockout_court_priorities")
-      .select("sport_id, phase, division_scope, location_group_id, court_group_id")
-      .eq("bracket_edition_id", bracketEditionId),
-  ]);
+      `,
+        )
+        .eq("bracket_edition_id", bracketEditionId),
+      supabase
+        .from("championship_bracket_competitions")
+        .select("sport_id, division")
+        .eq("bracket_edition_id", bracketEditionId),
+      supabase
+        .from("championship_bracket_knockout_court_priorities")
+        .select(
+          "sport_id, phase, division_scope, location_group_id, court_group_id",
+        )
+        .eq("bracket_edition_id", bracketEditionId),
+    ]);
 
   if (daysResponse.error) {
     return { data: [], error: daysResponse.error };
@@ -856,32 +981,46 @@ export async function getBracketKnockoutCourtPriorities(
     return { data: [], error: prioritiesResponse.error };
   }
 
-  const courtOptionsBySportId = new Map<string, BracketKnockoutCourtPriorityGroup["courts"]>();
-  const rawDays = (daysResponse.data as Array<{
-    championship_bracket_locations?: Array<{
-      name: string;
-      position: number;
-      location_group_id: string;
-      championship_bracket_courts?: Array<{
+  const courtOptionsBySportId = new Map<
+    string,
+    BracketKnockoutCourtPriorityGroup["courts"]
+  >();
+  const rawDays =
+    (daysResponse.data as Array<{
+      championship_bracket_locations?: Array<{
         name: string;
         position: number;
-        court_group_id: string;
-        championship_bracket_court_sports?: Array<{
-          sport_id: string;
+        location_group_id: string;
+        championship_bracket_courts?: Array<{
+          name: string;
+          position: number;
+          court_group_id: string;
+          championship_bracket_court_sports?: Array<{
+            sport_id: string;
+          }>;
         }>;
       }>;
-    }>;
-  }> | null) ?? [];
+    }> | null) ?? [];
 
   rawDays.forEach((day) => {
     (day.championship_bracket_locations ?? []).forEach((location) => {
       (location.championship_bracket_courts ?? []).forEach((court) => {
-        const sportIds = [...new Set((court.championship_bracket_court_sports ?? []).map((courtSport) => courtSport.sport_id))];
+        const sportIds = [
+          ...new Set(
+            (court.championship_bracket_court_sports ?? []).map(
+              (courtSport) => courtSport.sport_id,
+            ),
+          ),
+        ];
 
         sportIds.forEach((sportId) => {
           const currentOptions = courtOptionsBySportId.get(sportId) ?? [];
 
-          if (currentOptions.some((option) => option.court_group_id === court.court_group_id)) {
+          if (
+            currentOptions.some(
+              (option) => option.court_group_id === court.court_group_id,
+            )
+          ) {
             return;
           }
 
@@ -901,14 +1040,24 @@ export async function getBracketKnockoutCourtPriorities(
     });
   });
 
-  const orderedSportIds = [...new Set((competitionsResponse.data ?? []).map((competition) => competition.sport_id))]
+  const orderedSportIds = [
+    ...new Set(
+      (competitionsResponse.data ?? []).map(
+        (competition) => competition.sport_id,
+      ),
+    ),
+  ]
     .filter((sportId) => (courtOptionsBySportId.get(sportId)?.length ?? 0) > 0)
-    .sort((leftSportId, rightSportId) => leftSportId.localeCompare(rightSportId));
+    .sort((leftSportId, rightSportId) =>
+      leftSportId.localeCompare(rightSportId),
+    );
 
-  const divisionsBySportId = ((competitionsResponse.data as Array<{
-    sport_id: string;
-    division: TeamDivision | null;
-  }> | null) ?? []).reduce<Record<string, TeamDivision[]>>((carry, competition) => {
+  const divisionsBySportId = (
+    (competitionsResponse.data as Array<{
+      sport_id: string;
+      division: TeamDivision | null;
+    }> | null) ?? []
+  ).reduce<Record<string, TeamDivision[]>>((carry, competition) => {
     if (competition.division == null) {
       return carry;
     }
@@ -922,70 +1071,82 @@ export async function getBracketKnockoutCourtPriorities(
     return carry;
   }, {});
 
-  const priorityByKey = ((prioritiesResponse.data as Array<{
-    sport_id: string;
-    phase: BracketKnockoutCourtPriorityGroup["phase"];
-    division_scope: BracketKnockoutCourtPriorityGroup["division_scope"];
-    location_group_id: string | null;
-    court_group_id: string | null;
-  }> | null) ?? []).reduce<Record<string, {
-    location_group_id: string | null;
-    court_group_id: string | null;
-  }>>((carry, priority) => {
-    carry[`${priority.sport_id}:${priority.phase}:${priority.division_scope}`] = {
-      location_group_id: priority.location_group_id,
-      court_group_id: priority.court_group_id,
-    };
+  const priorityByKey = (
+    (prioritiesResponse.data as Array<{
+      sport_id: string;
+      phase: BracketKnockoutCourtPriorityGroup["phase"];
+      division_scope: BracketKnockoutCourtPriorityGroup["division_scope"];
+      location_group_id: string | null;
+      court_group_id: string | null;
+    }> | null) ?? []
+  ).reduce<
+    Record<
+      string,
+      {
+        location_group_id: string | null;
+        court_group_id: string | null;
+      }
+    >
+  >((carry, priority) => {
+    carry[`${priority.sport_id}:${priority.phase}:${priority.division_scope}`] =
+      {
+        location_group_id: priority.location_group_id,
+        court_group_id: priority.court_group_id,
+      };
     return carry;
   }, {});
 
-  const data = orderedSportIds.flatMap<BracketKnockoutCourtPriorityGroup>((sportId) => {
-    const courts = [...(courtOptionsBySportId.get(sportId) ?? [])].sort((leftCourt, rightCourt) => {
-      if (leftCourt.location_position !== rightCourt.location_position) {
-        return leftCourt.location_position - rightCourt.location_position;
-      }
+  const data = orderedSportIds.flatMap<BracketKnockoutCourtPriorityGroup>(
+    (sportId) => {
+      const courts = [...(courtOptionsBySportId.get(sportId) ?? [])].sort(
+        (leftCourt, rightCourt) => {
+          if (leftCourt.location_position !== rightCourt.location_position) {
+            return leftCourt.location_position - rightCourt.location_position;
+          }
 
-      if (leftCourt.court_position !== rightCourt.court_position) {
-        return leftCourt.court_position - rightCourt.court_position;
-      }
+          if (leftCourt.court_position !== rightCourt.court_position) {
+            return leftCourt.court_position - rightCourt.court_position;
+          }
 
-      return `${leftCourt.location_name}:${leftCourt.court_name}`.localeCompare(
-        `${rightCourt.location_name}:${rightCourt.court_name}`,
-        "pt-BR",
-        { sensitivity: "base" },
+          return `${leftCourt.location_name}:${leftCourt.court_name}`.localeCompare(
+            `${rightCourt.location_name}:${rightCourt.court_name}`,
+            "pt-BR",
+            { sensitivity: "base" },
+          );
+        },
       );
-    });
-    const sportDivisions = divisionsBySportId[sportId] ?? [];
-    const semifinalScopes: BracketKnockoutCourtPriorityGroup["division_scope"][] =
-      sportDivisions.length > 0 ? sportDivisions : ["ALL"];
+      const sportDivisions = divisionsBySportId[sportId] ?? [];
+      const semifinalScopes: BracketKnockoutCourtPriorityGroup["division_scope"][] =
+        sportDivisions.length > 0 ? sportDivisions : ["ALL"];
 
-    const semifinalGroups = semifinalScopes.map((divisionScope) => {
-      const priority = priorityByKey[`${sportId}:SEMIFINAL:${divisionScope}`];
+      const semifinalGroups = semifinalScopes.map((divisionScope) => {
+        const priority = priorityByKey[`${sportId}:SEMIFINAL:${divisionScope}`];
 
-      return {
-        sport_id: sportId,
-        phase: "SEMIFINAL" as const,
-        division_scope: divisionScope,
-        location_group_id: priority?.location_group_id ?? null,
-        court_group_id: priority?.court_group_id ?? null,
-        courts,
-      };
-    });
+        return {
+          sport_id: sportId,
+          phase: "SEMIFINAL" as const,
+          division_scope: divisionScope,
+          location_group_id: priority?.location_group_id ?? null,
+          court_group_id: priority?.court_group_id ?? null,
+          courts,
+        };
+      });
 
-    const finalPriority = priorityByKey[`${sportId}:FINAL:ALL`];
+      const finalPriority = priorityByKey[`${sportId}:FINAL:ALL`];
 
-    return [
-      ...semifinalGroups,
-      {
-        sport_id: sportId,
-        phase: "FINAL" as const,
-        division_scope: "ALL" as const,
-        location_group_id: finalPriority?.location_group_id ?? null,
-        court_group_id: finalPriority?.court_group_id ?? null,
-        courts,
-      },
-    ];
-  });
+      return [
+        ...semifinalGroups,
+        {
+          sport_id: sportId,
+          phase: "FINAL" as const,
+          division_scope: "ALL" as const,
+          location_group_id: finalPriority?.location_group_id ?? null,
+          court_group_id: finalPriority?.court_group_id ?? null,
+          courts,
+        },
+      ];
+    },
+  );
 
   return { data, error: null };
 }
@@ -994,10 +1155,13 @@ export async function updateBracketKnockoutCourtPriorities(
   bracketEditionId: string,
   items: BracketKnockoutCourtPriorityUpdate[],
 ): Promise<{ error: Error | null }> {
-  const response = await supabase.rpc("update_bracket_knockout_court_priorities", {
-    _bracket_edition_id: bracketEditionId,
-    _priority_updates: items,
-  });
+  const response = await supabase.rpc(
+    "update_bracket_knockout_court_priorities",
+    {
+      _bracket_edition_id: bracketEditionId,
+      _priority_updates: toSupabaseJson(items),
+    },
+  );
 
   return { error: response.error };
 }
@@ -1007,7 +1171,8 @@ export async function getBracketGeneratedLocationGroups(
 ): Promise<{ data: BracketGeneratedLocationGroup[]; error: Error | null }> {
   const response = await supabase
     .from("championship_bracket_days")
-    .select(`
+    .select(
+      `
       event_date,
       championship_bracket_locations (
         id,
@@ -1021,7 +1186,8 @@ export async function getBracketGeneratedLocationGroups(
           court_group_id
         )
       )
-    `)
+    `,
+    )
     .eq("bracket_edition_id", bracketEditionId)
     .order("event_date", { ascending: true });
 
@@ -1030,18 +1196,19 @@ export async function getBracketGeneratedLocationGroups(
   }
 
   const groups = new Map<string, BracketGeneratedLocationGroup>();
-  const days = (response.data as Array<{
-    championship_bracket_locations?: Array<{
-      name: string;
-      position: number;
-      location_group_id: string;
-      championship_bracket_courts?: Array<{
+  const days =
+    (response.data as Array<{
+      championship_bracket_locations?: Array<{
         name: string;
         position: number;
-        court_group_id: string;
+        location_group_id: string;
+        championship_bracket_courts?: Array<{
+          name: string;
+          position: number;
+          court_group_id: string;
+        }>;
       }>;
-    }>;
-  }> | null) ?? [];
+    }> | null) ?? [];
 
   days.forEach((day) => {
     (day.championship_bracket_locations ?? []).forEach((location) => {
@@ -1061,9 +1228,16 @@ export async function getBracketGeneratedLocationGroups(
       }
 
       (location.championship_bracket_courts ?? [])
-        .sort((leftCourt, rightCourt) => leftCourt.position - rightCourt.position)
+        .sort(
+          (leftCourt, rightCourt) => leftCourt.position - rightCourt.position,
+        )
         .forEach((court) => {
-          if (currentGroup.courts.some((existingCourt) => existingCourt.court_group_id === court.court_group_id)) {
+          if (
+            currentGroup.courts.some(
+              (existingCourt) =>
+                existingCourt.court_group_id === court.court_group_id,
+            )
+          ) {
             return;
           }
 
@@ -1080,9 +1254,13 @@ export async function getBracketGeneratedLocationGroups(
     data: [...groups.values()]
       .map((group) => ({
         ...group,
-        courts: [...group.courts].sort((leftCourt, rightCourt) => leftCourt.position - rightCourt.position),
+        courts: [...group.courts].sort(
+          (leftCourt, rightCourt) => leftCourt.position - rightCourt.position,
+        ),
       }))
-      .sort((leftGroup, rightGroup) => leftGroup.position - rightGroup.position),
+      .sort(
+        (leftGroup, rightGroup) => leftGroup.position - rightGroup.position,
+      ),
     error: null,
   };
 }
@@ -1091,10 +1269,13 @@ export async function updateBracketGeneratedLocationGroup(
   bracketEditionId: string,
   payload: BracketGeneratedLocationGroupUpdate,
 ): Promise<{ error: Error | null }> {
-  const response = await supabase.rpc("update_bracket_generated_location_group", {
-    _bracket_edition_id: bracketEditionId,
-    _payload: payload,
-  });
+  const response = await supabase.rpc(
+    "update_bracket_generated_location_group",
+    {
+      _bracket_edition_id: bracketEditionId,
+      _payload: toSupabaseJson(payload),
+    },
+  );
 
   return { error: response.error };
 }

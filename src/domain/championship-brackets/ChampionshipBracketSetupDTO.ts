@@ -1,4 +1,7 @@
-import type { ChampionshipBracketSetupFormValues } from "@/domain/championship-brackets/championshipBracket.types";
+import type {
+  ChampionshipBracketCourtSequenceMode,
+  ChampionshipBracketSetupFormValues,
+} from "@/domain/championship-brackets/championshipBracket.types";
 import { resolveCompetitionKnockoutPairingModeValue } from "@/domain/championship-brackets/championshipBracketPairing";
 import {
   ChampionshipSchedulePeriod,
@@ -147,6 +150,28 @@ export class ChampionshipBracketSetupDTO {
     });
   }
 
+  private resolveCourtSequenceMode(
+    sequenceMode: unknown,
+  ): ChampionshipBracketCourtSequenceMode {
+    if (sequenceMode == null || sequenceMode === "") {
+      return "FLEXIBLE";
+    }
+
+    switch (sequenceMode) {
+      case "FLEXIBLE":
+        return "FLEXIBLE";
+
+      case "GROUP_NAIPE":
+        return "GROUP_NAIPE";
+
+      case "GROUP_DIVISION":
+        return "GROUP_DIVISION";
+
+      default:
+        throw new Error("Estratégia de sequenciamento da quadra inválida.");
+    }
+  }
+
   private validateScheduleDays() {
     if (this.form_values.schedule_days.length == 0) {
       throw new Error("Configure ao menos um dia de agenda do campeonato.");
@@ -257,6 +282,78 @@ export class ChampionshipBracketSetupDTO {
             throw new Error(
               `A modalidade preferencial da quadra ${court.name} não possui competição ativa.`,
             );
+          }
+
+          const sequenceMode = this.resolveCourtSequenceMode(
+            sportPreference.sequence_mode,
+          );
+
+          const availableNaipes = [
+            ...new Set(
+              preferredSportCompetitions.map(
+                (competition) => competition.naipe,
+              ),
+            ),
+          ];
+
+          const availableDivisions = [
+            ...new Set(
+              preferredSportCompetitions
+                .map((competition) => competition.division)
+                .filter(
+                  (division): division is NonNullable<typeof division> =>
+                    division != null,
+                ),
+            ),
+          ];
+
+          if (sequenceMode == "GROUP_NAIPE") {
+            if (sportPreference.preferred_naipe == null) {
+              throw new Error(
+                `Defina o primeiro naipe do agrupamento da quadra ${court.name}.`,
+              );
+            }
+
+            if (availableNaipes.length < 2) {
+              throw new Error(
+                `A modalidade selecionada na quadra ${court.name} precisa possuir ao menos dois naipes ativos para agrupamento por naipe.`,
+              );
+            }
+
+            if (sportPreference.preferred_division != null) {
+              throw new Error(
+                `O agrupamento por naipe da quadra ${court.name} não pode carregar divisão preferencial.`,
+              );
+            }
+          }
+
+          if (sequenceMode == "GROUP_DIVISION") {
+            if (
+              this.form_values.season_settings.division_format !=
+              ChampionshipSeasonDivisionFormat.SEPARATED
+            ) {
+              throw new Error(
+                `A quadra ${court.name} não pode agrupar por divisão em uma temporada unificada.`,
+              );
+            }
+
+            if (sportPreference.preferred_division == null) {
+              throw new Error(
+                `Defina a primeira divisão do agrupamento da quadra ${court.name}.`,
+              );
+            }
+
+            if (availableDivisions.length < 2) {
+              throw new Error(
+                `A modalidade selecionada na quadra ${court.name} precisa possuir ao menos duas divisões ativas para agrupamento por divisão.`,
+              );
+            }
+
+            if (sportPreference.preferred_naipe != null) {
+              throw new Error(
+                `O agrupamento por divisão da quadra ${court.name} não pode carregar naipe preferencial.`,
+              );
+            }
           }
 
           if (
@@ -921,12 +1018,18 @@ export class ChampionshipBracketSetupDTO {
               sport_preference: sportPreference
                 ? {
                     preferred_sport_id: sportPreference.preferred_sport_id,
+
                     preferred_naipe: sportPreference.preferred_naipe ?? null,
+
                     preferred_division:
                       this.form_values.season_settings.division_format ==
                       ChampionshipSeasonDivisionFormat.SEPARATED
                         ? (sportPreference.preferred_division ?? null)
                         : null,
+
+                    sequence_mode: this.resolveCourtSequenceMode(
+                      sportPreference.sequence_mode,
+                    ),
                   }
                 : null,
             };

@@ -110,6 +110,106 @@ function buildDraft(
   };
 }
 
+type TestCourtSportPreference = NonNullable<
+  ChampionshipBracketWizardDraftFormValues["schedule_days"][number]["locations"][number]["courts"][number]["sport_preference"]
+>;
+
+function sanitizeCourtSportPreference({
+  teams,
+  selectedCompetitionKeysByTeamId,
+  sportPreference,
+  seasonSettings = {
+    division_format: ChampionshipSeasonDivisionFormat.SEPARATED,
+    division_settlement_mode: ChampionshipSeasonDivisionSettlementMode.NONE,
+    principal_slots_count: null,
+    principal_relegation_count: null,
+    access_promotion_count: null,
+  },
+}: {
+  teams: Team[];
+  selectedCompetitionKeysByTeamId: Record<string, string[]>;
+  sportPreference: TestCourtSportPreference;
+  seasonSettings?: ChampionshipBracketWizardDraftFormValues["season_settings"];
+}) {
+  const selectedTeamIds = teams.map((team) => team.id);
+
+  const selectedSportIdsByTeamId = teams.reduce<Record<string, string[]>>(
+    (carry, team) => {
+      carry[team.id] = ["sport-1"];
+      return carry;
+    },
+    {},
+  );
+
+  const sanitizedDraft = sanitizeChampionshipBracketWizardDraft({
+    draftFormValues: buildDraft({
+      season_settings: seasonSettings,
+
+      enabled_sport_ids: ["sport-1"],
+
+      selected_team_ids: selectedTeamIds,
+
+      selected_sport_ids_by_team_id: selectedSportIdsByTeamId,
+
+      selected_competition_keys_by_team_id: selectedCompetitionKeysByTeamId,
+
+      schedule_days: [
+        {
+          id: "day-sequence",
+          date: "2026-08-19",
+          start_time: "08:00",
+          end_time: "20:00",
+          break_start_time: "",
+          break_end_time: "",
+
+          locations: [
+            {
+              id: "location-sequence",
+              location_template_id: null,
+              name: "Arena",
+              position: 1,
+
+              courts: [
+                {
+                  id: "court-sequence",
+                  name: "Quadra Interna",
+                  position: 1,
+                  sport_ids: ["sport-1"],
+                  sport_preference: sportPreference,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    }),
+
+    teams,
+
+    championshipSports: [
+      buildChampionshipSport({
+        sport_id: "sport-1",
+
+        naipe_mode: ChampionshipSportNaipeMode.MASCULINO_FEMININO,
+
+        sports: {
+          id: "sport-1",
+          name: "Basquetebol",
+          default_match_duration_minutes: 40,
+          created_at: "2026-05-08T00:00:00.000Z",
+        },
+      }),
+    ],
+
+    seasonSettings,
+  });
+
+  return (
+    sanitizedDraft.schedule_days[0]?.locations[0]?.courts[0]
+      ?.sport_preference ?? null
+  );
+}
+
 describe("sanitizeChampionshipBracketWizardDraft", () => {
   it("remove atléticas inválidas e limpa competições que deixaram de existir após mudança de divisão", () => {
     const principalCompetitionKey = "sport-1::MASCULINO::DIVISAO_PRINCIPAL";
@@ -768,6 +868,8 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
                       preferred_naipe: MatchNaipe.MASCULINO,
 
                       preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
+
+                      sequence_mode: "FLEXIBLE",
                     },
                   },
                 ],
@@ -812,6 +914,7 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
       preferred_sport_id: "sport-1",
       preferred_naipe: MatchNaipe.MASCULINO,
       preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
+      sequence_mode: "FLEXIBLE",
     });
   });
 
@@ -876,6 +979,8 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
                       preferred_naipe: MatchNaipe.FEMININO,
 
                       preferred_division: TeamDivision.DIVISAO_ACESSO,
+
+                      sequence_mode: "FLEXIBLE",
                     },
                   },
                 ],
@@ -918,6 +1023,7 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
       preferred_sport_id: "sport-1",
       preferred_naipe: null,
       preferred_division: null,
+      sequence_mode: "FLEXIBLE",
     });
   });
 
@@ -981,6 +1087,7 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
 
                       preferred_naipe: null,
                       preferred_division: null,
+                      sequence_mode: "FLEXIBLE",
                     },
                   },
                 ],
@@ -1020,6 +1127,192 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
       sanitizedDraft.schedule_days[0]?.locations[0]?.courts[0]
         ?.sport_preference,
     ).toBeNull();
+  });
+
+  it("preserva agrupamento válido por naipe", () => {
+    const masculineCompetitionKey = "sport-1::MASCULINO::DIVISAO_PRINCIPAL";
+
+    const feminineCompetitionKey = "sport-1::FEMININO::DIVISAO_PRINCIPAL";
+
+    const teams = [
+      buildTeam({
+        id: "team-1",
+        name: "Atlética 1",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+      }),
+
+      buildTeam({
+        id: "team-2",
+        name: "Atlética 2",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+      }),
+    ];
+
+    const sanitizedPreference = sanitizeCourtSportPreference({
+      teams,
+
+      selectedCompetitionKeysByTeamId: {
+        "team-1": [masculineCompetitionKey, feminineCompetitionKey],
+
+        "team-2": [masculineCompetitionKey, feminineCompetitionKey],
+      },
+
+      sportPreference: {
+        preferred_sport_id: "sport-1",
+        preferred_naipe: MatchNaipe.FEMININO,
+        preferred_division: null,
+        sequence_mode: "GROUP_NAIPE",
+      },
+    });
+
+    expect(sanitizedPreference).toEqual({
+      preferred_sport_id: "sport-1",
+      preferred_naipe: MatchNaipe.FEMININO,
+      preferred_division: null,
+      sequence_mode: "GROUP_NAIPE",
+    });
+  });
+
+  it("retorna agrupamento por naipe para FLEXIBLE quando existe apenas um naipe ativo", () => {
+    const competitionKey = "sport-1::MASCULINO::DIVISAO_PRINCIPAL";
+
+    const teams = [
+      buildTeam({
+        id: "team-1",
+        name: "Atlética 1",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+      }),
+
+      buildTeam({
+        id: "team-2",
+        name: "Atlética 2",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+      }),
+    ];
+
+    const sanitizedPreference = sanitizeCourtSportPreference({
+      teams,
+
+      selectedCompetitionKeysByTeamId: {
+        "team-1": [competitionKey],
+        "team-2": [competitionKey],
+      },
+
+      sportPreference: {
+        preferred_sport_id: "sport-1",
+        preferred_naipe: MatchNaipe.MASCULINO,
+        preferred_division: null,
+        sequence_mode: "GROUP_NAIPE",
+      },
+    });
+
+    expect(sanitizedPreference).toEqual({
+      preferred_sport_id: "sport-1",
+      preferred_naipe: MatchNaipe.MASCULINO,
+      preferred_division: null,
+      sequence_mode: "FLEXIBLE",
+    });
+  });
+
+  it("preserva agrupamento válido por divisão", () => {
+    const principalCompetitionKey = "sport-1::MASCULINO::DIVISAO_PRINCIPAL";
+
+    const accessCompetitionKey = "sport-1::MASCULINO::DIVISAO_ACESSO";
+
+    const teams = [
+      buildTeam({
+        id: "team-principal-1",
+        name: "Principal 1",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+      }),
+
+      buildTeam({
+        id: "team-principal-2",
+        name: "Principal 2",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+      }),
+
+      buildTeam({
+        id: "team-access-1",
+        name: "Acesso 1",
+        division: TeamDivision.DIVISAO_ACESSO,
+      }),
+
+      buildTeam({
+        id: "team-access-2",
+        name: "Acesso 2",
+        division: TeamDivision.DIVISAO_ACESSO,
+      }),
+    ];
+
+    const sanitizedPreference = sanitizeCourtSportPreference({
+      teams,
+
+      selectedCompetitionKeysByTeamId: {
+        "team-principal-1": [principalCompetitionKey],
+
+        "team-principal-2": [principalCompetitionKey],
+
+        "team-access-1": [accessCompetitionKey],
+
+        "team-access-2": [accessCompetitionKey],
+      },
+
+      sportPreference: {
+        preferred_sport_id: "sport-1",
+        preferred_naipe: null,
+        preferred_division: TeamDivision.DIVISAO_ACESSO,
+        sequence_mode: "GROUP_DIVISION",
+      },
+    });
+
+    expect(sanitizedPreference).toEqual({
+      preferred_sport_id: "sport-1",
+      preferred_naipe: null,
+      preferred_division: TeamDivision.DIVISAO_ACESSO,
+      sequence_mode: "GROUP_DIVISION",
+    });
+  });
+
+  it("retorna agrupamento por divisão para FLEXIBLE quando existe apenas uma divisão ativa", () => {
+    const competitionKey = "sport-1::MASCULINO::DIVISAO_PRINCIPAL";
+
+    const teams = [
+      buildTeam({
+        id: "team-1",
+        name: "Atlética 1",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+      }),
+
+      buildTeam({
+        id: "team-2",
+        name: "Atlética 2",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+      }),
+    ];
+
+    const sanitizedPreference = sanitizeCourtSportPreference({
+      teams,
+
+      selectedCompetitionKeysByTeamId: {
+        "team-1": [competitionKey],
+        "team-2": [competitionKey],
+      },
+
+      sportPreference: {
+        preferred_sport_id: "sport-1",
+        preferred_naipe: null,
+        preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
+        sequence_mode: "GROUP_DIVISION",
+      },
+    });
+
+    expect(sanitizedPreference).toEqual({
+      preferred_sport_id: "sport-1",
+      preferred_naipe: null,
+      preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
+      sequence_mode: "FLEXIBLE",
+    });
   });
 
   it("sanitiza blocos manuais de final conforme esportes coletivos ativos e agenda", () => {
