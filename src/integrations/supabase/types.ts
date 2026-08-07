@@ -366,6 +366,7 @@ export type Database = {
             | Database["public"]["Enums"]["team_division"]
             | null
           preferred_naipe: Database["public"]["Enums"]["match_naipe"] | null
+          sequence_mode: Database["public"]["Enums"]["bracket_court_sequence_mode"]
           sport_id: string
         }
         Insert: {
@@ -376,6 +377,7 @@ export type Database = {
             | Database["public"]["Enums"]["team_division"]
             | null
           preferred_naipe?: Database["public"]["Enums"]["match_naipe"] | null
+          sequence_mode?: Database["public"]["Enums"]["bracket_court_sequence_mode"]
           sport_id: string
         }
         Update: {
@@ -386,6 +388,7 @@ export type Database = {
             | Database["public"]["Enums"]["team_division"]
             | null
           preferred_naipe?: Database["public"]["Enums"]["match_naipe"] | null
+          sequence_mode?: Database["public"]["Enums"]["bracket_court_sequence_mode"]
           sport_id?: string
         }
         Relationships: [
@@ -3827,6 +3830,7 @@ export type Database = {
       admin_user_password_status: "PENDING" | "ACTIVE"
       app_role: "admin" | "mesa" | "eventos"
       bracket_court_priority_mode: "NONE" | "NAIPE" | "DIVISION"
+      bracket_court_sequence_mode: "FLEXIBLE" | "GROUP_NAIPE" | "GROUP_DIVISION"
       bracket_day_break_scope_type: "ALL_COURTS" | "COURT"
       bracket_edition_status:
         | "DRAFT"
@@ -4048,6 +4052,11 @@ export const Constants = {
       admin_user_password_status: ["PENDING", "ACTIVE"],
       app_role: ["admin", "mesa", "eventos"],
       bracket_court_priority_mode: ["NONE", "NAIPE", "DIVISION"],
+      bracket_court_sequence_mode: [
+        "FLEXIBLE",
+        "GROUP_NAIPE",
+        "GROUP_DIVISION",
+      ],
       bracket_day_break_scope_type: ["ALL_COURTS", "COURT"],
       bracket_edition_status: [
         "DRAFT",
