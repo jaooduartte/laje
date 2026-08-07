@@ -5627,7 +5627,7 @@ export function AdminChampionshipBracketPage({
 
       if (
         JSON.stringify(nextKnockoutProgramBlocks) ==
-      JSON.stringify(currentKnockoutProgramBlocks)
+        JSON.stringify(currentKnockoutProgramBlocks)
       ) {
         return currentKnockoutProgramBlocks;
       }
@@ -6493,7 +6493,7 @@ export function AdminChampionshipBracketPage({
       <div className="max-w-2xl mx-auto px-4 py-10">
         <Alert className="border-primary/30 bg-primary/5">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10">
+            <div className="flex h-10 w-9 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10">
               <Laptop2 className="h-4 w-4" />
             </div>
             <div className="space-y-1">
@@ -7755,7 +7755,7 @@ export function AdminChampionshipBracketPage({
                                                   size="icon"
                                                   variant="ghost"
                                                   data-testid={`${competitionKey}-group-${groupColumn.group_number}-slot-${slotIndex}-remove`}
-                                                  className="h-9 w-9 shrink-0 text-destructive/75 hover:text-destructive hover:bg-destructive/10 opacity-100 dark:text-destructive/85"
+                                                  className="h-10 w-9 shrink-0 text-destructive/75 hover:text-destructive hover:bg-destructive/10 opacity-100 dark:text-destructive/85"
                                                   onClick={() => {
                                                     if (slot.team_id) {
                                                       handleRemoveCompetitionGroupTeam(
@@ -9228,7 +9228,7 @@ export function AdminChampionshipBracketPage({
                                         );
                                       }}
                                     >
-                                      <SelectTrigger className="h-9">
+                                      <SelectTrigger className="h-10">
                                         <SelectValue placeholder="Selecione o dia" />
                                       </SelectTrigger>
                                       <SelectContent>
@@ -9265,7 +9265,7 @@ export function AdminChampionshipBracketPage({
                                         )
                                       }
                                     >
-                                      <SelectTrigger className="h-9">
+                                      <SelectTrigger className="h-10">
                                         <SelectValue placeholder="Selecione o período" />
                                       </SelectTrigger>
                                       <SelectContent>
@@ -9321,7 +9321,7 @@ export function AdminChampionshipBracketPage({
                                         );
                                       }}
                                     >
-                                      <SelectTrigger className="h-9">
+                                      <SelectTrigger className="h-10">
                                         <SelectValue placeholder="Selecione o local" />
                                       </SelectTrigger>
                                       <SelectContent>
@@ -9347,7 +9347,7 @@ export function AdminChampionshipBracketPage({
                                     "mt-4 grid gap-4",
                                     seasonSettings.division_format ==
                                       ChampionshipSeasonDivisionFormat.UNIFIED
-                                      ? "lg:grid-cols-3"
+                                      ? "lg:grid-cols-4"
                                       : "lg:grid-cols-2",
                                   )}
                                 >
@@ -9379,7 +9379,7 @@ export function AdminChampionshipBracketPage({
                                         );
                                       }}
                                     >
-                                      <SelectTrigger className="h-9">
+                                      <SelectTrigger className="h-10">
                                         <SelectValue placeholder="Selecione a quadra" />
                                       </SelectTrigger>
                                       <SelectContent>
@@ -9439,7 +9439,7 @@ export function AdminChampionshipBracketPage({
                                         );
                                       }}
                                     >
-                                      <SelectTrigger className="h-9">
+                                      <SelectTrigger className="h-10">
                                         <SelectValue placeholder="Selecione a modalidade" />
                                       </SelectTrigger>
                                       <SelectContent>
@@ -9455,6 +9455,44 @@ export function AdminChampionshipBracketPage({
                                         )}
                                       </SelectContent>
                                     </Select>
+                                  </div>
+
+                                  <div>
+                                    <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                      Duração de cada final
+                                    </p>
+
+                                    <div className="relative">
+                                      <Input
+                                        type="number"
+                                        min={1}
+                                        step={1}
+                                        placeholder="Usar duração padrão"
+                                        className="pr-12"
+                                        value={
+                                          programBlock.match_duration_minutes_override ??
+                                          ""
+                                        }
+                                        onChange={(event) => {
+                                          const nextValue = event.target.value;
+
+                                          updateKnockoutProgramBlock(
+                                            programBlockKey,
+                                            (currentProgramBlock) => ({
+                                              ...currentProgramBlock,
+                                              match_duration_minutes_override:
+                                                nextValue == ""
+                                                  ? null
+                                                  : Number(nextValue),
+                                            }),
+                                          );
+                                        }}
+                                      />
+
+                                      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs font-medium text-muted-foreground">
+                                        min
+                                      </span>
+                                    </div>
                                   </div>
 
                                   <div>
@@ -9538,7 +9576,7 @@ export function AdminChampionshipBracketPage({
                                           )
                                         }
                                       >
-                                        <SelectTrigger className="h-9">
+                                        <SelectTrigger className="h-10">
                                           <SelectValue placeholder="Selecione o escopo" />
                                         </SelectTrigger>
 
@@ -9565,43 +9603,6 @@ export function AdminChampionshipBracketPage({
                                       </Select>
                                     </div>
                                   ) : null}
-
-                                  <div>
-                                    <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                      Duração de cada final
-                                    </p>
-
-                                    <Input
-                                      type="number"
-                                      min={1}
-                                      step={1}
-                                      placeholder="Usar duração padrão"
-                                      value={
-                                        programBlock.match_duration_minutes_override ??
-                                        ""
-                                      }
-                                      onChange={(event) => {
-                                        const nextValue = event.target.value;
-
-                                        updateKnockoutProgramBlock(
-                                          programBlockKey,
-                                          (currentProgramBlock) => ({
-                                            ...currentProgramBlock,
-                                            match_duration_minutes_override:
-                                              nextValue == ""
-                                                ? null
-                                                : Number(nextValue),
-                                          }),
-                                        );
-                                      }}
-                                    />
-
-                                    <p className="mt-1 text-[11px] text-muted-foreground">
-                                      Opcional. Deixe vazio para usar a duração
-                                      padrão da modalidade. O valor é aplicado a
-                                      cada final deste bloco.
-                                    </p>
-                                  </div>
                                 </div>
                               </div>
                             );
@@ -9720,7 +9721,7 @@ export function AdminChampionshipBracketPage({
                                               )
                                             }
                                           >
-                                            <SelectTrigger className="h-9">
+                                            <SelectTrigger className="h-10">
                                               <SelectValue placeholder="Sem preferência" />
                                             </SelectTrigger>
 
@@ -9836,7 +9837,7 @@ export function AdminChampionshipBracketPage({
                                               );
                                             }}
                                           >
-                                            <SelectTrigger className="h-9">
+                                            <SelectTrigger className="h-10">
                                               <SelectValue
                                                 placeholder={
                                                   preferredSportId
@@ -9925,7 +9926,7 @@ export function AdminChampionshipBracketPage({
                                                 );
                                               }}
                                             >
-                                              <SelectTrigger className="h-9">
+                                              <SelectTrigger className="h-10">
                                                 <SelectValue
                                                   placeholder={
                                                     preferredSportId
@@ -10001,7 +10002,7 @@ export function AdminChampionshipBracketPage({
                                                 );
                                               }}
                                             >
-                                              <SelectTrigger className="h-9">
+                                              <SelectTrigger className="h-10">
                                                 <SelectValue
                                                   placeholder={
                                                     preferredSportId
@@ -10727,7 +10728,7 @@ export function AdminChampionshipBracketPage({
                               );
                             }}
                             placeholder={`Recurso ${courtIndex + 1}`}
-                            className="app-input-field h-9"
+                            className="app-input-field h-10"
                           />
                         </div>
 
