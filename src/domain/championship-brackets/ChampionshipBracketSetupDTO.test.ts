@@ -91,6 +91,12 @@ function buildFormValues(
                 name: "Quadra 1",
                 position: 1,
                 sport_ids: ["sport-1", "sport-1"],
+                sport_match_targets: [
+                  {
+                    sport_id: "sport-1",
+                    planned_match_count: 10,
+                  },
+                ],
                 sport_preference: {
                   preferred_sport_id: "sport-1",
                   preferred_naipe: MatchNaipe.MASCULINO,
@@ -145,6 +151,7 @@ function buildFormValues(
     ],
     individual_session_configs: overrides.individual_session_configs ?? [],
     resource_locks: overrides.resource_locks ?? [],
+    match_numbering_mode: overrides.match_numbering_mode ?? "COURT",
     knockout_program_blocks: overrides.knockout_program_blocks ?? [],
   };
 }
@@ -209,7 +216,241 @@ function resolveDefaultCourt(formValues: ChampionshipBracketSetupFormValues) {
   return court;
 }
 
+function applyDefaultDateAvailability(
+  formValues: ChampionshipBracketSetupFormValues,
+) {
+  const competitionKey = "sport-1::MASCULINO::DIVISAO_PRINCIPAL";
+
+  formValues.competition_date_availability = [
+    {
+      competition_key: competitionKey,
+      date: "2026-08-10",
+      mode: "FULL_DAY",
+      windows: [],
+    },
+  ];
+
+  formValues.team_competition_date_availability = [
+    {
+      team_id: "team-1",
+      competition_key: competitionKey,
+      date: "2026-08-10",
+      mode: "FULL_DAY",
+      windows: [],
+    },
+    {
+      team_id: "team-2",
+      competition_key: competitionKey,
+      date: "2026-08-10",
+      mode: "FULL_DAY",
+      windows: [],
+    },
+  ];
+}
+
 describe("ChampionshipBracketSetupDTO", () => {
+  it("preserva disponibilidades por data válidas ao salvar", () => {
+    const formValues = buildFormValues();
+
+    applyDefaultDateAvailability(formValues);
+
+    formValues.competition_date_availability = [
+      {
+        competition_key: "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
+        date: "2026-08-10",
+        mode: "CUSTOM",
+        windows: [
+          {
+            start_time: "08:00",
+            end_time: "12:00",
+          },
+          {
+            start_time: "14:00",
+            end_time: "18:00",
+          },
+        ],
+      },
+    ];
+
+    const payload = ChampionshipBracketSetupDTO.fromFormValues(
+      formValues,
+    ).bindToSave();
+
+    expect(payload.competition_date_availability).toEqual([
+      {
+        competition_key: "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
+        date: "2026-08-10",
+        mode: "CUSTOM",
+        windows: [
+          {
+            start_time: "08:00",
+            end_time: "12:00",
+          },
+          {
+            start_time: "14:00",
+            end_time: "18:00",
+          },
+        ],
+      },
+    ]);
+
+    expect(payload.team_competition_date_availability).toEqual([
+      {
+        team_id: "team-1",
+        competition_key: "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
+        date: "2026-08-10",
+        mode: "FULL_DAY",
+        windows: [],
+      },
+      {
+        team_id: "team-2",
+        competition_key: "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
+        date: "2026-08-10",
+        mode: "FULL_DAY",
+        windows: [],
+      },
+    ]);
+  });
+
+  it("rejeita disponibilidade personalizada sem janelas", () => {
+    const formValues = buildFormValues();
+
+    applyDefaultDateAvailability(formValues);
+
+    formValues.competition_date_availability = [
+      {
+        competition_key: "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
+        date: "2026-08-10",
+        mode: "CUSTOM",
+        windows: [],
+      },
+    ];
+
+    const dto = ChampionshipBracketSetupDTO.fromFormValues(formValues);
+
+    expect(() => dto.bindToSave()).toThrow(
+      "Disponibilidade da competição personalizada precisa possuir ao menos uma janela.",
+    );
+  });
+
+  it("rejeita janela de disponibilidade fora do horário do dia", () => {
+    const formValues = buildFormValues();
+
+    applyDefaultDateAvailability(formValues);
+
+    formValues.competition_date_availability = [
+      {
+        competition_key: "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
+        date: "2026-08-10",
+        mode: "CUSTOM",
+        windows: [
+          {
+            start_time: "07:30",
+            end_time: "12:00",
+          },
+        ],
+      },
+    ];
+
+    const dto = ChampionshipBracketSetupDTO.fromFormValues(formValues);
+
+    expect(() => dto.bindToSave()).toThrow(
+      "Disponibilidade da competição precisa permanecer dentro da janela do dia.",
+    );
+  });
+
+  it("rejeita janelas de disponibilidade sobrepostas", () => {
+    const formValues = buildFormValues();
+
+    applyDefaultDateAvailability(formValues);
+
+    formValues.competition_date_availability = [
+      {
+        competition_key: "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
+        date: "2026-08-10",
+        mode: "CUSTOM",
+        windows: [
+          {
+            start_time: "08:00",
+            end_time: "13:00",
+          },
+          {
+            start_time: "12:00",
+            end_time: "16:00",
+          },
+        ],
+      },
+    ];
+
+    const dto = ChampionshipBracketSetupDTO.fromFormValues(formValues);
+
+    expect(() => dto.bindToSave()).toThrow(
+      "Disponibilidade da competição possui janelas de horário sobrepostas.",
+    );
+  });
+
+  it("rejeita matriz de disponibilidade por data incompleta", () => {
+    const formValues = buildFormValues();
+
+    applyDefaultDateAvailability(formValues);
+
+    formValues.competition_date_availability = [];
+
+    const dto = ChampionshipBracketSetupDTO.fromFormValues(formValues);
+
+    expect(() => dto.bindToSave()).toThrow(
+      "Toda competição precisa possuir disponibilidade configurada para cada dia da agenda.",
+    );
+  });
+
+  it("rejeita atlética sem interseção real com a disponibilidade da competição", () => {
+    const formValues = buildFormValues();
+
+    applyDefaultDateAvailability(formValues);
+
+    formValues.competition_date_availability = [
+      {
+        competition_key: "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
+        date: "2026-08-10",
+        mode: "CUSTOM",
+        windows: [
+          {
+            start_time: "08:00",
+            end_time: "11:00",
+          },
+        ],
+      },
+    ];
+
+    formValues.team_competition_date_availability = [
+      {
+        team_id: "team-1",
+        competition_key: "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
+        date: "2026-08-10",
+        mode: "CUSTOM",
+        windows: [
+          {
+            start_time: "13:00",
+            end_time: "18:00",
+          },
+        ],
+      },
+      {
+        team_id: "team-2",
+        competition_key: "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
+        date: "2026-08-10",
+        mode: "FULL_DAY",
+        windows: [],
+      },
+    ];
+
+    const dto = ChampionshipBracketSetupDTO.fromFormValues(formValues);
+
+    expect(() => dto.bindToSave()).toThrow(
+      "Toda atlética precisa ter ao menos uma janela real compatível com sua competição.",
+    );
+  });
+
   it("rejeita competições com divisão definida quando a temporada é unificada", () => {
     const dto = ChampionshipBracketSetupDTO.fromFormValues(
       buildFormValues({
@@ -300,6 +541,124 @@ describe("ChampionshipBracketSetupDTO", () => {
     );
   });
 
+  it("rejeita modalidade coletiva ativa sem quantidade planejada de jogos", () => {
+    const formValues = buildFormValues();
+    const court = resolveDefaultCourt(formValues);
+
+    court.sport_match_targets = [];
+
+    const dto = ChampionshipBracketSetupDTO.fromFormValues(formValues);
+
+    expect(() => dto.bindToSave()).toThrow(
+      "Toda modalidade coletiva ativa precisa ter ao menos uma quantidade planejada de jogos.",
+    );
+  });
+
+  it("aceita uma única meta da modalidade para múltiplas competições do mesmo esporte", () => {
+    const formValues = buildFormValues();
+
+    addCompetitionVariant(
+      formValues,
+      MatchNaipe.FEMININO,
+      TeamDivision.DIVISAO_PRINCIPAL,
+    );
+
+    const payload = ChampionshipBracketSetupDTO.fromFormValues(
+      formValues,
+    ).bindToSave();
+
+    expect(
+      payload.schedule_days[0]?.locations[0]?.courts[0]?.sport_match_targets,
+    ).toEqual([
+      {
+        sport_id: "sport-1",
+        planned_match_count: 10,
+      },
+    ]);
+  });
+
+  it("preserva a meta planejada de jogos da modalidade ao salvar", () => {
+    const formValues = buildFormValues();
+    const court = resolveDefaultCourt(formValues);
+
+    court.sport_match_targets = [
+      {
+        sport_id: "sport-1",
+        planned_match_count: 16,
+      },
+    ];
+
+    const payload =
+      ChampionshipBracketSetupDTO.fromFormValues(formValues).bindToSave();
+
+    expect(
+      payload.schedule_days[0]?.locations[0]?.courts[0]?.sport_match_targets,
+    ).toEqual([
+      {
+        sport_id: "sport-1",
+        planned_match_count: 16,
+      },
+    ]);
+  });
+
+  it("rejeita meta de jogos para modalidade não vinculada à quadra", () => {
+    const formValues = buildFormValues();
+    const court = resolveDefaultCourt(formValues);
+
+    court.sport_match_targets = [
+      {
+        sport_id: "sport-x",
+        planned_match_count: 10,
+      },
+    ];
+
+    const dto = ChampionshipBracketSetupDTO.fromFormValues(formValues);
+
+    expect(() => dto.bindToSave()).toThrow(
+      "A meta de jogos da quadra Quadra 1 possui uma modalidade não vinculada à quadra.",
+    );
+  });
+
+  it("rejeita quantidade planejada de jogos inválida", () => {
+    const formValues = buildFormValues();
+    const court = resolveDefaultCourt(formValues);
+
+    court.sport_match_targets = [
+      {
+        sport_id: "sport-1",
+        planned_match_count: 0,
+      },
+    ];
+
+    const dto = ChampionshipBracketSetupDTO.fromFormValues(formValues);
+
+    expect(() => dto.bindToSave()).toThrow(
+      "A quantidade planejada de jogos da quadra Quadra 1 precisa ser um número inteiro maior que zero.",
+    );
+  });
+
+  it("rejeita mais de uma meta da mesma modalidade na mesma quadra", () => {
+    const formValues = buildFormValues();
+    const court = resolveDefaultCourt(formValues);
+
+    court.sport_match_targets = [
+      {
+        sport_id: "sport-1",
+        planned_match_count: 10,
+      },
+      {
+        sport_id: "sport-1",
+        planned_match_count: 12,
+      },
+    ];
+
+    const dto = ChampionshipBracketSetupDTO.fromFormValues(formValues);
+
+    expect(() => dto.bindToSave()).toThrow(
+      "A quadra Quadra 1 possui mais de uma meta para a mesma modalidade.",
+    );
+  });
+
   it("normaliza esportes habilitados e a preferência da quadra ao salvar", () => {
     const dto = ChampionshipBracketSetupDTO.fromFormValues(buildFormValues());
 
@@ -319,6 +678,18 @@ describe("ChampionshipBracketSetupDTO", () => {
       preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
       sequence_mode: "FLEXIBLE",
     });
+  });
+
+  it("preserva o modo de numeração dos jogos ao salvar", () => {
+    const dto = ChampionshipBracketSetupDTO.fromFormValues(
+      buildFormValues({
+        match_numbering_mode: "SPORT_NAIPE",
+      }),
+    );
+
+    const payload = dto.bindToSave();
+
+    expect(payload.match_numbering_mode).toBe("SPORT_NAIPE");
   });
 
   it("preserva preferência somente pela modalidade", () => {

@@ -4,10 +4,24 @@ import { LiveMatchBanner } from "@/components/LiveMatchBanner";
 import { MatchCard } from "@/components/MatchCard";
 import { SportFilter } from "@/components/SportFilter";
 import { AppPaginationControls } from "@/components/ui/app-pagination-controls";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsNavigationList, TabsNavigationTrigger } from "@/components/ui/tabs";
-import type { Championship, ChampionshipBracketView, Match, Sport } from "@/lib/types";
+import {
+  Tabs,
+  TabsContent,
+  TabsNavigationList,
+  TabsNavigationTrigger,
+} from "@/components/ui/tabs";
+import type {
+  Championship,
+  ChampionshipBracketView,
+  Match,
+  Sport,
+} from "@/lib/types";
 import type { MatchBracketContext } from "@/lib/championship";
 import { HelpCircle, Loader2 } from "lucide-react";
 import { ChampionshipBracketBoard } from "@/components/championship-brackets/ChampionshipBracketBoard";
@@ -86,7 +100,9 @@ export function LivePageView({
         <Header />
         <main className="container py-8">
           <div className="glass-panel p-5">
-            <p className="text-sm text-muted-foreground">Nenhum campeonato disponível.</p>
+            <p className="text-sm text-muted-foreground">
+              Nenhum campeonato disponível.
+            </p>
           </div>
         </main>
       </div>
@@ -107,18 +123,28 @@ export function LivePageView({
           estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
         />
 
-        <SportFilter sports={sports} selected={sportFilter} onSelect={onSportFilterChange} />
+        <SportFilter
+          sports={sports}
+          selected={sportFilter}
+          onSelect={onSportFilterChange}
+        />
 
         <Tabs defaultValue="overview" className="enter-section space-y-4">
           <TabsNavigationList className="grid w-full grid-cols-2">
-            <TabsNavigationTrigger value="overview">Resumo</TabsNavigationTrigger>
-            <TabsNavigationTrigger value="knockout">Mata-mata</TabsNavigationTrigger>
+            <TabsNavigationTrigger value="overview">
+              Resumo
+            </TabsNavigationTrigger>
+            <TabsNavigationTrigger value="knockout">
+              Mata-mata
+            </TabsNavigationTrigger>
           </TabsNavigationList>
 
           <TabsContent value="overview" className="space-y-6">
             <section className="glass-panel enter-section space-y-4 p-5">
               <div className="mb-4 flex items-center justify-center gap-2 sm:justify-start">
-                <h2 className="text-center text-xl font-display font-bold sm:text-left">Próximos Jogos</h2>
+                <h2 className="text-center text-xl font-display font-bold sm:text-left">
+                  Próximos Jogos
+                </h2>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
@@ -130,21 +156,29 @@ export function LivePageView({
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="top" className="max-w-xs text-xs">
-                    Os próximos jogos são ordenados pela fila operacional de cada modalidade, considerando as quadras
-                    disponíveis.
+                    Os próximos jogos seguem a programação operacional do
+                    campeonato. O número exibido em cada jogo respeita a
+                    configuração de numeração definida no chaveamento.
                   </TooltipContent>
                 </Tooltip>
               </div>
               {isUpcomingMatchesFetching ? (
                 <div className="space-y-4">
                   <div className="grid items-center grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {Array.from({ length: Math.max(3, upcomingMatchesItemsPerPage) }).map((_, index) => (
-                      <Skeleton key={`live-upcoming-skeleton-${index}`} className="h-52 w-full rounded-2xl" />
+                    {Array.from({
+                      length: Math.max(3, upcomingMatchesItemsPerPage),
+                    }).map((_, index) => (
+                      <Skeleton
+                        key={`live-upcoming-skeleton-${index}`}
+                        className="h-52 w-full rounded-2xl"
+                      />
                     ))}
                   </div>
                 </div>
               ) : filteredUpcomingMatches.length == 0 ? (
-                <p className="text-center text-sm text-muted-foreground sm:text-left">Nenhum jogo agendado.</p>
+                <p className="text-center text-sm text-muted-foreground sm:text-left">
+                  Nenhum jogo agendado.
+                </p>
               ) : (
                 <div className="space-y-4">
                   <div className="grid items-center grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -154,9 +188,15 @@ export function LivePageView({
                         match={match}
                         showChampionshipBadge={false}
                         bracketContext={matchBracketContextByMatchId[match.id]}
-                        matchRepresentation={matchRepresentationByMatchId[match.id]}
-                        visualQueuePosition={visualQueuePositionByMatchId[match.id]}
-                        estimatedStartTime={estimatedStartTimeByMatchId[match.id]}
+                        matchRepresentation={
+                          matchRepresentationByMatchId[match.id]
+                        }
+                        visualQueuePosition={
+                          visualQueuePositionByMatchId[match.id]
+                        }
+                        estimatedStartTime={
+                          estimatedStartTimeByMatchId[match.id]
+                        }
                       />
                     ))}
                   </div>
@@ -174,7 +214,9 @@ export function LivePageView({
           </TabsContent>
 
           <TabsContent value="knockout" className="space-y-3 glass-panel p-5">
-            <h2 className="text-center text-xl font-display font-bold sm:text-left">Mata-mata do Campeonato</h2>
+            <h2 className="text-center text-xl font-display font-bold sm:text-left">
+              Mata-mata do Campeonato
+            </h2>
             <ChampionshipBracketBoard
               championshipBracketView={championshipBracketView}
               loading={championshipBracketLoading}

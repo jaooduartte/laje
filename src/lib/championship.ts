@@ -1,7 +1,10 @@
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { resolveChampionshipBracketKnockoutProjection } from "@/domain/championship-brackets/championshipBracketKnockoutProjection";
-import type { MatchSetInput } from "@/domain/championship-brackets/championshipBracket.types";
+import type {
+  ChampionshipBracketMatchNumberingMode,
+  MatchSetInput,
+} from "@/domain/championship-brackets/championshipBracket.types";
 import {
   AppBadgeTone,
   BracketEditionStatus,
@@ -64,9 +67,14 @@ export const TEAM_DIVISION_LABELS: Record<TeamDivision, string> = {
   [TeamDivision.DIVISAO_ACESSO]: "Divisão de Acesso",
 };
 
-export const TEAM_DIVISION_SELECTION_LABELS: Record<TeamDivisionSelection, string> = {
-  [TeamDivisionSelection.DIVISAO_PRINCIPAL]: TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_PRINCIPAL],
-  [TeamDivisionSelection.DIVISAO_ACESSO]: TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_ACESSO],
+export const TEAM_DIVISION_SELECTION_LABELS: Record<
+  TeamDivisionSelection,
+  string
+> = {
+  [TeamDivisionSelection.DIVISAO_PRINCIPAL]:
+    TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_PRINCIPAL],
+  [TeamDivisionSelection.DIVISAO_ACESSO]:
+    TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_ACESSO],
   [TeamDivisionSelection.WITHOUT_DIVISION]: "Sem divisão (somente eventos)",
 };
 
@@ -77,9 +85,14 @@ export const CHAMPIONSHIP_STATUS_LABELS: Record<ChampionshipStatus, string> = {
   [ChampionshipStatus.FINISHED]: "Encerrado",
 };
 
-export const CHAMPIONSHIP_STATUS_BADGE_CLASS_NAMES: Record<ChampionshipStatus, string> = {
-  [ChampionshipStatus.PLANNING]: "border-transparent bg-secondary text-secondary-foreground",
-  [ChampionshipStatus.UPCOMING]: "border-transparent bg-secondary text-secondary-foreground",
+export const CHAMPIONSHIP_STATUS_BADGE_CLASS_NAMES: Record<
+  ChampionshipStatus,
+  string
+> = {
+  [ChampionshipStatus.PLANNING]:
+    "border-transparent bg-secondary text-secondary-foreground",
+  [ChampionshipStatus.UPCOMING]:
+    "border-transparent bg-secondary text-secondary-foreground",
   [ChampionshipStatus.IN_PROGRESS]:
     "border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200",
   [ChampionshipStatus.FINISHED]:
@@ -121,12 +134,18 @@ export const TEAM_DIVISION_BADGE_TONES: Record<TeamDivision, AppBadgeTone> = {
   [TeamDivision.DIVISAO_ACESSO]: AppBadgeTone.BLUE,
 };
 
-export const CHAMPIONSHIP_SPORT_NAIPE_MODE_LABELS: Record<ChampionshipSportNaipeMode, string> = {
+export const CHAMPIONSHIP_SPORT_NAIPE_MODE_LABELS: Record<
+  ChampionshipSportNaipeMode,
+  string
+> = {
   [ChampionshipSportNaipeMode.MISTO]: "Mista",
   [ChampionshipSportNaipeMode.MASCULINO_FEMININO]: "Masculino e Feminino",
 };
 
-export const CHAMPIONSHIP_SPORT_TIE_BREAKER_RULE_LABELS: Record<ChampionshipSportTieBreakerRule, string> = {
+export const CHAMPIONSHIP_SPORT_TIE_BREAKER_RULE_LABELS: Record<
+  ChampionshipSportTieBreakerRule,
+  string
+> = {
   [ChampionshipSportTieBreakerRule.STANDARD]: "Padrão",
   [ChampionshipSportTieBreakerRule.POINTS_AVERAGE]: "Pontos Average",
   [ChampionshipSportTieBreakerRule.BEACH_SOCCER]: "Beach Soccer",
@@ -135,7 +154,10 @@ export const CHAMPIONSHIP_SPORT_TIE_BREAKER_RULE_LABELS: Record<ChampionshipSpor
   [ChampionshipSportTieBreakerRule.HANDEBOL]: "critérios do Handebol",
 };
 
-export const CHAMPIONSHIP_SPORT_RESULT_RULE_LABELS: Record<ChampionshipSportResultRule, string> = {
+export const CHAMPIONSHIP_SPORT_RESULT_RULE_LABELS: Record<
+  ChampionshipSportResultRule,
+  string
+> = {
   [ChampionshipSportResultRule.POINTS]: "Por Pontos",
   [ChampionshipSportResultRule.SETS]: "Por Sets",
 };
@@ -145,16 +167,23 @@ export const BRACKET_PHASE_LABELS: Record<BracketPhase, string> = {
   [BracketPhase.KNOCKOUT]: "Mata-mata",
 };
 
-export const BRACKET_EDITION_STATUS_LABELS: Record<BracketEditionStatus, string> = {
+export const BRACKET_EDITION_STATUS_LABELS: Record<
+  BracketEditionStatus,
+  string
+> = {
   [BracketEditionStatus.DRAFT]: "Rascunho",
   [BracketEditionStatus.GROUPS_GENERATED]: "Grupos Gerados",
   [BracketEditionStatus.KNOCKOUT_GENERATED]: "Mata-mata Gerado",
 };
 
-export const BRACKET_THIRD_PLACE_MODE_LABELS: Record<BracketThirdPlaceMode, string> = {
+export const BRACKET_THIRD_PLACE_MODE_LABELS: Record<
+  BracketThirdPlaceMode,
+  string
+> = {
   [BracketThirdPlaceMode.NONE]: "Sem 3º lugar",
   [BracketThirdPlaceMode.MATCH]: "Disputa de 3º lugar",
-  [BracketThirdPlaceMode.CHAMPION_SEMIFINAL_LOSER]: "3º lugar herdado da semi do campeão",
+  [BracketThirdPlaceMode.CHAMPION_SEMIFINAL_LOSER]:
+    "3º lugar herdado da semi do campeão",
 };
 
 export const EMPTY_CHAMPIONSHIP_BRACKET_VIEW: ChampionshipBracketView = {
@@ -214,13 +243,17 @@ const MATCH_DATE_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
 });
 
 function resolveAlphabeticalGroupSuffix(groupNumber: number): string {
-  const safeGroupNumber = Number.isFinite(groupNumber) ? Math.max(1, Math.trunc(groupNumber)) : 1;
+  const safeGroupNumber = Number.isFinite(groupNumber)
+    ? Math.max(1, Math.trunc(groupNumber))
+    : 1;
   let alphabeticalGroupSuffix = "";
   let remainingGroupNumber = safeGroupNumber;
 
   while (remainingGroupNumber > 0) {
     remainingGroupNumber -= 1;
-    alphabeticalGroupSuffix = String.fromCharCode(65 + (remainingGroupNumber % 26)) + alphabeticalGroupSuffix;
+    alphabeticalGroupSuffix =
+      String.fromCharCode(65 + (remainingGroupNumber % 26)) +
+      alphabeticalGroupSuffix;
     remainingGroupNumber = Math.floor(remainingGroupNumber / 26);
   }
 
@@ -271,7 +304,9 @@ function resolveKnockoutTotalRounds(bracketSize: number): number {
   return totalRounds;
 }
 
-function resolveCompetitionProjectedKnockoutTotalRounds(competition: ChampionshipBracketView["competitions"][number]): number {
+function resolveCompetitionProjectedKnockoutTotalRounds(
+  competition: ChampionshipBracketView["competitions"][number],
+): number {
   const knockoutProjection = resolveChampionshipBracketKnockoutProjection({
     groups_count: competition.groups_count,
     qualifiers_per_group: competition.qualifiers_per_group,
@@ -280,23 +315,33 @@ function resolveCompetitionProjectedKnockoutTotalRounds(competition: Championshi
   });
 
   if (knockoutProjection.projected_bracket_size >= 2) {
-    return resolveKnockoutTotalRounds(knockoutProjection.projected_bracket_size);
+    return resolveKnockoutTotalRounds(
+      knockoutProjection.projected_bracket_size,
+    );
   }
 
-  return competition.knockout_matches.reduce((currentTotalRounds, knockoutMatch) => {
-    if (knockoutMatch.is_third_place) {
-      return currentTotalRounds;
-    }
+  return competition.knockout_matches.reduce(
+    (currentTotalRounds, knockoutMatch) => {
+      if (knockoutMatch.is_third_place) {
+        return currentTotalRounds;
+      }
 
-    return Math.max(currentTotalRounds, knockoutMatch.round_number);
-  }, 0);
+      return Math.max(currentTotalRounds, knockoutMatch.round_number);
+    },
+    0,
+  );
 }
 
 export function isTeamDivision(value: string): value is TeamDivision {
-  return value === TeamDivision.DIVISAO_PRINCIPAL || value === TeamDivision.DIVISAO_ACESSO;
+  return (
+    value === TeamDivision.DIVISAO_PRINCIPAL ||
+    value === TeamDivision.DIVISAO_ACESSO
+  );
 }
 
-export function isTeamDivisionSelection(value: string): value is TeamDivisionSelection {
+export function isTeamDivisionSelection(
+  value: string,
+): value is TeamDivisionSelection {
   return (
     value === TeamDivisionSelection.DIVISAO_PRINCIPAL ||
     value === TeamDivisionSelection.DIVISAO_ACESSO ||
@@ -305,7 +350,11 @@ export function isTeamDivisionSelection(value: string): value is TeamDivisionSel
 }
 
 export function isMatchNaipe(value: string): value is MatchNaipe {
-  return value === MatchNaipe.MASCULINO || value === MatchNaipe.FEMININO || value === MatchNaipe.MISTO;
+  return (
+    value === MatchNaipe.MASCULINO ||
+    value === MatchNaipe.FEMININO ||
+    value === MatchNaipe.MISTO
+  );
 }
 
 export type MatchRepresentationSource = Pick<
@@ -335,10 +384,14 @@ export type MatchRepresentationSource = Pick<
 export function resolveMatchDisplaySlotValue(
   match: Pick<Match, "queue_position"> & { scheduled_slot?: number | null },
 ) {
-  return match.scheduled_slot ?? match.queue_position ?? Number.MAX_SAFE_INTEGER;
+  return (
+    match.scheduled_slot ?? match.queue_position ?? Number.MAX_SAFE_INTEGER
+  );
 }
 
-function resolveMatchVisualCourtScopeKey(match: MatchRepresentationSource): string {
+function resolveMatchVisualCourtScopeKey(
+  match: MatchRepresentationSource,
+): string {
   return [
     match.championship_id,
     String(match.season_year),
@@ -347,7 +400,20 @@ function resolveMatchVisualCourtScopeKey(match: MatchRepresentationSource): stri
   ].join(":");
 }
 
-function resolveMatchRepresentationFromPreviousMatch(match: MatchRepresentationSource | undefined): string {
+function resolveMatchVisualSportNaipeScopeKey(
+  match: MatchRepresentationSource,
+): string {
+  return [
+    match.championship_id,
+    String(match.season_year),
+    match.sport_id,
+    match.naipe,
+  ].join(":");
+}
+
+function resolveMatchRepresentationFromPreviousMatch(
+  match: MatchRepresentationSource | undefined,
+): string {
   if (!match) {
     return MATCH_REPRESENTATION_COORDINATION_LABEL;
   }
@@ -366,12 +432,16 @@ function resolveMatchRepresentationForVisualCourtSequence(
   currentMatch: MatchRepresentationSource,
   previousMatch: MatchRepresentationSource | undefined,
 ): string {
-  if (currentMatch.manual_representation_mode === MatchManualRepresentationMode.CO) {
+  if (
+    currentMatch.manual_representation_mode === MatchManualRepresentationMode.CO
+  ) {
     return MATCH_REPRESENTATION_COORDINATION_LABEL;
   }
 
   const currentScheduledDate = resolveMatchScheduledDateValue(currentMatch);
-  const previousScheduledDate = previousMatch ? resolveMatchScheduledDateValue(previousMatch) : null;
+  const previousScheduledDate = previousMatch
+    ? resolveMatchScheduledDateValue(previousMatch)
+    : null;
 
   if (!previousMatch || currentScheduledDate != previousScheduledDate) {
     return MATCH_REPRESENTATION_COORDINATION_LABEL;
@@ -380,11 +450,16 @@ function resolveMatchRepresentationForVisualCourtSequence(
   return resolveMatchRepresentationFromPreviousMatch(previousMatch);
 }
 
-function resolveUniqueMatchSourcesById<MatchSource extends { id: string }>(matchSources: MatchSource[]): MatchSource[] {
-  const matchSourceById = matchSources.reduce<Record<string, MatchSource>>((carry, matchSource) => {
-    carry[matchSource.id] = matchSource;
-    return carry;
-  }, {});
+function resolveUniqueMatchSourcesById<MatchSource extends { id: string }>(
+  matchSources: MatchSource[],
+): MatchSource[] {
+  const matchSourceById = matchSources.reduce<Record<string, MatchSource>>(
+    (carry, matchSource) => {
+      carry[matchSource.id] = matchSource;
+      return carry;
+    },
+    {},
+  );
 
   return Object.values(matchSourceById);
 }
@@ -393,10 +468,14 @@ function resolveMatchVisualCourtTimeSortValue(
   match: MatchRepresentationSource,
   estimatedStartTimeByMatchId?: Record<string, string>,
 ): number | null {
-  const plannedStartTimeLabel = resolveSaoPauloTimeLabel(match.start_time ?? "");
+  const plannedStartTimeLabel = resolveSaoPauloTimeLabel(
+    match.start_time ?? "",
+  );
   const estimatedStartTimeLabel = estimatedStartTimeByMatchId?.[match.id];
 
-  return resolveTimeValueToMinutes(plannedStartTimeLabel ?? estimatedStartTimeLabel ?? null);
+  return resolveTimeValueToMinutes(
+    plannedStartTimeLabel ?? estimatedStartTimeLabel ?? null,
+  );
 }
 
 function compareMatchVisualCourtOrder(
@@ -404,16 +483,27 @@ function compareMatchVisualCourtOrder(
   secondMatch: MatchRepresentationSource,
   estimatedStartTimeByMatchId?: Record<string, string>,
 ) {
-  const firstScheduledDate = resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
-  const secondScheduledDate = resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
+  const firstScheduledDate =
+    resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
+  const secondScheduledDate =
+    resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
 
   if (firstScheduledDate != secondScheduledDate) {
     return firstScheduledDate.localeCompare(secondScheduledDate);
   }
 
-  if (firstMatch.status == MatchStatus.SCHEDULED && secondMatch.status == MatchStatus.SCHEDULED) {
-    const firstVisualTimeSortValue = resolveMatchVisualCourtTimeSortValue(firstMatch, estimatedStartTimeByMatchId);
-    const secondVisualTimeSortValue = resolveMatchVisualCourtTimeSortValue(secondMatch, estimatedStartTimeByMatchId);
+  if (
+    firstMatch.status == MatchStatus.SCHEDULED &&
+    secondMatch.status == MatchStatus.SCHEDULED
+  ) {
+    const firstVisualTimeSortValue = resolveMatchVisualCourtTimeSortValue(
+      firstMatch,
+      estimatedStartTimeByMatchId,
+    );
+    const secondVisualTimeSortValue = resolveMatchVisualCourtTimeSortValue(
+      secondMatch,
+      estimatedStartTimeByMatchId,
+    );
 
     if (
       firstVisualTimeSortValue != null &&
@@ -432,7 +522,9 @@ function compareMatchVisualCourtOrder(
     }
   }
 
-  const slotDifference = resolveMatchDisplaySlotValue(firstMatch) - resolveMatchDisplaySlotValue(secondMatch);
+  const slotDifference =
+    resolveMatchDisplaySlotValue(firstMatch) -
+    resolveMatchDisplaySlotValue(secondMatch);
 
   if (slotDifference != 0) {
     return slotDifference;
@@ -444,6 +536,61 @@ function compareMatchVisualCourtOrder(
 
   return firstMatch.id.localeCompare(secondMatch.id);
 }
+
+function compareMatchVisualSportNaipeOrder(
+  firstMatch: MatchRepresentationSource,
+  secondMatch: MatchRepresentationSource,
+  estimatedStartTimeByMatchId?: Record<string, string>,
+) {
+  const firstScheduledDate =
+    resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
+  const secondScheduledDate =
+    resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
+
+  if (firstScheduledDate != secondScheduledDate) {
+    return firstScheduledDate.localeCompare(secondScheduledDate);
+  }
+
+  const firstVisualTimeSortValue = resolveMatchVisualCourtTimeSortValue(
+    firstMatch,
+    estimatedStartTimeByMatchId,
+  );
+  const secondVisualTimeSortValue = resolveMatchVisualCourtTimeSortValue(
+    secondMatch,
+    estimatedStartTimeByMatchId,
+  );
+
+  if (
+    firstVisualTimeSortValue != null &&
+    secondVisualTimeSortValue != null &&
+    firstVisualTimeSortValue != secondVisualTimeSortValue
+  ) {
+    return firstVisualTimeSortValue - secondVisualTimeSortValue;
+  }
+
+  if (firstVisualTimeSortValue != null && secondVisualTimeSortValue == null) {
+    return -1;
+  }
+
+  if (firstVisualTimeSortValue == null && secondVisualTimeSortValue != null) {
+    return 1;
+  }
+
+  const slotDifference =
+    resolveMatchDisplaySlotValue(firstMatch) -
+    resolveMatchDisplaySlotValue(secondMatch);
+
+  if (slotDifference != 0) {
+    return slotDifference;
+  }
+
+  if (firstMatch.created_at != secondMatch.created_at) {
+    return firstMatch.created_at.localeCompare(secondMatch.created_at);
+  }
+
+  return firstMatch.id.localeCompare(secondMatch.id);
+}
+
 function resolveOrderedVisualCourtMatches(
   matches: MatchRepresentationSource[],
   estimatedStartTimeByMatchId?: Record<string, string>,
@@ -461,12 +608,53 @@ function resolveOrderedVisualCourtMatches(
       );
     })
     .reduce<Record<string, MatchRepresentationSource[]>>((carry, match) => {
-    const scopeKey = resolveMatchVisualCourtScopeKey(match);
+      const scopeKey = resolveMatchVisualCourtScopeKey(match);
 
-    carry[scopeKey] = [...(carry[scopeKey] ?? []), match].sort((firstMatch, secondMatch) =>
-      compareMatchVisualCourtOrder(firstMatch, secondMatch, estimatedStartTimeByMatchId),
+      carry[scopeKey] = [...(carry[scopeKey] ?? []), match].sort(
+        (firstMatch, secondMatch) =>
+          compareMatchVisualCourtOrder(
+            firstMatch,
+            secondMatch,
+            estimatedStartTimeByMatchId,
+          ),
+      );
+      return carry;
+    }, {});
+}
+
+function resolveOrderedVisualNumberingMatches(
+  matches: MatchRepresentationSource[],
+  estimatedStartTimeByMatchId: Record<string, string> | undefined,
+  matchNumberingMode: ChampionshipBracketMatchNumberingMode,
+): Record<string, MatchRepresentationSource[]> {
+  if (matchNumberingMode == "COURT") {
+    return resolveOrderedVisualCourtMatches(
+      matches,
+      estimatedStartTimeByMatchId,
     );
-    return carry;
+  }
+
+  return matches
+    .filter((match) => {
+      return (
+        resolveMatchScheduledDateValue(match) != null &&
+        Boolean(match.sport_id) &&
+        Boolean(match.naipe)
+      );
+    })
+    .reduce<Record<string, MatchRepresentationSource[]>>((carry, match) => {
+      const scopeKey = resolveMatchVisualSportNaipeScopeKey(match);
+
+      carry[scopeKey] = [...(carry[scopeKey] ?? []), match].sort(
+        (firstMatch, secondMatch) =>
+          compareMatchVisualSportNaipeOrder(
+            firstMatch,
+            secondMatch,
+            estimatedStartTimeByMatchId,
+          ),
+      );
+
+      return carry;
     }, {});
 }
 
@@ -474,26 +662,27 @@ export function resolveVisualQueuePositionByMatchId(
   matches: MatchRepresentationSource[],
   contextMatches?: MatchRepresentationSource[],
   estimatedStartTimeByMatchId?: Record<string, string>,
+  matchNumberingMode: ChampionshipBracketMatchNumberingMode = "COURT",
 ): Record<string, number> {
   if (matches.length == 0) {
     return {};
   }
 
-  const visualCourtMatchesByScopeKey = resolveOrderedVisualCourtMatches(
+  const visualNumberingMatchesByScopeKey = resolveOrderedVisualNumberingMatches(
     resolveUniqueMatchSourcesById([...(contextMatches ?? []), ...matches]),
     estimatedStartTimeByMatchId,
+    matchNumberingMode,
   );
 
-  const visualQueuePositionByMatchId = Object.values(visualCourtMatchesByScopeKey).reduce<Record<string, number>>(
-    (carry, scopedMatches) => {
-      scopedMatches.forEach((match, matchIndex) => {
-        carry[match.id] = matchIndex + 1;
-      });
+  const visualQueuePositionByMatchId = Object.values(
+    visualNumberingMatchesByScopeKey,
+  ).reduce<Record<string, number>>((carry, scopedMatches) => {
+    scopedMatches.forEach((match, matchIndex) => {
+      carry[match.id] = matchIndex + 1;
+    });
 
-      return carry;
-    },
-    {},
-  );
+    return carry;
+  }, {});
 
   return matches.reduce<Record<string, number>>((carry, match) => {
     const visualQueuePosition = visualQueuePositionByMatchId[match.id];
@@ -520,16 +709,18 @@ export function resolveVisualCourtMatchRepresentationByMatchId(
     estimatedStartTimeByMatchId,
   );
 
-  const matchRepresentationByMatchId = Object.values(visualCourtMatchesByScopeKey).reduce<Record<string, string>>(
-    (carry, scopedMatches) => {
-      scopedMatches.forEach((match, matchIndex) => {
-        carry[match.id] = resolveMatchRepresentationForVisualCourtSequence(match, scopedMatches[matchIndex - 1]);
-      });
+  const matchRepresentationByMatchId = Object.values(
+    visualCourtMatchesByScopeKey,
+  ).reduce<Record<string, string>>((carry, scopedMatches) => {
+    scopedMatches.forEach((match, matchIndex) => {
+      carry[match.id] = resolveMatchRepresentationForVisualCourtSequence(
+        match,
+        scopedMatches[matchIndex - 1],
+      );
+    });
 
-      return carry;
-    },
-    {},
-  );
+    return carry;
+  }, {});
 
   return matches.reduce<Record<string, string>>((carry, match) => {
     const matchRepresentation = matchRepresentationByMatchId[match.id];
@@ -547,10 +738,16 @@ export function resolveMatchRepresentationByMatchId(
   contextMatches?: MatchRepresentationSource[],
   estimatedStartTimeByMatchId?: Record<string, string>,
 ): Record<string, string> {
-  return resolveVisualCourtMatchRepresentationByMatchId(matches, contextMatches, estimatedStartTimeByMatchId);
+  return resolveVisualCourtMatchRepresentationByMatchId(
+    matches,
+    contextMatches,
+    estimatedStartTimeByMatchId,
+  );
 }
 
-export function resolveNormalizedSportName(sportName: string | null | undefined): string {
+export function resolveNormalizedSportName(
+  sportName: string | null | undefined,
+): string {
   if (!sportName) {
     return "";
   }
@@ -562,7 +759,9 @@ export function resolveNormalizedSportName(sportName: string | null | undefined)
     .trim();
 }
 
-function resolveTimeValueToMinutes(timeValue: string | null | undefined): number | null {
+function resolveTimeValueToMinutes(
+  timeValue: string | null | undefined,
+): number | null {
   if (!timeValue) {
     return null;
   }
@@ -598,7 +797,13 @@ function resolveEstimatedSlotStartMinutes(params: {
   matchDurationMinutes: number;
   breaks: Array<{ startMinutes: number; endMinutes: number }>;
 }): number | null {
-  const { dayStartMinutes, dayEndMinutes, slotPosition, matchDurationMinutes, breaks } = params;
+  const {
+    dayStartMinutes,
+    dayEndMinutes,
+    slotPosition,
+    matchDurationMinutes,
+    breaks,
+  } = params;
 
   if (slotPosition < 1 || matchDurationMinutes <= 0) {
     return null;
@@ -612,7 +817,10 @@ function resolveEstimatedSlotStartMinutes(params: {
     while (changed) {
       changed = false;
       for (const brk of breaks) {
-        if (current < brk.endMinutes && current + matchDurationMinutes > brk.startMinutes) {
+        if (
+          current < brk.endMinutes &&
+          current + matchDurationMinutes > brk.startMinutes
+        ) {
           current = brk.endMinutes;
           changed = true;
         }
@@ -624,7 +832,9 @@ function resolveEstimatedSlotStartMinutes(params: {
   let currentSlotStartMinutes = findValidSlotStart(dayStartMinutes);
 
   for (let pos = 1; pos < slotPosition; pos += 1) {
-    currentSlotStartMinutes = findValidSlotStart(currentSlotStartMinutes + matchDurationMinutes);
+    currentSlotStartMinutes = findValidSlotStart(
+      currentSlotStartMinutes + matchDurationMinutes,
+    );
   }
 
   if (currentSlotStartMinutes + matchDurationMinutes > dayEndMinutes) {
@@ -647,10 +857,15 @@ function resolveNormalizedMatchEstimatedStartTimeScheduleDays(
     })
     .map((scheduleDay) => ({
       date: typeof scheduleDay.date == "string" ? scheduleDay.date : "",
-      start_time: typeof scheduleDay.start_time == "string" ? scheduleDay.start_time : "",
-      end_time: typeof scheduleDay.end_time == "string" ? scheduleDay.end_time : "",
+      start_time:
+        typeof scheduleDay.start_time == "string" ? scheduleDay.start_time : "",
+      end_time:
+        typeof scheduleDay.end_time == "string" ? scheduleDay.end_time : "",
     }))
-    .filter((scheduleDay) => scheduleDay.date && scheduleDay.start_time && scheduleDay.end_time);
+    .filter(
+      (scheduleDay) =>
+        scheduleDay.date && scheduleDay.start_time && scheduleDay.end_time,
+    );
 }
 
 function resolveMatchEstimatedStartTimeScheduleDays(
@@ -675,7 +890,9 @@ function resolveMatchEstimatedStartTimeScheduleDays(
   return [];
 }
 
-function resolveTimeFormatterParts(dateTime: string): Map<string, string> | null {
+function resolveTimeFormatterParts(
+  dateTime: string,
+): Map<string, string> | null {
   const resolvedDate = new Date(dateTime);
 
   if (Number.isNaN(resolvedDate.getTime())) {
@@ -684,8 +901,7 @@ function resolveTimeFormatterParts(dateTime: string): Map<string, string> | null
 
   try {
     return new Map(
-      MATCH_TIME_FORMATTER
-        .formatToParts(resolvedDate)
+      MATCH_TIME_FORMATTER.formatToParts(resolvedDate)
         .filter((part) => part.type == "hour" || part.type == "minute")
         .map((part) => [part.type, part.value]),
     );
@@ -715,9 +931,11 @@ function resolveSaoPauloDateLabel(dateTime: string): string | null {
 
   try {
     const dateParts = new Map(
-      MATCH_DATE_FORMATTER
-        .formatToParts(resolvedDate)
-        .filter((part) => part.type == "year" || part.type == "month" || part.type == "day")
+      MATCH_DATE_FORMATTER.formatToParts(resolvedDate)
+        .filter(
+          (part) =>
+            part.type == "year" || part.type == "month" || part.type == "day",
+        )
         .map((part) => [part.type, part.value]),
     );
     const year = dateParts.get("year");
@@ -770,54 +988,59 @@ export function resolveEstimatedStartTimeByMatchId(params: {
   const championshipSportByChampionshipAndSportKey = championshipSports.reduce<
     Record<string, MatchEstimatedStartTimeChampionshipSport>
   >((carry, championshipSport) => {
-    carry[`${championshipSport.championship_id}:${championshipSport.sport_id}`] =
-      championshipSport;
+    carry[
+      `${championshipSport.championship_id}:${championshipSport.sport_id}`
+    ] = championshipSport;
     return carry;
   }, {});
 
-  const scheduleDayByChampionshipSeasonAndDateKey = championshipBracketEditions.reduce<
-    Record<string, MatchEstimatedStartTimeScheduleDay>
-  >((carry, championshipBracketEdition) => {
-    const scheduleDays = resolveMatchEstimatedStartTimeScheduleDays(
-      championshipBracketEdition.payload_snapshot,
-      championshipBracketEdition.schedule_days,
-    );
+  const scheduleDayByChampionshipSeasonAndDateKey =
+    championshipBracketEditions.reduce<
+      Record<string, MatchEstimatedStartTimeScheduleDay>
+    >((carry, championshipBracketEdition) => {
+      const scheduleDays = resolveMatchEstimatedStartTimeScheduleDays(
+        championshipBracketEdition.payload_snapshot,
+        championshipBracketEdition.schedule_days,
+      );
 
-    scheduleDays.forEach((scheduleDay) => {
-      carry[
-        `${championshipBracketEdition.championship_id}:${championshipBracketEdition.season_year}:${scheduleDay.date}`
-      ] = scheduleDay;
-    });
+      scheduleDays.forEach((scheduleDay) => {
+        carry[
+          `${championshipBracketEdition.championship_id}:${championshipBracketEdition.season_year}:${scheduleDay.date}`
+        ] = scheduleDay;
+      });
 
-    return carry;
-  }, {});
+      return carry;
+    }, {});
 
   const estimatedStartTimeBySlotKey: Record<string, string> = {};
-  const minimumRawSlotByChampionshipSeasonDateAndSportKey = operationalMatches.reduce<Record<string, number>>((carry, match) => {
-    const scheduledDateValue = resolveMatchScheduledDateValue(match);
+  const minimumRawSlotByChampionshipSeasonDateAndSportKey =
+    operationalMatches.reduce<Record<string, number>>((carry, match) => {
+      const scheduledDateValue = resolveMatchScheduledDateValue(match);
 
-    if (!scheduledDateValue) {
+      if (!scheduledDateValue) {
+        return carry;
+      }
+
+      const rawSlotPosition = Math.trunc(
+        match.scheduled_slot ?? match.queue_position ?? Number.MAX_SAFE_INTEGER,
+      );
+
+      if (!Number.isFinite(rawSlotPosition) || rawSlotPosition <= 0) {
+        return carry;
+      }
+
+      const slotScopeKey = `${match.championship_id}:${match.season_year}:${scheduledDateValue}:${match.sport_id}`;
+      const currentMinimumRawSlot = carry[slotScopeKey];
+
+      if (
+        !Number.isFinite(currentMinimumRawSlot) ||
+        rawSlotPosition < currentMinimumRawSlot
+      ) {
+        carry[slotScopeKey] = rawSlotPosition;
+      }
+
       return carry;
-    }
-
-    const rawSlotPosition = Math.trunc(match.scheduled_slot ?? match.queue_position ?? Number.MAX_SAFE_INTEGER);
-
-    if (!Number.isFinite(rawSlotPosition) || rawSlotPosition <= 0) {
-      return carry;
-    }
-
-    const slotScopeKey = `${match.championship_id}:${match.season_year}:${scheduledDateValue}:${match.sport_id}`;
-    const currentMinimumRawSlot = carry[slotScopeKey];
-
-    if (
-      !Number.isFinite(currentMinimumRawSlot) ||
-      rawSlotPosition < currentMinimumRawSlot
-    ) {
-      carry[slotScopeKey] = rawSlotPosition;
-    }
-
-    return carry;
-  }, {});
+    }, {});
 
   return matches.reduce<Record<string, string>>((carry, match) => {
     if (match.status != MatchStatus.SCHEDULED) {
@@ -839,7 +1062,10 @@ export function resolveEstimatedStartTimeByMatchId(params: {
     if (match.start_time) {
       const directPlannedStartTime = resolveSaoPauloTimeLabel(match.start_time);
 
-      if (directPlannedStartTime && /^\d{2}:\d{2}$/.test(directPlannedStartTime)) {
+      if (
+        directPlannedStartTime &&
+        /^\d{2}:\d{2}$/.test(directPlannedStartTime)
+      ) {
         carry[match.id] = directPlannedStartTime;
         return carry;
       }
@@ -868,16 +1094,22 @@ export function resolveEstimatedStartTimeByMatchId(params: {
       return carry;
     }
 
-    const rawSlotPosition = Math.trunc(match.scheduled_slot ?? match.queue_position ?? Number.MAX_SAFE_INTEGER);
+    const rawSlotPosition = Math.trunc(
+      match.scheduled_slot ?? match.queue_position ?? Number.MAX_SAFE_INTEGER,
+    );
 
     if (!Number.isFinite(rawSlotPosition) || rawSlotPosition <= 0) {
       return carry;
     }
 
     const slotScopeKey = `${match.championship_id}:${match.season_year}:${scheduledDateValue}:${match.sport_id}`;
-    const minimumRawSlotPosition = minimumRawSlotByChampionshipSeasonDateAndSportKey[slotScopeKey];
+    const minimumRawSlotPosition =
+      minimumRawSlotByChampionshipSeasonDateAndSportKey[slotScopeKey];
 
-    if (!Number.isFinite(minimumRawSlotPosition) || minimumRawSlotPosition <= 0) {
+    if (
+      !Number.isFinite(minimumRawSlotPosition) ||
+      minimumRawSlotPosition <= 0
+    ) {
       return carry;
     }
 
@@ -890,21 +1122,30 @@ export function resolveEstimatedStartTimeByMatchId(params: {
     const dayStartMinutes = resolveTimeValueToMinutes(scheduleDay.start_time);
     const dayEndMinutes = resolveTimeValueToMinutes(scheduleDay.end_time);
 
-    if (dayStartMinutes == null || dayEndMinutes == null || dayEndMinutes <= dayStartMinutes) {
+    if (
+      dayStartMinutes == null ||
+      dayEndMinutes == null ||
+      dayEndMinutes <= dayStartMinutes
+    ) {
       return carry;
     }
 
-    const resolvedBreaks: Array<{ startMinutes: number; endMinutes: number }> = (scheduleDay.breaks ?? [])
-      .map((brk) => ({
-        startMinutes: resolveTimeValueToMinutes(brk.break_start_time) ?? -1,
-        endMinutes: resolveTimeValueToMinutes(brk.break_end_time) ?? -1,
-      }))
-      .filter((brk) => brk.startMinutes >= 0 && brk.endMinutes > brk.startMinutes)
-      .sort((a, b) => a.startMinutes - b.startMinutes);
+    const resolvedBreaks: Array<{ startMinutes: number; endMinutes: number }> =
+      (scheduleDay.breaks ?? [])
+        .map((brk) => ({
+          startMinutes: resolveTimeValueToMinutes(brk.break_start_time) ?? -1,
+          endMinutes: resolveTimeValueToMinutes(brk.break_end_time) ?? -1,
+        }))
+        .filter(
+          (brk) => brk.startMinutes >= 0 && brk.endMinutes > brk.startMinutes,
+        )
+        .sort((a, b) => a.startMinutes - b.startMinutes);
 
     const breaksKey =
       resolvedBreaks.length > 0
-        ? resolvedBreaks.map((b) => `${b.startMinutes}-${b.endMinutes}`).join("|")
+        ? resolvedBreaks
+            .map((b) => `${b.startMinutes}-${b.endMinutes}`)
+            .join("|")
         : "";
 
     const slotKey = [
@@ -966,7 +1207,9 @@ export function resolveMatchStatusLabel(status: MatchStatus): string {
   return MATCH_STATUS_LABELS[status];
 }
 
-export function isMatchCanceledByDisqualification(match: Pick<Match, "disqualification_id">): boolean {
+export function isMatchCanceledByDisqualification(
+  match: Pick<Match, "disqualification_id">,
+): boolean {
   return match.disqualification_id != null;
 }
 
@@ -996,7 +1239,11 @@ export function resolveMatchScheduledDateValue(match: {
 }
 
 export function resolveMatchQueueLabel(queuePosition: number | null): string {
-  if (typeof queuePosition == "number" && Number.isFinite(queuePosition) && queuePosition > 0) {
+  if (
+    typeof queuePosition == "number" &&
+    Number.isFinite(queuePosition) &&
+    queuePosition > 0
+  ) {
     return `Jogo ${queuePosition}`;
   }
 
@@ -1036,30 +1283,45 @@ export function resolveDisplayedMatchQueueLabel(
   },
   visualQueuePosition?: number | null,
 ): string {
-  return resolveMatchQueueLabel(resolveDisplayedMatchQueuePosition(match, visualQueuePosition));
+  return resolveMatchQueueLabel(
+    resolveDisplayedMatchQueuePosition(match, visualQueuePosition),
+  );
 }
 
-function resolveAdminEstimatedStartTimeSortValue(estimatedStartTimeValue: string | undefined): number {
-  return resolveTimeValueToMinutes(estimatedStartTimeValue) ?? Number.MAX_SAFE_INTEGER;
+function resolveAdminEstimatedStartTimeSortValue(
+  estimatedStartTimeValue: string | undefined,
+): number {
+  return (
+    resolveTimeValueToMinutes(estimatedStartTimeValue) ??
+    Number.MAX_SAFE_INTEGER
+  );
 }
 
 function compareAdminMatchLocationAndCourt(
   firstMatch: Pick<Match, "location" | "court_name">,
   secondMatch: Pick<Match, "location" | "court_name">,
 ) {
-  const locationDifference = firstMatch.location.localeCompare(secondMatch.location, "pt-BR", {
-    numeric: true,
-    sensitivity: "base",
-  });
+  const locationDifference = firstMatch.location.localeCompare(
+    secondMatch.location,
+    "pt-BR",
+    {
+      numeric: true,
+      sensitivity: "base",
+    },
+  );
 
   if (locationDifference != 0) {
     return locationDifference;
   }
 
-  return (firstMatch.court_name ?? "").localeCompare(secondMatch.court_name ?? "", "pt-BR", {
-    numeric: true,
-    sensitivity: "base",
-  });
+  return (firstMatch.court_name ?? "").localeCompare(
+    secondMatch.court_name ?? "",
+    "pt-BR",
+    {
+      numeric: true,
+      sensitivity: "base",
+    },
+  );
 }
 
 export function compareAdminMatchCardOrder(
@@ -1071,42 +1333,57 @@ export function compareAdminMatchCardOrder(
   },
 ) {
   const statusOrderDifference =
-    ADMIN_MATCH_CARD_STATUS_SORT_ORDER[firstMatch.status] - ADMIN_MATCH_CARD_STATUS_SORT_ORDER[secondMatch.status];
+    ADMIN_MATCH_CARD_STATUS_SORT_ORDER[firstMatch.status] -
+    ADMIN_MATCH_CARD_STATUS_SORT_ORDER[secondMatch.status];
 
   if (statusOrderDifference != 0) {
     return statusOrderDifference;
   }
 
-  if (firstMatch.status == MatchStatus.SCHEDULED && secondMatch.status == MatchStatus.SCHEDULED) {
-    const firstScheduledDate = resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
-    const secondScheduledDate = resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
+  if (
+    firstMatch.status == MatchStatus.SCHEDULED &&
+    secondMatch.status == MatchStatus.SCHEDULED
+  ) {
+    const firstScheduledDate =
+      resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
+    const secondScheduledDate =
+      resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
 
     if (firstScheduledDate != secondScheduledDate) {
       return firstScheduledDate.localeCompare(secondScheduledDate);
     }
 
     const estimatedStartTimeDifference =
-      resolveAdminEstimatedStartTimeSortValue(options?.estimatedStartTimeByMatchId?.[firstMatch.id]) -
-      resolveAdminEstimatedStartTimeSortValue(options?.estimatedStartTimeByMatchId?.[secondMatch.id]);
+      resolveAdminEstimatedStartTimeSortValue(
+        options?.estimatedStartTimeByMatchId?.[firstMatch.id],
+      ) -
+      resolveAdminEstimatedStartTimeSortValue(
+        options?.estimatedStartTimeByMatchId?.[secondMatch.id],
+      );
 
     if (estimatedStartTimeDifference != 0) {
       return estimatedStartTimeDifference;
     }
 
-    const firstDisplayedQueuePosition = resolveDisplayedMatchQueuePosition(
-      firstMatch,
-      options?.visualQueuePositionByMatchId?.[firstMatch.id],
-    ) ?? Number.MAX_SAFE_INTEGER;
-    const secondDisplayedQueuePosition = resolveDisplayedMatchQueuePosition(
-      secondMatch,
-      options?.visualQueuePositionByMatchId?.[secondMatch.id],
-    ) ?? Number.MAX_SAFE_INTEGER;
+    const firstDisplayedQueuePosition =
+      resolveDisplayedMatchQueuePosition(
+        firstMatch,
+        options?.visualQueuePositionByMatchId?.[firstMatch.id],
+      ) ?? Number.MAX_SAFE_INTEGER;
+    const secondDisplayedQueuePosition =
+      resolveDisplayedMatchQueuePosition(
+        secondMatch,
+        options?.visualQueuePositionByMatchId?.[secondMatch.id],
+      ) ?? Number.MAX_SAFE_INTEGER;
 
     if (firstDisplayedQueuePosition != secondDisplayedQueuePosition) {
       return firstDisplayedQueuePosition - secondDisplayedQueuePosition;
     }
 
-    const locationAndCourtDifference = compareAdminMatchLocationAndCourt(firstMatch, secondMatch);
+    const locationAndCourtDifference = compareAdminMatchLocationAndCourt(
+      firstMatch,
+      secondMatch,
+    );
 
     if (locationAndCourtDifference != 0) {
       return locationAndCourtDifference;
@@ -1119,28 +1396,38 @@ export function compareAdminMatchCardOrder(
     return firstMatch.id.localeCompare(secondMatch.id);
   }
 
-  if (firstMatch.status == MatchStatus.FINISHED && secondMatch.status == MatchStatus.FINISHED) {
-    const firstScheduledDate = resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
-    const secondScheduledDate = resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
+  if (
+    firstMatch.status == MatchStatus.FINISHED &&
+    secondMatch.status == MatchStatus.FINISHED
+  ) {
+    const firstScheduledDate =
+      resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
+    const secondScheduledDate =
+      resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
 
     if (firstScheduledDate != secondScheduledDate) {
       return firstScheduledDate.localeCompare(secondScheduledDate);
     }
 
-    const firstDisplayedQueuePosition = resolveDisplayedMatchQueuePosition(
-      firstMatch,
-      options?.visualQueuePositionByMatchId?.[firstMatch.id],
-    ) ?? Number.MAX_SAFE_INTEGER;
-    const secondDisplayedQueuePosition = resolveDisplayedMatchQueuePosition(
-      secondMatch,
-      options?.visualQueuePositionByMatchId?.[secondMatch.id],
-    ) ?? Number.MAX_SAFE_INTEGER;
+    const firstDisplayedQueuePosition =
+      resolveDisplayedMatchQueuePosition(
+        firstMatch,
+        options?.visualQueuePositionByMatchId?.[firstMatch.id],
+      ) ?? Number.MAX_SAFE_INTEGER;
+    const secondDisplayedQueuePosition =
+      resolveDisplayedMatchQueuePosition(
+        secondMatch,
+        options?.visualQueuePositionByMatchId?.[secondMatch.id],
+      ) ?? Number.MAX_SAFE_INTEGER;
 
     if (firstDisplayedQueuePosition != secondDisplayedQueuePosition) {
       return firstDisplayedQueuePosition - secondDisplayedQueuePosition;
     }
 
-    const locationAndCourtDifference = compareAdminMatchLocationAndCourt(firstMatch, secondMatch);
+    const locationAndCourtDifference = compareAdminMatchLocationAndCourt(
+      firstMatch,
+      secondMatch,
+    );
 
     if (locationAndCourtDifference != 0) {
       return locationAndCourtDifference;
@@ -1153,8 +1440,12 @@ export function compareAdminMatchCardOrder(
     return firstMatch.id.localeCompare(secondMatch.id);
   }
 
-  const firstTimestamp = new Date(firstMatch.start_time ?? firstMatch.created_at).getTime();
-  const secondTimestamp = new Date(secondMatch.start_time ?? secondMatch.created_at).getTime();
+  const firstTimestamp = new Date(
+    firstMatch.start_time ?? firstMatch.created_at,
+  ).getTime();
+  const secondTimestamp = new Date(
+    secondMatch.start_time ?? secondMatch.created_at,
+  ).getTime();
 
   return secondTimestamp - firstTimestamp;
 }
@@ -1185,14 +1476,18 @@ export function resolveOrderedScheduledMatches<
   },
 >(scheduledMatches: MatchItem[]): MatchItem[] {
   return [...scheduledMatches].sort((firstMatch, secondMatch) => {
-    const firstScheduledDate = resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
-    const secondScheduledDate = resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
+    const firstScheduledDate =
+      resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
+    const secondScheduledDate =
+      resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
 
     if (firstScheduledDate != secondScheduledDate) {
       return firstScheduledDate.localeCompare(secondScheduledDate);
     }
 
-    const slotDifference = resolveMatchDisplaySlotValue(firstMatch) - resolveMatchDisplaySlotValue(secondMatch);
+    const slotDifference =
+      resolveMatchDisplaySlotValue(firstMatch) -
+      resolveMatchDisplaySlotValue(secondMatch);
 
     if (slotDifference != 0) {
       return slotDifference;
@@ -1208,9 +1503,16 @@ export function resolveOrderedScheduledMatches<
 
 export function resolveOrderedScheduledMatchesByVisualTime<
   MatchItem extends MatchRepresentationSource,
->(scheduledMatches: MatchItem[], estimatedStartTimeByMatchId?: Record<string, string>): MatchItem[] {
+>(
+  scheduledMatches: MatchItem[],
+  estimatedStartTimeByMatchId?: Record<string, string>,
+): MatchItem[] {
   return [...scheduledMatches].sort((firstMatch, secondMatch) =>
-    compareMatchVisualCourtOrder(firstMatch, secondMatch, estimatedStartTimeByMatchId),
+    compareMatchVisualCourtOrder(
+      firstMatch,
+      secondMatch,
+      estimatedStartTimeByMatchId,
+    ),
   );
 }
 
@@ -1246,14 +1548,19 @@ export function resolveInterleavedScheduledMatchesByCompetition<
     sports?: Match["sports"] | null;
   },
 >(scheduledMatches: MatchItem[]): MatchItem[] {
-  const scheduledMatchesByDate = scheduledMatches.reduce<Record<string, MatchItem[]>>((carry, scheduledMatch) => {
+  const scheduledMatchesByDate = scheduledMatches.reduce<
+    Record<string, MatchItem[]>
+  >((carry, scheduledMatch) => {
     const scheduledDateValue = resolveMatchScheduledDateValue(scheduledMatch);
 
     if (!scheduledDateValue) {
       return carry;
     }
 
-    carry[scheduledDateValue] = [...(carry[scheduledDateValue] ?? []), scheduledMatch];
+    carry[scheduledDateValue] = [
+      ...(carry[scheduledDateValue] ?? []),
+      scheduledMatch,
+    ];
     return carry;
   }, {});
 
@@ -1261,7 +1568,9 @@ export function resolveInterleavedScheduledMatchesByCompetition<
     .sort((firstDate, secondDate) => firstDate.localeCompare(secondDate))
     .flatMap((scheduledDateValue) => {
       const currentDateMatches = scheduledMatchesByDate[scheduledDateValue];
-      const uniqueSportIds = new Set(currentDateMatches.map((scheduledMatch) => scheduledMatch.sport_id));
+      const uniqueSportIds = new Set(
+        currentDateMatches.map((scheduledMatch) => scheduledMatch.sport_id),
+      );
 
       if (uniqueSportIds.size <= 1) {
         return currentDateMatches;
@@ -1288,7 +1597,8 @@ export function resolveInterleavedScheduledMatchesByCompetition<
         hasPendingCompetitionMatches = false;
 
         orderedCompetitionKeys.forEach((competitionKey) => {
-          const competitionMatches = competitionMatchesByKey.get(competitionKey) ?? [];
+          const competitionMatches =
+            competitionMatchesByKey.get(competitionKey) ?? [];
           const nextMatch = competitionMatches.shift();
 
           if (!nextMatch) {
@@ -1296,7 +1606,8 @@ export function resolveInterleavedScheduledMatchesByCompetition<
           }
 
           interleavedMatches.push(nextMatch);
-          hasPendingCompetitionMatches = hasPendingCompetitionMatches || competitionMatches.length > 0;
+          hasPendingCompetitionMatches =
+            hasPendingCompetitionMatches || competitionMatches.length > 0;
         });
       }
 
@@ -1329,11 +1640,22 @@ export function isSocietyKnockoutMatch(
   match: Pick<Match, "championships">,
   bracketContext?: Pick<MatchBracketContext, "phase"> | null,
 ): boolean {
-  return match.championships?.code == ChampionshipCode.SOCIETY && bracketContext?.phase == BracketPhase.KNOCKOUT;
+  return (
+    match.championships?.code == ChampionshipCode.SOCIETY &&
+    bracketContext?.phase == BracketPhase.KNOCKOUT
+  );
 }
 
 export function resolveMatchPenaltyShootoutSummary(
-  match: Pick<Match, "status" | "home_score" | "away_score" | "home_penalty_score" | "away_penalty_score" | "championships">,
+  match: Pick<
+    Match,
+    | "status"
+    | "home_score"
+    | "away_score"
+    | "home_penalty_score"
+    | "away_penalty_score"
+    | "championships"
+  >,
   bracketContext?: Pick<MatchBracketContext, "phase"> | null,
 ) {
   if (
@@ -1353,7 +1675,9 @@ export function resolveMatchPenaltyShootoutSummary(
   };
 }
 
-export function isRecordedMatchSet(matchSet: MatchSetInput | null | undefined): matchSet is MatchSetInput {
+export function isRecordedMatchSet(
+  matchSet: MatchSetInput | null | undefined,
+): matchSet is MatchSetInput {
   if (!matchSet) {
     return false;
   }
@@ -1367,29 +1691,42 @@ export function isRecordedMatchSet(matchSet: MatchSetInput | null | undefined): 
   );
 }
 
-export function resolveRecordedMatchSets(match: Pick<Match, "match_sets">): MatchSetInput[] {
+export function resolveRecordedMatchSets(
+  match: Pick<Match, "match_sets">,
+): MatchSetInput[] {
   return (match.match_sets ?? [])
-    .filter((matchSet): matchSet is MatchSetInput => isRecordedMatchSet(matchSet))
-    .sort((firstMatchSet, secondMatchSet) => firstMatchSet.set_number - secondMatchSet.set_number);
+    .filter((matchSet): matchSet is MatchSetInput =>
+      isRecordedMatchSet(matchSet),
+    )
+    .sort(
+      (firstMatchSet, secondMatchSet) =>
+        firstMatchSet.set_number - secondMatchSet.set_number,
+    );
 }
 
-export function resolveMatchSetSummary(match: Pick<Match, "match_sets" | "home_team" | "away_team">) {
+export function resolveMatchSetSummary(
+  match: Pick<Match, "match_sets" | "home_team" | "away_team">,
+) {
   const homeTeamName = match.home_team?.name ?? "Mandante";
   const awayTeamName = match.away_team?.name ?? "Visitante";
 
-  return resolveRecordedMatchSets(match)
-    .map((matchSet) => ({
-      setNumber: matchSet.set_number,
-      homeTeamName,
-      awayTeamName,
-      homePoints: matchSet.home_points,
-      awayPoints: matchSet.away_points,
-      text: `Set ${matchSet.set_number}: ${homeTeamName} ${matchSet.home_points} × ${matchSet.away_points} ${awayTeamName}`,
-    }));
+  return resolveRecordedMatchSets(match).map((matchSet) => ({
+    setNumber: matchSet.set_number,
+    homeTeamName,
+    awayTeamName,
+    homePoints: matchSet.home_points,
+    awayPoints: matchSet.away_points,
+    text: `Set ${matchSet.set_number}: ${homeTeamName} ${matchSet.home_points} × ${matchSet.away_points} ${awayTeamName}`,
+  }));
 }
 
-export function isChampionshipSportNaipeMode(value: string): value is ChampionshipSportNaipeMode {
-  return value === ChampionshipSportNaipeMode.MISTO || value === ChampionshipSportNaipeMode.MASCULINO_FEMININO;
+export function isChampionshipSportNaipeMode(
+  value: string,
+): value is ChampionshipSportNaipeMode {
+  return (
+    value === ChampionshipSportNaipeMode.MISTO ||
+    value === ChampionshipSportNaipeMode.MASCULINO_FEMININO
+  );
 }
 
 export function doesChampionshipSportSupportNaipe(
@@ -1403,7 +1740,9 @@ export function doesChampionshipSportSupportNaipe(
   return naipe === MatchNaipe.MASCULINO || naipe === MatchNaipe.FEMININO;
 }
 
-export function isChampionshipStatus(value: string): value is ChampionshipStatus {
+export function isChampionshipStatus(
+  value: string,
+): value is ChampionshipStatus {
   return (
     value === ChampionshipStatus.PLANNING ||
     value === ChampionshipStatus.UPCOMING ||
@@ -1420,11 +1759,18 @@ export function isChampionshipCode(value: string): value is ChampionshipCode {
   );
 }
 
-export function isChampionshipSportResultRule(value: string): value is ChampionshipSportResultRule {
-  return value === ChampionshipSportResultRule.POINTS || value === ChampionshipSportResultRule.SETS;
+export function isChampionshipSportResultRule(
+  value: string,
+): value is ChampionshipSportResultRule {
+  return (
+    value === ChampionshipSportResultRule.POINTS ||
+    value === ChampionshipSportResultRule.SETS
+  );
 }
 
-export function isBracketThirdPlaceMode(value: string): value is BracketThirdPlaceMode {
+export function isBracketThirdPlaceMode(
+  value: string,
+): value is BracketThirdPlaceMode {
   return (
     value === BracketThirdPlaceMode.NONE ||
     value === BracketThirdPlaceMode.MATCH ||
@@ -1436,13 +1782,21 @@ export function resolveMatchBracketContextByMatchId(
   championshipBracketView: ChampionshipBracketView,
   seasonYear?: number | null,
 ): Record<string, MatchBracketContext> {
-  return championshipBracketView.competitions.reduce<Record<string, MatchBracketContext>>((matchContextById, competition) => {
-    const divisionLabel = competition.division ? TEAM_DIVISION_LABELS[competition.division] : "Sem divisão";
-    const seasonYearLabel = typeof seasonYear == "number" ? ` • ${seasonYear}` : "";
-    const knockoutTotalRounds = resolveCompetitionProjectedKnockoutTotalRounds(competition);
+  return championshipBracketView.competitions.reduce<
+    Record<string, MatchBracketContext>
+  >((matchContextById, competition) => {
+    const divisionLabel = competition.division
+      ? TEAM_DIVISION_LABELS[competition.division]
+      : "Sem divisão";
+    const seasonYearLabel =
+      typeof seasonYear == "number" ? ` • ${seasonYear}` : "";
+    const knockoutTotalRounds =
+      resolveCompetitionProjectedKnockoutTotalRounds(competition);
 
     competition.groups.forEach((group) => {
-      const championshipGroupLabel = resolveChampionshipGroupLabel(group.group_number);
+      const championshipGroupLabel = resolveChampionshipGroupLabel(
+        group.group_number,
+      );
       const groupStageLabel = `${competition.sport_name} • ${MATCH_NAIPE_LABELS[competition.naipe]} • ${divisionLabel}${seasonYearLabel} • ${championshipGroupLabel}`;
       const groupLabel = championshipGroupLabel;
       const groupFilterValue = championshipGroupLabel;
@@ -1493,16 +1847,24 @@ export function resolveBracketGroupFilterOptions(
   const groupOptionsByValue = new Map<string, string>();
 
   Object.values(matchBracketContextByMatchId).forEach((matchBracketContext) => {
-    if (!matchBracketContext.groupFilterValue || !matchBracketContext.groupLabel) {
+    if (
+      !matchBracketContext.groupFilterValue ||
+      !matchBracketContext.groupLabel
+    ) {
       return;
     }
 
-    groupOptionsByValue.set(matchBracketContext.groupFilterValue, matchBracketContext.groupLabel);
+    groupOptionsByValue.set(
+      matchBracketContext.groupFilterValue,
+      matchBracketContext.groupLabel,
+    );
   });
 
   return [...groupOptionsByValue.entries()]
     .map(([value, label]) => ({ value, label }))
-    .sort((firstGroupOption, secondGroupOption) => firstGroupOption.label.localeCompare(secondGroupOption.label));
+    .sort((firstGroupOption, secondGroupOption) =>
+      firstGroupOption.label.localeCompare(secondGroupOption.label),
+    );
 }
 
 export function resolveChampionshipBracketGroupStageOptions(
@@ -1510,7 +1872,9 @@ export function resolveChampionshipBracketGroupStageOptions(
 ): ChampionshipBracketGroupStageOption[] {
   return championshipBracketView.competitions
     .flatMap((competition) => {
-      const divisionLabel = competition.division ? TEAM_DIVISION_LABELS[competition.division] : "Sem divisão";
+      const divisionLabel = competition.division
+        ? TEAM_DIVISION_LABELS[competition.division]
+        : "Sem divisão";
 
       return competition.groups.map((group) => ({
         value: `${competition.id}:${group.id}`,
@@ -1525,13 +1889,17 @@ export function resolveChampionshipBracketGroupStageOptions(
         team_ids: group.teams.map((team) => team.team_id),
       }));
     })
-    .sort((firstGroupOption, secondGroupOption) => firstGroupOption.label.localeCompare(secondGroupOption.label));
+    .sort((firstGroupOption, secondGroupOption) =>
+      firstGroupOption.label.localeCompare(secondGroupOption.label),
+    );
 }
 
 export function resolveGroupStageMatchBindingByMatchId(
   championshipBracketView: ChampionshipBracketView,
 ): Record<string, GroupStageMatchBracketBinding> {
-  return championshipBracketView.competitions.reduce<Record<string, GroupStageMatchBracketBinding>>((carry, competition) => {
+  return championshipBracketView.competitions.reduce<
+    Record<string, GroupStageMatchBracketBinding>
+  >((carry, competition) => {
     competition.groups.forEach((group) => {
       const team_ids = group.teams.map((team) => team.team_id);
 

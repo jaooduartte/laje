@@ -5,8 +5,10 @@ import {
 } from "@/domain/championship-brackets/championshipBracketGroupEditor";
 import { resolveDefaultCompetitionKnockoutPairingMode } from "@/domain/championship-brackets/championshipBracketPairing";
 import type {
+  ChampionshipBracketCompetitionDateAvailabilityInput,
   ChampionshipBracketCompetitionConfigDraft,
   ChampionshipBracketCourtSequenceMode,
+  ChampionshipBracketTeamCompetitionDateAvailabilityInput,
   ChampionshipSeasonSettingsInput,
   ChampionshipBracketWizardDraftFormValues,
 } from "@/domain/championship-brackets/championshipBracket.types";
@@ -305,6 +307,151 @@ function sanitizeTeamCompetitionAvailabilityValues({
             date: schedulePeriod.date,
             period: schedulePeriod.period,
             enabled: existingAvailability?.enabled != false,
+          };
+        }),
+      ),
+  );
+}
+
+export function sanitizeCompetitionDateAvailabilityValues({
+  scheduleDays,
+  competitionKeys,
+  competitionDateAvailability,
+}: {
+  scheduleDays: ChampionshipBracketWizardDraftFormValues["schedule_days"];
+  competitionKeys: string[];
+  competitionDateAvailability: NonNullable<
+    ChampionshipBracketWizardDraftFormValues["competition_date_availability"]
+  >;
+}): NonNullable<
+  ChampionshipBracketWizardDraftFormValues["competition_date_availability"]
+> {
+  const validCompetitionKeySet = new Set(competitionKeys);
+  const scheduleDayDates = [
+    ...new Set(
+      scheduleDays.map((scheduleDay) => scheduleDay.date).filter(Boolean),
+    ),
+  ];
+  const validScheduleDayDateSet = new Set(scheduleDayDates);
+
+  const availabilityByKey = new Map<
+    string,
+    ChampionshipBracketCompetitionDateAvailabilityInput
+  >(
+    competitionDateAvailability
+      .filter(
+        (availabilityItem) =>
+          validCompetitionKeySet.has(availabilityItem.competition_key) &&
+          validScheduleDayDateSet.has(availabilityItem.date),
+      )
+      .map((availabilityItem) => [
+        `${availabilityItem.competition_key}::${availabilityItem.date}`,
+        availabilityItem,
+      ]),
+  );
+
+  return competitionKeys.flatMap((competitionKey) =>
+    scheduleDayDates.map((date) => {
+      const existingAvailability = availabilityByKey.get(
+        `${competitionKey}::${date}`,
+      );
+
+      const mode =
+        existingAvailability?.mode == "UNAVAILABLE" ||
+        existingAvailability?.mode == "CUSTOM" ||
+        existingAvailability?.mode == "FULL_DAY"
+          ? existingAvailability.mode
+          : "FULL_DAY";
+
+      return {
+        competition_key: competitionKey,
+        date,
+        mode,
+        windows:
+          mode == "CUSTOM"
+            ? (existingAvailability?.windows ?? []).map((window) => ({
+                start_time: window.start_time,
+                end_time: window.end_time,
+              }))
+            : [],
+      };
+    }),
+  );
+}
+
+export function sanitizeTeamCompetitionDateAvailabilityValues({
+  scheduleDays,
+  teamCompetitionKeysByTeamId,
+  teamCompetitionDateAvailability,
+}: {
+  scheduleDays: ChampionshipBracketWizardDraftFormValues["schedule_days"];
+  teamCompetitionKeysByTeamId: Record<string, string[]>;
+  teamCompetitionDateAvailability: NonNullable<
+    ChampionshipBracketWizardDraftFormValues["team_competition_date_availability"]
+  >;
+}): NonNullable<
+  ChampionshipBracketWizardDraftFormValues["team_competition_date_availability"]
+> {
+  const scheduleDayDates = [
+    ...new Set(
+      scheduleDays.map((scheduleDay) => scheduleDay.date).filter(Boolean),
+    ),
+  ];
+  const validScheduleDayDateSet = new Set(scheduleDayDates);
+
+  const validTeamCompetitionKeySet = new Set(
+    Object.entries(teamCompetitionKeysByTeamId).flatMap(
+      ([teamId, competitionKeys]) =>
+        competitionKeys.map(
+          (competitionKey) => `${teamId}::${competitionKey}`,
+        ),
+    ),
+  );
+
+  const availabilityByKey = new Map<
+    string,
+    ChampionshipBracketTeamCompetitionDateAvailabilityInput
+  >(
+    teamCompetitionDateAvailability
+      .filter(
+        (availabilityItem) =>
+          validTeamCompetitionKeySet.has(
+            `${availabilityItem.team_id}::${availabilityItem.competition_key}`,
+          ) && validScheduleDayDateSet.has(availabilityItem.date),
+      )
+      .map((availabilityItem) => [
+        `${availabilityItem.team_id}::${availabilityItem.competition_key}::${availabilityItem.date}`,
+        availabilityItem,
+      ]),
+  );
+
+  return Object.entries(teamCompetitionKeysByTeamId).flatMap(
+    ([teamId, competitionKeys]) =>
+      competitionKeys.flatMap((competitionKey) =>
+        scheduleDayDates.map((date) => {
+          const existingAvailability = availabilityByKey.get(
+            `${teamId}::${competitionKey}::${date}`,
+          );
+
+          const mode =
+            existingAvailability?.mode == "UNAVAILABLE" ||
+            existingAvailability?.mode == "CUSTOM" ||
+            existingAvailability?.mode == "FULL_DAY"
+              ? existingAvailability.mode
+              : "FULL_DAY";
+
+          return {
+            team_id: teamId,
+            competition_key: competitionKey,
+            date,
+            mode,
+            windows:
+              mode == "CUSTOM"
+                ? (existingAvailability?.windows ?? []).map((window) => ({
+                    start_time: window.start_time,
+                    end_time: window.end_time,
+                  }))
+                : [],
           };
         }),
       ),
@@ -1078,6 +1225,24 @@ export function sanitizeChampionshipBracketWizardDraft({
       teamCompetitionAvailability:
         draftFormValues.team_competition_availability ?? [],
     }),
+    competition_date_availability:
+      draftFormValues.competition_date_availability == null
+        ? undefined
+        : sanitizeCompetitionDateAvailabilityValues({
+            scheduleDays: nextScheduleDays,
+            competitionKeys: activeCompetitionKeys,
+            competitionDateAvailability:
+              draftFormValues.competition_date_availability,
+          }),
+    team_competition_date_availability:
+      draftFormValues.team_competition_date_availability == null
+        ? undefined
+        : sanitizeTeamCompetitionDateAvailabilityValues({
+            scheduleDays: nextScheduleDays,
+            teamCompetitionKeysByTeamId,
+            teamCompetitionDateAvailability:
+              draftFormValues.team_competition_date_availability,
+          }),
     individual_event_configs: sanitizeIndividualEventConfigsValues({
       individualSports: selectedIndividualSports,
       individualEventConfigs: draftFormValues.individual_event_configs ?? [],

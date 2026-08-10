@@ -2,7 +2,24 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CheckedState } from "@radix-ui/react-checkbox";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { AlertTriangle, Award, Check, Clock, EyeOff, Loader2, Medal, MoreVertical, Pencil, Plus, Radio, RefreshCw, Square, Trash2, Trophy, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Award,
+  Check,
+  Clock,
+  EyeOff,
+  Loader2,
+  Medal,
+  MoreVertical,
+  Pencil,
+  Plus,
+  Radio,
+  RefreshCw,
+  Square,
+  Trash2,
+  Trophy,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -73,15 +90,34 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   type MatchBracketContext,
   compareAdminMatchCardOrder,
@@ -105,6 +141,7 @@ import {
   resolveRecordedMatchSets,
   resolveMatchScheduledDateValue,
   resolveMatchSetSummary,
+  resolveVisualQueuePositionByMatchId,
   resolveMatchStartedAtLabel,
   resolveMatchDisplayStatusLabel,
   resolveMatchStatusBadgeTone,
@@ -135,8 +172,14 @@ import {
 import { AdminMatchesViewMode } from "@/components/admin/adminMatches.types";
 import { useChampionshipCorrectedGroupStandings } from "@/hooks/useChampionshipCorrectedGroupStandings";
 import { useChampionshipSeasonRuntime } from "@/hooks/useChampionshipSeasonRuntime";
-import { type AwardDrawPendingContext, usePendingAwardDraws } from "@/hooks/usePendingAwardDraws";
-import { formatPointsAverageForStandings, formatStandingsPoints } from "@/lib/standings";
+import {
+  type AwardDrawPendingContext,
+  usePendingAwardDraws,
+} from "@/hooks/usePendingAwardDraws";
+import {
+  formatPointsAverageForStandings,
+  formatStandingsPoints,
+} from "@/lib/standings";
 import { resolveSportCode } from "@/lib/modalidadeConfig";
 
 type BracketMatchRowLite = {
@@ -159,21 +202,32 @@ type SupabaseLooseOrderOptions = {
 
 type SupabaseLooseSelectBuilder<TData> = {
   eq: (column: string, value: string) => SupabaseLooseSelectBuilder<TData>;
-  order: (column: string, options?: SupabaseLooseOrderOptions) => SupabaseLooseSelectBuilder<TData>;
+  order: (
+    column: string,
+    options?: SupabaseLooseOrderOptions,
+  ) => SupabaseLooseSelectBuilder<TData>;
   limit: (count: number) => Promise<SupabaseLooseQueryResult<TData>>;
 };
 
 type SupabaseLooseTableClient = {
   select: (columns: string) => SupabaseLooseSelectBuilder<unknown[]>;
-  insert: (values: Record<string, unknown>) => Promise<SupabaseLooseQueryResult<unknown>>;
+  insert: (
+    values: Record<string, unknown>,
+  ) => Promise<SupabaseLooseQueryResult<unknown>>;
   update: (values: Record<string, unknown>) => {
-    eq: (column: string, value: string) => Promise<SupabaseLooseQueryResult<unknown>>;
+    eq: (
+      column: string,
+      value: string,
+    ) => Promise<SupabaseLooseQueryResult<unknown>>;
   };
 };
 
 type SupabaseLooseClient = {
   from: (table: string) => SupabaseLooseTableClient;
-  rpc: (functionName: string, payload?: Record<string, unknown>) => Promise<SupabaseLooseQueryResult<unknown>>;
+  rpc: (
+    functionName: string,
+    payload?: Record<string, unknown>,
+  ) => Promise<SupabaseLooseQueryResult<unknown>>;
 };
 
 const supabaseLoose = supabase as unknown as SupabaseLooseClient;
@@ -247,14 +301,24 @@ function resolveKnockoutTotalRounds(bracketSize: number): number {
   return totalRounds;
 }
 
-function resolveWinnerSourceLabel(roundNumber: number, slotNumber: number, totalRounds: number): string {
-  const shortRoundLabel = resolveKnockoutRoundLabel(roundNumber, totalRounds).replace(" de final", "");
-  const article = shortRoundLabel == "Semifinal" || shortRoundLabel == "Final" ? "da" : "das";
+function resolveWinnerSourceLabel(
+  roundNumber: number,
+  slotNumber: number,
+  totalRounds: number,
+): string {
+  const shortRoundLabel = resolveKnockoutRoundLabel(
+    roundNumber,
+    totalRounds,
+  ).replace(" de final", "");
+  const article =
+    shortRoundLabel == "Semifinal" || shortRoundLabel == "Final" ? "da" : "das";
 
   return `Vencedor ${article} ${shortRoundLabel} ${slotNumber}`;
 }
 
-function resolveKnockoutMatchSourceLabels(knockoutMatchBinding: KnockoutMatchBinding | null): KnockoutMatchSourceLabels | null {
+function resolveKnockoutMatchSourceLabels(
+  knockoutMatchBinding: KnockoutMatchBinding | null,
+): KnockoutMatchSourceLabels | null {
   if (!knockoutMatchBinding) {
     return null;
   }
@@ -270,26 +334,36 @@ function resolveKnockoutMatchSourceLabels(knockoutMatchBinding: KnockoutMatchBin
     groups_count: knockoutMatchBinding.competition.groups_count,
     qualifiers_per_group: knockoutMatchBinding.competition.qualifiers_per_group,
     should_complete_knockout_with_best_second_placed_teams:
-      knockoutMatchBinding.competition.should_complete_knockout_with_best_second_placed_teams,
+      knockoutMatchBinding.competition
+        .should_complete_knockout_with_best_second_placed_teams,
   });
 
-  if (knockoutProjection.projected_bracket_size < 2 || knockoutMatchBinding.slot_number < 1 || knockoutMatchBinding.round_number < 1) {
+  if (
+    knockoutProjection.projected_bracket_size < 2 ||
+    knockoutMatchBinding.slot_number < 1 ||
+    knockoutMatchBinding.round_number < 1
+  ) {
     return null;
   }
 
-  const totalRounds = resolveKnockoutTotalRounds(knockoutProjection.projected_bracket_size);
+  const totalRounds = resolveKnockoutTotalRounds(
+    knockoutProjection.projected_bracket_size,
+  );
 
   if (knockoutMatchBinding.round_number == 1) {
     const seedLabels = resolveChampionshipBracketSeedPlaceholderLabels({
       groups_count: knockoutMatchBinding.competition.groups_count,
-      qualifiers_per_group: knockoutMatchBinding.competition.qualifiers_per_group,
+      qualifiers_per_group:
+        knockoutMatchBinding.competition.qualifiers_per_group,
       should_complete_knockout_with_best_second_placed_teams:
-        knockoutMatchBinding.competition.should_complete_knockout_with_best_second_placed_teams,
+        knockoutMatchBinding.competition
+          .should_complete_knockout_with_best_second_placed_teams,
     });
-    const firstRoundSeedIndexes = resolveChampionshipBracketFirstRoundSeedIndexes(
-      knockoutProjection.projected_bracket_size,
-      knockoutMatchBinding.slot_number,
-    );
+    const firstRoundSeedIndexes =
+      resolveChampionshipBracketFirstRoundSeedIndexes(
+        knockoutProjection.projected_bracket_size,
+        knockoutMatchBinding.slot_number,
+      );
 
     return {
       home: seedLabels[firstRoundSeedIndexes.home_seed_index] ?? "A definir",
@@ -298,8 +372,16 @@ function resolveKnockoutMatchSourceLabels(knockoutMatchBinding: KnockoutMatchBin
   }
 
   return {
-    home: resolveWinnerSourceLabel(knockoutMatchBinding.round_number - 1, (knockoutMatchBinding.slot_number * 2) - 1, totalRounds),
-    away: resolveWinnerSourceLabel(knockoutMatchBinding.round_number - 1, knockoutMatchBinding.slot_number * 2, totalRounds),
+    home: resolveWinnerSourceLabel(
+      knockoutMatchBinding.round_number - 1,
+      knockoutMatchBinding.slot_number * 2 - 1,
+      totalRounds,
+    ),
+    away: resolveWinnerSourceLabel(
+      knockoutMatchBinding.round_number - 1,
+      knockoutMatchBinding.slot_number * 2,
+      totalRounds,
+    ),
   };
 }
 
@@ -325,7 +407,10 @@ interface Props {
   onSeasonYearChange?: (seasonYear: number) => void;
   viewMode?: AdminMatchesViewMode;
   onOpenTieBreaksTab?: () => void;
-  onRefetch: (options?: { showLoading?: boolean; showFetching?: boolean }) => void | Promise<void>;
+  onRefetch: (options?: {
+    showLoading?: boolean;
+    showFetching?: boolean;
+  }) => void | Promise<void>;
   onRefetchChampionshipBracket: () => void;
   /** Dados externos de sorteios de premiação (vindos de AdminPage para o badge funcionar antes de entrar na aba). Quando fornecidos, o hook interno é desabilitado. */
   externalPendingAwardDrawContexts?: AwardDrawPendingContext[];
@@ -365,7 +450,11 @@ interface MatchEditDraft {
 type ScoreSheetReviewSaveDecision = "KEEP_REVIEW" | "REMOVE_REVIEW";
 type BulkReviewAction = "MARK" | "UNMARK";
 
-const NAIPE_OPTIONS: MatchNaipe[] = [MatchNaipe.MASCULINO, MatchNaipe.FEMININO, MatchNaipe.MISTO];
+const NAIPE_OPTIONS: MatchNaipe[] = [
+  MatchNaipe.MASCULINO,
+  MatchNaipe.FEMININO,
+  MatchNaipe.MISTO,
+];
 const ALL_MATCHES_SPORT_FILTER = "ALL_MATCHES_SPORTS";
 const ALL_MATCHES_STATUS_FILTER = "ALL_MATCHES_STATUS";
 const ALL_MATCHES_TEAM_FILTER = "ALL_MATCHES_TEAMS";
@@ -378,16 +467,21 @@ const MATCHES_STATUS_FILTER_LIVE = "MATCHES_STATUS_FILTER_LIVE";
 const MATCHES_STATUS_FILTER_FINISHED = "MATCHES_STATUS_FILTER_FINISHED";
 const MATCHES_STATUS_FILTER_OPEN = "MATCHES_STATUS_FILTER_OPEN";
 const EMPTY_GROUP_OPTION_VALUE = "EMPTY_GROUP_OPTION_VALUE";
-const EMPTY_TIE_BREAKER_RULE_OPTION_VALUE = "EMPTY_TIE_BREAKER_RULE_OPTION_VALUE";
+const EMPTY_TIE_BREAKER_RULE_OPTION_VALUE =
+  "EMPTY_TIE_BREAKER_RULE_OPTION_VALUE";
 const EMPTY_TIE_BREAK_TEAM_OPTION_VALUE = "EMPTY_TIE_BREAK_TEAM_OPTION_VALUE";
 const EMPTY_SWAP_MATCH_OPTION_VALUE = "EMPTY_SWAP_MATCH_OPTION_VALUE";
-const EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE = "EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE";
-const EMPTY_AWARD_DRAW_PLAYER_OPTION_VALUE = "EMPTY_AWARD_DRAW_PLAYER_OPTION_VALUE";
+const EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE =
+  "EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE";
+const EMPTY_AWARD_DRAW_PLAYER_OPTION_VALUE =
+  "EMPTY_AWARD_DRAW_PLAYER_OPTION_VALUE";
 
 function resolveAwardDrawDisplayText(value: string): string {
   return value
-    .split(TeamDivision.DIVISAO_PRINCIPAL).join(TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_PRINCIPAL])
-    .split(TeamDivision.DIVISAO_ACESSO).join(TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_ACESSO]);
+    .split(TeamDivision.DIVISAO_PRINCIPAL)
+    .join(TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_PRINCIPAL])
+    .split(TeamDivision.DIVISAO_ACESSO)
+    .join(TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_ACESSO]);
 }
 
 type SwapMatchQueueSlotsResponse = {
@@ -484,7 +578,9 @@ function resolveSetWins(matchSets: MatchSetInput[]) {
   );
 }
 
-function resolveNormalizedMatchSetsDraft(matchSetsDraft: MatchSetInput[]): MatchSetInput[] {
+function resolveNormalizedMatchSetsDraft(
+  matchSetsDraft: MatchSetInput[],
+): MatchSetInput[] {
   return matchSetsDraft.map((matchSet, matchSetIndex) => ({
     set_number: matchSetIndex + 1,
     home_points: resolveSafeScoreValue(matchSet.home_points),
@@ -492,7 +588,10 @@ function resolveNormalizedMatchSetsDraft(matchSetsDraft: MatchSetInput[]): Match
   }));
 }
 
-function areMatchSetInputsEqual(firstMatchSets: MatchSetInput[], secondMatchSets: MatchSetInput[]): boolean {
+function areMatchSetInputsEqual(
+  firstMatchSets: MatchSetInput[],
+  secondMatchSets: MatchSetInput[],
+): boolean {
   if (firstMatchSets.length != secondMatchSets.length) {
     return false;
   }
@@ -522,9 +621,13 @@ function resolveScheduledDateDraftValue(match: Match): Date | null {
   return new Date(`${scheduledDateValue}T12:00:00`);
 }
 
-function resolveInitialEditingMatchDraft(match: Match, selectedGroupOptionValue: string): MatchEditDraft {
+function resolveInitialEditingMatchDraft(
+  match: Match,
+  selectedGroupOptionValue: string,
+): MatchEditDraft {
   const displaySlot = resolveDisplayedMatchQueuePosition(match);
-  const currentGameSlot = displaySlot === Number.MAX_SAFE_INTEGER ? null : displaySlot;
+  const currentGameSlot =
+    displaySlot === Number.MAX_SAFE_INTEGER ? null : displaySlot;
 
   return {
     sportId: match.sport_id,
@@ -547,7 +650,8 @@ function resolveInitialEditingMatchDraft(match: Match, selectedGroupOptionValue:
     scheduledDate: resolveScheduledDateDraftValue(match),
     startTime: match.start_time ? new Date(match.start_time) : null,
     gameSlot: currentGameSlot == null ? "" : String(currentGameSlot),
-    manualRepresentationMode: match.manual_representation_mode ?? MatchManualRepresentationMode.AUTO,
+    manualRepresentationMode:
+      match.manual_representation_mode ?? MatchManualRepresentationMode.AUTO,
     division: match.division ?? TeamDivision.DIVISAO_PRINCIPAL,
     naipe: match.naipe,
     status: match.status,
@@ -580,7 +684,10 @@ function resolveScheduledQueueSummary(
   visualQueuePosition: number | undefined,
 ): string {
   const scheduledDateValue = resolveMatchScheduledDateValue(match);
-  const queueLabel = resolveDisplayedMatchQueueLabel(match, visualQueuePosition);
+  const queueLabel = resolveDisplayedMatchQueueLabel(
+    match,
+    visualQueuePosition,
+  );
 
   if (!scheduledDateValue) {
     return queueLabel;
@@ -589,19 +696,20 @@ function resolveScheduledQueueSummary(
   return `${format(new Date(`${scheduledDateValue}T12:00:00`), "dd/MM", { locale: ptBR })} • ${queueLabel}`;
 }
 
-function resolveAdminMatchesOperationalErrorMessage(error: { code?: string; message: string }): string {
+function resolveAdminMatchesOperationalErrorMessage(error: {
+  code?: string;
+  message: string;
+}): string {
   if (
     error.code == "PGRST204" &&
-    (
-      error.message.includes("current_set_home_score") ||
+    (error.message.includes("current_set_home_score") ||
       error.message.includes("current_set_away_score") ||
       error.message.includes("home_penalty_score") ||
       error.message.includes("away_penalty_score") ||
       error.message.includes("home_blue_cards") ||
       error.message.includes("away_blue_cards") ||
       error.message.includes("home_two_minute_penalties") ||
-      error.message.includes("away_two_minute_penalties")
-    )
+      error.message.includes("away_two_minute_penalties"))
   ) {
     return "As migrations operacionais de placar/cartões ainda não foram aplicadas no banco. Rode npx supabase db push e recarregue o schema.";
   }
@@ -628,18 +736,31 @@ function resolveAdminMatchesOperationalErrorMessage(error: { code?: string; mess
 function resolveChampionshipBracketScheduleDays(
   championshipBracketView: ChampionshipBracketView,
 ): ChampionshipBracketScheduleDayInput[] {
-  const scheduleDays = (championshipBracketView.edition?.payload_snapshot as { schedule_days?: unknown } | null)?.schedule_days;
+  const scheduleDays = (
+    championshipBracketView.edition?.payload_snapshot as {
+      schedule_days?: unknown;
+    } | null
+  )?.schedule_days;
 
   if (!Array.isArray(scheduleDays)) {
     return [];
   }
 
-  return scheduleDays.filter((scheduleDay): scheduleDay is ChampionshipBracketScheduleDayInput => {
-    return typeof scheduleDay == "object" && scheduleDay != null && typeof scheduleDay.date == "string" && Array.isArray(scheduleDay.locations);
-  });
+  return scheduleDays.filter(
+    (scheduleDay): scheduleDay is ChampionshipBracketScheduleDayInput => {
+      return (
+        typeof scheduleDay == "object" &&
+        scheduleDay != null &&
+        typeof scheduleDay.date == "string" &&
+        Array.isArray(scheduleDay.locations)
+      );
+    },
+  );
 }
 
-function resolveAllowedEditingStatuses(currentStatus: MatchStatus): MatchStatus[] {
+function resolveAllowedEditingStatuses(
+  currentStatus: MatchStatus,
+): MatchStatus[] {
   if (currentStatus == MatchStatus.SCHEDULED) {
     return [MatchStatus.SCHEDULED, MatchStatus.LIVE];
   }
@@ -655,11 +776,16 @@ function resolveAllowedEditingStatuses(currentStatus: MatchStatus): MatchStatus[
   return [currentStatus];
 }
 
-function resolveSportsByNaipe(championshipSports: ChampionshipSport[], naipe: MatchNaipe): Sport[] {
+function resolveSportsByNaipe(
+  championshipSports: ChampionshipSport[],
+  naipe: MatchNaipe,
+): Sport[] {
   const sportsById = new Map<string, Sport>();
 
   championshipSports
-    .filter((championshipSport) => doesChampionshipSportSupportNaipe(championshipSport.naipe_mode, naipe))
+    .filter((championshipSport) =>
+      doesChampionshipSportSupportNaipe(championshipSport.naipe_mode, naipe),
+    )
     .forEach((championshipSport) => {
       const sport = championshipSport.sports;
 
@@ -668,13 +794,19 @@ function resolveSportsByNaipe(championshipSports: ChampionshipSport[], naipe: Ma
       }
     });
 
-  return [...sportsById.values()].sort((firstSport, secondSport) => firstSport.name.localeCompare(secondSport.name));
+  return [...sportsById.values()].sort((firstSport, secondSport) =>
+    firstSport.name.localeCompare(secondSport.name),
+  );
 }
 
 function shuffleTeamIds(teamIds: string[]): string[] {
   const shuffledTeamIds = [...teamIds];
 
-  for (let currentIndex = shuffledTeamIds.length - 1; currentIndex > 0; currentIndex -= 1) {
+  for (
+    let currentIndex = shuffledTeamIds.length - 1;
+    currentIndex > 0;
+    currentIndex -= 1
+  ) {
     const randomIndex = Math.floor(Math.random() * (currentIndex + 1));
     const currentValue = shuffledTeamIds[currentIndex];
 
@@ -708,7 +840,9 @@ function resolveScoreSheetSelectionOptionByValue(
   };
 }
 
-function resolveScoreSheetDraftFromContext(context: MatchScoreSheetAwardsContext): MatchScoreSheetAwardsDraft {
+function resolveScoreSheetDraftFromContext(
+  context: MatchScoreSheetAwardsContext,
+): MatchScoreSheetAwardsDraft {
   const homePlayerOptions = [...context.home_players];
   const awayPlayerOptions = [...context.away_players];
 
@@ -721,7 +855,10 @@ function resolveScoreSheetDraftFromContext(context: MatchScoreSheetAwardsContext
     }
 
     if (selection.player_id) {
-      if (!options.some((option) => option.id == selection.player_id) && selection.player_name) {
+      if (
+        !options.some((option) => option.id == selection.player_id) &&
+        selection.player_name
+      ) {
         options.push({ id: selection.player_id, name: selection.player_name });
       }
       return selection.player_id;
@@ -734,13 +871,17 @@ function resolveScoreSheetDraftFromContext(context: MatchScoreSheetAwardsContext
     return "";
   };
 
-  const homeGoalSelections: GoalSelection[] = (context.home_goals ?? []).map((goal) => ({
-    scorerId: resolvePlayerSelection(goal, homePlayerOptions),
-  }));
+  const homeGoalSelections: GoalSelection[] = (context.home_goals ?? []).map(
+    (goal) => ({
+      scorerId: resolvePlayerSelection(goal, homePlayerOptions),
+    }),
+  );
 
-  const awayGoalSelections: GoalSelection[] = (context.away_goals ?? []).map((goal) => ({
-    scorerId: resolvePlayerSelection(goal, awayPlayerOptions),
-  }));
+  const awayGoalSelections: GoalSelection[] = (context.away_goals ?? []).map(
+    (goal) => ({
+      scorerId: resolvePlayerSelection(goal, awayPlayerOptions),
+    }),
+  );
 
   while (homeGoalSelections.length < context.required_home_goals) {
     homeGoalSelections.push({ scorerId: "" });
@@ -751,10 +892,20 @@ function resolveScoreSheetDraftFromContext(context: MatchScoreSheetAwardsContext
   }
 
   return {
-    homePlayerOptions: homePlayerOptions.sort((a, b) => a.name.localeCompare(b.name)),
-    awayPlayerOptions: awayPlayerOptions.sort((a, b) => a.name.localeCompare(b.name)),
-    homeGoalSelections: homeGoalSelections.slice(0, context.required_home_goals),
-    awayGoalSelections: awayGoalSelections.slice(0, context.required_away_goals),
+    homePlayerOptions: homePlayerOptions.sort((a, b) =>
+      a.name.localeCompare(b.name),
+    ),
+    awayPlayerOptions: awayPlayerOptions.sort((a, b) =>
+      a.name.localeCompare(b.name),
+    ),
+    homeGoalSelections: homeGoalSelections.slice(
+      0,
+      context.required_home_goals,
+    ),
+    awayGoalSelections: awayGoalSelections.slice(
+      0,
+      context.required_away_goals,
+    ),
     newHomePlayerName: "",
     newAwayPlayerName: "",
     requiredHomeGoals: context.required_home_goals,
@@ -787,7 +938,8 @@ export function AdminMatches({
   externalLoadingPendingAwardDraws,
   externalRefetchPendingAwardDraws,
 }: Props) {
-  const isScoreSheetReviewMode = viewMode == AdminMatchesViewMode.SCORE_SHEET_REVIEW;
+  const isScoreSheetReviewMode =
+    viewMode == AdminMatchesViewMode.SCORE_SHEET_REVIEW;
   const isTieBreaksMode = viewMode == AdminMatchesViewMode.TIE_BREAKS;
   const isHistoricalSeasonView =
     !isScoreSheetReviewMode &&
@@ -796,73 +948,145 @@ export function AdminMatches({
     selectedChampionship.current_season_year != null &&
     selectedSeasonYear != selectedChampionship.current_season_year;
   const canManageMatches = canManageMatchesProp && !isHistoricalSeasonView;
-  const defaultMatchesStatusFilter = isScoreSheetReviewMode ? MATCHES_STATUS_FILTER_FINISHED : ALL_MATCHES_STATUS_FILTER;
+  const defaultMatchesStatusFilter = isScoreSheetReviewMode
+    ? MATCHES_STATUS_FILTER_FINISHED
+    : ALL_MATCHES_STATUS_FILTER;
   const [naipe, setNaipe] = useState<MatchNaipe>(MatchNaipe.MASCULINO);
   const [sportId, setSportId] = useState("");
   const [homeTeamId, setHomeTeamId] = useState("");
   const [awayTeamId, setAwayTeamId] = useState("");
   const [location, setLocation] = useState("");
   const [scheduledDate, setScheduledDate] = useState<Date | null>(null);
-  const [division, setDivision] = useState<TeamDivision>(TeamDivision.DIVISAO_PRINCIPAL);
+  const [division, setDivision] = useState<TeamDivision>(
+    TeamDivision.DIVISAO_PRINCIPAL,
+  );
   const [selectedGroupOptionValue, setSelectedGroupOptionValue] = useState("");
   const [editingMatchId, setEditingMatchId] = useState<string | null>(null);
-  const [editingMatchDraft, setEditingMatchDraft] = useState<MatchEditDraft | null>(null);
-  const [matchesSportFilter, setMatchesSportFilter] = useState<string>(ALL_MATCHES_SPORT_FILTER);
-  const [matchesStatusFilter, setMatchesStatusFilter] = useState<string>(defaultMatchesStatusFilter);
-  const [matchesTeamFilter, setMatchesTeamFilter] = useState<string>(ALL_MATCHES_TEAM_FILTER);
-  const [matchesNaipeFilter, setMatchesNaipeFilter] = useState<string>(ALL_MATCHES_NAIPE_FILTER);
-  const [matchesDivisionFilter, setMatchesDivisionFilter] = useState<string>(ALL_MATCHES_DIVISION_FILTER);
-  const [matchesGroupFilter, setMatchesGroupFilter] = useState<string>(ALL_MATCHES_GROUP_FILTER);
-  const [matchesLocationFilter, setMatchesLocationFilter] = useState<string>(ALL_MATCHES_LOCATION_FILTER);
-  const [matchesCourtFilter, setMatchesCourtFilter] = useState<string>(ALL_MATCHES_COURT_FILTER);
+  const [editingMatchDraft, setEditingMatchDraft] =
+    useState<MatchEditDraft | null>(null);
+  const [matchesSportFilter, setMatchesSportFilter] = useState<string>(
+    ALL_MATCHES_SPORT_FILTER,
+  );
+  const [matchesStatusFilter, setMatchesStatusFilter] = useState<string>(
+    defaultMatchesStatusFilter,
+  );
+  const [matchesTeamFilter, setMatchesTeamFilter] = useState<string>(
+    ALL_MATCHES_TEAM_FILTER,
+  );
+  const [matchesNaipeFilter, setMatchesNaipeFilter] = useState<string>(
+    ALL_MATCHES_NAIPE_FILTER,
+  );
+  const [matchesDivisionFilter, setMatchesDivisionFilter] = useState<string>(
+    ALL_MATCHES_DIVISION_FILTER,
+  );
+  const [matchesGroupFilter, setMatchesGroupFilter] = useState<string>(
+    ALL_MATCHES_GROUP_FILTER,
+  );
+  const [matchesLocationFilter, setMatchesLocationFilter] = useState<string>(
+    ALL_MATCHES_LOCATION_FILTER,
+  );
+  const [matchesCourtFilter, setMatchesCourtFilter] = useState<string>(
+    ALL_MATCHES_COURT_FILTER,
+  );
   const [selectedMatchIds, setSelectedMatchIds] = useState<string[]>([]);
   const [matchesCurrentPage, setMatchesCurrentPage] = useState(1);
-  const [matchesItemsPerPage, setMatchesItemsPerPage] = useState(DEFAULT_PAGINATION_ITEMS_PER_PAGE);
+  const [matchesItemsPerPage, setMatchesItemsPerPage] = useState(
+    DEFAULT_PAGINATION_ITEMS_PER_PAGE,
+  );
   const [deletingMatches, setDeletingMatches] = useState(false);
   const [applyingBulkAction, setApplyingBulkAction] = useState(false);
   const [savingEditingMatch, setSavingEditingMatch] = useState(false);
   const [showCreateMatchModal, setShowCreateMatchModal] = useState(false);
   const [showDeleteMatchDialog, setShowDeleteMatchDialog] = useState(false);
-  const [pendingDeleteMatchId, setPendingDeleteMatchId] = useState<string | null>(null);
+  const [pendingDeleteMatchId, setPendingDeleteMatchId] = useState<
+    string | null
+  >(null);
   const [pendingDeleteMatchLabel, setPendingDeleteMatchLabel] = useState("");
   const [showSwapMatchDialog, setShowSwapMatchDialog] = useState(false);
-  const [pendingSwapSourceMatchId, setPendingSwapSourceMatchId] = useState<string | null>(null);
+  const [pendingSwapSourceMatchId, setPendingSwapSourceMatchId] = useState<
+    string | null
+  >(null);
   const [pendingSwapTargetMatchId, setPendingSwapTargetMatchId] = useState("");
-  const [eligibleSwapTargetMatchCandidates, setEligibleSwapTargetMatchCandidates] = useState<
-    ListMatchQueueSwapCandidatesResponseItem[]
-  >([]);
-  const [loadingSwapTargetMatchOptions, setLoadingSwapTargetMatchOptions] = useState(false);
+  const [
+    eligibleSwapTargetMatchCandidates,
+    setEligibleSwapTargetMatchCandidates,
+  ] = useState<ListMatchQueueSwapCandidatesResponseItem[]>([]);
+  const [loadingSwapTargetMatchOptions, setLoadingSwapTargetMatchOptions] =
+    useState(false);
   const [swappingMatches, setSwappingMatches] = useState(false);
-  const [showDeleteSelectedMatchesDialog, setShowDeleteSelectedMatchesDialog] = useState(false);
+  const [showDeleteSelectedMatchesDialog, setShowDeleteSelectedMatchesDialog] =
+    useState(false);
   const [creatingMatch, setCreatingMatch] = useState(false);
-  const [locationTemplates, setLocationTemplates] = useState<ChampionshipBracketLocationTemplate[]>([]);
-  const [loadingLocationTemplates, setLoadingLocationTemplates] = useState(false);
-  const [bracketCourtSportsDays, setBracketCourtSportsDays] = useState<BracketDayCourtSports[]>([]);
-  const [loadingBracketCourtSportsDays, setLoadingBracketCourtSportsDays] = useState(false);
-  const [pendingTieBreakContexts, setPendingTieBreakContexts] = useState<ChampionshipBracketTieBreakPendingContext[]>([]);
-  const [loadingPendingTieBreakContexts, setLoadingPendingTieBreakContexts] = useState(false);
+  const [locationTemplates, setLocationTemplates] = useState<
+    ChampionshipBracketLocationTemplate[]
+  >([]);
+  const [loadingLocationTemplates, setLoadingLocationTemplates] =
+    useState(false);
+  const [bracketCourtSportsDays, setBracketCourtSportsDays] = useState<
+    BracketDayCourtSports[]
+  >([]);
+  const [loadingBracketCourtSportsDays, setLoadingBracketCourtSportsDays] =
+    useState(false);
+  const [pendingTieBreakContexts, setPendingTieBreakContexts] = useState<
+    ChampionshipBracketTieBreakPendingContext[]
+  >([]);
+  const [loadingPendingTieBreakContexts, setLoadingPendingTieBreakContexts] =
+    useState(false);
   const [showTieBreakDialog, setShowTieBreakDialog] = useState(false);
-  const [savingTieBreakResolutions, setSavingTieBreakResolutions] = useState(false);
-  const [savingTieBreakResolutionByContextKey, setSavingTieBreakResolutionByContextKey] = useState<Record<string, boolean>>({});
-  const [draftTieBreakTeamIdsByContextKey, setDraftTieBreakTeamIdsByContextKey] = useState<Record<string, string[]>>({});
-  const [editingMatchSetsDraft, setEditingMatchSetsDraft] = useState<MatchSetInput[]>([]);
-  const [editingAvailableScheduleSlots, setEditingAvailableScheduleSlots] = useState<EditableMatchScheduleSlot[]>([]);
-  const [loadingEditingAvailableScheduleSlots, setLoadingEditingAvailableScheduleSlots] = useState(false);
-  const [hideReviewedMatches, setHideReviewedMatches] = useState(isScoreSheetReviewMode);
-  const [savingReviewStateByMatchId, setSavingReviewStateByMatchId] = useState<Record<string, boolean>>({});
-  const [bulkReviewAction, setBulkReviewAction] = useState<BulkReviewAction | null>(null);
-  const [showEditReviewConfirmationDialog, setShowEditReviewConfirmationDialog] = useState(false);
-  const [activeScoreSheetReviewMatchId, setActiveScoreSheetReviewMatchId] = useState<string | null>(null);
-  const [scoreSheetAwardsDraftByMatchId, setScoreSheetAwardsDraftByMatchId] = useState<
-    Record<string, MatchScoreSheetAwardsDraft | undefined>
+  const [savingTieBreakResolutions, setSavingTieBreakResolutions] =
+    useState(false);
+  const [
+    savingTieBreakResolutionByContextKey,
+    setSavingTieBreakResolutionByContextKey,
+  ] = useState<Record<string, boolean>>({});
+  const [
+    draftTieBreakTeamIdsByContextKey,
+    setDraftTieBreakTeamIdsByContextKey,
+  ] = useState<Record<string, string[]>>({});
+  const [editingMatchSetsDraft, setEditingMatchSetsDraft] = useState<
+    MatchSetInput[]
+  >([]);
+  const [editingAvailableScheduleSlots, setEditingAvailableScheduleSlots] =
+    useState<EditableMatchScheduleSlot[]>([]);
+  const [
+    loadingEditingAvailableScheduleSlots,
+    setLoadingEditingAvailableScheduleSlots,
+  ] = useState(false);
+  const [hideReviewedMatches, setHideReviewedMatches] = useState(
+    isScoreSheetReviewMode,
+  );
+  const [savingReviewStateByMatchId, setSavingReviewStateByMatchId] = useState<
+    Record<string, boolean>
   >({});
-  const [loadingScoreSheetAwardsByMatchId, setLoadingScoreSheetAwardsByMatchId] = useState<Record<string, boolean>>({});
-  const [savingScoreSheetAwardsByMatchId, setSavingScoreSheetAwardsByMatchId] = useState<Record<string, boolean>>({});
-  const [addPlayerButtonStateByKey, setAddPlayerButtonStateByKey] = useState<Record<string, "loading" | "success">>({});
-  const newPlayerInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
-  const [editingPlayerByKey, setEditingPlayerByKey] = useState<Record<string, { playerId: string; name: string } | null>>({});
-  const [draftAwardDrawOrderByContextKey, setDraftAwardDrawOrderByContextKey] = useState<Record<string, string[]>>({});
-  const [savingAwardDrawByContextKey, setSavingAwardDrawByContextKey] = useState<Record<string, boolean>>({});
+  const [bulkReviewAction, setBulkReviewAction] =
+    useState<BulkReviewAction | null>(null);
+  const [
+    showEditReviewConfirmationDialog,
+    setShowEditReviewConfirmationDialog,
+  ] = useState(false);
+  const [activeScoreSheetReviewMatchId, setActiveScoreSheetReviewMatchId] =
+    useState<string | null>(null);
+  const [scoreSheetAwardsDraftByMatchId, setScoreSheetAwardsDraftByMatchId] =
+    useState<Record<string, MatchScoreSheetAwardsDraft | undefined>>({});
+  const [
+    loadingScoreSheetAwardsByMatchId,
+    setLoadingScoreSheetAwardsByMatchId,
+  ] = useState<Record<string, boolean>>({});
+  const [savingScoreSheetAwardsByMatchId, setSavingScoreSheetAwardsByMatchId] =
+    useState<Record<string, boolean>>({});
+  const [addPlayerButtonStateByKey, setAddPlayerButtonStateByKey] = useState<
+    Record<string, "loading" | "success">
+  >({});
+  const newPlayerInputRefs = useRef<Record<string, HTMLInputElement | null>>(
+    {},
+  );
+  const [editingPlayerByKey, setEditingPlayerByKey] = useState<
+    Record<string, { playerId: string; name: string } | null>
+  >({});
+  const [draftAwardDrawOrderByContextKey, setDraftAwardDrawOrderByContextKey] =
+    useState<Record<string, string[]>>({});
+  const [savingAwardDrawByContextKey, setSavingAwardDrawByContextKey] =
+    useState<Record<string, boolean>>({});
   const hasHandledPaginationScrollRef = useRef(false);
   const hasAttemptedKnockoutCatchUpRef = useRef<string | null>(null);
   const hasInitializedFilterRefetchRef = useRef(false);
@@ -876,26 +1100,41 @@ export function AdminMatches({
     seasonYear: selectedChampionship.current_season_year ?? null,
     enabled: isTieBreaksMode,
   });
-  const hasExternalAwardDrawData = externalPendingAwardDrawContexts !== undefined;
+  const hasExternalAwardDrawData =
+    externalPendingAwardDrawContexts !== undefined;
   const {
     pendingContexts: hookAwardDrawContexts,
     loading: hookLoadingPendingAwardDraws,
     refetch: hookRefetchPendingAwardDraws,
   } = usePendingAwardDraws({
     // Desabilita o hook interno quando dados externos são fornecidos (evita duplo fetch e conflito de canal)
-    championshipId: hasExternalAwardDrawData ? null : (isTieBreaksMode ? selectedChampionship.id : null),
-    seasonYear: hasExternalAwardDrawData ? null : (isTieBreaksMode ? (selectedChampionship.current_season_year ?? null) : null),
+    championshipId: hasExternalAwardDrawData
+      ? null
+      : isTieBreaksMode
+        ? selectedChampionship.id
+        : null,
+    seasonYear: hasExternalAwardDrawData
+      ? null
+      : isTieBreaksMode
+        ? (selectedChampionship.current_season_year ?? null)
+        : null,
   });
-  const pendingAwardDrawContexts = externalPendingAwardDrawContexts ?? hookAwardDrawContexts;
-  const loadingPendingAwardDraws = externalLoadingPendingAwardDraws ?? hookLoadingPendingAwardDraws;
-  const refetchPendingAwardDraws = externalRefetchPendingAwardDraws ?? hookRefetchPendingAwardDraws;
-  const { usesDivisions: championshipUsesDivisions } = useChampionshipSeasonRuntime({
-    championship: selectedChampionship,
-    seasonYear: selectedSeasonYear ?? selectedChampionship.current_season_year ?? null,
-  });
+  const pendingAwardDrawContexts =
+    externalPendingAwardDrawContexts ?? hookAwardDrawContexts;
+  const loadingPendingAwardDraws =
+    externalLoadingPendingAwardDraws ?? hookLoadingPendingAwardDraws;
+  const refetchPendingAwardDraws =
+    externalRefetchPendingAwardDraws ?? hookRefetchPendingAwardDraws;
+  const { usesDivisions: championshipUsesDivisions } =
+    useChampionshipSeasonRuntime({
+      championship: selectedChampionship,
+      seasonYear:
+        selectedSeasonYear ?? selectedChampionship.current_season_year ?? null,
+    });
 
   const hasConfiguredBracket =
-    championshipBracketView.edition != null && championshipBracketView.competitions.length > 0;
+    championshipBracketView.edition != null &&
+    championshipBracketView.competitions.length > 0;
   const bracketEditionId = championshipBracketView.edition?.id ?? null;
   const availableSportsForCreate = useMemo(() => {
     return resolveSportsByNaipe(championshipSports, naipe);
@@ -910,10 +1149,16 @@ export function AdminMatches({
   }, [championshipSports, editingMatchDraft]);
 
   const championshipSportResultRuleBySportId = useMemo(() => {
-    const championshipSportResultRuleMap = new Map<string, ChampionshipSportResultRule>();
+    const championshipSportResultRuleMap = new Map<
+      string,
+      ChampionshipSportResultRule
+    >();
 
     championshipSports.forEach((championshipSport) => {
-      championshipSportResultRuleMap.set(championshipSport.sport_id, championshipSport.result_rule);
+      championshipSportResultRuleMap.set(
+        championshipSport.sport_id,
+        championshipSport.result_rule,
+      );
     });
 
     return championshipSportResultRuleMap;
@@ -923,7 +1168,10 @@ export function AdminMatches({
     const map = new Map<string, boolean>();
 
     championshipSports.forEach((championshipSport) => {
-      map.set(championshipSport.sport_id, championshipSport.supports_individual_awards);
+      map.set(
+        championshipSport.sport_id,
+        championshipSport.supports_individual_awards,
+      );
     });
 
     return map;
@@ -933,7 +1181,10 @@ export function AdminMatches({
     const championshipSportSupportsCardsMap = new Map<string, boolean>();
 
     championshipSports.forEach((championshipSport) => {
-      championshipSportSupportsCardsMap.set(championshipSport.sport_id, championshipSport.supports_cards);
+      championshipSportSupportsCardsMap.set(
+        championshipSport.sport_id,
+        championshipSport.supports_cards,
+      );
     });
 
     return championshipSportSupportsCardsMap;
@@ -943,7 +1194,10 @@ export function AdminMatches({
     const sportsById = new Map<string, Sport>();
 
     championshipSports.forEach((championshipSport) => {
-      if (championshipSport.sports && !sportsById.has(championshipSport.sport_id)) {
+      if (
+        championshipSport.sports &&
+        !sportsById.has(championshipSport.sport_id)
+      ) {
         sportsById.set(championshipSport.sport_id, championshipSport.sports);
       }
     });
@@ -954,7 +1208,9 @@ export function AdminMatches({
       }
     });
 
-    return [...sportsById.values()].sort((firstSport, secondSport) => firstSport.name.localeCompare(secondSport.name));
+    return [...sportsById.values()].sort((firstSport, secondSport) =>
+      firstSport.name.localeCompare(secondSport.name),
+    );
   }, [championshipSports, matches]);
 
   const isEditingSetRuleMatch = useMemo(() => {
@@ -962,7 +1218,10 @@ export function AdminMatches({
       return false;
     }
 
-    return championshipSportResultRuleBySportId.get(editingMatchDraft.sportId) == ChampionshipSportResultRule.SETS;
+    return (
+      championshipSportResultRuleBySportId.get(editingMatchDraft.sportId) ==
+      ChampionshipSportResultRule.SETS
+    );
   }, [championshipSportResultRuleBySportId, editingMatchDraft]);
 
   const isEditingSportWithCards = useMemo(() => {
@@ -970,7 +1229,10 @@ export function AdminMatches({
       return false;
     }
 
-    return championshipSportSupportsCardsBySportId.get(editingMatchDraft.sportId) == true;
+    return (
+      championshipSportSupportsCardsBySportId.get(editingMatchDraft.sportId) ==
+      true
+    );
   }, [championshipSportSupportsCardsBySportId, editingMatchDraft]);
 
   const isEditingHandballSport = useMemo(() => {
@@ -978,7 +1240,9 @@ export function AdminMatches({
       return false;
     }
 
-    const editingSport = availableSports.find((sport) => sport.id == editingMatchDraft.sportId);
+    const editingSport = availableSports.find(
+      (sport) => sport.id == editingMatchDraft.sportId,
+    );
     return isHandballSportName(editingSport?.name);
   }, [availableSports, editingMatchDraft]);
 
@@ -986,13 +1250,17 @@ export function AdminMatches({
     return resolveChampionshipBracketScheduleDays(championshipBracketView);
   }, [championshipBracketView]);
 
-  const shouldUseScheduledSlotInMatchList = matchesSportFilter === ALL_MATCHES_SPORT_FILTER;
+  const shouldUseScheduledSlotInMatchList =
+    matchesSportFilter === ALL_MATCHES_SPORT_FILTER;
 
   const championshipDayDates = useMemo(() => {
     const payloadScheduleDayDates = championshipBracketScheduleDays
       .map((scheduleDay) => scheduleDay.date)
       .filter((scheduleDayDate, scheduleDayIndex, scheduleDayDates) => {
-        return scheduleDayDate.trim() && scheduleDayDates.indexOf(scheduleDayDate) == scheduleDayIndex;
+        return (
+          scheduleDayDate.trim() &&
+          scheduleDayDates.indexOf(scheduleDayDate) == scheduleDayIndex
+        );
       })
       .sort((leftDate, rightDate) => leftDate.localeCompare(rightDate));
 
@@ -1002,9 +1270,14 @@ export function AdminMatches({
 
     const matchScheduleDates = matches
       .map((match) => resolveMatchScheduledDateValue(match))
-      .filter((scheduledDateValue): scheduledDateValue is string => scheduledDateValue != null)
+      .filter(
+        (scheduledDateValue): scheduledDateValue is string =>
+          scheduledDateValue != null,
+      )
       .filter((scheduledDateValue, scheduledDateIndex, scheduledDateValues) => {
-        return scheduledDateValues.indexOf(scheduledDateValue) == scheduledDateIndex;
+        return (
+          scheduledDateValues.indexOf(scheduledDateValue) == scheduledDateIndex
+        );
       })
       .sort((leftDate, rightDate) => leftDate.localeCompare(rightDate));
 
@@ -1033,67 +1306,108 @@ export function AdminMatches({
     });
 
     return [...locationNameSet].sort((leftLocationName, rightLocationName) => {
-      return leftLocationName.localeCompare(rightLocationName, "pt-BR", { sensitivity: "base" });
+      return leftLocationName.localeCompare(rightLocationName, "pt-BR", {
+        sensitivity: "base",
+      });
     });
-  }, [championshipBracketScheduleDays, locationTemplates, selectedChampionship.default_location]);
+  }, [
+    championshipBracketScheduleDays,
+    locationTemplates,
+    selectedChampionship.default_location,
+  ]);
 
   const createLocationOptions = useMemo(() => {
-    if (!location.trim() || availableLocationOptions.includes(location.trim())) {
+    if (
+      !location.trim() ||
+      availableLocationOptions.includes(location.trim())
+    ) {
       return availableLocationOptions;
     }
 
-    return [...availableLocationOptions, location.trim()].sort((leftLocationName, rightLocationName) => {
-      return leftLocationName.localeCompare(rightLocationName, "pt-BR", { sensitivity: "base" });
-    });
+    return [...availableLocationOptions, location.trim()].sort(
+      (leftLocationName, rightLocationName) => {
+        return leftLocationName.localeCompare(rightLocationName, "pt-BR", {
+          sensitivity: "base",
+        });
+      },
+    );
   }, [availableLocationOptions, location]);
 
   const editingLocationOptions = useMemo(() => {
     const editingLocation = editingMatchDraft?.location.trim();
 
-    if (!editingLocation || availableLocationOptions.includes(editingLocation)) {
+    if (
+      !editingLocation ||
+      availableLocationOptions.includes(editingLocation)
+    ) {
       return availableLocationOptions;
     }
 
-    return [...availableLocationOptions, editingLocation].sort((leftLocationName, rightLocationName) => {
-      return leftLocationName.localeCompare(rightLocationName, "pt-BR", { sensitivity: "base" });
-    });
+    return [...availableLocationOptions, editingLocation].sort(
+      (leftLocationName, rightLocationName) => {
+        return leftLocationName.localeCompare(rightLocationName, "pt-BR", {
+          sensitivity: "base",
+        });
+      },
+    );
   }, [availableLocationOptions, editingMatchDraft?.location]);
 
   const bracketCourtSportsDayByDate = useMemo(() => {
-    return bracketCourtSportsDays.reduce<Record<string, BracketDayCourtSports>>((carry, day) => {
-      carry[day.event_date] = day;
-      return carry;
-    }, {});
+    return bracketCourtSportsDays.reduce<Record<string, BracketDayCourtSports>>(
+      (carry, day) => {
+        carry[day.event_date] = day;
+        return carry;
+      },
+      {},
+    );
   }, [bracketCourtSportsDays]);
 
   const editingCourtOptions = useMemo(() => {
     const currentCourtName = editingMatchDraft?.courtName.trim() ?? "";
 
-    if (!editingMatchDraft?.scheduledDate || !editingMatchDraft.location.trim()) {
+    if (
+      !editingMatchDraft?.scheduledDate ||
+      !editingMatchDraft.location.trim()
+    ) {
       return currentCourtName ? [currentCourtName] : [];
     }
 
-    const scheduledDateString = resolveDateOnlyString(editingMatchDraft.scheduledDate);
+    const scheduledDateString = resolveDateOnlyString(
+      editingMatchDraft.scheduledDate,
+    );
     const bracketDay = bracketCourtSportsDayByDate[scheduledDateString];
 
     if (!bracketDay) {
       return currentCourtName ? [currentCourtName] : [];
     }
 
-    const normalizedLocation = normalizeBracketEntityName(editingMatchDraft.location);
+    const normalizedLocation = normalizeBracketEntityName(
+      editingMatchDraft.location,
+    );
     const compatibleCourts = bracketDay.locations
-      .filter((locationOption) => normalizeBracketEntityName(locationOption.name) == normalizedLocation)
+      .filter(
+        (locationOption) =>
+          normalizeBracketEntityName(locationOption.name) == normalizedLocation,
+      )
       .flatMap((locationOption) =>
         locationOption.courts
-          .filter((courtOption) =>
-            !editingMatchDraft.sportId || courtOption.sports.some((sportEntry) => sportEntry.sport_id == editingMatchDraft.sportId),
+          .filter(
+            (courtOption) =>
+              !editingMatchDraft.sportId ||
+              courtOption.sports.some(
+                (sportEntry) =>
+                  sportEntry.sport_id == editingMatchDraft.sportId,
+              ),
           )
           .map((courtOption) => ({
             name: courtOption.name,
             position: courtOption.position,
           })),
       )
-      .sort((leftCourtOption, rightCourtOption) => leftCourtOption.position - rightCourtOption.position)
+      .sort(
+        (leftCourtOption, rightCourtOption) =>
+          leftCourtOption.position - rightCourtOption.position,
+      )
       .map((courtOption) => courtOption.name);
 
     if (!editingMatchDraft.sportId) {
@@ -1101,9 +1415,13 @@ export function AdminMatches({
         return compatibleCourts;
       }
 
-      return [...compatibleCourts, currentCourtName].sort((leftCourtName, rightCourtName) => {
-        return leftCourtName.localeCompare(rightCourtName, "pt-BR", { sensitivity: "base" });
-      });
+      return [...compatibleCourts, currentCourtName].sort(
+        (leftCourtName, rightCourtName) => {
+          return leftCourtName.localeCompare(rightCourtName, "pt-BR", {
+            sensitivity: "base",
+          });
+        },
+      );
     }
 
     if (compatibleCourts.length > 0) {
@@ -1148,7 +1466,7 @@ export function AdminMatches({
 
     setEditingMatchDraft((currentDraft) =>
       currentDraft
-          ? {
+        ? {
             ...currentDraft,
             courtName: editingCourtOptions[0] ?? "",
           }
@@ -1162,24 +1480,31 @@ export function AdminMatches({
     }
 
     if (editingMatchDraft.gameSlot) {
-      const matchedByGameNumber = editingAvailableScheduleSlots.find((slot) => String(slot.slot_number) == editingMatchDraft.gameSlot);
+      const matchedByGameNumber = editingAvailableScheduleSlots.find(
+        (slot) => String(slot.slot_number) == editingMatchDraft.gameSlot,
+      );
 
       if (matchedByGameNumber) {
         return matchedByGameNumber;
       }
     }
 
-    const currentStartTimeValue = editingMatchDraft.startTime?.toISOString() ?? null;
+    const currentStartTimeValue =
+      editingMatchDraft.startTime?.toISOString() ?? null;
 
     if (currentStartTimeValue) {
-      const matchedByTime = editingAvailableScheduleSlots.find((slot) => slot.start_time == currentStartTimeValue);
+      const matchedByTime = editingAvailableScheduleSlots.find(
+        (slot) => slot.start_time == currentStartTimeValue,
+      );
 
       if (matchedByTime) {
         return matchedByTime;
       }
     }
 
-    return editingAvailableScheduleSlots.find((slot) => slot.is_current_slot) ?? null;
+    return (
+      editingAvailableScheduleSlots.find((slot) => slot.is_current_slot) ?? null
+    );
   }, [editingAvailableScheduleSlots, editingMatchDraft]);
 
   const teamsAllowedForMatches = useMemo(() => {
@@ -1215,10 +1540,13 @@ export function AdminMatches({
     setPendingTieBreakContexts(response.data);
     setSavingTieBreakResolutionByContextKey({});
     setDraftTieBreakTeamIdsByContextKey(() => {
-      return response.data.reduce<Record<string, string[]>>((carry, pendingTieBreakContext) => {
-        carry[pendingTieBreakContext.context_key] = [];
-        return carry;
-      }, {});
+      return response.data.reduce<Record<string, string[]>>(
+        (carry, pendingTieBreakContext) => {
+          carry[pendingTieBreakContext.context_key] = [];
+          return carry;
+        },
+        {},
+      );
     });
   }, [championshipBracketView.edition?.id, selectedChampionship.id]);
 
@@ -1286,7 +1614,11 @@ export function AdminMatches({
     setSelectedMatchIds([]);
     setMatchesCurrentPage(1);
     setMatchesItemsPerPage(DEFAULT_PAGINATION_ITEMS_PER_PAGE);
-  }, [defaultMatchesStatusFilter, isScoreSheetReviewMode, selectedChampionship.id]);
+  }, [
+    defaultMatchesStatusFilter,
+    isScoreSheetReviewMode,
+    selectedChampionship.id,
+  ]);
 
   useEffect(() => {
     setMatchesStatusFilter(defaultMatchesStatusFilter);
@@ -1300,7 +1632,11 @@ export function AdminMatches({
   }, [loadPendingTieBreakContexts]);
 
   useEffect(() => {
-    if (!isScoreSheetReviewMode || !canManageMatches || !championshipBracketView.edition?.id) {
+    if (
+      !isScoreSheetReviewMode ||
+      !canManageMatches ||
+      !championshipBracketView.edition?.id
+    ) {
       return;
     }
 
@@ -1319,11 +1655,17 @@ export function AdminMatches({
       );
 
       if (knockoutResponse.error) {
-        console.info("Reconciliação automática do mata-mata não aplicou alterações:", knockoutResponse.error.message);
+        console.info(
+          "Reconciliação automática do mata-mata não aplicou alterações:",
+          knockoutResponse.error.message,
+        );
         return;
       }
 
-      await Promise.all([onRefetchChampionshipBracket(), loadPendingTieBreakContexts()]);
+      await Promise.all([
+        onRefetchChampionshipBracket(),
+        loadPendingTieBreakContexts(),
+      ]);
     })();
   }, [
     canManageMatches,
@@ -1386,7 +1728,9 @@ export function AdminMatches({
     }
 
     let isActive = true;
-    const scheduledDateString = resolveDateOnlyString(editingMatchDraft.scheduledDate);
+    const scheduledDateString = resolveDateOnlyString(
+      editingMatchDraft.scheduledDate,
+    );
 
     setLoadingEditingAvailableScheduleSlots(true);
 
@@ -1418,14 +1762,17 @@ export function AdminMatches({
           return currentDraft;
         }
 
-        const currentStartTimeValue = currentDraft.startTime?.toISOString() ?? null;
+        const currentStartTimeValue =
+          currentDraft.startTime?.toISOString() ?? null;
 
         if (currentDraft.gameSlot && currentStartTimeValue) {
           return currentDraft;
         }
 
         const matchedSlotByGameNumber = currentDraft.gameSlot
-          ? data.find((slot) => String(slot.slot_number) == currentDraft.gameSlot) ?? null
+          ? (data.find(
+              (slot) => String(slot.slot_number) == currentDraft.gameSlot,
+            ) ?? null)
           : null;
 
         if (currentDraft.gameSlot && !matchedSlotByGameNumber) {
@@ -1434,7 +1781,9 @@ export function AdminMatches({
 
         const matchedSlot =
           matchedSlotByGameNumber ??
-          (currentStartTimeValue ? data.find((slot) => slot.start_time == currentStartTimeValue) : null) ??
+          (currentStartTimeValue
+            ? data.find((slot) => slot.start_time == currentStartTimeValue)
+            : null) ??
           data.find((slot) => slot.is_current_slot) ??
           data[0] ??
           null;
@@ -1480,19 +1829,26 @@ export function AdminMatches({
 
     return teams
       .filter((team) => teamIds.has(team.id))
-      .sort((firstTeam, secondTeam) => firstTeam.name.localeCompare(secondTeam.name));
+      .sort((firstTeam, secondTeam) =>
+        firstTeam.name.localeCompare(secondTeam.name),
+      );
   }, [matches, teams]);
 
   const groupsForMatchesFilter = useMemo(() => {
-    const allOptions = resolveChampionshipBracketGroupStageOptions(championshipBracketView);
+    const allOptions = resolveChampionshipBracketGroupStageOptions(
+      championshipBracketView,
+    );
 
     const filteredOptions = allOptions.filter((option) => {
       const sportMatch =
-        matchesSportFilter == ALL_MATCHES_SPORT_FILTER || option.sport_id == matchesSportFilter;
+        matchesSportFilter == ALL_MATCHES_SPORT_FILTER ||
+        option.sport_id == matchesSportFilter;
       const naipeMatch =
-        matchesNaipeFilter == ALL_MATCHES_NAIPE_FILTER || option.naipe == matchesNaipeFilter;
+        matchesNaipeFilter == ALL_MATCHES_NAIPE_FILTER ||
+        option.naipe == matchesNaipeFilter;
       const divisionMatch =
-        matchesDivisionFilter == ALL_MATCHES_DIVISION_FILTER || option.division == matchesDivisionFilter;
+        matchesDivisionFilter == ALL_MATCHES_DIVISION_FILTER ||
+        option.division == matchesDivisionFilter;
 
       return sportMatch && naipeMatch && divisionMatch;
     });
@@ -1505,12 +1861,22 @@ export function AdminMatches({
 
     return [...uniqueGroups.entries()]
       .map(([value, label]) => ({ value, label }))
-      .sort((firstGroupOption, secondGroupOption) => firstGroupOption.label.localeCompare(secondGroupOption.label));
-  }, [championshipBracketView, matchesDivisionFilter, matchesNaipeFilter, matchesSportFilter]);
+      .sort((firstGroupOption, secondGroupOption) =>
+        firstGroupOption.label.localeCompare(secondGroupOption.label),
+      );
+  }, [
+    championshipBracketView,
+    matchesDivisionFilter,
+    matchesNaipeFilter,
+    matchesSportFilter,
+  ]);
 
   const matchesFilteredByBaseCriteria = useMemo(() => {
     return matches.filter((match) => {
-      if (matchesSportFilter !== ALL_MATCHES_SPORT_FILTER && match.sport_id != matchesSportFilter) {
+      if (
+        matchesSportFilter !== ALL_MATCHES_SPORT_FILTER &&
+        match.sport_id != matchesSportFilter
+      ) {
         return false;
       }
 
@@ -1518,15 +1884,24 @@ export function AdminMatches({
         return false;
       }
 
-      if (matchesStatusFilter == MATCHES_STATUS_FILTER_LIVE && match.status != MatchStatus.LIVE) {
+      if (
+        matchesStatusFilter == MATCHES_STATUS_FILTER_LIVE &&
+        match.status != MatchStatus.LIVE
+      ) {
         return false;
       }
 
-      if (matchesStatusFilter == MATCHES_STATUS_FILTER_FINISHED && match.status != MatchStatus.FINISHED) {
+      if (
+        matchesStatusFilter == MATCHES_STATUS_FILTER_FINISHED &&
+        match.status != MatchStatus.FINISHED
+      ) {
         return false;
       }
 
-      if (matchesStatusFilter == MATCHES_STATUS_FILTER_OPEN && match.status != MatchStatus.SCHEDULED) {
+      if (
+        matchesStatusFilter == MATCHES_STATUS_FILTER_OPEN &&
+        match.status != MatchStatus.SCHEDULED
+      ) {
         return false;
       }
 
@@ -1539,7 +1914,10 @@ export function AdminMatches({
         }
       }
 
-      if (matchesNaipeFilter !== ALL_MATCHES_NAIPE_FILTER && match.naipe != matchesNaipeFilter) {
+      if (
+        matchesNaipeFilter !== ALL_MATCHES_NAIPE_FILTER &&
+        match.naipe != matchesNaipeFilter
+      ) {
         return false;
       }
 
@@ -1554,12 +1932,19 @@ export function AdminMatches({
       if (matchesGroupFilter != ALL_MATCHES_GROUP_FILTER) {
         const matchBracketContext = matchBracketContextByMatchId[match.id];
 
-        if (!matchBracketContext || matchBracketContext.groupFilterValue != matchesGroupFilter) {
+        if (
+          !matchBracketContext ||
+          matchBracketContext.groupFilterValue != matchesGroupFilter
+        ) {
           return false;
         }
       }
 
-      if (isScoreSheetReviewMode && hideReviewedMatches && match.is_score_sheet_reviewed) {
+      if (
+        isScoreSheetReviewMode &&
+        hideReviewedMatches &&
+        match.is_score_sheet_reviewed
+      ) {
         return false;
       }
 
@@ -1580,8 +1965,14 @@ export function AdminMatches({
   ]);
 
   const locationsForMatchesFilter = useMemo(() => {
-    return [...new Set(matchesFilteredByBaseCriteria.map((match) => match.location).filter(Boolean))].sort(
-      (firstLocation, secondLocation) => firstLocation.localeCompare(secondLocation)
+    return [
+      ...new Set(
+        matchesFilteredByBaseCriteria
+          .map((match) => match.location)
+          .filter(Boolean),
+      ),
+    ].sort((firstLocation, secondLocation) =>
+      firstLocation.localeCompare(secondLocation),
     );
   }, [matchesFilteredByBaseCriteria]);
 
@@ -1593,14 +1984,19 @@ export function AdminMatches({
         return;
       }
 
-      if (matchesLocationFilter != ALL_MATCHES_LOCATION_FILTER && match.location != matchesLocationFilter) {
+      if (
+        matchesLocationFilter != ALL_MATCHES_LOCATION_FILTER &&
+        match.location != matchesLocationFilter
+      ) {
         return;
       }
 
       uniqueCourtNames.add(match.court_name);
     });
 
-    return [...uniqueCourtNames].sort((firstCourtName, secondCourtName) => firstCourtName.localeCompare(secondCourtName));
+    return [...uniqueCourtNames].sort((firstCourtName, secondCourtName) =>
+      firstCourtName.localeCompare(secondCourtName),
+    );
   }, [matchesFilteredByBaseCriteria, matchesLocationFilter]);
 
   const championshipBracketGroupStageOptions = useMemo(() => {
@@ -1611,23 +2007,41 @@ export function AdminMatches({
     const resolvedDivision = championshipUsesDivisions ? division : null;
 
     return championshipBracketGroupStageOptions.filter((groupOption) => {
-      return groupOption.sport_id == sportId && groupOption.naipe == naipe && groupOption.division == resolvedDivision;
+      return (
+        groupOption.sport_id == sportId &&
+        groupOption.naipe == naipe &&
+        groupOption.division == resolvedDivision
+      );
     });
-  }, [championshipBracketGroupStageOptions, championshipUsesDivisions, division, naipe, sportId]);
+  }, [
+    championshipBracketGroupStageOptions,
+    championshipUsesDivisions,
+    division,
+    naipe,
+    sportId,
+  ]);
 
   const selectedCreateGroupOption = useMemo(() => {
     if (!selectedGroupOptionValue) {
       return null;
     }
 
-    return createMatchGroupOptions.find((groupOption) => groupOption.value == selectedGroupOptionValue) ?? null;
+    return (
+      createMatchGroupOptions.find(
+        (groupOption) => groupOption.value == selectedGroupOptionValue,
+      ) ?? null
+    );
   }, [createMatchGroupOptions, selectedGroupOptionValue]);
 
   const eligibleTeams = useMemo(() => {
     if (selectedCreateGroupOption) {
-      const selectedCreateGroupTeamIdSet = new Set(selectedCreateGroupOption.team_ids);
+      const selectedCreateGroupTeamIdSet = new Set(
+        selectedCreateGroupOption.team_ids,
+      );
 
-      return teamsAllowedForMatches.filter((team) => selectedCreateGroupTeamIdSet.has(team.id));
+      return teamsAllowedForMatches.filter((team) =>
+        selectedCreateGroupTeamIdSet.has(team.id),
+      );
     }
 
     if (!championshipUsesDivisions) {
@@ -1635,14 +2049,21 @@ export function AdminMatches({
     }
 
     return teamsAllowedForMatches.filter((team) => team.division === division);
-  }, [championshipUsesDivisions, division, selectedCreateGroupOption, teamsAllowedForMatches]);
+  }, [
+    championshipUsesDivisions,
+    division,
+    selectedCreateGroupOption,
+    teamsAllowedForMatches,
+  ]);
 
   const groupStageMatchBracketBindingByMatchId = useMemo(() => {
     return resolveGroupStageMatchBindingByMatchId(championshipBracketView);
   }, [championshipBracketView]);
 
   const knockoutMatchBindingByMatchId = useMemo(() => {
-    return championshipBracketView.competitions.reduce<Record<string, KnockoutMatchBinding>>((carry, competition) => {
+    return championshipBracketView.competitions.reduce<
+      Record<string, KnockoutMatchBinding>
+    >((carry, competition) => {
       competition.knockout_matches.forEach((knockoutMatch) => {
         if (!knockoutMatch.match_id) {
           return;
@@ -1693,7 +2114,9 @@ export function AdminMatches({
       return [];
     }
 
-    const resolvedDivision = championshipUsesDivisions ? editingMatchDraft.division : null;
+    const resolvedDivision = championshipUsesDivisions
+      ? editingMatchDraft.division
+      : null;
 
     return championshipBracketGroupStageOptions.filter((groupOption) => {
       return (
@@ -1702,7 +2125,11 @@ export function AdminMatches({
         groupOption.division == resolvedDivision
       );
     });
-  }, [championshipBracketGroupStageOptions, championshipUsesDivisions, editingMatchDraft]);
+  }, [
+    championshipBracketGroupStageOptions,
+    championshipUsesDivisions,
+    editingMatchDraft,
+  ]);
 
   const selectedEditingGroupOption = useMemo(() => {
     if (!editingMatchDraft?.selectedGroupOptionValue) {
@@ -1710,7 +2137,10 @@ export function AdminMatches({
     }
 
     return (
-      editingMatchGroupOptions.find((groupOption) => groupOption.value == editingMatchDraft.selectedGroupOptionValue) ?? null
+      editingMatchGroupOptions.find(
+        (groupOption) =>
+          groupOption.value == editingMatchDraft.selectedGroupOptionValue,
+      ) ?? null
     );
   }, [editingMatchDraft, editingMatchGroupOptions]);
 
@@ -1734,7 +2164,12 @@ export function AdminMatches({
       homeScore: editingMatchDraft.homeScore,
       awayScore: editingMatchDraft.awayScore,
     });
-  }, [editingMatch, editingMatchDraft, matchBracketContextByMatchId, selectedChampionship]);
+  }, [
+    editingMatch,
+    editingMatchDraft,
+    matchBracketContextByMatchId,
+    selectedChampionship,
+  ]);
 
   useEffect(() => {
     if (!editingShouldUseSocietyPenaltyShootout) {
@@ -1743,7 +2178,10 @@ export function AdminMatches({
           return currentDraft;
         }
 
-        if (currentDraft.homePenaltyScore == null && currentDraft.awayPenaltyScore == null) {
+        if (
+          currentDraft.homePenaltyScore == null &&
+          currentDraft.awayPenaltyScore == null
+        ) {
           return currentDraft;
         }
 
@@ -1756,7 +2194,9 @@ export function AdminMatches({
     }
   }, [editingShouldUseSocietyPenaltyShootout]);
 
-  const canEditScheduledMatchSetup = editingMatch?.status == MatchStatus.SCHEDULED && editingMatchDraft?.status == MatchStatus.SCHEDULED;
+  const canEditScheduledMatchSetup =
+    editingMatch?.status == MatchStatus.SCHEDULED &&
+    editingMatchDraft?.status == MatchStatus.SCHEDULED;
 
   const eligibleTeamsForEditingMatch = useMemo(() => {
     if (!editingMatchDraft) {
@@ -1764,23 +2204,37 @@ export function AdminMatches({
     }
 
     if (selectedEditingGroupOption) {
-      const selectedGroupTeamIdSet = new Set(selectedEditingGroupOption.team_ids);
+      const selectedGroupTeamIdSet = new Set(
+        selectedEditingGroupOption.team_ids,
+      );
 
-      return teamsAllowedForMatches.filter((team) => selectedGroupTeamIdSet.has(team.id));
+      return teamsAllowedForMatches.filter((team) =>
+        selectedGroupTeamIdSet.has(team.id),
+      );
     }
 
     if (!championshipUsesDivisions) {
       return teamsAllowedForMatches;
     }
 
-    return teamsAllowedForMatches.filter((team) => team.division === editingMatchDraft.division);
-  }, [championshipUsesDivisions, editingMatchDraft, selectedEditingGroupOption, teamsAllowedForMatches]);
+    return teamsAllowedForMatches.filter(
+      (team) => team.division === editingMatchDraft.division,
+    );
+  }, [
+    championshipUsesDivisions,
+    editingMatchDraft,
+    selectedEditingGroupOption,
+    teamsAllowedForMatches,
+  ]);
 
   // match_id → competition_id para matches do primeiro round do KO (MAX round_number)
   const knockoutFirstRoundBracketMatchByMatchId = useMemo(() => {
     const map: Record<string, { competition_id: string }> = {};
     for (const competition of championshipBracketView.competitions ?? []) {
-      const maxRound = Math.max(0, ...(competition.knockout_matches ?? []).map((km) => km.round_number));
+      const maxRound = Math.max(
+        0,
+        ...(competition.knockout_matches ?? []).map((km) => km.round_number),
+      );
       if (maxRound === 0) continue;
       for (const km of competition.knockout_matches ?? []) {
         if (km.round_number === maxRound && km.match_id) {
@@ -1795,7 +2249,10 @@ export function AdminMatches({
   const knockoutFirstRoundTeamIdsByCompetitionId = useMemo(() => {
     const map: Record<string, Set<string>> = {};
     for (const competition of championshipBracketView.competitions ?? []) {
-      const maxRound = Math.max(0, ...(competition.knockout_matches ?? []).map((km) => km.round_number));
+      const maxRound = Math.max(
+        0,
+        ...(competition.knockout_matches ?? []).map((km) => km.round_number),
+      );
       if (maxRound === 0) continue;
       const teamSet = new Set<string>();
       for (const km of competition.knockout_matches ?? []) {
@@ -1809,11 +2266,17 @@ export function AdminMatches({
   }, [championshipBracketView]);
 
   const pendingTieBreakTeamNameByContextKeyAndTeamId = useMemo(() => {
-    return pendingTieBreakContexts.reduce<Record<string, Record<string, string>>>((carry, pendingTieBreakContext) => {
-      carry[pendingTieBreakContext.context_key] = pendingTieBreakContext.teams.reduce<Record<string, string>>((teamCarry, team) => {
-        teamCarry[team.team_id] = team.team_name;
-        return teamCarry;
-      }, {});
+    return pendingTieBreakContexts.reduce<
+      Record<string, Record<string, string>>
+    >((carry, pendingTieBreakContext) => {
+      carry[pendingTieBreakContext.context_key] =
+        pendingTieBreakContext.teams.reduce<Record<string, string>>(
+          (teamCarry, team) => {
+            teamCarry[team.team_id] = team.team_name;
+            return teamCarry;
+          },
+          {},
+        );
       return carry;
     }, {});
   }, [pendingTieBreakContexts]);
@@ -1832,19 +2295,27 @@ export function AdminMatches({
   }, [draftTieBreakTeamIdsByContextKey, pendingTieBreakContexts]);
 
   const shouldShowTieBreakBanner = useMemo(() => {
-    return !isScoreSheetReviewMode && !isTieBreaksMode && pendingTieBreakContexts.length > 0;
-  }, [
-    isScoreSheetReviewMode,
-    isTieBreaksMode,
-    pendingTieBreakContexts.length,
-  ]);
+    return (
+      !isScoreSheetReviewMode &&
+      !isTieBreaksMode &&
+      pendingTieBreakContexts.length > 0
+    );
+  }, [isScoreSheetReviewMode, isTieBreaksMode, pendingTieBreakContexts.length]);
   const isAnyTieBreakResolutionSaveInFlight =
-    savingTieBreakResolutions || Object.values(savingTieBreakResolutionByContextKey).some((isSaving) => isSaving);
+    savingTieBreakResolutions ||
+    Object.values(savingTieBreakResolutionByContextKey).some(
+      (isSaving) => isSaving,
+    );
 
-  const isSavingReviewState = Object.keys(savingReviewStateByMatchId).length > 0;
+  const isSavingReviewState =
+    Object.keys(savingReviewStateByMatchId).length > 0;
   const correctedStandingByCompetitionAndTeamKey = useMemo(() => {
-    return correctedGroupStandings.reduce<Record<string, ChampionshipCorrectedGroupStanding>>((carry, correctedGroupStanding) => {
-      carry[`${correctedGroupStanding.competition_id}:${correctedGroupStanding.team_id}`] = correctedGroupStanding;
+    return correctedGroupStandings.reduce<
+      Record<string, ChampionshipCorrectedGroupStanding>
+    >((carry, correctedGroupStanding) => {
+      carry[
+        `${correctedGroupStanding.competition_id}:${correctedGroupStanding.team_id}`
+      ] = correctedGroupStanding;
       return carry;
     }, {});
   }, [correctedGroupStandings]);
@@ -1854,7 +2325,9 @@ export function AdminMatches({
       return null;
     }
 
-    return matches.find((match) => match.id == pendingSwapSourceMatchId) ?? null;
+    return (
+      matches.find((match) => match.id == pendingSwapSourceMatchId) ?? null
+    );
   }, [matches, pendingSwapSourceMatchId]);
 
   const activeScoreSheetReviewMatch = useMemo(() => {
@@ -1862,7 +2335,9 @@ export function AdminMatches({
       return null;
     }
 
-    return matches.find((match) => match.id == activeScoreSheetReviewMatchId) ?? null;
+    return (
+      matches.find((match) => match.id == activeScoreSheetReviewMatchId) ?? null
+    );
   }, [activeScoreSheetReviewMatchId, matches]);
 
   const activeScoreSheetAwardsDraft = activeScoreSheetReviewMatchId
@@ -1878,12 +2353,17 @@ export function AdminMatches({
   const hasIncompleteActiveScoreSheetGoalSelections =
     !!activeScoreSheetAwardsDraft &&
     !activeScoreSheetAwardsDraft.isWalkover &&
-    (
-      activeScoreSheetAwardsDraft.homeGoalSelections.some((goalSelection) => goalSelection.scorerId.trim().length == 0) ||
-      activeScoreSheetAwardsDraft.awayGoalSelections.some((goalSelection) => goalSelection.scorerId.trim().length == 0)
-    );
+    (activeScoreSheetAwardsDraft.homeGoalSelections.some(
+      (goalSelection) => goalSelection.scorerId.trim().length == 0,
+    ) ||
+      activeScoreSheetAwardsDraft.awayGoalSelections.some(
+        (goalSelection) => goalSelection.scorerId.trim().length == 0,
+      ));
   const activeScoreSheetGoalSelectionSummary = useMemo(() => {
-    if (!activeScoreSheetAwardsDraft || activeScoreSheetAwardsDraft.isWalkover) {
+    if (
+      !activeScoreSheetAwardsDraft ||
+      activeScoreSheetAwardsDraft.isWalkover
+    ) {
       return {
         totalGoals: 0,
         filledGoals: 0,
@@ -1896,7 +2376,9 @@ export function AdminMatches({
       ...activeScoreSheetAwardsDraft.awayGoalSelections,
     ];
     const totalGoals = allSelections.length;
-    const filledGoals = allSelections.filter((goalSelection) => goalSelection.scorerId.trim().length > 0).length;
+    const filledGoals = allSelections.filter(
+      (goalSelection) => goalSelection.scorerId.trim().length > 0,
+    ).length;
 
     return {
       totalGoals,
@@ -1919,8 +2401,12 @@ export function AdminMatches({
           return firstScheduledDate.localeCompare(secondScheduledDate);
         }
 
-        const firstSlot = resolveMatchSwapDisplaySlot(firstMatch, true) ?? Number.MAX_SAFE_INTEGER;
-        const secondSlot = resolveMatchSwapDisplaySlot(secondMatch, true) ?? Number.MAX_SAFE_INTEGER;
+        const firstSlot =
+          resolveMatchSwapDisplaySlot(firstMatch, true) ??
+          Number.MAX_SAFE_INTEGER;
+        const secondSlot =
+          resolveMatchSwapDisplaySlot(secondMatch, true) ??
+          Number.MAX_SAFE_INTEGER;
 
         if (firstSlot != secondSlot) {
           return firstSlot - secondSlot;
@@ -1970,29 +2456,45 @@ export function AdminMatches({
       }));
   }, [eligibleSwapTargetMatchCandidates, pendingSwapSourceMatch]);
 
+  const operationalVisualQueuePositionByMatchId = useMemo(() => {
+    return resolveVisualQueuePositionByMatchId(
+      matches,
+      matches,
+      estimatedStartTimeByMatchId,
+    );
+  }, [estimatedStartTimeByMatchId, matches]);
+
   const filteredAndSortedMatches = useMemo(() => {
     return [...matchesFilteredByBaseCriteria]
       .filter((match) => {
-        if (matchesLocationFilter != ALL_MATCHES_LOCATION_FILTER && match.location != matchesLocationFilter) {
+        if (
+          matchesLocationFilter != ALL_MATCHES_LOCATION_FILTER &&
+          match.location != matchesLocationFilter
+        ) {
           return false;
         }
 
-        if (matchesCourtFilter != ALL_MATCHES_COURT_FILTER && match.court_name != matchesCourtFilter) {
+        if (
+          matchesCourtFilter != ALL_MATCHES_COURT_FILTER &&
+          match.court_name != matchesCourtFilter
+        ) {
           return false;
         }
 
         return true;
       })
-      .sort((firstMatch, secondMatch) => compareAdminMatchCardOrder(firstMatch, secondMatch, {
-        estimatedStartTimeByMatchId,
-        visualQueuePositionByMatchId,
-      }));
+      .sort((firstMatch, secondMatch) =>
+        compareAdminMatchCardOrder(firstMatch, secondMatch, {
+          estimatedStartTimeByMatchId,
+          visualQueuePositionByMatchId: operationalVisualQueuePositionByMatchId,
+        }),
+      );
   }, [
     estimatedStartTimeByMatchId,
     matchesCourtFilter,
     matchesFilteredByBaseCriteria,
     matchesLocationFilter,
-    visualQueuePositionByMatchId,
+    operationalVisualQueuePositionByMatchId,
   ]);
 
   useEffect(() => {
@@ -2007,9 +2509,12 @@ export function AdminMatches({
     setLoadingSwapTargetMatchOptions(true);
 
     void (async () => {
-      const { data, error } = await supabase.rpc("list_match_queue_swap_candidates", {
-        _source_match_id: pendingSwapSourceMatch.id,
-      });
+      const { data, error } = await supabase.rpc(
+        "list_match_queue_swap_candidates",
+        {
+          _source_match_id: pendingSwapSourceMatch.id,
+        },
+      );
 
       if (shouldIgnore) {
         return;
@@ -2040,7 +2545,9 @@ export function AdminMatches({
       return;
     }
 
-    const isTargetMatchOptionAvailable = eligibleSwapTargetMatchOptions.some((option) => option.id == pendingSwapTargetMatchId);
+    const isTargetMatchOptionAvailable = eligibleSwapTargetMatchOptions.some(
+      (option) => option.id == pendingSwapTargetMatchId,
+    );
 
     if (!isTargetMatchOptionAvailable) {
       setPendingSwapTargetMatchId("");
@@ -2051,7 +2558,10 @@ export function AdminMatches({
     return filteredAndSortedMatches.map((match) => match.id);
   }, [filteredAndSortedMatches]);
 
-  const matchesTotalPages = Math.max(1, Math.ceil(filteredAndSortedMatches.length / matchesItemsPerPage));
+  const matchesTotalPages = Math.max(
+    1,
+    Math.ceil(filteredAndSortedMatches.length / matchesItemsPerPage),
+  );
 
   const paginatedMatches = useMemo(() => {
     const rangeStart = (matchesCurrentPage - 1) * matchesItemsPerPage;
@@ -2063,7 +2573,9 @@ export function AdminMatches({
   const selectedFilteredMatchCount = useMemo(() => {
     const filteredMatchIdSet = new Set(filteredMatchIds);
 
-    return selectedMatchIds.filter((selectedMatchId) => filteredMatchIdSet.has(selectedMatchId)).length;
+    return selectedMatchIds.filter((selectedMatchId) =>
+      filteredMatchIdSet.has(selectedMatchId),
+    ).length;
   }, [filteredMatchIds, selectedMatchIds]);
 
   const selectAllMatchesChecked: CheckedState =
@@ -2152,9 +2664,14 @@ export function AdminMatches({
   }, [matchesCurrentPage]);
 
   useEffect(() => {
-    const validGroupFilterValues = new Set(groupsForMatchesFilter.map((groupOption) => groupOption.value));
+    const validGroupFilterValues = new Set(
+      groupsForMatchesFilter.map((groupOption) => groupOption.value),
+    );
 
-    if (matchesGroupFilter != ALL_MATCHES_GROUP_FILTER && !validGroupFilterValues.has(matchesGroupFilter)) {
+    if (
+      matchesGroupFilter != ALL_MATCHES_GROUP_FILTER &&
+      !validGroupFilterValues.has(matchesGroupFilter)
+    ) {
       setMatchesGroupFilter(ALL_MATCHES_GROUP_FILTER);
     }
   }, [groupsForMatchesFilter, matchesGroupFilter]);
@@ -2169,7 +2686,10 @@ export function AdminMatches({
   }, [locationsForMatchesFilter, matchesLocationFilter]);
 
   useEffect(() => {
-    if (matchesCourtFilter != ALL_MATCHES_COURT_FILTER && !courtsForMatchesFilter.includes(matchesCourtFilter)) {
+    if (
+      matchesCourtFilter != ALL_MATCHES_COURT_FILTER &&
+      !courtsForMatchesFilter.includes(matchesCourtFilter)
+    ) {
       setMatchesCourtFilter(ALL_MATCHES_COURT_FILTER);
     }
   }, [courtsForMatchesFilter, matchesCourtFilter]);
@@ -2178,7 +2698,9 @@ export function AdminMatches({
     const matchIds = new Set(matches.map((match) => match.id));
 
     setSelectedMatchIds((currentSelectedMatchIds) => {
-      return currentSelectedMatchIds.filter((selectedMatchId) => matchIds.has(selectedMatchId));
+      return currentSelectedMatchIds.filter((selectedMatchId) =>
+        matchIds.has(selectedMatchId),
+      );
     });
   }, [matches]);
 
@@ -2221,9 +2743,13 @@ export function AdminMatches({
       return;
     }
 
-    const validGroupOptionValueSet = new Set(editingMatchGroupOptions.map((groupOption) => groupOption.value));
+    const validGroupOptionValueSet = new Set(
+      editingMatchGroupOptions.map((groupOption) => groupOption.value),
+    );
 
-    if (validGroupOptionValueSet.has(editingMatchDraft.selectedGroupOptionValue)) {
+    if (
+      validGroupOptionValueSet.has(editingMatchDraft.selectedGroupOptionValue)
+    ) {
       return;
     }
 
@@ -2262,10 +2788,17 @@ export function AdminMatches({
         return currentDraft;
       }
 
-      const nextHomeTeamId = selectedGroupTeamIdSet.has(currentDraft.homeTeamId) ? currentDraft.homeTeamId : "";
-      const nextAwayTeamId = selectedGroupTeamIdSet.has(currentDraft.awayTeamId) ? currentDraft.awayTeamId : "";
+      const nextHomeTeamId = selectedGroupTeamIdSet.has(currentDraft.homeTeamId)
+        ? currentDraft.homeTeamId
+        : "";
+      const nextAwayTeamId = selectedGroupTeamIdSet.has(currentDraft.awayTeamId)
+        ? currentDraft.awayTeamId
+        : "";
 
-      if (nextHomeTeamId == currentDraft.homeTeamId && nextAwayTeamId == currentDraft.awayTeamId) {
+      if (
+        nextHomeTeamId == currentDraft.homeTeamId &&
+        nextAwayTeamId == currentDraft.awayTeamId
+      ) {
         return currentDraft;
       }
 
@@ -2282,7 +2815,9 @@ export function AdminMatches({
       return;
     }
 
-    const validGroupOptionValueSet = new Set(createMatchGroupOptions.map((groupOption) => groupOption.value));
+    const validGroupOptionValueSet = new Set(
+      createMatchGroupOptions.map((groupOption) => groupOption.value),
+    );
 
     if (validGroupOptionValueSet.has(selectedGroupOptionValue)) {
       return;
@@ -2298,28 +2833,37 @@ export function AdminMatches({
 
     const selectedGroupTeamIdSet = new Set(selectedCreateGroupOption.team_ids);
 
-    if (selectedGroupTeamIdSet.has(homeTeamId) && selectedGroupTeamIdSet.has(awayTeamId)) {
+    if (
+      selectedGroupTeamIdSet.has(homeTeamId) &&
+      selectedGroupTeamIdSet.has(awayTeamId)
+    ) {
       return;
     }
 
     setHomeTeamId((currentHomeTeamId) => {
-      return selectedGroupTeamIdSet.has(currentHomeTeamId) ? currentHomeTeamId : "";
+      return selectedGroupTeamIdSet.has(currentHomeTeamId)
+        ? currentHomeTeamId
+        : "";
     });
     setAwayTeamId((currentAwayTeamId) => {
-      return selectedGroupTeamIdSet.has(currentAwayTeamId) ? currentAwayTeamId : "";
+      return selectedGroupTeamIdSet.has(currentAwayTeamId)
+        ? currentAwayTeamId
+        : "";
     });
   }, [awayTeamId, homeTeamId, selectedCreateGroupOption]);
 
   const resolveNextGroupStageSlotNumber = async (competitionId: string) => {
-    const { data: competitionBracketMatches, error: fetchBracketSlotError } = await supabaseLoose
-      .from("championship_bracket_matches")
-      .select("slot_number")
-      .eq("competition_id", competitionId)
-      .eq("phase", BracketPhase.GROUP_STAGE)
-      .order("slot_number", { ascending: false })
-      .limit(1);
+    const { data: competitionBracketMatches, error: fetchBracketSlotError } =
+      await supabaseLoose
+        .from("championship_bracket_matches")
+        .select("slot_number")
+        .eq("competition_id", competitionId)
+        .eq("phase", BracketPhase.GROUP_STAGE)
+        .order("slot_number", { ascending: false })
+        .limit(1);
 
-    const typedCompetitionBracketMatches = (competitionBracketMatches ?? []) as BracketMatchRowLite[];
+    const typedCompetitionBracketMatches = (competitionBracketMatches ??
+      []) as BracketMatchRowLite[];
 
     if (fetchBracketSlotError) {
       return {
@@ -2342,13 +2886,16 @@ export function AdminMatches({
   }) => {
     if (!championshipBracketView.edition?.id) {
       return {
-        errorMessage: "Não há edição de chaveamento configurada para vincular este jogo a uma chave.",
+        errorMessage:
+          "Não há edição de chaveamento configurada para vincular este jogo a uma chave.",
       };
     }
 
-    const selectedGroupOption = championshipBracketGroupStageOptions.find((groupOption) => {
-      return groupOption.value == params.groupOptionValue;
-    });
+    const selectedGroupOption = championshipBracketGroupStageOptions.find(
+      (groupOption) => {
+        return groupOption.value == params.groupOptionValue;
+      },
+    );
 
     if (!selectedGroupOption) {
       return {
@@ -2356,32 +2903,44 @@ export function AdminMatches({
       };
     }
 
-    const nextSlotNumberResponse = await resolveNextGroupStageSlotNumber(selectedGroupOption.competition_id);
+    const nextSlotNumberResponse = await resolveNextGroupStageSlotNumber(
+      selectedGroupOption.competition_id,
+    );
 
-    if (nextSlotNumberResponse.errorMessage || nextSlotNumberResponse.slotNumber == null) {
+    if (
+      nextSlotNumberResponse.errorMessage ||
+      nextSlotNumberResponse.slotNumber == null
+    ) {
       return {
-        errorMessage: nextSlotNumberResponse.errorMessage ?? "Não foi possível definir a posição do jogo na chave.",
+        errorMessage:
+          nextSlotNumberResponse.errorMessage ??
+          "Não foi possível definir a posição do jogo na chave.",
       };
     }
 
-    const { error: bracketInsertError } = await supabaseLoose.from("championship_bracket_matches").insert({
-      bracket_edition_id: championshipBracketView.edition.id,
-      competition_id: selectedGroupOption.competition_id,
-      group_id: selectedGroupOption.group_id,
-      phase: BracketPhase.GROUP_STAGE,
-      round_number: 1,
-      slot_number: nextSlotNumberResponse.slotNumber,
-      match_id: params.matchId,
-      home_team_id: params.homeTeamId,
-      away_team_id: params.awayTeamId,
-    });
+    const { error: bracketInsertError } = await supabaseLoose
+      .from("championship_bracket_matches")
+      .insert({
+        bracket_edition_id: championshipBracketView.edition.id,
+        competition_id: selectedGroupOption.competition_id,
+        group_id: selectedGroupOption.group_id,
+        phase: BracketPhase.GROUP_STAGE,
+        round_number: 1,
+        slot_number: nextSlotNumberResponse.slotNumber,
+        match_id: params.matchId,
+        home_team_id: params.homeTeamId,
+        away_team_id: params.awayTeamId,
+      });
 
     return {
       errorMessage: bracketInsertError?.message ?? null,
     };
   };
 
-  const moveMatchesToNextChampionshipDay = async (matchesToMove: Match[], emptySelectionMessage: string) => {
+  const moveMatchesToNextChampionshipDay = async (
+    matchesToMove: Match[],
+    emptySelectionMessage: string,
+  ) => {
     if (!canManageMatches) {
       return;
     }
@@ -2392,24 +2951,35 @@ export function AdminMatches({
     }
 
     if (championshipDayDates.length < 2) {
-      toast.error("Cadastre pelo menos dois dias de campeonato para mover jogos para o próximo dia.");
+      toast.error(
+        "Cadastre pelo menos dois dias de campeonato para mover jogos para o próximo dia.",
+      );
       return;
     }
 
-    const orderedMatchesToMove = [...matchesToMove]
-      .sort((firstMatch, secondMatch) => {
-        const firstScheduledDate = resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
-        const secondScheduledDate = resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
+    const orderedMatchesToMove = [...matchesToMove].sort(
+      (firstMatch, secondMatch) => {
+        const firstScheduledDate =
+          resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
+        const secondScheduledDate =
+          resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
 
         if (firstScheduledDate != secondScheduledDate) {
           return firstScheduledDate.localeCompare(secondScheduledDate);
         }
 
         return (
-          resolveMatchScheduleMoveSortValue(firstMatch, shouldUseScheduledSlotInMatchList) -
-          resolveMatchScheduleMoveSortValue(secondMatch, shouldUseScheduledSlotInMatchList)
+          resolveMatchScheduleMoveSortValue(
+            firstMatch,
+            shouldUseScheduledSlotInMatchList,
+          ) -
+          resolveMatchScheduleMoveSortValue(
+            secondMatch,
+            shouldUseScheduledSlotInMatchList,
+          )
         );
-      });
+      },
+    );
 
     setApplyingBulkAction(true);
 
@@ -2422,14 +2992,17 @@ export function AdminMatches({
         continue;
       }
 
-      const currentScheduledDate = resolveMatchScheduledDateValue(selectedMatch);
+      const currentScheduledDate =
+        resolveMatchScheduledDateValue(selectedMatch);
 
       if (!currentScheduledDate) {
         skippedMatchesCount += 1;
         continue;
       }
 
-      const nextScheduledDate = championshipDayDates.find((championshipDayDate) => championshipDayDate > currentScheduledDate);
+      const nextScheduledDate = championshipDayDates.find(
+        (championshipDayDate) => championshipDayDate > currentScheduledDate,
+      );
 
       if (!nextScheduledDate) {
         skippedMatchesCount += 1;
@@ -2457,14 +3030,19 @@ export function AdminMatches({
     setApplyingBulkAction(false);
 
     if (movedMatchesCount == 0) {
-      toast.error("Nenhum jogo selecionado pôde ser movido para o próximo dia.");
+      toast.error(
+        "Nenhum jogo selecionado pôde ser movido para o próximo dia.",
+      );
       return;
     }
 
-    const redistributedSchedule = await redistributeBracketScheduleAfterMatchScheduleChange({
-      reloadError: "Os jogos foram movidos, mas não foi possível recarregar a agenda para redistribuir a fila",
-      redistributeError: "Os jogos foram movidos, mas a redistribuição automática da fila falhou",
-    });
+    const redistributedSchedule =
+      await redistributeBracketScheduleAfterMatchScheduleChange({
+        reloadError:
+          "Os jogos foram movidos, mas não foi possível recarregar a agenda para redistribuir a fila",
+        redistributeError:
+          "Os jogos foram movidos, mas a redistribuição automática da fila falhou",
+      });
 
     if (!redistributedSchedule) {
       return;
@@ -2473,7 +3051,9 @@ export function AdminMatches({
     await Promise.all([onRefetch(), onRefetchChampionshipBracket()]);
 
     if (skippedMatchesCount > 0) {
-      toast.success(`${movedMatchesCount} jogo(s) movido(s). ${skippedMatchesCount} não tinham próximo dia disponível.`);
+      toast.success(
+        `${movedMatchesCount} jogo(s) movido(s). ${skippedMatchesCount} não tinham próximo dia disponível.`,
+      );
       return;
     }
 
@@ -2492,7 +3072,9 @@ export function AdminMatches({
       await getBracketDaySchedules(championshipBracketView.edition.id);
 
     if (bracketDaySchedulesError) {
-      toast.error(`${messages.reloadError}: ${bracketDaySchedulesError.message}`);
+      toast.error(
+        `${messages.reloadError}: ${bracketDaySchedulesError.message}`,
+      );
       await Promise.all([onRefetch(), onRefetchChampionshipBracket()]);
       return false;
     }
@@ -2507,7 +3089,9 @@ export function AdminMatches({
     );
 
     if (redistributeError) {
-      toast.error(`${messages.redistributeError}: ${redistributeError.message}`);
+      toast.error(
+        `${messages.redistributeError}: ${redistributeError.message}`,
+      );
       await Promise.all([onRefetch(), onRefetchChampionshipBracket()]);
       return false;
     }
@@ -2516,20 +3100,29 @@ export function AdminMatches({
   };
 
   const handleMoveSelectedMatchesToNextChampionshipDay = async () => {
-    const matchesById = matches.reduce<Record<string, Match>>((carry, match) => {
-      carry[match.id] = match;
-      return carry;
-    }, {});
+    const matchesById = matches.reduce<Record<string, Match>>(
+      (carry, match) => {
+        carry[match.id] = match;
+        return carry;
+      },
+      {},
+    );
 
     const selectedMatches = selectedMatchIds
       .map((selectedMatchId) => matchesById[selectedMatchId] ?? null)
       .filter((match): match is Match => match != null);
 
-    await moveMatchesToNextChampionshipDay(selectedMatches, "Selecione ao menos um jogo.");
+    await moveMatchesToNextChampionshipDay(
+      selectedMatches,
+      "Selecione ao menos um jogo.",
+    );
   };
 
   const handleMoveFilteredMatchesToNextChampionshipDay = async () => {
-    await moveMatchesToNextChampionshipDay(filteredAndSortedMatches, "Nenhum jogo filtrado disponível para mover.");
+    await moveMatchesToNextChampionshipDay(
+      filteredAndSortedMatches,
+      "Nenhum jogo filtrado disponível para mover.",
+    );
   };
 
   const handleAdd = async () => {
@@ -2539,7 +3132,13 @@ export function AdminMatches({
 
     const resolvedLocation = location.trim();
 
-    if (!sportId || !homeTeamId || !awayTeamId || !resolvedLocation || !scheduledDate) {
+    if (
+      !sportId ||
+      !homeTeamId ||
+      !awayTeamId ||
+      !resolvedLocation ||
+      !scheduledDate
+    ) {
       toast.error("Preencha todos os campos.");
       return;
     }
@@ -2617,7 +3216,11 @@ export function AdminMatches({
     }
 
     toast.success("Jogo removido.");
-    setSelectedMatchIds((currentSelectedMatchIds) => currentSelectedMatchIds.filter((selectedMatchId) => selectedMatchId != matchId));
+    setSelectedMatchIds((currentSelectedMatchIds) =>
+      currentSelectedMatchIds.filter(
+        (selectedMatchId) => selectedMatchId != matchId,
+      ),
+    );
     onRefetch();
     onRefetchChampionshipBracket();
   };
@@ -2628,7 +3231,9 @@ export function AdminMatches({
     }
 
     setPendingDeleteMatchId(match.id);
-    setPendingDeleteMatchLabel(`${match.home_team?.name ?? "Casa"} x ${match.away_team?.name ?? "Visitante"}`);
+    setPendingDeleteMatchLabel(
+      `${match.home_team?.name ?? "Casa"} x ${match.away_team?.name ?? "Visitante"}`,
+    );
     setShowDeleteMatchDialog(true);
   };
 
@@ -2731,7 +3336,10 @@ export function AdminMatches({
     setSelectedMatchIds([]);
   };
 
-  const handleToggleSelectedMatch = (matchId: string, checked: CheckedState) => {
+  const handleToggleSelectedMatch = (
+    matchId: string,
+    checked: CheckedState,
+  ) => {
     setSelectedMatchIds((currentSelectedMatchIds) => {
       if (checked == true) {
         if (currentSelectedMatchIds.includes(matchId)) {
@@ -2741,7 +3349,9 @@ export function AdminMatches({
         return [...currentSelectedMatchIds, matchId];
       }
 
-      return currentSelectedMatchIds.filter((selectedMatchId) => selectedMatchId != matchId);
+      return currentSelectedMatchIds.filter(
+        (selectedMatchId) => selectedMatchId != matchId,
+      );
     });
   };
 
@@ -2772,7 +3382,10 @@ export function AdminMatches({
 
     setDeletingMatches(true);
 
-    const { error } = await supabase.from("matches").delete().in("id", selectedMatchIds);
+    const { error } = await supabase
+      .from("matches")
+      .delete()
+      .in("id", selectedMatchIds);
 
     setDeletingMatches(false);
 
@@ -2826,7 +3439,9 @@ export function AdminMatches({
     const { error } = await reviewStateUpdateQuery;
 
     setSavingReviewStateByMatchId((currentSavingReviewStateByMatchId) => {
-      const nextSavingReviewStateByMatchId = { ...currentSavingReviewStateByMatchId };
+      const nextSavingReviewStateByMatchId = {
+        ...currentSavingReviewStateByMatchId,
+      };
 
       matchIds.forEach((matchId) => {
         delete nextSavingReviewStateByMatchId[matchId];
@@ -2848,40 +3463,46 @@ export function AdminMatches({
     await onRefetch();
   };
 
-  const loadMatchScoreSheetAwardsContext = useCallback(async (matchId: string) => {
-    setLoadingScoreSheetAwardsByMatchId((currentLoadingState) => ({
-      ...currentLoadingState,
-      [matchId]: true,
-    }));
+  const loadMatchScoreSheetAwardsContext = useCallback(
+    async (matchId: string) => {
+      setLoadingScoreSheetAwardsByMatchId((currentLoadingState) => ({
+        ...currentLoadingState,
+        [matchId]: true,
+      }));
 
-    const { data, error } = await supabaseLoose.rpc("get_match_score_sheet_awards_context", {
-      _match_id: matchId,
-    });
+      const { data, error } = await supabaseLoose.rpc(
+        "get_match_score_sheet_awards_context",
+        {
+          _match_id: matchId,
+        },
+      );
 
-    setLoadingScoreSheetAwardsByMatchId((currentLoadingState) => ({
-      ...currentLoadingState,
-      [matchId]: false,
-    }));
+      setLoadingScoreSheetAwardsByMatchId((currentLoadingState) => ({
+        ...currentLoadingState,
+        [matchId]: false,
+      }));
 
-    if (error) {
-      toast.error(resolveAdminMatchesOperationalErrorMessage(error));
-      return null;
-    }
+      if (error) {
+        toast.error(resolveAdminMatchesOperationalErrorMessage(error));
+        return null;
+      }
 
-    const context = (data ?? null) as MatchScoreSheetAwardsContext | null;
+      const context = (data ?? null) as MatchScoreSheetAwardsContext | null;
 
-    if (!context || !context.match_id) {
-      toast.error("Não foi possível carregar os dados da súmula.");
-      return null;
-    }
+      if (!context || !context.match_id) {
+        toast.error("Não foi possível carregar os dados da súmula.");
+        return null;
+      }
 
-    setScoreSheetAwardsDraftByMatchId((currentDraftByMatchId) => ({
-      ...currentDraftByMatchId,
-      [matchId]: resolveScoreSheetDraftFromContext(context),
-    }));
+      setScoreSheetAwardsDraftByMatchId((currentDraftByMatchId) => ({
+        ...currentDraftByMatchId,
+        [matchId]: resolveScoreSheetDraftFromContext(context),
+      }));
 
-    return context;
-  }, []);
+      return context;
+    },
+    [],
+  );
 
   const handleOpenScoreSheetReview = async (matchId: string) => {
     setActiveScoreSheetReviewMatchId(matchId);
@@ -2920,23 +3541,35 @@ export function AdminMatches({
     });
   };
 
-  const handleDeleteAwardPlayer = (matchId: string, side: "home" | "away", playerId: string) => {
+  const handleDeleteAwardPlayer = (
+    matchId: string,
+    side: "home" | "away",
+    playerId: string,
+  ) => {
     handleUpdateScoreSheetAwardsDraft(matchId, (draft) => {
-      const nextPlayerOptions = (side == "home" ? draft.homePlayerOptions : draft.awayPlayerOptions)
-        .filter((p) => p.id !== playerId);
+      const nextPlayerOptions = (
+        side == "home" ? draft.homePlayerOptions : draft.awayPlayerOptions
+      ).filter((p) => p.id !== playerId);
       const clearGoalId = (selections: GoalSelection[]) =>
-        selections.map((gs) => gs.scorerId == playerId ? { ...gs, scorerId: "" } : gs);
+        selections.map((gs) =>
+          gs.scorerId == playerId ? { ...gs, scorerId: "" } : gs,
+        );
       return {
         ...draft,
-        homePlayerOptions: side == "home" ? nextPlayerOptions : draft.homePlayerOptions,
-        awayPlayerOptions: side == "away" ? nextPlayerOptions : draft.awayPlayerOptions,
+        homePlayerOptions:
+          side == "home" ? nextPlayerOptions : draft.homePlayerOptions,
+        awayPlayerOptions:
+          side == "away" ? nextPlayerOptions : draft.awayPlayerOptions,
         homeGoalSelections: clearGoalId(draft.homeGoalSelections),
         awayGoalSelections: clearGoalId(draft.awayGoalSelections),
       };
     });
   };
 
-  const handleConfirmEditAwardPlayer = (matchId: string, side: "home" | "away") => {
+  const handleConfirmEditAwardPlayer = (
+    matchId: string,
+    side: "home" | "away",
+  ) => {
     const key = `${matchId}:${side}`;
     const editingState = editingPlayerByKey[key];
 
@@ -2955,16 +3588,23 @@ export function AdminMatches({
       : oldId;
 
     handleUpdateScoreSheetAwardsDraft(matchId, (draft) => {
-      const playerOptions = side == "home" ? draft.homePlayerOptions : draft.awayPlayerOptions;
+      const playerOptions =
+        side == "home" ? draft.homePlayerOptions : draft.awayPlayerOptions;
       const nextPlayerOptions = playerOptions
-        .map((p) => p.id == oldId ? { ...p, id: newId, name: normalizedName } : p)
+        .map((p) =>
+          p.id == oldId ? { ...p, id: newId, name: normalizedName } : p,
+        )
         .sort((a, b) => a.name.localeCompare(b.name));
       const updateGoalId = (selections: GoalSelection[]) =>
-        selections.map((gs) => gs.scorerId == oldId ? { ...gs, scorerId: newId } : gs);
+        selections.map((gs) =>
+          gs.scorerId == oldId ? { ...gs, scorerId: newId } : gs,
+        );
       return {
         ...draft,
-        homePlayerOptions: side == "home" ? nextPlayerOptions : draft.homePlayerOptions,
-        awayPlayerOptions: side == "away" ? nextPlayerOptions : draft.awayPlayerOptions,
+        homePlayerOptions:
+          side == "home" ? nextPlayerOptions : draft.homePlayerOptions,
+        awayPlayerOptions:
+          side == "away" ? nextPlayerOptions : draft.awayPlayerOptions,
         homeGoalSelections: updateGoalId(draft.homeGoalSelections),
         awayGoalSelections: updateGoalId(draft.awayGoalSelections),
       };
@@ -2973,14 +3613,20 @@ export function AdminMatches({
     setEditingPlayerByKey((prev) => ({ ...prev, [key]: null }));
   };
 
-  const handleAddInlineAwardPlayer = (matchId: string, side: "home" | "away") => {
+  const handleAddInlineAwardPlayer = (
+    matchId: string,
+    side: "home" | "away",
+  ) => {
     const currentDraft = scoreSheetAwardsDraftByMatchId[matchId];
 
     if (!currentDraft) {
       return;
     }
 
-    const rawPlayerName = side == "home" ? currentDraft.newHomePlayerName : currentDraft.newAwayPlayerName;
+    const rawPlayerName =
+      side == "home"
+        ? currentDraft.newHomePlayerName
+        : currentDraft.newAwayPlayerName;
     const normalizedPlayerName = rawPlayerName.trim();
 
     if (!normalizedPlayerName) {
@@ -2989,16 +3635,24 @@ export function AdminMatches({
     }
 
     const syntheticPlayerId = `${NEW_PLAYER_OPTION_PREFIX}${normalizedPlayerName}`;
-    const playerOptions = side == "home" ? currentDraft.homePlayerOptions : currentDraft.awayPlayerOptions;
+    const playerOptions =
+      side == "home"
+        ? currentDraft.homePlayerOptions
+        : currentDraft.awayPlayerOptions;
 
-    if (playerOptions.some((playerOption) => playerOption.id == syntheticPlayerId)) {
+    if (
+      playerOptions.some((playerOption) => playerOption.id == syntheticPlayerId)
+    ) {
       toast.error("Este jogador já está na lista desta equipe.");
       return;
     }
 
     const buttonKey = `${matchId}:${side}`;
 
-    setAddPlayerButtonStateByKey((prev) => ({ ...prev, [buttonKey]: "loading" }));
+    setAddPlayerButtonStateByKey((prev) => ({
+      ...prev,
+      [buttonKey]: "loading",
+    }));
 
     setTimeout(() => {
       handleUpdateScoreSheetAwardsDraft(matchId, (draft) => {
@@ -3007,19 +3661,28 @@ export function AdminMatches({
           name: normalizedPlayerName,
         };
 
-        const nextPlayerOptions = [...(side == "home" ? draft.homePlayerOptions : draft.awayPlayerOptions), nextPlayerOption]
-          .sort((a, b) => a.name.localeCompare(b.name));
+        const nextPlayerOptions = [
+          ...(side == "home"
+            ? draft.homePlayerOptions
+            : draft.awayPlayerOptions),
+          nextPlayerOption,
+        ].sort((a, b) => a.name.localeCompare(b.name));
 
         return {
           ...draft,
-          homePlayerOptions: side == "home" ? nextPlayerOptions : draft.homePlayerOptions,
-          awayPlayerOptions: side == "away" ? nextPlayerOptions : draft.awayPlayerOptions,
+          homePlayerOptions:
+            side == "home" ? nextPlayerOptions : draft.homePlayerOptions,
+          awayPlayerOptions:
+            side == "away" ? nextPlayerOptions : draft.awayPlayerOptions,
           newHomePlayerName: side == "home" ? "" : draft.newHomePlayerName,
           newAwayPlayerName: side == "away" ? "" : draft.newAwayPlayerName,
         };
       });
 
-      setAddPlayerButtonStateByKey((prev) => ({ ...prev, [buttonKey]: "success" }));
+      setAddPlayerButtonStateByKey((prev) => ({
+        ...prev,
+        [buttonKey]: "success",
+      }));
 
       newPlayerInputRefs.current[buttonKey]?.focus();
 
@@ -3034,15 +3697,25 @@ export function AdminMatches({
   };
 
   const handleSaveScoreSheetAwards = async () => {
-    if (!activeScoreSheetReviewMatchId || !activeScoreSheetReviewMatch || !activeScoreSheetAwardsDraft) {
+    if (
+      !activeScoreSheetReviewMatchId ||
+      !activeScoreSheetReviewMatch ||
+      !activeScoreSheetAwardsDraft
+    ) {
       return;
     }
 
     const { isWalkover } = activeScoreSheetAwardsDraft;
 
     if (!isWalkover) {
-      const hasIncompleteHomeGoals = activeScoreSheetAwardsDraft.homeGoalSelections.some((gs) => gs.scorerId.trim().length == 0);
-      const hasIncompleteAwayGoals = activeScoreSheetAwardsDraft.awayGoalSelections.some((gs) => gs.scorerId.trim().length == 0);
+      const hasIncompleteHomeGoals =
+        activeScoreSheetAwardsDraft.homeGoalSelections.some(
+          (gs) => gs.scorerId.trim().length == 0,
+        );
+      const hasIncompleteAwayGoals =
+        activeScoreSheetAwardsDraft.awayGoalSelections.some(
+          (gs) => gs.scorerId.trim().length == 0,
+        );
 
       if (hasIncompleteHomeGoals || hasIncompleteAwayGoals) {
         toast.error("Preencha os autores de todos os gols antes de salvar.");
@@ -3055,12 +3728,20 @@ export function AdminMatches({
       [activeScoreSheetReviewMatchId]: true,
     }));
 
-    const homeGoalScorersPayload = activeScoreSheetAwardsDraft.homeGoalSelections.map((gs) =>
-      resolveScoreSheetSelectionOptionByValue(gs.scorerId, activeScoreSheetAwardsDraft.homePlayerOptions),
-    );
-    const awayGoalScorersPayload = activeScoreSheetAwardsDraft.awayGoalSelections.map((gs) =>
-      resolveScoreSheetSelectionOptionByValue(gs.scorerId, activeScoreSheetAwardsDraft.awayPlayerOptions),
-    );
+    const homeGoalScorersPayload =
+      activeScoreSheetAwardsDraft.homeGoalSelections.map((gs) =>
+        resolveScoreSheetSelectionOptionByValue(
+          gs.scorerId,
+          activeScoreSheetAwardsDraft.homePlayerOptions,
+        ),
+      );
+    const awayGoalScorersPayload =
+      activeScoreSheetAwardsDraft.awayGoalSelections.map((gs) =>
+        resolveScoreSheetSelectionOptionByValue(
+          gs.scorerId,
+          activeScoreSheetAwardsDraft.awayPlayerOptions,
+        ),
+      );
 
     const { error } = await supabaseLoose.rpc("save_match_score_sheet_awards", {
       _match_id: activeScoreSheetReviewMatch.id,
@@ -3083,7 +3764,10 @@ export function AdminMatches({
     await onRefetch();
   };
 
-  const handleToggleMatchScoreSheetReviewed = async (matchId: string, checked: CheckedState) => {
+  const handleToggleMatchScoreSheetReviewed = async (
+    matchId: string,
+    checked: CheckedState,
+  ) => {
     if (!canManageMatches) {
       return;
     }
@@ -3094,7 +3778,11 @@ export function AdminMatches({
       return;
     }
 
-    if (checked === true && !match.is_walkover && supportsIndividualAwardsBySportId.get(match.sport_id) === true) {
+    if (
+      checked === true &&
+      !match.is_walkover &&
+      supportsIndividualAwardsBySportId.get(match.sport_id) === true
+    ) {
       await handleOpenScoreSheetReview(matchId);
       return;
     }
@@ -3102,17 +3790,24 @@ export function AdminMatches({
     await handleUpdateMatchesReviewState({
       matchIds: [matchId],
       reviewed: checked === true,
-      successMessage: checked === true ? "Jogo marcado como conferido na súmula." : "Jogo desmarcado da conferência de súmula.",
+      successMessage:
+        checked === true
+          ? "Jogo marcado como conferido na súmula."
+          : "Jogo desmarcado da conferência de súmula.",
     });
   };
 
-  const handleBulkUpdateFilteredMatchesReviewState = async (reviewed: boolean) => {
+  const handleBulkUpdateFilteredMatchesReviewState = async (
+    reviewed: boolean,
+  ) => {
     if (!canManageMatches || bulkReviewAction != null) {
       return;
     }
 
     const filteredMatchIdSet = new Set(filteredMatchIds);
-    const selectedFilteredMatchIds = selectedMatchIds.filter((selectedMatchId) => filteredMatchIdSet.has(selectedMatchId));
+    const selectedFilteredMatchIds = selectedMatchIds.filter(
+      (selectedMatchId) => filteredMatchIdSet.has(selectedMatchId),
+    );
 
     if (selectedFilteredMatchIds.length == 0) {
       toast.error("Selecione ao menos um jogo filtrado.");
@@ -3120,13 +3815,19 @@ export function AdminMatches({
     }
 
     if (reviewed) {
-      const hasNonWalkoverMatch = selectedFilteredMatchIds.some((selectedMatchId) => {
-        const selectedMatch = matches.find((match) => match.id == selectedMatchId);
-        return selectedMatch != null && !selectedMatch.is_walkover;
-      });
+      const hasNonWalkoverMatch = selectedFilteredMatchIds.some(
+        (selectedMatchId) => {
+          const selectedMatch = matches.find(
+            (match) => match.id == selectedMatchId,
+          );
+          return selectedMatch != null && !selectedMatch.is_walkover;
+        },
+      );
 
       if (hasNonWalkoverMatch) {
-        toast.error("Para marcar como revisado, use a revisão individual de súmula para registrar os autores dos gols.");
+        toast.error(
+          "Para marcar como revisado, use a revisão individual de súmula para registrar os autores dos gols.",
+        );
         return;
       }
     }
@@ -3152,12 +3853,15 @@ export function AdminMatches({
       return;
     }
 
-    const matchBracketBinding = groupStageMatchBracketBindingByMatchId[match.id];
+    const matchBracketBinding =
+      groupStageMatchBracketBindingByMatchId[match.id];
     setEditingMatchId(match.id);
     setEditingMatchDraft(
       resolveInitialEditingMatchDraft(
         match,
-        matchBracketBinding ? `${matchBracketBinding.competition_id}:${matchBracketBinding.group_id}` : "",
+        matchBracketBinding
+          ? `${matchBracketBinding.competition_id}:${matchBracketBinding.group_id}`
+          : "",
       ),
     );
     setEditingMatchSetsDraft(resolveRecordedMatchSets(match));
@@ -3186,7 +3890,9 @@ export function AdminMatches({
 
   const handleDeleteEditingMatchSet = (matchSetIndex: number) => {
     setEditingMatchSetsDraft((currentEditingMatchSetsDraft) => {
-      return currentEditingMatchSetsDraft.filter((_, currentMatchSetIndex) => currentMatchSetIndex != matchSetIndex);
+      return currentEditingMatchSetsDraft.filter(
+        (_, currentMatchSetIndex) => currentMatchSetIndex != matchSetIndex,
+      );
     });
   };
 
@@ -3198,21 +3904,25 @@ export function AdminMatches({
     const parsedValue = resolveParsedScoreInputValue(value);
 
     setEditingMatchSetsDraft((currentEditingMatchSetsDraft) => {
-      return currentEditingMatchSetsDraft.map((matchSet, currentMatchSetIndex) => {
-        if (currentMatchSetIndex != matchSetIndex) {
-          return matchSet;
-        }
+      return currentEditingMatchSetsDraft.map(
+        (matchSet, currentMatchSetIndex) => {
+          if (currentMatchSetIndex != matchSetIndex) {
+            return matchSet;
+          }
 
-        return {
-          ...matchSet,
-          home_points: side == "home" ? parsedValue : matchSet.home_points,
-          away_points: side == "away" ? parsedValue : matchSet.away_points,
-        };
-      });
+          return {
+            ...matchSet,
+            home_points: side == "home" ? parsedValue : matchSet.home_points,
+            away_points: side == "away" ? parsedValue : matchSet.away_points,
+          };
+        },
+      );
     });
   };
 
-  const handleSaveEditingMatch = async (scoreSheetReviewSaveDecision?: ScoreSheetReviewSaveDecision) => {
+  const handleSaveEditingMatch = async (
+    scoreSheetReviewSaveDecision?: ScoreSheetReviewSaveDecision,
+  ) => {
     if (!canManageMatches) {
       return;
     }
@@ -3258,21 +3968,34 @@ export function AdminMatches({
       editingMatch,
       originalSelectedGroupOptionValue,
     );
-    const resolvedScheduledDate = resolveDateOnlyString(editingMatchDraft.scheduledDate);
+    const resolvedScheduledDate = resolveDateOnlyString(
+      editingMatchDraft.scheduledDate,
+    );
     const originalScheduledDate = originalEditingDraft.scheduledDate
       ? resolveDateOnlyString(originalEditingDraft.scheduledDate)
       : null;
-    const resolvedStartTimeValue = editingMatchDraft.startTime?.toISOString() ?? null;
-    const originalStartTimeValue = originalEditingDraft.startTime?.toISOString() ?? null;
-    const resolvedDivision = championshipUsesDivisions ? editingMatchDraft.division : null;
-    const originalDivision = championshipUsesDivisions ? originalEditingDraft.division : null;
-    const didChangeLocation = normalizedLocation != (originalEditingDraft.location ?? "");
-    const didChangeCourtName = normalizedCourtName != (originalEditingDraft.courtName ?? "");
-    const didChangeScheduledDate = resolvedScheduledDate != originalScheduledDate;
+    const resolvedStartTimeValue =
+      editingMatchDraft.startTime?.toISOString() ?? null;
+    const originalStartTimeValue =
+      originalEditingDraft.startTime?.toISOString() ?? null;
+    const resolvedDivision = championshipUsesDivisions
+      ? editingMatchDraft.division
+      : null;
+    const originalDivision = championshipUsesDivisions
+      ? originalEditingDraft.division
+      : null;
+    const didChangeLocation =
+      normalizedLocation != (originalEditingDraft.location ?? "");
+    const didChangeCourtName =
+      normalizedCourtName != (originalEditingDraft.courtName ?? "");
+    const didChangeScheduledDate =
+      resolvedScheduledDate != originalScheduledDate;
     const didChangeStartTime = resolvedStartTimeValue != originalStartTimeValue;
-    const didChangeGameSlot = editingMatchDraft.gameSlot != (originalEditingDraft.gameSlot ?? "");
+    const didChangeGameSlot =
+      editingMatchDraft.gameSlot != (originalEditingDraft.gameSlot ?? "");
     const didChangeRepresentationMode =
-      editingMatchDraft.manualRepresentationMode != originalEditingDraft.manualRepresentationMode;
+      editingMatchDraft.manualRepresentationMode !=
+      originalEditingDraft.manualRepresentationMode;
     const didChangeLogisticsFields =
       didChangeLocation ||
       didChangeCourtName ||
@@ -3280,13 +4003,20 @@ export function AdminMatches({
       didChangeStartTime ||
       didChangeGameSlot ||
       didChangeRepresentationMode;
-    const didChangeSport = (editingMatchDraft.sportId ?? "") != (originalEditingDraft.sportId ?? "");
-    const didChangeNaipe = editingMatchDraft.naipe != originalEditingDraft.naipe;
+    const didChangeSport =
+      (editingMatchDraft.sportId ?? "") != (originalEditingDraft.sportId ?? "");
+    const didChangeNaipe =
+      editingMatchDraft.naipe != originalEditingDraft.naipe;
     const didChangeDivision = resolvedDivision != originalDivision;
-    const didChangeHomeTeam = (editingMatchDraft.homeTeamId ?? "") != (originalEditingDraft.homeTeamId ?? "");
-    const didChangeAwayTeam = (editingMatchDraft.awayTeamId ?? "") != (originalEditingDraft.awayTeamId ?? "");
+    const didChangeHomeTeam =
+      (editingMatchDraft.homeTeamId ?? "") !=
+      (originalEditingDraft.homeTeamId ?? "");
+    const didChangeAwayTeam =
+      (editingMatchDraft.awayTeamId ?? "") !=
+      (originalEditingDraft.awayTeamId ?? "");
     const didChangeGroupBinding =
-      editingMatchDraft.selectedGroupOptionValue != originalSelectedGroupOptionValue;
+      editingMatchDraft.selectedGroupOptionValue !=
+      originalSelectedGroupOptionValue;
     const didChangeStructuralFields =
       didChangeSport ||
       didChangeNaipe ||
@@ -3296,24 +4026,40 @@ export function AdminMatches({
       didChangeGroupBinding;
     const didChangeStatus = editingMatchDraft.status != editingMatch.status;
     const requiresAvailableScheduleSlot =
-      canEditScheduledMatchSetup && (didChangeLogisticsFields || didChangeStructuralFields);
+      canEditScheduledMatchSetup &&
+      (didChangeLogisticsFields || didChangeStructuralFields);
 
     if (!editingAllowedStatuses.includes(editingMatchDraft.status)) {
-      toast.error("A transição de status selecionada não é permitida para este jogo.");
+      toast.error(
+        "A transição de status selecionada não é permitida para este jogo.",
+      );
       return;
     }
 
-    if ((didChangeLogisticsFields || didChangeStructuralFields) && !canEditScheduledMatchSetup) {
-      toast.error("Depois que o jogo sai de agendado, só é possível editar status e resultado.");
+    if (
+      (didChangeLogisticsFields || didChangeStructuralFields) &&
+      !canEditScheduledMatchSetup
+    ) {
+      toast.error(
+        "Depois que o jogo sai de agendado, só é possível editar status e resultado.",
+      );
       return;
     }
 
-    if (editingMatch.status != MatchStatus.SCHEDULED && editingMatchDraft.status == MatchStatus.SCHEDULED) {
-      toast.error("Para voltar ao agendamento, use a ação dedicada no Controle ao Vivo.");
+    if (
+      editingMatch.status != MatchStatus.SCHEDULED &&
+      editingMatchDraft.status == MatchStatus.SCHEDULED
+    ) {
+      toast.error(
+        "Para voltar ao agendamento, use a ação dedicada no Controle ao Vivo.",
+      );
       return;
     }
 
-    if (!editingMatchDraft.startTime || (requiresAvailableScheduleSlot && !selectedEditingScheduleSlot)) {
+    if (
+      !editingMatchDraft.startTime ||
+      (requiresAvailableScheduleSlot && !selectedEditingScheduleSlot)
+    ) {
       toast.error("Selecione um horário disponível para o jogo.");
       return;
     }
@@ -3337,15 +4083,27 @@ export function AdminMatches({
     setSavingEditingMatch(true);
 
     // Para jogos do primeiro round do KO: se o novo time já está na chave, acionar o swap
-    const editingBracketMatch = knockoutFirstRoundBracketMatchByMatchId[editingMatchId];
+    const editingBracketMatch =
+      knockoutFirstRoundBracketMatchByMatchId[editingMatchId];
     if (editingBracketMatch) {
-      const firstRoundTeamIds = knockoutFirstRoundTeamIdsByCompetitionId[editingBracketMatch.competition_id] ?? new Set<string>();
+      const firstRoundTeamIds =
+        knockoutFirstRoundTeamIdsByCompetitionId[
+          editingBracketMatch.competition_id
+        ] ?? new Set<string>();
       const originalMatch = matches.find((m) => m.id === editingMatchId);
 
-      const homeChanged = originalMatch && editingMatchDraft.homeTeamId !== originalMatch.home_team_id;
-      const awayChanged = originalMatch && editingMatchDraft.awayTeamId !== originalMatch.away_team_id;
+      const homeChanged =
+        originalMatch &&
+        editingMatchDraft.homeTeamId !== originalMatch.home_team_id;
+      const awayChanged =
+        originalMatch &&
+        editingMatchDraft.awayTeamId !== originalMatch.away_team_id;
 
-      if (homeChanged && originalMatch.home_team_id && firstRoundTeamIds.has(editingMatchDraft.homeTeamId)) {
+      if (
+        homeChanged &&
+        originalMatch.home_team_id &&
+        firstRoundTeamIds.has(editingMatchDraft.homeTeamId)
+      ) {
         const { error: swapError } = await swapChampionshipKnockoutBracketTeams(
           editingBracketMatch.competition_id,
           originalMatch.home_team_id,
@@ -3358,7 +4116,11 @@ export function AdminMatches({
         }
       }
 
-      if (awayChanged && originalMatch.away_team_id && firstRoundTeamIds.has(editingMatchDraft.awayTeamId)) {
+      if (
+        awayChanged &&
+        originalMatch.away_team_id &&
+        firstRoundTeamIds.has(editingMatchDraft.awayTeamId)
+      ) {
         const { error: swapError } = await swapChampionshipKnockoutBracketTeams(
           editingBracketMatch.competition_id,
           originalMatch.away_team_id,
@@ -3373,27 +4135,41 @@ export function AdminMatches({
     }
 
     const isEditingSetRuleBySelectedSport =
-      championshipSportResultRuleBySportId.get(editingMatchDraft.sportId) == ChampionshipSportResultRule.SETS;
+      championshipSportResultRuleBySportId.get(editingMatchDraft.sportId) ==
+      ChampionshipSportResultRule.SETS;
     const isEditingSportWithCardsBySelectedSport =
-      championshipSportSupportsCardsBySportId.get(editingMatchDraft.sportId) == true;
-    const selectedEditingSport = availableSports.find((sport) => sport.id == editingMatchDraft.sportId);
-    const isEditingHandballBySelectedSport = isHandballSportName(selectedEditingSport?.name);
-    const normalizedEditingMatchSetsDraft = resolveNormalizedMatchSetsDraft(editingMatchSetsDraft);
+      championshipSportSupportsCardsBySportId.get(editingMatchDraft.sportId) ==
+      true;
+    const selectedEditingSport = availableSports.find(
+      (sport) => sport.id == editingMatchDraft.sportId,
+    );
+    const isEditingHandballBySelectedSport = isHandballSportName(
+      selectedEditingSport?.name,
+    );
+    const normalizedEditingMatchSetsDraft = resolveNormalizedMatchSetsDraft(
+      editingMatchSetsDraft,
+    );
 
     if (isEditingSetRuleBySelectedSport) {
-      const hasInvalidEmptySet = normalizedEditingMatchSetsDraft.some((matchSet) => {
-        return matchSet.home_points == 0 && matchSet.away_points == 0;
-      });
+      const hasInvalidEmptySet = normalizedEditingMatchSetsDraft.some(
+        (matchSet) => {
+          return matchSet.home_points == 0 && matchSet.away_points == 0;
+        },
+      );
 
       if (hasInvalidEmptySet) {
         setSavingEditingMatch(false);
-        toast.error("Informe um placar válido para todos os sets ou remova os sets vazios.");
+        toast.error(
+          "Informe um placar válido para todos os sets ou remova os sets vazios.",
+        );
         return;
       }
 
-      const hasInvalidDrawSet = normalizedEditingMatchSetsDraft.some((matchSet) => {
-        return matchSet.home_points == matchSet.away_points;
-      });
+      const hasInvalidDrawSet = normalizedEditingMatchSetsDraft.some(
+        (matchSet) => {
+          return matchSet.home_points == matchSet.away_points;
+        },
+      );
 
       if (hasInvalidDrawSet) {
         setSavingEditingMatch(false);
@@ -3402,32 +4178,60 @@ export function AdminMatches({
       }
     }
 
-    const recordedEditingMatchSets = resolveNormalizedMatchSetsDraft(resolveRecordedMatchSets(editingMatch));
-    const didChangeMatchSets = !areMatchSetInputsEqual(normalizedEditingMatchSetsDraft, recordedEditingMatchSets);
+    const recordedEditingMatchSets = resolveNormalizedMatchSetsDraft(
+      resolveRecordedMatchSets(editingMatch),
+    );
+    const didChangeMatchSets = !areMatchSetInputsEqual(
+      normalizedEditingMatchSetsDraft,
+      recordedEditingMatchSets,
+    );
     const shouldSyncMatchSets =
-      didChangeMatchSets || (isEditingSetRuleBySelectedSport && recordedEditingMatchSets.length == 0 && normalizedEditingMatchSetsDraft.length > 0);
+      didChangeMatchSets ||
+      (isEditingSetRuleBySelectedSport &&
+        recordedEditingMatchSets.length == 0 &&
+        normalizedEditingMatchSetsDraft.length > 0);
     const shouldTransitionMatchToLive =
-      editingMatchDraft.status == MatchStatus.LIVE && editingMatch.status == MatchStatus.SCHEDULED;
+      editingMatchDraft.status == MatchStatus.LIVE &&
+      editingMatch.status == MatchStatus.SCHEDULED;
     const shouldReopenFinishedMatchAsLive =
-      editingMatchDraft.status == MatchStatus.LIVE && editingMatch.status == MatchStatus.FINISHED;
+      editingMatchDraft.status == MatchStatus.LIVE &&
+      editingMatch.status == MatchStatus.FINISHED;
     const shouldTransitionMatchToFinished =
-      editingMatchDraft.status == MatchStatus.FINISHED && editingMatch.status == MatchStatus.LIVE;
-    const editingMatchBracketContext = matchBracketContextByMatchId[editingMatch.id] ?? null;
-    const shouldPreserveTieBreakResolution = editingMatchDraft.status == MatchStatus.FINISHED;
-    const resolvedSetWins = isEditingSetRuleBySelectedSport ? resolveSetWins(normalizedEditingMatchSetsDraft) : null;
-    const resolvedHomeScore = resolvedSetWins ? resolvedSetWins.home_sets : resolveSafeScoreValue(editingMatchDraft.homeScore);
-    const resolvedAwayScore = resolvedSetWins ? resolvedSetWins.away_sets : resolveSafeScoreValue(editingMatchDraft.awayScore);
-    const shouldPersistSocietyPenaltyShootout = shouldUseSocietyPenaltyShootout({
-      championship: selectedChampionship,
-      bracketContext: editingMatchBracketContext,
-      status: editingMatchDraft.status,
-      homeScore: resolvedHomeScore,
-      awayScore: resolvedAwayScore,
-    });
-    const resolvedHomePenaltyScore = shouldPersistSocietyPenaltyShootout ? editingMatchDraft.homePenaltyScore : null;
-    const resolvedAwayPenaltyScore = shouldPersistSocietyPenaltyShootout ? editingMatchDraft.awayPenaltyScore : null;
+      editingMatchDraft.status == MatchStatus.FINISHED &&
+      editingMatch.status == MatchStatus.LIVE;
+    const editingMatchBracketContext =
+      matchBracketContextByMatchId[editingMatch.id] ?? null;
+    const shouldPreserveTieBreakResolution =
+      editingMatchDraft.status == MatchStatus.FINISHED;
+    const resolvedSetWins = isEditingSetRuleBySelectedSport
+      ? resolveSetWins(normalizedEditingMatchSetsDraft)
+      : null;
+    const resolvedHomeScore = resolvedSetWins
+      ? resolvedSetWins.home_sets
+      : resolveSafeScoreValue(editingMatchDraft.homeScore);
+    const resolvedAwayScore = resolvedSetWins
+      ? resolvedSetWins.away_sets
+      : resolveSafeScoreValue(editingMatchDraft.awayScore);
+    const shouldPersistSocietyPenaltyShootout = shouldUseSocietyPenaltyShootout(
+      {
+        championship: selectedChampionship,
+        bracketContext: editingMatchBracketContext,
+        status: editingMatchDraft.status,
+        homeScore: resolvedHomeScore,
+        awayScore: resolvedAwayScore,
+      },
+    );
+    const resolvedHomePenaltyScore = shouldPersistSocietyPenaltyShootout
+      ? editingMatchDraft.homePenaltyScore
+      : null;
+    const resolvedAwayPenaltyScore = shouldPersistSocietyPenaltyShootout
+      ? editingMatchDraft.awayPenaltyScore
+      : null;
 
-    if (shouldPersistSocietyPenaltyShootout && (resolvedHomePenaltyScore == null || resolvedAwayPenaltyScore == null)) {
+    if (
+      shouldPersistSocietyPenaltyShootout &&
+      (resolvedHomePenaltyScore == null || resolvedAwayPenaltyScore == null)
+    ) {
       setSavingEditingMatch(false);
       toast.error("Informe o placar dos pênaltis para as duas atléticas.");
       return;
@@ -3445,7 +4249,9 @@ export function AdminMatches({
     }
 
     const resolvedSocietyPenaltyWinnerTeamId =
-      shouldPersistSocietyPenaltyShootout && resolvedHomePenaltyScore != null && resolvedAwayPenaltyScore != null
+      shouldPersistSocietyPenaltyShootout &&
+      resolvedHomePenaltyScore != null &&
+      resolvedAwayPenaltyScore != null
         ? resolvedHomePenaltyScore > resolvedAwayPenaltyScore
           ? editingMatchDraft.homeTeamId
           : editingMatchDraft.awayTeamId
@@ -3475,41 +4281,55 @@ export function AdminMatches({
       ? resolveSafeScoreValue(editingMatchDraft.awayTwoMinutePenalties)
       : 0;
     const didChangeScoreFields =
-      resolvedHomeScore != editingMatch.home_score || resolvedAwayScore != editingMatch.away_score;
+      resolvedHomeScore != editingMatch.home_score ||
+      resolvedAwayScore != editingMatch.away_score;
     const didChangeCardFields =
       resolvedHomeYellowCards != editingMatch.home_yellow_cards ||
       resolvedHomeRedCards != editingMatch.home_red_cards ||
       resolvedAwayYellowCards != editingMatch.away_yellow_cards ||
       resolvedAwayRedCards != editingMatch.away_red_cards ||
       resolvedHomeBlueCards != (editingMatch.home_blue_cards ?? 0) ||
-      resolvedHomeTwoMinutePenalties != (editingMatch.home_two_minute_penalties ?? 0) ||
+      resolvedHomeTwoMinutePenalties !=
+        (editingMatch.home_two_minute_penalties ?? 0) ||
       resolvedAwayBlueCards != (editingMatch.away_blue_cards ?? 0) ||
-      resolvedAwayTwoMinutePenalties != (editingMatch.away_two_minute_penalties ?? 0);
+      resolvedAwayTwoMinutePenalties !=
+        (editingMatch.away_two_minute_penalties ?? 0);
     const didChangePenaltyShootoutFields =
       resolvedHomePenaltyScore != (editingMatch.home_penalty_score ?? null) ||
       resolvedAwayPenaltyScore != (editingMatch.away_penalty_score ?? null);
-    const resolvedReviewFlag = editingMatchDraft.status == MatchStatus.FINISHED ? shouldKeepScoreSheetReview : false;
-    const didChangeReviewFlag = resolvedReviewFlag != (editingMatch.is_score_sheet_reviewed ?? false);
-    const resolvedTieBreakRule =
-      shouldPersistSocietyPenaltyShootout
-        ? ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY
-        : shouldPreserveTieBreakResolution &&
-            editingMatch.resolved_tie_breaker_rule != ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY
-          ? editingMatchDraft.resolvedTieBreakerRule || null
-          : null;
-    const resolvedTieBreakWinnerTeamId =
-      shouldPersistSocietyPenaltyShootout
-        ? resolvedSocietyPenaltyWinnerTeamId
-        : shouldPreserveTieBreakResolution &&
-            editingMatch.resolved_tie_breaker_rule != ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY
-          ? editingMatch.resolved_tie_break_winner_team_id ?? null
-          : null;
+    const resolvedReviewFlag =
+      editingMatchDraft.status == MatchStatus.FINISHED
+        ? shouldKeepScoreSheetReview
+        : false;
+    const didChangeReviewFlag =
+      resolvedReviewFlag != (editingMatch.is_score_sheet_reviewed ?? false);
+    const resolvedTieBreakRule = shouldPersistSocietyPenaltyShootout
+      ? ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY
+      : shouldPreserveTieBreakResolution &&
+          editingMatch.resolved_tie_breaker_rule !=
+            ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY
+        ? editingMatchDraft.resolvedTieBreakerRule || null
+        : null;
+    const resolvedTieBreakWinnerTeamId = shouldPersistSocietyPenaltyShootout
+      ? resolvedSocietyPenaltyWinnerTeamId
+      : shouldPreserveTieBreakResolution &&
+          editingMatch.resolved_tie_breaker_rule !=
+            ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY
+        ? (editingMatch.resolved_tie_break_winner_team_id ?? null)
+        : null;
     const didChangeResolvedTieBreakFields =
-      resolvedTieBreakRule != (editingMatch.resolved_tie_breaker_rule ?? null) ||
-      resolvedTieBreakWinnerTeamId != (editingMatch.resolved_tie_break_winner_team_id ?? null);
+      resolvedTieBreakRule !=
+        (editingMatch.resolved_tie_breaker_rule ?? null) ||
+      resolvedTieBreakWinnerTeamId !=
+        (editingMatch.resolved_tie_break_winner_team_id ?? null);
     const resolvedCourtName = normalizedCourtName;
-    const resolvedSlotNumber = selectedEditingScheduleSlot?.slot_number ?? editingMatch.scheduled_slot ?? null;
-    const shouldUpdateScheduledMatchSetup = canEditScheduledMatchSetup && (didChangeLogisticsFields || didChangeStructuralFields);
+    const resolvedSlotNumber =
+      selectedEditingScheduleSlot?.slot_number ??
+      editingMatch.scheduled_slot ??
+      null;
+    const shouldUpdateScheduledMatchSetup =
+      canEditScheduledMatchSetup &&
+      (didChangeLogisticsFields || didChangeStructuralFields);
     const shouldRedistributeScheduledMatch =
       shouldUpdateScheduledMatchSetup &&
       resolveShouldRedistributeBracketScheduleAfterMatchEdit({
@@ -3525,29 +4345,33 @@ export function AdminMatches({
           division: resolvedDivision,
           location: normalizedLocation,
           court_name: resolvedCourtName,
-          start_time: selectedEditingScheduleSlot?.start_time ?? editingMatch.start_time,
+          start_time:
+            selectedEditingScheduleSlot?.start_time ?? editingMatch.start_time,
           home_team_id: editingMatchDraft.homeTeamId,
           away_team_id: editingMatchDraft.awayTeamId,
         },
       });
 
     if (shouldUpdateScheduledMatchSetup) {
-      const { error: logisticsUpdateError } = await updateScheduledMatchLogistics({
-        match_id: editingMatchId,
-        scheduled_date: resolvedScheduledDate,
-        location: normalizedLocation,
-        court_name: resolvedCourtName,
-        slot_start_time: selectedEditingScheduleSlot!.start_time,
-        representation_mode: editingMatchDraft.manualRepresentationMode,
-        sport_id: editingMatchDraft.sportId,
-        naipe: editingMatchDraft.naipe,
-        home_team_id: editingMatchDraft.homeTeamId,
-        away_team_id: editingMatchDraft.awayTeamId,
-      });
+      const { error: logisticsUpdateError } =
+        await updateScheduledMatchLogistics({
+          match_id: editingMatchId,
+          scheduled_date: resolvedScheduledDate,
+          location: normalizedLocation,
+          court_name: resolvedCourtName,
+          slot_start_time: selectedEditingScheduleSlot!.start_time,
+          representation_mode: editingMatchDraft.manualRepresentationMode,
+          sport_id: editingMatchDraft.sportId,
+          naipe: editingMatchDraft.naipe,
+          home_team_id: editingMatchDraft.homeTeamId,
+          away_team_id: editingMatchDraft.awayTeamId,
+        });
 
       if (logisticsUpdateError) {
         setSavingEditingMatch(false);
-        toast.error(resolveAdminMatchesOperationalErrorMessage(logisticsUpdateError));
+        toast.error(
+          resolveAdminMatchesOperationalErrorMessage(logisticsUpdateError),
+        );
         return;
       }
     }
@@ -3580,7 +4404,10 @@ export function AdminMatches({
       matchUpdatePayload.status = editingMatchDraft.status;
 
       if (shouldTransitionMatchToLive || shouldReopenFinishedMatchAsLive) {
-        matchUpdatePayload.start_time = editingMatch.start_time ?? resolvedStartTimeValue ?? new Date().toISOString();
+        matchUpdatePayload.start_time =
+          editingMatch.start_time ??
+          resolvedStartTimeValue ??
+          new Date().toISOString();
         matchUpdatePayload.end_time = null;
         matchUpdatePayload.home_penalty_score = null;
         matchUpdatePayload.away_penalty_score = null;
@@ -3596,12 +4423,17 @@ export function AdminMatches({
       }
 
       if (shouldTransitionMatchToFinished) {
-        matchUpdatePayload.end_time = editingMatch.end_time ?? new Date().toISOString();
+        matchUpdatePayload.end_time =
+          editingMatch.end_time ?? new Date().toISOString();
       }
     }
 
     if (editingMatchDraft.status == MatchStatus.FINISHED) {
-      if (didChangeScoreFields || didChangeMatchSets || shouldTransitionMatchToFinished) {
+      if (
+        didChangeScoreFields ||
+        didChangeMatchSets ||
+        shouldTransitionMatchToFinished
+      ) {
         matchUpdatePayload.home_score = resolvedHomeScore;
         matchUpdatePayload.away_score = resolvedAwayScore;
       }
@@ -3612,12 +4444,18 @@ export function AdminMatches({
         matchUpdatePayload.away_yellow_cards = resolvedAwayYellowCards;
         matchUpdatePayload.away_red_cards = resolvedAwayRedCards;
         matchUpdatePayload.home_blue_cards = resolvedHomeBlueCards;
-        matchUpdatePayload.home_two_minute_penalties = resolvedHomeTwoMinutePenalties;
+        matchUpdatePayload.home_two_minute_penalties =
+          resolvedHomeTwoMinutePenalties;
         matchUpdatePayload.away_blue_cards = resolvedAwayBlueCards;
-        matchUpdatePayload.away_two_minute_penalties = resolvedAwayTwoMinutePenalties;
+        matchUpdatePayload.away_two_minute_penalties =
+          resolvedAwayTwoMinutePenalties;
       }
 
-      if (didChangePenaltyShootoutFields || shouldTransitionMatchToFinished || shouldReopenFinishedMatchAsLive) {
+      if (
+        didChangePenaltyShootoutFields ||
+        shouldTransitionMatchToFinished ||
+        shouldReopenFinishedMatchAsLive
+      ) {
         matchUpdatePayload.home_penalty_score = resolvedHomePenaltyScore;
         matchUpdatePayload.away_penalty_score = resolvedAwayPenaltyScore;
       }
@@ -3628,7 +4466,8 @@ export function AdminMatches({
 
       if (didChangeResolvedTieBreakFields || shouldReopenFinishedMatchAsLive) {
         matchUpdatePayload.resolved_tie_breaker_rule = resolvedTieBreakRule;
-        matchUpdatePayload.resolved_tie_break_winner_team_id = resolvedTieBreakWinnerTeamId;
+        matchUpdatePayload.resolved_tie_break_winner_team_id =
+          resolvedTieBreakWinnerTeamId;
       }
     }
 
@@ -3677,12 +4516,23 @@ export function AdminMatches({
         away_team_id: editingMatchDraft.awayTeamId,
       };
 
-      if (editingMatchBracketBinding.competition_id != selectedEditingGroupOption.competition_id) {
-        const nextSlotNumberResponse = await resolveNextGroupStageSlotNumber(selectedEditingGroupOption.competition_id);
+      if (
+        editingMatchBracketBinding.competition_id !=
+        selectedEditingGroupOption.competition_id
+      ) {
+        const nextSlotNumberResponse = await resolveNextGroupStageSlotNumber(
+          selectedEditingGroupOption.competition_id,
+        );
 
-        if (nextSlotNumberResponse.errorMessage || nextSlotNumberResponse.slotNumber == null) {
+        if (
+          nextSlotNumberResponse.errorMessage ||
+          nextSlotNumberResponse.slotNumber == null
+        ) {
           setSavingEditingMatch(false);
-          toast.error(nextSlotNumberResponse.errorMessage ?? "Não foi possível atualizar a chave do jogo.");
+          toast.error(
+            nextSlotNumberResponse.errorMessage ??
+              "Não foi possível atualizar a chave do jogo.",
+          );
           return;
         }
 
@@ -3720,10 +4570,13 @@ export function AdminMatches({
     }
 
     if (shouldRedistributeScheduledMatch) {
-      const redistributedSchedule = await redistributeBracketScheduleAfterMatchScheduleChange({
-        reloadError: "O jogo foi salvo, mas não foi possível recarregar a agenda para redistribuir a fila",
-        redistributeError: "O jogo foi salvo, mas a redistribuição automática da fila falhou",
-      });
+      const redistributedSchedule =
+        await redistributeBracketScheduleAfterMatchScheduleChange({
+          reloadError:
+            "O jogo foi salvo, mas não foi possível recarregar a agenda para redistribuir a fila",
+          redistributeError:
+            "O jogo foi salvo, mas a redistribuição automática da fila falhou",
+        });
 
       if (!redistributedSchedule) {
         setSavingEditingMatch(false);
@@ -3738,21 +4591,29 @@ export function AdminMatches({
     await Promise.all([onRefetch(), onRefetchChampionshipBracket()]);
   };
 
-  const handleShuffleTieBreakContext = (pendingTieBreakContext: ChampionshipBracketTieBreakPendingContext) => {
-    const orderedTeamIds = pendingTieBreakContext.teams.map((team) => team.team_id);
+  const handleShuffleTieBreakContext = (
+    pendingTieBreakContext: ChampionshipBracketTieBreakPendingContext,
+  ) => {
+    const orderedTeamIds = pendingTieBreakContext.teams.map(
+      (team) => team.team_id,
+    );
     let shuffledTeamIds = shuffleTeamIds(orderedTeamIds);
 
     if (
       orderedTeamIds.length > 1 &&
-      orderedTeamIds.every((teamId, teamIndex) => teamId == shuffledTeamIds[teamIndex])
+      orderedTeamIds.every(
+        (teamId, teamIndex) => teamId == shuffledTeamIds[teamIndex],
+      )
     ) {
       shuffledTeamIds = shuffleTeamIds(orderedTeamIds);
     }
 
-    setDraftTieBreakTeamIdsByContextKey((currentDraftTieBreakTeamIdsByContextKey) => ({
-      ...currentDraftTieBreakTeamIdsByContextKey,
-      [pendingTieBreakContext.context_key]: shuffledTeamIds,
-    }));
+    setDraftTieBreakTeamIdsByContextKey(
+      (currentDraftTieBreakTeamIdsByContextKey) => ({
+        ...currentDraftTieBreakTeamIdsByContextKey,
+        [pendingTieBreakContext.context_key]: shuffledTeamIds,
+      }),
+    );
   };
 
   const handleUpdateTieBreakContextTeamAtPosition = (
@@ -3760,28 +4621,37 @@ export function AdminMatches({
     positionIndex: number,
     teamId: string,
   ) => {
-    setDraftTieBreakTeamIdsByContextKey((currentDraftTieBreakTeamIdsByContextKey) => {
-      const currentTieBreakTeamOrder = resolveNormalizedTieBreakTeamOrder(
-        pendingTieBreakContext,
-        currentDraftTieBreakTeamIdsByContextKey[pendingTieBreakContext.context_key],
-      );
+    setDraftTieBreakTeamIdsByContextKey(
+      (currentDraftTieBreakTeamIdsByContextKey) => {
+        const currentTieBreakTeamOrder = resolveNormalizedTieBreakTeamOrder(
+          pendingTieBreakContext,
+          currentDraftTieBreakTeamIdsByContextKey[
+            pendingTieBreakContext.context_key
+          ],
+        );
 
-      currentTieBreakTeamOrder[positionIndex] = teamId;
+        currentTieBreakTeamOrder[positionIndex] = teamId;
 
-      return {
-        ...currentDraftTieBreakTeamIdsByContextKey,
-        [pendingTieBreakContext.context_key]: currentTieBreakTeamOrder,
-      };
-    });
+        return {
+          ...currentDraftTieBreakTeamIdsByContextKey,
+          [pendingTieBreakContext.context_key]: currentTieBreakTeamOrder,
+        };
+      },
+    );
   };
 
   const handleSaveTieBreakResolutions = async () => {
-    if (pendingTieBreakContexts.length == 0 || !championshipBracketView.edition?.id) {
+    if (
+      pendingTieBreakContexts.length == 0 ||
+      !championshipBracketView.edition?.id
+    ) {
       return;
     }
 
     if (!isTieBreakResolutionReady) {
-      toast.error("Defina a ordem completa dos desempates pendentes antes de confirmar.");
+      toast.error(
+        "Defina a ordem completa dos desempates pendentes antes de confirmar.",
+      );
       return;
     }
 
@@ -3816,7 +4686,9 @@ export function AdminMatches({
 
     if (knockoutResponse.error) {
       setSavingTieBreakResolutions(false);
-      toast.error(resolveAdminMatchesOperationalErrorMessage(knockoutResponse.error));
+      toast.error(
+        resolveAdminMatchesOperationalErrorMessage(knockoutResponse.error),
+      );
       await loadPendingTieBreakContexts();
       return;
     }
@@ -3844,8 +4716,12 @@ export function AdminMatches({
       draftTieBreakTeamIdsByContextKey[pendingTieBreakContext.context_key],
     );
 
-    if (!resolveIsTieBreakTeamOrderReady(pendingTieBreakContext, orderedTeamIds)) {
-      toast.error("Defina a ordem completa sem repetir atléticas antes de salvar este sorteio.");
+    if (
+      !resolveIsTieBreakTeamOrderReady(pendingTieBreakContext, orderedTeamIds)
+    ) {
+      toast.error(
+        "Defina a ordem completa sem repetir atléticas antes de salvar este sorteio.",
+      );
       return;
     }
 
@@ -3882,7 +4758,9 @@ export function AdminMatches({
         ...currentSavingState,
         [pendingTieBreakContext.context_key]: false,
       }));
-      toast.error(resolveAdminMatchesOperationalErrorMessage(knockoutResponse.error));
+      toast.error(
+        resolveAdminMatchesOperationalErrorMessage(knockoutResponse.error),
+      );
       await loadPendingTieBreakContexts();
       return;
     }
@@ -3905,17 +4783,22 @@ export function AdminMatches({
     participant: AwardDrawPendingContext["tied_participants"][number],
   ) => {
     if (context.award_type === ChampionshipAwardType.BEST_GOALKEEPER) {
-      return `${participant.participant_name} • média ${participant.metric_value.toLocaleString("pt-BR", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })}`;
+      return `${participant.participant_name} • média ${participant.metric_value.toLocaleString(
+        "pt-BR",
+        {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        },
+      )}`;
     }
 
     return `${participant.participant_name} (${participant.team_name}) • ${participant.metric_value}`;
   };
 
   const handleShuffleAwardDraw = (context: AwardDrawPendingContext) => {
-    const participantIds = context.tied_participants.map((participant) => participant.participant_id);
+    const participantIds = context.tied_participants.map(
+      (participant) => participant.participant_id,
+    );
     const shuffled = shuffleTeamIds(participantIds);
 
     setDraftAwardDrawOrderByContextKey((current) => ({
@@ -3930,17 +4813,25 @@ export function AdminMatches({
     participantId: string,
   ) => {
     setDraftAwardDrawOrderByContextKey((current) => {
-      const currentOrder = current[context.context_key] ?? context.tied_participants.map(() => "");
+      const currentOrder =
+        current[context.context_key] ?? context.tied_participants.map(() => "");
       const updatedOrder = [...currentOrder];
       updatedOrder[positionIndex] = participantId;
       return { ...current, [context.context_key]: updatedOrder };
     });
   };
 
-  const handleSaveAwardDrawResult = async (context: AwardDrawPendingContext) => {
-    const orderedParticipantIds = draftAwardDrawOrderByContextKey[context.context_key];
+  const handleSaveAwardDrawResult = async (
+    context: AwardDrawPendingContext,
+  ) => {
+    const orderedParticipantIds =
+      draftAwardDrawOrderByContextKey[context.context_key];
 
-    if (!orderedParticipantIds || orderedParticipantIds.length == 0 || !orderedParticipantIds[0]) {
+    if (
+      !orderedParticipantIds ||
+      orderedParticipantIds.length == 0 ||
+      !orderedParticipantIds[0]
+    ) {
       toast.error("Selecione ou sorteie o vencedor antes de salvar.");
       return;
     }
@@ -3951,20 +4842,34 @@ export function AdminMatches({
       return;
     }
 
-    setSavingAwardDrawByContextKey((current) => ({ ...current, [context.context_key]: true }));
+    setSavingAwardDrawByContextKey((current) => ({
+      ...current,
+      [context.context_key]: true,
+    }));
 
     try {
-      const { error } = await (supabase as unknown as {
-        rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
-      }).rpc("save_championship_award_draw_result", {
+      const { error } = await (
+        supabase as unknown as {
+          rpc: (
+            fn: string,
+            args: Record<string, unknown>,
+          ) => Promise<{ data: unknown; error: unknown }>;
+        }
+      ).rpc("save_championship_award_draw_result", {
         _championship_id: selectedChampionship.id,
         _season_year: selectedChampionship.current_season_year,
         _sport_id: context.sport_id,
         _naipe: context.naipe,
         _division: context.division,
         _award_type: context.award_type,
-        _winner_player_id: context.award_type === ChampionshipAwardType.TOP_SCORER ? winnerParticipantId : null,
-        _winner_team_id: context.award_type === ChampionshipAwardType.BEST_GOALKEEPER ? winnerParticipantId : null,
+        _winner_player_id:
+          context.award_type === ChampionshipAwardType.TOP_SCORER
+            ? winnerParticipantId
+            : null,
+        _winner_team_id:
+          context.award_type === ChampionshipAwardType.BEST_GOALKEEPER
+            ? winnerParticipantId
+            : null,
         _tied_player_ids_signature: context.tied_player_ids_signature,
       });
 
@@ -3976,7 +4881,10 @@ export function AdminMatches({
       toast.success("Resultado do sorteio de premiação salvo.");
       void refetchPendingAwardDraws();
     } finally {
-      setSavingAwardDrawByContextKey((current) => ({ ...current, [context.context_key]: false }));
+      setSavingAwardDrawByContextKey((current) => ({
+        ...current,
+        [context.context_key]: false,
+      }));
     }
   };
 
@@ -3996,7 +4904,8 @@ export function AdminMatches({
                 <span>Sorteios manuais de desempate</span>
               </div>
               <p className="text-sm text-muted-foreground">
-                Esta aba mostra apenas empates de chaves já encerradas que ainda impactam vaga/classificação para a próxima fase.
+                Esta aba mostra apenas empates de chaves já encerradas que ainda
+                impactam vaga/classificação para a próxima fase.
               </p>
             </div>
 
@@ -4010,9 +4919,18 @@ export function AdminMatches({
                   refetchPendingAwardDraws(),
                 ]);
               }}
-              disabled={loadingPendingTieBreakContexts || loadingCorrectedGroupStandings || loadingPendingAwardDraws || isAnyTieBreakResolutionSaveInFlight}
+              disabled={
+                loadingPendingTieBreakContexts ||
+                loadingCorrectedGroupStandings ||
+                loadingPendingAwardDraws ||
+                isAnyTieBreakResolutionSaveInFlight
+              }
             >
-              {loadingPendingTieBreakContexts ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+              {loadingPendingTieBreakContexts ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
               Atualizar pendências
             </Button>
           </div>
@@ -4033,17 +4951,43 @@ export function AdminMatches({
               {pendingTieBreakContexts.map((pendingTieBreakContext) => {
                 const orderedTeamIds = resolveNormalizedTieBreakTeamOrder(
                   pendingTieBreakContext,
-                  draftTieBreakTeamIdsByContextKey[pendingTieBreakContext.context_key],
+                  draftTieBreakTeamIdsByContextKey[
+                    pendingTieBreakContext.context_key
+                  ],
                 );
-                const isTieBreakContextOrderReady = resolveIsTieBreakTeamOrderReady(pendingTieBreakContext, orderedTeamIds);
-                const teamNameByTeamId = pendingTieBreakTeamNameByContextKeyAndTeamId[pendingTieBreakContext.context_key] ?? {};
-                const isSavingTieBreakContext = savingTieBreakResolutionByContextKey[pendingTieBreakContext.context_key] == true;
+                const isTieBreakContextOrderReady =
+                  resolveIsTieBreakTeamOrderReady(
+                    pendingTieBreakContext,
+                    orderedTeamIds,
+                  );
+                const teamNameByTeamId =
+                  pendingTieBreakTeamNameByContextKeyAndTeamId[
+                    pendingTieBreakContext.context_key
+                  ] ?? {};
+                const isSavingTieBreakContext =
+                  savingTieBreakResolutionByContextKey[
+                    pendingTieBreakContext.context_key
+                  ] == true;
                 const tieBreakAuditRows = pendingTieBreakContext.teams
-                  .map((team) => correctedStandingByCompetitionAndTeamKey[`${pendingTieBreakContext.competition_id}:${team.team_id}`])
-                  .filter((tieBreakAuditRow): tieBreakAuditRow is ChampionshipCorrectedGroupStanding => tieBreakAuditRow != null)
+                  .map(
+                    (team) =>
+                      correctedStandingByCompetitionAndTeamKey[
+                        `${pendingTieBreakContext.competition_id}:${team.team_id}`
+                      ],
+                  )
+                  .filter(
+                    (
+                      tieBreakAuditRow,
+                    ): tieBreakAuditRow is ChampionshipCorrectedGroupStanding =>
+                      tieBreakAuditRow != null,
+                  )
                   .sort((firstRow, secondRow) => {
-                    if (firstRow.corrected_points != secondRow.corrected_points) {
-                      return secondRow.corrected_points - firstRow.corrected_points;
+                    if (
+                      firstRow.corrected_points != secondRow.corrected_points
+                    ) {
+                      return (
+                        secondRow.corrected_points - firstRow.corrected_points
+                      );
                     }
 
                     if (firstRow.points_average != secondRow.points_average) {
@@ -4058,44 +5002,69 @@ export function AdminMatches({
                       return firstRow.blue_cards - secondRow.blue_cards;
                     }
 
-                    if (firstRow.two_minute_penalties != secondRow.two_minute_penalties) {
-                      return firstRow.two_minute_penalties - secondRow.two_minute_penalties;
+                    if (
+                      firstRow.two_minute_penalties !=
+                      secondRow.two_minute_penalties
+                    ) {
+                      return (
+                        firstRow.two_minute_penalties -
+                        secondRow.two_minute_penalties
+                      );
                     }
 
                     if (firstRow.goals_for != secondRow.goals_for) {
                       return secondRow.goals_for - firstRow.goals_for;
                     }
 
-                    return firstRow.team_name.localeCompare(secondRow.team_name, "pt-BR", {
-                      sensitivity: "base",
-                    });
+                    return firstRow.team_name.localeCompare(
+                      secondRow.team_name,
+                      "pt-BR",
+                      {
+                        sensitivity: "base",
+                      },
+                    );
                   });
-                const displayedTieBreakSlots = pendingTieBreakContext.teams.map((_, teamIndex) => ({
-                  position: teamIndex + 1,
-                  teamId: orderedTeamIds[teamIndex] ?? "",
-                }));
+                const displayedTieBreakSlots = pendingTieBreakContext.teams.map(
+                  (_, teamIndex) => ({
+                    position: teamIndex + 1,
+                    teamId: orderedTeamIds[teamIndex] ?? "",
+                  }),
+                );
 
                 return (
-                  <div key={pendingTieBreakContext.context_key} className="glass-card space-y-3 p-4">
+                  <div
+                    key={pendingTieBreakContext.context_key}
+                    className="glass-card space-y-3 p-4"
+                  >
                     <div className="space-y-1">
-                      <h3 className="text-sm font-semibold text-foreground">{pendingTieBreakContext.title}</h3>
-                      <p className="text-sm text-muted-foreground">{pendingTieBreakContext.description}</p>
+                      <h3 className="text-sm font-semibold text-foreground">
+                        {pendingTieBreakContext.title}
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        {pendingTieBreakContext.description}
+                      </p>
                     </div>
 
                     {loadingCorrectedGroupStandings ? (
                       <Skeleton className="h-36 w-full rounded-2xl" />
                     ) : tieBreakAuditRows.length > 0 ? (
                       <div className="space-y-2">
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Resultado atual do empate</p>
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Resultado atual do empate
+                        </p>
                         <div className="overflow-x-auto">
                           <Table>
                             <TableHeader>
                               <TableRow>
                                 <TableHead>Atlética</TableHead>
-                                <TableHead className="text-right">PTS (corr.)</TableHead>
+                                <TableHead className="text-right">
+                                  PTS (corr.)
+                                </TableHead>
                                 <TableHead className="text-right">PA</TableHead>
                                 <TableHead className="text-right">SG</TableHead>
-                                <TableHead className="text-right">CAZ</TableHead>
+                                <TableHead className="text-right">
+                                  CAZ
+                                </TableHead>
                                 <TableHead className="text-right">2M</TableHead>
                                 <TableHead className="text-right">GP</TableHead>
                                 <TableHead className="text-right">GC</TableHead>
@@ -4104,10 +5073,16 @@ export function AdminMatches({
                             </TableHeader>
                             <TableBody>
                               {tieBreakAuditRows.map((tieBreakAuditRow) => (
-                                <TableRow key={`${pendingTieBreakContext.context_key}:${tieBreakAuditRow.team_id}`}>
-                                  <TableCell>{tieBreakAuditRow.team_name}</TableCell>
+                                <TableRow
+                                  key={`${pendingTieBreakContext.context_key}:${tieBreakAuditRow.team_id}`}
+                                >
+                                  <TableCell>
+                                    {tieBreakAuditRow.team_name}
+                                  </TableCell>
                                   <TableCell className="text-right font-semibold text-primary">
-                                    {formatStandingsPoints(tieBreakAuditRow.corrected_points)}
+                                    {formatStandingsPoints(
+                                      tieBreakAuditRow.corrected_points,
+                                    )}
                                   </TableCell>
                                   <TableCell className="text-right tabular-nums">
                                     {formatPointsAverageForStandings(
@@ -4115,12 +5090,24 @@ export function AdminMatches({
                                       tieBreakAuditRow.goals_against,
                                     )}
                                   </TableCell>
-                                  <TableCell className="text-right tabular-nums">{tieBreakAuditRow.goal_diff}</TableCell>
-                                  <TableCell className="text-right tabular-nums">{tieBreakAuditRow.blue_cards}</TableCell>
-                                  <TableCell className="text-right tabular-nums">{tieBreakAuditRow.two_minute_penalties}</TableCell>
-                                  <TableCell className="text-right tabular-nums">{tieBreakAuditRow.goals_for}</TableCell>
-                                  <TableCell className="text-right tabular-nums">{tieBreakAuditRow.goals_against}</TableCell>
-                                  <TableCell className="text-right tabular-nums">{tieBreakAuditRow.wins}</TableCell>
+                                  <TableCell className="text-right tabular-nums">
+                                    {tieBreakAuditRow.goal_diff}
+                                  </TableCell>
+                                  <TableCell className="text-right tabular-nums">
+                                    {tieBreakAuditRow.blue_cards}
+                                  </TableCell>
+                                  <TableCell className="text-right tabular-nums">
+                                    {tieBreakAuditRow.two_minute_penalties}
+                                  </TableCell>
+                                  <TableCell className="text-right tabular-nums">
+                                    {tieBreakAuditRow.goals_for}
+                                  </TableCell>
+                                  <TableCell className="text-right tabular-nums">
+                                    {tieBreakAuditRow.goals_against}
+                                  </TableCell>
+                                  <TableCell className="text-right tabular-nums">
+                                    {tieBreakAuditRow.wins}
+                                  </TableCell>
                                 </TableRow>
                               ))}
                             </TableBody>
@@ -4129,13 +5116,15 @@ export function AdminMatches({
                       </div>
                     ) : (
                       <p className="text-xs text-muted-foreground">
-                        Métricas de pontuação corrigida indisponíveis para este contexto no momento.
+                        Métricas de pontuação corrigida indisponíveis para este
+                        contexto no momento.
                       </p>
                     )}
 
                     {!isTieBreakContextOrderReady ? (
                       <p className="text-xs font-medium text-amber-500">
-                        Defina a ordem completa sem repetir atléticas para confirmar este desempate.
+                        Defina a ordem completa sem repetir atléticas para
+                        confirmar este desempate.
                       </p>
                     ) : null}
 
@@ -4149,15 +5138,24 @@ export function AdminMatches({
                             {displayedTieBreakSlot.position}º
                           </span>
                           <Select
-                            value={displayedTieBreakSlot.teamId || EMPTY_TIE_BREAK_TEAM_OPTION_VALUE}
+                            value={
+                              displayedTieBreakSlot.teamId ||
+                              EMPTY_TIE_BREAK_TEAM_OPTION_VALUE
+                            }
                             onValueChange={(value) =>
                               handleUpdateTieBreakContextTeamAtPosition(
                                 pendingTieBreakContext,
                                 displayedTieBreakSlot.position - 1,
-                                value == EMPTY_TIE_BREAK_TEAM_OPTION_VALUE ? "" : value,
+                                value == EMPTY_TIE_BREAK_TEAM_OPTION_VALUE
+                                  ? ""
+                                  : value,
                               )
                             }
-                            disabled={savingTieBreakResolutions || isSavingTieBreakContext || !canManageMatches}
+                            disabled={
+                              savingTieBreakResolutions ||
+                              isSavingTieBreakContext ||
+                              !canManageMatches
+                            }
                           >
                             <SelectTrigger
                               aria-label={`Atlética na posição ${displayedTieBreakSlot.position} do desempate`}
@@ -4166,25 +5164,38 @@ export function AdminMatches({
                               <SelectValue placeholder="Selecione a atlética" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value={EMPTY_TIE_BREAK_TEAM_OPTION_VALUE}>Selecione a atlética</SelectItem>
-                              {pendingTieBreakContext.teams.map((tieBreakTeamOption) => {
-                                const isSelectedInOtherPosition = displayedTieBreakSlots.some((displayedTieBreakSlotItem) => {
-                                  return (
-                                    displayedTieBreakSlotItem.position != displayedTieBreakSlot.position &&
-                                    displayedTieBreakSlotItem.teamId == tieBreakTeamOption.team_id
-                                  );
-                                });
+                              <SelectItem
+                                value={EMPTY_TIE_BREAK_TEAM_OPTION_VALUE}
+                              >
+                                Selecione a atlética
+                              </SelectItem>
+                              {pendingTieBreakContext.teams.map(
+                                (tieBreakTeamOption) => {
+                                  const isSelectedInOtherPosition =
+                                    displayedTieBreakSlots.some(
+                                      (displayedTieBreakSlotItem) => {
+                                        return (
+                                          displayedTieBreakSlotItem.position !=
+                                            displayedTieBreakSlot.position &&
+                                          displayedTieBreakSlotItem.teamId ==
+                                            tieBreakTeamOption.team_id
+                                        );
+                                      },
+                                    );
 
-                                return (
-                                  <SelectItem
-                                    key={`${pendingTieBreakContext.context_key}:${displayedTieBreakSlot.position}:${tieBreakTeamOption.team_id}`}
-                                    value={tieBreakTeamOption.team_id}
-                                    disabled={isSelectedInOtherPosition}
-                                  >
-                                    {teamNameByTeamId[tieBreakTeamOption.team_id] ?? tieBreakTeamOption.team_name}
-                                  </SelectItem>
-                                );
-                              })}
+                                  return (
+                                    <SelectItem
+                                      key={`${pendingTieBreakContext.context_key}:${displayedTieBreakSlot.position}:${tieBreakTeamOption.team_id}`}
+                                      value={tieBreakTeamOption.team_id}
+                                      disabled={isSelectedInOtherPosition}
+                                    >
+                                      {teamNameByTeamId[
+                                        tieBreakTeamOption.team_id
+                                      ] ?? tieBreakTeamOption.team_name}
+                                    </SelectItem>
+                                  );
+                                },
+                              )}
                             </SelectContent>
                           </Select>
                         </div>
@@ -4195,19 +5206,38 @@ export function AdminMatches({
                       <Button
                         type="button"
                         variant="outline"
-                        onClick={() => handleShuffleTieBreakContext(pendingTieBreakContext)}
-                        disabled={savingTieBreakResolutions || isSavingTieBreakContext || !canManageMatches}
+                        onClick={() =>
+                          handleShuffleTieBreakContext(pendingTieBreakContext)
+                        }
+                        disabled={
+                          savingTieBreakResolutions ||
+                          isSavingTieBreakContext ||
+                          !canManageMatches
+                        }
                       >
                         <RefreshCw className="mr-2 h-4 w-4" />
-                        {orderedTeamIds.some((teamId) => teamId.length > 0) ? "Refazer sorteio" : "Sortear ordem"}
+                        {orderedTeamIds.some((teamId) => teamId.length > 0)
+                          ? "Refazer sorteio"
+                          : "Sortear ordem"}
                       </Button>
 
                       <Button
                         type="button"
-                        onClick={() => void handleSaveSingleTieBreakResolution(pendingTieBreakContext)}
-                        disabled={!isTieBreakContextOrderReady || savingTieBreakResolutions || isSavingTieBreakContext || !canManageMatches}
+                        onClick={() =>
+                          void handleSaveSingleTieBreakResolution(
+                            pendingTieBreakContext,
+                          )
+                        }
+                        disabled={
+                          !isTieBreakContextOrderReady ||
+                          savingTieBreakResolutions ||
+                          isSavingTieBreakContext ||
+                          !canManageMatches
+                        }
                       >
-                        {isSavingTieBreakContext ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        {isSavingTieBreakContext ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : null}
                         Salvar sorteio
                       </Button>
                     </div>
@@ -4220,20 +5250,28 @@ export function AdminMatches({
               <Button
                 type="button"
                 onClick={handleSaveTieBreakResolutions}
-                disabled={!isTieBreakResolutionReady || isAnyTieBreakResolutionSaveInFlight || !canManageMatches}
+                disabled={
+                  !isTieBreakResolutionReady ||
+                  isAnyTieBreakResolutionSaveInFlight ||
+                  !canManageMatches
+                }
               >
-                {savingTieBreakResolutions ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {savingTieBreakResolutions ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
                 Confirmar sorteios e gerar mata-mata
               </Button>
             </div>
           </>
         )}
 
-        {(loadingPendingAwardDraws || pendingAwardDrawContexts.length > 0) ? (
+        {loadingPendingAwardDraws || pendingAwardDrawContexts.length > 0 ? (
           <>
             <div className="flex items-center gap-3 pt-2">
               <div className="h-px flex-1 bg-border/50" />
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Desempate de premiações</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Desempate de premiações
+              </p>
               <div className="h-px flex-1 bg-border/50" />
             </div>
 
@@ -4244,21 +5282,43 @@ export function AdminMatches({
             ) : (
               <div className="space-y-3">
                 {pendingAwardDrawContexts.map((awardDrawContext) => {
-                  const orderedParticipantIds = draftAwardDrawOrderByContextKey[awardDrawContext.context_key];
-                  const hasAnyPosition = orderedParticipantIds && orderedParticipantIds.some((id) => id !== "");
-                  const isSaving = savingAwardDrawByContextKey[awardDrawContext.context_key] == true;
-                  const displayedSlots = awardDrawContext.tied_participants.map((_, playerIndex) => ({
-                    position: playerIndex + 1,
-                    participantId: (orderedParticipantIds ?? [])[playerIndex] ?? "",
-                  }));
-                  const canSave = (displayedSlots[0]?.participantId ?? "") !== "";
+                  const orderedParticipantIds =
+                    draftAwardDrawOrderByContextKey[
+                      awardDrawContext.context_key
+                    ];
+                  const hasAnyPosition =
+                    orderedParticipantIds &&
+                    orderedParticipantIds.some((id) => id !== "");
+                  const isSaving =
+                    savingAwardDrawByContextKey[awardDrawContext.context_key] ==
+                    true;
+                  const displayedSlots = awardDrawContext.tied_participants.map(
+                    (_, playerIndex) => ({
+                      position: playerIndex + 1,
+                      participantId:
+                        (orderedParticipantIds ?? [])[playerIndex] ?? "",
+                    }),
+                  );
+                  const canSave =
+                    (displayedSlots[0]?.participantId ?? "") !== "";
 
                   return (
-                    <div key={awardDrawContext.context_key} className="glass-card space-y-3 p-4">
+                    <div
+                      key={awardDrawContext.context_key}
+                      className="glass-card space-y-3 p-4"
+                    >
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <p className="text-sm font-semibold">{resolveAwardDrawDisplayText(awardDrawContext.title)}</p>
-                          <p className="text-xs text-muted-foreground">{resolveAwardDrawDisplayText(awardDrawContext.description)}</p>
+                          <p className="text-sm font-semibold">
+                            {resolveAwardDrawDisplayText(
+                              awardDrawContext.title,
+                            )}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {resolveAwardDrawDisplayText(
+                              awardDrawContext.description,
+                            )}
+                          </p>
                         </div>
                         <Trophy className="h-4 w-4 shrink-0 text-amber-500" />
                       </div>
@@ -4273,12 +5333,17 @@ export function AdminMatches({
                               {slot.position}º
                             </span>
                             <Select
-                              value={slot.participantId || EMPTY_AWARD_DRAW_PLAYER_OPTION_VALUE}
+                              value={
+                                slot.participantId ||
+                                EMPTY_AWARD_DRAW_PLAYER_OPTION_VALUE
+                              }
                               onValueChange={(value) =>
                                 handleUpdateAwardDrawPlayerAtPosition(
                                   awardDrawContext,
                                   slot.position - 1,
-                                  value == EMPTY_AWARD_DRAW_PLAYER_OPTION_VALUE ? "" : value,
+                                  value == EMPTY_AWARD_DRAW_PLAYER_OPTION_VALUE
+                                    ? ""
+                                    : value,
                                 )
                               }
                               disabled={isSaving || !canManageMatches}
@@ -4290,25 +5355,35 @@ export function AdminMatches({
                                 <SelectValue placeholder="Selecione o participante" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value={EMPTY_AWARD_DRAW_PLAYER_OPTION_VALUE}>
+                                <SelectItem
+                                  value={EMPTY_AWARD_DRAW_PLAYER_OPTION_VALUE}
+                                >
                                   Selecione o participante
                                 </SelectItem>
-                                {awardDrawContext.tied_participants.map((participant) => {
-                                  const isSelectedInOtherSlot = displayedSlots.some(
-                                    (otherSlot) =>
-                                      otherSlot.position !== slot.position &&
-                                      otherSlot.participantId === participant.participant_id,
-                                  );
-                                  return (
-                                    <SelectItem
-                                      key={`${awardDrawContext.context_key}:${slot.position}:${participant.participant_id}`}
-                                      value={participant.participant_id}
-                                      disabled={isSelectedInOtherSlot}
-                                    >
-                                      {formatAwardDrawParticipantLabel(awardDrawContext, participant)}
-                                    </SelectItem>
-                                  );
-                                })}
+                                {awardDrawContext.tied_participants.map(
+                                  (participant) => {
+                                    const isSelectedInOtherSlot =
+                                      displayedSlots.some(
+                                        (otherSlot) =>
+                                          otherSlot.position !==
+                                            slot.position &&
+                                          otherSlot.participantId ===
+                                            participant.participant_id,
+                                      );
+                                    return (
+                                      <SelectItem
+                                        key={`${awardDrawContext.context_key}:${slot.position}:${participant.participant_id}`}
+                                        value={participant.participant_id}
+                                        disabled={isSelectedInOtherSlot}
+                                      >
+                                        {formatAwardDrawParticipantLabel(
+                                          awardDrawContext,
+                                          participant,
+                                        )}
+                                      </SelectItem>
+                                    );
+                                  },
+                                )}
                               </SelectContent>
                             </Select>
                           </div>
@@ -4319,19 +5394,27 @@ export function AdminMatches({
                         <Button
                           type="button"
                           variant="outline"
-                          onClick={() => handleShuffleAwardDraw(awardDrawContext)}
+                          onClick={() =>
+                            handleShuffleAwardDraw(awardDrawContext)
+                          }
                           disabled={isSaving || !canManageMatches}
                         >
                           <RefreshCw className="mr-2 h-4 w-4" />
-                          {hasAnyPosition ? "Refazer sorteio" : "Sortear aleatoriamente"}
+                          {hasAnyPosition
+                            ? "Refazer sorteio"
+                            : "Sortear aleatoriamente"}
                         </Button>
 
                         <Button
                           type="button"
-                          onClick={() => void handleSaveAwardDrawResult(awardDrawContext)}
+                          onClick={() =>
+                            void handleSaveAwardDrawResult(awardDrawContext)
+                          }
                           disabled={!canSave || isSaving || !canManageMatches}
                         >
-                          {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                          {isSaving ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : null}
                           Salvar vencedor
                         </Button>
                       </div>
@@ -4357,7 +5440,9 @@ export function AdminMatches({
                 <span>Sorteio manual pendente em vagas específicas</span>
               </div>
               <p className="text-sm text-muted-foreground">
-                {pendingTieBreakContexts.length} empate(s) chegaram ao último critério e aguardam sorteio para definir apenas as vagas afetadas do mata-mata.
+                {pendingTieBreakContexts.length} empate(s) chegaram ao último
+                critério e aguardam sorteio para definir apenas as vagas
+                afetadas do mata-mata.
               </p>
             </div>
 
@@ -4372,7 +5457,10 @@ export function AdminMatches({
 
                 setShowTieBreakDialog(true);
               }}
-              disabled={loadingPendingTieBreakContexts || isAnyTieBreakResolutionSaveInFlight}
+              disabled={
+                loadingPendingTieBreakContexts ||
+                isAnyTieBreakResolutionSaveInFlight
+              }
             >
               {onOpenTieBreaksTab ? "Abrir aba Sorteios" : "Resolver sorteios"}
             </Button>
@@ -4384,8 +5472,8 @@ export function AdminMatches({
         <div className="glass-card enter-section border border-border/60 p-4">
           <p className="text-sm font-medium">Histórico em visualização</p>
           <p className="text-xs text-muted-foreground">
-            Os dados de {selectedSeasonYear} ficam somente para consulta nesta aba. Alterações continuam restritas ao
-            ano atual.
+            Os dados de {selectedSeasonYear} ficam somente para consulta nesta
+            aba. Alterações continuam restritas ao ano atual.
           </p>
         </div>
       ) : null}
@@ -4393,178 +5481,248 @@ export function AdminMatches({
       <div className="enter-section space-y-3">
         <SportFilter
           sports={sportsForMatchesFilter}
-          selected={matchesSportFilter == ALL_MATCHES_SPORT_FILTER ? null : matchesSportFilter}
-          onSelect={(sportFilterValue) => setMatchesSportFilter(sportFilterValue ?? ALL_MATCHES_SPORT_FILTER)}
+          selected={
+            matchesSportFilter == ALL_MATCHES_SPORT_FILTER
+              ? null
+              : matchesSportFilter
+          }
+          onSelect={(sportFilterValue) =>
+            setMatchesSportFilter(sportFilterValue ?? ALL_MATCHES_SPORT_FILTER)
+          }
         />
 
         <div className="glass-card enter-section p-4">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-stretch xl:justify-between">
             <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {!isScoreSheetReviewMode && !isTieBreaksMode ? (
-                  <div className="xl:min-w-0">
-                    <Select
-                      value={selectedSeasonYear != null ? String(selectedSeasonYear) : ""}
-                      onValueChange={(value) => {
-                        const parsedSeasonYear = Number(value);
+              {!isScoreSheetReviewMode && !isTieBreaksMode ? (
+                <div className="xl:min-w-0">
+                  <Select
+                    value={
+                      selectedSeasonYear != null
+                        ? String(selectedSeasonYear)
+                        : ""
+                    }
+                    onValueChange={(value) => {
+                      const parsedSeasonYear = Number(value);
 
-                        if (!Number.isFinite(parsedSeasonYear) || !onSeasonYearChange) {
-                          return;
-                        }
+                      if (
+                        !Number.isFinite(parsedSeasonYear) ||
+                        !onSeasonYearChange
+                      ) {
+                        return;
+                      }
 
-                        onSeasonYearChange(parsedSeasonYear);
-                      }}
-                    >
-                      <SelectTrigger className="app-input-field w-full">
-                        <SelectValue placeholder="Ano" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableSeasonYears.map((seasonYear) => (
-                          <SelectItem key={seasonYear} value={String(seasonYear)}>
-                            {seasonYear}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ) : null}
-
-		            {!isScoreSheetReviewMode ? (
-		              <div className="xl:min-w-0">
-		                <Select value={matchesStatusFilter} onValueChange={setMatchesStatusFilter}>
-		                  <SelectTrigger className="app-input-field w-full">
-		                    <SelectValue placeholder="Filtrar por status" />
-		                  </SelectTrigger>
-		                  <SelectContent>
-		                    <SelectItem value={ALL_MATCHES_STATUS_FILTER}>Geral</SelectItem>
-		                    <SelectItem value={MATCHES_STATUS_FILTER_LIVE}>Ao vivo</SelectItem>
-		                    <SelectItem value={MATCHES_STATUS_FILTER_FINISHED}>Encerrados</SelectItem>
-		                    <SelectItem value={MATCHES_STATUS_FILTER_OPEN}>Em aberto</SelectItem>
-		                  </SelectContent>
-		                </Select>
-		              </div>
-		            ) : null}
-
-            <div className="xl:min-w-0">
-              <Select value={matchesNaipeFilter} onValueChange={setMatchesNaipeFilter}>
-                <SelectTrigger className="app-input-field w-full">
-                  <SelectValue placeholder="Filtrar por naipe" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_MATCHES_NAIPE_FILTER}>Todos os naipes</SelectItem>
-                  {NAIPE_OPTIONS.map((naipeOption) => (
-                    <SelectItem key={naipeOption} value={naipeOption}>
-                      {MATCH_NAIPE_LABELS[naipeOption]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="xl:min-w-0">
-              {championshipUsesDivisions ? (
-                <Select value={matchesDivisionFilter} onValueChange={setMatchesDivisionFilter}>
-                  <SelectTrigger className="app-input-field w-full">
-                    <SelectValue placeholder="Filtrar por divisão" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL_MATCHES_DIVISION_FILTER}>Todas as divisões</SelectItem>
-                    <SelectItem value={TeamDivision.DIVISAO_PRINCIPAL}>
-                      {TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_PRINCIPAL]}
-                    </SelectItem>
-                    <SelectItem value={TeamDivision.DIVISAO_ACESSO}>
-                      {TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_ACESSO]}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              ) : (
-                <div className="app-input-field-disabled flex h-10 w-full items-center rounded-xl px-3 py-2 text-sm">
-                  Divisão unificada
+                      onSeasonYearChange(parsedSeasonYear);
+                    }}
+                  >
+                    <SelectTrigger className="app-input-field w-full">
+                      <SelectValue placeholder="Ano" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableSeasonYears.map((seasonYear) => (
+                        <SelectItem key={seasonYear} value={String(seasonYear)}>
+                          {seasonYear}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              )}
-            </div>
+              ) : null}
 
-            <div className="xl:min-w-0">
-              <Select value={matchesGroupFilter} onValueChange={setMatchesGroupFilter}>
-                <SelectTrigger className="app-input-field w-full">
-                  <SelectValue placeholder="Filtrar por grupo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_MATCHES_GROUP_FILTER}>Todos os grupos</SelectItem>
-                  {groupsForMatchesFilter.map((groupOption) => (
-                    <SelectItem key={groupOption.value} value={groupOption.value}>
-                      {groupOption.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+              {!isScoreSheetReviewMode ? (
+                <div className="xl:min-w-0">
+                  <Select
+                    value={matchesStatusFilter}
+                    onValueChange={setMatchesStatusFilter}
+                  >
+                    <SelectTrigger className="app-input-field w-full">
+                      <SelectValue placeholder="Filtrar por status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={ALL_MATCHES_STATUS_FILTER}>
+                        Geral
+                      </SelectItem>
+                      <SelectItem value={MATCHES_STATUS_FILTER_LIVE}>
+                        Ao vivo
+                      </SelectItem>
+                      <SelectItem value={MATCHES_STATUS_FILTER_FINISHED}>
+                        Encerrados
+                      </SelectItem>
+                      <SelectItem value={MATCHES_STATUS_FILTER_OPEN}>
+                        Em aberto
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
 
-            <div className="xl:min-w-0">
-              <Select value={matchesLocationFilter} onValueChange={setMatchesLocationFilter}>
-                <SelectTrigger className="app-input-field w-full">
-                  <SelectValue placeholder="Filtrar por local" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_MATCHES_LOCATION_FILTER}>Todos os locais</SelectItem>
-                  {locationsForMatchesFilter.map((locationOption) => (
-                    <SelectItem key={locationOption} value={locationOption}>
-                      {locationOption}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="xl:min-w-0">
-              <Select value={matchesCourtFilter} onValueChange={setMatchesCourtFilter}>
-                <SelectTrigger className="app-input-field w-full">
-                  <SelectValue placeholder="Filtrar por quadra" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_MATCHES_COURT_FILTER}>Todas as quadras</SelectItem>
-                  {courtsForMatchesFilter.map((courtOption) => (
-                    <SelectItem key={courtOption} value={courtOption}>
-                      {courtOption}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="xl:min-w-0">
-              <div className="flex items-center gap-2">
-                <Select value={matchesTeamFilter} onValueChange={setMatchesTeamFilter}>
-                  <SelectTrigger className="app-input-field flex-1">
-                    <SelectValue placeholder="Filtrar por atlética" />
+              <div className="xl:min-w-0">
+                <Select
+                  value={matchesNaipeFilter}
+                  onValueChange={setMatchesNaipeFilter}
+                >
+                  <SelectTrigger className="app-input-field w-full">
+                    <SelectValue placeholder="Filtrar por naipe" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={ALL_MATCHES_TEAM_FILTER}>Todas as atléticas</SelectItem>
-                    {teamsForMatchesFilter.map((team) => (
-                      <SelectItem key={team.id} value={team.id}>
-                        {team.name}
+                    <SelectItem value={ALL_MATCHES_NAIPE_FILTER}>
+                      Todos os naipes
+                    </SelectItem>
+                    {NAIPE_OPTIONS.map((naipeOption) => (
+                      <SelectItem key={naipeOption} value={naipeOption}>
+                        {MATCH_NAIPE_LABELS[naipeOption]}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {isScoreSheetReviewMode ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setHideReviewedMatches((currentHideReviewedMatches) => !currentHideReviewedMatches)}
-                    className={`h-10 w-10 shrink-0 ${hideReviewedMatches ? "app-button-secondary-active hover:!bg-red-600" : ""}`}
-                    aria-label={hideReviewedMatches ? "Mostrar jogos revisados também" : "Ocultar jogos já revisados"}
-                  >
-                    <EyeOff className="h-4 w-4" />
-                  </Button>
-                ) : null}
               </div>
-            </div>
+
+              <div className="xl:min-w-0">
+                {championshipUsesDivisions ? (
+                  <Select
+                    value={matchesDivisionFilter}
+                    onValueChange={setMatchesDivisionFilter}
+                  >
+                    <SelectTrigger className="app-input-field w-full">
+                      <SelectValue placeholder="Filtrar por divisão" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={ALL_MATCHES_DIVISION_FILTER}>
+                        Todas as divisões
+                      </SelectItem>
+                      <SelectItem value={TeamDivision.DIVISAO_PRINCIPAL}>
+                        {TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_PRINCIPAL]}
+                      </SelectItem>
+                      <SelectItem value={TeamDivision.DIVISAO_ACESSO}>
+                        {TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_ACESSO]}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="app-input-field-disabled flex h-10 w-full items-center rounded-xl px-3 py-2 text-sm">
+                    Divisão unificada
+                  </div>
+                )}
+              </div>
+
+              <div className="xl:min-w-0">
+                <Select
+                  value={matchesGroupFilter}
+                  onValueChange={setMatchesGroupFilter}
+                >
+                  <SelectTrigger className="app-input-field w-full">
+                    <SelectValue placeholder="Filtrar por grupo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL_MATCHES_GROUP_FILTER}>
+                      Todos os grupos
+                    </SelectItem>
+                    {groupsForMatchesFilter.map((groupOption) => (
+                      <SelectItem
+                        key={groupOption.value}
+                        value={groupOption.value}
+                      >
+                        {groupOption.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="xl:min-w-0">
+                <Select
+                  value={matchesLocationFilter}
+                  onValueChange={setMatchesLocationFilter}
+                >
+                  <SelectTrigger className="app-input-field w-full">
+                    <SelectValue placeholder="Filtrar por local" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL_MATCHES_LOCATION_FILTER}>
+                      Todos os locais
+                    </SelectItem>
+                    {locationsForMatchesFilter.map((locationOption) => (
+                      <SelectItem key={locationOption} value={locationOption}>
+                        {locationOption}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="xl:min-w-0">
+                <Select
+                  value={matchesCourtFilter}
+                  onValueChange={setMatchesCourtFilter}
+                >
+                  <SelectTrigger className="app-input-field w-full">
+                    <SelectValue placeholder="Filtrar por quadra" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL_MATCHES_COURT_FILTER}>
+                      Todas as quadras
+                    </SelectItem>
+                    {courtsForMatchesFilter.map((courtOption) => (
+                      <SelectItem key={courtOption} value={courtOption}>
+                        {courtOption}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="xl:min-w-0">
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={matchesTeamFilter}
+                    onValueChange={setMatchesTeamFilter}
+                  >
+                    <SelectTrigger className="app-input-field flex-1">
+                      <SelectValue placeholder="Filtrar por atlética" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={ALL_MATCHES_TEAM_FILTER}>
+                        Todas as atléticas
+                      </SelectItem>
+                      {teamsForMatchesFilter.map((team) => (
+                        <SelectItem key={team.id} value={team.id}>
+                          {team.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {isScoreSheetReviewMode ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() =>
+                        setHideReviewedMatches(
+                          (currentHideReviewedMatches) =>
+                            !currentHideReviewedMatches,
+                        )
+                      }
+                      className={`h-10 w-10 shrink-0 ${hideReviewedMatches ? "app-button-secondary-active hover:!bg-red-600" : ""}`}
+                      aria-label={
+                        hideReviewedMatches
+                          ? "Mostrar jogos revisados também"
+                          : "Ocultar jogos já revisados"
+                      }
+                    >
+                      <EyeOff className="h-4 w-4" />
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
             </div>
 
             {!isScoreSheetReviewMode && canManageMatches ? (
               <div className="flex items-center justify-end xl:min-w-[156px]">
-                <Button type="button" onClick={handleOpenCreateMatchModal} className="w-full xl:w-auto">
+                <Button
+                  type="button"
+                  onClick={handleOpenCreateMatchModal}
+                  className="w-full xl:w-auto"
+                >
                   <Plus className="mr-2 h-4 w-4" />
                   Criar jogo
                 </Button>
@@ -4574,7 +5732,10 @@ export function AdminMatches({
         </div>
 
         {!canManageMatches ? (
-          <p className="text-sm text-muted-foreground">Perfil em visualização: sem permissão para criar, editar ou remover jogos.</p>
+          <p className="text-sm text-muted-foreground">
+            Perfil em visualização: sem permissão para criar, editar ou remover
+            jogos.
+          </p>
         ) : null}
 
         {isFetchingMatches ? (
@@ -4583,445 +5744,597 @@ export function AdminMatches({
               <Skeleton className="h-5 w-48 rounded-lg" />
               <Skeleton className="h-9 w-56 rounded-lg" />
             </section>
-            {Array.from({ length: Math.max(3, matchesItemsPerPage) }).map((_, index) => (
-              <Skeleton key={`admin-matches-skeleton-${index}`} className="h-52 w-full rounded-2xl" />
-            ))}
+            {Array.from({ length: Math.max(3, matchesItemsPerPage) }).map(
+              (_, index) => (
+                <Skeleton
+                  key={`admin-matches-skeleton-${index}`}
+                  className="h-52 w-full rounded-2xl"
+                />
+              ),
+            )}
           </div>
         ) : filteredAndSortedMatches.length > 0 ? (
           <>
-	            <div className="glass-card enter-section flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
-	              <div className="flex flex-wrap items-center gap-3">
-	                {canManageMatches ? (
-	                  <label className="flex items-center gap-2 text-sm text-foreground">
-	                    <Checkbox checked={selectAllMatchesChecked} onCheckedChange={handleToggleSelectAllMatches} />
-	                    <span>Selecionar todos os jogos filtrados</span>
-	                  </label>
-	                ) : null}
+            <div className="glass-card enter-section flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-wrap items-center gap-3">
+                {canManageMatches ? (
+                  <label className="flex items-center gap-2 text-sm text-foreground">
+                    <Checkbox
+                      checked={selectAllMatchesChecked}
+                      onCheckedChange={handleToggleSelectAllMatches}
+                    />
+                    <span>Selecionar todos os jogos filtrados</span>
+                  </label>
+                ) : null}
 
-		                {canManageMatches && selectedFilteredMatchCount > 0 && isScoreSheetReviewMode ? (
-		                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-		                    <Button
-		                      type="button"
-		                      variant="outline"
-		                      className="w-full sm:w-auto"
-		                      onClick={() => void handleBulkUpdateFilteredMatchesReviewState(true)}
-		                      disabled={
-                            deletingMatches ||
-                            applyingBulkAction ||
-                            selectedMatchIds.length == 0 ||
-                            bulkReviewAction != null ||
-                            isSavingReviewState
-                          }
-		                    >
-                          {bulkReviewAction == "MARK" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-		                      Marcar selecionados como revisados
-		                    </Button>
-		                    <Button
-		                      type="button"
-		                      variant="outline"
-		                      className="w-full sm:w-auto"
-		                      onClick={() => void handleBulkUpdateFilteredMatchesReviewState(false)}
-		                      disabled={
-                            deletingMatches ||
-                            applyingBulkAction ||
-                            selectedMatchIds.length == 0 ||
-                            bulkReviewAction != null ||
-                            isSavingReviewState
-                          }
-		                    >
-                          {bulkReviewAction == "UNMARK" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-		                      Desmarcar selecionados
-		                    </Button>
-		                  </div>
-		                ) : null}
-
-	                {canManageMatches && selectedFilteredMatchCount > 0 && !isScoreSheetReviewMode ? (
-	                  <div className="flex flex-wrap items-center gap-2">
-	                    <Button
-	                      type="button"
+                {canManageMatches &&
+                selectedFilteredMatchCount > 0 &&
+                isScoreSheetReviewMode ? (
+                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                    <Button
+                      type="button"
                       variant="outline"
-                      onClick={() => void handleMoveSelectedMatchesToNextChampionshipDay()}
-                      disabled={deletingMatches || applyingBulkAction || selectedMatchIds.length == 0}
+                      className="w-full sm:w-auto"
+                      onClick={() =>
+                        void handleBulkUpdateFilteredMatchesReviewState(true)
+                      }
+                      disabled={
+                        deletingMatches ||
+                        applyingBulkAction ||
+                        selectedMatchIds.length == 0 ||
+                        bulkReviewAction != null ||
+                        isSavingReviewState
+                      }
                     >
-                      {applyingBulkAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      {bulkReviewAction == "MARK" ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : null}
+                      Marcar selecionados como revisados
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full sm:w-auto"
+                      onClick={() =>
+                        void handleBulkUpdateFilteredMatchesReviewState(false)
+                      }
+                      disabled={
+                        deletingMatches ||
+                        applyingBulkAction ||
+                        selectedMatchIds.length == 0 ||
+                        bulkReviewAction != null ||
+                        isSavingReviewState
+                      }
+                    >
+                      {bulkReviewAction == "UNMARK" ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : null}
+                      Desmarcar selecionados
+                    </Button>
+                  </div>
+                ) : null}
+
+                {canManageMatches &&
+                selectedFilteredMatchCount > 0 &&
+                !isScoreSheetReviewMode ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        void handleMoveSelectedMatchesToNextChampionshipDay()
+                      }
+                      disabled={
+                        deletingMatches ||
+                        applyingBulkAction ||
+                        selectedMatchIds.length == 0
+                      }
+                    >
+                      {applyingBulkAction ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : null}
                       Mover selecionados para o próximo dia
                     </Button>
 
-	                    <Button
-	                      type="button"
-	                      variant="outline"
-	                      onClick={() => void handleMoveFilteredMatchesToNextChampionshipDay()}
-	                      disabled={deletingMatches || applyingBulkAction || filteredAndSortedMatches.length == 0}
-	                    >
-                        {applyingBulkAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-	                      Mover todos os jogos filtrados
-	                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        void handleMoveFilteredMatchesToNextChampionshipDay()
+                      }
+                      disabled={
+                        deletingMatches ||
+                        applyingBulkAction ||
+                        filteredAndSortedMatches.length == 0
+                      }
+                    >
+                      {applyingBulkAction ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : null}
+                      Mover todos os jogos filtrados
+                    </Button>
 
-	                    <Button
-	                      type="button"
-	                      variant="destructive"
-	                      onClick={handleOpenDeleteSelectedMatchesDialog}
-	                      disabled={deletingMatches || applyingBulkAction || selectedMatchIds.length == 0}
-	                    >
-                        {deletingMatches ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-	                      Excluir selecionados
-	                    </Button>
-	                  </div>
-	                ) : null}
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={handleOpenDeleteSelectedMatchesDialog}
+                      disabled={
+                        deletingMatches ||
+                        applyingBulkAction ||
+                        selectedMatchIds.length == 0
+                      }
+                    >
+                      {deletingMatches ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : null}
+                      Excluir selecionados
+                    </Button>
+                  </div>
+                ) : null}
 
                 <p className="text-center text-sm text-muted-foreground lg:text-left">
                   {filteredAndSortedMatches.length} jogo(s) encontrado(s)
                 </p>
               </div>
-
             </div>
 
-	            {paginatedMatches.map((match) => {
-	              const matchBracketContext = matchBracketContextByMatchId[match.id];
-	              const startedAtLabel = resolveMatchStartedAtLabel(match.start_time, match.status);
-	              const tieBreakRuleLabel = resolveMatchTieBreakRuleLabel(match.resolved_tie_breaker_rule);
-	              const penaltyShootoutSummary = resolveMatchPenaltyShootoutSummary(match, matchBracketContext);
-	              const isSetMatch = match.result_rule == ChampionshipSportResultRule.SETS;
-	              const supportsCards = championshipSportSupportsCardsBySportId.get(match.sport_id) == true || match.supports_cards;
-	              const isSavingMatchReviewState = savingReviewStateByMatchId[match.id] == true;
-	              const setSummary = isSetMatch ? resolveMatchSetSummary(match) : [];
-	              const displayedHomeScore =
-	                isSetMatch && match.status == MatchStatus.LIVE ? match.current_set_home_score ?? 0 : match.home_score;
-	              const displayedAwayScore =
-	                isSetMatch && match.status == MatchStatus.LIVE ? match.current_set_away_score ?? 0 : match.away_score;
+            {paginatedMatches.map((match) => {
+              const matchBracketContext =
+                matchBracketContextByMatchId[match.id];
+              const startedAtLabel = resolveMatchStartedAtLabel(
+                match.start_time,
+                match.status,
+              );
+              const tieBreakRuleLabel = resolveMatchTieBreakRuleLabel(
+                match.resolved_tie_breaker_rule,
+              );
+              const penaltyShootoutSummary = resolveMatchPenaltyShootoutSummary(
+                match,
+                matchBracketContext,
+              );
+              const isSetMatch =
+                match.result_rule == ChampionshipSportResultRule.SETS;
+              const supportsCards =
+                championshipSportSupportsCardsBySportId.get(match.sport_id) ==
+                  true || match.supports_cards;
+              const isSavingMatchReviewState =
+                savingReviewStateByMatchId[match.id] == true;
+              const setSummary = isSetMatch
+                ? resolveMatchSetSummary(match)
+                : [];
+              const displayedHomeScore =
+                isSetMatch && match.status == MatchStatus.LIVE
+                  ? (match.current_set_home_score ?? 0)
+                  : match.home_score;
+              const displayedAwayScore =
+                isSetMatch && match.status == MatchStatus.LIVE
+                  ? (match.current_set_away_score ?? 0)
+                  : match.away_score;
 
-	              return (
-	                <div key={match.id} className="list-item-card list-item-card-hover px-4 py-3">
-	                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-
-	                    {/* ── COL 1: Modalidade + Badges ── */}
-	                    <div className="flex flex-col gap-2 sm:w-44 sm:shrink-0">
-	                      {/* Linha: checkbox + modalidade + revisão + (menu mobile) */}
-	                      <div className="flex items-center gap-2">
-	                        {canManageMatches ? (
-	                          <Checkbox
-	                            checked={selectedMatchIds.includes(match.id)}
-	                            onCheckedChange={(checked) => handleToggleSelectedMatch(match.id, checked)}
-	                          />
-	                        ) : null}
-
-	                        <span className="shrink-0 text-xs font-medium uppercase text-muted-foreground">
-	                          {match.sports?.name}
-	                        </span>
-
-	                        {match.is_score_sheet_reviewed ? (
-	                          <span
-	                            title="Conferido com súmula"
-	                            className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400"
-	                          >
-	                            <Check className="h-3 w-3" />
-	                          </span>
-	                        ) : null}
-
-	                        {/* Menu — somente mobile */}
-	                        {canManageMatches ? (
-	                          <div className="ml-auto sm:hidden">
-	                            <DropdownMenu>
-	                        <DropdownMenuTrigger asChild>
-	                          <Button
-	                            variant="ghost"
-	                            size="icon"
-	                            aria-label={`Ações do jogo ${match.home_team?.name ?? "casa"} x ${match.away_team?.name ?? "visitante"} (mobile)`}
-	                            disabled={deletingMatches || swappingMatches}
-	                          >
-	                            <MoreVertical className="h-4 w-4 text-muted-foreground" />
-	                          </Button>
-	                        </DropdownMenuTrigger>
-	                        <DropdownMenuContent align="end" className="w-48">
-	                          <DropdownMenuItem
-	                            onSelect={() => {
-	                              handleStartEditingMatch(match);
-	                            }}
-	                          >
-	                            <Pencil className="mr-2 h-4 w-4" />
-	                            Editar
-	                          </DropdownMenuItem>
-	
-	                          {!isScoreSheetReviewMode && match.status !== MatchStatus.FINISHED ? (
-	                            <DropdownMenuItem
-	                              onSelect={() => {
-	                                handleOpenSwapMatchDialog(match);
-	                              }}
-	                            >
-	                              <RefreshCw className="mr-2 h-4 w-4" />
-	                              Trocar jogo
-	                            </DropdownMenuItem>
-	                          ) : null}
-	
-	                          {!isScoreSheetReviewMode ? (
-	                            <DropdownMenuItem
-	                              className="text-destructive focus:text-destructive"
-	                              onSelect={() => {
-	                                handleOpenDeleteMatchDialog(match);
-	                              }}
-	                            >
-	                              <Trash2 className="mr-2 h-4 w-4" />
-	                              Apagar
-	                            </DropdownMenuItem>
-	                          ) : null}
-
-	                          {isScoreSheetReviewMode ? (
-	                            <>
-	                              <DropdownMenuSeparator />
-	                              <DropdownMenuItem
-	                                onSelect={() => void handleToggleMatchScoreSheetReviewed(match.id, !match.is_score_sheet_reviewed)}
-	                                disabled={isSavingMatchReviewState}
-	                              >
-	                                {match.is_score_sheet_reviewed ? (
-	                                  <>
-	                                    <X className="mr-2 h-4 w-4" />
-	                                    Remover revisão da súmula
-	                                  </>
-	                                ) : (
-	                                  <>
-	                                    <Check className="mr-2 h-4 w-4" />
-	                                    {match.is_walkover ? "Conferir com súmula" : "Revisar súmula e premiações"}
-	                                  </>
-	                                )}
-	                              </DropdownMenuItem>
-	                            </>
-	                          ) : null}
-	                        </DropdownMenuContent>
-	                            </DropdownMenu>
-	                          </div>
-	                        ) : null}
-	                      </div>
-
-	                      {/* Badges — sempre alinhados à esquerda */}
-	                      <div className="flex flex-wrap items-center gap-1.5 sm:flex-col sm:items-start sm:gap-1">
-	                        <AppBadge
-	                          tone={resolveMatchNaipeBadgeTone(String(match.naipe))}
-	                          className="min-h-6 min-w-10 justify-center px-3 sm:min-h-0 sm:min-w-0 sm:justify-start sm:px-2.5"
-	                        >
-	                          <span className="flex items-center justify-center leading-none sm:hidden">
-	                            {match.naipe === MatchNaipe.MASCULINO ? "♂" : match.naipe === MatchNaipe.FEMININO ? "♀" : "⚥"}
-	                          </span>
-	                          <span className="hidden sm:inline">{resolveMatchNaipeLabel(String(match.naipe))}</span>
-	                        </AppBadge>
-
-	                        <AppBadge tone={resolveMatchStatusBadgeTone(match.status)}>
-	                          {match.status === MatchStatus.LIVE ? (
-	                            <Radio className="h-3 w-3 sm:hidden" />
-	                          ) : match.status === MatchStatus.FINISHED ? (
-	                            <Check className="h-3 w-3 sm:hidden" />
-	                          ) : (
-	                            <Clock className="h-3 w-3 sm:hidden" />
-	                          )}
-	                          <span className="hidden sm:inline">{resolveMatchDisplayStatusLabel(match)}</span>
-	                        </AppBadge>
-
-	                        {match.division ? (
-	                          <AppBadge tone={TEAM_DIVISION_BADGE_TONES[match.division]}>
-	                            <span className="sm:hidden">
-	                              {match.division === TeamDivision.DIVISAO_PRINCIPAL ? "Div. Principal" : "Div. Acesso"}
-	                            </span>
-	                            <span className="hidden sm:inline">{TEAM_DIVISION_LABELS[match.division]}</span>
-	                          </AppBadge>
-	                        ) : null}
-
-	                        {matchBracketContext ? (
-	                          <AppBadge tone={AppBadgeTone.NEUTRAL} className="shrink-0 whitespace-nowrap">
-	                            {matchBracketContext.badgeLabel}
-	                          </AppBadge>
-	                        ) : null}
-
-	                        {match.is_walkover ? (
-	                          <AppBadge tone={AppBadgeTone.NEUTRAL}>W.O.</AppBadge>
-	                        ) : null}
-	                      </div>
-	                    </div>
-
-	                    {/* ── COL 2: Placar + Sets + Detalhes + Cartões ── */}
-	                    <div className="min-w-0 space-y-2 sm:min-w-[220px] sm:max-w-xs">
-	                      {/* Placar principal — flex-1 em ambos os lados, × sempre no centro */}
-	                      <div className="flex items-center gap-1 font-display text-sm font-semibold">
-	                        <span className="min-w-0 flex-1 truncate text-right">{match.home_team?.name}</span>
-	                        <span className="shrink-0 text-base font-bold score-text">{displayedHomeScore}</span>
-	                        <span className="shrink-0 px-0.5 text-sm text-muted-foreground">×</span>
-	                        <span className="shrink-0 text-base font-bold score-text">{displayedAwayScore}</span>
-	                        <span className="min-w-0 flex-1 truncate">{match.away_team?.name}</span>
-	                      </div>
-
-                        {penaltyShootoutSummary ? (
-                          <p className="text-center text-xs font-medium text-muted-foreground">
-                            Pênaltis: ({penaltyShootoutSummary.homePenaltyScore} × {penaltyShootoutSummary.awayPenaltyScore})
-                          </p>
+              return (
+                <div
+                  key={match.id}
+                  className="list-item-card list-item-card-hover px-4 py-3"
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                    {/* ── COL 1: Modalidade + Badges ── */}
+                    <div className="flex flex-col gap-2 sm:w-44 sm:shrink-0">
+                      {/* Linha: checkbox + modalidade + revisão + (menu mobile) */}
+                      <div className="flex items-center gap-2">
+                        {canManageMatches ? (
+                          <Checkbox
+                            checked={selectedMatchIds.includes(match.id)}
+                            onCheckedChange={(checked) =>
+                              handleToggleSelectedMatch(match.id, checked)
+                            }
+                          />
                         ) : null}
 
-	                      {/* Sets em árvore — × alinhado com o placar principal */}
-	                      {setSummary.length > 0 && match.status != MatchStatus.SCHEDULED ? (
-	                        <div>
-	                          <div className="mx-auto h-3 w-px bg-primary/70" />
-	                          <div className="border-t-2 border-primary/70" />
-	                          <div className="mt-2 space-y-2">
-	                            {setSummary.map((matchSetItem) => (
-	                              <div
-	                                key={`${match.id}-admin-set-${matchSetItem.setNumber}`}
-	                                className="rounded-md border border-primary/40 bg-primary/10 px-2 py-1.5"
-	                              >
-	                                <div className="flex items-baseline gap-1 font-display text-[13px] font-semibold text-foreground">
-	                                  <span className="min-w-0 flex-1 truncate text-right">
-	                                    <span className="font-normal text-[11px] text-muted-foreground">
-	                                      <span className="hidden sm:inline">Set </span>{matchSetItem.setNumber}<span className="sm:hidden">º</span>{": "}
-	                                    </span>
-	                                    {matchSetItem.homeTeamName}{" "}
-	                                  </span>
-	                                  <span className="shrink-0 score-text">{matchSetItem.homePoints}</span>
-	                                  <span className="shrink-0 px-0.5 text-xs text-muted-foreground">×</span>
-	                                  <span className="shrink-0 score-text">{matchSetItem.awayPoints}</span>
-	                                  <span className="min-w-0 flex-1 truncate">
-	                                    {" "}{matchSetItem.awayTeamName}
-	                                  </span>
-	                                </div>
-	                              </div>
-	                            ))}
-	                          </div>
-	                        </div>
-	                      ) : null}
+                        <span className="shrink-0 text-xs font-medium uppercase text-muted-foreground">
+                          {match.sports?.name}
+                        </span>
 
-	                      {/* Detalhes — empilhado no mobile, linha única no desktop */}
-	                      <div className="text-center text-xs text-muted-foreground">
-	                        <div className="flex flex-col items-center gap-y-0.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-x-3 sm:gap-y-0">
-	                          <span>Local: {match.court_name ? `${match.location} • ${match.court_name}` : match.location}</span>
-	                          <span>Fila: {resolveScheduledQueueSummary(match, visualQueuePositionByMatchId[match.id])}</span>
-	                          {matchRepresentationByMatchId[match.id] ? (
-	                            <span className="break-words">Representação: {matchRepresentationByMatchId[match.id]}</span>
-	                          ) : null}
-	                          {match.status == MatchStatus.SCHEDULED && estimatedStartTimeByMatchId[match.id] ? (
-	                            <span>Horário estimado: {estimatedStartTimeByMatchId[match.id]}</span>
-	                          ) : null}
-	                          {startedAtLabel ? <span>{startedAtLabel}</span> : null}
-	                        </div>
-	                        {isHandballSportName(match.sports?.name) && (
-	                          <p className="mt-1">
-	                            CAZ: {(match.home_blue_cards ?? 0) + (match.away_blue_cards ?? 0)} • 2M: {(match.home_two_minute_penalties ?? 0) + (match.away_two_minute_penalties ?? 0)}
-	                          </p>
-	                        )}
-	                        {tieBreakRuleLabel ? (
-	                          <p className="mt-1 inline-flex items-center gap-1 font-medium text-amber-500">
-	                            <AlertTriangle className="h-3 w-3" />
-	                            Desempate por {tieBreakRuleLabel}.
-	                          </p>
-	                        ) : null}
-	                      </div>
+                        {match.is_score_sheet_reviewed ? (
+                          <span
+                            title="Conferido com súmula"
+                            className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400"
+                          >
+                            <Check className="h-3 w-3" />
+                          </span>
+                        ) : null}
 
-	                      {/* Cartões com ícones */}
-	                      {supportsCards ? (
-	                        <div className="space-y-1">
-	                          <p className="text-center text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-	                            Cartões
-	                          </p>
-	                          <div className="mx-auto grid max-w-xs grid-cols-2 gap-x-6 gap-y-1">
-	                            <div className="space-y-0.5 text-center">
-	                              <p className="truncate text-xs font-medium text-foreground">Casa</p>
-	                              <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-	                                <span className="inline-flex items-center gap-1">
-	                                  <Square className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
-	                                  {match.home_yellow_cards}
-	                                </span>
-	                                <span className="inline-flex items-center gap-1">
-	                                  <Square className="h-2.5 w-2.5 fill-rose-600 text-rose-600 dark:fill-rose-500 dark:text-rose-500" />
-	                                  {match.home_red_cards}
-	                                </span>
-	                              </div>
-	                            </div>
-	                            <div className="space-y-0.5 text-center">
-	                              <p className="truncate text-xs font-medium text-foreground">Visitante</p>
-	                              <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-	                                <span className="inline-flex items-center gap-1">
-	                                  <Square className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
-	                                  {match.away_yellow_cards}
-	                                </span>
-	                                <span className="inline-flex items-center gap-1">
-	                                  <Square className="h-2.5 w-2.5 fill-rose-600 text-rose-600 dark:fill-rose-500 dark:text-rose-500" />
-	                                  {match.away_red_cards}
-	                                </span>
-	                              </div>
-	                            </div>
-	                          </div>
-	                        </div>
-	                      ) : null}
-	                    </div>
+                        {/* Menu — somente mobile */}
+                        {canManageMatches ? (
+                          <div className="ml-auto sm:hidden">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  aria-label={`Ações do jogo ${match.home_team?.name ?? "casa"} x ${match.away_team?.name ?? "visitante"} (mobile)`}
+                                  disabled={deletingMatches || swappingMatches}
+                                >
+                                  <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-48">
+                                <DropdownMenuItem
+                                  onSelect={() => {
+                                    handleStartEditingMatch(match);
+                                  }}
+                                >
+                                  <Pencil className="mr-2 h-4 w-4" />
+                                  Editar
+                                </DropdownMenuItem>
 
-	                    {/* ── COL 3: Menu ações (somente desktop) ── */}
-	                    {canManageMatches ? (
-	                      <div className="hidden sm:flex sm:shrink-0 sm:items-center">
-	                        <DropdownMenu>
-	                        <DropdownMenuTrigger asChild>
-	                          <Button
-	                            variant="ghost"
-	                            size="icon"
-	                            aria-label={`Ações do jogo ${match.home_team?.name ?? "casa"} x ${match.away_team?.name ?? "visitante"}`}
-	                            disabled={deletingMatches || swappingMatches}
-	                          >
-	                            <MoreVertical className="h-4 w-4 text-muted-foreground" />
-	                          </Button>
-	                        </DropdownMenuTrigger>
-	                        <DropdownMenuContent align="end" className="w-48">
-	                          <DropdownMenuItem
-	                            onSelect={() => {
-	                              handleStartEditingMatch(match);
-	                            }}
-	                          >
-	                            <Pencil className="mr-2 h-4 w-4" />
-	                            Editar
-	                          </DropdownMenuItem>
-	
-	                          {!isScoreSheetReviewMode && match.status !== MatchStatus.FINISHED ? (
-	                            <DropdownMenuItem
-	                              onSelect={() => {
-	                                handleOpenSwapMatchDialog(match);
-	                              }}
-	                            >
-	                              <RefreshCw className="mr-2 h-4 w-4" />
-	                              Trocar jogo
-	                            </DropdownMenuItem>
-	                          ) : null}
-	
-	                          {!isScoreSheetReviewMode ? (
-	                            <DropdownMenuItem
-	                              className="text-destructive focus:text-destructive"
-	                              onSelect={() => {
-	                                handleOpenDeleteMatchDialog(match);
-	                              }}
-	                            >
-	                              <Trash2 className="mr-2 h-4 w-4" />
-	                              Apagar
-	                            </DropdownMenuItem>
-	                          ) : null}
+                                {!isScoreSheetReviewMode &&
+                                match.status !== MatchStatus.FINISHED ? (
+                                  <DropdownMenuItem
+                                    onSelect={() => {
+                                      handleOpenSwapMatchDialog(match);
+                                    }}
+                                  >
+                                    <RefreshCw className="mr-2 h-4 w-4" />
+                                    Trocar jogo
+                                  </DropdownMenuItem>
+                                ) : null}
 
-	                          {isScoreSheetReviewMode ? (
-	                            <>
-	                              <DropdownMenuSeparator />
-	                              <DropdownMenuItem
-	                                onSelect={() => void handleToggleMatchScoreSheetReviewed(match.id, !match.is_score_sheet_reviewed)}
-	                                disabled={isSavingMatchReviewState}
-	                              >
-	                                {match.is_score_sheet_reviewed ? (
-	                                  <>
-	                                    <X className="mr-2 h-4 w-4" />
-	                                    Remover revisão da súmula
-	                                  </>
-	                                ) : (
-	                                  <>
-	                                    <Check className="mr-2 h-4 w-4" />
-	                                    {match.is_walkover ? "Conferir com súmula" : "Revisar súmula e premiações"}
-	                                  </>
-	                                )}
-	                              </DropdownMenuItem>
-	                            </>
-	                          ) : null}
-	                        </DropdownMenuContent>
-	                        </DropdownMenu>
-	                      </div>
-	                    ) : null}
-	                  </div>
-	                </div>
+                                {!isScoreSheetReviewMode ? (
+                                  <DropdownMenuItem
+                                    className="text-destructive focus:text-destructive"
+                                    onSelect={() => {
+                                      handleOpenDeleteMatchDialog(match);
+                                    }}
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Apagar
+                                  </DropdownMenuItem>
+                                ) : null}
+
+                                {isScoreSheetReviewMode ? (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onSelect={() =>
+                                        void handleToggleMatchScoreSheetReviewed(
+                                          match.id,
+                                          !match.is_score_sheet_reviewed,
+                                        )
+                                      }
+                                      disabled={isSavingMatchReviewState}
+                                    >
+                                      {match.is_score_sheet_reviewed ? (
+                                        <>
+                                          <X className="mr-2 h-4 w-4" />
+                                          Remover revisão da súmula
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Check className="mr-2 h-4 w-4" />
+                                          {match.is_walkover
+                                            ? "Conferir com súmula"
+                                            : "Revisar súmula e premiações"}
+                                        </>
+                                      )}
+                                    </DropdownMenuItem>
+                                  </>
+                                ) : null}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        ) : null}
+                      </div>
+
+                      {/* Badges — sempre alinhados à esquerda */}
+                      <div className="flex flex-wrap items-center gap-1.5 sm:flex-col sm:items-start sm:gap-1">
+                        <AppBadge
+                          tone={resolveMatchNaipeBadgeTone(String(match.naipe))}
+                          className="min-h-6 min-w-10 justify-center px-3 sm:min-h-0 sm:min-w-0 sm:justify-start sm:px-2.5"
+                        >
+                          <span className="flex items-center justify-center leading-none sm:hidden">
+                            {match.naipe === MatchNaipe.MASCULINO
+                              ? "♂"
+                              : match.naipe === MatchNaipe.FEMININO
+                                ? "♀"
+                                : "⚥"}
+                          </span>
+                          <span className="hidden sm:inline">
+                            {resolveMatchNaipeLabel(String(match.naipe))}
+                          </span>
+                        </AppBadge>
+
+                        <AppBadge
+                          tone={resolveMatchStatusBadgeTone(match.status)}
+                        >
+                          {match.status === MatchStatus.LIVE ? (
+                            <Radio className="h-3 w-3 sm:hidden" />
+                          ) : match.status === MatchStatus.FINISHED ? (
+                            <Check className="h-3 w-3 sm:hidden" />
+                          ) : (
+                            <Clock className="h-3 w-3 sm:hidden" />
+                          )}
+                          <span className="hidden sm:inline">
+                            {resolveMatchDisplayStatusLabel(match)}
+                          </span>
+                        </AppBadge>
+
+                        {match.division ? (
+                          <AppBadge
+                            tone={TEAM_DIVISION_BADGE_TONES[match.division]}
+                          >
+                            <span className="sm:hidden">
+                              {match.division === TeamDivision.DIVISAO_PRINCIPAL
+                                ? "Div. Principal"
+                                : "Div. Acesso"}
+                            </span>
+                            <span className="hidden sm:inline">
+                              {TEAM_DIVISION_LABELS[match.division]}
+                            </span>
+                          </AppBadge>
+                        ) : null}
+
+                        {matchBracketContext ? (
+                          <AppBadge
+                            tone={AppBadgeTone.NEUTRAL}
+                            className="shrink-0 whitespace-nowrap"
+                          >
+                            {matchBracketContext.badgeLabel}
+                          </AppBadge>
+                        ) : null}
+
+                        {match.is_walkover ? (
+                          <AppBadge tone={AppBadgeTone.NEUTRAL}>W.O.</AppBadge>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    {/* ── COL 2: Placar + Sets + Detalhes + Cartões ── */}
+                    <div className="min-w-0 space-y-2 sm:min-w-[220px] sm:max-w-xs">
+                      {/* Placar principal — flex-1 em ambos os lados, × sempre no centro */}
+                      <div className="flex items-center gap-1 font-display text-sm font-semibold">
+                        <span className="min-w-0 flex-1 truncate text-right">
+                          {match.home_team?.name}
+                        </span>
+                        <span className="shrink-0 text-base font-bold score-text">
+                          {displayedHomeScore}
+                        </span>
+                        <span className="shrink-0 px-0.5 text-sm text-muted-foreground">
+                          ×
+                        </span>
+                        <span className="shrink-0 text-base font-bold score-text">
+                          {displayedAwayScore}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate">
+                          {match.away_team?.name}
+                        </span>
+                      </div>
+
+                      {penaltyShootoutSummary ? (
+                        <p className="text-center text-xs font-medium text-muted-foreground">
+                          Pênaltis: ({penaltyShootoutSummary.homePenaltyScore} ×{" "}
+                          {penaltyShootoutSummary.awayPenaltyScore})
+                        </p>
+                      ) : null}
+
+                      {/* Sets em árvore — × alinhado com o placar principal */}
+                      {setSummary.length > 0 &&
+                      match.status != MatchStatus.SCHEDULED ? (
+                        <div>
+                          <div className="mx-auto h-3 w-px bg-primary/70" />
+                          <div className="border-t-2 border-primary/70" />
+                          <div className="mt-2 space-y-2">
+                            {setSummary.map((matchSetItem) => (
+                              <div
+                                key={`${match.id}-admin-set-${matchSetItem.setNumber}`}
+                                className="rounded-md border border-primary/40 bg-primary/10 px-2 py-1.5"
+                              >
+                                <div className="flex items-baseline gap-1 font-display text-[13px] font-semibold text-foreground">
+                                  <span className="min-w-0 flex-1 truncate text-right">
+                                    <span className="font-normal text-[11px] text-muted-foreground">
+                                      <span className="hidden sm:inline">
+                                        Set{" "}
+                                      </span>
+                                      {matchSetItem.setNumber}
+                                      <span className="sm:hidden">º</span>
+                                      {": "}
+                                    </span>
+                                    {matchSetItem.homeTeamName}{" "}
+                                  </span>
+                                  <span className="shrink-0 score-text">
+                                    {matchSetItem.homePoints}
+                                  </span>
+                                  <span className="shrink-0 px-0.5 text-xs text-muted-foreground">
+                                    ×
+                                  </span>
+                                  <span className="shrink-0 score-text">
+                                    {matchSetItem.awayPoints}
+                                  </span>
+                                  <span className="min-w-0 flex-1 truncate">
+                                    {" "}
+                                    {matchSetItem.awayTeamName}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {/* Detalhes — empilhado no mobile, linha única no desktop */}
+                      <div className="text-center text-xs text-muted-foreground">
+                        <div className="flex flex-col items-center gap-y-0.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-x-3 sm:gap-y-0">
+                          <span>
+                            Local:{" "}
+                            {match.court_name
+                              ? `${match.location} • ${match.court_name}`
+                              : match.location}
+                          </span>
+                          <span>
+                            Fila:{" "}
+                            {resolveScheduledQueueSummary(
+                              match,
+                              visualQueuePositionByMatchId[match.id],
+                            )}
+                          </span>
+                          {matchRepresentationByMatchId[match.id] ? (
+                            <span className="break-words">
+                              Representação:{" "}
+                              {matchRepresentationByMatchId[match.id]}
+                            </span>
+                          ) : null}
+                          {match.status == MatchStatus.SCHEDULED &&
+                          estimatedStartTimeByMatchId[match.id] ? (
+                            <span>
+                              Horário estimado:{" "}
+                              {estimatedStartTimeByMatchId[match.id]}
+                            </span>
+                          ) : null}
+                          {startedAtLabel ? (
+                            <span>{startedAtLabel}</span>
+                          ) : null}
+                        </div>
+                        {isHandballSportName(match.sports?.name) && (
+                          <p className="mt-1">
+                            CAZ:{" "}
+                            {(match.home_blue_cards ?? 0) +
+                              (match.away_blue_cards ?? 0)}{" "}
+                            • 2M:{" "}
+                            {(match.home_two_minute_penalties ?? 0) +
+                              (match.away_two_minute_penalties ?? 0)}
+                          </p>
+                        )}
+                        {tieBreakRuleLabel ? (
+                          <p className="mt-1 inline-flex items-center gap-1 font-medium text-amber-500">
+                            <AlertTriangle className="h-3 w-3" />
+                            Desempate por {tieBreakRuleLabel}.
+                          </p>
+                        ) : null}
+                      </div>
+
+                      {/* Cartões com ícones */}
+                      {supportsCards ? (
+                        <div className="space-y-1">
+                          <p className="text-center text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                            Cartões
+                          </p>
+                          <div className="mx-auto grid max-w-xs grid-cols-2 gap-x-6 gap-y-1">
+                            <div className="space-y-0.5 text-center">
+                              <p className="truncate text-xs font-medium text-foreground">
+                                Casa
+                              </p>
+                              <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                                <span className="inline-flex items-center gap-1">
+                                  <Square className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
+                                  {match.home_yellow_cards}
+                                </span>
+                                <span className="inline-flex items-center gap-1">
+                                  <Square className="h-2.5 w-2.5 fill-rose-600 text-rose-600 dark:fill-rose-500 dark:text-rose-500" />
+                                  {match.home_red_cards}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="space-y-0.5 text-center">
+                              <p className="truncate text-xs font-medium text-foreground">
+                                Visitante
+                              </p>
+                              <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                                <span className="inline-flex items-center gap-1">
+                                  <Square className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
+                                  {match.away_yellow_cards}
+                                </span>
+                                <span className="inline-flex items-center gap-1">
+                                  <Square className="h-2.5 w-2.5 fill-rose-600 text-rose-600 dark:fill-rose-500 dark:text-rose-500" />
+                                  {match.away_red_cards}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {/* ── COL 3: Menu ações (somente desktop) ── */}
+                    {canManageMatches ? (
+                      <div className="hidden sm:flex sm:shrink-0 sm:items-center">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Ações do jogo ${match.home_team?.name ?? "casa"} x ${match.away_team?.name ?? "visitante"}`}
+                              disabled={deletingMatches || swappingMatches}
+                            >
+                              <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                handleStartEditingMatch(match);
+                              }}
+                            >
+                              <Pencil className="mr-2 h-4 w-4" />
+                              Editar
+                            </DropdownMenuItem>
+
+                            {!isScoreSheetReviewMode &&
+                            match.status !== MatchStatus.FINISHED ? (
+                              <DropdownMenuItem
+                                onSelect={() => {
+                                  handleOpenSwapMatchDialog(match);
+                                }}
+                              >
+                                <RefreshCw className="mr-2 h-4 w-4" />
+                                Trocar jogo
+                              </DropdownMenuItem>
+                            ) : null}
+
+                            {!isScoreSheetReviewMode ? (
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onSelect={() => {
+                                  handleOpenDeleteMatchDialog(match);
+                                }}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Apagar
+                              </DropdownMenuItem>
+                            ) : null}
+
+                            {isScoreSheetReviewMode ? (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onSelect={() =>
+                                    void handleToggleMatchScoreSheetReviewed(
+                                      match.id,
+                                      !match.is_score_sheet_reviewed,
+                                    )
+                                  }
+                                  disabled={isSavingMatchReviewState}
+                                >
+                                  {match.is_score_sheet_reviewed ? (
+                                    <>
+                                      <X className="mr-2 h-4 w-4" />
+                                      Remover revisão da súmula
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Check className="mr-2 h-4 w-4" />
+                                      {match.is_walkover
+                                        ? "Conferir com súmula"
+                                        : "Revisar súmula e premiações"}
+                                    </>
+                                  )}
+                                </DropdownMenuItem>
+                              </>
+                            ) : null}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
               );
             })}
 
@@ -5034,7 +6347,9 @@ export function AdminMatches({
             />
           </>
         ) : (
-          <p className="text-sm text-muted-foreground">Nenhum jogo encontrado para os filtros selecionados.</p>
+          <p className="text-sm text-muted-foreground">
+            Nenhum jogo encontrado para os filtros selecionados.
+          </p>
         )}
       </div>
 
@@ -5047,41 +6362,60 @@ export function AdminMatches({
         }}
       >
         <DialogContent className="sm:max-w-lg">
-            <DialogHeader>
+          <DialogHeader>
             <DialogTitle>Trocar jogo na fila</DialogTitle>
             <DialogDescription>
-              Selecione um jogo da mesma quadra para trocar a posição da fila, inclusive em outros dias, sem criar conflito de representação.
+              Selecione um jogo da mesma quadra para trocar a posição da fila,
+              inclusive em outros dias, sem criar conflito de representação.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Jogo selecionado</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Jogo selecionado
+              </p>
               <div className="app-card-muted rounded-xl p-3 text-sm">
                 {pendingSwapSourceMatch
                   ? resolveMatchSwapOptionLabel({
-                    match: pendingSwapSourceMatch,
-                    shouldUseScheduledSlot: true,
-                    displaySlot: visualQueuePositionByMatchId[pendingSwapSourceMatch.id],
-                  })
+                      match: pendingSwapSourceMatch,
+                      shouldUseScheduledSlot: true,
+                      displaySlot:
+                        visualQueuePositionByMatchId[pendingSwapSourceMatch.id],
+                    })
                   : "Selecione um jogo para iniciar a troca."}
               </div>
             </div>
 
             <div className="space-y-2">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Trocar com</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Trocar com
+              </p>
               <Select
-                value={pendingSwapTargetMatchId || EMPTY_SWAP_MATCH_OPTION_VALUE}
+                value={
+                  pendingSwapTargetMatchId || EMPTY_SWAP_MATCH_OPTION_VALUE
+                }
                 onValueChange={(value) => {
-                  setPendingSwapTargetMatchId(value == EMPTY_SWAP_MATCH_OPTION_VALUE ? "" : value);
+                  setPendingSwapTargetMatchId(
+                    value == EMPTY_SWAP_MATCH_OPTION_VALUE ? "" : value,
+                  );
                 }}
-                disabled={loadingSwapTargetMatchOptions || eligibleSwapTargetMatchOptions.length == 0 || swappingMatches}
+                disabled={
+                  loadingSwapTargetMatchOptions ||
+                  eligibleSwapTargetMatchOptions.length == 0 ||
+                  swappingMatches
+                }
               >
-                <SelectTrigger aria-label="Selecionar jogo para troca de fila" className="app-input-field">
+                <SelectTrigger
+                  aria-label="Selecionar jogo para troca de fila"
+                  className="app-input-field"
+                >
                   <SelectValue placeholder="Selecione o jogo para troca" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={EMPTY_SWAP_MATCH_OPTION_VALUE}>Selecione o jogo</SelectItem>
+                  <SelectItem value={EMPTY_SWAP_MATCH_OPTION_VALUE}>
+                    Selecione o jogo
+                  </SelectItem>
                   {eligibleSwapTargetMatchOptions.map((swapOption) => (
                     <SelectItem key={swapOption.id} value={swapOption.id}>
                       {swapOption.label}
@@ -5103,15 +6437,27 @@ export function AdminMatches({
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={handleCloseSwapMatchDialog} disabled={swappingMatches}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCloseSwapMatchDialog}
+              disabled={swappingMatches}
+            >
               Cancelar
             </Button>
             <Button
               type="button"
               onClick={() => void handleConfirmSwapMatches()}
-              disabled={!pendingSwapSourceMatch || !pendingSwapTargetMatchId || loadingSwapTargetMatchOptions || swappingMatches}
+              disabled={
+                !pendingSwapSourceMatch ||
+                !pendingSwapTargetMatchId ||
+                loadingSwapTargetMatchOptions ||
+                swappingMatches
+              }
             >
-              {swappingMatches ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {swappingMatches ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
               Confirmar troca
             </Button>
           </DialogFooter>
@@ -5138,9 +6484,16 @@ export function AdminMatches({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deletingMatches}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void handleDeleteMatchFromDialog()} disabled={deletingMatches}>
-              {deletingMatches ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            <AlertDialogCancel disabled={deletingMatches}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void handleDeleteMatchFromDialog()}
+              disabled={deletingMatches}
+            >
+              {deletingMatches ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
               Confirmar exclusão
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -5159,16 +6512,21 @@ export function AdminMatches({
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir jogos selecionados</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação removerá {selectedMatchIds.length} jogo(s) selecionado(s).
+              Esta ação removerá {selectedMatchIds.length} jogo(s)
+              selecionado(s).
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deletingMatches}>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel disabled={deletingMatches}>
+              Cancelar
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => void handleDeleteSelectedMatches()}
               disabled={deletingMatches}
             >
-              {deletingMatches ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {deletingMatches ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
               Confirmar exclusão
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -5187,11 +6545,15 @@ export function AdminMatches({
           <DialogHeader>
             <DialogTitle>Revisão de súmula e premiações</DialogTitle>
             <DialogDescription>
-              Informe os autores dos gols para contabilizar a artilharia. A melhor defesa é calculada automaticamente pela atlética menos vazada.
+              Informe os autores dos gols para contabilizar a artilharia. A
+              melhor defesa é calculada automaticamente pela atlética menos
+              vazada.
             </DialogDescription>
           </DialogHeader>
 
-          {isLoadingActiveScoreSheetAwardsContext || !activeScoreSheetReviewMatch || !activeScoreSheetAwardsDraft ? (
+          {isLoadingActiveScoreSheetAwardsContext ||
+          !activeScoreSheetReviewMatch ||
+          !activeScoreSheetAwardsDraft ? (
             <div className="space-y-3 py-2">
               <Skeleton className="h-20 w-full rounded-xl" />
               <Skeleton className="h-20 w-full rounded-xl" />
@@ -5201,274 +6563,473 @@ export function AdminMatches({
               <div className="app-card-muted rounded-xl p-3 text-sm">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <p className="font-medium">
-                    {activeScoreSheetReviewMatch.home_team?.name ?? "Casa"} {activeScoreSheetReviewMatch.home_score} × {activeScoreSheetReviewMatch.away_score} {activeScoreSheetReviewMatch.away_team?.name ?? "Visitante"}
+                    {activeScoreSheetReviewMatch.home_team?.name ?? "Casa"}{" "}
+                    {activeScoreSheetReviewMatch.home_score} ×{" "}
+                    {activeScoreSheetReviewMatch.away_score}{" "}
+                    {activeScoreSheetReviewMatch.away_team?.name ?? "Visitante"}
                   </p>
-                  <AppBadge tone={resolveMatchNaipeBadgeTone(String(activeScoreSheetReviewMatch.naipe))}>
-                    {MATCH_NAIPE_LABELS[activeScoreSheetReviewMatch.naipe as MatchNaipe]}
+                  <AppBadge
+                    tone={resolveMatchNaipeBadgeTone(
+                      String(activeScoreSheetReviewMatch.naipe),
+                    )}
+                  >
+                    {
+                      MATCH_NAIPE_LABELS[
+                        activeScoreSheetReviewMatch.naipe as MatchNaipe
+                      ]
+                    }
                   </AppBadge>
                   {activeScoreSheetReviewMatch.division ? (
-                    <AppBadge tone={TEAM_DIVISION_BADGE_TONES[activeScoreSheetReviewMatch.division as TeamDivision]}>
-                      {TEAM_DIVISION_LABELS[activeScoreSheetReviewMatch.division as TeamDivision]}
+                    <AppBadge
+                      tone={
+                        TEAM_DIVISION_BADGE_TONES[
+                          activeScoreSheetReviewMatch.division as TeamDivision
+                        ]
+                      }
+                    >
+                      {
+                        TEAM_DIVISION_LABELS[
+                          activeScoreSheetReviewMatch.division as TeamDivision
+                        ]
+                      }
                     </AppBadge>
                   ) : null}
                 </div>
                 {activeScoreSheetAwardsDraft.isWalkover ? (
-                  <p className="mt-1 text-xs text-muted-foreground">Jogo com W.O.: não exige premiações individuais para revisão.</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Jogo com W.O.: não exige premiações individuais para
+                    revisão.
+                  </p>
                 ) : null}
                 {resolveMatchPenaltyShootoutSummary(
                   activeScoreSheetReviewMatch,
                   matchBracketContextByMatchId[activeScoreSheetReviewMatch.id],
                 ) ? (
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Os pênaltis desempataram o jogo, mas não entram na artilharia. Informe apenas os autores dos gols do tempo normal.
+                    Os pênaltis desempataram o jogo, mas não entram na
+                    artilharia. Informe apenas os autores dos gols do tempo
+                    normal.
                   </p>
                 ) : null}
               </div>
 
               {!activeScoreSheetAwardsDraft.isWalkover ? (
-                <div className={`rounded-xl border px-3 py-2.5 text-sm ${hasIncompleteActiveScoreSheetGoalSelections ? "border-amber-300/60 bg-amber-50 text-amber-900 dark:border-amber-700/50 dark:bg-amber-950 dark:text-amber-100" : "border-emerald-300/60 bg-emerald-50 text-emerald-900 dark:border-emerald-700/50 dark:bg-emerald-950 dark:text-emerald-100"}`}>
+                <div
+                  className={`rounded-xl border px-3 py-2.5 text-sm ${hasIncompleteActiveScoreSheetGoalSelections ? "border-amber-300/60 bg-amber-50 text-amber-900 dark:border-amber-700/50 dark:bg-amber-950 dark:text-amber-100" : "border-emerald-300/60 bg-emerald-50 text-emerald-900 dark:border-emerald-700/50 dark:bg-emerald-950 dark:text-emerald-100"}`}
+                >
                   <p className="font-medium">
                     {hasIncompleteActiveScoreSheetGoalSelections
                       ? `Faltam ${activeScoreSheetGoalSelectionSummary.pendingGoals} autor${activeScoreSheetGoalSelectionSummary.pendingGoals == 1 ? "" : "es"} de gol para liberar o salvamento.`
                       : "Todos os autores dos gols foram vinculados."}
                   </p>
                   <p className="mt-1 text-xs text-current/80">
-                    {activeScoreSheetGoalSelectionSummary.filledGoals} de {activeScoreSheetGoalSelectionSummary.totalGoals} gols preenchidos nesta revisão.
+                    {activeScoreSheetGoalSelectionSummary.filledGoals} de{" "}
+                    {activeScoreSheetGoalSelectionSummary.totalGoals} gols
+                    preenchidos nesta revisão.
                   </p>
                 </div>
               ) : null}
 
               {!activeScoreSheetAwardsDraft.isWalkover ? (
                 <div className="grid gap-4 lg:grid-cols-2">
-                  {([
+                  {[
                     {
                       key: "home" as const,
-                      title: activeScoreSheetReviewMatch.home_team?.name ?? "Time da casa",
-                      playerOptions: activeScoreSheetAwardsDraft.homePlayerOptions,
-                      goalSelections: activeScoreSheetAwardsDraft.homeGoalSelections,
-                      newPlayerName: activeScoreSheetAwardsDraft.newHomePlayerName,
+                      title:
+                        activeScoreSheetReviewMatch.home_team?.name ??
+                        "Time da casa",
+                      playerOptions:
+                        activeScoreSheetAwardsDraft.homePlayerOptions,
+                      goalSelections:
+                        activeScoreSheetAwardsDraft.homeGoalSelections,
+                      newPlayerName:
+                        activeScoreSheetAwardsDraft.newHomePlayerName,
                     },
                     {
                       key: "away" as const,
-                      title: activeScoreSheetReviewMatch.away_team?.name ?? "Time visitante",
-                      playerOptions: activeScoreSheetAwardsDraft.awayPlayerOptions,
-                      goalSelections: activeScoreSheetAwardsDraft.awayGoalSelections,
-                      newPlayerName: activeScoreSheetAwardsDraft.newAwayPlayerName,
+                      title:
+                        activeScoreSheetReviewMatch.away_team?.name ??
+                        "Time visitante",
+                      playerOptions:
+                        activeScoreSheetAwardsDraft.awayPlayerOptions,
+                      goalSelections:
+                        activeScoreSheetAwardsDraft.awayGoalSelections,
+                      newPlayerName:
+                        activeScoreSheetAwardsDraft.newAwayPlayerName,
                     },
-                  ]).map((teamSection) => {
+                  ].map((teamSection) => {
                     const totalGoals = teamSection.goalSelections.length;
-                    const filledGoals = teamSection.goalSelections.filter((goalSelection) => goalSelection.scorerId.trim().length > 0).length;
+                    const filledGoals = teamSection.goalSelections.filter(
+                      (goalSelection) =>
+                        goalSelection.scorerId.trim().length > 0,
+                    ).length;
                     const pendingGoals = totalGoals - filledGoals;
 
                     return (
-                    <div key={teamSection.key} className="app-card-muted space-y-3 rounded-xl p-3">
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div className="space-y-1">
-                          <p className="text-sm font-semibold">{teamSection.title}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {filledGoals} de {totalGoals} gols vinculados
-                            {pendingGoals > 0 ? ` • faltam ${pendingGoals}` : ""}
-                          </p>
+                      <div
+                        key={teamSection.key}
+                        className="app-card-muted space-y-3 rounded-xl p-3"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div className="space-y-1">
+                            <p className="text-sm font-semibold">
+                              {teamSection.title}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {filledGoals} de {totalGoals} gols vinculados
+                              {pendingGoals > 0
+                                ? ` • faltam ${pendingGoals}`
+                                : ""}
+                            </p>
+                          </div>
+                          <div
+                            className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${pendingGoals > 0 ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-100" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-100"}`}
+                          >
+                            {pendingGoals > 0 ? "Pendente" : "Completo"}
+                          </div>
                         </div>
-                        <div className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${pendingGoals > 0 ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-100" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-100"}`}>
-                          {pendingGoals > 0 ? "Pendente" : "Completo"}
-                        </div>
-                      </div>
 
-                      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)] xl:items-start">
-                        <div className="space-y-2">
-                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Autores dos gols</p>
-                          {teamSection.goalSelections.length > 0 ? (
-                            teamSection.playerOptions.length > 0 ? (
-                              <div className="space-y-2">
-                                {teamSection.goalSelections.map((goalSelection, goalIndex) => (
-                                  <div key={`${teamSection.key}-goal-${goalIndex + 1}`} className="space-y-1">
-                                    <Label className="text-xs text-muted-foreground">{goalIndex + 1}º gol</Label>
-                                    <Select
-                                      value={goalSelection.scorerId || EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE}
-                                      onValueChange={(value) => {
-                                        handleUpdateScoreSheetAwardsDraft(activeScoreSheetReviewMatch.id, (draft) => {
-                                          const nextSelections = [...(teamSection.key == "home" ? draft.homeGoalSelections : draft.awayGoalSelections)];
-                                          nextSelections[goalIndex] = {
-                                            ...nextSelections[goalIndex],
-                                            scorerId: value == EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE ? "" : value,
-                                          };
-                                          return {
-                                            ...draft,
-                                            homeGoalSelections: teamSection.key == "home" ? nextSelections : draft.homeGoalSelections,
-                                            awayGoalSelections: teamSection.key == "away" ? nextSelections : draft.awayGoalSelections,
-                                          };
-                                        });
-                                      }}
-                                    >
-                                      <SelectTrigger className="app-input-field" aria-label={`${teamSection.title} gol ${goalIndex + 1}`}>
-                                        <SelectValue placeholder={`Selecione o autor do ${goalIndex + 1}º gol`} />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value={EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE}>Selecione o jogador</SelectItem>
-                                        {teamSection.playerOptions.map((playerOption) => (
-                                          <SelectItem key={playerOption.id} value={playerOption.id}>
-                                            {playerOption.name}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                ))}
-                              </div>
+                        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)] xl:items-start">
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                              Autores dos gols
+                            </p>
+                            {teamSection.goalSelections.length > 0 ? (
+                              teamSection.playerOptions.length > 0 ? (
+                                <div className="space-y-2">
+                                  {teamSection.goalSelections.map(
+                                    (goalSelection, goalIndex) => (
+                                      <div
+                                        key={`${teamSection.key}-goal-${goalIndex + 1}`}
+                                        className="space-y-1"
+                                      >
+                                        <Label className="text-xs text-muted-foreground">
+                                          {goalIndex + 1}º gol
+                                        </Label>
+                                        <Select
+                                          value={
+                                            goalSelection.scorerId ||
+                                            EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE
+                                          }
+                                          onValueChange={(value) => {
+                                            handleUpdateScoreSheetAwardsDraft(
+                                              activeScoreSheetReviewMatch.id,
+                                              (draft) => {
+                                                const nextSelections = [
+                                                  ...(teamSection.key == "home"
+                                                    ? draft.homeGoalSelections
+                                                    : draft.awayGoalSelections),
+                                                ];
+                                                nextSelections[goalIndex] = {
+                                                  ...nextSelections[goalIndex],
+                                                  scorerId:
+                                                    value ==
+                                                    EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE
+                                                      ? ""
+                                                      : value,
+                                                };
+                                                return {
+                                                  ...draft,
+                                                  homeGoalSelections:
+                                                    teamSection.key == "home"
+                                                      ? nextSelections
+                                                      : draft.homeGoalSelections,
+                                                  awayGoalSelections:
+                                                    teamSection.key == "away"
+                                                      ? nextSelections
+                                                      : draft.awayGoalSelections,
+                                                };
+                                              },
+                                            );
+                                          }}
+                                        >
+                                          <SelectTrigger
+                                            className="app-input-field"
+                                            aria-label={`${teamSection.title} gol ${goalIndex + 1}`}
+                                          >
+                                            <SelectValue
+                                              placeholder={`Selecione o autor do ${goalIndex + 1}º gol`}
+                                            />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem
+                                              value={
+                                                EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE
+                                              }
+                                            >
+                                              Selecione o jogador
+                                            </SelectItem>
+                                            {teamSection.playerOptions.map(
+                                              (playerOption) => (
+                                                <SelectItem
+                                                  key={playerOption.id}
+                                                  value={playerOption.id}
+                                                >
+                                                  {playerOption.name}
+                                                </SelectItem>
+                                              ),
+                                            )}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    ),
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-background/70 px-3 py-3 text-sm text-muted-foreground">
+                                  Nenhum atleta cadastrado ainda. Cadastre um
+                                  atleta para vincular os gols desta atlética.
+                                </div>
+                              )
                             ) : (
                               <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-background/70 px-3 py-3 text-sm text-muted-foreground">
-                                Nenhum atleta cadastrado ainda. Cadastre um atleta para vincular os gols desta atlética.
+                                Esta atlética não marcou gols nesta partida.
                               </div>
-                            )
-                          ) : (
-                            <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-background/70 px-3 py-3 text-sm text-muted-foreground">
-                              Esta atlética não marcou gols nesta partida.
-                            </div>
-                          )}
-                        </div>
+                            )}
+                          </div>
 
-                        <div className="space-y-3">
-                          <div className="space-y-2">
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Atletas cadastrados</p>
-                              <span className="text-xs text-muted-foreground">
-                                {teamSection.playerOptions.length} atleta{teamSection.playerOptions.length == 1 ? "" : "s"}
-                              </span>
-                            </div>
-                            {teamSection.playerOptions.length > 0 ? (
-                              <div className="space-y-1.5">
-                                {teamSection.playerOptions.map((playerOption) => {
-                                  const editKey = `${activeScoreSheetReviewMatch.id}:${teamSection.key}`;
-                                  const editingState = editingPlayerByKey[editKey];
-                                  const isEditing = editingState?.playerId == playerOption.id;
+                          <div className="space-y-3">
+                            <div className="space-y-2">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                  Atletas cadastrados
+                                </p>
+                                <span className="text-xs text-muted-foreground">
+                                  {teamSection.playerOptions.length} atleta
+                                  {teamSection.playerOptions.length == 1
+                                    ? ""
+                                    : "s"}
+                                </span>
+                              </div>
+                              {teamSection.playerOptions.length > 0 ? (
+                                <div className="space-y-1.5">
+                                  {teamSection.playerOptions.map(
+                                    (playerOption) => {
+                                      const editKey = `${activeScoreSheetReviewMatch.id}:${teamSection.key}`;
+                                      const editingState =
+                                        editingPlayerByKey[editKey];
+                                      const isEditing =
+                                        editingState?.playerId ==
+                                        playerOption.id;
 
-                                  if (isEditing) {
-                                    return (
-                                      <div key={playerOption.id} className="space-y-1.5 rounded-lg border border-primary/30 bg-primary/5 px-2.5 py-2">
-                                        <div className="flex gap-1.5">
-                                          <Input
-                                            value={editingState.name}
-                                            onChange={(e) => {
-                                              const v = e.target.value;
-                                              setEditingPlayerByKey((prev) => ({
-                                                ...prev,
-                                                [editKey]: editingState ? { ...editingState, name: v } : null,
-                                              }));
-                                            }}
-                                            onKeyDown={(e) => {
-                                              if (e.key == "Enter") handleConfirmEditAwardPlayer(activeScoreSheetReviewMatch.id, teamSection.key);
-                                              if (e.key == "Escape") setEditingPlayerByKey((prev) => ({ ...prev, [editKey]: null }));
-                                            }}
-                                            className="h-8 text-sm"
-                                            autoFocus
-                                          />
+                                      if (isEditing) {
+                                        return (
+                                          <div
+                                            key={playerOption.id}
+                                            className="space-y-1.5 rounded-lg border border-primary/30 bg-primary/5 px-2.5 py-2"
+                                          >
+                                            <div className="flex gap-1.5">
+                                              <Input
+                                                value={editingState.name}
+                                                onChange={(e) => {
+                                                  const v = e.target.value;
+                                                  setEditingPlayerByKey(
+                                                    (prev) => ({
+                                                      ...prev,
+                                                      [editKey]: editingState
+                                                        ? {
+                                                            ...editingState,
+                                                            name: v,
+                                                          }
+                                                        : null,
+                                                    }),
+                                                  );
+                                                }}
+                                                onKeyDown={(e) => {
+                                                  if (e.key == "Enter")
+                                                    handleConfirmEditAwardPlayer(
+                                                      activeScoreSheetReviewMatch.id,
+                                                      teamSection.key,
+                                                    );
+                                                  if (e.key == "Escape")
+                                                    setEditingPlayerByKey(
+                                                      (prev) => ({
+                                                        ...prev,
+                                                        [editKey]: null,
+                                                      }),
+                                                    );
+                                                }}
+                                                className="h-8 text-sm"
+                                                autoFocus
+                                              />
+                                              <Button
+                                                type="button"
+                                                size="icon"
+                                                className="h-8 w-8 shrink-0"
+                                                onClick={() =>
+                                                  handleConfirmEditAwardPlayer(
+                                                    activeScoreSheetReviewMatch.id,
+                                                    teamSection.key,
+                                                  )
+                                                }
+                                              >
+                                                <Check className="h-3.5 w-3.5" />
+                                              </Button>
+                                              <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 shrink-0"
+                                                onClick={() =>
+                                                  setEditingPlayerByKey(
+                                                    (prev) => ({
+                                                      ...prev,
+                                                      [editKey]: null,
+                                                    }),
+                                                  )
+                                                }
+                                              >
+                                                <X className="h-3.5 w-3.5" />
+                                              </Button>
+                                            </div>
+                                          </div>
+                                        );
+                                      }
+
+                                      return (
+                                        <div
+                                          key={playerOption.id}
+                                          className="flex items-center gap-1.5 rounded-lg bg-muted/30 px-2.5 py-1.5"
+                                        >
+                                          <span className="min-w-0 flex-1 truncate text-sm">
+                                            {playerOption.name}
+                                          </span>
                                           <Button
                                             type="button"
+                                            variant="ghost"
                                             size="icon"
-                                            className="h-8 w-8 shrink-0"
-                                            onClick={() => handleConfirmEditAwardPlayer(activeScoreSheetReviewMatch.id, teamSection.key)}
+                                            className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+                                            onClick={() => {
+                                              setEditingPlayerByKey((prev) => ({
+                                                ...prev,
+                                                [editKey]: {
+                                                  playerId: playerOption.id,
+                                                  name: playerOption.name,
+                                                },
+                                              }));
+                                            }}
                                           >
-                                            <Check className="h-3.5 w-3.5" />
+                                            <Pencil className="h-3 w-3" />
                                           </Button>
                                           <Button
                                             type="button"
                                             variant="ghost"
                                             size="icon"
-                                            className="h-8 w-8 shrink-0"
-                                            onClick={() => setEditingPlayerByKey((prev) => ({ ...prev, [editKey]: null }))}
+                                            className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
+                                            onClick={() =>
+                                              handleDeleteAwardPlayer(
+                                                activeScoreSheetReviewMatch.id,
+                                                teamSection.key,
+                                                playerOption.id,
+                                              )
+                                            }
                                           >
-                                            <X className="h-3.5 w-3.5" />
+                                            <Trash2 className="h-3 w-3" />
                                           </Button>
                                         </div>
-                                      </div>
+                                      );
+                                    },
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-background/70 px-3 py-3 text-sm text-muted-foreground">
+                                  Sem atletas cadastrados para esta atlética.
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="space-y-2">
+                              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                Cadastrar atleta
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Use este campo apenas se o autor do gol ainda
+                                não estiver na lista acima.
+                              </p>
+                              <div className="flex gap-2">
+                                <Input
+                                  ref={(el) => {
+                                    newPlayerInputRefs.current[
+                                      `${activeScoreSheetReviewMatch.id}:${teamSection.key}`
+                                    ] = el;
+                                  }}
+                                  value={teamSection.newPlayerName}
+                                  onChange={(event) => {
+                                    const value = event.target.value;
+                                    handleUpdateScoreSheetAwardsDraft(
+                                      activeScoreSheetReviewMatch.id,
+                                      (draft) => ({
+                                        ...draft,
+                                        newHomePlayerName:
+                                          teamSection.key == "home"
+                                            ? value
+                                            : draft.newHomePlayerName,
+                                        newAwayPlayerName:
+                                          teamSection.key == "away"
+                                            ? value
+                                            : draft.newAwayPlayerName,
+                                      }),
                                     );
-                                  }
-
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      handleAddInlineAwardPlayer(
+                                        activeScoreSheetReviewMatch.id,
+                                        teamSection.key,
+                                      );
+                                    }
+                                  }}
+                                  placeholder="Nome do atleta"
+                                />
+                                {(() => {
+                                  const btnState =
+                                    addPlayerButtonStateByKey[
+                                      `${activeScoreSheetReviewMatch.id}:${teamSection.key}`
+                                    ];
                                   return (
-                                    <div key={playerOption.id} className="flex items-center gap-1.5 rounded-lg bg-muted/30 px-2.5 py-1.5">
-                                      <span className="min-w-0 flex-1 truncate text-sm">{playerOption.name}</span>
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
-                                        onClick={() => {
-                                          setEditingPlayerByKey((prev) => ({
-                                            ...prev,
-                                            [editKey]: { playerId: playerOption.id, name: playerOption.name },
-                                          }));
-                                        }}
-                                      >
-                                        <Pencil className="h-3 w-3" />
-                                      </Button>
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
-                                        onClick={() => handleDeleteAwardPlayer(activeScoreSheetReviewMatch.id, teamSection.key, playerOption.id)}
-                                      >
-                                        <Trash2 className="h-3 w-3" />
-                                      </Button>
-                                    </div>
+                                    <Button
+                                      type="button"
+                                      variant={
+                                        btnState == "success"
+                                          ? "default"
+                                          : "outline"
+                                      }
+                                      disabled={!!btnState}
+                                      onClick={() =>
+                                        handleAddInlineAwardPlayer(
+                                          activeScoreSheetReviewMatch.id,
+                                          teamSection.key,
+                                        )
+                                      }
+                                      className={
+                                        btnState == "success"
+                                          ? "border-green-600 bg-green-600 text-white hover:bg-green-600"
+                                          : ""
+                                      }
+                                    >
+                                      {btnState == "loading" && (
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                      )}
+                                      {btnState == "success" && (
+                                        <Check className="mr-2 h-4 w-4" />
+                                      )}
+                                      {!btnState && (
+                                        <Plus className="mr-2 h-4 w-4" />
+                                      )}
+                                      {btnState == "loading"
+                                        ? "Adicionando..."
+                                        : btnState == "success"
+                                          ? "Adicionado!"
+                                          : "Adicionar"}
+                                    </Button>
                                   );
-                                })}
+                                })()}
                               </div>
-                            ) : (
-                              <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-background/70 px-3 py-3 text-sm text-muted-foreground">
-                                Sem atletas cadastrados para esta atlética.
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="space-y-2">
-                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Cadastrar atleta</p>
-                            <p className="text-xs text-muted-foreground">
-                              Use este campo apenas se o autor do gol ainda não estiver na lista acima.
-                            </p>
-                            <div className="flex gap-2">
-                              <Input
-                                ref={(el) => { newPlayerInputRefs.current[`${activeScoreSheetReviewMatch.id}:${teamSection.key}`] = el; }}
-                                value={teamSection.newPlayerName}
-                                onChange={(event) => {
-                                  const value = event.target.value;
-                                  handleUpdateScoreSheetAwardsDraft(activeScoreSheetReviewMatch.id, (draft) => ({
-                                    ...draft,
-                                    newHomePlayerName: teamSection.key == "home" ? value : draft.newHomePlayerName,
-                                    newAwayPlayerName: teamSection.key == "away" ? value : draft.newAwayPlayerName,
-                                  }));
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
-                                    e.preventDefault();
-                                    handleAddInlineAwardPlayer(activeScoreSheetReviewMatch.id, teamSection.key);
-                                  }
-                                }}
-                                placeholder="Nome do atleta"
-                              />
-                              {(() => {
-                                const btnState = addPlayerButtonStateByKey[`${activeScoreSheetReviewMatch.id}:${teamSection.key}`];
-                                return (
-                                  <Button
-                                    type="button"
-                                    variant={btnState == "success" ? "default" : "outline"}
-                                    disabled={!!btnState}
-                                    onClick={() => handleAddInlineAwardPlayer(activeScoreSheetReviewMatch.id, teamSection.key)}
-                                    className={btnState == "success" ? "border-green-600 bg-green-600 text-white hover:bg-green-600" : ""}
-                                  >
-                                    {btnState == "loading" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                    {btnState == "success" && <Check className="mr-2 h-4 w-4" />}
-                                    {!btnState && <Plus className="mr-2 h-4 w-4" />}
-                                    {btnState == "loading" ? "Adicionando..." : btnState == "success" ? "Adicionado!" : "Adicionar"}
-                                  </Button>
-                                );
-                              })()}
                             </div>
                           </div>
                         </div>
                       </div>
-                    </div>
                     );
                   })}
                 </div>
@@ -5477,15 +7038,30 @@ export function AdminMatches({
           )}
 
           <DialogFooter className="mt-2 flex-col gap-3 sm:flex-col sm:space-x-0">
-            {!activeScoreSheetAwardsDraft?.isWalkover && hasIncompleteActiveScoreSheetGoalSelections ? (
+            {!activeScoreSheetAwardsDraft?.isWalkover &&
+            hasIncompleteActiveScoreSheetGoalSelections ? (
               <p className="text-sm text-amber-700 dark:text-amber-300">
-                Preencha os {activeScoreSheetGoalSelectionSummary.pendingGoals} autor{activeScoreSheetGoalSelectionSummary.pendingGoals == 1 ? "" : "es"} restante{activeScoreSheetGoalSelectionSummary.pendingGoals == 1 ? "" : "s"} para salvar.
+                Preencha os {activeScoreSheetGoalSelectionSummary.pendingGoals}{" "}
+                autor
+                {activeScoreSheetGoalSelectionSummary.pendingGoals == 1
+                  ? ""
+                  : "es"}{" "}
+                restante
+                {activeScoreSheetGoalSelectionSummary.pendingGoals == 1
+                  ? ""
+                  : "s"}{" "}
+                para salvar.
               </p>
             ) : (
               <div />
             )}
             <div className="flex w-full justify-center gap-3">
-              <Button type="button" variant="outline" onClick={handleCloseScoreSheetReviewDialog} disabled={isSavingActiveScoreSheetAwardsContext}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCloseScoreSheetReviewDialog}
+                disabled={isSavingActiveScoreSheetAwardsContext}
+              >
                 Cancelar
               </Button>
               <Button
@@ -5498,7 +7074,9 @@ export function AdminMatches({
                   hasIncompleteActiveScoreSheetGoalSelections
                 }
               >
-                {isSavingActiveScoreSheetAwardsContext ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {isSavingActiveScoreSheetAwardsContext ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
                 Salvar revisão
               </Button>
             </div>
@@ -5506,12 +7084,16 @@ export function AdminMatches({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showEditReviewConfirmationDialog} onOpenChange={setShowEditReviewConfirmationDialog}>
+      <Dialog
+        open={showEditReviewConfirmationDialog}
+        onOpenChange={setShowEditReviewConfirmationDialog}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Jogo já revisado na súmula</DialogTitle>
             <DialogDescription>
-              Este jogo já estava marcado como conferido. Ao salvar a edição, deseja manter a revisão ou remover a marcação?
+              Este jogo já estava marcado como conferido. Ao salvar a edição,
+              deseja manter a revisão ou remover a marcação?
             </DialogDescription>
           </DialogHeader>
 
@@ -5530,7 +7112,9 @@ export function AdminMatches({
               onClick={() => void handleSaveEditingMatch("KEEP_REVIEW")}
               disabled={savingEditingMatch}
             >
-              {savingEditingMatch ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {savingEditingMatch ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
               Salvar e manter revisão
             </Button>
 
@@ -5539,7 +7123,9 @@ export function AdminMatches({
               onClick={() => void handleSaveEditingMatch("REMOVE_REVIEW")}
               disabled={savingEditingMatch}
             >
-              {savingEditingMatch ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {savingEditingMatch ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
               Salvar e remover revisão
             </Button>
           </DialogFooter>
@@ -5551,7 +7137,9 @@ export function AdminMatches({
           <DialogHeader>
             <DialogTitle>Resolver sorteios de desempate</DialogTitle>
             <DialogDescription>
-              Quando a classificação chega ao último critério, apenas as vagas impactadas ficam pendentes até você confirmar a ordem manual desses empates.
+              Quando a classificação chega ao último critério, apenas as vagas
+              impactadas ficam pendentes até você confirmar a ordem manual
+              desses empates.
             </DialogDescription>
           </DialogHeader>
 
@@ -5559,26 +7147,48 @@ export function AdminMatches({
             {pendingTieBreakContexts.map((pendingTieBreakContext) => {
               const orderedTeamIds = resolveNormalizedTieBreakTeamOrder(
                 pendingTieBreakContext,
-                draftTieBreakTeamIdsByContextKey[pendingTieBreakContext.context_key],
+                draftTieBreakTeamIdsByContextKey[
+                  pendingTieBreakContext.context_key
+                ],
               );
-              const isTieBreakContextOrderReady = resolveIsTieBreakTeamOrderReady(pendingTieBreakContext, orderedTeamIds);
-              const teamNameByTeamId = pendingTieBreakTeamNameByContextKeyAndTeamId[pendingTieBreakContext.context_key] ?? {};
-              const isSavingTieBreakContext = savingTieBreakResolutionByContextKey[pendingTieBreakContext.context_key] == true;
-              const displayedTieBreakSlots = pendingTieBreakContext.teams.map((_, teamIndex) => ({
-                position: teamIndex + 1,
-                teamId: orderedTeamIds[teamIndex] ?? "",
-              }));
+              const isTieBreakContextOrderReady =
+                resolveIsTieBreakTeamOrderReady(
+                  pendingTieBreakContext,
+                  orderedTeamIds,
+                );
+              const teamNameByTeamId =
+                pendingTieBreakTeamNameByContextKeyAndTeamId[
+                  pendingTieBreakContext.context_key
+                ] ?? {};
+              const isSavingTieBreakContext =
+                savingTieBreakResolutionByContextKey[
+                  pendingTieBreakContext.context_key
+                ] == true;
+              const displayedTieBreakSlots = pendingTieBreakContext.teams.map(
+                (_, teamIndex) => ({
+                  position: teamIndex + 1,
+                  teamId: orderedTeamIds[teamIndex] ?? "",
+                }),
+              );
 
               return (
-                <div key={pendingTieBreakContext.context_key} className="glass-card space-y-3 p-4">
+                <div
+                  key={pendingTieBreakContext.context_key}
+                  className="glass-card space-y-3 p-4"
+                >
                   <div className="space-y-1">
-                    <h3 className="text-sm font-semibold text-foreground">{pendingTieBreakContext.title}</h3>
-                    <p className="text-sm text-muted-foreground">{pendingTieBreakContext.description}</p>
+                    <h3 className="text-sm font-semibold text-foreground">
+                      {pendingTieBreakContext.title}
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      {pendingTieBreakContext.description}
+                    </p>
                   </div>
 
                   {!isTieBreakContextOrderReady ? (
                     <p className="text-xs font-medium text-amber-500">
-                      Defina a ordem completa sem repetir atléticas para confirmar este desempate.
+                      Defina a ordem completa sem repetir atléticas para
+                      confirmar este desempate.
                     </p>
                   ) : null}
 
@@ -5592,15 +7202,24 @@ export function AdminMatches({
                           {displayedTieBreakSlot.position}º
                         </span>
                         <Select
-                          value={displayedTieBreakSlot.teamId || EMPTY_TIE_BREAK_TEAM_OPTION_VALUE}
+                          value={
+                            displayedTieBreakSlot.teamId ||
+                            EMPTY_TIE_BREAK_TEAM_OPTION_VALUE
+                          }
                           onValueChange={(value) =>
                             handleUpdateTieBreakContextTeamAtPosition(
                               pendingTieBreakContext,
                               displayedTieBreakSlot.position - 1,
-                              value == EMPTY_TIE_BREAK_TEAM_OPTION_VALUE ? "" : value,
+                              value == EMPTY_TIE_BREAK_TEAM_OPTION_VALUE
+                                ? ""
+                                : value,
                             )
                           }
-                          disabled={savingTieBreakResolutions || isSavingTieBreakContext || !canManageMatches}
+                          disabled={
+                            savingTieBreakResolutions ||
+                            isSavingTieBreakContext ||
+                            !canManageMatches
+                          }
                         >
                           <SelectTrigger
                             aria-label={`Atlética na posição ${displayedTieBreakSlot.position} do desempate`}
@@ -5609,25 +7228,38 @@ export function AdminMatches({
                             <SelectValue placeholder="Selecione a atlética" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value={EMPTY_TIE_BREAK_TEAM_OPTION_VALUE}>Selecione a atlética</SelectItem>
-                            {pendingTieBreakContext.teams.map((tieBreakTeamOption) => {
-                              const isSelectedInOtherPosition = displayedTieBreakSlots.some((displayedTieBreakSlotItem) => {
-                                return (
-                                  displayedTieBreakSlotItem.position != displayedTieBreakSlot.position &&
-                                  displayedTieBreakSlotItem.teamId == tieBreakTeamOption.team_id
-                                );
-                              });
+                            <SelectItem
+                              value={EMPTY_TIE_BREAK_TEAM_OPTION_VALUE}
+                            >
+                              Selecione a atlética
+                            </SelectItem>
+                            {pendingTieBreakContext.teams.map(
+                              (tieBreakTeamOption) => {
+                                const isSelectedInOtherPosition =
+                                  displayedTieBreakSlots.some(
+                                    (displayedTieBreakSlotItem) => {
+                                      return (
+                                        displayedTieBreakSlotItem.position !=
+                                          displayedTieBreakSlot.position &&
+                                        displayedTieBreakSlotItem.teamId ==
+                                          tieBreakTeamOption.team_id
+                                      );
+                                    },
+                                  );
 
-                              return (
-                                <SelectItem
-                                  key={`${pendingTieBreakContext.context_key}:${displayedTieBreakSlot.position}:${tieBreakTeamOption.team_id}`}
-                                  value={tieBreakTeamOption.team_id}
-                                  disabled={isSelectedInOtherPosition}
-                                >
-                                  {teamNameByTeamId[tieBreakTeamOption.team_id] ?? tieBreakTeamOption.team_name}
-                                </SelectItem>
-                              );
-                            })}
+                                return (
+                                  <SelectItem
+                                    key={`${pendingTieBreakContext.context_key}:${displayedTieBreakSlot.position}:${tieBreakTeamOption.team_id}`}
+                                    value={tieBreakTeamOption.team_id}
+                                    disabled={isSelectedInOtherPosition}
+                                  >
+                                    {teamNameByTeamId[
+                                      tieBreakTeamOption.team_id
+                                    ] ?? tieBreakTeamOption.team_name}
+                                  </SelectItem>
+                                );
+                              },
+                            )}
                           </SelectContent>
                         </Select>
                       </div>
@@ -5638,19 +7270,38 @@ export function AdminMatches({
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => handleShuffleTieBreakContext(pendingTieBreakContext)}
-                      disabled={savingTieBreakResolutions || isSavingTieBreakContext || !canManageMatches}
+                      onClick={() =>
+                        handleShuffleTieBreakContext(pendingTieBreakContext)
+                      }
+                      disabled={
+                        savingTieBreakResolutions ||
+                        isSavingTieBreakContext ||
+                        !canManageMatches
+                      }
                     >
                       <RefreshCw className="mr-2 h-4 w-4" />
-                      {orderedTeamIds.some((teamId) => teamId.length > 0) ? "Refazer sorteio" : "Sortear ordem"}
+                      {orderedTeamIds.some((teamId) => teamId.length > 0)
+                        ? "Refazer sorteio"
+                        : "Sortear ordem"}
                     </Button>
 
                     <Button
                       type="button"
-                      onClick={() => void handleSaveSingleTieBreakResolution(pendingTieBreakContext)}
-                      disabled={!isTieBreakContextOrderReady || savingTieBreakResolutions || isSavingTieBreakContext || !canManageMatches}
+                      onClick={() =>
+                        void handleSaveSingleTieBreakResolution(
+                          pendingTieBreakContext,
+                        )
+                      }
+                      disabled={
+                        !isTieBreakContextOrderReady ||
+                        savingTieBreakResolutions ||
+                        isSavingTieBreakContext ||
+                        !canManageMatches
+                      }
                     >
-                      {isSavingTieBreakContext ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      {isSavingTieBreakContext ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : null}
                       Salvar sorteio
                     </Button>
                   </div>
@@ -5671,9 +7322,15 @@ export function AdminMatches({
             <Button
               type="button"
               onClick={handleSaveTieBreakResolutions}
-              disabled={!isTieBreakResolutionReady || isAnyTieBreakResolutionSaveInFlight || !canManageMatches}
+              disabled={
+                !isTieBreakResolutionReady ||
+                isAnyTieBreakResolutionSaveInFlight ||
+                !canManageMatches
+              }
             >
-              {savingTieBreakResolutions ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {savingTieBreakResolutions ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
               Confirmar sorteios e gerar mata-mata
             </Button>
           </DialogFooter>
@@ -5691,91 +7348,370 @@ export function AdminMatches({
         {editingMatch && editingMatchDraft ? (
           <DialogContent className="flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col overflow-hidden sm:max-h-none sm:w-full sm:max-w-4xl sm:overflow-visible">
             <DialogHeader className="shrink-0">
-              <DialogTitle>Editar jogo - {selectedChampionship.name}</DialogTitle>
-              <DialogDescription>Atualize a logística do slot, as atléticas e, se necessário, force a representação da CO apenas neste jogo.</DialogDescription>
+              <DialogTitle>
+                Editar jogo - {selectedChampionship.name}
+              </DialogTitle>
+              <DialogDescription>
+                Atualize a logística do slot, as atléticas e, se necessário,
+                force a representação da CO apenas neste jogo.
+              </DialogDescription>
             </DialogHeader>
 
             <div className="min-h-0 overflow-y-auto pr-1 sm:overflow-visible sm:pr-0">
               <div className="space-y-5">
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">Naipe</p>
-                <RadioGroup
-                  value={editingMatchDraft.naipe}
-                  onValueChange={(value) => {
-                    if (!isMatchNaipe(value)) {
-                      return;
-                    }
-
-                    setEditingMatchDraft((currentDraft) =>
-                      currentDraft
-                        ? {
-                            ...currentDraft,
-                            naipe: value,
-                            sportId: "",
-                            selectedGroupOptionValue: "",
-                            homeTeamId: "",
-                            awayTeamId: "",
-                          }
-                        : currentDraft,
-                    );
-                  }}
-                  className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-5"
-                  disabled={!canEditScheduledMatchSetup}
-                >
-                  {NAIPE_OPTIONS.map((naipeOption) => (
-                    <Label
-                      key={naipeOption}
-                      htmlFor={`edit-match-naipe-${naipeOption}`}
-                      className="flex cursor-pointer items-center gap-2 p-0 text-sm font-medium text-foreground"
-                    >
-                      <RadioGroupItem id={`edit-match-naipe-${naipeOption}`} value={naipeOption} />
-                      <span>{MATCH_NAIPE_LABELS[naipeOption]}</span>
-                    </Label>
-                  ))}
-                </RadioGroup>
-              </div>
-
-              <div className="space-y-3">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Contexto do jogo</p>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">Modalidade</p>
-                    <Select
-                      value={editingMatchDraft.sportId}
-                      onValueChange={(value) =>
-                        setEditingMatchDraft((currentDraft) =>
-                          currentDraft
-                            ? {
-                                ...currentDraft,
-                                sportId: value,
-                                selectedGroupOptionValue: "",
-                                homeTeamId: "",
-                                awayTeamId: "",
-                              }
-                            : currentDraft,
-                        )
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Naipe
+                  </p>
+                  <RadioGroup
+                    value={editingMatchDraft.naipe}
+                    onValueChange={(value) => {
+                      if (!isMatchNaipe(value)) {
+                        return;
                       }
-                    >
-                      <SelectTrigger aria-label="Modalidade do jogo" className="app-input-field" disabled={!canEditScheduledMatchSetup}>
-                        <SelectValue placeholder="Modalidade" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableSportsForEditing.map((sport) => (
-                          <SelectItem key={sport.id} value={sport.id}>
-                            {sport.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
 
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">Divisão</p>
-                    {championshipUsesDivisions ? (
+                      setEditingMatchDraft((currentDraft) =>
+                        currentDraft
+                          ? {
+                              ...currentDraft,
+                              naipe: value,
+                              sportId: "",
+                              selectedGroupOptionValue: "",
+                              homeTeamId: "",
+                              awayTeamId: "",
+                            }
+                          : currentDraft,
+                      );
+                    }}
+                    className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-5"
+                    disabled={!canEditScheduledMatchSetup}
+                  >
+                    {NAIPE_OPTIONS.map((naipeOption) => (
+                      <Label
+                        key={naipeOption}
+                        htmlFor={`edit-match-naipe-${naipeOption}`}
+                        className="flex cursor-pointer items-center gap-2 p-0 text-sm font-medium text-foreground"
+                      >
+                        <RadioGroupItem
+                          id={`edit-match-naipe-${naipeOption}`}
+                          value={naipeOption}
+                        />
+                        <span>{MATCH_NAIPE_LABELS[naipeOption]}</span>
+                      </Label>
+                    ))}
+                  </RadioGroup>
+                </div>
+
+                <div className="space-y-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Contexto do jogo
+                  </p>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">
+                        Modalidade
+                      </p>
                       <Select
-                        value={editingMatchDraft.division}
+                        value={editingMatchDraft.sportId}
+                        onValueChange={(value) =>
+                          setEditingMatchDraft((currentDraft) =>
+                            currentDraft
+                              ? {
+                                  ...currentDraft,
+                                  sportId: value,
+                                  selectedGroupOptionValue: "",
+                                  homeTeamId: "",
+                                  awayTeamId: "",
+                                }
+                              : currentDraft,
+                          )
+                        }
+                      >
+                        <SelectTrigger
+                          aria-label="Modalidade do jogo"
+                          className="app-input-field"
+                          disabled={!canEditScheduledMatchSetup}
+                        >
+                          <SelectValue placeholder="Modalidade" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableSportsForEditing.map((sport) => (
+                            <SelectItem key={sport.id} value={sport.id}>
+                              {sport.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Divisão</p>
+                      {championshipUsesDivisions ? (
+                        <Select
+                          value={editingMatchDraft.division}
+                          onValueChange={(value) => {
+                            if (!isTeamDivision(value)) {
+                              return;
+                            }
+
+                            setEditingMatchDraft((currentDraft) =>
+                              currentDraft
+                                ? {
+                                    ...currentDraft,
+                                    division: value,
+                                    homeTeamId: "",
+                                    awayTeamId: "",
+                                    selectedGroupOptionValue: "",
+                                  }
+                                : currentDraft,
+                            );
+                          }}
+                          disabled={!canEditScheduledMatchSetup}
+                        >
+                          <SelectTrigger
+                            aria-label="Divisão do jogo"
+                            className="app-input-field"
+                            disabled={!canEditScheduledMatchSetup}
+                          >
+                            <SelectValue placeholder="Divisão" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={TeamDivision.DIVISAO_PRINCIPAL}>
+                              {
+                                TEAM_DIVISION_LABELS[
+                                  TeamDivision.DIVISAO_PRINCIPAL
+                                ]
+                              }
+                            </SelectItem>
+                            <SelectItem value={TeamDivision.DIVISAO_ACESSO}>
+                              {
+                                TEAM_DIVISION_LABELS[
+                                  TeamDivision.DIVISAO_ACESSO
+                                ]
+                              }
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <div className="app-input-field-disabled flex items-center rounded-xl px-3 py-2 text-sm">
+                          Divisão unificada
+                        </div>
+                      )}
+                    </div>
+
+                    {hasConfiguredBracket && !editingKnockoutMatchBinding ? (
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">
+                          Chave vinculada
+                        </p>
+                        <Select
+                          value={
+                            editingMatchDraft.selectedGroupOptionValue ||
+                            EMPTY_GROUP_OPTION_VALUE
+                          }
+                          onValueChange={(value) =>
+                            setEditingMatchDraft((currentDraft) =>
+                              currentDraft
+                                ? {
+                                    ...currentDraft,
+                                    selectedGroupOptionValue:
+                                      value == EMPTY_GROUP_OPTION_VALUE
+                                        ? ""
+                                        : value,
+                                  }
+                                : currentDraft,
+                            )
+                          }
+                          disabled={
+                            loadingChampionshipBracket ||
+                            !canEditScheduledMatchSetup
+                          }
+                        >
+                          <SelectTrigger
+                            aria-label="Grupo do jogo"
+                            className="app-input-field"
+                            disabled={
+                              loadingChampionshipBracket ||
+                              !canEditScheduledMatchSetup
+                            }
+                          >
+                            <SelectValue placeholder="Chave" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={EMPTY_GROUP_OPTION_VALUE}>
+                              Sem chave vinculada
+                            </SelectItem>
+                            {editingMatchGroupOptions.map((groupOption) => (
+                              <SelectItem
+                                key={groupOption.value}
+                                value={groupOption.value}
+                              >
+                                {resolveChampionshipGroupLabel(
+                                  groupOption.group_number,
+                                )}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Operação do dia
+                  </p>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Local</p>
+                      <Select
+                        value={editingMatchDraft.location}
+                        onValueChange={(value) =>
+                          setEditingMatchDraft((currentDraft) =>
+                            currentDraft
+                              ? {
+                                  ...currentDraft,
+                                  location: value,
+                                  courtName: "",
+                                }
+                              : currentDraft,
+                          )
+                        }
+                        disabled={
+                          editingLocationOptions.length == 0 ||
+                          !canEditScheduledMatchSetup
+                        }
+                      >
+                        <SelectTrigger
+                          aria-label="Local do jogo"
+                          className="app-input-field"
+                          disabled={
+                            editingLocationOptions.length == 0 ||
+                            !canEditScheduledMatchSetup
+                          }
+                        >
+                          <SelectValue
+                            placeholder={
+                              loadingLocationTemplates
+                                ? "Carregando locais"
+                                : "Local"
+                            }
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {editingLocationOptions.map((locationOption) => (
+                            <SelectItem
+                              key={locationOption}
+                              value={locationOption}
+                            >
+                              {locationOption}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">
+                        Dia da fila
+                      </p>
+                      <DateTimePicker
+                        value={editingMatchDraft.scheduledDate}
+                        onChange={(value) =>
+                          setEditingMatchDraft((currentDraft) =>
+                            currentDraft
+                              ? {
+                                  ...currentDraft,
+                                  scheduledDate: value,
+                                }
+                              : currentDraft,
+                          )
+                        }
+                        placeholder="Dia da fila"
+                        showTime={false}
+                        disabled={!canEditScheduledMatchSetup}
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Quadra</p>
+                      <Select
+                        value={
+                          editingMatchDraft.courtName ||
+                          EMPTY_GROUP_OPTION_VALUE
+                        }
+                        onValueChange={(value) =>
+                          setEditingMatchDraft((currentDraft) =>
+                            currentDraft
+                              ? {
+                                  ...currentDraft,
+                                  courtName:
+                                    value == EMPTY_GROUP_OPTION_VALUE
+                                      ? ""
+                                      : value,
+                                }
+                              : currentDraft,
+                          )
+                        }
+                        disabled={
+                          editingCourtOptions.length == 0 ||
+                          !canEditScheduledMatchSetup
+                        }
+                      >
+                        <SelectTrigger
+                          aria-label="Quadra do jogo"
+                          className="app-input-field"
+                          disabled={
+                            editingCourtOptions.length == 0 ||
+                            !canEditScheduledMatchSetup
+                          }
+                        >
+                          <SelectValue
+                            placeholder={
+                              loadingBracketCourtSportsDays
+                                ? "Carregando quadras"
+                                : "Quadra"
+                            }
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={EMPTY_GROUP_OPTION_VALUE} disabled>
+                            {loadingBracketCourtSportsDays
+                              ? "Carregando quadras"
+                              : "Selecione a quadra"}
+                          </SelectItem>
+                          {editingCourtOptions.length == 0 ? (
+                            <SelectItem value="NO_COURTS_AVAILABLE" disabled>
+                              Nenhuma quadra disponível
+                            </SelectItem>
+                          ) : (
+                            editingCourtOptions.map((courtOption) => (
+                              <SelectItem key={courtOption} value={courtOption}>
+                                {courtOption}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">
+                        Horário estimado
+                      </p>
+                      <Select
+                        value={
+                          selectedEditingScheduleSlot?.start_time ??
+                          EMPTY_GROUP_OPTION_VALUE
+                        }
                         onValueChange={(value) => {
-                          if (!isTeamDivision(value)) {
+                          const selectedSlot =
+                            editingAvailableScheduleSlots.find(
+                              (slot) => slot.start_time == value,
+                            );
+
+                          if (!selectedSlot) {
                             return;
                           }
 
@@ -5783,764 +7719,784 @@ export function AdminMatches({
                             currentDraft
                               ? {
                                   ...currentDraft,
-                                  division: value,
-                                  homeTeamId: "",
-                                  awayTeamId: "",
-                                  selectedGroupOptionValue: "",
+                                  startTime: new Date(selectedSlot.start_time),
+                                  gameSlot: String(selectedSlot.slot_number),
                                 }
                               : currentDraft,
                           );
                         }}
-                        disabled={!canEditScheduledMatchSetup}
+                        disabled={
+                          !canEditScheduledMatchSetup ||
+                          loadingEditingAvailableScheduleSlots ||
+                          editingAvailableScheduleSlots.length == 0
+                        }
                       >
-                        <SelectTrigger aria-label="Divisão do jogo" className="app-input-field" disabled={!canEditScheduledMatchSetup}>
-                          <SelectValue placeholder="Divisão" />
+                        <SelectTrigger
+                          aria-label="Horário estimado do jogo"
+                          className="app-input-field"
+                          disabled={
+                            !canEditScheduledMatchSetup ||
+                            loadingEditingAvailableScheduleSlots ||
+                            editingAvailableScheduleSlots.length == 0
+                          }
+                        >
+                          <SelectValue
+                            placeholder={
+                              loadingEditingAvailableScheduleSlots
+                                ? "Carregando horários"
+                                : "Horário estimado"
+                            }
+                          />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value={TeamDivision.DIVISAO_PRINCIPAL}>
-                            {TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_PRINCIPAL]}
+                          <SelectItem value={EMPTY_GROUP_OPTION_VALUE} disabled>
+                            {loadingEditingAvailableScheduleSlots
+                              ? "Carregando horários"
+                              : "Selecione o horário"}
                           </SelectItem>
-                          <SelectItem value={TeamDivision.DIVISAO_ACESSO}>
-                            {TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_ACESSO]}
-                          </SelectItem>
+                          {editingAvailableScheduleSlots.length == 0 ? (
+                            <SelectItem
+                              value="NO_SCHEDULE_SLOTS_AVAILABLE"
+                              disabled
+                            >
+                              Nenhum horário disponível
+                            </SelectItem>
+                          ) : (
+                            editingAvailableScheduleSlots.map(
+                              (scheduleSlot) => (
+                                <SelectItem
+                                  key={scheduleSlot.start_time}
+                                  value={scheduleSlot.start_time}
+                                >
+                                  {scheduleSlot.start_time_label}
+                                </SelectItem>
+                              ),
+                            )
+                          )}
                         </SelectContent>
                       </Select>
-                    ) : (
-                      <div className="app-input-field-disabled flex items-center rounded-xl px-3 py-2 text-sm">
-                        Divisão unificada
-                      </div>
-                    )}
+                    </div>
                   </div>
 
-                  {hasConfiguredBracket && !editingKnockoutMatchBinding ? (
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                     <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">Chave vinculada</p>
+                      <p className="text-xs text-muted-foreground">Status</p>
                       <Select
-                        value={editingMatchDraft.selectedGroupOptionValue || EMPTY_GROUP_OPTION_VALUE}
-                        onValueChange={(value) =>
-                          setEditingMatchDraft((currentDraft) =>
-                            currentDraft
-                              ? {
-                                  ...currentDraft,
-                                  selectedGroupOptionValue: value == EMPTY_GROUP_OPTION_VALUE ? "" : value,
-                                }
-                              : currentDraft,
-                          )
-                        }
-                        disabled={loadingChampionshipBracket || !canEditScheduledMatchSetup}
+                        value={editingMatchDraft.status}
+                        onValueChange={(value) => {
+                          if (
+                            value == MatchStatus.SCHEDULED ||
+                            value == MatchStatus.FINISHED ||
+                            value == MatchStatus.LIVE
+                          ) {
+                            setEditingMatchDraft((currentDraft) =>
+                              currentDraft
+                                ? {
+                                    ...currentDraft,
+                                    status: value,
+                                    resolvedTieBreakerRule:
+                                      value == MatchStatus.FINISHED
+                                        ? currentDraft.resolvedTieBreakerRule
+                                        : "",
+                                  }
+                                : currentDraft,
+                            );
+                          }
+                        }}
                       >
-                        <SelectTrigger aria-label="Grupo do jogo" className="app-input-field" disabled={loadingChampionshipBracket || !canEditScheduledMatchSetup}>
-                          <SelectValue placeholder="Chave" />
+                        <SelectTrigger
+                          aria-label="Status do jogo"
+                          className="app-input-field"
+                        >
+                          <SelectValue placeholder="Status do jogo" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value={EMPTY_GROUP_OPTION_VALUE}>Sem chave vinculada</SelectItem>
-                          {editingMatchGroupOptions.map((groupOption) => (
-                            <SelectItem key={groupOption.value} value={groupOption.value}>
-                              {resolveChampionshipGroupLabel(groupOption.group_number)}
+                          {editingAllowedStatuses.map((statusOption) => (
+                            <SelectItem key={statusOption} value={statusOption}>
+                              {statusOption == MatchStatus.SCHEDULED
+                                ? "Agendado"
+                                : statusOption == MatchStatus.LIVE
+                                  ? "Ao vivo"
+                                  : "Encerrado"}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
-                  ) : null}
-                </div>
-              </div>
 
-              <div className="space-y-3">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Operação do dia</p>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">Local</p>
-                    <Select
-                      value={editingMatchDraft.location}
-                      onValueChange={(value) =>
-                        setEditingMatchDraft((currentDraft) =>
-                          currentDraft
-                            ? {
-                                ...currentDraft,
-                                location: value,
-                                courtName: "",
-                              }
-                            : currentDraft,
-                        )
-                      }
-                      disabled={editingLocationOptions.length == 0 || !canEditScheduledMatchSetup}
-                    >
-                      <SelectTrigger aria-label="Local do jogo" className="app-input-field" disabled={editingLocationOptions.length == 0 || !canEditScheduledMatchSetup}>
-                        <SelectValue placeholder={loadingLocationTemplates ? "Carregando locais" : "Local"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {editingLocationOptions.map((locationOption) => (
-                          <SelectItem key={locationOption} value={locationOption}>
-                            {locationOption}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">
+                        Número do jogo
+                      </p>
+                      <div className="app-input-field-disabled flex h-10 items-center rounded-xl px-3 text-sm">
+                        {editingMatchDraft.gameSlot
+                          ? resolveMatchQueueLabel(
+                              Number(editingMatchDraft.gameSlot),
+                            )
+                          : selectedEditingScheduleSlot
+                            ? resolveMatchQueueLabel(
+                                selectedEditingScheduleSlot.slot_number,
+                              )
+                            : "Selecione um horário"}
+                      </div>
+                    </div>
 
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">Dia da fila</p>
-                    <DateTimePicker
-                      value={editingMatchDraft.scheduledDate}
-                      onChange={(value) =>
-                        setEditingMatchDraft((currentDraft) =>
-                          currentDraft
-                            ? {
-                                ...currentDraft,
-                                scheduledDate: value,
-                              }
-                            : currentDraft,
-                        )
-                      }
-                      placeholder="Dia da fila"
-                      showTime={false}
-                      disabled={!canEditScheduledMatchSetup}
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">Quadra</p>
-                    <Select
-                      value={editingMatchDraft.courtName || EMPTY_GROUP_OPTION_VALUE}
-                      onValueChange={(value) =>
-                        setEditingMatchDraft((currentDraft) =>
-                          currentDraft
-                            ? {
-                                ...currentDraft,
-                                courtName: value == EMPTY_GROUP_OPTION_VALUE ? "" : value,
-                              }
-                            : currentDraft,
-                        )
-                      }
-                      disabled={editingCourtOptions.length == 0 || !canEditScheduledMatchSetup}
-                    >
-                      <SelectTrigger aria-label="Quadra do jogo" className="app-input-field" disabled={editingCourtOptions.length == 0 || !canEditScheduledMatchSetup}>
-                        <SelectValue
-                          placeholder={
-                            loadingBracketCourtSportsDays ? "Carregando quadras" : "Quadra"
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">
+                        Representação
+                      </p>
+                      <div className="app-card-muted flex min-h-10 items-center justify-between rounded-xl px-3 py-2">
+                        <div className="space-y-0.5">
+                          <p className="text-sm font-medium text-foreground">
+                            Forçar CO
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Mantém a representação automática desligada só para
+                            este jogo.
+                          </p>
+                        </div>
+                        <Switch
+                          checked={
+                            editingMatchDraft.manualRepresentationMode ==
+                            MatchManualRepresentationMode.CO
                           }
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={EMPTY_GROUP_OPTION_VALUE} disabled>
-                          {loadingBracketCourtSportsDays ? "Carregando quadras" : "Selecione a quadra"}
-                        </SelectItem>
-                        {editingCourtOptions.length == 0 ? (
-                          <SelectItem value="NO_COURTS_AVAILABLE" disabled>
-                            Nenhuma quadra disponível
-                          </SelectItem>
-                        ) : (
-                          editingCourtOptions.map((courtOption) => (
-                            <SelectItem key={courtOption} value={courtOption}>
-                              {courtOption}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">Horário estimado</p>
-                    <Select
-                      value={selectedEditingScheduleSlot?.start_time ?? EMPTY_GROUP_OPTION_VALUE}
-                      onValueChange={(value) => {
-                        const selectedSlot = editingAvailableScheduleSlots.find((slot) => slot.start_time == value);
-
-                        if (!selectedSlot) {
-                          return;
-                        }
-
-                        setEditingMatchDraft((currentDraft) =>
-                          currentDraft
-                            ? {
-                                ...currentDraft,
-                                startTime: new Date(selectedSlot.start_time),
-                                gameSlot: String(selectedSlot.slot_number),
-                              }
-                            : currentDraft,
-                        );
-                      }}
-                      disabled={!canEditScheduledMatchSetup || loadingEditingAvailableScheduleSlots || editingAvailableScheduleSlots.length == 0}
-                    >
-                      <SelectTrigger aria-label="Horário estimado do jogo" className="app-input-field" disabled={!canEditScheduledMatchSetup || loadingEditingAvailableScheduleSlots || editingAvailableScheduleSlots.length == 0}>
-                        <SelectValue
-                          placeholder={
-                            loadingEditingAvailableScheduleSlots ? "Carregando horários" : "Horário estimado"
+                          onCheckedChange={(checked) =>
+                            setEditingMatchDraft((currentDraft) =>
+                              currentDraft
+                                ? {
+                                    ...currentDraft,
+                                    manualRepresentationMode: checked
+                                      ? MatchManualRepresentationMode.CO
+                                      : MatchManualRepresentationMode.AUTO,
+                                  }
+                                : currentDraft,
+                            )
                           }
+                          aria-label="Forçar representação da CO"
+                          disabled={!canEditScheduledMatchSetup}
                         />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={EMPTY_GROUP_OPTION_VALUE} disabled>
-                          {loadingEditingAvailableScheduleSlots ? "Carregando horários" : "Selecione o horário"}
-                        </SelectItem>
-                        {editingAvailableScheduleSlots.length == 0 ? (
-                          <SelectItem value="NO_SCHEDULE_SLOTS_AVAILABLE" disabled>
-                            Nenhum horário disponível
-                          </SelectItem>
-                        ) : (
-                          editingAvailableScheduleSlots.map((scheduleSlot) => (
-                            <SelectItem key={scheduleSlot.start_time} value={scheduleSlot.start_time}>
-                              {scheduleSlot.start_time_label}
-                            </SelectItem>
-                          ))
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {editingMatchDraft.status === MatchStatus.FINISHED ? (
+                  <div className="space-y-3">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Placar
+                    </p>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          Casa
+                        </p>
+                        <Input
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={editingMatchDraft.homeScore}
+                          onChange={(event) =>
+                            setEditingMatchDraft((currentDraft) =>
+                              currentDraft
+                                ? {
+                                    ...currentDraft,
+                                    homeScore: resolveParsedScoreInputValue(
+                                      event.target.value,
+                                    ),
+                                  }
+                                : currentDraft,
+                            )
+                          }
+                          className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          aria-label="Placar do mandante"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          Visitante
+                        </p>
+                        <Input
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={editingMatchDraft.awayScore}
+                          onChange={(event) =>
+                            setEditingMatchDraft((currentDraft) =>
+                              currentDraft
+                                ? {
+                                    ...currentDraft,
+                                    awayScore: resolveParsedScoreInputValue(
+                                      event.target.value,
+                                    ),
+                                  }
+                                : currentDraft,
+                            )
+                          }
+                          className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          aria-label="Placar do visitante"
+                        />
+                      </div>
+                    </div>
+
+                    {editingShouldUseSocietyPenaltyShootout ? (
+                      <div className="space-y-3 rounded-2xl border border-border/60 bg-muted/30 p-4">
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                            Pênaltis
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Os pênaltis definem o vencedor oficial do mata-mata,
+                            mas não entram na artilharia.
+                          </p>
+                        </div>
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium text-muted-foreground">
+                              Casa
+                            </p>
+                            <Input
+                              type="number"
+                              min={0}
+                              step={1}
+                              value={editingMatchDraft.homePenaltyScore ?? ""}
+                              onChange={(event) =>
+                                setEditingMatchDraft((currentDraft) =>
+                                  currentDraft
+                                    ? {
+                                        ...currentDraft,
+                                        homePenaltyScore:
+                                          resolveParsedNullableScoreInputValue(
+                                            event.target.value,
+                                          ),
+                                      }
+                                    : currentDraft,
+                                )
+                              }
+                              className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              aria-label="Pênaltis da casa"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium text-muted-foreground">
+                              Visitante
+                            </p>
+                            <Input
+                              type="number"
+                              min={0}
+                              step={1}
+                              value={editingMatchDraft.awayPenaltyScore ?? ""}
+                              onChange={(event) =>
+                                setEditingMatchDraft((currentDraft) =>
+                                  currentDraft
+                                    ? {
+                                        ...currentDraft,
+                                        awayPenaltyScore:
+                                          resolveParsedNullableScoreInputValue(
+                                            event.target.value,
+                                          ),
+                                      }
+                                    : currentDraft,
+                                )
+                              }
+                              className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              aria-label="Pênaltis do visitante"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {isEditingSportWithCards &&
+                editingMatchDraft.status === MatchStatus.FINISHED ? (
+                  <div className="space-y-3">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Cartões
+                    </p>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <div className="space-y-2 app-card-muted rounded-xl p-3">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          Casa
+                        </p>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium text-amber-700">
+                              Amarelos
+                            </p>
+                            <Input
+                              type="number"
+                              min={0}
+                              step={1}
+                              value={editingMatchDraft.homeYellowCards}
+                              onChange={(event) =>
+                                setEditingMatchDraft((currentDraft) =>
+                                  currentDraft
+                                    ? {
+                                        ...currentDraft,
+                                        homeYellowCards:
+                                          resolveParsedScoreInputValue(
+                                            event.target.value,
+                                          ),
+                                      }
+                                    : currentDraft,
+                                )
+                              }
+                              className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              aria-label="Cartões amarelos da casa"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium app-text-status-danger">
+                              Vermelhos
+                            </p>
+                            <Input
+                              type="number"
+                              min={0}
+                              step={1}
+                              value={editingMatchDraft.homeRedCards}
+                              onChange={(event) =>
+                                setEditingMatchDraft((currentDraft) =>
+                                  currentDraft
+                                    ? {
+                                        ...currentDraft,
+                                        homeRedCards:
+                                          resolveParsedScoreInputValue(
+                                            event.target.value,
+                                          ),
+                                      }
+                                    : currentDraft,
+                                )
+                              }
+                              className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              aria-label="Cartões vermelhos da casa"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 app-card-muted rounded-xl p-3">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          Visitante
+                        </p>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium text-amber-700">
+                              Amarelos
+                            </p>
+                            <Input
+                              type="number"
+                              min={0}
+                              step={1}
+                              value={editingMatchDraft.awayYellowCards}
+                              onChange={(event) =>
+                                setEditingMatchDraft((currentDraft) =>
+                                  currentDraft
+                                    ? {
+                                        ...currentDraft,
+                                        awayYellowCards:
+                                          resolveParsedScoreInputValue(
+                                            event.target.value,
+                                          ),
+                                      }
+                                    : currentDraft,
+                                )
+                              }
+                              className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              aria-label="Cartões amarelos do visitante"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium app-text-status-danger">
+                              Vermelhos
+                            </p>
+                            <Input
+                              type="number"
+                              min={0}
+                              step={1}
+                              value={editingMatchDraft.awayRedCards}
+                              onChange={(event) =>
+                                setEditingMatchDraft((currentDraft) =>
+                                  currentDraft
+                                    ? {
+                                        ...currentDraft,
+                                        awayRedCards:
+                                          resolveParsedScoreInputValue(
+                                            event.target.value,
+                                          ),
+                                      }
+                                    : currentDraft,
+                                )
+                              }
+                              className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              aria-label="Cartões vermelhos do visitante"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {isEditingHandballSport &&
+                editingMatchDraft.status === MatchStatus.FINISHED ? (
+                  <div className="space-y-3">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Disciplina do Handebol
+                    </p>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <div className="space-y-2 app-card-muted rounded-xl p-3">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          Casa
+                        </p>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium text-sky-700">
+                              Cartões azuis
+                            </p>
+                            <Input
+                              type="number"
+                              min={0}
+                              step={1}
+                              value={editingMatchDraft.homeBlueCards}
+                              onChange={(event) =>
+                                setEditingMatchDraft((currentDraft) =>
+                                  currentDraft
+                                    ? {
+                                        ...currentDraft,
+                                        homeBlueCards:
+                                          resolveParsedScoreInputValue(
+                                            event.target.value,
+                                          ),
+                                      }
+                                    : currentDraft,
+                                )
+                              }
+                              className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              aria-label="Cartões azuis da casa"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                              Penalidades de 2 min
+                            </p>
+                            <Input
+                              type="number"
+                              min={0}
+                              step={1}
+                              value={editingMatchDraft.homeTwoMinutePenalties}
+                              onChange={(event) =>
+                                setEditingMatchDraft((currentDraft) =>
+                                  currentDraft
+                                    ? {
+                                        ...currentDraft,
+                                        homeTwoMinutePenalties:
+                                          resolveParsedScoreInputValue(
+                                            event.target.value,
+                                          ),
+                                      }
+                                    : currentDraft,
+                                )
+                              }
+                              className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              aria-label="Penalidades de 2 minutos da casa"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="space-y-2 app-card-muted rounded-xl p-3">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          Visitante
+                        </p>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium text-sky-700">
+                              Cartões azuis
+                            </p>
+                            <Input
+                              type="number"
+                              min={0}
+                              step={1}
+                              value={editingMatchDraft.awayBlueCards}
+                              onChange={(event) =>
+                                setEditingMatchDraft((currentDraft) =>
+                                  currentDraft
+                                    ? {
+                                        ...currentDraft,
+                                        awayBlueCards:
+                                          resolveParsedScoreInputValue(
+                                            event.target.value,
+                                          ),
+                                      }
+                                    : currentDraft,
+                                )
+                              }
+                              className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              aria-label="Cartões azuis do visitante"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                              Penalidades de 2 min
+                            </p>
+                            <Input
+                              type="number"
+                              min={0}
+                              step={1}
+                              value={editingMatchDraft.awayTwoMinutePenalties}
+                              onChange={(event) =>
+                                setEditingMatchDraft((currentDraft) =>
+                                  currentDraft
+                                    ? {
+                                        ...currentDraft,
+                                        awayTwoMinutePenalties:
+                                          resolveParsedScoreInputValue(
+                                            event.target.value,
+                                          ),
+                                      }
+                                    : currentDraft,
+                                )
+                              }
+                              className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              aria-label="Penalidades de 2 minutos do visitante"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {isEditingSetRuleMatch ? (
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Resultado por set
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleAddEditingMatchSet}
+                      >
+                        <Plus className="mr-1 h-3 w-3" />
+                        Adicionar set
+                      </Button>
+                    </div>
+
+                    {editingMatchSetsDraft.length == 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        Nenhum set registrado. Adicione os sets para definir o
+                        resultado por sets.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {editingMatchSetsDraft.map(
+                          (matchSetDraft, matchSetIndex) => (
+                            <div
+                              key={`editing-match-set-${matchSetIndex}`}
+                              className="app-card-emphasis grid grid-cols-[auto_minmax(0,1fr)_auto_minmax(0,1fr)_auto] items-center gap-2 rounded-xl p-3"
+                            >
+                              <span className="text-xs font-semibold text-muted-foreground">
+                                Set {matchSetIndex + 1}
+                              </span>
+                              <Input
+                                type="number"
+                                min={0}
+                                step={1}
+                                value={matchSetDraft.home_points}
+                                onChange={(event) =>
+                                  handleUpdateEditingMatchSetPoints(
+                                    matchSetIndex,
+                                    "home",
+                                    event.target.value,
+                                  )
+                                }
+                                className="app-input-field h-10 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                aria-label={`Pontuação da casa no set ${matchSetIndex + 1}`}
+                              />
+                              <span className="text-sm font-semibold text-muted-foreground">
+                                ×
+                              </span>
+                              <Input
+                                type="number"
+                                min={0}
+                                step={1}
+                                value={matchSetDraft.away_points}
+                                onChange={(event) =>
+                                  handleUpdateEditingMatchSetPoints(
+                                    matchSetIndex,
+                                    "away",
+                                    event.target.value,
+                                  )
+                                }
+                                className="app-input-field h-10 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                aria-label={`Pontuação visitante no set ${matchSetIndex + 1}`}
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() =>
+                                  handleDeleteEditingMatchSet(matchSetIndex)
+                                }
+                                aria-label={`Remover set ${matchSetIndex + 1}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ),
                         )}
-                      </SelectContent>
-                    </Select>
+                      </div>
+                    )}
                   </div>
-                </div>
+                ) : null}
 
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">Status</p>
-                    <Select
-                      value={editingMatchDraft.status}
-                      onValueChange={(value) => {
-                        if (value == MatchStatus.SCHEDULED || value == MatchStatus.FINISHED || value == MatchStatus.LIVE) {
-                          setEditingMatchDraft((currentDraft) =>
-                            currentDraft
-                              ? {
-                                  ...currentDraft,
-                                  status: value,
-                                  resolvedTieBreakerRule: value == MatchStatus.FINISHED ? currentDraft.resolvedTieBreakerRule : "",
-                                }
-                              : currentDraft,
-                          );
-                        }
-                      }}
-                    >
-                      <SelectTrigger aria-label="Status do jogo" className="app-input-field">
-                        <SelectValue placeholder="Status do jogo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {editingAllowedStatuses.map((statusOption) => (
-                          <SelectItem key={statusOption} value={statusOption}>
-                            {statusOption == MatchStatus.SCHEDULED
-                              ? "Agendado"
-                              : statusOption == MatchStatus.LIVE
-                                ? "Ao vivo"
-                                : "Encerrado"}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">Número do jogo</p>
-                    <div className="app-input-field-disabled flex h-10 items-center rounded-xl px-3 text-sm">
-                      {editingMatchDraft.gameSlot
-                        ? resolveMatchQueueLabel(Number(editingMatchDraft.gameSlot))
-                        : selectedEditingScheduleSlot
-                          ? resolveMatchQueueLabel(selectedEditingScheduleSlot.slot_number)
-                        : "Selecione um horário"}
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">Representação</p>
-                    <div className="app-card-muted flex min-h-10 items-center justify-between rounded-xl px-3 py-2">
-                      <div className="space-y-0.5">
-                        <p className="text-sm font-medium text-foreground">Forçar CO</p>
+                <div className="space-y-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Atléticas
+                  </p>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <div className="space-y-2">
+                      {editingKnockoutMatchSourceLabels ? (
                         <p className="text-xs text-muted-foreground">
-                          Mantém a representação automática desligada só para este jogo.
+                          Casa: Origem da vaga{" "}
+                          <span className="font-medium text-foreground">
+                            {editingKnockoutMatchSourceLabels.home}
+                          </span>
                         </p>
-                      </div>
-                      <Switch
-                        checked={editingMatchDraft.manualRepresentationMode == MatchManualRepresentationMode.CO}
-                        onCheckedChange={(checked) =>
+                      ) : null}
+                      <Select
+                        value={editingMatchDraft.homeTeamId}
+                        onValueChange={(value) =>
                           setEditingMatchDraft((currentDraft) =>
                             currentDraft
                               ? {
                                   ...currentDraft,
-                                  manualRepresentationMode: checked
-                                    ? MatchManualRepresentationMode.CO
-                                    : MatchManualRepresentationMode.AUTO,
+                                  homeTeamId: value,
                                 }
                               : currentDraft,
                           )
                         }
-                        aria-label="Forçar representação da CO"
-                        disabled={!canEditScheduledMatchSetup}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {editingMatchDraft.status === MatchStatus.FINISHED ? (
-                <div className="space-y-3">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Placar</p>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <p className="text-xs font-medium text-muted-foreground">Casa</p>
-                      <Input
-                        type="number"
-                        min={0}
-                        step={1}
-                        value={editingMatchDraft.homeScore}
-                        onChange={(event) =>
-                          setEditingMatchDraft((currentDraft) =>
-                            currentDraft
-                              ? {
-                                  ...currentDraft,
-                                  homeScore: resolveParsedScoreInputValue(event.target.value),
-                                }
-                              : currentDraft,
-                          )
-                        }
-                        className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                        aria-label="Placar do mandante"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <p className="text-xs font-medium text-muted-foreground">Visitante</p>
-                      <Input
-                        type="number"
-                        min={0}
-                        step={1}
-                        value={editingMatchDraft.awayScore}
-                        onChange={(event) =>
-                          setEditingMatchDraft((currentDraft) =>
-                            currentDraft
-                              ? {
-                                  ...currentDraft,
-                                  awayScore: resolveParsedScoreInputValue(event.target.value),
-                                }
-                              : currentDraft,
-                          )
-                        }
-                        className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                        aria-label="Placar do visitante"
-                      />
-                    </div>
-                  </div>
-
-                  {editingShouldUseSocietyPenaltyShootout ? (
-                    <div className="space-y-3 rounded-2xl border border-border/60 bg-muted/30 p-4">
-                      <div className="space-y-1">
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Pênaltis</p>
-                        <p className="text-xs text-muted-foreground">
-                          Os pênaltis definem o vencedor oficial do mata-mata, mas não entram na artilharia.
-                        </p>
-                      </div>
-                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <div className="space-y-2">
-                          <p className="text-xs font-medium text-muted-foreground">Casa</p>
-                          <Input
-                            type="number"
-                            min={0}
-                            step={1}
-                            value={editingMatchDraft.homePenaltyScore ?? ""}
-                            onChange={(event) =>
-                              setEditingMatchDraft((currentDraft) =>
-                                currentDraft
-                                  ? {
-                                      ...currentDraft,
-                                      homePenaltyScore: resolveParsedNullableScoreInputValue(event.target.value),
-                                    }
-                                  : currentDraft,
-                              )
-                            }
-                            className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                            aria-label="Pênaltis da casa"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <p className="text-xs font-medium text-muted-foreground">Visitante</p>
-                          <Input
-                            type="number"
-                            min={0}
-                            step={1}
-                            value={editingMatchDraft.awayPenaltyScore ?? ""}
-                            onChange={(event) =>
-                              setEditingMatchDraft((currentDraft) =>
-                                currentDraft
-                                  ? {
-                                      ...currentDraft,
-                                      awayPenaltyScore: resolveParsedNullableScoreInputValue(event.target.value),
-                                    }
-                                  : currentDraft,
-                              )
-                            }
-                            className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                            aria-label="Pênaltis do visitante"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {isEditingSportWithCards && editingMatchDraft.status === MatchStatus.FINISHED ? (
-                <div className="space-y-3">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Cartões</p>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <div className="space-y-2 app-card-muted rounded-xl p-3">
-                      <p className="text-xs font-medium text-muted-foreground">Casa</p>
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <div className="space-y-2">
-                          <p className="text-xs font-medium text-amber-700">Amarelos</p>
-                          <Input
-                            type="number"
-                            min={0}
-                            step={1}
-                            value={editingMatchDraft.homeYellowCards}
-                            onChange={(event) =>
-                              setEditingMatchDraft((currentDraft) =>
-                                currentDraft
-                                  ? {
-                                      ...currentDraft,
-                                      homeYellowCards: resolveParsedScoreInputValue(event.target.value),
-                                    }
-                                  : currentDraft,
-                              )
-                            }
-                            className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                            aria-label="Cartões amarelos da casa"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <p className="text-xs font-medium app-text-status-danger">Vermelhos</p>
-                          <Input
-                            type="number"
-                            min={0}
-                            step={1}
-                            value={editingMatchDraft.homeRedCards}
-                            onChange={(event) =>
-                              setEditingMatchDraft((currentDraft) =>
-                                currentDraft
-                                  ? {
-                                      ...currentDraft,
-                                      homeRedCards: resolveParsedScoreInputValue(event.target.value),
-                                    }
-                                  : currentDraft,
-                              )
-                            }
-                            className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                            aria-label="Cartões vermelhos da casa"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2 app-card-muted rounded-xl p-3">
-                      <p className="text-xs font-medium text-muted-foreground">Visitante</p>
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <div className="space-y-2">
-                          <p className="text-xs font-medium text-amber-700">Amarelos</p>
-                          <Input
-                            type="number"
-                            min={0}
-                            step={1}
-                            value={editingMatchDraft.awayYellowCards}
-                            onChange={(event) =>
-                              setEditingMatchDraft((currentDraft) =>
-                                currentDraft
-                                  ? {
-                                      ...currentDraft,
-                                      awayYellowCards: resolveParsedScoreInputValue(event.target.value),
-                                    }
-                                  : currentDraft,
-                              )
-                            }
-                            className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                            aria-label="Cartões amarelos do visitante"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <p className="text-xs font-medium app-text-status-danger">Vermelhos</p>
-                          <Input
-                            type="number"
-                            min={0}
-                            step={1}
-                            value={editingMatchDraft.awayRedCards}
-                            onChange={(event) =>
-                              setEditingMatchDraft((currentDraft) =>
-                                currentDraft
-                                  ? {
-                                      ...currentDraft,
-                                      awayRedCards: resolveParsedScoreInputValue(event.target.value),
-                                    }
-                                  : currentDraft,
-                              )
-                            }
-                            className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                            aria-label="Cartões vermelhos do visitante"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-              {isEditingHandballSport && editingMatchDraft.status === MatchStatus.FINISHED ? (
-                <div className="space-y-3">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Disciplina do Handebol</p>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <div className="space-y-2 app-card-muted rounded-xl p-3">
-                      <p className="text-xs font-medium text-muted-foreground">Casa</p>
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <div className="space-y-2">
-                          <p className="text-xs font-medium text-sky-700">Cartões azuis</p>
-                          <Input
-                            type="number"
-                            min={0}
-                            step={1}
-                            value={editingMatchDraft.homeBlueCards}
-                            onChange={(event) =>
-                              setEditingMatchDraft((currentDraft) =>
-                                currentDraft
-                                  ? {
-                                      ...currentDraft,
-                                      homeBlueCards: resolveParsedScoreInputValue(event.target.value),
-                                    }
-                                  : currentDraft,
-                              )
-                            }
-                            className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                            aria-label="Cartões azuis da casa"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <p className="text-xs font-medium text-slate-700 dark:text-slate-300">Penalidades de 2 min</p>
-                          <Input
-                            type="number"
-                            min={0}
-                            step={1}
-                            value={editingMatchDraft.homeTwoMinutePenalties}
-                            onChange={(event) =>
-                              setEditingMatchDraft((currentDraft) =>
-                                currentDraft
-                                  ? {
-                                      ...currentDraft,
-                                      homeTwoMinutePenalties: resolveParsedScoreInputValue(event.target.value),
-                                    }
-                                  : currentDraft,
-                              )
-                            }
-                            className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                            aria-label="Penalidades de 2 minutos da casa"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="space-y-2 app-card-muted rounded-xl p-3">
-                      <p className="text-xs font-medium text-muted-foreground">Visitante</p>
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <div className="space-y-2">
-                          <p className="text-xs font-medium text-sky-700">Cartões azuis</p>
-                          <Input
-                            type="number"
-                            min={0}
-                            step={1}
-                            value={editingMatchDraft.awayBlueCards}
-                            onChange={(event) =>
-                              setEditingMatchDraft((currentDraft) =>
-                                currentDraft
-                                  ? {
-                                      ...currentDraft,
-                                      awayBlueCards: resolveParsedScoreInputValue(event.target.value),
-                                    }
-                                  : currentDraft,
-                              )
-                            }
-                            className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                            aria-label="Cartões azuis do visitante"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <p className="text-xs font-medium text-slate-700 dark:text-slate-300">Penalidades de 2 min</p>
-                          <Input
-                            type="number"
-                            min={0}
-                            step={1}
-                            value={editingMatchDraft.awayTwoMinutePenalties}
-                            onChange={(event) =>
-                              setEditingMatchDraft((currentDraft) =>
-                                currentDraft
-                                  ? {
-                                      ...currentDraft,
-                                      awayTwoMinutePenalties: resolveParsedScoreInputValue(event.target.value),
-                                    }
-                                  : currentDraft,
-                              )
-                            }
-                            className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                            aria-label="Penalidades de 2 minutos do visitante"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-              {isEditingSetRuleMatch ? (
-                <div className="space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Resultado por set</p>
-                    <Button type="button" variant="outline" size="sm" onClick={handleAddEditingMatchSet}>
-                      <Plus className="mr-1 h-3 w-3" />
-                      Adicionar set
-                    </Button>
-                  </div>
-
-                  {editingMatchSetsDraft.length == 0 ? (
-                    <p className="text-xs text-muted-foreground">Nenhum set registrado. Adicione os sets para definir o resultado por sets.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {editingMatchSetsDraft.map((matchSetDraft, matchSetIndex) => (
-                        <div
-                          key={`editing-match-set-${matchSetIndex}`}
-                          className="app-card-emphasis grid grid-cols-[auto_minmax(0,1fr)_auto_minmax(0,1fr)_auto] items-center gap-2 rounded-xl p-3"
+                      >
+                        <SelectTrigger
+                          aria-label="Atlética da casa"
+                          className="app-input-field"
+                          disabled={!canEditScheduledMatchSetup}
                         >
-                          <span className="text-xs font-semibold text-muted-foreground">Set {matchSetIndex + 1}</span>
-                          <Input
-                            type="number"
-                            min={0}
-                            step={1}
-                            value={matchSetDraft.home_points}
-                            onChange={(event) => handleUpdateEditingMatchSetPoints(matchSetIndex, "home", event.target.value)}
-                            className="app-input-field h-10 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                            aria-label={`Pontuação da casa no set ${matchSetIndex + 1}`}
-                          />
-                          <span className="text-sm font-semibold text-muted-foreground">×</span>
-                          <Input
-                            type="number"
-                            min={0}
-                            step={1}
-                            value={matchSetDraft.away_points}
-                            onChange={(event) => handleUpdateEditingMatchSetPoints(matchSetIndex, "away", event.target.value)}
-                            className="app-input-field h-10 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                            aria-label={`Pontuação visitante no set ${matchSetIndex + 1}`}
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDeleteEditingMatchSet(matchSetIndex)}
-                            aria-label={`Remover set ${matchSetIndex + 1}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
+                          <SelectValue placeholder="Atlética da casa" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {eligibleTeamsForEditingMatch.map((team) => (
+                            <SelectItem key={team.id} value={team.id}>
+                              {team.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
-                  )}
-                </div>
-              ) : null}
 
-              <div className="space-y-3">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Atléticas</p>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <div className="space-y-2">
-                    {editingKnockoutMatchSourceLabels ? (
-                      <p className="text-xs text-muted-foreground">
-                        Casa: Origem da vaga <span className="font-medium text-foreground">{editingKnockoutMatchSourceLabels.home}</span>
-                      </p>
-                    ) : null}
-                    <Select
-                      value={editingMatchDraft.homeTeamId}
-                      onValueChange={(value) =>
-                        setEditingMatchDraft((currentDraft) =>
-                          currentDraft
-                            ? {
-                                ...currentDraft,
-                                homeTeamId: value,
-                              }
-                            : currentDraft,
-                        )
-                      }
-                    >
-                      <SelectTrigger aria-label="Atlética da casa" className="app-input-field" disabled={!canEditScheduledMatchSetup}>
-                        <SelectValue placeholder="Atlética da casa" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {eligibleTeamsForEditingMatch.map((team) => (
-                          <SelectItem key={team.id} value={team.id}>
-                            {team.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    {editingKnockoutMatchSourceLabels ? (
-                      <p className="text-xs text-muted-foreground">
-                        Visitante: Origem da vaga <span className="font-medium text-foreground">{editingKnockoutMatchSourceLabels.away}</span>
-                      </p>
-                    ) : null}
-                    <Select
-                      value={editingMatchDraft.awayTeamId}
-                      onValueChange={(value) =>
-                        setEditingMatchDraft((currentDraft) =>
-                          currentDraft
-                            ? {
-                                ...currentDraft,
-                                awayTeamId: value,
-                              }
-                            : currentDraft,
-                        )
-                      }
-                    >
-                      <SelectTrigger aria-label="Atlética visitante" className="app-input-field" disabled={!canEditScheduledMatchSetup}>
-                        <SelectValue placeholder="Atlética visitante" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {eligibleTeamsForEditingMatch.map((team) => (
-                          <SelectItem key={team.id} value={team.id}>
-                            {team.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="space-y-2">
+                      {editingKnockoutMatchSourceLabels ? (
+                        <p className="text-xs text-muted-foreground">
+                          Visitante: Origem da vaga{" "}
+                          <span className="font-medium text-foreground">
+                            {editingKnockoutMatchSourceLabels.away}
+                          </span>
+                        </p>
+                      ) : null}
+                      <Select
+                        value={editingMatchDraft.awayTeamId}
+                        onValueChange={(value) =>
+                          setEditingMatchDraft((currentDraft) =>
+                            currentDraft
+                              ? {
+                                  ...currentDraft,
+                                  awayTeamId: value,
+                                }
+                              : currentDraft,
+                          )
+                        }
+                      >
+                        <SelectTrigger
+                          aria-label="Atlética visitante"
+                          className="app-input-field"
+                          disabled={!canEditScheduledMatchSetup}
+                        >
+                          <SelectValue placeholder="Atlética visitante" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {eligibleTeamsForEditingMatch.map((team) => (
+                            <SelectItem key={team.id} value={team.id}>
+                              {team.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {hasConfiguredBracket && loadingChampionshipBracket ? (
-                <p className="text-xs text-muted-foreground">Carregando dados das chaves desta edição.</p>
-              ) : null}
+                {hasConfiguredBracket && loadingChampionshipBracket ? (
+                  <p className="text-xs text-muted-foreground">
+                    Carregando dados das chaves desta edição.
+                  </p>
+                ) : null}
 
-              {hasConfiguredBracket && !loadingChampionshipBracket && editingMatchGroupOptions.length == 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  Nenhuma chave disponível para a combinação atual de modalidade, naipe e divisão.
-                </p>
-              ) : null}
+                {hasConfiguredBracket &&
+                !loadingChampionshipBracket &&
+                editingMatchGroupOptions.length == 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Nenhuma chave disponível para a combinação atual de
+                    modalidade, naipe e divisão.
+                  </p>
+                ) : null}
 
-              {editingLocationOptions.length == 0 ? (
-                <p className="text-xs text-muted-foreground">Nenhum local cadastrado para seleção. Cadastre um local antes de editar o jogo.</p>
-              ) : null}
+                {editingLocationOptions.length == 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Nenhum local cadastrado para seleção. Cadastre um local
+                    antes de editar o jogo.
+                  </p>
+                ) : null}
 
-              {editingCourtOptions.length == 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  Nenhuma quadra compatível encontrada para a modalidade e o local selecionados neste dia.
-                </p>
-              ) : null}
+                {editingCourtOptions.length == 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Nenhuma quadra compatível encontrada para a modalidade e o
+                    local selecionados neste dia.
+                  </p>
+                ) : null}
 
-              {!loadingEditingAvailableScheduleSlots && editingAvailableScheduleSlots.length == 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  Nenhum horário livre encontrado para o dia, local e quadra selecionados.
-                </p>
-              ) : null}
+                {!loadingEditingAvailableScheduleSlots &&
+                editingAvailableScheduleSlots.length == 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Nenhum horário livre encontrado para o dia, local e quadra
+                    selecionados.
+                  </p>
+                ) : null}
               </div>
             </div>
 
             <DialogFooter className="shrink-0">
-              <Button type="button" variant="outline" onClick={handleCancelEditingMatch} disabled={savingEditingMatch}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCancelEditingMatch}
+                disabled={savingEditingMatch}
+              >
                 Cancelar
               </Button>
-              <Button type="button" onClick={() => void handleSaveEditingMatch()} disabled={savingEditingMatch || deletingMatches}>
-                {savingEditingMatch ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              <Button
+                type="button"
+                onClick={() => void handleSaveEditingMatch()}
+                disabled={savingEditingMatch || deletingMatches}
+              >
+                {savingEditingMatch ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
                 Salvar alterações
               </Button>
             </DialogFooter>
@@ -6561,196 +8517,257 @@ export function AdminMatches({
         <DialogContent className="flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col overflow-hidden sm:max-h-none sm:w-full sm:max-w-4xl sm:overflow-visible">
           <DialogHeader className="shrink-0">
             <DialogTitle>Novo jogo - {selectedChampionship.name}</DialogTitle>
-            <DialogDescription>Defina naipe, modalidade, chave, atléticas, local e o dia da fila do confronto.</DialogDescription>
+            <DialogDescription>
+              Defina naipe, modalidade, chave, atléticas, local e o dia da fila
+              do confronto.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="min-h-0 overflow-y-auto pr-1 sm:overflow-visible sm:pr-0">
             <div className="space-y-5">
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground">Naipe</p>
-              <RadioGroup
-                value={naipe}
-                onValueChange={(value) => {
-                  if (isMatchNaipe(value)) {
-                    setNaipe(value);
-                  }
-                }}
-                className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-5"
-              >
-                {NAIPE_OPTIONS.map((naipeOption) => {
-                  return (
-                    <Label
-                      key={naipeOption}
-                      htmlFor={`create-match-naipe-${naipeOption}`}
-                      className="flex cursor-pointer items-center gap-2 p-0 text-sm font-medium text-foreground"
-                    >
-                      <RadioGroupItem id={`create-match-naipe-${naipeOption}`} value={naipeOption} />
-                      <span>{MATCH_NAIPE_LABELS[naipeOption]}</span>
-                    </Label>
-                  );
-                })}
-              </RadioGroup>
-            </div>
-
-            <div className="space-y-3">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Contexto do jogo</p>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                <Select
-                  value={sportId}
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Naipe
+                </p>
+                <RadioGroup
+                  value={naipe}
                   onValueChange={(value) => {
-                    setSportId(value);
-                    setSelectedGroupOptionValue("");
-                    setHomeTeamId("");
-                    setAwayTeamId("");
+                    if (isMatchNaipe(value)) {
+                      setNaipe(value);
+                    }
                   }}
+                  className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-5"
                 >
-                  <SelectTrigger className="app-input-field">
-                    <SelectValue placeholder="Modalidade" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableSportsForCreate.map((sport) => (
-                      <SelectItem key={sport.id} value={sport.id}>
-                        {sport.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  {NAIPE_OPTIONS.map((naipeOption) => {
+                    return (
+                      <Label
+                        key={naipeOption}
+                        htmlFor={`create-match-naipe-${naipeOption}`}
+                        className="flex cursor-pointer items-center gap-2 p-0 text-sm font-medium text-foreground"
+                      >
+                        <RadioGroupItem
+                          id={`create-match-naipe-${naipeOption}`}
+                          value={naipeOption}
+                        />
+                        <span>{MATCH_NAIPE_LABELS[naipeOption]}</span>
+                      </Label>
+                    );
+                  })}
+                </RadioGroup>
+              </div>
 
-                {championshipUsesDivisions ? (
+              <div className="space-y-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Contexto do jogo
+                </p>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                   <Select
-                    value={division}
+                    value={sportId}
                     onValueChange={(value) => {
-                      if (isTeamDivision(value)) {
-                        setDivision(value);
-                        setSelectedGroupOptionValue("");
-                        setHomeTeamId("");
-                        setAwayTeamId("");
-                      }
+                      setSportId(value);
+                      setSelectedGroupOptionValue("");
+                      setHomeTeamId("");
+                      setAwayTeamId("");
                     }}
                   >
                     <SelectTrigger className="app-input-field">
-                      <SelectValue placeholder="Divisão" />
+                      <SelectValue placeholder="Modalidade" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={TeamDivision.DIVISAO_PRINCIPAL}>
-                        {TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_PRINCIPAL]}
-                      </SelectItem>
-                      <SelectItem value={TeamDivision.DIVISAO_ACESSO}>
-                        {TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_ACESSO]}
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <div className="app-input-field-disabled flex items-center rounded-xl px-3 py-2 text-sm">
-                    Divisão unificada
-                  </div>
-                )}
-
-                {hasConfiguredBracket ? (
-                  <Select
-                    value={selectedGroupOptionValue || EMPTY_GROUP_OPTION_VALUE}
-                    onValueChange={(value) => {
-                      setSelectedGroupOptionValue(value == EMPTY_GROUP_OPTION_VALUE ? "" : value);
-                    }}
-                    disabled={loadingChampionshipBracket}
-                  >
-                    <SelectTrigger className="app-input-field">
-                      <SelectValue placeholder="Chave" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={EMPTY_GROUP_OPTION_VALUE}>Sem chave vinculada</SelectItem>
-                      {createMatchGroupOptions.map((groupOption) => (
-                        <SelectItem key={groupOption.value} value={groupOption.value}>
-                          {resolveChampionshipGroupLabel(groupOption.group_number)}
+                      {availableSportsForCreate.map((sport) => (
+                        <SelectItem key={sport.id} value={sport.id}>
+                          {sport.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                ) : (
-                  <div className="app-input-field-disabled flex items-center rounded-xl px-3 py-2 text-sm">
-                    Sem chave vinculada
-                  </div>
-                )}
+
+                  {championshipUsesDivisions ? (
+                    <Select
+                      value={division}
+                      onValueChange={(value) => {
+                        if (isTeamDivision(value)) {
+                          setDivision(value);
+                          setSelectedGroupOptionValue("");
+                          setHomeTeamId("");
+                          setAwayTeamId("");
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="app-input-field">
+                        <SelectValue placeholder="Divisão" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={TeamDivision.DIVISAO_PRINCIPAL}>
+                          {TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_PRINCIPAL]}
+                        </SelectItem>
+                        <SelectItem value={TeamDivision.DIVISAO_ACESSO}>
+                          {TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_ACESSO]}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="app-input-field-disabled flex items-center rounded-xl px-3 py-2 text-sm">
+                      Divisão unificada
+                    </div>
+                  )}
+
+                  {hasConfiguredBracket ? (
+                    <Select
+                      value={
+                        selectedGroupOptionValue || EMPTY_GROUP_OPTION_VALUE
+                      }
+                      onValueChange={(value) => {
+                        setSelectedGroupOptionValue(
+                          value == EMPTY_GROUP_OPTION_VALUE ? "" : value,
+                        );
+                      }}
+                      disabled={loadingChampionshipBracket}
+                    >
+                      <SelectTrigger className="app-input-field">
+                        <SelectValue placeholder="Chave" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={EMPTY_GROUP_OPTION_VALUE}>
+                          Sem chave vinculada
+                        </SelectItem>
+                        {createMatchGroupOptions.map((groupOption) => (
+                          <SelectItem
+                            key={groupOption.value}
+                            value={groupOption.value}
+                          >
+                            {resolveChampionshipGroupLabel(
+                              groupOption.group_number,
+                            )}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="app-input-field-disabled flex items-center rounded-xl px-3 py-2 text-sm">
+                      Sem chave vinculada
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-3">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Operação do dia</p>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <Select value={location} onValueChange={setLocation} disabled={createLocationOptions.length == 0}>
-                  <SelectTrigger className="app-input-field">
-                    <SelectValue placeholder={loadingLocationTemplates ? "Carregando locais" : "Local"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {createLocationOptions.map((locationOption) => (
-                      <SelectItem key={locationOption} value={locationOption}>
-                        {locationOption}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Operação do dia
+                </p>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <Select
+                    value={location}
+                    onValueChange={setLocation}
+                    disabled={createLocationOptions.length == 0}
+                  >
+                    <SelectTrigger className="app-input-field">
+                      <SelectValue
+                        placeholder={
+                          loadingLocationTemplates
+                            ? "Carregando locais"
+                            : "Local"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {createLocationOptions.map((locationOption) => (
+                        <SelectItem key={locationOption} value={locationOption}>
+                          {locationOption}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
 
-                <DateTimePicker value={scheduledDate} onChange={setScheduledDate} placeholder="Dia da fila" showTime={false} />
+                  <DateTimePicker
+                    value={scheduledDate}
+                    onChange={setScheduledDate}
+                    placeholder="Dia da fila"
+                    showTime={false}
+                  />
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-3">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Atléticas</p>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <Select value={homeTeamId} onValueChange={setHomeTeamId}>
-                  <SelectTrigger className="app-input-field">
-                    <SelectValue placeholder="Atlética da casa" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {eligibleTeams.map((team) => (
-                      <SelectItem key={team.id} value={team.id}>
-                        {team.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Atléticas
+                </p>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <Select value={homeTeamId} onValueChange={setHomeTeamId}>
+                    <SelectTrigger className="app-input-field">
+                      <SelectValue placeholder="Atlética da casa" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {eligibleTeams.map((team) => (
+                        <SelectItem key={team.id} value={team.id}>
+                          {team.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
 
-                <Select value={awayTeamId} onValueChange={setAwayTeamId}>
-                  <SelectTrigger className="app-input-field">
-                    <SelectValue placeholder="Atlética visitante" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {eligibleTeams.map((team) => (
-                      <SelectItem key={team.id} value={team.id}>
-                        {team.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <Select value={awayTeamId} onValueChange={setAwayTeamId}>
+                    <SelectTrigger className="app-input-field">
+                      <SelectValue placeholder="Atlética visitante" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {eligibleTeams.map((team) => (
+                        <SelectItem key={team.id} value={team.id}>
+                          {team.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            </div>
 
-            {availableSportsForCreate.length == 0 ? (
-              <p className="text-xs text-muted-foreground">Nenhuma modalidade vinculada ao campeonato para este naipe.</p>
-            ) : null}
+              {availableSportsForCreate.length == 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Nenhuma modalidade vinculada ao campeonato para este naipe.
+                </p>
+              ) : null}
 
-            {hasConfiguredBracket && !loadingChampionshipBracket && createMatchGroupOptions.length == 0 ? (
-              <p className="text-xs text-muted-foreground">
-                Nenhuma chave disponível para a combinação atual de modalidade, naipe e divisão.
-              </p>
-            ) : null}
+              {hasConfiguredBracket &&
+              !loadingChampionshipBracket &&
+              createMatchGroupOptions.length == 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Nenhuma chave disponível para a combinação atual de
+                  modalidade, naipe e divisão.
+                </p>
+              ) : null}
 
-            {createLocationOptions.length == 0 ? (
-              <p className="text-xs text-muted-foreground">Nenhum local cadastrado para seleção. Cadastre um local antes de criar o jogo.</p>
-            ) : null}
+              {createLocationOptions.length == 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Nenhum local cadastrado para seleção. Cadastre um local antes
+                  de criar o jogo.
+                </p>
+              ) : null}
             </div>
           </div>
 
           <DialogFooter className="shrink-0">
-            <Button type="button" variant="outline" onClick={() => setShowCreateMatchModal(false)} disabled={creatingMatch}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowCreateMatchModal(false)}
+              disabled={creatingMatch}
+            >
               Cancelar
             </Button>
             <Button
               type="button"
               onClick={handleAdd}
-              disabled={loadingLocationTemplates || createLocationOptions.length == 0 || creatingMatch}
+              disabled={
+                loadingLocationTemplates ||
+                createLocationOptions.length == 0 ||
+                creatingMatch
+              }
             >
-              {creatingMatch ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+              {creatingMatch ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="mr-2 h-4 w-4" />
+              )}
               Criar jogo
             </Button>
           </DialogFooter>

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { sanitizeChampionshipBracketWizardDraft } from "@/domain/championship-brackets/championshipBracketWizardSync";
+import {
+  sanitizeChampionshipBracketWizardDraft,
+  sanitizeCompetitionDateAvailabilityValues,
+  sanitizeTeamCompetitionDateAvailabilityValues,
+} from "@/domain/championship-brackets/championshipBracketWizardSync";
 import type { ChampionshipBracketWizardDraftFormValues } from "@/domain/championship-brackets/championshipBracket.types";
 import {
   ChampionshipSchedulePeriod,
@@ -106,9 +110,45 @@ function buildDraft(
     individual_event_configs: overrides.individual_event_configs ?? [],
     individual_session_configs: overrides.individual_session_configs ?? [],
     resource_locks: overrides.resource_locks ?? [],
+    match_numbering_mode: overrides.match_numbering_mode ?? "COURT",
     knockout_program_blocks: overrides.knockout_program_blocks ?? [],
   };
 }
+
+function buildScheduleDay(
+  date: string,
+): ChampionshipBracketWizardDraftFormValues["schedule_days"][number] {
+  return {
+    id: `day-${date}`,
+    date,
+    start_time: "08:00",
+    end_time: "18:00",
+    break_start_time: "",
+    break_end_time: "",
+    locations: [],
+  };
+}
+
+describe("sanitizeChampionshipBracketWizardDraft - numeração dos jogos", () => {
+  it("preserva SPORT_NAIPE durante a sanitização do rascunho", () => {
+    const sanitizedDraft = sanitizeChampionshipBracketWizardDraft({
+      draftFormValues: buildDraft({
+        match_numbering_mode: "SPORT_NAIPE",
+      }),
+      teams: [],
+      championshipSports: [buildChampionshipSport()],
+      seasonSettings: {
+        division_format: ChampionshipSeasonDivisionFormat.SEPARATED,
+        division_settlement_mode: ChampionshipSeasonDivisionSettlementMode.NONE,
+        principal_slots_count: null,
+        principal_relegation_count: null,
+        access_promotion_count: null,
+      },
+    });
+
+    expect(sanitizedDraft.match_numbering_mode).toBe("SPORT_NAIPE");
+  });
+});
 
 type TestCourtSportPreference = NonNullable<
   ChampionshipBracketWizardDraftFormValues["schedule_days"][number]["locations"][number]["courts"][number]["sport_preference"]
@@ -211,6 +251,185 @@ function sanitizeCourtSportPreference({
 }
 
 describe("sanitizeChampionshipBracketWizardDraft", () => {
+  it("preserva CUSTOM existente e cria FULL_DAY para nova data da competição", () => {
+    const result = sanitizeCompetitionDateAvailabilityValues({
+      scheduleDays: [buildScheduleDay("2026-08-10"), buildScheduleDay("2026-08-11")],
+      competitionKeys: ["competition-1"],
+      competitionDateAvailability: [
+        {
+          competition_key: "competition-1",
+          date: "2026-08-10",
+          mode: "CUSTOM",
+          windows: [
+            {
+              start_time: "09:00",
+              end_time: "12:00",
+            },
+            {
+              start_time: "14:00",
+              end_time: "17:00",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(result).toEqual([
+      {
+        competition_key: "competition-1",
+        date: "2026-08-10",
+        mode: "CUSTOM",
+        windows: [
+          {
+            start_time: "09:00",
+            end_time: "12:00",
+          },
+          {
+            start_time: "14:00",
+            end_time: "17:00",
+          },
+        ],
+      },
+      {
+        competition_key: "competition-1",
+        date: "2026-08-11",
+        mode: "FULL_DAY",
+        windows: [],
+      },
+    ]);
+  });
+
+  it("remove disponibilidades de data e competição que deixaram de existir", () => {
+    const result = sanitizeCompetitionDateAvailabilityValues({
+      scheduleDays: [buildScheduleDay("2026-08-10")],
+      competitionKeys: ["competition-active"],
+      competitionDateAvailability: [
+        {
+          competition_key: "competition-active",
+          date: "2026-08-10",
+          mode: "FULL_DAY",
+          windows: [],
+        },
+        {
+          competition_key: "competition-active",
+          date: "2026-08-09",
+          mode: "CUSTOM",
+          windows: [
+            {
+              start_time: "08:00",
+              end_time: "10:00",
+            },
+          ],
+        },
+        {
+          competition_key: "competition-removed",
+          date: "2026-08-10",
+          mode: "UNAVAILABLE",
+          windows: [],
+        },
+      ],
+    });
+
+    expect(result).toEqual([
+      {
+        competition_key: "competition-active",
+        date: "2026-08-10",
+        mode: "FULL_DAY",
+        windows: [],
+      },
+    ]);
+  });
+
+  it("preserva CUSTOM da atlética e cria FULL_DAY para nova data", () => {
+    const result = sanitizeTeamCompetitionDateAvailabilityValues({
+      scheduleDays: [
+        buildScheduleDay("2026-08-10"),
+        buildScheduleDay("2026-08-11"),
+      ],
+      teamCompetitionKeysByTeamId: {
+        "team-1": ["competition-1"],
+      },
+      teamCompetitionDateAvailability: [
+        {
+          team_id: "team-1",
+          competition_key: "competition-1",
+          date: "2026-08-10",
+          mode: "CUSTOM",
+          windows: [
+            {
+              start_time: "10:00",
+              end_time: "16:00",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(result).toEqual([
+      {
+        team_id: "team-1",
+        competition_key: "competition-1",
+        date: "2026-08-10",
+        mode: "CUSTOM",
+        windows: [
+          {
+            start_time: "10:00",
+            end_time: "16:00",
+          },
+        ],
+      },
+      {
+        team_id: "team-1",
+        competition_key: "competition-1",
+        date: "2026-08-11",
+        mode: "FULL_DAY",
+        windows: [],
+      },
+    ]);
+  });
+
+  it("remove disponibilidade da atlética quando a relação com a competição deixa de existir", () => {
+    const result = sanitizeTeamCompetitionDateAvailabilityValues({
+      scheduleDays: [buildScheduleDay("2026-08-10")],
+      teamCompetitionKeysByTeamId: {
+        "team-active": ["competition-active"],
+      },
+      teamCompetitionDateAvailability: [
+        {
+          team_id: "team-active",
+          competition_key: "competition-active",
+          date: "2026-08-10",
+          mode: "UNAVAILABLE",
+          windows: [],
+        },
+        {
+          team_id: "team-removed",
+          competition_key: "competition-active",
+          date: "2026-08-10",
+          mode: "FULL_DAY",
+          windows: [],
+        },
+        {
+          team_id: "team-active",
+          competition_key: "competition-removed",
+          date: "2026-08-10",
+          mode: "FULL_DAY",
+          windows: [],
+        },
+      ],
+    });
+
+    expect(result).toEqual([
+      {
+        team_id: "team-active",
+        competition_key: "competition-active",
+        date: "2026-08-10",
+        mode: "UNAVAILABLE",
+        windows: [],
+      },
+    ]);
+  });
+
   it("remove atléticas inválidas e limpa competições que deixaram de existir após mudança de divisão", () => {
     const principalCompetitionKey = "sport-1::MASCULINO::DIVISAO_PRINCIPAL";
     const accessCompetitionKey = "sport-1::MASCULINO::DIVISAO_ACESSO";

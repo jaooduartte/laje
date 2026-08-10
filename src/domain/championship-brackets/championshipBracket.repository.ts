@@ -33,6 +33,43 @@ function toSupabaseJson(value: unknown): Json {
   return value as Json;
 }
 
+function normalizeChampionshipBracketPreviewResult(
+  value: unknown,
+  fallbackMatchNumberingMode: ChampionshipBracketSetupFormValues["match_numbering_mode"],
+): ChampionshipBracketPreviewResult | null {
+  if (!value || typeof value != "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const previewResult = value as Record<string, unknown>;
+
+  const matchNumberingMode =
+    previewResult.match_numbering_mode == "SPORT_NAIPE"
+      ? "SPORT_NAIPE"
+      : previewResult.match_numbering_mode == "COURT"
+        ? "COURT"
+        : fallbackMatchNumberingMode;
+
+  return {
+    ok: previewResult.ok === true,
+    message:
+      typeof previewResult.message == "string" ? previewResult.message : null,
+    match_numbering_mode: matchNumberingMode,
+    summary:
+      previewResult.summary &&
+      typeof previewResult.summary == "object" &&
+      !Array.isArray(previewResult.summary)
+        ? (previewResult.summary as ChampionshipBracketPreviewResult["summary"])
+        : null,
+    days: Array.isArray(previewResult.days)
+      ? (previewResult.days as ChampionshipBracketPreviewResult["days"])
+      : [],
+    diagnostics: Array.isArray(previewResult.diagnostics)
+      ? (previewResult.diagnostics as ChampionshipBracketPreviewResult["diagnostics"])
+      : [],
+  };
+}
+
 export async function generateChampionshipBracketGroups(
   championship_id: string,
   payload: ChampionshipBracketSetupFormValues,
@@ -63,9 +100,10 @@ export async function previewChampionshipBracketGroups(
   }
 
   return {
-    data:
-      (response.data as unknown as ChampionshipBracketPreviewResult | null) ??
-      null,
+    data: normalizeChampionshipBracketPreviewResult(
+      response.data,
+      payload.match_numbering_mode,
+    ),
     error: null,
   };
 }

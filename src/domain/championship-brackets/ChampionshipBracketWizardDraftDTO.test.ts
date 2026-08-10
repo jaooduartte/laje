@@ -23,10 +23,20 @@ function buildStoredScheduleDays({
   sportIds = ["sport-1", "sport-1"],
   sportPreference,
   sportPriorities,
+  sportMatchTargets,
+  startTime = "08:00",
+  endTime = "18:00",
+  breakStartTime = "",
+  breakEndTime = "",
 }: {
   sportIds?: string[];
   sportPreference?: unknown;
   sportPriorities?: unknown;
+  sportMatchTargets?: unknown;
+  startTime?: string;
+  endTime?: string;
+  breakStartTime?: string;
+  breakEndTime?: string;
 } = {}) {
   const storedCourt: Record<string, unknown> = {
     id: "court-1",
@@ -43,14 +53,18 @@ function buildStoredScheduleDays({
     storedCourt.sport_priorities = sportPriorities;
   }
 
+  if (sportMatchTargets !== undefined) {
+    storedCourt.sport_match_targets = sportMatchTargets;
+  }
+
   return [
     {
       id: "day-1",
       date: "2026-08-19",
-      start_time: "08:00",
-      end_time: "18:00",
-      break_start_time: "",
-      break_end_time: "",
+      start_time: startTime,
+      end_time: endTime,
+      break_start_time: breakStartTime,
+      break_end_time: breakEndTime,
       locations: [
         {
           id: "location-1",
@@ -104,8 +118,83 @@ function buildDraft(
     individual_event_configs: overrides.individual_event_configs ?? [],
     individual_session_configs: overrides.individual_session_configs ?? [],
     resource_locks: overrides.resource_locks ?? [],
+    match_numbering_mode: overrides.match_numbering_mode ?? "COURT",
     knockout_program_blocks: overrides.knockout_program_blocks ?? [],
   };
+}
+
+function buildLegacyAvailabilityStorageValue({
+  matutinoEnabled,
+  vespertinoEnabled,
+  startTime = "08:00",
+  endTime = "18:00",
+  breakStartTime = "",
+  breakEndTime = "",
+}: {
+  matutinoEnabled: boolean;
+  vespertinoEnabled: boolean;
+  startTime?: string;
+  endTime?: string;
+  breakStartTime?: string;
+  breakEndTime?: string;
+}) {
+  const competitionKey = "sport-1::MASCULINO::DIVISAO_PRINCIPAL";
+
+  return JSON.stringify({
+    ...buildDraft(),
+    step_flow_version: 2,
+    selected_competition_keys_by_team_id: {
+      "team-1": [competitionKey],
+    },
+    schedule_days: buildStoredScheduleDays({
+      startTime,
+      endTime,
+      breakStartTime,
+      breakEndTime,
+    }),
+    schedule_periods: [
+      {
+        date: "2026-08-19",
+        period: ChampionshipSchedulePeriod.MATUTINO,
+        enabled: true,
+      },
+      {
+        date: "2026-08-19",
+        period: ChampionshipSchedulePeriod.VESPERTINO,
+        enabled: true,
+      },
+    ],
+    competition_period_availability: [
+      {
+        competition_key: competitionKey,
+        date: "2026-08-19",
+        period: ChampionshipSchedulePeriod.MATUTINO,
+        enabled: matutinoEnabled,
+      },
+      {
+        competition_key: competitionKey,
+        date: "2026-08-19",
+        period: ChampionshipSchedulePeriod.VESPERTINO,
+        enabled: vespertinoEnabled,
+      },
+    ],
+    team_competition_availability: [
+      {
+        team_id: "team-1",
+        competition_key: competitionKey,
+        date: "2026-08-19",
+        period: ChampionshipSchedulePeriod.MATUTINO,
+        enabled: matutinoEnabled,
+      },
+      {
+        team_id: "team-1",
+        competition_key: competitionKey,
+        date: "2026-08-19",
+        period: ChampionshipSchedulePeriod.VESPERTINO,
+        enabled: vespertinoEnabled,
+      },
+    ],
+  });
 }
 
 describe("ChampionshipBracketWizardDraftDTO", () => {
@@ -145,6 +234,30 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
 
     expect(dto?.bindToSave().step_flow_version).toBe(2);
     expect(dto?.bindToSave().current_step_index).toBe(11);
+  });
+
+  it("normaliza modo de numeração ausente em draft legado para COURT", () => {
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      JSON.stringify({
+        step_flow_version: 2,
+        current_step_index: 10,
+      }),
+    );
+
+    expect(dto?.bindToSave().match_numbering_mode).toBe("COURT");
+  });
+
+  it("preserva modo de numeração SPORT_NAIPE ao carregar e salvar", () => {
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      JSON.stringify({
+        ...buildDraft({
+          match_numbering_mode: "SPORT_NAIPE",
+        }),
+        step_flow_version: 2,
+      }),
+    );
+
+    expect(dto?.bindToSave().match_numbering_mode).toBe("SPORT_NAIPE");
   });
 
   it("preserva a preferência singular da quadra ao carregar e salvar", () => {
@@ -301,6 +414,152 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
     });
   });
 
+  it("converte disponibilidade legada matutino e vespertino para dia inteiro", () => {
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      buildLegacyAvailabilityStorageValue({
+        matutinoEnabled: true,
+        vespertinoEnabled: true,
+      }),
+    );
+
+    const savedDraft = dto?.bindToSave();
+
+    expect(savedDraft?.competition_date_availability).toEqual([
+      {
+        competition_key: "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
+        date: "2026-08-19",
+        mode: "FULL_DAY",
+        windows: [],
+      },
+    ]);
+
+    expect(savedDraft?.team_competition_date_availability).toEqual([
+      {
+        team_id: "team-1",
+        competition_key: "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
+        date: "2026-08-19",
+        mode: "FULL_DAY",
+        windows: [],
+      },
+    ]);
+  });
+
+  it("converte somente matutino usando o intervalo real do dia", () => {
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      buildLegacyAvailabilityStorageValue({
+        matutinoEnabled: true,
+        vespertinoEnabled: false,
+        startTime: "08:00",
+        endTime: "18:00",
+        breakStartTime: "12:00",
+        breakEndTime: "13:30",
+      }),
+    );
+
+    const savedDraft = dto?.bindToSave();
+
+    expect(savedDraft?.competition_date_availability).toEqual([
+      {
+        competition_key: "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
+        date: "2026-08-19",
+        mode: "CUSTOM",
+        windows: [
+          {
+            start_time: "08:00",
+            end_time: "12:00",
+          },
+        ],
+      },
+    ]);
+
+    expect(savedDraft?.team_competition_date_availability).toEqual([
+      {
+        team_id: "team-1",
+        competition_key: "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
+        date: "2026-08-19",
+        mode: "CUSTOM",
+        windows: [
+          {
+            start_time: "08:00",
+            end_time: "12:00",
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("converte somente vespertino usando o ponto médio quando não há intervalo", () => {
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      buildLegacyAvailabilityStorageValue({
+        matutinoEnabled: false,
+        vespertinoEnabled: true,
+        startTime: "08:00",
+        endTime: "18:00",
+      }),
+    );
+
+    const savedDraft = dto?.bindToSave();
+
+    expect(savedDraft?.competition_date_availability).toEqual([
+      {
+        competition_key: "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
+        date: "2026-08-19",
+        mode: "CUSTOM",
+        windows: [
+          {
+            start_time: "13:00",
+            end_time: "18:00",
+          },
+        ],
+      },
+    ]);
+
+    expect(savedDraft?.team_competition_date_availability).toEqual([
+      {
+        team_id: "team-1",
+        competition_key: "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
+        date: "2026-08-19",
+        mode: "CUSTOM",
+        windows: [
+          {
+            start_time: "13:00",
+            end_time: "18:00",
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("converte matutino e vespertino indisponíveis para dia indisponível", () => {
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      buildLegacyAvailabilityStorageValue({
+        matutinoEnabled: false,
+        vespertinoEnabled: false,
+      }),
+    );
+
+    const savedDraft = dto?.bindToSave();
+
+    expect(savedDraft?.competition_date_availability).toEqual([
+      {
+        competition_key: "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
+        date: "2026-08-19",
+        mode: "UNAVAILABLE",
+        windows: [],
+      },
+    ]);
+
+    expect(savedDraft?.team_competition_date_availability).toEqual([
+      {
+        team_id: "team-1",
+        competition_key: "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
+        date: "2026-08-19",
+        mode: "UNAVAILABLE",
+        windows: [],
+      },
+    ]);
+  });
+
   it("preserva agrupamento por naipe ao carregar e salvar", () => {
     const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
       JSON.stringify({
@@ -386,6 +645,75 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
       preferred_division: null,
       sequence_mode: "FLEXIBLE",
     });
+  });
+
+  it("normaliza drafts antigos sem metas de jogos para lista vazia", () => {
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      JSON.stringify({
+        ...buildDraft(),
+        step_flow_version: 2,
+        schedule_days: buildStoredScheduleDays({
+          sportIds: ["sport-1"],
+        }),
+      }),
+    );
+
+    const savedCourt =
+      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0];
+
+    expect(savedCourt?.sport_match_targets).toEqual([]);
+  });
+
+  it("preserva e normaliza metas de jogos por modalidade da quadra", () => {
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      JSON.stringify({
+        ...buildDraft(),
+        step_flow_version: 2,
+        schedule_days: buildStoredScheduleDays({
+          sportIds: ["sport-1", "sport-2"],
+          sportMatchTargets: [
+            {
+              sport_id: "sport-1",
+              planned_match_count: 12,
+            },
+            {
+              sport_id: "sport-x",
+              planned_match_count: 20,
+            },
+            {
+              sport_id: "sport-2",
+              planned_match_count: 0,
+            },
+            {
+              sport_id: "sport-2",
+              planned_match_count: 7,
+            },
+            {
+              sport_id: "sport-1",
+              planned_match_count: 14,
+            },
+            {
+              sport_id: "sport-2",
+              planned_match_count: 4.5,
+            },
+          ],
+        }),
+      }),
+    );
+
+    const savedCourt =
+      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0];
+
+    expect(savedCourt?.sport_match_targets).toEqual([
+      {
+        sport_id: "sport-1",
+        planned_match_count: 14,
+      },
+      {
+        sport_id: "sport-2",
+        planned_match_count: 7,
+      },
+    ]);
   });
 
   it("normaliza config legada de modalidades individuais ao carregar do storage", () => {

@@ -177,6 +177,11 @@ export class ChampionshipBracketSetupDTO {
       throw new Error("Configure ao menos um dia de agenda do campeonato.");
     }
 
+    const activeCollectiveSportIdSet = new Set(
+      this.form_values.competitions.map((competition) => competition.sport_id),
+    );
+    const plannedCollectiveSportIdSet = new Set<string>();
+
     this.form_values.schedule_days.forEach((schedule_day) => {
       if (
         !schedule_day.date ||
@@ -260,6 +265,46 @@ export class ChampionshipBracketSetupDTO {
               `A quadra ${court.name} precisa ter ao menos uma modalidade vinculada.`,
             );
           }
+
+          const sportMatchTargets = court.sport_match_targets ?? [];
+          const seenTargetSportIds = new Set<string>();
+
+          sportMatchTargets.forEach((target) => {
+            if (!court.sport_ids.includes(target.sport_id)) {
+              throw new Error(
+                `A meta de jogos da quadra ${court.name} possui uma modalidade não vinculada à quadra.`,
+              );
+            }
+
+            if (
+              !this.form_values.competitions.some(
+                (competition) => competition.sport_id == target.sport_id,
+              )
+            ) {
+              throw new Error(
+                `A meta de jogos da quadra ${court.name} possui uma modalidade sem competição ativa.`,
+              );
+            }
+
+            if (
+              !Number.isInteger(target.planned_match_count) ||
+              target.planned_match_count <= 0
+            ) {
+              throw new Error(
+                `A quantidade planejada de jogos da quadra ${court.name} precisa ser um número inteiro maior que zero.`,
+              );
+            }
+
+            if (seenTargetSportIds.has(target.sport_id)) {
+              throw new Error(
+                `A quadra ${court.name} possui mais de uma meta para a mesma modalidade.`,
+              );
+            }
+
+            seenTargetSportIds.add(target.sport_id);
+            plannedCollectiveSportIdSet.add(target.sport_id);
+          });
+
           const sportPreference = court.sport_preference;
 
           if (!sportPreference) {
@@ -406,6 +451,16 @@ export class ChampionshipBracketSetupDTO {
         });
       });
     });
+
+    const hasCollectiveSportWithoutPlan = [...activeCollectiveSportIdSet].some(
+      (sportId) => !plannedCollectiveSportIdSet.has(sportId),
+    );
+
+    if (hasCollectiveSportWithoutPlan) {
+      throw new Error(
+        "Toda modalidade coletiva ativa precisa ter ao menos uma quantidade planejada de jogos.",
+      );
+    }
   }
 
   private resolveCompetitionKey(
@@ -633,6 +688,439 @@ export class ChampionshipBracketSetupDTO {
           if (!hasAvailableWindow) {
             throw new Error(
               "Toda atlética precisa ter ao menos um dia/período disponível por competição.",
+            );
+          }
+        });
+      },
+    );
+  }
+
+  private validateAvailabilityWindowsForScheduleDay(
+    mode: "UNAVAILABLE" | "FULL_DAY" | "CUSTOM",
+    windows: Array<{
+      start_time: string;
+      end_time: string;
+    }>,
+    scheduleDay: ChampionshipBracketSetupFormValues["schedule_days"][number],
+    contextLabel: string,
+  ) {
+    if (
+      mode != "UNAVAILABLE" &&
+      mode != "FULL_DAY" &&
+      mode != "CUSTOM"
+    ) {
+      throw new Error(`${contextLabel} possui modo inválido.`);
+    }
+
+    if (mode != "CUSTOM") {
+      if (windows.length > 0) {
+        throw new Error(`${contextLabel} não pode possuir janelas no modo ${mode}.`);
+      }
+
+      return;
+    }
+
+    if (windows.length == 0) {
+      throw new Error(
+        `${contextLabel} personalizada precisa possuir ao menos uma janela.`,
+      );
+    }
+
+    const dayStartMinutes = this.resolveTimeValueToMinutes(
+      scheduleDay.start_time,
+    );
+    const dayEndMinutes = this.resolveTimeValueToMinutes(scheduleDay.end_time);
+
+    if (dayStartMinutes == null || dayEndMinutes == null) {
+      throw new Error(`${contextLabel} está vinculada a um dia inválido.`);
+    }
+
+    const resolvedWindows = windows
+      .map((window) => {
+        const startMinutes = this.resolveTimeValueToMinutes(window.start_time);
+        const endMinutes = this.resolveTimeValueToMinutes(window.end_time);
+
+        if (
+          startMinutes == null ||
+          endMinutes == null ||
+          endMinutes <= startMinutes
+        ) {
+          throw new Error(`${contextLabel} possui horário inválido.`);
+        }
+
+        if (
+          startMinutes < dayStartMinutes ||
+          endMinutes > dayEndMinutes
+        ) {
+          throw new Error(
+            `${contextLabel} precisa permanecer dentro da janela do dia.`,
+          );
+        }
+
+        return {
+          start: startMinutes,
+          end: endMinutes,
+        };
+      })
+      .sort((left, right) => left.start - right.start);
+
+    for (
+      let windowIndex = 1;
+      windowIndex < resolvedWindows.length;
+      windowIndex += 1
+    ) {
+      const previousWindow = resolvedWindows[windowIndex - 1];
+      const currentWindow = resolvedWindows[windowIndex];
+
+      if (
+        previousWindow &&
+        currentWindow &&
+        currentWindow.start < previousWindow.end
+      ) {
+        throw new Error(`${contextLabel} possui janelas de horário sobrepostas.`);
+      }
+    }
+  }
+
+  private resolveDateAvailabilityIntervals(
+    mode: "UNAVAILABLE" | "FULL_DAY" | "CUSTOM",
+    windows: Array<{
+      start_time: string;
+      end_time: string;
+    }>,
+    scheduleDay: ChampionshipBracketSetupFormValues["schedule_days"][number],
+  ): Array<{
+    start: number;
+    end: number;
+  }> {
+    if (mode == "UNAVAILABLE") {
+      return [];
+    }
+
+    const dayStartMinutes = this.resolveTimeValueToMinutes(
+      scheduleDay.start_time,
+    );
+    const dayEndMinutes = this.resolveTimeValueToMinutes(scheduleDay.end_time);
+
+    if (dayStartMinutes == null || dayEndMinutes == null) {
+      return [];
+    }
+
+    const baseIntervals =
+      mode == "FULL_DAY"
+        ? [
+            {
+              start: dayStartMinutes,
+              end: dayEndMinutes,
+            },
+          ]
+        : windows
+            .map((window) => {
+              const startMinutes = this.resolveTimeValueToMinutes(
+                window.start_time,
+              );
+              const endMinutes = this.resolveTimeValueToMinutes(
+                window.end_time,
+              );
+
+              return {
+                start: startMinutes ?? 0,
+                end: endMinutes ?? 0,
+              };
+            })
+            .filter((interval) => interval.end > interval.start);
+
+    const breakStartMinutes = scheduleDay.break_start_time
+      ? this.resolveTimeValueToMinutes(scheduleDay.break_start_time)
+      : null;
+    const breakEndMinutes = scheduleDay.break_end_time
+      ? this.resolveTimeValueToMinutes(scheduleDay.break_end_time)
+      : null;
+
+    if (
+      breakStartMinutes == null ||
+      breakEndMinutes == null ||
+      breakEndMinutes <= breakStartMinutes
+    ) {
+      return baseIntervals;
+    }
+
+    return baseIntervals.flatMap((interval) => {
+      if (
+        interval.end <= breakStartMinutes ||
+        interval.start >= breakEndMinutes
+      ) {
+        return [interval];
+      }
+
+      const resultingIntervals: Array<{
+        start: number;
+        end: number;
+      }> = [];
+
+      if (interval.start < breakStartMinutes) {
+        resultingIntervals.push({
+          start: interval.start,
+          end: breakStartMinutes,
+        });
+      }
+
+      if (interval.end > breakEndMinutes) {
+        resultingIntervals.push({
+          start: breakEndMinutes,
+          end: interval.end,
+        });
+      }
+
+      return resultingIntervals;
+    });
+  }
+
+  private validateDateAvailability() {
+    const competitionDateAvailability =
+      this.form_values.competition_date_availability;
+    const teamCompetitionDateAvailability =
+      this.form_values.team_competition_date_availability;
+
+    if (
+      competitionDateAvailability == null &&
+      teamCompetitionDateAvailability == null
+    ) {
+      return;
+    }
+
+    if (
+      competitionDateAvailability == null ||
+      teamCompetitionDateAvailability == null
+    ) {
+      throw new Error(
+        "As disponibilidades por data de competições e atléticas precisam ser configuradas em conjunto.",
+      );
+    }
+
+    const scheduleDayByDate = new Map(
+      this.form_values.schedule_days.map((scheduleDay) => [
+        scheduleDay.date,
+        scheduleDay,
+      ]),
+    );
+
+    const competitionKeySet = new Set(
+      this.form_values.competitions.map((competition) =>
+        this.resolveCompetitionKey(
+          competition.sport_id,
+          competition.naipe,
+          competition.division,
+        ),
+      ),
+    );
+
+    const competitionAvailabilityByKey = new Map<
+      string,
+      (typeof competitionDateAvailability)[number]
+    >();
+
+    competitionDateAvailability.forEach((availabilityItem) => {
+      if (!competitionKeySet.has(availabilityItem.competition_key)) {
+        throw new Error(
+          "Disponibilidade por data vinculada a uma competição inválida.",
+        );
+      }
+
+      const scheduleDay = scheduleDayByDate.get(availabilityItem.date);
+
+      if (!scheduleDay) {
+        throw new Error(
+          "Disponibilidade por data da competição fora da agenda.",
+        );
+      }
+
+      const availabilityKey = `${availabilityItem.competition_key}::${availabilityItem.date}`;
+
+      if (competitionAvailabilityByKey.has(availabilityKey)) {
+        throw new Error("Disponibilidade por data da competição duplicada.");
+      }
+
+      this.validateAvailabilityWindowsForScheduleDay(
+        availabilityItem.mode,
+        availabilityItem.windows,
+        scheduleDay,
+        "Disponibilidade da competição",
+      );
+
+      competitionAvailabilityByKey.set(availabilityKey, availabilityItem);
+    });
+
+    competitionKeySet.forEach((competitionKey) => {
+      this.form_values.schedule_days.forEach((scheduleDay) => {
+        if (
+          !competitionAvailabilityByKey.has(
+            `${competitionKey}::${scheduleDay.date}`,
+          )
+        ) {
+          throw new Error(
+            "Toda competição precisa possuir disponibilidade configurada para cada dia da agenda.",
+          );
+        }
+      });
+
+      const hasAvailableDate = this.form_values.schedule_days.some(
+        (scheduleDay) => {
+          const availabilityItem = competitionAvailabilityByKey.get(
+            `${competitionKey}::${scheduleDay.date}`,
+          );
+
+          if (!availabilityItem) {
+            return false;
+          }
+
+          return (
+            this.resolveDateAvailabilityIntervals(
+              availabilityItem.mode,
+              availabilityItem.windows,
+              scheduleDay,
+            ).length > 0
+          );
+        },
+      );
+
+      if (!hasAvailableDate) {
+        throw new Error(
+          "Toda competição precisa ter ao menos um dia com disponibilidade real.",
+        );
+      }
+    });
+
+    const teamCompetitionKeysByTeamId =
+      this.form_values.participants.reduce<Record<string, string[]>>(
+        (carry, participant) => {
+          const competitionKeys = participant.modalities
+            .map((modality) =>
+              this.resolveCompetitionKey(
+                modality.sport_id,
+                modality.naipe,
+                modality.division,
+              ),
+            )
+            .filter((competitionKey) =>
+              competitionKeySet.has(competitionKey),
+            );
+
+          if (competitionKeys.length > 0) {
+            carry[participant.team_id] = [...new Set(competitionKeys)];
+          }
+
+          return carry;
+        },
+        {},
+      );
+    const validTeamCompetitionPairSet = new Set(
+      Object.entries(teamCompetitionKeysByTeamId).flatMap(
+        ([team_id, competitionKeys]) =>
+          competitionKeys.map(
+            (competitionKey) => `${team_id}::${competitionKey}`,
+          ),
+      ),
+    );
+
+    const teamAvailabilityByKey = new Map<
+      string,
+      (typeof teamCompetitionDateAvailability)[number]
+    >();
+
+    teamCompetitionDateAvailability.forEach((availabilityItem) => {
+      const teamCompetitionPairKey = `${availabilityItem.team_id}::${availabilityItem.competition_key}`;
+
+      if (!validTeamCompetitionPairSet.has(teamCompetitionPairKey)) {
+        throw new Error(
+          "Disponibilidade por data da atlética inválida para a competição configurada.",
+        );
+      }
+
+      const scheduleDay = scheduleDayByDate.get(availabilityItem.date);
+
+      if (!scheduleDay) {
+        throw new Error(
+          "Disponibilidade por data da atlética fora da agenda.",
+        );
+      }
+
+      const availabilityKey = `${teamCompetitionPairKey}::${availabilityItem.date}`;
+
+      if (teamAvailabilityByKey.has(availabilityKey)) {
+        throw new Error("Disponibilidade por data da atlética duplicada.");
+      }
+
+      this.validateAvailabilityWindowsForScheduleDay(
+        availabilityItem.mode,
+        availabilityItem.windows,
+        scheduleDay,
+        "Disponibilidade da atlética",
+      );
+
+      teamAvailabilityByKey.set(availabilityKey, availabilityItem);
+    });
+
+    Object.entries(teamCompetitionKeysByTeamId).forEach(
+      ([team_id, competitionKeys]) => {
+        competitionKeys.forEach((competitionKey) => {
+          this.form_values.schedule_days.forEach((scheduleDay) => {
+            if (
+              !teamAvailabilityByKey.has(
+                `${team_id}::${competitionKey}::${scheduleDay.date}`,
+              )
+            ) {
+              throw new Error(
+                "Toda atlética precisa possuir disponibilidade configurada para cada dia e competição.",
+              );
+            }
+          });
+
+          const hasCommonAvailability =
+            this.form_values.schedule_days.some((scheduleDay) => {
+              const competitionAvailability =
+                competitionAvailabilityByKey.get(
+                  `${competitionKey}::${scheduleDay.date}`,
+                );
+              const teamAvailability = teamAvailabilityByKey.get(
+                `${team_id}::${competitionKey}::${scheduleDay.date}`,
+              );
+
+              if (!competitionAvailability || !teamAvailability) {
+                return false;
+              }
+
+              const competitionIntervals =
+                this.resolveDateAvailabilityIntervals(
+                  competitionAvailability.mode,
+                  competitionAvailability.windows,
+                  scheduleDay,
+                );
+              const teamIntervals =
+                this.resolveDateAvailabilityIntervals(
+                  teamAvailability.mode,
+                  teamAvailability.windows,
+                  scheduleDay,
+                );
+
+              return competitionIntervals.some((competitionInterval) =>
+                teamIntervals.some(
+                  (teamInterval) =>
+                    Math.max(
+                      competitionInterval.start,
+                      teamInterval.start,
+                    ) <
+                    Math.min(
+                      competitionInterval.end,
+                      teamInterval.end,
+                    ),
+                ),
+              );
+            });
+
+          if (!hasCommonAvailability) {
+            throw new Error(
+              "Toda atlética precisa ter ao menos uma janela real compatível com sua competição.",
             );
           }
         });
@@ -963,7 +1451,16 @@ export class ChampionshipBracketSetupDTO {
     this.validateCompetitions();
     this.validateScheduleDays();
     this.validateSchedulePeriods();
-    this.validateAvailability();
+
+    if (
+      this.form_values.competition_date_availability != null ||
+      this.form_values.team_competition_date_availability != null
+    ) {
+      this.validateDateAvailability();
+    } else {
+      this.validateAvailability();
+    }
+
     this.validateIndividualEventConfigs();
     this.validateIndividualSessionConfigs();
     this.validateResourceLocks();
@@ -1018,6 +1515,32 @@ export class ChampionshipBracketSetupDTO {
           courts: location.courts.map((court) => {
             const normalizedSportIds = [...new Set(court.sport_ids)];
 
+            const normalizedSportMatchTargets = [
+              ...(court.sport_match_targets ?? []).reduce(
+                (targetBySportId, target) => {
+                  if (
+                    normalizedSportIds.includes(target.sport_id) &&
+                    Number.isInteger(target.planned_match_count) &&
+                    target.planned_match_count > 0
+                  ) {
+                    targetBySportId.set(target.sport_id, {
+                      sport_id: target.sport_id,
+                      planned_match_count: target.planned_match_count,
+                    });
+                  }
+
+                  return targetBySportId;
+                },
+                new Map<
+                  string,
+                  {
+                    sport_id: string;
+                    planned_match_count: number;
+                  }
+                >(),
+              ).values(),
+            ];
+
             const sportPreference = court.sport_preference;
 
             return {
@@ -1025,6 +1548,7 @@ export class ChampionshipBracketSetupDTO {
               name: court.name.trim(),
               position: court.position,
               sport_ids: normalizedSportIds,
+              sport_match_targets: normalizedSportMatchTargets,
               sport_preference: sportPreference
                 ? {
                     preferred_sport_id: sportPreference.preferred_sport_id,
@@ -1090,6 +1614,31 @@ export class ChampionshipBracketSetupDTO {
             enabled: availabilityItem.enabled != false,
           }),
         ),
+      competition_date_availability:
+        this.form_values.competition_date_availability?.map(
+          (availabilityItem) => ({
+            competition_key: availabilityItem.competition_key,
+            date: availabilityItem.date,
+            mode: availabilityItem.mode,
+            windows: availabilityItem.windows.map((window) => ({
+              start_time: window.start_time,
+              end_time: window.end_time,
+            })),
+          }),
+        ),
+      team_competition_date_availability:
+        this.form_values.team_competition_date_availability?.map(
+          (availabilityItem) => ({
+            team_id: availabilityItem.team_id,
+            competition_key: availabilityItem.competition_key,
+            date: availabilityItem.date,
+            mode: availabilityItem.mode,
+            windows: availabilityItem.windows.map((window) => ({
+              start_time: window.start_time,
+              end_time: window.end_time,
+            })),
+          }),
+        ),
       individual_event_configs: this.form_values.individual_event_configs.map(
         (configItem) => ({
           sport_id: configItem.sport_id,
@@ -1129,6 +1678,7 @@ export class ChampionshipBracketSetupDTO {
         naipe: resourceLock.naipe ?? null,
         division: resourceLock.division ?? null,
       })),
+      match_numbering_mode: this.form_values.match_numbering_mode,
       knockout_program_blocks: this.form_values.knockout_program_blocks.map(
         (programBlock, programBlockIndex) => ({
           date: programBlock.date,

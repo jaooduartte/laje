@@ -71,10 +71,12 @@ import { ChampionshipBracketSetupDTO } from "@/domain/championship-brackets/Cham
 import { ChampionshipBracketWizardDraftDTO } from "@/domain/championship-brackets/ChampionshipBracketWizardDraftDTO";
 import {
   resolveSelectableChampionshipTeams,
+  sanitizeCompetitionDateAvailabilityValues,
   sanitizeIndividualEventConfigsValues,
   sanitizeIndividualSessionConfigsValues,
   sanitizeKnockoutProgramBlocksValues,
   sanitizeResourceLocksValues,
+  sanitizeTeamCompetitionDateAvailabilityValues,
   sanitizeChampionshipBracketWizardDraft,
 } from "@/domain/championship-brackets/championshipBracketWizardSync";
 import {
@@ -85,6 +87,7 @@ import {
 import {
   deleteChampionshipBracketLocationTemplate,
   generateChampionshipBracketGroups,
+  previewChampionshipBracketGroups,
   fetchChampionshipBracketLocationTemplates,
   saveChampionshipBracketLocationTemplate,
 } from "@/domain/championship-brackets/championshipBracket.repository";
@@ -98,7 +101,9 @@ import type {
   ChampionshipBracketCompetitionConfigDraft,
   ChampionshipBracketCompetitionInput,
   ChampionshipBracketCourtSequenceMode,
+  ChampionshipBracketCourtSportMatchTargetInput,
   ChampionshipBracketCourtSportPreferenceInput,
+  ChampionshipBracketMatchNumberingMode,
   ChampionshipBracketLocationTemplate,
   ChampionshipBracketLocationTemplateSaveInput,
   ChampionshipBracketRemoteDraftMetadata,
@@ -108,6 +113,7 @@ import type {
   ChampionshipBracketLocationInput,
   ChampionshipBracketKnockoutProgramBlockInput,
   ChampionshipBracketParticipantInput,
+  ChampionshipBracketPreviewResult,
   ChampionshipBracketSchedulePeriodInput,
   ChampionshipSeasonSettingsInput,
   ChampionshipBracketScheduleCourtDraft,
@@ -160,6 +166,7 @@ interface ScheduleCourtFormValue {
   position: number;
   sport_ids: string[];
   sport_preference: ChampionshipBracketCourtSportPreferenceInput | null;
+  sport_match_targets: ChampionshipBracketCourtSportMatchTargetInput[];
 }
 
 interface ScheduleLocationFormValue {
@@ -483,6 +490,7 @@ function resolveInitialScheduleCourt(): ScheduleCourtFormValue {
     position: 1,
     sport_ids: [],
     sport_preference: null,
+    sport_match_targets: [],
   };
 }
 
@@ -523,6 +531,9 @@ function resolveReplicatedScheduleDay(
               ...court.sport_preference,
             }
           : null,
+        sport_match_targets: court.sport_match_targets.map((target) => ({
+          ...target,
+        })),
       })),
     })),
   };
@@ -541,6 +552,11 @@ function resolveScheduleCourtClone(
           ...schedule_court.sport_preference,
         }
       : null,
+    sport_match_targets: (schedule_court.sport_match_targets ?? []).map(
+      (target) => ({
+        ...target,
+      }),
+    ),
   };
 }
 
@@ -627,9 +643,12 @@ function resolveInitialWizardDraftFormValues(
     schedule_periods: [],
     competition_period_availability: [],
     team_competition_availability: [],
+    competition_date_availability: [],
+    team_competition_date_availability: [],
     individual_event_configs: [],
     individual_session_configs: [],
     resource_locks: [],
+    match_numbering_mode: "COURT",
     knockout_program_blocks: [],
   };
 }
@@ -722,6 +741,7 @@ function resolveLocationTemplateModalFormValueFromTemplate(
       position: court.position,
       sport_ids: [...court.sport_ids],
       sport_preference: null,
+      sport_match_targets: [],
     })),
   };
 }
@@ -742,6 +762,9 @@ function resolveLocationTemplateModalFormValueFromScheduleLocation(
             ...court.sport_preference,
           }
         : null,
+      sport_match_targets: court.sport_match_targets.map((target) => ({
+        ...target,
+      })),
     })),
   };
 }
@@ -762,6 +785,7 @@ function resolveScheduleLocationFromTemplate(
       position: courtIndex + 1,
       sport_ids: [...court.sport_ids],
       sport_preference: null,
+      sport_match_targets: [],
     })),
   };
 }
@@ -1195,8 +1219,20 @@ export function AdminChampionshipBracketPage({
   >([]);
   const [competitionPeriodAvailability, setCompetitionPeriodAvailability] =
     useState<ChampionshipBracketCompetitionPeriodAvailabilityInput[]>([]);
+  const [competitionDateAvailability, setCompetitionDateAvailability] =
+    useState<
+      NonNullable<
+        ChampionshipBracketWizardDraftFormValues["competition_date_availability"]
+      >
+    >([]);
   const [teamCompetitionAvailability, setTeamCompetitionAvailability] =
     useState<ChampionshipBracketTeamCompetitionAvailabilityInput[]>([]);
+  const [teamCompetitionDateAvailability, setTeamCompetitionDateAvailability] =
+    useState<
+      NonNullable<
+        ChampionshipBracketWizardDraftFormValues["team_competition_date_availability"]
+      >
+    >([]);
   const [individualEventConfigs, setIndividualEventConfigs] = useState<
     ChampionshipBracketIndividualEventConfigInput[]
   >([]);
@@ -1206,6 +1242,8 @@ export function AdminChampionshipBracketPage({
   const [resourceLocks, setResourceLocks] = useState<
     ChampionshipBracketWizardDraftFormValues["resource_locks"]
   >([]);
+  const [matchNumberingMode, setMatchNumberingMode] =
+    useState<ChampionshipBracketMatchNumberingMode>("COURT");
   const [knockoutProgramBlocks, setKnockoutProgramBlocks] = useState<
     ChampionshipBracketWizardDraftFormValues["knockout_program_blocks"]
   >([]);
@@ -1232,6 +1270,17 @@ export function AdminChampionshipBracketPage({
   const [saving, setSaving] = useState(false);
   const [saveErrorBannerData, setSaveErrorBannerData] =
     useState<SaveErrorBannerData | null>(null);
+
+  const [operationalPreview, setOperationalPreview] =
+    useState<ChampionshipBracketPreviewResult | null>(null);
+
+  const [loadingOperationalPreview, setLoadingOperationalPreview] =
+    useState(false);
+
+  const [operationalPreviewError, setOperationalPreviewError] = useState<
+    string | null
+  >(null);
+  const operationalPreviewStepRequestStartedRef = useRef(false);
   const [isCompactViewport, setIsCompactViewport] = useState(false);
   const [hasShownRemoteDraftWarning, setHasShownRemoteDraftWarning] =
     useState(false);
@@ -1366,8 +1415,14 @@ export function AdminChampionshipBracketPage({
       setCompetitionPeriodAvailability(
         appliedDraftFormValues.competition_period_availability,
       );
+      setCompetitionDateAvailability(
+        appliedDraftFormValues.competition_date_availability ?? [],
+      );
       setTeamCompetitionAvailability(
         appliedDraftFormValues.team_competition_availability,
+      );
+      setTeamCompetitionDateAvailability(
+        appliedDraftFormValues.team_competition_date_availability ?? [],
       );
       setIndividualEventConfigs(
         appliedDraftFormValues.individual_event_configs,
@@ -1376,6 +1431,7 @@ export function AdminChampionshipBracketPage({
         appliedDraftFormValues.individual_session_configs,
       );
       setResourceLocks(appliedDraftFormValues.resource_locks);
+      setMatchNumberingMode(appliedDraftFormValues.match_numbering_mode);
       setKnockoutProgramBlocks(appliedDraftFormValues.knockout_program_blocks);
       setSaveErrorBannerData(null);
 
@@ -1529,6 +1585,17 @@ export function AdminChampionshipBracketPage({
             enabled: availabilityItem.enabled != false,
           }),
         ),
+        competition_date_availability: competitionDateAvailability.map(
+          (availabilityItem) => ({
+            competition_key: availabilityItem.competition_key,
+            date: availabilityItem.date,
+            mode: availabilityItem.mode,
+            windows: availabilityItem.windows.map((window) => ({
+              start_time: window.start_time,
+              end_time: window.end_time,
+            })),
+          }),
+        ),
         team_competition_availability: teamCompetitionAvailability.map(
           (availabilityItem) => ({
             team_id: availabilityItem.team_id,
@@ -1538,6 +1605,17 @@ export function AdminChampionshipBracketPage({
             enabled: availabilityItem.enabled != false,
           }),
         ),
+        team_competition_date_availability:
+          teamCompetitionDateAvailability.map((availabilityItem) => ({
+            team_id: availabilityItem.team_id,
+            competition_key: availabilityItem.competition_key,
+            date: availabilityItem.date,
+            mode: availabilityItem.mode,
+            windows: availabilityItem.windows.map((window) => ({
+              start_time: window.start_time,
+              end_time: window.end_time,
+            })),
+          })),
         individual_event_configs: individualEventConfigs.map((configItem) => ({
           sport_id: configItem.sport_id,
           placements_count: configItem.placements_count,
@@ -1557,12 +1635,14 @@ export function AdminChampionshipBracketPage({
         resource_locks: resourceLocks.map((resourceLock) => ({
           ...resourceLock,
         })),
+        match_numbering_mode: matchNumberingMode,
         knockout_program_blocks: knockoutProgramBlocks.map((programBlock) => ({
           ...programBlock,
           naipe_sequence: [...programBlock.naipe_sequence],
         })),
       };
     }, [
+      competitionDateAvailability,
       competitionPeriodAvailability,
       competitionConfigByKey,
       currentStepIndex,
@@ -1572,6 +1652,7 @@ export function AdminChampionshipBracketPage({
       individualEventConfigs,
       individualSessionConfigs,
       knockoutProgramBlocks,
+      matchNumberingMode,
       resourceLocks,
       scheduleDays,
       schedulePeriods,
@@ -1581,6 +1662,7 @@ export function AdminChampionshipBracketPage({
       selectedSportIdsByTeamId,
       selectedTeamIds,
       teamCompetitionAvailability,
+      teamCompetitionDateAvailability,
       shouldApplyModalitiesToAllTeams,
       shouldApplyNaipesToAllTeams,
       shouldReplicatePreviousScheduleDay,
@@ -2266,35 +2348,590 @@ export function AdminChampionshipBracketPage({
     return resolveDatePeriodEnabledMap(schedulePeriods);
   }, [schedulePeriods]);
 
-  const competitionPeriodAvailabilityByKey = useMemo(() => {
-    return competitionPeriodAvailability.reduce<Record<string, boolean>>(
-      (carry, availabilityItem) => {
-        carry[
-          `${availabilityItem.competition_key}::${resolveDatePeriodKey(
-            availabilityItem.date,
-            availabilityItem.period,
-          )}`
-        ] = availabilityItem.enabled != false;
-        return carry;
-      },
-      {},
+  const teamCompetitionDateAvailabilityByKey = useMemo(() => {
+    return new Map(
+      teamCompetitionDateAvailability.map((availabilityItem) => [
+        `${availabilityItem.team_id}::${availabilityItem.competition_key}::${availabilityItem.date}`,
+        availabilityItem,
+      ]),
     );
-  }, [competitionPeriodAvailability]);
+  }, [teamCompetitionDateAvailability]);
 
-  const teamCompetitionAvailabilityByKey = useMemo(() => {
-    return teamCompetitionAvailability.reduce<Record<string, boolean>>(
-      (carry, availabilityItem) => {
-        carry[
-          `${availabilityItem.team_id}::${availabilityItem.competition_key}::${resolveDatePeriodKey(
-            availabilityItem.date,
-            availabilityItem.period,
-          )}`
-        ] = availabilityItem.enabled != false;
-        return carry;
-      },
-      {},
+  const competitionDateAvailabilityByKey = useMemo(() => {
+    return new Map(
+      competitionDateAvailability.map((availabilityItem) => [
+        `${availabilityItem.competition_key}::${availabilityItem.date}`,
+        availabilityItem,
+      ]),
     );
-  }, [teamCompetitionAvailability]);
+  }, [competitionDateAvailability]);
+
+  const updateCompetitionDateAvailabilityMode = useCallback(
+    (
+      competitionKey: string,
+      date: string,
+      mode: "UNAVAILABLE" | "FULL_DAY" | "CUSTOM",
+    ) => {
+      setCompetitionDateAvailability((currentAvailability) => {
+        const availabilityIndex = currentAvailability.findIndex(
+          (availabilityItem) =>
+            availabilityItem.competition_key == competitionKey &&
+            availabilityItem.date == date,
+        );
+
+        if (availabilityIndex < 0) {
+          return currentAvailability;
+        }
+
+        const currentItem = currentAvailability[availabilityIndex];
+
+        if (!currentItem) {
+          return currentAvailability;
+        }
+
+        let windows = currentItem.windows;
+
+        if (mode != "CUSTOM") {
+          windows = [];
+        } else if (
+          currentItem.mode != "CUSTOM" ||
+          currentItem.windows.length == 0
+        ) {
+          const scheduleDay = scheduleDays.find(
+            (currentScheduleDay) => currentScheduleDay.date == date,
+          );
+
+          if (!scheduleDay) {
+            windows = [];
+          } else {
+            const dayStartMinutes = resolveTimeValueToMinutes(
+              scheduleDay.start_time,
+            );
+            const dayEndMinutes = resolveTimeValueToMinutes(
+              scheduleDay.end_time,
+            );
+            const breakStartMinutes = resolveTimeValueToMinutes(
+              scheduleDay.break_start_time,
+            );
+            const breakEndMinutes = resolveTimeValueToMinutes(
+              scheduleDay.break_end_time,
+            );
+
+            const hasValidDay =
+              dayStartMinutes != null &&
+              dayEndMinutes != null &&
+              dayEndMinutes > dayStartMinutes;
+
+            const hasValidBreak =
+              hasValidDay &&
+              breakStartMinutes != null &&
+              breakEndMinutes != null &&
+              breakStartMinutes > dayStartMinutes &&
+              breakEndMinutes > breakStartMinutes &&
+              breakEndMinutes < dayEndMinutes;
+
+            if (!hasValidDay) {
+              windows = [];
+            } else if (hasValidBreak) {
+              windows = [
+                {
+                  start_time: scheduleDay.start_time,
+                  end_time: scheduleDay.break_start_time,
+                },
+                {
+                  start_time: scheduleDay.break_end_time,
+                  end_time: scheduleDay.end_time,
+                },
+              ];
+            } else {
+              windows = [
+                {
+                  start_time: scheduleDay.start_time,
+                  end_time: scheduleDay.end_time,
+                },
+              ];
+            }
+          }
+        }
+
+        const nextAvailability = [...currentAvailability];
+
+        nextAvailability[availabilityIndex] = {
+          ...currentItem,
+          mode,
+          windows,
+        };
+
+        return nextAvailability;
+      });
+    },
+    [scheduleDays],
+  );
+
+  const updateCompetitionDateAvailabilityWindow = useCallback(
+    (
+      competitionKey: string,
+      date: string,
+      windowIndex: number,
+      field: "start_time" | "end_time",
+      value: string,
+    ) => {
+      setCompetitionDateAvailability((currentAvailability) =>
+        currentAvailability.map((availabilityItem) => {
+          if (
+            availabilityItem.competition_key != competitionKey ||
+            availabilityItem.date != date ||
+            availabilityItem.mode != "CUSTOM"
+          ) {
+            return availabilityItem;
+          }
+
+          if (!availabilityItem.windows[windowIndex]) {
+            return availabilityItem;
+          }
+
+          return {
+            ...availabilityItem,
+            windows: availabilityItem.windows.map(
+              (window, currentWindowIndex) =>
+                currentWindowIndex == windowIndex
+                  ? {
+                      ...window,
+                      [field]: value,
+                    }
+                  : window,
+            ),
+          };
+        }),
+      );
+    },
+    [],
+  );
+
+  const addCompetitionDateAvailabilityWindow = useCallback(
+    (competitionKey: string, date: string) => {
+      const scheduleDay = scheduleDays.find(
+        (currentScheduleDay) => currentScheduleDay.date == date,
+      );
+
+      if (!scheduleDay?.start_time || !scheduleDay.end_time) {
+        return;
+      }
+
+      setCompetitionDateAvailability((currentAvailability) =>
+        currentAvailability.map((availabilityItem) => {
+          if (
+            availabilityItem.competition_key != competitionKey ||
+            availabilityItem.date != date ||
+            availabilityItem.mode != "CUSTOM"
+          ) {
+            return availabilityItem;
+          }
+
+          return {
+            ...availabilityItem,
+            windows: [
+              ...availabilityItem.windows,
+              {
+                start_time: scheduleDay.start_time,
+                end_time: scheduleDay.end_time,
+              },
+            ],
+          };
+        }),
+      );
+    },
+    [scheduleDays],
+  );
+
+  const removeCompetitionDateAvailabilityWindow = useCallback(
+    (competitionKey: string, date: string, windowIndex: number) => {
+      setCompetitionDateAvailability((currentAvailability) =>
+        currentAvailability.map((availabilityItem) => {
+          if (
+            availabilityItem.competition_key != competitionKey ||
+            availabilityItem.date != date ||
+            availabilityItem.mode != "CUSTOM"
+          ) {
+            return availabilityItem;
+          }
+
+          return {
+            ...availabilityItem,
+            windows: availabilityItem.windows.filter(
+              (_, currentWindowIndex) => currentWindowIndex != windowIndex,
+            ),
+          };
+        }),
+      );
+    },
+    [],
+  );
+
+  const updateCompetitionDateAvailabilityForAllDates = (
+    competitionKey: string,
+    mode: "FULL_DAY" | "UNAVAILABLE",
+  ) => {
+    setCompetitionDateAvailability((currentAvailability) =>
+      currentAvailability.map((availabilityItem) => {
+        if (availabilityItem.competition_key != competitionKey) {
+          return availabilityItem;
+        }
+
+        return {
+          ...availabilityItem,
+          mode,
+          windows: [],
+        };
+      }),
+    );
+
+    updateCompetitionAvailabilityForAllPeriods(
+      competitionKey,
+      mode == "FULL_DAY",
+    );
+  };
+
+  const updateTeamCompetitionDateAvailabilityMode = useCallback(
+    (
+      teamId: string,
+      competitionKey: string,
+      date: string,
+      mode: "UNAVAILABLE" | "FULL_DAY" | "CUSTOM",
+    ) => {
+      setTeamCompetitionDateAvailability((currentAvailability) => {
+        const availabilityIndex = currentAvailability.findIndex(
+          (availabilityItem) =>
+            availabilityItem.team_id == teamId &&
+            availabilityItem.competition_key == competitionKey &&
+            availabilityItem.date == date,
+        );
+
+        if (availabilityIndex < 0) {
+          return currentAvailability;
+        }
+
+        const currentItem = currentAvailability[availabilityIndex];
+
+        if (!currentItem) {
+          return currentAvailability;
+        }
+
+        let windows = currentItem.windows;
+
+        if (mode != "CUSTOM") {
+          windows = [];
+        } else if (
+          currentItem.mode != "CUSTOM" ||
+          currentItem.windows.length == 0
+        ) {
+          const competitionAvailability =
+            competitionDateAvailabilityByKey.get(
+              `${competitionKey}::${date}`,
+            );
+
+          const scheduleDay =
+            scheduleDays.find(
+              (currentScheduleDay) => currentScheduleDay.date == date,
+            ) ?? null;
+
+          if (
+            competitionAvailability?.mode == "CUSTOM" &&
+            competitionAvailability.windows.length > 0
+          ) {
+            windows = competitionAvailability.windows.map((window) => ({
+              start_time: window.start_time,
+              end_time: window.end_time,
+            }));
+          } else if (
+            competitionAvailability?.mode == "FULL_DAY" &&
+            scheduleDay
+          ) {
+            const dayStartMinutes = resolveTimeValueToMinutes(
+              scheduleDay.start_time,
+            );
+            const dayEndMinutes = resolveTimeValueToMinutes(
+              scheduleDay.end_time,
+            );
+            const breakStartMinutes = resolveTimeValueToMinutes(
+              scheduleDay.break_start_time,
+            );
+            const breakEndMinutes = resolveTimeValueToMinutes(
+              scheduleDay.break_end_time,
+            );
+
+            const hasValidDay =
+              dayStartMinutes != null &&
+              dayEndMinutes != null &&
+              dayEndMinutes > dayStartMinutes;
+
+            const hasValidBreak =
+              hasValidDay &&
+              breakStartMinutes != null &&
+              breakEndMinutes != null &&
+              breakStartMinutes > dayStartMinutes &&
+              breakEndMinutes > breakStartMinutes &&
+              breakEndMinutes < dayEndMinutes;
+
+            if (!hasValidDay) {
+              windows = [];
+            } else if (hasValidBreak) {
+              windows = [
+                {
+                  start_time: scheduleDay.start_time,
+                  end_time: scheduleDay.break_start_time,
+                },
+                {
+                  start_time: scheduleDay.break_end_time,
+                  end_time: scheduleDay.end_time,
+                },
+              ];
+            } else {
+              windows = [
+                {
+                  start_time: scheduleDay.start_time,
+                  end_time: scheduleDay.end_time,
+                },
+              ];
+            }
+          } else {
+            windows = [];
+          }
+        }
+
+        const nextAvailability = [...currentAvailability];
+
+        nextAvailability[availabilityIndex] = {
+          ...currentItem,
+          mode,
+          windows,
+        };
+
+        return nextAvailability;
+      });
+
+      setTeamCompetitionAvailability((currentAvailability) =>
+        currentAvailability.map((availabilityItem) => {
+          if (
+            availabilityItem.team_id != teamId ||
+            availabilityItem.competition_key != competitionKey ||
+            availabilityItem.date != date
+          ) {
+            return availabilityItem;
+          }
+
+          return {
+            ...availabilityItem,
+            enabled: mode != "UNAVAILABLE",
+          };
+        }),
+      );
+    },
+    [competitionDateAvailabilityByKey, scheduleDays],
+  );
+
+  const updateTeamCompetitionDateAvailabilityWindow = useCallback(
+    (
+      teamId: string,
+      competitionKey: string,
+      date: string,
+      windowIndex: number,
+      field: "start_time" | "end_time",
+      value: string,
+    ) => {
+      setTeamCompetitionDateAvailability((currentAvailability) =>
+        currentAvailability.map((availabilityItem) => {
+          if (
+            availabilityItem.team_id != teamId ||
+            availabilityItem.competition_key != competitionKey ||
+            availabilityItem.date != date ||
+            availabilityItem.mode != "CUSTOM"
+          ) {
+            return availabilityItem;
+          }
+
+          if (!availabilityItem.windows[windowIndex]) {
+            return availabilityItem;
+          }
+
+          return {
+            ...availabilityItem,
+            windows: availabilityItem.windows.map(
+              (window, currentWindowIndex) =>
+                currentWindowIndex == windowIndex
+                  ? {
+                      ...window,
+                      [field]: value,
+                    }
+                  : window,
+            ),
+          };
+        }),
+      );
+    },
+    [],
+  );
+
+  const addTeamCompetitionDateAvailabilityWindow = useCallback(
+    (teamId: string, competitionKey: string, date: string) => {
+      const competitionAvailability =
+        competitionDateAvailabilityByKey.get(
+          `${competitionKey}::${date}`,
+        );
+
+      const scheduleDay =
+        scheduleDays.find(
+          (currentScheduleDay) => currentScheduleDay.date == date,
+        ) ?? null;
+
+      let nextWindow:
+        | {
+            start_time: string;
+            end_time: string;
+          }
+        | null = null;
+
+      if (
+        competitionAvailability?.mode == "CUSTOM" &&
+        competitionAvailability.windows.length > 0
+      ) {
+        const firstCompetitionWindow = competitionAvailability.windows[0];
+
+        if (firstCompetitionWindow) {
+          nextWindow = {
+            start_time: firstCompetitionWindow.start_time,
+            end_time: firstCompetitionWindow.end_time,
+          };
+        }
+      } else if (
+        competitionAvailability?.mode == "FULL_DAY" &&
+        scheduleDay?.start_time &&
+        scheduleDay.end_time
+      ) {
+        nextWindow = {
+          start_time: scheduleDay.start_time,
+          end_time: scheduleDay.end_time,
+        };
+      }
+
+      if (!nextWindow) {
+        return;
+      }
+
+      setTeamCompetitionDateAvailability((currentAvailability) =>
+        currentAvailability.map((availabilityItem) => {
+          if (
+            availabilityItem.team_id != teamId ||
+            availabilityItem.competition_key != competitionKey ||
+            availabilityItem.date != date ||
+            availabilityItem.mode != "CUSTOM"
+          ) {
+            return availabilityItem;
+          }
+
+          return {
+            ...availabilityItem,
+            windows: [
+              ...availabilityItem.windows,
+              {
+                ...nextWindow,
+              },
+            ],
+          };
+        }),
+      );
+    },
+    [competitionDateAvailabilityByKey, scheduleDays],
+  );
+
+  const removeTeamCompetitionDateAvailabilityWindow = useCallback(
+    (
+      teamId: string,
+      competitionKey: string,
+      date: string,
+      windowIndex: number,
+    ) => {
+      setTeamCompetitionDateAvailability((currentAvailability) =>
+        currentAvailability.map((availabilityItem) => {
+          if (
+            availabilityItem.team_id != teamId ||
+            availabilityItem.competition_key != competitionKey ||
+            availabilityItem.date != date ||
+            availabilityItem.mode != "CUSTOM"
+          ) {
+            return availabilityItem;
+          }
+
+          return {
+            ...availabilityItem,
+            windows: availabilityItem.windows.filter(
+              (_, currentWindowIndex) =>
+                currentWindowIndex != windowIndex,
+            ),
+          };
+        }),
+      );
+    },
+    [],
+  );
+
+  const updateTeamCompetitionDateAvailabilityForAllDates = useCallback(
+    (
+      teamId: string,
+      competitionKey: string,
+      mode: "FULL_DAY" | "UNAVAILABLE",
+    ) => {
+      const eligibleDateSet = new Set(
+        scheduleDayDates.filter((scheduleDate) => {
+          const competitionAvailability =
+            competitionDateAvailabilityByKey.get(
+              `${competitionKey}::${scheduleDate}`,
+            );
+
+          return (
+            competitionAvailability != null &&
+            competitionAvailability.mode != "UNAVAILABLE"
+          );
+        }),
+      );
+
+      setTeamCompetitionDateAvailability((currentAvailability) =>
+        currentAvailability.map((availabilityItem) => {
+          if (
+            availabilityItem.team_id != teamId ||
+            availabilityItem.competition_key != competitionKey ||
+            !eligibleDateSet.has(availabilityItem.date)
+          ) {
+            return availabilityItem;
+          }
+
+          return {
+            ...availabilityItem,
+            mode,
+            windows: [],
+          };
+        }),
+      );
+
+      setTeamCompetitionAvailability((currentAvailability) =>
+        currentAvailability.map((availabilityItem) => {
+          if (
+            availabilityItem.team_id != teamId ||
+            availabilityItem.competition_key != competitionKey ||
+            !eligibleDateSet.has(availabilityItem.date)
+          ) {
+            return availabilityItem;
+          }
+
+          return {
+            ...availabilityItem,
+            enabled: mode != "UNAVAILABLE",
+          };
+        }),
+      );
+    },
+    [competitionDateAvailabilityByKey, scheduleDayDates],
+  );
 
   useEffect(() => {
     if (!hasResolvedInitialDraftSnapshot) {
@@ -2387,6 +3024,34 @@ export function AdminChampionshipBracketPage({
       return;
     }
 
+    setCompetitionDateAvailability((currentCompetitionDateAvailability) => {
+      const nextCompetitionDateAvailability =
+        sanitizeCompetitionDateAvailabilityValues({
+          scheduleDays,
+          competitionKeys: sortedActiveCompetitionKeys,
+          competitionDateAvailability: currentCompetitionDateAvailability,
+        });
+
+      if (
+        JSON.stringify(nextCompetitionDateAvailability) ==
+        JSON.stringify(currentCompetitionDateAvailability)
+      ) {
+        return currentCompetitionDateAvailability;
+      }
+
+      return nextCompetitionDateAvailability;
+    });
+  }, [
+    hasResolvedInitialDraftSnapshot,
+    scheduleDays,
+    sortedActiveCompetitionKeys,
+  ]);
+
+  useEffect(() => {
+    if (!hasResolvedInitialDraftSnapshot) {
+      return;
+    }
+
     setTeamCompetitionAvailability((currentTeamCompetitionAvailability) => {
       const nextTeamCompetitionAvailability =
         sanitizeTeamCompetitionAvailabilityValues({
@@ -2407,6 +3072,37 @@ export function AdminChampionshipBracketPage({
   }, [
     hasResolvedInitialDraftSnapshot,
     schedulePeriods,
+    teamCompetitionKeysByTeamId,
+  ]);
+
+  useEffect(() => {
+    if (!hasResolvedInitialDraftSnapshot) {
+      return;
+    }
+
+    setTeamCompetitionDateAvailability(
+      (currentTeamCompetitionDateAvailability) => {
+        const nextTeamCompetitionDateAvailability =
+          sanitizeTeamCompetitionDateAvailabilityValues({
+            scheduleDays,
+            teamCompetitionKeysByTeamId,
+            teamCompetitionDateAvailability:
+              currentTeamCompetitionDateAvailability,
+          });
+
+        if (
+          JSON.stringify(nextTeamCompetitionDateAvailability) ==
+          JSON.stringify(currentTeamCompetitionDateAvailability)
+        ) {
+          return currentTeamCompetitionDateAvailability;
+        }
+
+        return nextTeamCompetitionDateAvailability;
+      },
+    );
+  }, [
+    hasResolvedInitialDraftSnapshot,
+    scheduleDays,
     teamCompetitionKeysByTeamId,
   ]);
 
@@ -2490,17 +3186,33 @@ export function AdminChampionshipBracketPage({
           );
         },
       );
-      const derivedSessionLocks = individualSessionConfigs
-        .map((sessionConfig) =>
-          resolveResourceLockFromIndividualSession(sessionConfig),
-        )
-        .filter(
-          (
-            resourceLock,
-          ): resourceLock is NonNullable<
-            ReturnType<typeof resolveResourceLockFromIndividualSession>
-          > => resourceLock != null,
-        );
+      const derivedSessionLocks = [
+        ...new Map(
+          individualSessionConfigs
+            .map((sessionConfig) =>
+              resolveResourceLockFromIndividualSession(sessionConfig),
+            )
+            .filter(
+              (
+                resourceLock,
+              ): resourceLock is NonNullable<
+                ReturnType<typeof resolveResourceLockFromIndividualSession>
+              > => resourceLock != null,
+            )
+            .map(
+              (resourceLock) =>
+                [
+                  [
+                    resourceLock.date,
+                    resourceLock.period,
+                    resourceLock.location_key,
+                    resourceLock.court_key,
+                  ].join("::"),
+                  resourceLock,
+                ] as const,
+            ),
+        ).values(),
+      ];
       const nextResourceLocks = sanitizeResourceLocksValues({
         schedulePeriods,
         resourceLocks: [...preservedManualLocks, ...derivedSessionLocks],
@@ -3994,97 +4706,520 @@ export function AdminChampionshipBracketPage({
     }
 
     if (currentStepIndex == 8) {
-      const hasEnabledSchedulePeriod = schedulePeriods.some(
-        (schedulePeriod) => schedulePeriod.enabled != false,
-      );
+      for (const competitionKey of sortedActiveCompetitionKeys) {
+        let hasAvailableDate = false;
 
-      if (!hasEnabledSchedulePeriod) {
-        toast.error(
-          "Habilite ao menos um período global na agenda do campeonato.",
-        );
-        return false;
-      }
+        for (const scheduleDate of scheduleDayDates) {
+          const availabilityItem = competitionDateAvailabilityByKey.get(
+            `${competitionKey}::${scheduleDate}`,
+          );
 
-      const hasCompetitionWithoutAvailability =
-        sortedActiveCompetitionKeys.some((competitionKey) => {
-          return !schedulePeriods.some((schedulePeriod) => {
-            if (schedulePeriod.enabled == false) {
+          if (!availabilityItem) {
+            toast.error(
+              `A disponibilidade de ${
+                competitionLabelByKey[competitionKey] ?? "uma competição"
+              } está incompleta. Revise todos os dias da agenda.`,
+            );
+            return false;
+          }
+
+          if (availabilityItem.mode == "UNAVAILABLE") {
+            continue;
+          }
+
+          if (availabilityItem.mode == "FULL_DAY") {
+            hasAvailableDate = true;
+            continue;
+          }
+
+          if (availabilityItem.windows.length == 0) {
+            toast.error(
+              `Adicione ao menos uma janela de horário em ${
+                competitionLabelByKey[competitionKey] ?? "uma competição"
+              } no dia ${resolveBrazilianDateString(scheduleDate)}.`,
+            );
+            return false;
+          }
+
+          const scheduleDay = scheduleDays.find(
+            (currentScheduleDay) => currentScheduleDay.date == scheduleDate,
+          );
+
+          if (!scheduleDay) {
+            toast.error(
+              "Uma disponibilidade está vinculada a um dia que não existe mais na agenda.",
+            );
+            return false;
+          }
+
+          const dayStartMinutes = resolveTimeValueToMinutes(
+            scheduleDay.start_time,
+          );
+          const dayEndMinutes = resolveTimeValueToMinutes(
+            scheduleDay.end_time,
+          );
+
+          if (
+            dayStartMinutes == null ||
+            dayEndMinutes == null ||
+            dayEndMinutes <= dayStartMinutes
+          ) {
+            toast.error(
+              `Revise o horário da agenda em ${resolveBrazilianDateString(
+                scheduleDate,
+              )}.`,
+            );
+            return false;
+          }
+
+          const resolvedWindows = availabilityItem.windows
+            .map((window) => {
+              const startMinutes = resolveTimeValueToMinutes(
+                window.start_time,
+              );
+              const endMinutes = resolveTimeValueToMinutes(window.end_time);
+
+              if (
+                startMinutes == null ||
+                endMinutes == null ||
+                endMinutes <= startMinutes
+              ) {
+                return null;
+              }
+
+              return {
+                start: startMinutes,
+                end: endMinutes,
+              };
+            })
+            .filter(
+              (
+                window,
+              ): window is {
+                start: number;
+                end: number;
+              } => window != null,
+            )
+            .sort((left, right) => left.start - right.start);
+
+          if (resolvedWindows.length != availabilityItem.windows.length) {
+            toast.error(
+              `Existe uma janela com horário inválido em ${
+                competitionLabelByKey[competitionKey] ?? "uma competição"
+              } no dia ${resolveBrazilianDateString(scheduleDate)}.`,
+            );
+            return false;
+          }
+
+          const hasWindowOutsideDay = resolvedWindows.some(
+            (window) => window.start < dayStartMinutes || window.end > dayEndMinutes,
+          );
+
+          if (hasWindowOutsideDay) {
+            toast.error(
+              `As janelas de ${
+                competitionLabelByKey[competitionKey] ?? "uma competição"
+              } precisam permanecer dentro da agenda de ${resolveBrazilianDateString(
+                scheduleDate,
+              )}.`,
+            );
+            return false;
+          }
+
+          for (
+            let windowIndex = 1;
+            windowIndex < resolvedWindows.length;
+            windowIndex += 1
+          ) {
+            const previousWindow = resolvedWindows[windowIndex - 1];
+            const currentWindow = resolvedWindows[windowIndex];
+
+            if (
+              previousWindow &&
+              currentWindow &&
+              currentWindow.start < previousWindow.end
+            ) {
+              toast.error(
+                `Existem janelas sobrepostas em ${
+                  competitionLabelByKey[competitionKey] ?? "uma competição"
+                } no dia ${resolveBrazilianDateString(scheduleDate)}.`,
+              );
               return false;
+            }
+          }
+
+          const breakStartMinutes = scheduleDay.break_start_time
+            ? resolveTimeValueToMinutes(scheduleDay.break_start_time)
+            : null;
+          const breakEndMinutes = scheduleDay.break_end_time
+            ? resolveTimeValueToMinutes(scheduleDay.break_end_time)
+            : null;
+
+          const hasUsableWindow = resolvedWindows.some((window) => {
+            if (
+              breakStartMinutes == null ||
+              breakEndMinutes == null ||
+              breakEndMinutes <= breakStartMinutes
+            ) {
+              return true;
             }
 
             return (
-              competitionPeriodAvailabilityByKey[
-                `${competitionKey}::${resolveDatePeriodKey(
-                  schedulePeriod.date,
-                  schedulePeriod.period,
-                )}`
-              ] != false
+              window.start < breakStartMinutes ||
+              window.end > breakEndMinutes
             );
           });
-        });
 
-      if (hasCompetitionWithoutAvailability) {
-        toast.error(
-          "Toda competição precisa ter ao menos um dia/período disponível.",
-        );
-        return false;
+          if (!hasUsableWindow) {
+            toast.error(
+              `As janelas de ${
+                competitionLabelByKey[competitionKey] ?? "uma competição"
+              } em ${resolveBrazilianDateString(
+                scheduleDate,
+              )} ficaram totalmente dentro do intervalo da agenda.`,
+            );
+            return false;
+          }
+
+          hasAvailableDate = true;
+        }
+
+        if (!hasAvailableDate) {
+          toast.error(
+            `${
+              competitionLabelByKey[competitionKey] ?? "Uma competição"
+            } precisa ter ao menos um dia disponível.`,
+          );
+          return false;
+        }
       }
     }
 
     if (currentStepIndex == 9) {
-      const hasTeamCompetitionWithoutAvailability = Object.entries(
-        teamCompetitionKeysByTeamId,
-      ).some(([teamId, competitionKeys]) => {
-        return competitionKeys.some((competitionKey) => {
-          return !schedulePeriods.some((schedulePeriod) => {
-            if (schedulePeriod.enabled == false) {
-              return false;
-            }
+      type AvailabilityInterval = {
+        start: number;
+        end: number;
+      };
+
+      const resolveAvailabilityIntervals = ({
+        scheduleDay,
+        mode,
+        windows,
+      }: {
+        scheduleDay: ScheduleDayFormValue;
+        mode: "UNAVAILABLE" | "FULL_DAY" | "CUSTOM";
+        windows: Array<{
+          start_time: string;
+          end_time: string;
+        }>;
+      }): AvailabilityInterval[] | null => {
+        const dayStartMinutes = resolveTimeValueToMinutes(
+          scheduleDay.start_time,
+        );
+        const dayEndMinutes = resolveTimeValueToMinutes(scheduleDay.end_time);
+
+        if (
+          dayStartMinutes == null ||
+          dayEndMinutes == null ||
+          dayEndMinutes <= dayStartMinutes
+        ) {
+          return null;
+        }
+
+        if (mode == "UNAVAILABLE") {
+          return [];
+        }
+
+        let intervals: AvailabilityInterval[];
+
+        if (mode == "FULL_DAY") {
+          intervals = [
+            {
+              start: dayStartMinutes,
+              end: dayEndMinutes,
+            },
+          ];
+        } else {
+          if (windows.length == 0) {
+            return null;
+          }
+
+          const parsedWindows = windows.map((window) => {
+            const startMinutes = resolveTimeValueToMinutes(
+              window.start_time,
+            );
+            const endMinutes = resolveTimeValueToMinutes(window.end_time);
 
             if (
-              competitionPeriodAvailabilityByKey[
-                `${competitionKey}::${resolveDatePeriodKey(
-                  schedulePeriod.date,
-                  schedulePeriod.period,
-                )}`
-              ] == false
+              startMinutes == null ||
+              endMinutes == null ||
+              endMinutes <= startMinutes
             ) {
+              return null;
+            }
+
+            if (startMinutes < dayStartMinutes || endMinutes > dayEndMinutes) {
+              return null;
+            }
+
+            return {
+              start: startMinutes,
+              end: endMinutes,
+            };
+          });
+
+          if (parsedWindows.some((window): window is null => window == null)) {
+            return null;
+          }
+
+          intervals = (parsedWindows as AvailabilityInterval[]).sort(
+            (left, right) => left.start - right.start,
+          );
+
+          for (
+            let intervalIndex = 1;
+            intervalIndex < intervals.length;
+            intervalIndex += 1
+          ) {
+            const previousInterval = intervals[intervalIndex - 1];
+            const currentInterval = intervals[intervalIndex];
+
+            if (
+              previousInterval &&
+              currentInterval &&
+              currentInterval.start < previousInterval.end
+            ) {
+              return null;
+            }
+          }
+        }
+
+        const hasBreakStart = scheduleDay.break_start_time.trim() != "";
+        const hasBreakEnd = scheduleDay.break_end_time.trim() != "";
+
+        if (!hasBreakStart && !hasBreakEnd) {
+          return intervals;
+        }
+
+        if (hasBreakStart != hasBreakEnd) {
+          return null;
+        }
+
+        const breakStartMinutes = resolveTimeValueToMinutes(
+          scheduleDay.break_start_time,
+        );
+        const breakEndMinutes = resolveTimeValueToMinutes(
+          scheduleDay.break_end_time,
+        );
+
+        if (
+          breakStartMinutes == null ||
+          breakEndMinutes == null ||
+          breakEndMinutes <= breakStartMinutes ||
+          breakStartMinutes < dayStartMinutes ||
+          breakEndMinutes > dayEndMinutes
+        ) {
+          return null;
+        }
+
+        return intervals.flatMap((interval) => {
+          if (
+            interval.end <= breakStartMinutes ||
+            interval.start >= breakEndMinutes
+          ) {
+            return [interval];
+          }
+
+          const availableIntervals: AvailabilityInterval[] = [];
+
+          if (interval.start < breakStartMinutes) {
+            availableIntervals.push({
+              start: interval.start,
+              end: breakStartMinutes,
+            });
+          }
+
+          if (interval.end > breakEndMinutes) {
+            availableIntervals.push({
+              start: breakEndMinutes,
+              end: interval.end,
+            });
+          }
+
+          return availableIntervals;
+        });
+      };
+
+      for (const [teamId, competitionKeys] of Object.entries(
+        teamCompetitionKeysByTeamId,
+      )) {
+        for (const competitionKey of competitionKeys) {
+          let hasPlayableIntersection = false;
+
+          for (const scheduleDate of scheduleDayDates) {
+            const scheduleDay = scheduleDays.find(
+              (currentScheduleDay) => currentScheduleDay.date == scheduleDate,
+            );
+
+            if (!scheduleDay) {
+              toast.error(
+                "Uma disponibilidade está vinculada a um dia que não existe mais na agenda.",
+              );
               return false;
             }
 
-            return (
-              teamCompetitionAvailabilityByKey[
-                `${teamId}::${competitionKey}::${resolveDatePeriodKey(
-                  schedulePeriod.date,
-                  schedulePeriod.period,
-                )}`
-              ] != false
-            );
-          });
-        });
-      });
+            const competitionAvailability =
+              competitionDateAvailabilityByKey.get(
+                `${competitionKey}::${scheduleDate}`,
+              );
 
-      if (hasTeamCompetitionWithoutAvailability) {
-        toast.error(
-          "Toda atlética precisa ter ao menos um período jogável em cada competição selecionada.",
-        );
-        return false;
+            if (!competitionAvailability) {
+              toast.error(
+                `A disponibilidade de ${
+                  competitionLabelByKey[competitionKey] ??
+                  "uma competição"
+                } está incompleta.`,
+              );
+              return false;
+            }
+
+            const teamAvailability =
+              teamCompetitionDateAvailabilityByKey.get(
+                `${teamId}::${competitionKey}::${scheduleDate}`,
+              );
+
+            if (!teamAvailability) {
+              toast.error(
+                `A disponibilidade de ${
+                  teamNameById[teamId] ?? "uma atlética"
+                } está incompleta em ${
+                  competitionLabelByKey[competitionKey] ??
+                  "uma competição"
+                }.`,
+              );
+              return false;
+            }
+
+            const competitionIntervals = resolveAvailabilityIntervals({
+              scheduleDay,
+              mode: competitionAvailability.mode,
+              windows: competitionAvailability.windows,
+            });
+
+            if (competitionIntervals == null) {
+              toast.error(
+                `Revise as janelas de ${
+                  competitionLabelByKey[competitionKey] ??
+                  "uma competição"
+                } em ${resolveBrazilianDateString(scheduleDate)}.`,
+              );
+              return false;
+            }
+
+            if (competitionIntervals.length == 0) {
+              continue;
+            }
+
+            const teamIntervals = resolveAvailabilityIntervals({
+              scheduleDay,
+              mode: teamAvailability.mode,
+              windows: teamAvailability.windows,
+            });
+
+            if (teamIntervals == null) {
+              toast.error(
+                `Revise as janelas de ${
+                  teamNameById[teamId] ?? "uma atlética"
+                } em ${
+                  competitionLabelByKey[competitionKey] ??
+                  "uma competição"
+                } no dia ${resolveBrazilianDateString(scheduleDate)}.`,
+              );
+              return false;
+            }
+
+            const hasIntersectionOnDate = competitionIntervals.some(
+              (competitionInterval) =>
+                teamIntervals.some((teamInterval) => {
+                  const intersectionStart = Math.max(
+                    competitionInterval.start,
+                    teamInterval.start,
+                  );
+                  const intersectionEnd = Math.min(
+                    competitionInterval.end,
+                    teamInterval.end,
+                  );
+
+                  return intersectionEnd > intersectionStart;
+                }),
+            );
+
+            if (hasIntersectionOnDate) {
+              hasPlayableIntersection = true;
+            }
+          }
+
+          if (!hasPlayableIntersection) {
+            toast.error(
+              `${teamNameById[teamId] ?? "A atlética"} precisa ter ao menos uma janela jogável em ${
+                competitionLabelByKey[competitionKey] ??
+                "cada competição selecionada"
+              }.`,
+            );
+            return false;
+          }
+        }
       }
     }
 
     if (currentStepIndex == 10) {
+      const activeCollectiveSportIdSet = new Set(
+        activeCompetitionOptions.map(
+          (competitionOption) => competitionOption.sport_id,
+        ),
+      );
+      const plannedCollectiveSportIdSet = new Set<string>();
+
       for (const scheduleDay of scheduleDays) {
         for (const scheduleLocation of scheduleDay.locations) {
           for (const court of scheduleLocation.courts) {
+            const courtDisplayLabel = `${court.name || "Quadra sem nome"} • ${
+              scheduleLocation.name || "Local sem nome"
+            } • ${
+              scheduleDay.date
+                ? resolveBrazilianDateString(scheduleDay.date)
+                : "Data não informada"
+            }`;
+
+            for (const target of court.sport_match_targets) {
+              if (
+                !court.sport_ids.includes(target.sport_id) ||
+                !activeCollectiveSportIdSet.has(target.sport_id)
+              ) {
+                toast.error(
+                  `Existe uma modalidade inválida no planejamento de ${courtDisplayLabel}.`,
+                );
+                return false;
+              }
+
+              if (
+                !Number.isInteger(target.planned_match_count) ||
+                target.planned_match_count <= 0
+              ) {
+                toast.error(
+                  `A quantidade planejada de jogos de ${courtDisplayLabel} precisa ser um número inteiro maior que zero.`,
+                );
+                return false;
+              }
+
+              plannedCollectiveSportIdSet.add(target.sport_id);
+            }
+
             const sportPreference = court.sport_preference;
 
             if (!sportPreference) {
               continue;
             }
-
-            const courtDisplayLabel = `${court.name || "Quadra sem nome"} • ${
-              scheduleLocation.name || "Local sem nome"
-            }`;
 
             if (!court.sport_ids.includes(sportPreference.preferred_sport_id)) {
               toast.error(
@@ -4162,6 +5297,19 @@ export function AdminChampionshipBracketPage({
           }
         }
       }
+
+      const collectiveSportWithoutPlan = activeCompetitionOptions.find(
+        (competitionOption) =>
+          !plannedCollectiveSportIdSet.has(competitionOption.sport_id),
+      );
+
+      if (collectiveSportWithoutPlan) {
+        toast.error(
+          `Defina ao menos uma quantidade planejada de jogos para ${collectiveSportWithoutPlan.sport_name}.`,
+        );
+        return false;
+      }
+
       const hasInvalidKnockoutProgramBlock = knockoutProgramBlocks.some(
         (programBlock) =>
           !programBlock.date ||
@@ -4399,6 +5547,10 @@ export function AdminChampionshipBracketPage({
               name: court.name,
               position: courtIndex + 1,
               sport_ids: court.sport_ids,
+              sport_match_targets: court.sport_match_targets.map((target) => ({
+                sport_id: target.sport_id,
+                planned_match_count: target.planned_match_count,
+              })),
               sport_preference:
                 court.sport_preference != null &&
                 court.sport_ids.includes(
@@ -4440,6 +5592,7 @@ export function AdminChampionshipBracketPage({
         individual_event_configs: individualEventConfigs,
         individual_session_configs: individualSessionConfigs,
         resource_locks: resourceLocks,
+        match_numbering_mode: matchNumberingMode,
         knockout_program_blocks: knockoutProgramBlocks.map(
           (programBlock, programBlockIndex) => ({
             ...programBlock,
@@ -4453,6 +5606,7 @@ export function AdminChampionshipBracketPage({
       individualEventConfigs,
       individualSessionConfigs,
       knockoutProgramBlocks,
+      matchNumberingMode,
       resourceLocks,
       seasonSettings,
       resolveCompetitionsPayload,
@@ -4461,6 +5615,85 @@ export function AdminChampionshipBracketPage({
       schedulePeriods,
       teamCompetitionAvailability,
     ]);
+
+  const loadOperationalPreview = useCallback(async () => {
+    setLoadingOperationalPreview(true);
+    setOperationalPreviewError(null);
+
+    try {
+      const payload = resolveSetupPayload();
+
+      const response = await previewChampionshipBracketGroups(
+        selectedChampionship.id,
+        payload,
+      );
+
+      if (response.error) {
+        throw response.error;
+      }
+
+      if (!response.data) {
+        throw new Error(
+          "A prévia operacional não retornou dados do chaveamento.",
+        );
+      }
+
+      if (!response.data.ok) {
+        throw new Error(
+          response.data.message ||
+            "Não foi possível calcular a prévia operacional do chaveamento.",
+        );
+      }
+
+      setOperationalPreview(response.data);
+    } catch (error) {
+      setOperationalPreview(null);
+
+      setOperationalPreviewError(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível calcular a prévia operacional do chaveamento.",
+      );
+    } finally {
+      setLoadingOperationalPreview(false);
+    }
+  }, [resolveSetupPayload, selectedChampionship.id]);
+
+  useEffect(() => {
+    if (currentStepIndex != 12) {
+      operationalPreviewStepRequestStartedRef.current = false;
+      return;
+    }
+
+    if (!hasResolvedInitialDraftSnapshot) {
+      return;
+    }
+
+    if (operationalPreviewStepRequestStartedRef.current) {
+      return;
+    }
+
+    setOperationalPreviewError(null);
+    setOperationalPreview(null);
+
+    const previewTimer = window.setTimeout(() => {
+      if (operationalPreviewStepRequestStartedRef.current) {
+        return;
+      }
+
+      operationalPreviewStepRequestStartedRef.current = true;
+
+      void loadOperationalPreview();
+    }, 250);
+
+    return () => {
+      window.clearTimeout(previewTimer);
+    };
+  }, [
+    currentStepIndex,
+    hasResolvedInitialDraftSnapshot,
+    loadOperationalPreview,
+  ]);
 
   const persistBeachSoccerEstimatedStartTimeSetting = useCallback(async () => {
     const beachSoccerChampionshipSports = championshipSports.filter(
@@ -4683,73 +5916,6 @@ export function AdminChampionshipBracketPage({
       setCompetitionPeriodAvailability((currentCompetitionPeriodAvailability) =>
         currentCompetitionPeriodAvailability.map((availabilityItem) => {
           if (availabilityItem.competition_key != competitionKey) {
-            return availabilityItem;
-          }
-
-          return {
-            ...availabilityItem,
-            enabled,
-          };
-        }),
-      );
-    },
-    [],
-  );
-
-  const updateTeamCompetitionPeriodAvailability = useCallback(
-    (
-      teamId: string,
-      competitionKey: string,
-      date: string,
-      period: ChampionshipSchedulePeriod,
-      enabled: boolean,
-    ) => {
-      setTeamCompetitionAvailability((currentTeamCompetitionAvailability) =>
-        currentTeamCompetitionAvailability.map((availabilityItem) => {
-          if (
-            availabilityItem.team_id != teamId ||
-            availabilityItem.competition_key != competitionKey ||
-            availabilityItem.date != date ||
-            availabilityItem.period != period
-          ) {
-            return availabilityItem;
-          }
-
-          return {
-            ...availabilityItem,
-            enabled,
-          };
-        }),
-      );
-    },
-    [],
-  );
-
-  const updateTeamCompetitionAvailabilityForAllPeriods = useCallback(
-    (
-      teamId: string,
-      competitionKey: string,
-      enabled: boolean,
-      allowedDatePeriodKeys?: Set<string>,
-    ) => {
-      setTeamCompetitionAvailability((currentTeamCompetitionAvailability) =>
-        currentTeamCompetitionAvailability.map((availabilityItem) => {
-          if (
-            availabilityItem.team_id != teamId ||
-            availabilityItem.competition_key != competitionKey
-          ) {
-            return availabilityItem;
-          }
-
-          const datePeriodKey = resolveDatePeriodKey(
-            availabilityItem.date,
-            availabilityItem.period,
-          );
-
-          if (
-            allowedDatePeriodKeys &&
-            !allowedDatePeriodKeys.has(datePeriodKey)
-          ) {
             return availabilityItem;
           }
 
@@ -5351,7 +6517,7 @@ export function AdminChampionshipBracketPage({
       .sort((left, right) => left.team_name.localeCompare(right.team_name));
   }, [teamCompetitionKeysByTeamId, teamNameById]);
 
-  const teamAvailabilityCards = useMemo(() => {
+  const teamDateAvailabilityCards = useMemo(() => {
     return Object.entries(teamCompetitionKeysByTeamId)
       .map(([teamId, competitionKeys]) => {
         const sportCardByKey = new Map<
@@ -5364,17 +6530,24 @@ export function AdminChampionshipBracketPage({
               competition_key: string;
               naipe: MatchNaipe;
               label: string;
-              checked_state: boolean | "indeterminate";
-              all_selected: boolean;
-              eligible_count: number;
-              selected_count: number;
-              eligible_date_period_keys: Set<string>;
+              eligible_date_count: number;
+              available_date_count: number;
+              custom_date_count: number;
+              unavailable_date_count: number;
+              all_dates_full_day: boolean;
+              all_dates_unavailable: boolean;
               visible_date_cards: Array<{
                 date: string;
-                visible_periods: Array<{
-                  period: ChampionshipSchedulePeriod;
-                  team_availability_key: string;
-                  is_available: boolean;
+                availability_key: string;
+                competition_mode: "UNAVAILABLE" | "FULL_DAY" | "CUSTOM";
+                competition_windows: Array<{
+                  start_time: string;
+                  end_time: string;
+                }>;
+                team_mode: "UNAVAILABLE" | "FULL_DAY" | "CUSTOM";
+                team_windows: Array<{
+                  start_time: string;
+                  end_time: string;
                 }>;
               }>;
             }>;
@@ -5388,98 +6561,78 @@ export function AdminChampionshipBracketPage({
             return;
           }
 
-          const visibleDateCards = scheduleDayDatesOrderedByColumn
-            .map((scheduleDate) => {
-              const visiblePeriods = SCHEDULE_PERIODS.flatMap((period) => {
-                const datePeriodKey = resolveDatePeriodKey(
-                  scheduleDate,
-                  period,
+          const visibleDateCards =
+            scheduleDayDatesOrderedByColumn.flatMap((scheduleDate) => {
+              const competitionAvailability =
+                competitionDateAvailabilityByKey.get(
+                  `${competitionKey}::${scheduleDate}`,
                 );
 
-                if (
-                  schedulePeriodEnabledByDatePeriodKey[datePeriodKey] == false
-                ) {
-                  return [];
-                }
-
-                if (
-                  competitionPeriodAvailabilityByKey[
-                    `${competitionKey}::${datePeriodKey}`
-                  ] == false
-                ) {
-                  return [];
-                }
-
-                const teamAvailabilityKey = `${teamId}::${competitionKey}::${datePeriodKey}`;
-
-                return [
-                  {
-                    period,
-                    team_availability_key: teamAvailabilityKey,
-                    is_available:
-                      teamCompetitionAvailabilityByKey[teamAvailabilityKey] !=
-                      false,
-                  },
-                ];
-              });
-
-              if (visiblePeriods.length == 0) {
-                return null;
+              if (
+                !competitionAvailability ||
+                competitionAvailability.mode == "UNAVAILABLE"
+              ) {
+                return [];
               }
 
-              return {
-                date: scheduleDate,
-                visible_periods: visiblePeriods,
-              };
-            })
-            .filter(
-              (
-                visibleDateCard,
-              ): visibleDateCard is {
-                date: string;
-                visible_periods: Array<{
-                  period: ChampionshipSchedulePeriod;
-                  team_availability_key: string;
-                  is_available: boolean;
-                }>;
-              } => visibleDateCard != null,
-            );
+              const availabilityKey =
+                `${teamId}::${competitionKey}::${scheduleDate}`;
 
-          const eligibleDatePeriodKeys = new Set(
-            visibleDateCards.flatMap((visibleDateCard) =>
-              visibleDateCard.visible_periods.map((visiblePeriod) =>
-                resolveDatePeriodKey(
-                  visibleDateCard.date,
-                  visiblePeriod.period,
-                ),
-              ),
-            ),
-          );
+              const teamAvailability =
+                teamCompetitionDateAvailabilityByKey.get(availabilityKey);
 
-          const eligibleAvailabilityCount = eligibleDatePeriodKeys.size;
-          const selectedAvailabilityCount = visibleDateCards.reduce(
-            (total, visibleDateCard) =>
-              total +
-              visibleDateCard.visible_periods.filter(
-                (visiblePeriod) => visiblePeriod.is_available,
-              ).length,
-            0,
-          );
-          const checkedState = resolveCheckboxCheckedState(
-            selectedAvailabilityCount,
-            eligibleAvailabilityCount,
-          );
+              return [
+                {
+                  date: scheduleDate,
+                  availability_key: availabilityKey,
+                  competition_mode: competitionAvailability.mode,
+                  competition_windows: competitionAvailability.windows.map(
+                    (window) => ({
+                      start_time: window.start_time,
+                      end_time: window.end_time,
+                    }),
+                  ),
+                  team_mode: teamAvailability?.mode ?? "FULL_DAY",
+                  team_windows:
+                    teamAvailability?.windows.map((window) => ({
+                      start_time: window.start_time,
+                      end_time: window.end_time,
+                    })) ?? [],
+                },
+              ];
+            });
+
+          const eligibleDateCount = visibleDateCards.length;
+          const availableDateCount = visibleDateCards.filter(
+            (dateCard) => dateCard.team_mode != "UNAVAILABLE",
+          ).length;
+          const customDateCount = visibleDateCards.filter(
+            (dateCard) => dateCard.team_mode == "CUSTOM",
+          ).length;
+          const unavailableDateCount = visibleDateCards.filter(
+            (dateCard) => dateCard.team_mode == "UNAVAILABLE",
+          ).length;
+
           const teamSportKey = `${teamId}::${competitionOption.sport_id}`;
           const currentSportCard = sportCardByKey.get(teamSportKey);
           const tabItem = {
             competition_key: competitionKey,
             naipe: competitionOption.naipe,
             label: MATCH_NAIPE_LABELS[competitionOption.naipe],
-            checked_state: checkedState,
-            all_selected: checkedState == true,
-            eligible_count: eligibleAvailabilityCount,
-            selected_count: selectedAvailabilityCount,
-            eligible_date_period_keys: eligibleDatePeriodKeys,
+            eligible_date_count: eligibleDateCount,
+            available_date_count: availableDateCount,
+            custom_date_count: customDateCount,
+            unavailable_date_count: unavailableDateCount,
+            all_dates_full_day:
+              eligibleDateCount > 0 &&
+              visibleDateCards.every(
+                (dateCard) => dateCard.team_mode == "FULL_DAY",
+              ),
+            all_dates_unavailable:
+              eligibleDateCount > 0 &&
+              visibleDateCards.every(
+                (dateCard) => dateCard.team_mode == "UNAVAILABLE",
+              ),
             visible_date_cards: visibleDateCards,
           };
 
@@ -5506,7 +6659,9 @@ export function AdminChampionshipBracketPage({
             ),
           }))
           .sort((left, right) =>
-            left.sport_name.localeCompare(right.sport_name),
+            left.sport_name.localeCompare(right.sport_name, "pt-BR", {
+              sensitivity: "base",
+            }),
           );
 
         return {
@@ -5515,22 +6670,52 @@ export function AdminChampionshipBracketPage({
           sport_cards: sportCards,
         };
       })
-      .sort((left, right) => left.team_name.localeCompare(right.team_name));
+      .filter((teamAvailabilityCard) => teamAvailabilityCard.sport_cards.length > 0)
+      .sort((left, right) =>
+        left.team_name.localeCompare(right.team_name, "pt-BR", {
+          sensitivity: "base",
+        }),
+      );
   }, [
+    competitionDateAvailabilityByKey,
     competitionOptionsByKey,
-    competitionPeriodAvailabilityByKey,
     scheduleDayDatesOrderedByColumn,
-    schedulePeriodEnabledByDatePeriodKey,
-    teamCompetitionAvailabilityByKey,
+    teamCompetitionDateAvailabilityByKey,
     teamCompetitionKeysByTeamId,
     teamNameById,
+  ]);
+
+  const filteredTeamDateAvailabilityCards = useMemo(() => {
+    const normalizedSearchTerm =
+      teamAvailabilitySearchTerm.trim().toLocaleLowerCase();
+
+    return teamDateAvailabilityCards.filter((teamAvailabilityCard) => {
+      if (
+        selectedTeamAvailabilityFilterValue != ALL_TEAMS_FILTER_VALUE &&
+        teamAvailabilityCard.team_id != selectedTeamAvailabilityFilterValue
+      ) {
+        return false;
+      }
+
+      if (!normalizedSearchTerm) {
+        return true;
+      }
+
+      return teamAvailabilityCard.team_name
+        .toLocaleLowerCase()
+        .includes(normalizedSearchTerm);
+    });
+  }, [
+    selectedTeamAvailabilityFilterValue,
+    teamAvailabilitySearchTerm,
+    teamDateAvailabilityCards,
   ]);
 
   useEffect(() => {
     setActiveTeamAvailabilityNaipeTabByTeamSportKey(
       (currentActiveTeamAvailabilityNaipeTabByTeamSportKey) => {
         const nextActiveTeamAvailabilityNaipeTabByTeamSportKey =
-          teamAvailabilityCards.reduce<Record<string, MatchNaipe>>(
+          teamDateAvailabilityCards.reduce<Record<string, MatchNaipe>>(
             (carry, teamAvailabilityCard) => {
               teamAvailabilityCard.sport_cards.forEach((sportCard) => {
                 const supportedNaipes = sportCard.tabs.map((tab) => tab.naipe);
@@ -5583,34 +6768,7 @@ export function AdminChampionshipBracketPage({
         return nextActiveTeamAvailabilityNaipeTabByTeamSportKey;
       },
     );
-  }, [teamAvailabilityCards]);
-
-  const filteredTeamAvailabilityCards = useMemo(() => {
-    const normalizedSearchTerm = teamAvailabilitySearchTerm
-      .trim()
-      .toLocaleLowerCase();
-
-    return teamAvailabilityCards.filter((teamAvailabilityCard) => {
-      if (
-        selectedTeamAvailabilityFilterValue != ALL_TEAMS_FILTER_VALUE &&
-        teamAvailabilityCard.team_id != selectedTeamAvailabilityFilterValue
-      ) {
-        return false;
-      }
-
-      if (!normalizedSearchTerm) {
-        return true;
-      }
-
-      return teamAvailabilityCard.team_name
-        .toLocaleLowerCase()
-        .includes(normalizedSearchTerm);
-    });
-  }, [
-    selectedTeamAvailabilityFilterValue,
-    teamAvailabilityCards,
-    teamAvailabilitySearchTerm,
-  ]);
+  }, [teamDateAvailabilityCards]);
 
   useEffect(() => {
     if (!hasResolvedInitialDraftSnapshot) {
@@ -5928,20 +7086,178 @@ export function AdminChampionshipBracketPage({
       }
     });
 
+    const resolveReviewAvailabilityIntervals = (
+      scheduleDay: ScheduleDayFormValue,
+      mode: "UNAVAILABLE" | "FULL_DAY" | "CUSTOM",
+      windows: Array<{
+        start_time: string;
+        end_time: string;
+      }>,
+    ) => {
+      const dayStartMinutes = resolveTimeValueToMinutes(
+        scheduleDay.start_time,
+      );
+      const dayEndMinutes = resolveTimeValueToMinutes(scheduleDay.end_time);
+
+      if (
+        dayStartMinutes == null ||
+        dayEndMinutes == null ||
+        dayEndMinutes <= dayStartMinutes
+      ) {
+        return null;
+      }
+
+      if (mode == "UNAVAILABLE") {
+        return [];
+      }
+
+      let intervals: Array<{
+        start: number;
+        end: number;
+      }>;
+
+      if (mode == "FULL_DAY") {
+        intervals = [
+          {
+            start: dayStartMinutes,
+            end: dayEndMinutes,
+          },
+        ];
+      } else {
+        if (windows.length == 0) {
+          return null;
+        }
+
+        const parsedIntervals = windows.map((window) => {
+          const startMinutes = resolveTimeValueToMinutes(window.start_time);
+          const endMinutes = resolveTimeValueToMinutes(window.end_time);
+
+          if (
+            startMinutes == null ||
+            endMinutes == null ||
+            endMinutes <= startMinutes ||
+            startMinutes < dayStartMinutes ||
+            endMinutes > dayEndMinutes
+          ) {
+            return null;
+          }
+
+          return {
+            start: startMinutes,
+            end: endMinutes,
+          };
+        });
+
+        if (parsedIntervals.some((interval) => interval == null)) {
+          return null;
+        }
+
+        intervals = (
+          parsedIntervals as Array<{
+            start: number;
+            end: number;
+          }>
+        ).sort((left, right) => left.start - right.start);
+
+        for (
+          let intervalIndex = 1;
+          intervalIndex < intervals.length;
+          intervalIndex += 1
+        ) {
+          const previousInterval = intervals[intervalIndex - 1];
+          const currentInterval = intervals[intervalIndex];
+
+          if (
+            previousInterval &&
+            currentInterval &&
+            currentInterval.start < previousInterval.end
+          ) {
+            return null;
+          }
+        }
+      }
+
+      const hasBreakStart = scheduleDay.break_start_time.trim() != "";
+      const hasBreakEnd = scheduleDay.break_end_time.trim() != "";
+
+      if (!hasBreakStart && !hasBreakEnd) {
+        return intervals;
+      }
+
+      if (hasBreakStart != hasBreakEnd) {
+        return null;
+      }
+
+      const breakStartMinutes = resolveTimeValueToMinutes(
+        scheduleDay.break_start_time,
+      );
+      const breakEndMinutes = resolveTimeValueToMinutes(
+        scheduleDay.break_end_time,
+      );
+
+      if (
+        breakStartMinutes == null ||
+        breakEndMinutes == null ||
+        breakEndMinutes <= breakStartMinutes ||
+        breakStartMinutes < dayStartMinutes ||
+        breakEndMinutes > dayEndMinutes
+      ) {
+        return null;
+      }
+
+      return intervals.flatMap((interval) => {
+        if (
+          interval.end <= breakStartMinutes ||
+          interval.start >= breakEndMinutes
+        ) {
+          return [interval];
+        }
+
+        const availableIntervals: Array<{
+          start: number;
+          end: number;
+        }> = [];
+
+        if (interval.start < breakStartMinutes) {
+          availableIntervals.push({
+            start: interval.start,
+            end: breakStartMinutes,
+          });
+        }
+
+        if (interval.end > breakEndMinutes) {
+          availableIntervals.push({
+            start: breakEndMinutes,
+            end: interval.end,
+          });
+        }
+
+        return availableIntervals;
+      });
+    };
+
     sortedActiveCompetitionKeys.forEach((competitionKey) => {
-      const hasValidWindow = schedulePeriods.some((schedulePeriod) => {
-        if (schedulePeriod.enabled == false) {
+      const hasValidWindow = scheduleDays.some((scheduleDay) => {
+        if (!scheduleDay.date) {
           return false;
         }
 
-        return (
-          competitionPeriodAvailabilityByKey[
-            `${competitionKey}::${resolveDatePeriodKey(
-              schedulePeriod.date,
-              schedulePeriod.period,
-            )}`
-          ] != false
+        const competitionAvailability =
+          competitionDateAvailabilityByKey.get(
+            `${competitionKey}::${scheduleDay.date}`,
+          );
+
+        if (!competitionAvailability) {
+          return false;
+        }
+
+        const intervals = resolveReviewAvailabilityIntervals(
+          scheduleDay,
+          competitionAvailability.mode,
+          competitionAvailability.windows,
         );
+
+        return intervals != null && intervals.length > 0;
       });
 
       if (!hasValidWindow) {
@@ -5950,7 +7266,7 @@ export function AdminChampionshipBracketPage({
           tone: "red",
           title: `${competitionLabelByKey[competitionKey] ?? "Competição"} sem janela válida`,
           description:
-            "Nenhum dia/período ficou habilitado para essa competição coletiva.",
+            "Nenhuma janela real de horário ficou disponível para essa competição coletiva.",
         });
       }
     });
@@ -5958,29 +7274,54 @@ export function AdminChampionshipBracketPage({
     Object.entries(teamCompetitionKeysByTeamId).forEach(
       ([teamId, competitionKeys]) => {
         competitionKeys.forEach((competitionKey) => {
-          const hasValidWindow = schedulePeriods.some((schedulePeriod) => {
-            if (schedulePeriod.enabled == false) {
+          const hasValidWindow = scheduleDays.some((scheduleDay) => {
+            if (!scheduleDay.date) {
               return false;
             }
 
-            if (
-              competitionPeriodAvailabilityByKey[
-                `${competitionKey}::${resolveDatePeriodKey(
-                  schedulePeriod.date,
-                  schedulePeriod.period,
-                )}`
-              ] == false
-            ) {
+            const competitionAvailability =
+              competitionDateAvailabilityByKey.get(
+                `${competitionKey}::${scheduleDay.date}`,
+              );
+
+            const teamAvailability =
+              teamCompetitionDateAvailabilityByKey.get(
+                `${teamId}::${competitionKey}::${scheduleDay.date}`,
+              );
+
+            if (!competitionAvailability || !teamAvailability) {
               return false;
             }
 
-            return (
-              teamCompetitionAvailabilityByKey[
-                `${teamId}::${competitionKey}::${resolveDatePeriodKey(
-                  schedulePeriod.date,
-                  schedulePeriod.period,
-                )}`
-              ] != false
+            const competitionIntervals = resolveReviewAvailabilityIntervals(
+              scheduleDay,
+              competitionAvailability.mode,
+              competitionAvailability.windows,
+            );
+
+            const teamIntervals = resolveReviewAvailabilityIntervals(
+              scheduleDay,
+              teamAvailability.mode,
+              teamAvailability.windows,
+            );
+
+            if (competitionIntervals == null || teamIntervals == null) {
+              return false;
+            }
+
+            return competitionIntervals.some((competitionInterval) =>
+              teamIntervals.some((teamInterval) => {
+                const intersectionStart = Math.max(
+                  competitionInterval.start,
+                  teamInterval.start,
+                );
+                const intersectionEnd = Math.min(
+                  competitionInterval.end,
+                  teamInterval.end,
+                );
+
+                return intersectionEnd > intersectionStart;
+              }),
             );
           });
 
@@ -5991,7 +7332,7 @@ export function AdminChampionshipBracketPage({
               title: `${teamNameById[teamId] ?? "Atlética"} sem janela jogável`,
               description: `${
                 competitionLabelByKey[competitionKey] ?? "Competição"
-              } não tem interseção válida entre agenda, modalidade e restrições da atlética.`,
+              } não tem interseção temporal válida entre agenda, modalidade e restrições da atlética.`,
             });
           }
         });
@@ -6001,16 +7342,16 @@ export function AdminChampionshipBracketPage({
     return diagnostics;
   }, [
     competitionLabelByKey,
-    competitionPeriodAvailabilityByKey,
+    competitionDateAvailabilityByKey,
     enabledChampionshipSports,
     reviewIndividualEventConfigSummaries,
     resourceLocks,
     reviewIndividualSessionSummaries,
-    schedulePeriods,
+    scheduleDays,
     selectedSportIdsByTeamId,
     selectedTeamIds,
     sortedActiveCompetitionKeys,
-    teamCompetitionAvailabilityByKey,
+    teamCompetitionDateAvailabilityByKey,
     teamCompetitionKeysByTeamId,
     teamNameById,
     knockoutProgramBlocks,
@@ -6113,6 +7454,10 @@ export function AdminChampionshipBracketPage({
 
               court,
               sport_options: sportOptions,
+              planned_match_count: court.sport_match_targets.reduce(
+                (total, target) => total + target.planned_match_count,
+                0,
+              ),
             },
           ];
         }),
@@ -6133,6 +7478,10 @@ export function AdminChampionshipBracketPage({
             : "Data não informada",
 
           court_cards: courtCards,
+          planned_match_count: courtCards.reduce(
+            (total, courtCard) => total + courtCard.planned_match_count,
+            0,
+          ),
         },
       ];
     });
@@ -6423,6 +7772,61 @@ export function AdminChampionshipBracketPage({
       }));
     },
     [seasonSettings.division_format, updateScheduleDay],
+  );
+
+  const updateCourtSportMatchTarget = useCallback(
+    (
+      scheduleDayId: string,
+      locationId: string,
+      courtId: string,
+      sportId: string,
+      plannedMatchCount: number | null,
+    ) => {
+      updateScheduleDay(scheduleDayId, (scheduleDay) => ({
+        ...scheduleDay,
+        locations: scheduleDay.locations.map((scheduleLocation) => {
+          if (scheduleLocation.id != locationId) {
+            return scheduleLocation;
+          }
+
+          return {
+            ...scheduleLocation,
+            courts: scheduleLocation.courts.map((court) => {
+              if (court.id != courtId) {
+                return court;
+              }
+
+              const remainingTargets = court.sport_match_targets.filter(
+                (target) => target.sport_id != sportId,
+              );
+
+              if (
+                plannedMatchCount == null ||
+                !Number.isInteger(plannedMatchCount) ||
+                plannedMatchCount <= 0
+              ) {
+                return {
+                  ...court,
+                  sport_match_targets: remainingTargets,
+                };
+              }
+
+              return {
+                ...court,
+                sport_match_targets: [
+                  ...remainingTargets,
+                  {
+                    sport_id: sportId,
+                    planned_match_count: plannedMatchCount,
+                  },
+                ],
+              };
+            }),
+          };
+        }),
+      }));
+    },
+    [updateScheduleDay],
   );
 
   const handleDeleteLocationTemplate = useCallback(async () => {
@@ -8564,176 +9968,348 @@ export function AdminChampionshipBracketPage({
                       Disponibilidade por Modalidade
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      Defina os dias e períodos válidos para cada competição
-                      coletiva. As modalidades individuais seguem o slot oficial
-                      configurado na etapa anterior.
+                      Defina em quais dias e horários cada competição coletiva
+                      poderá receber jogos. As modalidades individuais continuam
+                      utilizando o slot oficial configurado na etapa anterior.
                     </p>
                   </div>
 
-                  <div className="space-y-6">
-                    <div className="rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm">
-                      <div className="mb-4">
-                        <p className="text-sm font-bold">
-                          Competições coletivas
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Cada competição só poderá receber jogos nos períodos
-                          habilitados abaixo.
-                        </p>
-                      </div>
+                  {activeCompetitionOptions.length == 0 ? (
+                    <div className="rounded-lg border border-dashed border-border/40 bg-background/20 p-6 text-center text-sm text-muted-foreground">
+                      Nenhuma competição coletiva ativa para configurar nesta
+                      etapa.
+                    </div>
+                  ) : (
+                    <div className="space-y-5">
+                      {activeCompetitionOptions.map((competitionOption) => {
+                        const competitionAvailabilityItems =
+                          scheduleDayDatesOrderedByColumn.map(
+                            (scheduleDate) =>
+                              competitionDateAvailabilityByKey.get(
+                                `${competitionOption.key}::${scheduleDate}`,
+                              ) ?? null,
+                          );
 
-                      {activeCompetitionOptions.length == 0 ? (
-                        <div className="rounded-lg border border-dashed border-border/40 bg-background/20 p-6 text-center text-sm text-muted-foreground">
-                          Nenhuma competição coletiva ativa para configurar
-                          nesta etapa.
-                        </div>
-                      ) : (
-                        <div className="space-y-4">
-                          {activeCompetitionOptions.map((competitionOption) => (
-                            <div
-                              key={`competition-period-${competitionOption.key}`}
-                              className="rounded-lg border border-border/30 bg-background/20 p-4 shadow-sm dark:bg-transparent dark:shadow-none"
-                            >
-                              {(() => {
-                                const enabledCompetitionAvailabilityCount =
-                                  schedulePeriods.filter(
-                                    (schedulePeriod) =>
-                                      competitionPeriodAvailabilityByKey[
-                                        `${competitionOption.key}::${resolveDatePeriodKey(
-                                          schedulePeriod.date,
-                                          schedulePeriod.period,
-                                        )}`
-                                      ] != false,
-                                  ).length;
-                                const competitionAvailabilityCheckedState =
-                                  resolveCheckboxCheckedState(
-                                    enabledCompetitionAvailabilityCount,
-                                    schedulePeriods.length,
-                                  );
-                                const allCompetitionAvailabilitySelected =
-                                  competitionAvailabilityCheckedState == true;
+                        const allDaysFullDay =
+                          competitionAvailabilityItems.length > 0 &&
+                          competitionAvailabilityItems.every(
+                            (availabilityItem) =>
+                              availabilityItem?.mode == "FULL_DAY",
+                          );
 
-                                return (
-                                  <>
-                                    <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-                                      <div>
-                                        <p className="text-sm font-bold">
-                                          {
-                                            competitionLabelByKey[
-                                              competitionOption.key
-                                            ]
-                                          }
+                        const allDaysUnavailable =
+                          competitionAvailabilityItems.length > 0 &&
+                          competitionAvailabilityItems.every(
+                            (availabilityItem) =>
+                              availabilityItem?.mode == "UNAVAILABLE",
+                          );
+
+                        return (
+                          <div
+                            key={`competition-date-availability-${competitionOption.key}`}
+                            className="rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm"
+                          >
+                            <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
+                              <div>
+                                <p className="text-sm font-bold">
+                                  {competitionLabelByKey[
+                                    competitionOption.key
+                                  ] ?? "Competição"}
+                                </p>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  Configure o dia inteiro ou restrinja a
+                                  modalidade a horários específicos.
+                                </p>
+                              </div>
+
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant={
+                                    allDaysFullDay ? "default" : "secondary"
+                                  }
+                                  onClick={() =>
+                                    updateCompetitionDateAvailabilityForAllDates(
+                                      competitionOption.key,
+                                      "FULL_DAY",
+                                    )
+                                  }
+                                >
+                                  Todos os dias
+                                </Button>
+
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant={
+                                    allDaysUnavailable
+                                      ? "default"
+                                      : "secondary"
+                                  }
+                                  onClick={() =>
+                                    updateCompetitionDateAvailabilityForAllDates(
+                                      competitionOption.key,
+                                      "UNAVAILABLE",
+                                    )
+                                  }
+                                >
+                                  Indisponível em todos
+                                </Button>
+                              </div>
+                            </div>
+
+                            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                              {scheduleDayDatesOrderedByColumn.map(
+                                (scheduleDate) => {
+                                  const availabilityKey = `${competitionOption.key}::${scheduleDate}`;
+                                  const availabilityItem =
+                                    competitionDateAvailabilityByKey.get(
+                                      availabilityKey,
+                                    );
+                                  const availabilityMode =
+                                    availabilityItem?.mode ?? "FULL_DAY";
+                                  const availabilityWindows =
+                                    availabilityItem?.windows ?? [];
+                                  const scheduleDay =
+                                    scheduleDays.find(
+                                      (currentScheduleDay) =>
+                                        currentScheduleDay.date ==
+                                        scheduleDate,
+                                    ) ?? null;
+                                  const hasBreak =
+                                    Boolean(
+                                      scheduleDay?.break_start_time,
+                                    ) &&
+                                    Boolean(scheduleDay?.break_end_time);
+
+                                  return (
+                                    <div
+                                      key={availabilityKey}
+                                      className={cn(
+                                        "rounded-xl border p-4 transition-colors",
+                                        availabilityMode == "UNAVAILABLE"
+                                          ? "border-border/30 bg-background/20 opacity-75"
+                                          : "border-border/40 bg-background/40",
+                                      )}
+                                    >
+                                      <div className="mb-4">
+                                        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                          {resolveBrazilianDateString(
+                                            scheduleDate,
+                                          )}
                                         </p>
-                                        <p className="text-xs text-muted-foreground">
-                                          Marque ou desmarque todos os dias e
-                                          períodos desta competição de uma vez,
-                                          se quiser.
-                                        </p>
+
+                                        {scheduleDay ? (
+                                          <p className="mt-1 text-[11px] text-muted-foreground">
+                                            Agenda: {scheduleDay.start_time} às{" "}
+                                            {scheduleDay.end_time}
+                                            {hasBreak
+                                              ? ` • intervalo ${scheduleDay.break_start_time} às ${scheduleDay.break_end_time}`
+                                              : ""}
+                                          </p>
+                                        ) : null}
                                       </div>
 
-                                      <label className="flex items-center gap-2 rounded-md px-1 py-1 text-xs font-medium transition-colors cursor-pointer">
-                                        <Checkbox
-                                          className={SQUARE_CHECKBOX_CLASS_NAME}
-                                          checked={
-                                            competitionAvailabilityCheckedState
-                                          }
-                                          onCheckedChange={(checked) =>
-                                            updateCompetitionAvailabilityForAllPeriods(
-                                              competitionOption.key,
-                                              checked == true,
-                                            )
-                                          }
-                                        />
-                                        {allCompetitionAvailabilitySelected
-                                          ? "Desmarcar todos"
-                                          : "Selecionar todos"}
-                                      </label>
-                                    </div>
+                                      <RadioGroup
+                                        value={availabilityMode}
+                                        className="grid gap-2"
+                                        onValueChange={(value) => {
+                                          const nextMode = value as
+                                            | "FULL_DAY"
+                                            | "UNAVAILABLE"
+                                            | "CUSTOM";
 
-                                    <div className="grid gap-3 xl:grid-cols-3 md:grid-cols-2">
-                                      {scheduleDayDatesOrderedByColumn.map(
-                                        (scheduleDate) => (
-                                          <div
-                                            key={`${competitionOption.key}-${scheduleDate}`}
-                                            className="rounded-lg border border-border/30 bg-background/40 p-4 shadow-sm dark:shadow-none"
-                                          >
-                                            <div className="grid grid-cols-[108px_minmax(0,1fr)_minmax(0,1fr)] items-center gap-2">
-                                              <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                                                {resolveBrazilianDateString(
+                                          updateCompetitionDateAvailabilityMode(
+                                            competitionOption.key,
+                                            scheduleDate,
+                                            nextMode,
+                                          );
+
+                                          SCHEDULE_PERIODS.forEach(
+                                            (period) => {
+                                              updateCompetitionPeriodAvailability(
+                                                competitionOption.key,
+                                                scheduleDate,
+                                                period,
+                                                nextMode != "UNAVAILABLE",
+                                              );
+                                            },
+                                          );
+                                        }}
+                                      >
+                                        <label
+                                          className={cn(
+                                            "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors",
+                                            availabilityMode == "FULL_DAY"
+                                              ? "border-primary/30 bg-primary/5"
+                                              : "border-border/30 bg-background/30",
+                                          )}
+                                        >
+                                          <RadioGroupItem value="FULL_DAY" />
+                                          Dia inteiro
+                                        </label>
+
+                                        <label
+                                          className={cn(
+                                            "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors",
+                                            availabilityMode == "CUSTOM"
+                                              ? "border-primary/30 bg-primary/5"
+                                              : "border-border/30 bg-background/30",
+                                          )}
+                                        >
+                                          <RadioGroupItem value="CUSTOM" />
+                                          Horário personalizado
+                                        </label>
+
+                                        <label
+                                          className={cn(
+                                            "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors",
+                                            availabilityMode == "UNAVAILABLE"
+                                              ? "border-primary/30 bg-primary/5"
+                                              : "border-border/30 bg-background/30",
+                                          )}
+                                        >
+                                          <RadioGroupItem value="UNAVAILABLE" />
+                                          Indisponível
+                                        </label>
+                                      </RadioGroup>
+
+                                      {availabilityMode == "CUSTOM" ? (
+                                        <div className="mt-4 space-y-3 border-t border-border/30 pt-4">
+                                          <div className="flex items-center justify-between gap-3">
+                                            <p className="text-xs font-semibold">
+                                              Janelas disponíveis
+                                            </p>
+
+                                            <Button
+                                              type="button"
+                                              size="sm"
+                                              variant="secondary"
+                                              onClick={() =>
+                                                addCompetitionDateAvailabilityWindow(
+                                                  competitionOption.key,
                                                   scheduleDate,
-                                                )}
-                                              </p>
-                                              {SCHEDULE_PERIODS.map(
-                                                (period) => {
-                                                  const datePeriodKey =
-                                                    resolveDatePeriodKey(
-                                                      scheduleDate,
-                                                      period,
-                                                    );
-                                                  const availabilityKey = `${competitionOption.key}::${datePeriodKey}`;
-                                                  const isGloballyEnabled =
-                                                    schedulePeriodEnabledByDatePeriodKey[
-                                                      datePeriodKey
-                                                    ] != false;
-                                                  const isEnabled =
-                                                    competitionPeriodAvailabilityByKey[
-                                                      availabilityKey
-                                                    ] != false;
+                                                )
+                                              }
+                                            >
+                                              <Plus className="mr-1.5 h-3.5 w-3.5" />
+                                              Adicionar
+                                            </Button>
+                                          </div>
 
-                                                  return (
-                                                    <label
-                                                      key={availabilityKey}
-                                                      className={cn(
-                                                        "flex min-w-0 items-center justify-between gap-2 rounded-md px-2 py-2 text-[11px] font-medium transition-colors",
-                                                        isGloballyEnabled
-                                                          ? "cursor-pointer"
-                                                          : "cursor-not-allowed opacity-50",
-                                                      )}
-                                                    >
-                                                      <span className="truncate">
-                                                        {
-                                                          SCHEDULE_PERIOD_LABELS[
-                                                            period
-                                                          ]
-                                                        }
+                                          {availabilityWindows.length == 0 ? (
+                                            <div className="rounded-lg border border-dashed border-border/40 p-3 text-center text-xs text-muted-foreground">
+                                              Adicione ao menos uma janela de
+                                              horário.
+                                            </div>
+                                          ) : (
+                                            <div className="space-y-3">
+                                              {availabilityWindows.map(
+                                                (
+                                                  availabilityWindow,
+                                                  windowIndex,
+                                                ) => (
+                                                  <div
+                                                    key={`${availabilityKey}-window-${windowIndex}`}
+                                                    className="rounded-lg border border-border/30 bg-background/30 p-3"
+                                                  >
+                                                    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] items-end gap-2">
+                                                      <div className="space-y-1.5">
+                                                        <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                          Início
+                                                        </Label>
+                                                        <Input
+                                                          type="time"
+                                                          value={
+                                                            availabilityWindow.start_time
+                                                          }
+                                                          onChange={(event) =>
+                                                            updateCompetitionDateAvailabilityWindow(
+                                                              competitionOption.key,
+                                                              scheduleDate,
+                                                              windowIndex,
+                                                              "start_time",
+                                                              event.target
+                                                                .value,
+                                                            )
+                                                          }
+                                                          className="h-9"
+                                                        />
+                                                      </div>
+
+                                                      <span className="pb-2 text-xs text-muted-foreground">
+                                                        até
                                                       </span>
-                                                      <Checkbox
-                                                        className={
-                                                          SQUARE_CHECKBOX_CLASS_NAME
-                                                        }
-                                                        checked={isEnabled}
-                                                        disabled={
-                                                          !isGloballyEnabled
-                                                        }
-                                                        onCheckedChange={(
-                                                          checked,
-                                                        ) =>
-                                                          updateCompetitionPeriodAvailability(
+
+                                                      <div className="space-y-1.5">
+                                                        <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                          Fim
+                                                        </Label>
+                                                        <Input
+                                                          type="time"
+                                                          value={
+                                                            availabilityWindow.end_time
+                                                          }
+                                                          onChange={(event) =>
+                                                            updateCompetitionDateAvailabilityWindow(
+                                                              competitionOption.key,
+                                                              scheduleDate,
+                                                              windowIndex,
+                                                              "end_time",
+                                                              event.target
+                                                                .value,
+                                                            )
+                                                          }
+                                                          className="h-9"
+                                                        />
+                                                      </div>
+
+                                                      <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() =>
+                                                          removeCompetitionDateAvailabilityWindow(
                                                             competitionOption.key,
                                                             scheduleDate,
-                                                            period,
-                                                            checked == true,
+                                                            windowIndex,
                                                           )
                                                         }
-                                                      />
-                                                    </label>
-                                                  );
-                                                },
+                                                        aria-label={`Remover janela ${windowIndex + 1}`}
+                                                        title="Remover janela"
+                                                      >
+                                                        <Trash2 className="h-4 w-4" />
+                                                      </Button>
+                                                    </div>
+                                                  </div>
+                                                ),
                                               )}
                                             </div>
-                                          </div>
-                                        ),
+                                          )}
+                                        </div>
+                                      ) : availabilityMode == "FULL_DAY" ? (
+                                        <p className="mt-3 text-[11px] text-muted-foreground">
+                                          A competição poderá ser programada em
+                                          toda a janela da agenda deste dia,
+                                          respeitando os intervalos configurados.
+                                        </p>
+                                      ) : (
+                                        <p className="mt-3 text-[11px] text-muted-foreground">
+                                          Nenhum jogo desta competição será
+                                          programado neste dia.
+                                        </p>
                                       )}
                                     </div>
-                                  </>
-                                );
-                              })()}
+                                  );
+                                },
+                              )}
                             </div>
-                          ))}
-                        </div>
-                      )}
+                          </div>
+                        );
+                      })}
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             ) : null}
@@ -8746,11 +10322,10 @@ export function AdminChampionshipBracketPage({
                       Disponibilidade das Atléticas
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      Restrinja em quais dias e períodos cada atlética poderá
-                      jogar por competição. O gerador vai usar a interseção
-                      entre agenda, modalidade e atlética. Aqui aparecem apenas
-                      os slots que continuam habilitados para a modalidade na
-                      etapa anterior.
+                      Defina os dias e horários em que cada atlética poderá
+                      jogar durante a fase de grupos. A disponibilidade efetiva
+                      será sempre a interseção entre a janela da modalidade e a
+                      janela da atlética.
                     </p>
                   </div>
 
@@ -8773,54 +10348,61 @@ export function AdminChampionshipBracketPage({
 
                         <Select
                           value={selectedTeamAvailabilityFilterValue}
-                          onValueChange={setSelectedTeamAvailabilityFilterValue}
+                          onValueChange={
+                            setSelectedTeamAvailabilityFilterValue
+                          }
                         >
                           <SelectTrigger className="h-10">
                             <SelectValue placeholder="Todas as atléticas" />
                           </SelectTrigger>
+
                           <SelectContent>
                             <SelectItem value={ALL_TEAMS_FILTER_VALUE}>
                               Todas as atléticas
                             </SelectItem>
-                            {teamAvailabilityFilterOptions.map((teamOption) => (
-                              <SelectItem
-                                key={`team-availability-filter-${teamOption.team_id}`}
-                                value={teamOption.team_id}
-                              >
-                                {teamOption.team_name}
-                              </SelectItem>
-                            ))}
+
+                            {teamAvailabilityFilterOptions.map(
+                              (teamOption) => (
+                                <SelectItem
+                                  key={`team-availability-filter-${teamOption.team_id}`}
+                                  value={teamOption.team_id}
+                                >
+                                  {teamOption.team_name}
+                                </SelectItem>
+                              ),
+                            )}
                           </SelectContent>
                         </Select>
                       </div>
 
-                      {filteredTeamAvailabilityCards.length == 0 ? (
+                      {filteredTeamDateAvailabilityCards.length == 0 ? (
                         <div className="rounded-xl border border-dashed border-border/40 bg-background/20 p-8 text-center text-sm text-muted-foreground">
-                          Nenhuma atlética encontrada para os filtros aplicados.
+                          Nenhuma atlética encontrada para os filtros
+                          aplicados.
                         </div>
                       ) : (
-                        filteredTeamAvailabilityCards.map(
+                        filteredTeamDateAvailabilityCards.map(
                           (teamAvailabilityCard) => (
                             <div
-                              key={`team-availability-${teamAvailabilityCard.team_id}`}
+                              key={`team-date-availability-${teamAvailabilityCard.team_id}`}
                               className="rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm"
                             >
-                              <div className="mb-4">
-                                <p className="text-sm font-bold">
+                              <div className="mb-5">
+                                <p className="text-base font-bold">
                                   {teamAvailabilityCard.team_name}
                                 </p>
-                                <p className="text-xs text-muted-foreground">
-                                  Desmarque os períodos em que esta atlética não
-                                  pode jogar.
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  Estas restrições são aplicadas somente aos
+                                  jogos da fase de grupos.
                                 </p>
                               </div>
 
                               <div className="space-y-4">
                                 {teamAvailabilityCard.sport_cards.map(
                                   (sportCard) => {
-                                    const supportedNaipes = sportCard.tabs.map(
-                                      (tab) => tab.naipe,
-                                    );
+                                    const supportedNaipes =
+                                      sportCard.tabs.map((tab) => tab.naipe);
+
                                     const activeNaipe =
                                       activeTeamAvailabilityNaipeTabByTeamSportKey[
                                         sportCard.team_sport_key
@@ -8828,6 +10410,7 @@ export function AdminChampionshipBracketPage({
                                       resolveDefaultWizardNaipeTabValue(
                                         supportedNaipes,
                                       );
+
                                     const activeTab =
                                       sportCard.tabs.find(
                                         (tab) => tab.naipe == activeNaipe,
@@ -8841,41 +10424,79 @@ export function AdminChampionshipBracketPage({
 
                                     return (
                                       <div
-                                        key={`team-sport-availability-${sportCard.team_sport_key}`}
-                                        className="rounded-lg border border-border/30 bg-background/20 p-4 shadow-sm dark:bg-transparent dark:shadow-none"
+                                        key={`team-date-sport-${sportCard.team_sport_key}`}
+                                        className="rounded-xl border border-border/30 bg-background/20 p-4 shadow-sm dark:bg-transparent dark:shadow-none"
                                       >
-                                        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                                          <p className="text-sm font-bold">
-                                            {competitionLabelByKey[
-                                              activeTab.competition_key
-                                            ] ?? "Competição"}
-                                          </p>
+                                        <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
+                                          <div>
+                                            <p className="text-sm font-bold">
+                                              {competitionLabelByKey[
+                                                activeTab.competition_key
+                                              ] ?? "Competição"}
+                                            </p>
+
+                                            <p className="mt-1 text-xs text-muted-foreground">
+                                              {activeTab.available_date_count}/
+                                              {activeTab.eligible_date_count}{" "}
+                                              dias disponíveis
+                                              {activeTab.custom_date_count > 0
+                                                ? ` • ${activeTab.custom_date_count} personalizados`
+                                                : ""}
+                                              {activeTab.unavailable_date_count >
+                                              0
+                                                ? ` • ${activeTab.unavailable_date_count} indisponíveis`
+                                                : ""}
+                                            </p>
+                                          </div>
 
                                           <div className="flex flex-wrap items-center justify-end gap-3">
-                                            <label className="flex items-center gap-2 rounded-md px-1 py-1 text-xs font-medium transition-colors cursor-pointer">
-                                              <Checkbox
-                                                className={
-                                                  SQUARE_CHECKBOX_CLASS_NAME
-                                                }
-                                                checked={
-                                                  activeTab.checked_state
+                                            <div className="flex flex-wrap gap-2">
+                                              <Button
+                                                type="button"
+                                                size="sm"
+                                                variant={
+                                                  activeTab.all_dates_full_day
+                                                    ? "default"
+                                                    : "secondary"
                                                 }
                                                 disabled={
-                                                  activeTab.eligible_count == 0
+                                                  activeTab.eligible_date_count ==
+                                                  0
                                                 }
-                                                onCheckedChange={(checked) =>
-                                                  updateTeamCompetitionAvailabilityForAllPeriods(
+                                                onClick={() =>
+                                                  updateTeamCompetitionDateAvailabilityForAllDates(
                                                     teamAvailabilityCard.team_id,
                                                     activeTab.competition_key,
-                                                    checked == true,
-                                                    activeTab.eligible_date_period_keys,
+                                                    "FULL_DAY",
                                                   )
                                                 }
-                                              />
-                                              {activeTab.all_selected
-                                                ? "Desmarcar todos"
-                                                : "Selecionar todos"}
-                                            </label>
+                                              >
+                                                Disponível em todos
+                                              </Button>
+
+                                              <Button
+                                                type="button"
+                                                size="sm"
+                                                variant={
+                                                  activeTab.all_dates_unavailable
+                                                    ? "default"
+                                                    : "secondary"
+                                                }
+                                                disabled={
+                                                  activeTab.eligible_date_count ==
+                                                  0
+                                                }
+                                                onClick={() =>
+                                                  updateTeamCompetitionDateAvailabilityForAllDates(
+                                                    teamAvailabilityCard.team_id,
+                                                    activeTab.competition_key,
+                                                    "UNAVAILABLE",
+                                                  )
+                                                }
+                                              >
+                                                Indisponível em todos
+                                              </Button>
+                                            </div>
 
                                             {sportCard.tabs.length > 1 ? (
                                               <AnimatedTabBar
@@ -8883,11 +10504,13 @@ export function AdminChampionshipBracketPage({
                                                   (tab) => ({
                                                     value: tab.naipe,
                                                     label: tab.label,
-                                                    test_id: `team-availability-naipe-tab-${teamAvailabilityCard.team_id}-${sportCard.sport_id}-${tab.naipe}`,
+                                                    test_id: `team-date-availability-naipe-${teamAvailabilityCard.team_id}-${sportCard.sport_id}-${tab.naipe}`,
                                                   }),
                                                 )}
                                                 value={activeTab.naipe}
-                                                onValueChange={(nextValue) =>
+                                                onValueChange={(
+                                                  nextValue,
+                                                ) =>
                                                   setActiveTeamAvailabilityNaipeTabByTeamSportKey(
                                                     (
                                                       currentActiveTeamAvailabilityNaipeTabByTeamSportKey,
@@ -8906,76 +10529,300 @@ export function AdminChampionshipBracketPage({
                                         {activeTab.visible_date_cards.length ==
                                         0 ? (
                                           <div className="rounded-xl border border-dashed border-border/40 bg-background/20 p-4 text-center text-sm text-muted-foreground">
-                                            Nenhum dia ou período disponível
-                                            para esta competição neste naipe.
-                                            Ajuste a etapa anterior se precisar
-                                            reabrir janelas.
+                                            Nenhum dia está disponível para
+                                            esta competição na etapa anterior.
                                           </div>
                                         ) : (
-                                          <div className="grid gap-3 xl:grid-cols-3 md:grid-cols-2">
+                                          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                                             {activeTab.visible_date_cards.map(
-                                              (visibleDateCard) => (
-                                                <div
-                                                  key={`${teamAvailabilityCard.team_id}-${activeTab.competition_key}-${visibleDateCard.date}`}
-                                                  className="rounded-lg border border-border/30 bg-background/40 p-4 shadow-sm dark:shadow-none"
-                                                >
+                                              (dateCard) => {
+                                                const scheduleDay =
+                                                  scheduleDays.find(
+                                                    (
+                                                      currentScheduleDay,
+                                                    ) =>
+                                                      currentScheduleDay.date ==
+                                                      dateCard.date,
+                                                  ) ?? null;
+
+                                                return (
                                                   <div
+                                                    key={
+                                                      dateCard.availability_key
+                                                    }
                                                     className={cn(
-                                                      "grid items-center gap-2",
-                                                      visibleDateCard
-                                                        .visible_periods
-                                                        .length > 1
-                                                        ? "grid-cols-[108px_minmax(0,1fr)_minmax(0,1fr)]"
-                                                        : "grid-cols-[108px_minmax(0,1fr)]",
+                                                      "rounded-xl border p-4 transition-colors",
+                                                      dateCard.team_mode ==
+                                                        "UNAVAILABLE"
+                                                        ? "border-border/30 bg-background/20 opacity-75"
+                                                        : "border-border/40 bg-background/40",
                                                     )}
                                                   >
-                                                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                                                      {resolveBrazilianDateString(
-                                                        visibleDateCard.date,
-                                                      )}
-                                                    </p>
+                                                    <div className="mb-4 space-y-2">
+                                                      <div className="flex flex-wrap items-center justify-between gap-2">
+                                                        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                                          {resolveBrazilianDateString(
+                                                            dateCard.date,
+                                                          )}
+                                                        </p>
 
-                                                    {visibleDateCard.visible_periods.map(
-                                                      (visiblePeriod) => (
-                                                        <label
-                                                          key={
-                                                            visiblePeriod.team_availability_key
+                                                        <AppBadge
+                                                          tone={
+                                                            dateCard.competition_mode ==
+                                                            "CUSTOM"
+                                                              ? AppBadgeTone.SKY
+                                                              : AppBadgeTone.NEUTRAL
                                                           }
-                                                          className="flex min-w-0 items-center justify-between gap-2 rounded-md px-2 py-2 text-[11px] font-medium transition-colors cursor-pointer"
                                                         >
-                                                          <span className="truncate">
-                                                            {
-                                                              SCHEDULE_PERIOD_LABELS[
-                                                                visiblePeriod
-                                                                  .period
-                                                              ]
-                                                            }
-                                                          </span>
-                                                          <Checkbox
-                                                            className={
-                                                              SQUARE_CHECKBOX_CLASS_NAME
-                                                            }
-                                                            checked={
-                                                              visiblePeriod.is_available
-                                                            }
-                                                            onCheckedChange={(
-                                                              checked,
-                                                            ) =>
-                                                              updateTeamCompetitionPeriodAvailability(
+                                                          {dateCard.competition_mode ==
+                                                          "CUSTOM"
+                                                            ? "Modalidade restrita"
+                                                            : "Modalidade livre"}
+                                                        </AppBadge>
+                                                      </div>
+
+                                                      {dateCard.competition_mode ==
+                                                      "CUSTOM" ? (
+                                                        <div className="rounded-lg border border-border/30 bg-background/30 px-3 py-2">
+                                                          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                            Janela da modalidade
+                                                          </p>
+
+                                                          <p className="mt-1 text-xs font-medium">
+                                                            {dateCard.competition_windows
+                                                              .map(
+                                                                (
+                                                                  window,
+                                                                ) =>
+                                                                  `${window.start_time}–${window.end_time}`,
+                                                              )
+                                                              .join(" • ")}
+                                                          </p>
+                                                        </div>
+                                                      ) : scheduleDay ? (
+                                                        <p className="text-[11px] text-muted-foreground">
+                                                          Modalidade disponível
+                                                          durante a agenda do
+                                                          dia:{" "}
+                                                          {
+                                                            scheduleDay.start_time
+                                                          }{" "}
+                                                          às{" "}
+                                                          {
+                                                            scheduleDay.end_time
+                                                          }
+                                                          .
+                                                        </p>
+                                                      ) : null}
+                                                    </div>
+
+                                                    <RadioGroup
+                                                      value={
+                                                        dateCard.team_mode
+                                                      }
+                                                      className="grid gap-2"
+                                                      onValueChange={(
+                                                        value,
+                                                      ) =>
+                                                        updateTeamCompetitionDateAvailabilityMode(
+                                                          teamAvailabilityCard.team_id,
+                                                          activeTab.competition_key,
+                                                          dateCard.date,
+                                                          value as
+                                                            | "FULL_DAY"
+                                                            | "UNAVAILABLE"
+                                                            | "CUSTOM",
+                                                        )
+                                                      }
+                                                    >
+                                                      <label
+                                                        className={cn(
+                                                          "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors",
+                                                          dateCard.team_mode ==
+                                                            "FULL_DAY"
+                                                            ? "border-primary/30 bg-primary/5"
+                                                            : "border-border/30 bg-background/30",
+                                                        )}
+                                                      >
+                                                        <RadioGroupItem value="FULL_DAY" />
+                                                        Disponível em toda a
+                                                        janela
+                                                      </label>
+
+                                                      <label
+                                                        className={cn(
+                                                          "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors",
+                                                          dateCard.team_mode ==
+                                                            "CUSTOM"
+                                                            ? "border-primary/30 bg-primary/5"
+                                                            : "border-border/30 bg-background/30",
+                                                        )}
+                                                      >
+                                                        <RadioGroupItem value="CUSTOM" />
+                                                        Horário personalizado
+                                                      </label>
+
+                                                      <label
+                                                        className={cn(
+                                                          "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors",
+                                                          dateCard.team_mode ==
+                                                            "UNAVAILABLE"
+                                                            ? "border-primary/30 bg-primary/5"
+                                                            : "border-border/30 bg-background/30",
+                                                        )}
+                                                      >
+                                                        <RadioGroupItem value="UNAVAILABLE" />
+                                                        Indisponível
+                                                      </label>
+                                                    </RadioGroup>
+
+                                                    {dateCard.team_mode ==
+                                                    "CUSTOM" ? (
+                                                      <div className="mt-4 space-y-3 border-t border-border/30 pt-4">
+                                                        <div className="flex items-center justify-between gap-3">
+                                                          <p className="text-xs font-semibold">
+                                                            Janelas da
+                                                            atlética
+                                                          </p>
+
+                                                          <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            variant="secondary"
+                                                            onClick={() =>
+                                                              addTeamCompetitionDateAvailabilityWindow(
                                                                 teamAvailabilityCard.team_id,
                                                                 activeTab.competition_key,
-                                                                visibleDateCard.date,
-                                                                visiblePeriod.period,
-                                                                checked == true,
+                                                                dateCard.date,
                                                               )
                                                             }
-                                                          />
-                                                        </label>
-                                                      ),
+                                                          >
+                                                            <Plus className="mr-1.5 h-3.5 w-3.5" />
+                                                            Adicionar
+                                                          </Button>
+                                                        </div>
+
+                                                        {dateCard.team_windows.length ==
+                                                        0 ? (
+                                                          <div className="rounded-lg border border-dashed border-border/40 p-3 text-center text-xs text-muted-foreground">
+                                                            Adicione ao menos
+                                                            uma janela de
+                                                            horário.
+                                                          </div>
+                                                        ) : (
+                                                          <div className="space-y-3">
+                                                            {dateCard.team_windows.map(
+                                                              (
+                                                                window,
+                                                                windowIndex,
+                                                              ) => (
+                                                                <div
+                                                                  key={`${dateCard.availability_key}-window-${windowIndex}`}
+                                                                  className="rounded-lg border border-border/30 bg-background/30 p-3"
+                                                                >
+                                                                  <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] items-end gap-2">
+                                                                    <div className="space-y-1.5">
+                                                                      <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                                        Início
+                                                                      </Label>
+
+                                                                      <Input
+                                                                        type="time"
+                                                                        value={
+                                                                          window.start_time
+                                                                        }
+                                                                        onChange={(
+                                                                          event,
+                                                                        ) =>
+                                                                          updateTeamCompetitionDateAvailabilityWindow(
+                                                                            teamAvailabilityCard.team_id,
+                                                                            activeTab.competition_key,
+                                                                            dateCard.date,
+                                                                            windowIndex,
+                                                                            "start_time",
+                                                                            event
+                                                                              .target
+                                                                              .value,
+                                                                          )
+                                                                        }
+                                                                        className="h-9"
+                                                                      />
+                                                                    </div>
+
+                                                                    <span className="pb-2 text-xs text-muted-foreground">
+                                                                      até
+                                                                    </span>
+
+                                                                    <div className="space-y-1.5">
+                                                                      <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                                        Fim
+                                                                      </Label>
+
+                                                                      <Input
+                                                                        type="time"
+                                                                        value={
+                                                                          window.end_time
+                                                                        }
+                                                                        onChange={(
+                                                                          event,
+                                                                        ) =>
+                                                                          updateTeamCompetitionDateAvailabilityWindow(
+                                                                            teamAvailabilityCard.team_id,
+                                                                            activeTab.competition_key,
+                                                                            dateCard.date,
+                                                                            windowIndex,
+                                                                            "end_time",
+                                                                            event
+                                                                              .target
+                                                                              .value,
+                                                                          )
+                                                                        }
+                                                                        className="h-9"
+                                                                      />
+                                                                    </div>
+
+                                                                    <Button
+                                                                      type="button"
+                                                                      variant="ghost"
+                                                                      size="icon"
+                                                                      onClick={() =>
+                                                                        removeTeamCompetitionDateAvailabilityWindow(
+                                                                          teamAvailabilityCard.team_id,
+                                                                          activeTab.competition_key,
+                                                                          dateCard.date,
+                                                                          windowIndex,
+                                                                        )
+                                                                      }
+                                                                      aria-label={`Remover janela ${windowIndex + 1}`}
+                                                                      title="Remover janela"
+                                                                    >
+                                                                      <Trash2 className="h-4 w-4" />
+                                                                    </Button>
+                                                                  </div>
+                                                                </div>
+                                                              ),
+                                                            )}
+                                                          </div>
+                                                        )}
+                                                      </div>
+                                                    ) : dateCard.team_mode ==
+                                                      "FULL_DAY" ? (
+                                                      <p className="mt-3 text-[11px] text-muted-foreground">
+                                                        A atlética poderá jogar
+                                                        em toda a janela
+                                                        permitida pela
+                                                        modalidade neste dia.
+                                                      </p>
+                                                    ) : (
+                                                      <p className="mt-3 text-[11px] text-muted-foreground">
+                                                        A atlética não poderá
+                                                        disputar jogos desta
+                                                        competição neste dia.
+                                                      </p>
                                                     )}
                                                   </div>
-                                                </div>
-                                              ),
+                                                );
+                                              },
                                             )}
                                           </div>
                                         )}
@@ -9015,6 +10862,86 @@ export function AdminChampionshipBracketPage({
                       reservar quadras e manter os dois naipes da modalidade em
                       sequência.
                     </p>
+                  </div>
+
+                  <div className="mb-6 rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm">
+                    <div>
+                      <p className="text-sm font-bold">Numeração dos jogos</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Defina como o número visual dos jogos será organizado
+                        durante todo o campeonato.
+                      </p>
+                    </div>
+
+                    <RadioGroup
+                      value={matchNumberingMode}
+                      onValueChange={(value) =>
+                        setMatchNumberingMode(
+                          value as ChampionshipBracketMatchNumberingMode,
+                        )
+                      }
+                      className="mt-4 grid gap-3 lg:grid-cols-2"
+                    >
+                      <label
+                        htmlFor="match-numbering-mode-court"
+                        className={cn(
+                          "flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-colors",
+                          matchNumberingMode == "COURT"
+                            ? "border-primary/50 bg-primary/5"
+                            : "border-border/40 bg-background/20 hover:border-border/70",
+                        )}
+                      >
+                        <RadioGroupItem
+                          id="match-numbering-mode-court"
+                          value="COURT"
+                          className="mt-0.5"
+                        />
+
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold">Por quadra</p>
+                          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                            Cada quadra possui sua própria sequência de jogos. A
+                            numeração continua nos dias seguintes e não reinicia
+                            a cada novo dia.
+                          </p>
+
+                          <p className="mt-2 text-[11px] font-medium text-muted-foreground">
+                            Ex.: Quadra Interna — Jogo 1, Jogo 2, Jogo 3...
+                          </p>
+                        </div>
+                      </label>
+
+                      <label
+                        htmlFor="match-numbering-mode-sport-naipe"
+                        className={cn(
+                          "flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-colors",
+                          matchNumberingMode == "SPORT_NAIPE"
+                            ? "border-primary/50 bg-primary/5"
+                            : "border-border/40 bg-background/20 hover:border-border/70",
+                        )}
+                      >
+                        <RadioGroupItem
+                          id="match-numbering-mode-sport-naipe"
+                          value="SPORT_NAIPE"
+                          className="mt-0.5"
+                        />
+
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold">
+                            Por modalidade e naipe
+                          </p>
+                          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                            Cada combinação de modalidade e naipe possui sua
+                            própria sequência, mesmo quando os jogos mudam de
+                            quadra.
+                          </p>
+
+                          <p className="mt-2 text-[11px] font-medium text-muted-foreground">
+                            Ex.: Futsal Feminino — Jogo 1, Jogo 2, Jogo 3...
+                          </p>
+                        </div>
+                      </label>
+                    </RadioGroup>
                   </div>
 
                   <div className="mb-6 rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm">
@@ -9635,12 +11562,21 @@ export function AdminChampionshipBracketPage({
                               </p>
                             </div>
 
-                            <p className="text-xs font-medium text-muted-foreground">
-                              {preferenceRow.court_cards.length}{" "}
-                              {preferenceRow.court_cards.length == 1
-                                ? "quadra"
-                                : "quadras"}
-                            </p>
+                            <div className="text-right text-xs font-medium text-muted-foreground">
+                              <p>
+                                {preferenceRow.court_cards.length}{" "}
+                                {preferenceRow.court_cards.length == 1
+                                  ? "quadra"
+                                  : "quadras"}
+                              </p>
+
+                              <p className="mt-1">
+                                {preferenceRow.planned_match_count}{" "}
+                                {preferenceRow.planned_match_count == 1
+                                  ? "jogo automático planejado"
+                                  : "jogos automáticos planejados"}
+                              </p>
+                            </div>
                           </div>
 
                           <div className="overflow-x-auto">
@@ -9693,18 +11629,123 @@ export function AdminChampionshipBracketPage({
                                       key={preferenceCard.key}
                                       className="min-w-0 bg-background/60 p-5"
                                     >
-                                      <div className="border-b border-border/30 pb-4">
-                                        <p className="text-sm font-bold">
-                                          {preferenceCard.court.name ||
-                                            "Quadra sem nome"}
-                                        </p>
+                                      <div className="flex items-start justify-between gap-4 border-b border-border/30 pb-4">
+                                        <div className="min-w-0">
+                                          <p className="text-sm font-bold">
+                                            {preferenceCard.court.name ||
+                                              "Quadra sem nome"}
+                                          </p>
 
-                                        <p className="mt-1 text-xs text-muted-foreground">
-                                          {preferenceCard.location_name}
-                                        </p>
+                                          <p className="mt-1 text-xs text-muted-foreground">
+                                            {preferenceCard.location_name}
+                                          </p>
+                                        </div>
+
+                                        <div className="shrink-0 text-right">
+                                          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                            Planejado
+                                          </p>
+
+                                          <p className="mt-1 text-sm font-bold">
+                                            {preferenceCard.planned_match_count >
+                                            0
+                                              ? `${
+                                                  preferenceCard.planned_match_count
+                                                } ${
+                                                  preferenceCard.planned_match_count ==
+                                                  1
+                                                    ? "jogo"
+                                                    : "jogos"
+                                                }`
+                                              : "Nenhum"}
+                                          </p>
+                                        </div>
                                       </div>
 
                                       <div className="mt-4 space-y-4">
+                                        <div>
+                                          <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                            Jogos planejados por modalidade
+                                          </p>
+
+                                          <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
+                                            Defina quantos jogos de cada
+                                            modalidade devem ser programados
+                                            nesta quadra neste dia.
+                                          </p>
+
+                                          <div className="space-y-2">
+                                            {preferenceCard.sport_options.map(
+                                              (sportOption) => {
+                                                const currentTarget =
+                                                  preferenceCard.court.sport_match_targets.find(
+                                                    (target) =>
+                                                      target.sport_id ==
+                                                      sportOption.sport_id,
+                                                  ) ?? null;
+
+                                                return (
+                                                  <div
+                                                    key={`${preferenceCard.key}-target-${sportOption.sport_id}`}
+                                                    className="grid grid-cols-[minmax(0,1fr)_100px] items-center gap-3 rounded-lg border border-border/30 bg-background/30 px-3 py-2"
+                                                  >
+                                                    <div className="min-w-0">
+                                                      <p className="truncate text-xs font-bold text-foreground">
+                                                        {
+                                                          sportOption.sport_name
+                                                        }
+                                                      </p>
+
+                                                      <p className="mt-0.5 text-[10px] text-muted-foreground">
+                                                        Jogos automáticos neste
+                                                        dia
+                                                      </p>
+                                                    </div>
+
+                                                    <Input
+                                                      type="number"
+                                                      min={1}
+                                                      step={1}
+                                                      placeholder="0"
+                                                      value={
+                                                        currentTarget?.planned_match_count ??
+                                                        ""
+                                                      }
+                                                      onChange={(event) => {
+                                                        const nextValue =
+                                                          event.target.value;
+
+                                                        updateCourtSportMatchTarget(
+                                                          preferenceCard.schedule_day_id,
+                                                          preferenceCard.location_id,
+                                                          preferenceCard.court.id,
+                                                          sportOption.sport_id,
+                                                          nextValue == ""
+                                                            ? null
+                                                            : Number(
+                                                                nextValue,
+                                                              ),
+                                                        );
+                                                      }}
+                                                      className="h-9 text-center"
+                                                    />
+                                                  </div>
+                                                );
+                                              },
+                                            )}
+                                          </div>
+
+                                          <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
+                                            Campo vazio significa que essa
+                                            modalidade não terá jogos
+                                            automáticos nesta quadra neste dia.
+                                            A quantidade inclui todos os naipes
+                                            da modalidade. Finais programadas
+                                            manualmente são tratadas
+                                            separadamente.
+                                          </p>
+                                        </div>
+
                                         <div>
                                           <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                                             Modalidade preferencial
@@ -9869,22 +11910,24 @@ export function AdminChampionshipBracketPage({
                                           {currentSequenceMode ==
                                           "GROUP_NAIPE" ? (
                                             <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                                              O primeiro naipe será concluído
-                                              antes do início do próximo. Um
-                                              horário poderá permanecer livre
-                                              quando nenhum jogo respeitar o
-                                              descanso necessário.
+                                              O sistema prioriza manter os
+                                              jogos do mesmo naipe agrupados.
+                                              Se nenhum jogo desse naipe puder
+                                              ocorrer no próximo horário, outro
+                                              naipe da mesma modalidade poderá
+                                              utilizar o espaço.
                                             </p>
                                           ) : null}
 
                                           {currentSequenceMode ==
                                           "GROUP_DIVISION" ? (
                                             <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                                              A primeira divisão será concluída
-                                              antes do início da próxima. Um
-                                              horário poderá permanecer livre
-                                              quando nenhum jogo respeitar o
-                                              descanso necessário.
+                                              O sistema prioriza manter os
+                                              jogos da mesma divisão agrupados.
+                                              Se nenhum jogo dessa divisão
+                                              puder ocorrer no próximo horário,
+                                              outra divisão da mesma modalidade
+                                              poderá utilizar o espaço.
                                             </p>
                                           ) : null}
                                         </div>
@@ -10059,10 +12102,184 @@ export function AdminChampionshipBracketPage({
                   <div className="border-b border-border/50 pb-4 mb-6">
                     <p className="text-lg font-bold">Revisão Final</p>
                     <p className="text-sm text-muted-foreground">
-                      Confira os detalhes do campeonato antes de gerar o
+                      Confira a programação operacional antes de gerar o
                       chaveamento definitivo.
                     </p>
                   </div>
+
+                  {loadingOperationalPreview ? (
+                    <div className="mb-6 flex min-h-28 items-center justify-center rounded-xl border border-border/50 bg-muted/20">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Calculando grupos, mata-mata e ocupação das quadras...
+                      </div>
+                    </div>
+                  ) : operationalPreviewError ? (
+                    <Alert className="mb-6">
+                      <AlertTitle>
+                        Não foi possível calcular a prévia operacional
+                      </AlertTitle>
+                      <AlertDescription>
+                        {operationalPreviewError}
+                      </AlertDescription>
+                    </Alert>
+                  ) : operationalPreview?.summary ? (
+                    <div className="mb-6 space-y-4">
+                      <div className="grid grid-cols-5 gap-3">
+                        <div className="rounded-xl border border-border/50 bg-muted/20 p-4">
+                          <p className="text-xs font-medium text-muted-foreground">
+                            Jogos totais
+                          </p>
+                          <p className="mt-1 text-2xl font-bold">
+                            {operationalPreview.summary.total_matches}
+                          </p>
+                        </div>
+
+                        <div className="rounded-xl border border-border/50 bg-muted/20 p-4">
+                          <p className="text-xs font-medium text-muted-foreground">
+                            Grupos
+                          </p>
+                          <p className="mt-1 text-2xl font-bold">
+                            {operationalPreview.summary.group_stage_matches}
+                          </p>
+                        </div>
+
+                        <div className="rounded-xl border border-border/50 bg-muted/20 p-4">
+                          <p className="text-xs font-medium text-muted-foreground">
+                            Mata-mata
+                          </p>
+                          <p className="mt-1 text-2xl font-bold">
+                            {operationalPreview.summary.knockout_matches}
+                          </p>
+                        </div>
+
+                        <div className="rounded-xl border border-border/50 bg-muted/20 p-4">
+                          <p className="text-xs font-medium text-muted-foreground">
+                            Janelas livres
+                          </p>
+                          <p className="mt-1 text-2xl font-bold">
+                            {operationalPreview.summary.free_windows}
+                          </p>
+                        </div>
+
+                        <div className="rounded-xl border border-border/50 bg-muted/20 p-4">
+                          <p className="text-xs font-medium text-muted-foreground">
+                            Conflitos
+                          </p>
+                          <p className="mt-1 text-2xl font-bold">
+                            {operationalPreview.summary.conflict_count}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-xl border border-border/50 bg-muted/20 px-4 py-3">
+                        <div>
+                          <p className="text-sm font-semibold">
+                            Prévia operacional calculada
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {operationalPreview.days.length} dia(s) com timeline
+                            disponível.
+                          </p>
+                        </div>
+
+                        <div className="text-right">
+                          <p className="text-sm font-semibold">
+                            {operationalPreview.summary.utilization_percentage}%
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            ocupação geral
+                          </p>
+                        </div>
+                      </div>
+
+                      {operationalPreview.diagnostics.length > 0 ? (
+                        <Alert>
+                          <AlertTitle>
+                            Pendências encontradas na programação
+                          </AlertTitle>
+
+                          <AlertDescription className="space-y-3">
+                            <p>
+                              {operationalPreview.diagnostics.length}{" "}
+                              conflito(s) ou pendência(s) precisam ser
+                              revisados.
+                            </p>
+
+                            <div className="space-y-2">
+                              {operationalPreview.diagnostics.map(
+                                (diagnostic, diagnosticIndex) => (
+                                  <div
+                                    key={[
+                                      diagnostic.code,
+                                      diagnostic.sport_id ?? "sem-modalidade",
+                                      diagnostic.naipe ?? "sem-naipe",
+                                      diagnostic.division ?? "sem-divisao",
+                                      diagnostic.phase ?? "sem-fase",
+                                      diagnosticIndex,
+                                    ].join("::")}
+                                    className="rounded-lg border border-border/50 bg-background/60 px-3 py-2"
+                                  >
+                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                      <span className="text-sm font-semibold">
+                                        {diagnostic.sport_name ?? "Programação"}
+                                      </span>
+
+                                      {diagnostic.naipe ? (
+                                        <span className="text-xs text-muted-foreground">
+                                          •{" "}
+                                          {MATCH_NAIPE_LABELS[diagnostic.naipe]}
+                                        </span>
+                                      ) : null}
+
+                                      {diagnostic.division ? (
+                                        <span className="text-xs text-muted-foreground">
+                                          •{" "}
+                                          {
+                                            TEAM_DIVISION_LABELS[
+                                              diagnostic.division
+                                            ]
+                                          }
+                                        </span>
+                                      ) : null}
+
+                                      {diagnostic.phase ? (
+                                        <span className="text-xs text-muted-foreground">
+                                          •{" "}
+                                          {diagnostic.phase == "FINAL"
+                                            ? "Final"
+                                            : diagnostic.phase == "SEMIFINAL"
+                                              ? "Semifinal"
+                                              : diagnostic.phase ==
+                                                  "QUARTERFINAL"
+                                                ? "Quartas de final"
+                                                : diagnostic.phase ==
+                                                    "ROUND_OF_16"
+                                                  ? "Oitavas de final"
+                                                  : diagnostic.phase ==
+                                                      "ROUND_OF_32"
+                                                    ? "32-avos de final"
+                                                    : "Fase de grupos"}
+                                        </span>
+                                      ) : null}
+                                    </div>
+
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                      {diagnostic.message}
+                                    </p>
+
+                                    <p className="mt-1 font-mono text-[10px] text-muted-foreground/70">
+                                      {diagnostic.code}
+                                    </p>
+                                  </div>
+                                ),
+                              )}
+                            </div>
+                          </AlertDescription>
+                        </Alert>
+                      ) : null}
+                    </div>
+                  ) : null}
 
                   <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
                     <div className="rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm">
