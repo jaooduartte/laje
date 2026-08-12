@@ -299,7 +299,24 @@ export async function fetchChampionshipIndividualTeamStandings({
     .order("total_points", { ascending: false })
     .order("first_places", { ascending: false })
     .order("second_places", { ascending: false })
-    .order("third_places", { ascending: false });
+    .order("third_places", { ascending: false })
+    .order("fourth_places", { ascending: false })
+    .order("fifth_places", { ascending: false })
+    .order("sixth_places", { ascending: false })
+    .order("seventh_places", { ascending: false })
+    .order("eighth_places", { ascending: false })
+    .order("ninth_places", { ascending: false })
+    .order("tenth_places", { ascending: false })
+    .order("eleventh_places", { ascending: false })
+    .order("twelfth_places", { ascending: false })
+    .order("thirteenth_places", { ascending: false })
+    .order("fourteenth_places", { ascending: false })
+    .order("fifteenth_places", { ascending: false })
+    .order("sixteenth_places", { ascending: false })
+    .order("seventeenth_places", { ascending: false })
+    .order("eighteenth_places", { ascending: false })
+    .order("nineteenth_places", { ascending: false })
+    .order("twentieth_places", { ascending: false });
 
   if (championshipId) {
     query = query.eq("championship_id", championshipId);

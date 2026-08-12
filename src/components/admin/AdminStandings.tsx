@@ -13,6 +13,7 @@ import { useChampionshipCorrectedGroupStandings } from "@/hooks/useChampionshipC
 import { useChampionshipBracketHistory } from "@/hooks/useChampionshipBracketHistory";
 import { useCompetitionTeamDisqualifications } from "@/hooks/useCompetitionTeamDisqualifications";
 import { useChampionshipSeasonRuntime } from "@/hooks/useChampionshipSeasonRuntime";
+import { useInterlajeOverallStandings } from "@/hooks/useInterlajeOverallStandings";
 import { supabase } from "@/integrations/supabase/client";
 import {
   compareAwardsRankingGoalScorers,
@@ -124,6 +125,10 @@ export function AdminStandings({
   const [isApplyingDivisionMovements, setIsApplyingDivisionMovements] = useState(false);
 
   const selectedChampionshipSeasonYear = selectedChampionship?.current_season_year ?? null;
+  const { standings: interlajeOverallStandings, loading: interlajeOverallStandingsLoading } = useInterlajeOverallStandings({
+    championshipId: selectedChampionship.code == ChampionshipCode.INTERLAJE ? selectedChampionship.id : null,
+    seasonYear: selectedChampionship.code == ChampionshipCode.INTERLAJE ? selectedChampionshipSeasonYear : null,
+  });
   const [yearFilter, setYearFilter] = useState<string>(
     selectedChampionshipSeasonYear != null ? String(selectedChampionshipSeasonYear) : "all",
   );
@@ -1037,6 +1042,40 @@ export function AdminStandings({
 
   return (
     <div className="space-y-6">
+      {selectedChampionship.code == ChampionshipCode.INTERLAJE ? (
+        <section className="glass-card enter-section space-y-3 p-4">
+          <div>
+            <p className="text-sm font-semibold text-foreground">Classificação geral do INTERLAJE</p>
+            <p className="text-xs text-muted-foreground">
+              Atualizada apenas com colocações oficiais confirmadas e o bônus de abertura. Pontos de partidas não entram neste total.
+            </p>
+          </div>
+          {interlajeOverallStandingsLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          ) : interlajeOverallStandings.length == 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhuma colocação oficial confirmada ainda.</p>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {interlajeOverallStandings.map((standing, index) => (
+                <div key={standing.team_id} className="rounded-lg border border-border/60 bg-background/40 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-semibold">{index + 1}º {standing.team_name}</span>
+                    <span className="font-display text-lg font-bold text-primary">{standing.overall_points}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {standing.confirmed_competitions_count} competição(ões) confirmada(s)
+                    {standing.opening_bonus_points > 0 ? ` • +${standing.opening_bonus_points} abertura` : ""}
+                  </p>
+                  {standing.has_pending_tie_break ? (
+                    <p className="mt-1 text-xs font-medium text-amber-500">Empate geral pendente de decisão da organização.</p>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      ) : null}
+
       <div className="glass-card enter-section flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-foreground">Ações da competição</p>

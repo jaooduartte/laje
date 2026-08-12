@@ -51,18 +51,27 @@ export type ChampionshipBracketCourtSequenceMode =
   | "GROUP_NAIPE"
   | "GROUP_DIVISION";
 
-export type ChampionshipBracketMatchNumberingMode = "COURT" | "SPORT_NAIPE";
+export type ChampionshipBracketMatchNumberingMode =
+  | "COURT"
+  | "SPORT_NAIPE"
+  | "SPORT";
 
 export interface ChampionshipBracketCourtSportPreferenceInput {
   preferred_sport_id: string;
   preferred_naipe: MatchNaipe | null;
   preferred_division: TeamDivision | null;
   sequence_mode: ChampionshipBracketCourtSequenceMode;
+  alternate_naipe_after_exclusive_knockout_phase: boolean;
 }
+
+export type ChampionshipBracketCourtSportMatchTargetPlanningMode =
+  | "MANUAL"
+  | "AUTO";
 
 export interface ChampionshipBracketCourtSportMatchTargetInput {
   sport_id: string;
   planned_match_count: number;
+  planning_mode?: ChampionshipBracketCourtSportMatchTargetPlanningMode;
 }
 
 export interface ChampionshipBracketCourtInput {
@@ -142,6 +151,11 @@ export interface ChampionshipBracketAvailabilityWindowInput {
   end_time: string;
 }
 
+export interface ChampionshipBracketFixedTimeRangeInput {
+  start_time: string;
+  end_time: string;
+}
+
 export interface ChampionshipBracketCompetitionDateAvailabilityInput {
   competition_key: string;
   date: string;
@@ -178,7 +192,8 @@ export interface ChampionshipBracketIndividualSessionConfigInput {
   naipe: MatchNaipe;
   division: TeamDivision | null;
   scheduled_date: string | null;
-  period: ChampionshipSchedulePeriod | null;
+  start_time: string | null;
+  end_time: string | null;
   location_key: string | null;
   court_key: string | null;
   location_name: string | null;
@@ -188,7 +203,8 @@ export interface ChampionshipBracketIndividualSessionConfigInput {
 
 export interface ChampionshipBracketResourceLockInput {
   date: string;
-  period: ChampionshipSchedulePeriod;
+  start_time: string;
+  end_time: string;
   location_key: string;
   court_key: string;
   location_name: string | null;
@@ -202,7 +218,8 @@ export interface ChampionshipBracketResourceLockInput {
 
 export interface ChampionshipBracketKnockoutProgramBlockInput {
   date: string;
-  period: ChampionshipSchedulePeriod;
+  start_time: string;
+  end_time: string;
   location_key: string;
   court_key: string;
   location_name: string | null;
@@ -221,9 +238,6 @@ export interface ChampionshipBracketSetupFormValues {
   participants: ChampionshipBracketParticipantInput[];
   competitions: ChampionshipBracketCompetitionInput[];
   schedule_days: ChampionshipBracketScheduleDayInput[];
-  schedule_periods: ChampionshipBracketSchedulePeriodInput[];
-  competition_period_availability: ChampionshipBracketCompetitionPeriodAvailabilityInput[];
-  team_competition_availability: ChampionshipBracketTeamCompetitionAvailabilityInput[];
   competition_date_availability?: ChampionshipBracketCompetitionDateAvailabilityInput[];
   team_competition_date_availability?: ChampionshipBracketTeamCompetitionDateAvailabilityInput[];
   individual_event_configs: ChampionshipBracketIndividualEventConfigInput[];
@@ -354,6 +368,217 @@ export interface ChampionshipBracketPreviewResult {
   diagnostics: ChampionshipBracketPreviewDiagnostic[];
 }
 
+export interface ChampionshipBracketExactPreviewCache {
+  payload_signature: string;
+  generated_at: string;
+  result: ChampionshipBracketPreviewResult;
+}
+
+export interface ChampionshipBracketSportMatchTargetRecommendationLineCompetitionBreakdown {
+  competition_key: string;
+  naipe: MatchNaipe;
+  division: TeamDivision | null;
+  planned_match_count: number;
+}
+
+export interface ChampionshipBracketSportMatchTargetRecommendationLine {
+  key: string;
+  schedule_day_id: string;
+  schedule_day_date: string;
+  location_id: string;
+  court_id: string;
+  sport_id: string;
+  planning_mode: ChampionshipBracketCourtSportMatchTargetPlanningMode;
+  manual_match_count: number;
+  recommended_match_count: number;
+  effective_match_count: number;
+  free_minutes: number;
+  reserved_minutes_before_line: number;
+  remaining_minutes_after_line: number;
+  additional_match_capacity: number;
+  has_playable_window: boolean;
+  required_match_count: number;
+  resolved_match_count: number;
+  shortage_match_count: number;
+  excess_match_count: number;
+  competition_breakdowns: ChampionshipBracketSportMatchTargetRecommendationLineCompetitionBreakdown[];
+}
+
+export interface ChampionshipBracketSportMatchTargetRecommendationSummary {
+  sport_id: string;
+  sport_name: string;
+  required_match_count: number;
+  resolved_match_count: number;
+  shortage_match_count: number;
+  excess_match_count: number;
+}
+
+export interface ChampionshipBracketCompetitionMatchTargetRecommendationSummary {
+  competition_key: string;
+  sport_id: string;
+  sport_name: string;
+  naipe: MatchNaipe;
+  division: TeamDivision | null;
+  required_match_count: number;
+  resolved_match_count: number;
+  shortage_match_count: number;
+  excess_match_count: number;
+}
+
+export interface ChampionshipBracketSportMatchTargetRecommendationResult {
+  line_recommendations: ChampionshipBracketSportMatchTargetRecommendationLine[];
+  sport_summaries: ChampionshipBracketSportMatchTargetRecommendationSummary[];
+  competition_summaries: ChampionshipBracketCompetitionMatchTargetRecommendationSummary[];
+}
+
+export interface ChampionshipBracketReviewCollectiveCompetitionSummary {
+  competition_key: string;
+  sport_id: string;
+  sport_name: string;
+  naipe: MatchNaipe;
+  division: TeamDivision | null;
+  expected_match_count: number;
+}
+
+export interface ChampionshipBracketReviewIndividualSessionSummary {
+  sport_id: string;
+  sport_name: string;
+  naipe: MatchNaipe;
+  division: TeamDivision | null;
+  configured_session_count: number;
+}
+
+export interface ChampionshipBracketReviewConfigurationSummary {
+  collective_competitions: ChampionshipBracketReviewCollectiveCompetitionSummary[];
+  individual_sessions: ChampionshipBracketReviewIndividualSessionSummary[];
+}
+
+export type ChampionshipBracketStructuralReviewTimelineEntryType =
+  | "BREAK"
+  | "RESOURCE_LOCK"
+  | "INDIVIDUAL_SESSION"
+  | "MANUAL_FINAL_BLOCK"
+  | "FREE_WINDOW";
+
+export type ChampionshipBracketStructuralReviewPlanningItemType =
+  "SPORT_TARGET";
+
+export type ChampionshipBracketStructuralReviewPlanningStatus =
+  | "WITHIN_CAPACITY"
+  | "OVERFLOW";
+
+export interface ChampionshipBracketStructuralReviewDiagnostic {
+  code: string;
+  severity: ChampionshipBracketPreviewDiagnosticSeverity;
+  message: string;
+  date: string | null;
+  location_name: string | null;
+  court_name: string | null;
+  sport_id: string | null;
+  sport_name: string | null;
+  team_id: string | null;
+  team_name: string | null;
+}
+
+export interface ChampionshipBracketStructuralReviewTimelineEntry {
+  type: ChampionshipBracketStructuralReviewTimelineEntryType;
+  start_time: string;
+  end_time: string;
+  duration_minutes: number;
+  sport_id: string | null;
+  sport_name: string | null;
+  naipe: MatchNaipe | null;
+  division: TeamDivision | null;
+  lock_mode: ChampionshipBracketResourceLockInput["lock_mode"] | null;
+  division_scope: ChampionshipBracketKnockoutProgramBlockInput["division_scope"] | null;
+}
+
+export interface ChampionshipBracketStructuralReviewEstimatedMatchEntry {
+  sport_id: string;
+  sport_name: string;
+  naipe: MatchNaipe;
+  division: TeamDivision | null;
+  phase: ChampionshipBracketPreviewPhase | null;
+  phase_label: string;
+  match_number: number;
+  start_time: string;
+  end_time: string;
+  duration_minutes: number;
+  estimated: true;
+}
+
+export interface ChampionshipBracketStructuralReviewPendingMatchEntry {
+  sport_id: string;
+  sport_name: string;
+  naipe: MatchNaipe;
+  division: TeamDivision | null;
+  phase: ChampionshipBracketPreviewPhase | null;
+  phase_label: string;
+  match_number: number;
+  estimated: true;
+}
+
+export interface ChampionshipBracketStructuralReviewPlanningItem {
+  type: ChampionshipBracketStructuralReviewPlanningItemType;
+  sport_id: string;
+  sport_name: string;
+  planned_match_count: number;
+  match_duration_minutes: number;
+  planned_minutes: number;
+  free_minutes: number;
+  remaining_minutes: number;
+  additional_match_capacity: number;
+  overflow_minutes: number;
+  status: ChampionshipBracketStructuralReviewPlanningStatus;
+  has_playable_window: boolean;
+}
+
+export interface ChampionshipBracketStructuralReviewCourt {
+  court_key: string;
+  court_name: string;
+  blocked_minutes: number;
+  free_minutes: number;
+  planned_collective_minutes: number;
+  overflow_minutes: number;
+  timeline_entries: ChampionshipBracketStructuralReviewTimelineEntry[];
+  estimated_match_entries: ChampionshipBracketStructuralReviewEstimatedMatchEntry[];
+  pending_match_entries: ChampionshipBracketStructuralReviewPendingMatchEntry[];
+  unallocated_match_count: number;
+  planning_items: ChampionshipBracketStructuralReviewPlanningItem[];
+}
+
+export interface ChampionshipBracketStructuralReviewLocation {
+  location_key: string;
+  location_name: string;
+  courts: ChampionshipBracketStructuralReviewCourt[];
+}
+
+export interface ChampionshipBracketStructuralReviewDay {
+  date: string;
+  start_time: string;
+  end_time: string;
+  locations: ChampionshipBracketStructuralReviewLocation[];
+}
+
+export interface ChampionshipBracketStructuralReviewSummary {
+  planned_target_count: number;
+  planned_match_count: number;
+  collective_planned_minutes: number;
+  blocked_minutes: number;
+  free_minutes: number;
+  remaining_minutes: number;
+  overflow_minutes: number;
+  estimated_match_count: number;
+  unallocated_match_count: number;
+  diagnostics_count: number;
+}
+
+export interface ChampionshipBracketStructuralReviewResult {
+  summary: ChampionshipBracketStructuralReviewSummary;
+  days: ChampionshipBracketStructuralReviewDay[];
+  diagnostics: ChampionshipBracketStructuralReviewDiagnostic[];
+}
+
 export interface ChampionshipBracketTieBreakPendingTeam {
   team_id: string;
   team_name: string;
@@ -464,6 +689,7 @@ export interface ChampionshipBracketScheduleDayDraft {
 export interface ChampionshipBracketWizardDraftFormValues {
   step_flow_version?: number;
   current_step_index: number;
+  highest_unlocked_step_index?: number;
   season_settings: ChampionshipSeasonSettingsInput;
   selected_team_ids: string[];
   enabled_sport_ids: string[];
@@ -483,9 +709,6 @@ export interface ChampionshipBracketWizardDraftFormValues {
     ChampionshipBracketGroupOrderedTeamIdsByGroupNumberDraft
   >;
   schedule_days: ChampionshipBracketScheduleDayDraft[];
-  schedule_periods: ChampionshipBracketSchedulePeriodInput[];
-  competition_period_availability: ChampionshipBracketCompetitionPeriodAvailabilityInput[];
-  team_competition_availability: ChampionshipBracketTeamCompetitionAvailabilityInput[];
   competition_date_availability?: ChampionshipBracketCompetitionDateAvailabilityInput[];
   team_competition_date_availability?: ChampionshipBracketTeamCompetitionDateAvailabilityInput[];
   individual_event_configs: ChampionshipBracketIndividualEventConfigInput[];
@@ -493,6 +716,7 @@ export interface ChampionshipBracketWizardDraftFormValues {
   resource_locks: ChampionshipBracketResourceLockInput[];
   match_numbering_mode: ChampionshipBracketMatchNumberingMode;
   knockout_program_blocks: ChampionshipBracketKnockoutProgramBlockInput[];
+  exact_preview_cache?: ChampionshipBracketExactPreviewCache | null;
 }
 
 export interface ChampionshipBracketRemoteDraftMetadata {
@@ -600,6 +824,7 @@ export interface BracketCourtSportEntry {
   preferred_naipe: MatchNaipe | null;
   preferred_division: TeamDivision | null;
   sequence_mode: ChampionshipBracketCourtSequenceMode;
+  alternate_naipe_after_exclusive_knockout_phase: boolean;
 }
 
 export interface BracketCourtWithSports {

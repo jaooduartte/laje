@@ -276,7 +276,7 @@ export function SchedulePageView({
                   <HelpCircle className="h-3.5 w-3.5" />
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="top" className="max-w-xs text-xs">
+              <TooltipContent side="bottom" className="max-w-xs text-xs">
                 A agenda mantém a ordem operacional dos jogos. O número exibido
                 segue a configuração de numeração definida no chaveamento,
                 enquanto a representação operacional continua vinculada à
@@ -301,7 +301,7 @@ export function SchedulePageView({
           </TabsNavigationList>
         </Tabs>
 
-        <div className="glass-panel enter-section grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
+        <div className="glass-panel enter-section grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
           <Select
             value={selectedChampionshipCode}
             onValueChange={onChampionshipCodeChange}

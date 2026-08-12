@@ -9,6 +9,14 @@ import {
   TeamDivision,
 } from "@/lib/enums";
 
+type ChampionshipBracketLegacyDraftOverrides = Partial<
+  ChampionshipBracketWizardDraftFormValues
+> & {
+  schedule_periods?: unknown[];
+  competition_period_availability?: unknown[];
+  team_competition_availability?: unknown[];
+};
+
 function buildPlacementPoints(count = 20) {
   const defaults = [
     24, 22, 20, 18, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
@@ -20,6 +28,7 @@ function buildPlacementPoints(count = 20) {
 }
 
 function buildStoredScheduleDays({
+  date = "2026-08-19",
   sportIds = ["sport-1", "sport-1"],
   sportPreference,
   sportPriorities,
@@ -29,6 +38,7 @@ function buildStoredScheduleDays({
   breakStartTime = "",
   breakEndTime = "",
 }: {
+  date?: string;
   sportIds?: string[];
   sportPreference?: unknown;
   sportPriorities?: unknown;
@@ -60,7 +70,7 @@ function buildStoredScheduleDays({
   return [
     {
       id: "day-1",
-      date: "2026-08-19",
+      date,
       start_time: startTime,
       end_time: endTime,
       break_start_time: breakStartTime,
@@ -79,10 +89,14 @@ function buildStoredScheduleDays({
 }
 
 function buildDraft(
-  overrides: Partial<ChampionshipBracketWizardDraftFormValues> = {},
+  overrides: ChampionshipBracketLegacyDraftOverrides = {},
 ): ChampionshipBracketWizardDraftFormValues {
   return {
     current_step_index: overrides.current_step_index ?? 0,
+    highest_unlocked_step_index:
+      overrides.highest_unlocked_step_index ??
+      overrides.current_step_index ??
+      0,
     season_settings: overrides.season_settings ?? {
       division_format: ChampionshipSeasonDivisionFormat.SEPARATED,
       division_settlement_mode: ChampionshipSeasonDivisionSettlementMode.NONE,
@@ -110,17 +124,12 @@ function buildDraft(
     group_order_by_competition_key:
       overrides.group_order_by_competition_key ?? {},
     schedule_days: overrides.schedule_days ?? [],
-    schedule_periods: overrides.schedule_periods ?? [],
-    competition_period_availability:
-      overrides.competition_period_availability ?? [],
-    team_competition_availability:
-      overrides.team_competition_availability ?? [],
     individual_event_configs: overrides.individual_event_configs ?? [],
     individual_session_configs: overrides.individual_session_configs ?? [],
     resource_locks: overrides.resource_locks ?? [],
     match_numbering_mode: overrides.match_numbering_mode ?? "COURT",
     knockout_program_blocks: overrides.knockout_program_blocks ?? [],
-  };
+  } as ChampionshipBracketWizardDraftFormValues;
 }
 
 function buildLegacyAvailabilityStorageValue({
@@ -260,6 +269,19 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
     expect(dto?.bindToSave().match_numbering_mode).toBe("SPORT_NAIPE");
   });
 
+  it("preserva modo de numeração SPORT ao carregar e salvar", () => {
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      JSON.stringify({
+        ...buildDraft({
+          match_numbering_mode: "SPORT",
+        }),
+        step_flow_version: 2,
+      }),
+    );
+
+    expect(dto?.bindToSave().match_numbering_mode).toBe("SPORT");
+  });
+
   it("preserva a preferência singular da quadra ao carregar e salvar", () => {
     const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
       JSON.stringify({
@@ -286,6 +308,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
       preferred_naipe: MatchNaipe.MASCULINO,
       preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
       sequence_mode: "FLEXIBLE",
+      alternate_naipe_after_exclusive_knockout_phase: false,
     });
   });
 
@@ -325,6 +348,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
       preferred_naipe: MatchNaipe.FEMININO,
       preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
       sequence_mode: "FLEXIBLE",
+      alternate_naipe_after_exclusive_knockout_phase: false,
     });
   });
 
@@ -383,6 +407,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
       preferred_naipe: MatchNaipe.MASCULINO,
       preferred_division: null,
       sequence_mode: "FLEXIBLE",
+      alternate_naipe_after_exclusive_knockout_phase: false,
     });
   });
 
@@ -411,6 +436,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
       preferred_naipe: MatchNaipe.MASCULINO,
       preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
       sequence_mode: "FLEXIBLE",
+      alternate_naipe_after_exclusive_knockout_phase: false,
     });
   });
 
@@ -586,6 +612,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
       preferred_naipe: MatchNaipe.FEMININO,
       preferred_division: null,
       sequence_mode: "GROUP_NAIPE",
+      alternate_naipe_after_exclusive_knockout_phase: false,
     });
   });
 
@@ -615,6 +642,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
       preferred_naipe: null,
       preferred_division: TeamDivision.DIVISAO_ACESSO,
       sequence_mode: "GROUP_DIVISION",
+      alternate_naipe_after_exclusive_knockout_phase: false,
     });
   });
 
@@ -644,6 +672,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
       preferred_naipe: MatchNaipe.MASCULINO,
       preferred_division: null,
       sequence_mode: "FLEXIBLE",
+      alternate_naipe_after_exclusive_knockout_phase: false,
     });
   });
 
@@ -662,6 +691,105 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
       dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0];
 
     expect(savedCourt?.sport_match_targets).toEqual([]);
+  });
+
+  it("carrega drafts antigos sem highest_unlocked_step_index usando a etapa atual", () => {
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      JSON.stringify({
+        ...buildDraft({
+          current_step_index: 7,
+        }),
+        highest_unlocked_step_index: undefined,
+        step_flow_version: 2,
+      }),
+    );
+
+    expect(dto?.bindToSave().highest_unlocked_step_index).toBe(7);
+  });
+
+  it("carrega drafts antigos sem cache de prévia exata", () => {
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      JSON.stringify({
+        ...buildDraft(),
+        step_flow_version: 2,
+      }),
+    );
+
+    expect(dto?.bindToSave().exact_preview_cache).toBeNull();
+  });
+
+  it("preserva o cache válido da prévia exata ao salvar o draft", () => {
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      JSON.stringify({
+        ...buildDraft(),
+        step_flow_version: 2,
+        exact_preview_cache: {
+          payload_signature: "{\"payload\":1}",
+          generated_at: "2026-08-10T03:15:00.000Z",
+          result: {
+            ok: true,
+            message: "Prévia pronta",
+            match_numbering_mode: "COURT",
+            summary: {
+              total_matches: 12,
+              group_stage_matches: 8,
+              knockout_matches: 4,
+              scheduled_matches: 12,
+              occupied_minutes: 480,
+              available_minutes: 600,
+              utilization_percentage: 80,
+              free_windows: 2,
+              conflict_count: 0,
+              warning_count: 1,
+              games_by_day: [],
+            },
+            days: [],
+            diagnostics: [],
+          },
+        },
+      }),
+    );
+
+    expect(dto?.bindToSave().exact_preview_cache).toEqual({
+      payload_signature: "{\"payload\":1}",
+      generated_at: "2026-08-10T03:15:00.000Z",
+      result: {
+        ok: true,
+        message: "Prévia pronta",
+        match_numbering_mode: "COURT",
+        summary: {
+          total_matches: 12,
+          group_stage_matches: 8,
+          knockout_matches: 4,
+          scheduled_matches: 12,
+          occupied_minutes: 480,
+          available_minutes: 600,
+          utilization_percentage: 80,
+          free_windows: 2,
+          conflict_count: 0,
+          warning_count: 1,
+          games_by_day: [],
+        },
+        days: [],
+        diagnostics: [],
+      },
+    });
+  });
+
+  it("descarta cache malformado da prévia exata", () => {
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      JSON.stringify({
+        ...buildDraft(),
+        step_flow_version: 2,
+        exact_preview_cache: {
+          payload_signature: "",
+          generated_at: "2026-08-10T03:15:00.000Z",
+          result: "invalid",
+        },
+      }),
+    );
+
+    expect(dto?.bindToSave().exact_preview_cache).toBeNull();
   });
 
   it("preserva e normaliza metas de jogos por modalidade da quadra", () => {
@@ -708,10 +836,52 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
       {
         sport_id: "sport-1",
         planned_match_count: 14,
+        planning_mode: "MANUAL",
       },
       {
         sport_id: "sport-2",
         planned_match_count: 7,
+        planning_mode: "MANUAL",
+      },
+    ]);
+  });
+
+  it("preserva planning_mode AUTO e normaliza planning_mode inválido para MANUAL", () => {
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      JSON.stringify({
+        ...buildDraft(),
+        step_flow_version: 2,
+        schedule_days: buildStoredScheduleDays({
+          sportIds: ["sport-1", "sport-2"],
+          sportMatchTargets: [
+            {
+              sport_id: "sport-1",
+              planned_match_count: 9,
+              planning_mode: "AUTO",
+            },
+            {
+              sport_id: "sport-2",
+              planned_match_count: 4,
+              planning_mode: "LEGACY_UNKNOWN",
+            },
+          ],
+        }),
+      }),
+    );
+
+    const savedCourt =
+      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0];
+
+    expect(savedCourt?.sport_match_targets).toEqual([
+      {
+        sport_id: "sport-1",
+        planned_match_count: 9,
+        planning_mode: "AUTO",
+      },
+      {
+        sport_id: "sport-2",
+        planned_match_count: 4,
+        planning_mode: "MANUAL",
       },
     ]);
   });
@@ -745,6 +915,9 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
       JSON.stringify({
         ...buildDraft(),
         step_flow_version: 2,
+        schedule_days: buildStoredScheduleDays({
+          date: "2026-08-19",
+        }),
         knockout_program_blocks: [
           {
             date: "2026-08-19",
@@ -802,6 +975,9 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
       JSON.stringify({
         step_flow_version: 2,
         current_step_index: 10,
+        schedule_days: buildStoredScheduleDays({
+          date: "2026-08-29",
+        }),
         knockout_program_blocks: [
           {
             date: "2026-08-29",
@@ -830,6 +1006,9 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
       JSON.stringify({
         step_flow_version: 2,
         current_step_index: 10,
+        schedule_days: buildStoredScheduleDays({
+          date: "2026-08-29",
+        }),
         knockout_program_blocks: [
           {
             date: "2026-08-29",

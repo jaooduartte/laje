@@ -359,6 +359,7 @@ export type Database = {
       }
       championship_bracket_court_sports: {
         Row: {
+          alternate_naipe_after_exclusive_knockout_phase: boolean
           bracket_court_id: string
           created_at: string
           id: string
@@ -370,6 +371,7 @@ export type Database = {
           sport_id: string
         }
         Insert: {
+          alternate_naipe_after_exclusive_knockout_phase?: boolean
           bracket_court_id: string
           created_at?: string
           id?: string
@@ -381,6 +383,7 @@ export type Database = {
           sport_id: string
         }
         Update: {
+          alternate_naipe_after_exclusive_knockout_phase?: boolean
           bracket_court_id?: string
           created_at?: string
           id?: string

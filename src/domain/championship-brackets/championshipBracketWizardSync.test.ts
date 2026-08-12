@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  resolveAutomaticKnockoutProgramNaipeSequence,
   sanitizeChampionshipBracketWizardDraft,
   sanitizeCompetitionDateAvailabilityValues,
+  sanitizeKnockoutProgramBlocksValues,
   sanitizeTeamCompetitionDateAvailabilityValues,
 } from "@/domain/championship-brackets/championshipBracketWizardSync";
 import type { ChampionshipBracketWizardDraftFormValues } from "@/domain/championship-brackets/championshipBracket.types";
@@ -16,6 +18,14 @@ import {
   TeamDivision,
 } from "@/lib/enums";
 import type { ChampionshipSport, Team } from "@/lib/types";
+
+type ChampionshipBracketLegacyDraftOverrides = Partial<
+  ChampionshipBracketWizardDraftFormValues
+> & {
+  schedule_periods?: unknown[];
+  competition_period_availability?: unknown[];
+  team_competition_availability?: unknown[];
+};
 
 function buildPlacementPoints(count = 20) {
   const defaults = [
@@ -71,7 +81,7 @@ function buildChampionshipSport(
 }
 
 function buildDraft(
-  overrides: Partial<ChampionshipBracketWizardDraftFormValues> = {},
+  overrides: ChampionshipBracketLegacyDraftOverrides = {},
 ): ChampionshipBracketWizardDraftFormValues {
   return {
     current_step_index: overrides.current_step_index ?? 1,
@@ -102,17 +112,16 @@ function buildDraft(
     group_order_by_competition_key:
       overrides.group_order_by_competition_key ?? {},
     schedule_days: overrides.schedule_days ?? [],
-    schedule_periods: overrides.schedule_periods ?? [],
-    competition_period_availability:
-      overrides.competition_period_availability ?? [],
-    team_competition_availability:
-      overrides.team_competition_availability ?? [],
+    competition_date_availability:
+      overrides.competition_date_availability ?? [],
+    team_competition_date_availability:
+      overrides.team_competition_date_availability ?? [],
     individual_event_configs: overrides.individual_event_configs ?? [],
     individual_session_configs: overrides.individual_session_configs ?? [],
     resource_locks: overrides.resource_locks ?? [],
     match_numbering_mode: overrides.match_numbering_mode ?? "COURT",
     knockout_program_blocks: overrides.knockout_program_blocks ?? [],
-  };
+  } as ChampionshipBracketWizardDraftFormValues;
 }
 
 function buildScheduleDay(
@@ -128,6 +137,182 @@ function buildScheduleDay(
     locations: [],
   };
 }
+
+describe("resolveAutomaticKnockoutProgramNaipeSequence", () => {
+  it("ordena finais feminino antes de masculino", () => {
+    expect(
+      resolveAutomaticKnockoutProgramNaipeSequence([
+        MatchNaipe.MASCULINO,
+        MatchNaipe.FEMININO,
+      ]),
+    ).toEqual([MatchNaipe.FEMININO, MatchNaipe.MASCULINO]);
+  });
+
+  it("mantém a final mista como único naipe disponível", () => {
+    expect(
+      resolveAutomaticKnockoutProgramNaipeSequence([MatchNaipe.MISTO]),
+    ).toEqual([MatchNaipe.MISTO]);
+  });
+});
+
+describe("sanitizeKnockoutProgramBlocksValues", () => {
+  it("preserva a sequência existente quando o bloco continua no mesmo escopo", () => {
+    const sanitizedBlocks = sanitizeKnockoutProgramBlocksValues({
+      scheduleDays: [buildScheduleDay("2026-08-19")],
+      seasonSettings: {
+        division_format: ChampionshipSeasonDivisionFormat.SEPARATED,
+        division_settlement_mode:
+          ChampionshipSeasonDivisionSettlementMode.NONE,
+        principal_slots_count: null,
+        principal_relegation_count: null,
+        access_promotion_count: null,
+      },
+      collectiveCompetitionOptions: [
+        {
+          key: "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
+          sport_id: "sport-1",
+          sport_name: "Basquetebol",
+          naipe: MatchNaipe.MASCULINO,
+          division: TeamDivision.DIVISAO_PRINCIPAL,
+        },
+        {
+          key: "sport-1::FEMININO::DIVISAO_PRINCIPAL",
+          sport_id: "sport-1",
+          sport_name: "Basquetebol",
+          naipe: MatchNaipe.FEMININO,
+          division: TeamDivision.DIVISAO_PRINCIPAL,
+        },
+      ],
+      knockoutProgramBlocks: [
+        {
+          date: "2026-08-19",
+          start_time: "08:00",
+          end_time: "10:00",
+          location_key: "location-1",
+          court_key: "court-1",
+          location_name: "Campus",
+          court_name: "Quadra 1",
+          sport_id: "sport-1",
+          phase: "FINAL",
+          division_scope: TeamDivision.DIVISAO_PRINCIPAL,
+          naipe_sequence: [MatchNaipe.MASCULINO, MatchNaipe.FEMININO],
+          match_duration_minutes_override: null,
+          display_order: 1,
+        },
+      ],
+    });
+
+    expect(sanitizedBlocks[0]?.naipe_sequence).toEqual([
+      MatchNaipe.MASCULINO,
+      MatchNaipe.FEMININO,
+    ]);
+  });
+
+  it("preserva a reserva manual com todos os naipes ativos da modalidade", () => {
+    const block = {
+      date: "2026-08-19",
+      start_time: "08:00",
+      end_time: "10:00",
+      location_key: "location-1",
+      court_key: "court-1",
+      location_name: "Campus",
+      court_name: "Quadra 1",
+      sport_id: "sport-1",
+      phase: "FINAL" as const,
+      division_scope: TeamDivision.DIVISAO_PRINCIPAL,
+      naipe_sequence: [MatchNaipe.FEMININO, MatchNaipe.MASCULINO],
+      match_duration_minutes_override: null,
+      display_order: 1,
+    };
+    const collectiveCompetitionOptions = [
+      {
+        key: "sport-1::FEMININO::DIVISAO_PRINCIPAL",
+        sport_id: "sport-1",
+        sport_name: "Basquetebol",
+        naipe: MatchNaipe.FEMININO,
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+      },
+      {
+        key: "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
+        sport_id: "sport-1",
+        sport_name: "Basquetebol",
+        naipe: MatchNaipe.MASCULINO,
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+      },
+    ];
+    const sharedInput = {
+      scheduleDays: [buildScheduleDay("2026-08-19")],
+      seasonSettings: {
+        division_format: ChampionshipSeasonDivisionFormat.SEPARATED,
+        division_settlement_mode: ChampionshipSeasonDivisionSettlementMode.NONE,
+        principal_slots_count: null,
+        principal_relegation_count: null,
+        access_promotion_count: null,
+      },
+      collectiveCompetitionOptions,
+      knockoutProgramBlocks: [block],
+    };
+
+    expect(
+      sanitizeKnockoutProgramBlocksValues({
+        ...sharedInput,
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        naipe_sequence: [MatchNaipe.FEMININO, MatchNaipe.MASCULINO],
+      }),
+    ]);
+  });
+
+  it("mantém a final de modalidade mista quando a competição está jogável", () => {
+    const sanitizedBlocks = sanitizeKnockoutProgramBlocksValues({
+      scheduleDays: [buildScheduleDay("2026-08-19")],
+      seasonSettings: {
+        division_format: ChampionshipSeasonDivisionFormat.UNIFIED,
+        division_settlement_mode: ChampionshipSeasonDivisionSettlementMode.NONE,
+        principal_slots_count: null,
+        principal_relegation_count: null,
+        access_promotion_count: null,
+      },
+      collectiveCompetitionOptions: [
+        {
+          key: "sport-mixed::MISTO::WITHOUT_DIVISION",
+          sport_id: "sport-mixed",
+          sport_name: "Beach Tennis",
+          naipe: MatchNaipe.MISTO,
+          division: null,
+        },
+      ],
+      competitionDateAvailability: [
+        {
+          competition_key: "sport-mixed::MISTO::WITHOUT_DIVISION",
+          date: "2026-08-19",
+          mode: "FULL_DAY",
+          windows: [],
+        },
+      ],
+      knockoutProgramBlocks: [
+        {
+          date: "2026-08-19",
+          start_time: "08:00",
+          end_time: "10:00",
+          location_key: "location-1",
+          court_key: "court-1",
+          location_name: "Campus",
+          court_name: "Quadra 1",
+          sport_id: "sport-mixed",
+          phase: "FINAL",
+          division_scope: "ALL",
+          naipe_sequence: [MatchNaipe.MISTO],
+          match_duration_minutes_override: null,
+          display_order: 1,
+        },
+      ],
+    });
+
+    expect(sanitizedBlocks[0]?.naipe_sequence).toEqual([MatchNaipe.MISTO]);
+  });
+});
 
 describe("sanitizeChampionshipBracketWizardDraft - numeração dos jogos", () => {
   it("preserva SPORT_NAIPE durante a sanitização do rascunho", () => {
@@ -147,6 +332,25 @@ describe("sanitizeChampionshipBracketWizardDraft - numeração dos jogos", () =>
     });
 
     expect(sanitizedDraft.match_numbering_mode).toBe("SPORT_NAIPE");
+  });
+
+  it("preserva SPORT durante a sanitização do rascunho", () => {
+    const sanitizedDraft = sanitizeChampionshipBracketWizardDraft({
+      draftFormValues: buildDraft({
+        match_numbering_mode: "SPORT",
+      }),
+      teams: [],
+      championshipSports: [buildChampionshipSport()],
+      seasonSettings: {
+        division_format: ChampionshipSeasonDivisionFormat.SEPARATED,
+        division_settlement_mode: ChampionshipSeasonDivisionSettlementMode.NONE,
+        principal_slots_count: null,
+        principal_relegation_count: null,
+        access_promotion_count: null,
+      },
+    });
+
+    expect(sanitizedDraft.match_numbering_mode).toBe("SPORT");
   });
 });
 
@@ -870,62 +1074,9 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
       },
     });
 
-    expect(sanitizedDraft.schedule_periods).toEqual([
-      {
-        date: "2026-09-12",
-        period: ChampionshipSchedulePeriod.MATUTINO,
-        enabled: false,
-      },
-      {
-        date: "2026-09-12",
-        period: ChampionshipSchedulePeriod.VESPERTINO,
-        enabled: true,
-      },
-    ]);
-    expect(sanitizedDraft.competition_period_availability).toEqual([
-      {
-        competition_key: competitionKey,
-        date: "2026-09-12",
-        period: ChampionshipSchedulePeriod.MATUTINO,
-        enabled: true,
-      },
-      {
-        competition_key: competitionKey,
-        date: "2026-09-12",
-        period: ChampionshipSchedulePeriod.VESPERTINO,
-        enabled: false,
-      },
-    ]);
-    expect(sanitizedDraft.team_competition_availability).toEqual([
-      {
-        team_id: "team-1",
-        competition_key: competitionKey,
-        date: "2026-09-12",
-        period: ChampionshipSchedulePeriod.MATUTINO,
-        enabled: true,
-      },
-      {
-        team_id: "team-1",
-        competition_key: competitionKey,
-        date: "2026-09-12",
-        period: ChampionshipSchedulePeriod.VESPERTINO,
-        enabled: false,
-      },
-      {
-        team_id: "team-2",
-        competition_key: competitionKey,
-        date: "2026-09-12",
-        period: ChampionshipSchedulePeriod.MATUTINO,
-        enabled: true,
-      },
-      {
-        team_id: "team-2",
-        competition_key: competitionKey,
-        date: "2026-09-12",
-        period: ChampionshipSchedulePeriod.VESPERTINO,
-        enabled: true,
-      },
-    ]);
+    expect("schedule_periods" in sanitizedDraft).toBe(false);
+    expect("competition_period_availability" in sanitizedDraft).toBe(false);
+    expect("team_competition_availability" in sanitizedDraft).toBe(false);
     expect(sanitizedDraft.individual_event_configs).toEqual([
       {
         sport_id: "sport-individual",
@@ -1134,6 +1285,7 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
       preferred_naipe: MatchNaipe.MASCULINO,
       preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
       sequence_mode: "FLEXIBLE",
+      alternate_naipe_after_exclusive_knockout_phase: false,
     });
   });
 
@@ -1243,6 +1395,7 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
       preferred_naipe: null,
       preferred_division: null,
       sequence_mode: "FLEXIBLE",
+      alternate_naipe_after_exclusive_knockout_phase: false,
     });
   });
 
@@ -1381,6 +1534,7 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
         preferred_naipe: MatchNaipe.FEMININO,
         preferred_division: null,
         sequence_mode: "GROUP_NAIPE",
+        alternate_naipe_after_exclusive_knockout_phase: true,
       },
     });
 
@@ -1389,6 +1543,7 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
       preferred_naipe: MatchNaipe.FEMININO,
       preferred_division: null,
       sequence_mode: "GROUP_NAIPE",
+      alternate_naipe_after_exclusive_knockout_phase: true,
     });
   });
 
@@ -1430,6 +1585,7 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
       preferred_naipe: MatchNaipe.MASCULINO,
       preferred_division: null,
       sequence_mode: "FLEXIBLE",
+      alternate_naipe_after_exclusive_knockout_phase: false,
     });
   });
 
@@ -1490,6 +1646,7 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
       preferred_naipe: null,
       preferred_division: TeamDivision.DIVISAO_ACESSO,
       sequence_mode: "GROUP_DIVISION",
+      alternate_naipe_after_exclusive_knockout_phase: false,
     });
   });
 
@@ -1531,6 +1688,240 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
       preferred_naipe: null,
       preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
       sequence_mode: "FLEXIBLE",
+      alternate_naipe_after_exclusive_knockout_phase: false,
+    });
+  });
+
+  it("remove metas e preferências quando a modalidade não possui janela jogável no dia", () => {
+    const feminineCompetitionKey = "sport-1::FEMININO::DIVISAO_PRINCIPAL";
+    const masculineCompetitionKey = "sport-1::MASCULINO::DIVISAO_PRINCIPAL";
+    const teams = [
+      buildTeam({
+        id: "team-1",
+        name: "Atlética 1",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+      }),
+      buildTeam({
+        id: "team-2",
+        name: "Atlética 2",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+      }),
+    ];
+
+    const sanitizedDraft = sanitizeChampionshipBracketWizardDraft({
+      draftFormValues: buildDraft({
+        selected_team_ids: teams.map((team) => team.id),
+        selected_sport_ids_by_team_id: {
+          "team-1": ["sport-1"],
+          "team-2": ["sport-1"],
+        },
+        selected_competition_keys_by_team_id: {
+          "team-1": [feminineCompetitionKey, masculineCompetitionKey],
+          "team-2": [feminineCompetitionKey, masculineCompetitionKey],
+        },
+        schedule_days: [
+          {
+            id: "day-1",
+            date: "2026-09-19",
+            start_time: "08:00",
+            end_time: "20:00",
+            break_start_time: "",
+            break_end_time: "",
+            locations: [
+              {
+                id: "location-1",
+                location_template_id: null,
+                name: "Campus Park",
+                position: 1,
+                courts: [
+                  {
+                    id: "court-1",
+                    name: "Quadra Interna",
+                    position: 1,
+                    sport_ids: ["sport-1"],
+                    sport_match_targets: [
+                      {
+                        sport_id: "sport-1",
+                        planned_match_count: 3,
+                      },
+                    ],
+                    sport_preference: {
+                      preferred_sport_id: "sport-1",
+                      preferred_naipe: MatchNaipe.FEMININO,
+                      preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
+                      sequence_mode: "GROUP_NAIPE",
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        competition_date_availability: [
+          {
+            competition_key: feminineCompetitionKey,
+            date: "2026-09-19",
+            mode: "UNAVAILABLE",
+            windows: [],
+          },
+          {
+            competition_key: masculineCompetitionKey,
+            date: "2026-09-19",
+            mode: "CUSTOM",
+            windows: [
+              {
+                start_time: "12:00",
+                end_time: "12:00",
+              },
+            ],
+          },
+        ],
+      }),
+      teams,
+      championshipSports: [
+        buildChampionshipSport({
+          sports: {
+            id: "sport-1",
+            name: "Basquetebol",
+            default_match_duration_minutes: 40,
+            created_at: "2026-05-08T00:00:00.000Z",
+          },
+        }),
+      ],
+      seasonSettings: {
+        division_format: ChampionshipSeasonDivisionFormat.SEPARATED,
+        division_settlement_mode: ChampionshipSeasonDivisionSettlementMode.NONE,
+        principal_slots_count: null,
+        principal_relegation_count: null,
+        access_promotion_count: null,
+      },
+    });
+    const sanitizedCourt =
+      sanitizedDraft.schedule_days[0]?.locations[0]?.courts[0];
+
+    expect(sanitizedCourt?.sport_ids).toEqual(["sport-1"]);
+    expect(sanitizedCourt?.sport_match_targets).toEqual([]);
+    expect(sanitizedCourt?.sport_preference).toBeNull();
+  });
+
+  it("preserva a meta quando outro naipe da modalidade continua jogável", () => {
+    const feminineCompetitionKey = "sport-1::FEMININO::DIVISAO_PRINCIPAL";
+    const masculineCompetitionKey = "sport-1::MASCULINO::DIVISAO_PRINCIPAL";
+    const teams = [
+      buildTeam({
+        id: "team-1",
+        name: "Atlética 1",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+      }),
+      buildTeam({
+        id: "team-2",
+        name: "Atlética 2",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+      }),
+    ];
+    const sanitizedDraft = sanitizeChampionshipBracketWizardDraft({
+      draftFormValues: buildDraft({
+        selected_team_ids: teams.map((team) => team.id),
+        selected_sport_ids_by_team_id: {
+          "team-1": ["sport-1"],
+          "team-2": ["sport-1"],
+        },
+        selected_competition_keys_by_team_id: {
+          "team-1": [feminineCompetitionKey, masculineCompetitionKey],
+          "team-2": [feminineCompetitionKey, masculineCompetitionKey],
+        },
+        schedule_days: [
+          {
+            id: "day-1",
+            date: "2026-09-19",
+            start_time: "08:00",
+            end_time: "20:00",
+            break_start_time: "",
+            break_end_time: "",
+            locations: [
+              {
+                id: "location-1",
+                location_template_id: null,
+                name: "Campus Park",
+                position: 1,
+                courts: [
+                  {
+                    id: "court-1",
+                    name: "Quadra Interna",
+                    position: 1,
+                    sport_ids: ["sport-1"],
+                    sport_match_targets: [
+                      {
+                        sport_id: "sport-1",
+                        planned_match_count: 3,
+                      },
+                    ],
+                    sport_preference: {
+                      preferred_sport_id: "sport-1",
+                      preferred_naipe: MatchNaipe.FEMININO,
+                      preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
+                      sequence_mode: "GROUP_NAIPE",
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        competition_date_availability: [
+          {
+            competition_key: feminineCompetitionKey,
+            date: "2026-09-19",
+            mode: "UNAVAILABLE",
+            windows: [],
+          },
+          {
+            competition_key: masculineCompetitionKey,
+            date: "2026-09-19",
+            mode: "CUSTOM",
+            windows: [
+              {
+                start_time: "08:00",
+                end_time: "12:00",
+              },
+            ],
+          },
+        ],
+      }),
+      teams,
+      championshipSports: [
+        buildChampionshipSport({
+          sports: {
+            id: "sport-1",
+            name: "Basquetebol",
+            default_match_duration_minutes: 40,
+            created_at: "2026-05-08T00:00:00.000Z",
+          },
+        }),
+      ],
+      seasonSettings: {
+        division_format: ChampionshipSeasonDivisionFormat.SEPARATED,
+        division_settlement_mode: ChampionshipSeasonDivisionSettlementMode.NONE,
+        principal_slots_count: null,
+        principal_relegation_count: null,
+        access_promotion_count: null,
+      },
+    });
+    const sanitizedCourt =
+      sanitizedDraft.schedule_days[0]?.locations[0]?.courts[0];
+
+    expect(sanitizedCourt?.sport_match_targets).toEqual([
+      {
+        sport_id: "sport-1",
+        planned_match_count: 3,
+      },
+    ]);
+    expect(sanitizedCourt?.sport_preference).toEqual({
+      preferred_sport_id: "sport-1",
+      preferred_naipe: null,
+      preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
+      sequence_mode: "FLEXIBLE",
+      alternate_naipe_after_exclusive_knockout_phase: false,
     });
   });
 
@@ -1582,7 +1973,8 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
         knockout_program_blocks: [
           {
             date: "2026-08-19",
-            period: ChampionshipSchedulePeriod.MATUTINO,
+            start_time: "08:00",
+            end_time: "12:00",
             location_key: "loc-1",
             court_key: "court-1",
             location_name: "Arena",
@@ -1596,7 +1988,8 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
           },
           {
             date: "2026-08-19",
-            period: ChampionshipSchedulePeriod.VESPERTINO,
+            start_time: "13:00",
+            end_time: "20:00",
             location_key: "loc-1",
             court_key: "court-1",
             location_name: "Arena",
@@ -1633,7 +2026,8 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
 
     expect(
       sanitizedDraft.knockout_program_blocks.map((programBlock) => ({
-        period: programBlock.period,
+        start_time: programBlock.start_time,
+        end_time: programBlock.end_time,
         display_order: programBlock.display_order,
         naipe_sequence: programBlock.naipe_sequence,
         match_duration_minutes_override:
@@ -1641,13 +2035,15 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
       })),
     ).toEqual([
       {
-        period: ChampionshipSchedulePeriod.VESPERTINO,
+        start_time: "13:00",
+        end_time: "20:00",
         display_order: 1,
         naipe_sequence: [MatchNaipe.MASCULINO],
         match_duration_minutes_override: 75,
       },
       {
-        period: ChampionshipSchedulePeriod.MATUTINO,
+        start_time: "08:00",
+        end_time: "12:00",
         display_order: 2,
         naipe_sequence: [MatchNaipe.MASCULINO],
         match_duration_minutes_override: null,

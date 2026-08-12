@@ -2,9 +2,15 @@ import type {
   ChampionshipBracketCourtSequenceMode,
   ChampionshipBracketSetupFormValues,
 } from "@/domain/championship-brackets/championshipBracket.types";
+import {
+  resolveIndividualSessionSharedSlotKey,
+} from "@/domain/championship-brackets/championshipBracketIndividualSessionSharing";
+import {
+  resolveFixedTimeRangeInterval,
+  resolveTimeIntervalsOverlap,
+} from "@/domain/championship-brackets/championshipBracketFixedTimeRange";
 import { resolveCompetitionKnockoutPairingModeValue } from "@/domain/championship-brackets/championshipBracketPairing";
 import {
-  ChampionshipSchedulePeriod,
   ChampionshipSeasonDivisionFormat,
   ChampionshipSeasonDivisionSettlementMode,
 } from "@/lib/enums";
@@ -370,6 +376,23 @@ export class ChampionshipBracketSetupDTO {
                 `O agrupamento por naipe da quadra ${court.name} não pode carregar divisão preferencial.`,
               );
             }
+
+            if (
+              sportPreference.alternate_naipe_after_exclusive_knockout_phase ===
+                true &&
+              availableNaipes.length != 2
+            ) {
+              throw new Error(
+                `A alternância após fase eliminatória exclusiva da quadra ${court.name} exige exatamente dois naipes ativos.`,
+              );
+            }
+          } else if (
+            sportPreference.alternate_naipe_after_exclusive_knockout_phase ===
+            true
+          ) {
+            throw new Error(
+              `A alternância após fase eliminatória exclusiva da quadra ${court.name} exige agrupamento por naipe.`,
+            );
           }
 
           if (sequenceMode == "GROUP_DIVISION") {
@@ -473,226 +496,6 @@ export class ChampionshipBracketSetupDTO {
       naipe,
       division ?? COMPETITION_DIVISION_WITHOUT_DIVISION,
     ].join("::");
-  }
-
-  private resolveDatePeriodKey(
-    date: string,
-    period: ChampionshipSchedulePeriod,
-  ) {
-    return `${date}::${period}`;
-  }
-
-  private resolveScheduleDayDateSet() {
-    return new Set(
-      this.form_values.schedule_days
-        .map((scheduleDay) => scheduleDay.date.trim())
-        .filter(Boolean),
-    );
-  }
-
-  private validateSchedulePeriods() {
-    const scheduleDayDateSet = this.resolveScheduleDayDateSet();
-
-    if (this.form_values.schedule_periods.length == 0) {
-      throw new Error("Configure os períodos da agenda do campeonato.");
-    }
-
-    const seenDatePeriodKeys = new Set<string>();
-
-    this.form_values.schedule_periods.forEach((schedulePeriod) => {
-      if (!scheduleDayDateSet.has(schedulePeriod.date)) {
-        throw new Error(
-          "Período da agenda inválido: dia não encontrado na agenda.",
-        );
-      }
-
-      if (
-        schedulePeriod.period != ChampionshipSchedulePeriod.MATUTINO &&
-        schedulePeriod.period != ChampionshipSchedulePeriod.VESPERTINO
-      ) {
-        throw new Error("Período da agenda inválido.");
-      }
-
-      const datePeriodKey = this.resolveDatePeriodKey(
-        schedulePeriod.date,
-        schedulePeriod.period,
-      );
-
-      if (seenDatePeriodKeys.has(datePeriodKey)) {
-        throw new Error("Período da agenda duplicado.");
-      }
-
-      seenDatePeriodKeys.add(datePeriodKey);
-    });
-
-    if (
-      !this.form_values.schedule_periods.some(
-        (schedulePeriod) => schedulePeriod.enabled != false,
-      )
-    ) {
-      throw new Error(
-        "Habilite ao menos um período global na agenda do campeonato.",
-      );
-    }
-  }
-
-  private validateAvailability() {
-    const schedulePeriodEnabledByKey = this.form_values.schedule_periods.reduce<
-      Record<string, boolean>
-    >((carry, schedulePeriod) => {
-      carry[
-        this.resolveDatePeriodKey(schedulePeriod.date, schedulePeriod.period)
-      ] = schedulePeriod.enabled != false;
-      return carry;
-    }, {});
-    const competitionKeySet = new Set(
-      this.form_values.competitions.map((competition) =>
-        this.resolveCompetitionKey(
-          competition.sport_id,
-          competition.naipe,
-          competition.division,
-        ),
-      ),
-    );
-    const competitionPeriodAvailabilityByKey =
-      this.form_values.competition_period_availability.reduce<
-        Record<string, boolean>
-      >((carry, availabilityItem) => {
-        const datePeriodKey = this.resolveDatePeriodKey(
-          availabilityItem.date,
-          availabilityItem.period,
-        );
-
-        if (!competitionKeySet.has(availabilityItem.competition_key)) {
-          throw new Error(
-            "Disponibilidade por modalidade inválida: competição não encontrada.",
-          );
-        }
-
-        if (!(datePeriodKey in schedulePeriodEnabledByKey)) {
-          throw new Error(
-            "Disponibilidade por modalidade inválida: período fora da agenda.",
-          );
-        }
-
-        carry[`${availabilityItem.competition_key}::${datePeriodKey}`] =
-          availabilityItem.enabled != false;
-        return carry;
-      }, {});
-
-    this.form_values.competitions.forEach((competition) => {
-      const competitionKey = this.resolveCompetitionKey(
-        competition.sport_id,
-        competition.naipe,
-        competition.division,
-      );
-      const hasAvailableWindow = this.form_values.schedule_periods.some(
-        (schedulePeriod) => {
-          const datePeriodKey = this.resolveDatePeriodKey(
-            schedulePeriod.date,
-            schedulePeriod.period,
-          );
-
-          return (
-            schedulePeriod.enabled != false &&
-            competitionPeriodAvailabilityByKey[
-              `${competitionKey}::${datePeriodKey}`
-            ] != false
-          );
-        },
-      );
-
-      if (!hasAvailableWindow) {
-        throw new Error(
-          "Toda competição precisa ter ao menos um dia/período disponível.",
-        );
-      }
-    });
-
-    const teamCompetitionKeysByTeamId = this.form_values.participants.reduce<
-      Record<string, string[]>
-    >((carry, participant) => {
-      const participantCompetitionKeys = participant.modalities
-        .map((modality) =>
-          this.resolveCompetitionKey(
-            modality.sport_id,
-            modality.naipe,
-            modality.division,
-          ),
-        )
-        .filter((competitionKey) => competitionKeySet.has(competitionKey));
-
-      if (participantCompetitionKeys.length > 0) {
-        carry[participant.team_id] = [...new Set(participantCompetitionKeys)];
-      }
-
-      return carry;
-    }, {});
-    const validTeamCompetitionPairSet = new Set(
-      Object.entries(teamCompetitionKeysByTeamId).flatMap(
-        ([team_id, competitionKeys]) =>
-          competitionKeys.map(
-            (competitionKey) => `${team_id}::${competitionKey}`,
-          ),
-      ),
-    );
-    const teamCompetitionAvailabilityByKey =
-      this.form_values.team_competition_availability.reduce<
-        Record<string, boolean>
-      >((carry, availabilityItem) => {
-        const datePeriodKey = this.resolveDatePeriodKey(
-          availabilityItem.date,
-          availabilityItem.period,
-        );
-        const teamCompetitionKey = `${availabilityItem.team_id}::${availabilityItem.competition_key}`;
-
-        if (!validTeamCompetitionPairSet.has(teamCompetitionKey)) {
-          throw new Error(
-            "Disponibilidade da atlética inválida para a competição configurada.",
-          );
-        }
-
-        if (!(datePeriodKey in schedulePeriodEnabledByKey)) {
-          throw new Error(
-            "Disponibilidade da atlética inválida: período fora da agenda.",
-          );
-        }
-
-        carry[`${teamCompetitionKey}::${datePeriodKey}`] =
-          availabilityItem.enabled != false;
-        return carry;
-      }, {});
-
-    Object.entries(teamCompetitionKeysByTeamId).forEach(
-      ([team_id, competitionKeys]) => {
-        competitionKeys.forEach((competitionKey) => {
-          const hasAvailableWindow = this.form_values.schedule_periods.some(
-            (schedulePeriod) => {
-              const datePeriodKey = this.resolveDatePeriodKey(
-                schedulePeriod.date,
-                schedulePeriod.period,
-              );
-
-              return (
-                schedulePeriod.enabled != false &&
-                competitionPeriodAvailabilityByKey[
-                  `${competitionKey}::${datePeriodKey}`
-                ] != false &&
-                teamCompetitionAvailabilityByKey[
-                  `${team_id}::${competitionKey}::${datePeriodKey}`
-                ] != false
-              );
-            },
-          );
-
-          if (!hasAvailableWindow) {
-            throw new Error(
-              "Toda atlética precisa ter ao menos um dia/período disponível por competição.",
-            );
-          }
-        });
-      },
-    );
   }
 
   private validateAvailabilityWindowsForScheduleDay(
@@ -1202,14 +1005,6 @@ export class ChampionshipBracketSetupDTO {
   }
 
   private validateIndividualSessionConfigs() {
-    const schedulePeriodEnabledByKey = this.form_values.schedule_periods.reduce<
-      Record<string, boolean>
-    >((carry, schedulePeriod) => {
-      carry[
-        this.resolveDatePeriodKey(schedulePeriod.date, schedulePeriod.period)
-      ] = schedulePeriod.enabled != false;
-      return carry;
-    }, {});
     const seenSessionKeys = new Set<string>();
     const participantCompetitionKeySet = new Set(
       this.form_values.participants.flatMap((participant) =>
@@ -1246,50 +1041,48 @@ export class ChampionshipBracketSetupDTO {
 
       if (
         !sessionConfig.scheduled_date ||
-        sessionConfig.period == null ||
+        !sessionConfig.start_time ||
+        !sessionConfig.end_time ||
         !sessionConfig.location_key ||
         !sessionConfig.court_key
       ) {
         throw new Error(
-          "Toda sessão individual ativa precisa ter slot oficial e recurso definidos.",
+          "Toda sessão individual ativa precisa ter dia, horário e recurso oficial definidos.",
         );
       }
 
-      const schedulePeriodKey = this.resolveDatePeriodKey(
-        sessionConfig.scheduled_date,
-        sessionConfig.period,
+      const scheduleDay = this.form_values.schedule_days.find(
+        (currentScheduleDay) =>
+          currentScheduleDay.date == sessionConfig.scheduled_date,
       );
 
-      if (!(schedulePeriodKey in schedulePeriodEnabledByKey)) {
+      if (!scheduleDay) {
         throw new Error("Sessão individual fora da agenda do campeonato.");
       }
 
-      if (schedulePeriodEnabledByKey[schedulePeriodKey] != true) {
+      if (
+        !resolveFixedTimeRangeInterval({
+          scheduleDay,
+          start_time: sessionConfig.start_time,
+          end_time: sessionConfig.end_time,
+        })
+      ) {
         throw new Error(
-          "Sessão individual precisa usar um período global habilitado.",
+          "Sessão individual precisa usar um horário válido dentro da agenda do dia.",
         );
       }
     });
   }
 
   private validateResourceLocks() {
-    const schedulePeriodEnabledByKey = this.form_values.schedule_periods.reduce<
-      Record<string, boolean>
-    >((carry, schedulePeriod) => {
-      carry[
-        this.resolveDatePeriodKey(schedulePeriod.date, schedulePeriod.period)
-      ] = schedulePeriod.enabled != false;
-      return carry;
-    }, {});
     const seenLockKeys = new Set<string>();
 
     this.form_values.resource_locks.forEach((resourceLock) => {
-      const datePeriodKey = this.resolveDatePeriodKey(
-        resourceLock.date,
-        resourceLock.period,
+      const scheduleDay = this.form_values.schedule_days.find(
+        (currentScheduleDay) => currentScheduleDay.date == resourceLock.date,
       );
 
-      if (!(datePeriodKey in schedulePeriodEnabledByKey)) {
+      if (!scheduleDay) {
         throw new Error("Reserva de recurso fora da agenda configurada.");
       }
 
@@ -1297,11 +1090,29 @@ export class ChampionshipBracketSetupDTO {
         throw new Error("Reserva de recurso inválida.");
       }
 
-      const lockKey = `${resourceLock.date}::${resourceLock.period}::${resourceLock.location_key}::${resourceLock.court_key}`;
+      if (
+        !resolveFixedTimeRangeInterval({
+          scheduleDay,
+          start_time: resourceLock.start_time,
+          end_time: resourceLock.end_time,
+        })
+      ) {
+        throw new Error(
+          "Reserva de recurso precisa usar um horário válido dentro da agenda do dia.",
+        );
+      }
+
+      const lockKey = [
+        resourceLock.date,
+        resourceLock.start_time,
+        resourceLock.end_time,
+        resourceLock.location_key,
+        resourceLock.court_key,
+      ].join("::");
 
       if (resourceLock.lock_mode == "HARD" && seenLockKeys.has(lockKey)) {
         throw new Error(
-          "Existe mais de um bloqueio duro para o mesmo recurso no mesmo período.",
+          "Existe mais de um bloqueio duro para o mesmo recurso no mesmo horário.",
         );
       }
 
@@ -1310,14 +1121,6 @@ export class ChampionshipBracketSetupDTO {
   }
 
   private validateKnockoutProgramBlocks() {
-    const schedulePeriodEnabledByKey = this.form_values.schedule_periods.reduce<
-      Record<string, boolean>
-    >((carry, schedulePeriod) => {
-      carry[
-        this.resolveDatePeriodKey(schedulePeriod.date, schedulePeriod.period)
-      ] = schedulePeriod.enabled != false;
-      return carry;
-    }, {});
     const competitionKeySet = new Set(
       this.form_values.competitions.map((competition) =>
         this.resolveCompetitionKey(
@@ -1336,7 +1139,9 @@ export class ChampionshipBracketSetupDTO {
       if (
         !programBlock.location_key ||
         !programBlock.court_key ||
-        !programBlock.sport_id
+        !programBlock.sport_id ||
+        !programBlock.start_time ||
+        !programBlock.end_time
       ) {
         throw new Error("Bloco manual de final inválido.");
       }
@@ -1358,18 +1163,23 @@ export class ChampionshipBracketSetupDTO {
         );
       }
 
-      const schedulePeriodKey = this.resolveDatePeriodKey(
-        programBlock.date,
-        programBlock.period,
+      const scheduleDay = this.form_values.schedule_days.find(
+        (currentScheduleDay) => currentScheduleDay.date == programBlock.date,
       );
 
-      if (!(schedulePeriodKey in schedulePeriodEnabledByKey)) {
+      if (!scheduleDay) {
         throw new Error("Bloco manual de final fora da agenda configurada.");
       }
 
-      if (schedulePeriodEnabledByKey[schedulePeriodKey] != true) {
+      if (
+        !resolveFixedTimeRangeInterval({
+          scheduleDay,
+          start_time: programBlock.start_time,
+          end_time: programBlock.end_time,
+        })
+      ) {
         throw new Error(
-          "Bloco manual de final precisa usar um período global habilitado.",
+          "Bloco manual de final precisa usar um horário válido dentro da agenda do dia.",
         );
       }
 
@@ -1430,6 +1240,239 @@ export class ChampionshipBracketSetupDTO {
     });
   }
 
+  private validateFixedTimeConflicts() {
+    const derivedSessionLockKeySet = new Set(
+      this.form_values.individual_session_configs
+        .filter(
+          (sessionConfig) =>
+            sessionConfig.exclusive_lock_enabled == true &&
+            sessionConfig.scheduled_date &&
+            sessionConfig.start_time &&
+            sessionConfig.end_time &&
+            sessionConfig.location_key &&
+            sessionConfig.court_key,
+        )
+        .map((sessionConfig) =>
+          resolveIndividualSessionSharedSlotKey({
+            sport_id: sessionConfig.sport_id,
+            division: sessionConfig.division,
+            scheduled_date: sessionConfig.scheduled_date,
+            start_time: sessionConfig.start_time,
+            end_time: sessionConfig.end_time,
+            location_key: sessionConfig.location_key,
+            court_key: sessionConfig.court_key,
+          }),
+        ),
+    );
+    const derivedSessionLockKeySetWithoutNull = new Set(
+      [...derivedSessionLockKeySet].filter(
+        (sessionKey): sessionKey is string => sessionKey != null,
+      ),
+    );
+
+    const fixedEntries = [
+      ...this.form_values.individual_session_configs.flatMap((sessionConfig) => {
+        if (
+          !sessionConfig.scheduled_date ||
+          !sessionConfig.start_time ||
+          !sessionConfig.end_time ||
+          !sessionConfig.location_key ||
+          !sessionConfig.court_key
+        ) {
+          return [];
+        }
+
+        const scheduleDay = this.form_values.schedule_days.find(
+          (currentScheduleDay) =>
+            currentScheduleDay.date == sessionConfig.scheduled_date,
+        );
+
+        const interval = scheduleDay
+          ? resolveFixedTimeRangeInterval({
+              scheduleDay,
+              start_time: sessionConfig.start_time,
+              end_time: sessionConfig.end_time,
+            })
+          : null;
+
+        if (!interval) {
+          return [];
+        }
+
+        return [
+          {
+            key: [
+              sessionConfig.scheduled_date,
+              sessionConfig.location_key,
+              sessionConfig.court_key,
+              sessionConfig.start_time,
+              sessionConfig.end_time,
+              "INDIVIDUAL_SESSION",
+            ].join("::"),
+            type: "INDIVIDUAL_SESSION" as const,
+            date: sessionConfig.scheduled_date,
+            location_key: sessionConfig.location_key,
+            court_key: sessionConfig.court_key,
+            sport_id: sessionConfig.sport_id,
+            naipe: sessionConfig.naipe,
+            division: sessionConfig.division,
+            shared_slot_key: resolveIndividualSessionSharedSlotKey({
+              sport_id: sessionConfig.sport_id,
+              naipe: sessionConfig.naipe,
+              division: sessionConfig.division,
+              scheduled_date: sessionConfig.scheduled_date,
+              start_time: sessionConfig.start_time,
+              end_time: sessionConfig.end_time,
+              location_key: sessionConfig.location_key,
+              court_key: sessionConfig.court_key,
+            }),
+            interval,
+          },
+        ];
+      }),
+      ...this.form_values.resource_locks.flatMap((resourceLock) => {
+        if (
+          !resourceLock.location_key ||
+          !resourceLock.court_key ||
+          derivedSessionLockKeySetWithoutNull.has(
+            resolveIndividualSessionSharedSlotKey({
+              sport_id: resourceLock.sport_id,
+              division: resourceLock.division,
+              date: resourceLock.date,
+              start_time: resourceLock.start_time,
+              end_time: resourceLock.end_time,
+              location_key: resourceLock.location_key,
+              court_key: resourceLock.court_key,
+            }),
+          )
+        ) {
+          return [];
+        }
+
+        const scheduleDay = this.form_values.schedule_days.find(
+          (currentScheduleDay) => currentScheduleDay.date == resourceLock.date,
+        );
+
+        const interval = scheduleDay
+          ? resolveFixedTimeRangeInterval({
+              scheduleDay,
+              start_time: resourceLock.start_time,
+              end_time: resourceLock.end_time,
+            })
+          : null;
+
+        if (!interval) {
+          return [];
+        }
+
+        return [
+          {
+            key: [
+              resourceLock.date,
+              resourceLock.location_key,
+              resourceLock.court_key,
+              resourceLock.start_time,
+              resourceLock.end_time,
+              "RESOURCE_LOCK",
+            ].join("::"),
+            type: "RESOURCE_LOCK" as const,
+            date: resourceLock.date,
+            location_key: resourceLock.location_key,
+            court_key: resourceLock.court_key,
+            sport_id: resourceLock.sport_id,
+            naipe: resourceLock.naipe,
+            division: resourceLock.division,
+            shared_slot_key: null,
+            interval,
+          },
+        ];
+      }),
+      ...this.form_values.knockout_program_blocks.flatMap((programBlock) => {
+        if (
+          !programBlock.location_key ||
+          !programBlock.court_key ||
+          !programBlock.start_time ||
+          !programBlock.end_time
+        ) {
+          return [];
+        }
+
+        const scheduleDay = this.form_values.schedule_days.find(
+          (currentScheduleDay) => currentScheduleDay.date == programBlock.date,
+        );
+
+        const interval = scheduleDay
+          ? resolveFixedTimeRangeInterval({
+              scheduleDay,
+              start_time: programBlock.start_time,
+              end_time: programBlock.end_time,
+            })
+          : null;
+
+        if (!interval) {
+          return [];
+        }
+
+        return [
+          {
+            key: [
+              programBlock.date,
+              programBlock.location_key,
+              programBlock.court_key,
+              programBlock.start_time,
+              programBlock.end_time,
+              "MANUAL_FINAL_BLOCK",
+            ].join("::"),
+            type: "MANUAL_FINAL_BLOCK" as const,
+            date: programBlock.date,
+            location_key: programBlock.location_key,
+            court_key: programBlock.court_key,
+            sport_id: programBlock.sport_id,
+            naipe: null,
+            division: null,
+            shared_slot_key: null,
+            interval,
+          },
+        ];
+      }),
+    ]
+      .sort((left, right) => left.interval.start - right.interval.start)
+      .sort((left, right) => left.date.localeCompare(right.date));
+
+    for (let entryIndex = 1; entryIndex < fixedEntries.length; entryIndex += 1) {
+      const previousEntry = fixedEntries[entryIndex - 1];
+      const currentEntry = fixedEntries[entryIndex];
+
+      if (
+        !previousEntry ||
+        !currentEntry ||
+        previousEntry.date != currentEntry.date ||
+        previousEntry.location_key != currentEntry.location_key ||
+        previousEntry.court_key != currentEntry.court_key
+      ) {
+        continue;
+      }
+
+      const canShareIndividualSessionSlot =
+        previousEntry.type == "INDIVIDUAL_SESSION" &&
+        currentEntry.type == "INDIVIDUAL_SESSION" &&
+        previousEntry.shared_slot_key != null &&
+        previousEntry.shared_slot_key == currentEntry.shared_slot_key &&
+        previousEntry.naipe != null &&
+        currentEntry.naipe != null &&
+        previousEntry.naipe != currentEntry.naipe;
+
+      if (
+        !canShareIndividualSessionSlot &&
+        resolveTimeIntervalsOverlap(previousEntry.interval, currentEntry.interval)
+      ) {
+        throw new Error(
+          "Existem blocos fixos com horários sobrepostos no mesmo recurso.",
+        );
+      }
+    }
+  }
+
   private resolveTimeValueToMinutes(timeValue: string): number | null {
     const [hourPart, minutePart] = timeValue.split(":").map(Number);
 
@@ -1450,21 +1493,12 @@ export class ChampionshipBracketSetupDTO {
     this.validateParticipants();
     this.validateCompetitions();
     this.validateScheduleDays();
-    this.validateSchedulePeriods();
-
-    if (
-      this.form_values.competition_date_availability != null ||
-      this.form_values.team_competition_date_availability != null
-    ) {
-      this.validateDateAvailability();
-    } else {
-      this.validateAvailability();
-    }
-
+    this.validateDateAvailability();
     this.validateIndividualEventConfigs();
     this.validateIndividualSessionConfigs();
     this.validateResourceLocks();
     this.validateKnockoutProgramBlocks();
+    this.validateFixedTimeConflicts();
 
     const normalizedParticipants = this.form_values.participants.map(
       (participant) => ({
@@ -1564,6 +1598,13 @@ export class ChampionshipBracketSetupDTO {
                     sequence_mode: this.resolveCourtSequenceMode(
                       sportPreference.sequence_mode,
                     ),
+
+                    alternate_naipe_after_exclusive_knockout_phase:
+                      sportPreference.alternate_naipe_after_exclusive_knockout_phase ===
+                        true &&
+                      this.resolveCourtSequenceMode(
+                        sportPreference.sequence_mode,
+                      ) == "GROUP_NAIPE",
                   }
                 : null,
             };
@@ -1588,32 +1629,6 @@ export class ChampionshipBracketSetupDTO {
       participants: normalizedParticipants,
       competitions: normalizedCompetitions,
       schedule_days: normalizedScheduleDays,
-      schedule_periods: this.form_values.schedule_periods.map(
-        (schedulePeriod) => ({
-          date: schedulePeriod.date,
-          period: schedulePeriod.period,
-          enabled: schedulePeriod.enabled != false,
-        }),
-      ),
-      competition_period_availability:
-        this.form_values.competition_period_availability.map(
-          (availabilityItem) => ({
-            competition_key: availabilityItem.competition_key,
-            date: availabilityItem.date,
-            period: availabilityItem.period,
-            enabled: availabilityItem.enabled != false,
-          }),
-        ),
-      team_competition_availability:
-        this.form_values.team_competition_availability.map(
-          (availabilityItem) => ({
-            team_id: availabilityItem.team_id,
-            competition_key: availabilityItem.competition_key,
-            date: availabilityItem.date,
-            period: availabilityItem.period,
-            enabled: availabilityItem.enabled != false,
-          }),
-        ),
       competition_date_availability:
         this.form_values.competition_date_availability?.map(
           (availabilityItem) => ({
@@ -1658,7 +1673,8 @@ export class ChampionshipBracketSetupDTO {
           naipe: sessionConfig.naipe,
           division: sessionConfig.division,
           scheduled_date: sessionConfig.scheduled_date,
-          period: sessionConfig.period,
+          start_time: sessionConfig.start_time,
+          end_time: sessionConfig.end_time,
           location_key: sessionConfig.location_key,
           court_key: sessionConfig.court_key,
           location_name: sessionConfig.location_name,
@@ -1667,7 +1683,8 @@ export class ChampionshipBracketSetupDTO {
         })),
       resource_locks: this.form_values.resource_locks.map((resourceLock) => ({
         date: resourceLock.date,
-        period: resourceLock.period,
+        start_time: resourceLock.start_time,
+        end_time: resourceLock.end_time,
         location_key: resourceLock.location_key,
         court_key: resourceLock.court_key,
         location_name: resourceLock.location_name,
@@ -1682,7 +1699,8 @@ export class ChampionshipBracketSetupDTO {
       knockout_program_blocks: this.form_values.knockout_program_blocks.map(
         (programBlock, programBlockIndex) => ({
           date: programBlock.date,
-          period: programBlock.period,
+          start_time: programBlock.start_time,
+          end_time: programBlock.end_time,
           location_key: programBlock.location_key,
           court_key: programBlock.court_key,
           location_name: programBlock.location_name ?? null,

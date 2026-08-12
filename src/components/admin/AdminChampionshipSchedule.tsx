@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Trash2, Loader2, CalendarClock, Trophy, LayoutGrid } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { TimeInput } from "@/components/ui/time-input";
 import {
   Select,
   SelectContent,
@@ -350,12 +350,11 @@ export function AdminChampionshipSchedule({
                     >
                       Início
                     </Label>
-                    <Input
+                    <TimeInput
                       id={`start-${day.id}`}
-                      type="time"
                       value={day.start_time}
                       disabled={!isEditable || day.saving}
-                      onChange={(e) => updateDay(day.id, { start_time: e.target.value })}
+                      onChange={(value) => updateDay(day.id, { start_time: value })}
                       className="h-10 border-border/40 bg-background/50"
                     />
                   </div>
@@ -366,12 +365,11 @@ export function AdminChampionshipSchedule({
                     >
                       Fim
                     </Label>
-                    <Input
+                    <TimeInput
                       id={`end-${day.id}`}
-                      type="time"
                       value={day.end_time}
                       disabled={!isEditable || day.saving}
-                      onChange={(e) => updateDay(day.id, { end_time: e.target.value })}
+                      onChange={(value) => updateDay(day.id, { end_time: value })}
                       className="h-10 border-border/40 bg-background/50"
                     />
                   </div>
@@ -417,20 +415,22 @@ export function AdminChampionshipSchedule({
                             ))}
                           </SelectContent>
                         </Select>
-                        <Input
-                          type="time"
+                        <TimeInput
                           value={brk.break_start_time}
                           disabled={!isEditable || day.saving}
-                          onChange={(e) => updateBreak(day.id, brk.localId, { break_start_time: e.target.value })}
+                          onChange={(value) =>
+                            updateBreak(day.id, brk.localId, { break_start_time: value })
+                          }
                           className="h-10 border-border/40 bg-background/50"
                           placeholder="Início"
                         />
                         <span className="text-xs text-muted-foreground sm:text-center">até</span>
-                        <Input
-                          type="time"
+                        <TimeInput
                           value={brk.break_end_time}
                           disabled={!isEditable || day.saving}
-                          onChange={(e) => updateBreak(day.id, brk.localId, { break_end_time: e.target.value })}
+                          onChange={(value) =>
+                            updateBreak(day.id, brk.localId, { break_end_time: value })
+                          }
                           className="h-10 border-border/40 bg-background/50"
                           placeholder="Fim"
                         />

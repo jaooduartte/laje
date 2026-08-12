@@ -12,8 +12,10 @@ export interface ChampionshipBracketKnockoutProjection {
   total_qualified_team_count: number;
   projected_bracket_size: number;
   best_second_placed_team_count: number;
+  best_third_placed_team_count: number;
   bye_count: number;
   uses_best_second_placed_teams: boolean;
+  uses_best_third_placed_teams: boolean;
 }
 
 function resolveIsPowerOfTwo(value: number): boolean {
@@ -28,7 +30,7 @@ function resolveOrdinalPlacementLabel(position: number): string {
   return `${position}º`;
 }
 
-function resolveBestPlacedLabel(position: number, placing: "1º" | "2º"): string {
+function resolveBestPlacedLabel(position: number, placing: "1º" | "2º" | "3º"): string {
   return `${resolveOrdinalPlacementLabel(position)} melhor ${placing}`;
 }
 
@@ -116,6 +118,10 @@ export function resolveChampionshipBracketKnockoutProjection(
     qualifiers_per_group == 1 && direct_qualified_team_count >= 2
       ? Math.max(0, projected_bracket_size - direct_qualified_team_count)
       : 0;
+  const best_third_placed_team_count =
+    qualifiers_per_group == 2 && direct_qualified_team_count >= 2
+      ? Math.max(0, projected_bracket_size - direct_qualified_team_count)
+      : 0;
   const uses_best_second_placed_teams =
     qualifiers_per_group == 1 &&
     best_second_placed_team_count > 0 &&
@@ -123,8 +129,10 @@ export function resolveChampionshipBracketKnockoutProjection(
       should_expand_with_best_second_placed_teams ||
       !resolveIsPowerOfTwo(direct_qualified_team_count)
     );
+  const uses_best_third_placed_teams =
+    qualifiers_per_group == 2 && best_third_placed_team_count > 0;
   const total_qualified_team_count =
-    direct_qualified_team_count + best_second_placed_team_count;
+    direct_qualified_team_count + best_second_placed_team_count + best_third_placed_team_count;
   const bye_count = Math.max(
     0,
     projected_bracket_size - total_qualified_team_count,
@@ -135,8 +143,10 @@ export function resolveChampionshipBracketKnockoutProjection(
     total_qualified_team_count,
     projected_bracket_size,
     best_second_placed_team_count,
+    best_third_placed_team_count,
     bye_count,
     uses_best_second_placed_teams,
+    uses_best_third_placed_teams,
   };
 }
 
@@ -146,6 +156,10 @@ export function resolveChampionshipBracketQualificationSummary(
   const projection = resolveChampionshipBracketKnockoutProjection(input);
 
   if (input.qualifiers_per_group == 2) {
+    if (projection.uses_best_third_placed_teams) {
+      return `${projection.projected_bracket_size} vagas: ${projection.direct_qualified_team_count} classificadas diretamente + ${projection.best_third_placed_team_count} ${projection.best_third_placed_team_count == 1 ? "melhor 3º" : "melhores 3º"}`;
+    }
+
     return `${projection.direct_qualified_team_count} vagas: 1º e 2º de cada grupo`;
   }
 
@@ -223,6 +237,14 @@ export function resolveChampionshipBracketSeedPlaceholderLabels(
         group_number += 1
       ) {
         seed_labels.push(`2º do ${resolveChampionshipGroupLabel(group_number)}`);
+      }
+
+      for (
+        let thirdPlaceIndex = 1;
+        thirdPlaceIndex <= projection.best_third_placed_team_count;
+        thirdPlaceIndex += 1
+      ) {
+        seed_labels.push(resolveBestPlacedLabel(thirdPlaceIndex, "3º"));
       }
     }
   }

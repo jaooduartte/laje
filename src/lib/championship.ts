@@ -411,6 +411,16 @@ function resolveMatchVisualSportNaipeScopeKey(
   ].join(":");
 }
 
+function resolveMatchVisualSportScopeKey(
+  match: MatchRepresentationSource,
+): string {
+  return [
+    match.championship_id,
+    String(match.season_year),
+    match.sport_id,
+  ].join(":");
+}
+
 function resolveMatchRepresentationFromPreviousMatch(
   match: MatchRepresentationSource | undefined,
 ): string {
@@ -639,11 +649,14 @@ function resolveOrderedVisualNumberingMatches(
       return (
         resolveMatchScheduledDateValue(match) != null &&
         Boolean(match.sport_id) &&
-        Boolean(match.naipe)
+        (matchNumberingMode == "SPORT" || Boolean(match.naipe))
       );
     })
     .reduce<Record<string, MatchRepresentationSource[]>>((carry, match) => {
-      const scopeKey = resolveMatchVisualSportNaipeScopeKey(match);
+      const scopeKey =
+        matchNumberingMode == "SPORT"
+          ? resolveMatchVisualSportScopeKey(match)
+          : resolveMatchVisualSportNaipeScopeKey(match);
 
       carry[scopeKey] = [...(carry[scopeKey] ?? []), match].sort(
         (firstMatch, secondMatch) =>

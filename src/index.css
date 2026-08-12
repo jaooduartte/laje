@@ -188,6 +188,11 @@
     border-color: hsl(var(--live) / 0.42);
   }
 
+  .structural-review-timeline-entry {
+    content-visibility: auto;
+    contain-intrinsic-size: 64px;
+  }
+
   .app-pill-container {
     border: 1px solid hsl(var(--border) / 0.56);
     background: hsl(var(--background) / 0.62);

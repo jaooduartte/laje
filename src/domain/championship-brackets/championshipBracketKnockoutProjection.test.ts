@@ -46,6 +46,25 @@ describe("resolveChampionshipBracketKnockoutProjection", () => {
     expect(projection.best_second_placed_team_count).toBe(4);
     expect(projection.uses_best_second_placed_teams).toBe(true);
   });
+
+  it("completa a chave de dois classificados por grupo com melhores 3º", () => {
+    const input = {
+      groups_count: 3,
+      qualifiers_per_group: 2,
+      should_complete_knockout_with_best_second_placed_teams: false,
+    };
+
+    expect(resolveChampionshipBracketKnockoutProjection(input)).toMatchObject({
+      direct_qualified_team_count: 6,
+      projected_bracket_size: 8,
+      best_second_placed_team_count: 0,
+      best_third_placed_team_count: 2,
+      uses_best_third_placed_teams: true,
+      total_qualified_team_count: 8,
+    });
+    expect(resolveChampionshipBracketSeedPlaceholderLabels(input)).toContain("1º melhor 3º");
+    expect(resolveChampionshipBracketSeedPlaceholderLabels(input)).toContain("2º melhor 3º");
+  });
 });
 
 describe("resolveStandardBalancedBracketSeedOrder", () => {

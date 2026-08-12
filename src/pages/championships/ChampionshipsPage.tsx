@@ -14,6 +14,7 @@ import { useChampionshipAwardsRankings } from "@/hooks/useChampionshipAwardsRank
 import { useCompetitionTeamDisqualifications } from "@/hooks/useCompetitionTeamDisqualifications";
 import { useChampionshipSeasonYears } from "@/hooks/useChampionshipSeasonYears";
 import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividualEvents";
+import { useInterlajeOverallStandings } from "@/hooks/useInterlajeOverallStandings";
 import type { ChampionshipBracketResolvedTieBreakOrderContext } from "@/domain/championship-brackets/championshipBracket.types";
 import type { MatchBracketContext } from "@/lib/championship";
 import {
@@ -47,6 +48,7 @@ import {
   resolveManualTieBreakWinnerTeamIdByPairKey,
   resolveTeamStandingAggregateKey,
 } from "@/lib/standings";
+import type { TeamStandingAggregate } from "@/lib/standings";
 import { ChampionshipsPageView } from "@/pages/championships/ChampionshipsPageView";
 
 const CHAMPIONSHIP_CARD_IMAGE_BY_CODE: Record<ChampionshipCode, string> = {
@@ -105,6 +107,10 @@ export function ChampionshipsPage() {
     enabled: shouldUseCorrectedPointsOnStandings,
   });
   const { sports, championshipSports } = useSports({ championshipId: selectedChampionshipId });
+  const { standings: interlajeOverallStandings, loading: interlajeOverallStandingsLoading } = useInterlajeOverallStandings({
+    championshipId: selectedChampionship?.code == ChampionshipCode.INTERLAJE ? selectedChampionshipId : null,
+    seasonYear: selectedChampionship?.code == ChampionshipCode.INTERLAJE ? selectedChampionshipSeasonYear : null,
+  });
   const individualSportIds = useMemo(() => resolveIndividualSportIds(sports), [sports]);
   const shouldLoadAwardsRankings = selectedChampionship?.code == ChampionshipCode.SOCIETY;
   const { rankings: awardsRankings } = useChampionshipAwardsRankings({
@@ -208,8 +214,27 @@ export function ChampionshipsPage() {
   ]);
 
   const overallPodiumStandings = useMemo(() => {
+    if (selectedChampionship?.code == ChampionshipCode.INTERLAJE) {
+      return interlajeOverallStandings.slice(0, 3).map<TeamStandingAggregate>((standing) => ({
+        team_id: standing.team_id,
+        team_name: standing.team_name,
+        team_city: "",
+        division: null,
+        played: 0,
+        wins: 0,
+        draws: 0,
+        losses: 0,
+        goals_for: 0,
+        goals_against: 0,
+        goal_diff: 0,
+        points: standing.overall_points,
+        yellow_cards: 0,
+        red_cards: 0,
+      }));
+    }
+
     return aggregateStandingsByTeam(standingsWithCorrectedPoints).slice(0, 3);
-  }, [standingsWithCorrectedPoints]);
+  }, [interlajeOverallStandings, selectedChampionship?.code, standingsWithCorrectedPoints]);
 
 
 
@@ -516,6 +541,7 @@ export function ChampionshipsPage() {
         correctedGroupStandingsLoading ||
         standingsHeadToHeadMatchesLoading ||
         resolvedTieBreakOrdersLoading
+        || interlajeOverallStandingsLoading
       }
       championships={championships}
       selectedChampionship={selectedChampionship}

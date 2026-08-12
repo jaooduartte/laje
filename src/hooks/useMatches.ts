@@ -187,9 +187,11 @@ function hasEstimatedStartTimeScheduleDays(
 function resolveMatchNumberingModeFromPayloadSnapshot(
   payloadSnapshot: Record<string, unknown> | null,
 ): ChampionshipBracketMatchNumberingMode {
-  return payloadSnapshot?.match_numbering_mode == "SPORT_NAIPE"
-    ? "SPORT_NAIPE"
-    : "COURT";
+  if (payloadSnapshot?.match_numbering_mode == "SPORT_NAIPE") {
+    return "SPORT_NAIPE";
+  }
+
+  return payloadSnapshot?.match_numbering_mode == "SPORT" ? "SPORT" : "COURT";
 }
 
 type RealtimeScopedRow = {

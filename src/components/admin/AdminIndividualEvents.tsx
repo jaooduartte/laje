@@ -782,6 +782,9 @@ export function AdminIndividualEvents({
                       }));
                     }}
                   />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Informe a colocação oficial apurada pela arbitragem no local.
+                  </p>
                 </div>
               </div>
             ))}

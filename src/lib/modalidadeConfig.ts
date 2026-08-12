@@ -99,7 +99,7 @@ const INTERLAJE_CARD_CASCADE: TieBreakCriterion[] = [
   "POINTS", "HEAD_TO_HEAD", "GOAL_DIFF", "GOALS_FOR", "YELLOW_CARDS_ASC", "RED_CARDS_ASC", "MANUAL_DRAW",
 ];
 const INTERLAJE_HANDBALL_CASCADE: TieBreakCriterion[] = [
-  "POINTS", "HEAD_TO_HEAD", "GOAL_DIFF", "GOALS_FOR", "BLUE_CARDS_ASC", "TWO_MINUTE_PENALTIES_ASC", "MANUAL_DRAW",
+  "POINTS", "HEAD_TO_HEAD", "GOAL_DIFF", "GOALS_AGAINST_ASC", "BLUE_CARDS_ASC", "RED_CARDS_ASC", "YELLOW_CARDS_ASC", "TWO_MINUTE_PENALTIES_ASC", "MANUAL_DRAW",
 ];
 
 const POINTS_AVERAGE_COLUMNS: StandingsColumnKey[] = ["J", "V", "E", "D", "GP", "GC", "SG", "PA"];
@@ -191,9 +191,9 @@ const MODALIDADE_CONFIGS: ModalidadeConfig[] = [
   {
     sport_code: "BASQUETE",
     naipe: null,
-    display_columns: INTERLAJE_BALL_SPORT_COLUMNS,
-    tie_breaker_cascade: INTERLAJE_STANDARD_CASCADE,
-    uses_points_average: false,
+    display_columns: POINTS_AVERAGE_COLUMNS,
+    tie_breaker_cascade: POINTS_AVERAGE_CASCADE,
+    uses_points_average: true,
     uses_cards: false,
     knockout_pairing_mode: "LINEAR",
     legacy_tie_breaker_rule: ChampionshipSportTieBreakerRule.STANDARD,
@@ -202,7 +202,7 @@ const MODALIDADE_CONFIGS: ModalidadeConfig[] = [
     sport_code: "FUTSAL",
     naipe: null,
     display_columns: INTERLAJE_CARD_SPORT_COLUMNS,
-    tie_breaker_cascade: FUTEBOL_SOCIETY_CASCADE,
+    tie_breaker_cascade: ["POINTS", "HEAD_TO_HEAD", "GOAL_DIFF", "GOALS_FOR", "RED_CARDS_ASC", "YELLOW_CARDS_ASC", "MANUAL_DRAW"],
     uses_points_average: false,
     uses_cards: true,
     knockout_pairing_mode: "LINEAR",

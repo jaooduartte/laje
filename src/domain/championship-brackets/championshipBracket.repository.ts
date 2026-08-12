@@ -46,9 +46,11 @@ function normalizeChampionshipBracketPreviewResult(
   const matchNumberingMode =
     previewResult.match_numbering_mode == "SPORT_NAIPE"
       ? "SPORT_NAIPE"
-      : previewResult.match_numbering_mode == "COURT"
-        ? "COURT"
-        : fallbackMatchNumberingMode;
+      : previewResult.match_numbering_mode == "SPORT"
+        ? "SPORT"
+        : previewResult.match_numbering_mode == "COURT"
+          ? "COURT"
+          : fallbackMatchNumberingMode;
 
   return {
     ok: previewResult.ok === true,
@@ -708,7 +710,8 @@ export async function getBracketCourtSports(
             sport_id,
             preferred_naipe,
             preferred_division,
-            sequence_mode
+            sequence_mode,
+            alternate_naipe_after_exclusive_knockout_phase
           )
         )
       )
@@ -740,6 +743,7 @@ export async function getBracketCourtSports(
             preferred_naipe: string | null;
             preferred_division: string | null;
             sequence_mode: ChampionshipBracketCourtSequenceMode;
+            alternate_naipe_after_exclusive_knockout_phase: boolean;
           }>;
         }>;
       }>) ?? []
@@ -767,6 +771,10 @@ export async function getBracketCourtSports(
                   null,
 
                 sequence_mode: courtSport.sequence_mode,
+
+                alternate_naipe_after_exclusive_knockout_phase:
+                  courtSport.alternate_naipe_after_exclusive_knockout_phase ===
+                  true,
               }),
             ),
           }))

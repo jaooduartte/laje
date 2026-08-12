@@ -1,4 +1,5 @@
 import { CHAMPIONSHIP_BRACKET_DEFAULT_QUALIFIERS_PER_GROUP } from "@/domain/championship-brackets/championshipBracket.constants";
+import { resolveFixedTimeRangeInterval } from "@/domain/championship-brackets/championshipBracketFixedTimeRange";
 import {
   sanitizeGroupAssignments,
   sanitizeGroupOrderedTeamIdsByGroupNumber,
@@ -14,7 +15,6 @@ import type {
 } from "@/domain/championship-brackets/championshipBracket.types";
 import type { ChampionshipSport, Team } from "@/lib/types";
 import {
-  ChampionshipSchedulePeriod,
   ChampionshipSeasonDivisionFormat,
   ChampionshipSportNaipeMode,
   MatchNaipe,
@@ -59,13 +59,6 @@ function resolveCompetitionKey(
     naipe,
     division ?? COMPETITION_DIVISION_WITHOUT_DIVISION,
   ].join("::");
-}
-
-function resolveDatePeriodKey(
-  date: string,
-  period: ChampionshipSchedulePeriod,
-): string {
-  return `${date}::${period}`;
 }
 
 function resolveSupportedNaipesByMode(
@@ -189,130 +182,6 @@ function resolveCompetitionOptionsByTeamId({
   );
 }
 
-function sanitizeSchedulePeriodsForDates(
-  dates: string[],
-  schedulePeriods: ChampionshipBracketWizardDraftFormValues["schedule_periods"],
-) {
-  const schedulePeriodByKey = new Map(
-    schedulePeriods.map((schedulePeriod) => [
-      resolveDatePeriodKey(schedulePeriod.date, schedulePeriod.period),
-      schedulePeriod,
-    ]),
-  );
-
-  return dates.flatMap((date) =>
-    [
-      ChampionshipSchedulePeriod.MATUTINO,
-      ChampionshipSchedulePeriod.VESPERTINO,
-    ].map((period) => {
-      const existingSchedulePeriod = schedulePeriodByKey.get(
-        resolveDatePeriodKey(date, period),
-      );
-
-      return {
-        date,
-        period,
-        enabled: existingSchedulePeriod?.enabled != false,
-      };
-    }),
-  );
-}
-
-function sanitizeCompetitionPeriodAvailabilityValues({
-  schedulePeriods,
-  competitionKeys,
-  competitionPeriodAvailability,
-}: {
-  schedulePeriods: ChampionshipBracketWizardDraftFormValues["schedule_periods"];
-  competitionKeys: string[];
-  competitionPeriodAvailability: ChampionshipBracketWizardDraftFormValues["competition_period_availability"];
-}) {
-  const validCompetitionKeySet = new Set(competitionKeys);
-  const availabilityByKey = new Map(
-    competitionPeriodAvailability
-      .filter((availabilityItem) =>
-        validCompetitionKeySet.has(availabilityItem.competition_key),
-      )
-      .map((availabilityItem) => [
-        `${availabilityItem.competition_key}::${resolveDatePeriodKey(
-          availabilityItem.date,
-          availabilityItem.period,
-        )}`,
-        availabilityItem,
-      ]),
-  );
-
-  return competitionKeys.flatMap((competitionKey) =>
-    schedulePeriods.map((schedulePeriod) => {
-      const availabilityKey = `${competitionKey}::${resolveDatePeriodKey(
-        schedulePeriod.date,
-        schedulePeriod.period,
-      )}`;
-      const existingAvailability = availabilityByKey.get(availabilityKey);
-
-      return {
-        competition_key: competitionKey,
-        date: schedulePeriod.date,
-        period: schedulePeriod.period,
-        enabled: existingAvailability?.enabled != false,
-      };
-    }),
-  );
-}
-
-function sanitizeTeamCompetitionAvailabilityValues({
-  schedulePeriods,
-  teamCompetitionKeysByTeamId,
-  teamCompetitionAvailability,
-}: {
-  schedulePeriods: ChampionshipBracketWizardDraftFormValues["schedule_periods"];
-  teamCompetitionKeysByTeamId: Record<string, string[]>;
-  teamCompetitionAvailability: ChampionshipBracketWizardDraftFormValues["team_competition_availability"];
-}) {
-  const validTeamCompetitionKeySet = new Set(
-    Object.entries(teamCompetitionKeysByTeamId).flatMap(
-      ([teamId, competitionKeys]) =>
-        competitionKeys.map((competitionKey) => `${teamId}::${competitionKey}`),
-    ),
-  );
-  const availabilityByKey = new Map(
-    teamCompetitionAvailability
-      .filter((availabilityItem) =>
-        validTeamCompetitionKeySet.has(
-          `${availabilityItem.team_id}::${availabilityItem.competition_key}`,
-        ),
-      )
-      .map((availabilityItem) => [
-        `${availabilityItem.team_id}::${availabilityItem.competition_key}::${resolveDatePeriodKey(
-          availabilityItem.date,
-          availabilityItem.period,
-        )}`,
-        availabilityItem,
-      ]),
-  );
-
-  return Object.entries(teamCompetitionKeysByTeamId).flatMap(
-    ([teamId, competitionKeys]) =>
-      competitionKeys.flatMap((competitionKey) =>
-        schedulePeriods.map((schedulePeriod) => {
-          const availabilityKey = `${teamId}::${competitionKey}::${resolveDatePeriodKey(
-            schedulePeriod.date,
-            schedulePeriod.period,
-          )}`;
-          const existingAvailability = availabilityByKey.get(availabilityKey);
-
-          return {
-            team_id: teamId,
-            competition_key: competitionKey,
-            date: schedulePeriod.date,
-            period: schedulePeriod.period,
-            enabled: existingAvailability?.enabled != false,
-          };
-        }),
-      ),
-  );
-}
-
 export function sanitizeCompetitionDateAvailabilityValues({
   scheduleDays,
   competitionKeys,
@@ -376,6 +245,39 @@ export function sanitizeCompetitionDateAvailabilityValues({
             : [],
       };
     }),
+  );
+}
+
+function resolveIsCompetitionPlayableOnScheduleDate({
+  competitionOption,
+  scheduleDate,
+  competitionDateAvailabilityByKey,
+}: {
+  competitionOption: WizardCompetitionOption;
+  scheduleDate: string;
+  competitionDateAvailabilityByKey: Map<
+    string,
+    ChampionshipBracketCompetitionDateAvailabilityInput
+  >;
+}) {
+  if (!scheduleDate) {
+    return true;
+  }
+
+  const availabilityItem = competitionDateAvailabilityByKey.get(
+    `${competitionOption.key}::${scheduleDate}`,
+  );
+
+  if (!availabilityItem || availabilityItem.mode == "FULL_DAY") {
+    return true;
+  }
+
+  if (availabilityItem.mode == "UNAVAILABLE") {
+    return false;
+  }
+
+  return availabilityItem.windows.some(
+    (window) => window.start_time < window.end_time,
   );
 }
 
@@ -579,20 +481,16 @@ export function sanitizeIndividualEventConfigsValues({
 }
 
 export function sanitizeIndividualSessionConfigsValues({
-  schedulePeriods,
+  scheduleDays,
   individualCompetitionOptions,
   individualSessionConfigs,
 }: {
-  schedulePeriods: ChampionshipBracketWizardDraftFormValues["schedule_periods"];
+  scheduleDays: ChampionshipBracketWizardDraftFormValues["schedule_days"];
   individualCompetitionOptions: WizardCompetitionOption[];
   individualSessionConfigs: ChampionshipBracketWizardDraftFormValues["individual_session_configs"];
 }) {
-  const enabledDatePeriodKeySet = new Set(
-    schedulePeriods
-      .filter((schedulePeriod) => schedulePeriod.enabled != false)
-      .map((schedulePeriod) =>
-        resolveDatePeriodKey(schedulePeriod.date, schedulePeriod.period),
-      ),
+  const scheduleDayByDate = new Map(
+    scheduleDays.map((scheduleDay) => [scheduleDay.date, scheduleDay]),
   );
   const configByKey = new Map(
     individualSessionConfigs.map((sessionConfig) => [
@@ -614,62 +512,50 @@ export function sanitizeIndividualSessionConfigsValues({
           competitionOption.division,
         ),
       ) ?? null;
-    const hasValidSlot =
-      existingConfig?.scheduled_date &&
-      existingConfig.period &&
-      enabledDatePeriodKeySet.has(
-        resolveDatePeriodKey(
-          existingConfig.scheduled_date,
-          existingConfig.period,
-        ),
-      );
-
+    const scheduleDay = existingConfig?.scheduled_date
+      ? (scheduleDayByDate.get(existingConfig.scheduled_date) ?? null)
+      : null;
     return {
       sport_id: competitionOption.sport_id,
       naipe: competitionOption.naipe,
       division: competitionOption.division,
-      scheduled_date: hasValidSlot
-        ? (existingConfig?.scheduled_date ?? null)
-        : null,
-      period: hasValidSlot ? (existingConfig?.period ?? null) : null,
-      location_key: hasValidSlot
-        ? (existingConfig?.location_key ?? null)
-        : null,
-      court_key: hasValidSlot ? (existingConfig?.court_key ?? null) : null,
-      location_name: hasValidSlot
+      scheduled_date: scheduleDay ? (existingConfig?.scheduled_date ?? null) : null,
+      start_time: scheduleDay ? (existingConfig?.start_time ?? null) : null,
+      end_time: scheduleDay ? (existingConfig?.end_time ?? null) : null,
+      location_key: scheduleDay ? (existingConfig?.location_key ?? null) : null,
+      court_key: scheduleDay ? (existingConfig?.court_key ?? null) : null,
+      location_name: scheduleDay
         ? (existingConfig?.location_name ?? null)
         : null,
-      court_name: hasValidSlot ? (existingConfig?.court_name ?? null) : null,
+      court_name: scheduleDay ? (existingConfig?.court_name ?? null) : null,
       exclusive_lock_enabled: existingConfig?.exclusive_lock_enabled == true,
     };
   });
 }
 
 export function sanitizeResourceLocksValues({
-  schedulePeriods,
+  scheduleDays,
   resourceLocks,
 }: {
-  schedulePeriods: ChampionshipBracketWizardDraftFormValues["schedule_periods"];
+  scheduleDays: ChampionshipBracketWizardDraftFormValues["schedule_days"];
   resourceLocks: ChampionshipBracketWizardDraftFormValues["resource_locks"];
 }) {
-  const enabledDatePeriodKeySet = new Set(
-    schedulePeriods.map((schedulePeriod) =>
-      resolveDatePeriodKey(schedulePeriod.date, schedulePeriod.period),
-    ),
+  const scheduleDayByDate = new Map(
+    scheduleDays.map((scheduleDay) => [scheduleDay.date, scheduleDay]),
   );
 
   return resourceLocks.filter((resourceLock) => {
+    const scheduleDay = scheduleDayByDate.get(resourceLock.date);
+
     return (
+      scheduleDay != null &&
       resourceLock.location_key &&
-      resourceLock.court_key &&
-      enabledDatePeriodKeySet.has(
-        resolveDatePeriodKey(resourceLock.date, resourceLock.period),
-      )
+      resourceLock.court_key
     );
   });
 }
 
-function resolveDefaultKnockoutProgramNaipeSequence(
+export function resolveAutomaticKnockoutProgramNaipeSequence(
   availableNaipes: MatchNaipe[],
 ) {
   const orderedNaipes = [
@@ -701,10 +587,14 @@ function sanitizeScheduleDaysValues({
   scheduleDays,
   seasonSettings,
   collectiveCompetitionOptions,
+  competitionDateAvailability = [],
 }: {
   scheduleDays: ChampionshipBracketWizardDraftFormValues["schedule_days"];
   seasonSettings: ChampionshipSeasonSettingsInput;
   collectiveCompetitionOptions: WizardCompetitionOption[];
+  competitionDateAvailability?: NonNullable<
+    ChampionshipBracketWizardDraftFormValues["competition_date_availability"]
+  >;
 }): ChampionshipBracketWizardDraftFormValues["schedule_days"] {
   const competitionOptionsBySportId = collectiveCompetitionOptions.reduce<
     Record<string, WizardCompetitionOption[]>
@@ -717,6 +607,12 @@ function sanitizeScheduleDaysValues({
 
     return carry;
   }, {});
+  const competitionDateAvailabilityByKey = new Map(
+    competitionDateAvailability.map((availabilityItem) => [
+      `${availabilityItem.competition_key}::${availabilityItem.date}`,
+      availabilityItem,
+    ]),
+  );
 
   return scheduleDays.map((scheduleDay) => ({
     ...scheduleDay,
@@ -727,6 +623,19 @@ function sanitizeScheduleDaysValues({
       courts: scheduleLocation.courts.map((court) => {
         const normalizedSportIds = [...new Set(court.sport_ids)];
 
+        const sportMatchTargets = (court.sport_match_targets ?? []).filter(
+          (target) =>
+            (competitionOptionsBySportId[target.sport_id] ?? []).some(
+              (competitionOption) =>
+                normalizedSportIds.includes(target.sport_id) &&
+                resolveIsCompetitionPlayableOnScheduleDate({
+                  competitionOption,
+                  scheduleDate: scheduleDay.date,
+                  competitionDateAvailabilityByKey,
+                }),
+            ),
+        );
+
         const sportPreference = court.sport_preference;
 
         if (
@@ -736,17 +645,27 @@ function sanitizeScheduleDaysValues({
           return {
             ...court,
             sport_ids: normalizedSportIds,
+            sport_match_targets: sportMatchTargets,
             sport_preference: null,
           };
         }
 
         const preferredSportOptions =
-          competitionOptionsBySportId[sportPreference.preferred_sport_id] ?? [];
+          (competitionOptionsBySportId[
+            sportPreference.preferred_sport_id
+          ] ?? []).filter((competitionOption) =>
+            resolveIsCompetitionPlayableOnScheduleDate({
+              competitionOption,
+              scheduleDate: scheduleDay.date,
+              competitionDateAvailabilityByKey,
+            }),
+          );
 
         if (preferredSportOptions.length == 0) {
           return {
             ...court,
             sport_ids: normalizedSportIds,
+            sport_match_targets: sportMatchTargets,
             sport_preference: null,
           };
         }
@@ -814,6 +733,12 @@ function sanitizeScheduleDaysValues({
           nextPreferredNaipe = null;
         }
 
+        const shouldAlternateNaipeAfterExclusiveKnockoutPhase =
+          sequenceMode == "GROUP_NAIPE" &&
+          availableNaipes.length == 2 &&
+          sportPreference.alternate_naipe_after_exclusive_knockout_phase ===
+            true;
+
         const hasExactPreferenceCombination =
           nextPreferredNaipe == null ||
           nextPreferredDivision == null ||
@@ -830,6 +755,7 @@ function sanitizeScheduleDaysValues({
         return {
           ...court,
           sport_ids: normalizedSportIds,
+          sport_match_targets: sportMatchTargets,
 
           sport_preference: {
             preferred_sport_id: sportPreference.preferred_sport_id,
@@ -839,6 +765,9 @@ function sanitizeScheduleDaysValues({
             preferred_division: nextPreferredDivision,
 
             sequence_mode: sequenceMode,
+
+            alternate_naipe_after_exclusive_knockout_phase:
+              shouldAlternateNaipeAfterExclusiveKnockoutPhase,
           },
         };
       }),
@@ -847,22 +776,18 @@ function sanitizeScheduleDaysValues({
 }
 
 export function sanitizeKnockoutProgramBlocksValues({
-  schedulePeriods,
+  scheduleDays,
   seasonSettings,
   collectiveCompetitionOptions,
   knockoutProgramBlocks,
 }: {
-  schedulePeriods: ChampionshipBracketWizardDraftFormValues["schedule_periods"];
+  scheduleDays: ChampionshipBracketWizardDraftFormValues["schedule_days"];
   seasonSettings: ChampionshipSeasonSettingsInput;
   collectiveCompetitionOptions: WizardCompetitionOption[];
   knockoutProgramBlocks: ChampionshipBracketWizardDraftFormValues["knockout_program_blocks"];
 }) {
-  const enabledDatePeriodKeySet = new Set(
-    schedulePeriods
-      .filter((schedulePeriod) => schedulePeriod.enabled != false)
-      .map((schedulePeriod) =>
-        resolveDatePeriodKey(schedulePeriod.date, schedulePeriod.period),
-      ),
+  const scheduleDayByDate = new Map(
+    scheduleDays.map((scheduleDay) => [scheduleDay.date, scheduleDay]),
   );
   const competitionOptionsBySportId = collectiveCompetitionOptions.reduce<
     Record<string, WizardCompetitionOption[]>
@@ -874,21 +799,20 @@ export function sanitizeKnockoutProgramBlocksValues({
     carry[competitionOption.sport_id].push(competitionOption);
     return carry;
   }, {});
-
   return knockoutProgramBlocks
     .filter((block) => {
+      const scheduleDay = scheduleDayByDate.get(block.date);
+
       return (
+        scheduleDay != null &&
         block.location_key &&
         block.court_key &&
         block.sport_id &&
-        enabledDatePeriodKeySet.has(
-          resolveDatePeriodKey(block.date, block.period),
-        ) &&
         Array.isArray(competitionOptionsBySportId[block.sport_id]) &&
         competitionOptionsBySportId[block.sport_id].length > 0
       );
     })
-    .map((block, index) => {
+    .flatMap((block, index) => {
       const sportCompetitionOptions =
         competitionOptionsBySportId[block.sport_id] ?? [];
       const availableNaipes = [
@@ -912,7 +836,7 @@ export function sanitizeKnockoutProgramBlocksValues({
         ),
       ];
       const fallbackNaipeSequence =
-        resolveDefaultKnockoutProgramNaipeSequence(availableNaipes);
+        resolveAutomaticKnockoutProgramNaipeSequence(availableNaipes);
       const nextNaipeSequence = [
         ...new Set(
           block.naipe_sequence.filter((naipe) =>
@@ -921,37 +845,44 @@ export function sanitizeKnockoutProgramBlocksValues({
         ),
       ];
 
-      return {
-        date: block.date,
-        period: block.period,
-        location_key: block.location_key,
-        court_key: block.court_key,
-        location_name: block.location_name ?? null,
-        court_name: block.court_name ?? null,
-        sport_id: block.sport_id,
-        phase: "FINAL" as const,
-        division_scope:
-          seasonSettings.division_format ==
-          ChampionshipSeasonDivisionFormat.UNIFIED
-            ? "ALL"
-            : (block.division_scope ?? "ALL"),
-        naipe_sequence:
-          nextNaipeSequence.length > 0
-            ? nextNaipeSequence
-            : fallbackNaipeSequence,
+      if (nextNaipeSequence.length == 0 && fallbackNaipeSequence.length == 0) {
+        return [];
+      }
 
-        match_duration_minutes_override:
-          typeof block.match_duration_minutes_override == "number" &&
-          Number.isInteger(block.match_duration_minutes_override) &&
-          block.match_duration_minutes_override > 0
-            ? block.match_duration_minutes_override
-            : null,
+      return [
+        {
+          date: block.date,
+          start_time: block.start_time,
+          end_time: block.end_time,
+          location_key: block.location_key,
+          court_key: block.court_key,
+          location_name: block.location_name ?? null,
+          court_name: block.court_name ?? null,
+          sport_id: block.sport_id,
+          phase: "FINAL" as const,
+          division_scope:
+            seasonSettings.division_format ==
+            ChampionshipSeasonDivisionFormat.UNIFIED
+              ? "ALL"
+              : (block.division_scope ?? "ALL"),
+          naipe_sequence:
+            nextNaipeSequence.length > 0
+              ? nextNaipeSequence
+              : fallbackNaipeSequence,
 
-        display_order:
-          typeof block.display_order == "number" && block.display_order > 0
-            ? Math.trunc(block.display_order)
-            : index + 1,
-      };
+          match_duration_minutes_override:
+            typeof block.match_duration_minutes_override == "number" &&
+            Number.isInteger(block.match_duration_minutes_override) &&
+            block.match_duration_minutes_override > 0
+              ? block.match_duration_minutes_override
+              : null,
+
+          display_order:
+            typeof block.display_order == "number" && block.display_order > 0
+              ? Math.trunc(block.display_order)
+              : index + 1,
+        },
+      ];
     })
     .sort((left, right) => left.display_order - right.display_order)
     .map((programBlock, programBlockIndex) => ({
@@ -1123,10 +1054,21 @@ export function sanitizeChampionshipBracketWizardDraft({
         !resolveIsIndividualSportName(competitionOption.sport_name),
     );
 
+  const nextCompetitionDateAvailability =
+    draftFormValues.competition_date_availability == null
+      ? undefined
+      : sanitizeCompetitionDateAvailabilityValues({
+          scheduleDays: draftFormValues.schedule_days,
+          competitionKeys: activeCompetitionKeys,
+          competitionDateAvailability:
+            draftFormValues.competition_date_availability,
+        });
+
   const nextScheduleDays = sanitizeScheduleDaysValues({
     scheduleDays: draftFormValues.schedule_days,
     seasonSettings,
     collectiveCompetitionOptions,
+    competitionDateAvailability: nextCompetitionDateAvailability ?? [],
   });
 
   const nextCompetitionConfigByKey = activeCompetitionKeys.reduce<
@@ -1178,15 +1120,6 @@ export function sanitizeChampionshipBracketWizardDraft({
 
     return carry;
   }, {});
-  const scheduleDayDates = [
-    ...new Set(
-      nextScheduleDays.map((scheduleDay) => scheduleDay.date).filter(Boolean),
-    ),
-  ];
-  const nextSchedulePeriods = sanitizeSchedulePeriodsForDates(
-    scheduleDayDates,
-    draftFormValues.schedule_periods ?? [],
-  );
   const teamCompetitionKeysByTeamId = Object.entries(
     nextSelectedCompetitionKeysByTeamId,
   ).reduce<Record<string, string[]>>((carry, [teamId, competitionKeys]) => {
@@ -1211,29 +1144,7 @@ export function sanitizeChampionshipBracketWizardDraft({
     competition_config_by_key: nextCompetitionConfigByKey,
     group_assignments_by_competition_key: nextGroupAssignmentsByCompetitionKey,
     group_order_by_competition_key: nextGroupOrderByCompetitionKey,
-    schedule_periods: nextSchedulePeriods,
-    competition_period_availability:
-      sanitizeCompetitionPeriodAvailabilityValues({
-        schedulePeriods: nextSchedulePeriods,
-        competitionKeys: activeCompetitionKeys,
-        competitionPeriodAvailability:
-          draftFormValues.competition_period_availability ?? [],
-      }),
-    team_competition_availability: sanitizeTeamCompetitionAvailabilityValues({
-      schedulePeriods: nextSchedulePeriods,
-      teamCompetitionKeysByTeamId,
-      teamCompetitionAvailability:
-        draftFormValues.team_competition_availability ?? [],
-    }),
-    competition_date_availability:
-      draftFormValues.competition_date_availability == null
-        ? undefined
-        : sanitizeCompetitionDateAvailabilityValues({
-            scheduleDays: nextScheduleDays,
-            competitionKeys: activeCompetitionKeys,
-            competitionDateAvailability:
-              draftFormValues.competition_date_availability,
-          }),
+    competition_date_availability: nextCompetitionDateAvailability,
     team_competition_date_availability:
       draftFormValues.team_competition_date_availability == null
         ? undefined
@@ -1248,20 +1159,21 @@ export function sanitizeChampionshipBracketWizardDraft({
       individualEventConfigs: draftFormValues.individual_event_configs ?? [],
     }),
     individual_session_configs: sanitizeIndividualSessionConfigsValues({
-      schedulePeriods: nextSchedulePeriods,
+      scheduleDays: nextScheduleDays,
       individualCompetitionOptions,
       individualSessionConfigs:
         draftFormValues.individual_session_configs ?? [],
     }),
     resource_locks: sanitizeResourceLocksValues({
-      schedulePeriods: nextSchedulePeriods,
+      scheduleDays: nextScheduleDays,
       resourceLocks: draftFormValues.resource_locks ?? [],
     }),
     knockout_program_blocks: sanitizeKnockoutProgramBlocksValues({
-      schedulePeriods: nextSchedulePeriods,
+      scheduleDays: nextScheduleDays,
       seasonSettings,
       collectiveCompetitionOptions,
       knockoutProgramBlocks: draftFormValues.knockout_program_blocks ?? [],
     }),
+    exact_preview_cache: draftFormValues.exact_preview_cache ?? null,
   };
 }
