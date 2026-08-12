@@ -101,11 +101,14 @@ import {
   saveChampionshipBracketWizardDraft,
 } from "@/domain/championship-brackets/championshipBracketDraft.repository";
 import {
+  cancelChampionshipBracketPreviewJob,
+  createChampionshipBracketFromPreviewJob,
   deleteChampionshipBracketLocationTemplate,
-  generateChampionshipBracketGroups,
-  previewChampionshipBracketGroups,
+  fetchChampionshipBracketPreviewJobDay,
+  fetchChampionshipBracketPreviewJobStatus,
   fetchChampionshipBracketLocationTemplates,
   saveChampionshipBracketLocationTemplate,
+  startChampionshipBracketPreviewJob,
 } from "@/domain/championship-brackets/championshipBracket.repository";
 import { saveChampionshipSeasonSettings } from "@/domain/championship-seasons/championshipSeason.repository";
 import {
@@ -135,6 +138,7 @@ import type {
   ChampionshipBracketKnockoutProgramBlockInput,
   ChampionshipBracketParticipantInput,
   ChampionshipBracketPreviewResult,
+  ChampionshipBracketPreviewJob,
   ChampionshipSeasonSettingsInput,
   ChampionshipBracketScheduleCourtDraft,
   ChampionshipBracketScheduleDayDraft,
@@ -167,6 +171,7 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { TimeInput } from "@/components/ui/time-input";
+import { Progress } from "@/components/ui/progress";
 import {
   Tooltip,
   TooltipContent,
@@ -1351,6 +1356,10 @@ function resolveOperationalPreviewPhaseLabel(
 function resolveOperationalPreviewEntryToneClassName(
   entry: ChampionshipBracketPreviewResult["days"][number]["locations"][number]["courts"][number]["entries"][number],
 ): string {
+  if (entry.type == "MATCH") {
+    return "border-emerald-500/20 bg-emerald-500/10 dark:border-emerald-500/30 dark:bg-emerald-950/35";
+  }
+
   if (entry.type == "EMPTY") {
     return "border-dashed border-amber-500/20 bg-amber-500/5";
   }
@@ -1365,14 +1374,6 @@ function resolveOperationalPreviewEntryToneClassName(
 
   if (entry.type == "INDIVIDUAL_SESSION") {
     return "border-emerald-500/20 bg-emerald-500/10";
-  }
-
-  if (entry.manual_final) {
-    return "border-primary/30 bg-primary/10";
-  }
-
-  if (entry.projected) {
-    return "border-orange-500/20 bg-orange-500/10";
   }
 
   return "border-border/40 bg-background/50";
@@ -1463,6 +1464,66 @@ function resolvePreviewGeneratedAtLabel(generatedAt: string): string | null {
     dateStyle: "short",
     timeStyle: "short",
   });
+}
+
+function resolveExactPreviewCacheFromJob({
+  job,
+  localPayloadSignature,
+  matchNumberingMode,
+  previousResult,
+}: {
+  job: ChampionshipBracketPreviewJob;
+  localPayloadSignature: string;
+  matchNumberingMode: ChampionshipBracketMatchNumberingMode;
+  previousResult: ChampionshipBracketPreviewResult | null;
+}): ChampionshipBracketExactPreviewCache {
+  const availableDays = new Map(
+    (previousResult?.days ?? []).map((previewDay) => [
+      previewDay.date,
+      previewDay,
+    ]),
+  );
+
+  return {
+    job_id: job.job_id,
+    payload_signature: localPayloadSignature,
+    server_payload_signature: job.payload_signature,
+    generation_signature: job.generation_signature ?? "",
+    dependency_signature: job.dependency_signature,
+    algorithm_version: job.algorithm_version,
+    status: job.status,
+    stage: job.stage,
+    current_date: job.current_date,
+    progress_percentage: job.progress_percentage,
+    processed_slots: job.processed_slots,
+    total_slots: job.total_slots,
+    expires_at: job.expires_at,
+    is_valid_for_creation: job.is_valid_for_creation,
+    generated_at: job.completed_at ?? job.created_at,
+    result: {
+      ok: job.status == "COMPLETED",
+      message: job.error_message,
+      server_payload_signature: job.payload_signature,
+      generation_signature: job.generation_signature,
+      match_numbering_mode: matchNumberingMode,
+      summary: job.summary,
+      days: (job.summary?.games_by_day ?? []).map(
+        (daySummary) =>
+          availableDays.get(daySummary.date) ?? {
+            date: daySummary.date,
+            start_time: "",
+            end_time: "",
+            breaks: [],
+            occupied_minutes: 0,
+            available_minutes: 0,
+            utilization_percentage: 0,
+            free_windows: 0,
+            locations: [],
+          },
+      ),
+      diagnostics: job.diagnostics,
+    },
+  };
 }
 
 function resolveEditableDraftSnapshot(
@@ -1754,6 +1815,11 @@ export function AdminChampionshipBracketPage({
 
   const [loadingOperationalPreview, setLoadingOperationalPreview] =
     useState(false);
+  const operationalPreviewRequestInFlightReference = useRef(false);
+  const [expandedOperationalPreviewDates, setExpandedOperationalPreviewDates] =
+    useState<Set<string>>(new Set());
+  const [loadingOperationalPreviewDate, setLoadingOperationalPreviewDate] =
+    useState<string | null>(null);
 
   const [operationalPreviewError, setOperationalPreviewError] = useState<
     string | null
@@ -2131,9 +2197,25 @@ export function AdminChampionshipBracketPage({
         })),
         exact_preview_cache: exactPreviewCache
           ? {
+              job_id: exactPreviewCache.job_id,
               payload_signature: exactPreviewCache.payload_signature,
+              server_payload_signature:
+                exactPreviewCache.server_payload_signature,
+              generation_signature: exactPreviewCache.generation_signature,
+              dependency_signature: exactPreviewCache.dependency_signature,
+              algorithm_version: exactPreviewCache.algorithm_version,
+              status: exactPreviewCache.status,
+              stage: exactPreviewCache.stage,
+              current_date: exactPreviewCache.current_date,
+              progress_percentage: exactPreviewCache.progress_percentage,
+              processed_slots: exactPreviewCache.processed_slots,
+              total_slots: exactPreviewCache.total_slots,
+              expires_at: exactPreviewCache.expires_at,
+              is_valid_for_creation:
+                exactPreviewCache.is_valid_for_creation,
               generated_at: exactPreviewCache.generated_at,
-              result: exactPreviewCache.result,
+              // A lista de jogos da prévia não deve aumentar o rascunho salvo.
+              result: null,
             }
           : null,
       };
@@ -6588,12 +6670,26 @@ export function AdminChampionshipBracketPage({
   }, [championshipSports, resolveSetupPayload, teams]);
 
   const operationalPreview = exactPreviewCache?.result ?? null;
+  const isExactPreviewJobRunning = [
+    "QUEUED",
+    "INITIALIZING",
+    "SCHEDULING",
+    "FINALIZING",
+  ].includes(exactPreviewCache?.status ?? "");
   const hasValidExactPreviewCache =
     structuralReviewState.payloadSignature != null &&
     resolveChampionshipBracketExactPreviewCacheValidity({
       cache: exactPreviewCache,
       payloadSignature: structuralReviewState.payloadSignature,
     });
+  const hasBlockingExactPreviewDiagnostics =
+    exactPreviewCache?.status == "COMPLETED" &&
+    hasValidExactPreviewCache &&
+    (exactPreviewCache.is_valid_for_creation === false ||
+      (operationalPreview?.summary?.conflict_count ?? 0) > 0 ||
+      operationalPreview?.diagnostics.some(
+        (diagnostic) => diagnostic.severity == "ERROR",
+      ) === true);
   const exactPreviewGeneratedAtLabel = useMemo(() => {
     if (!exactPreviewCache?.generated_at) {
       return null;
@@ -6656,18 +6752,19 @@ export function AdminChampionshipBracketPage({
 
   const loadOperationalPreview = useCallback(async () => {
     if (
-      loadingOperationalPreview ||
+      operationalPreviewRequestInFlightReference.current ||
       !structuralReviewState.payload ||
       !structuralReviewState.payloadSignature
     ) {
       return;
     }
 
+    operationalPreviewRequestInFlightReference.current = true;
     setLoadingOperationalPreview(true);
     setOperationalPreviewError(null);
 
     try {
-      const response = await previewChampionshipBracketGroups(
+      const response = await startChampionshipBracketPreviewJob(
         selectedChampionship.id,
         structuralReviewState.payload,
       );
@@ -6677,29 +6774,25 @@ export function AdminChampionshipBracketPage({
       }
 
       if (!response.data) {
-        throw new Error(
-          "A prévia operacional não retornou dados do chaveamento.",
-        );
+        throw new Error("O job de prévia não retornou dados.");
       }
 
-      if (!response.data.ok) {
-        throw new Error(
-          response.data.message ||
-            "Não foi possível calcular a prévia operacional do chaveamento.",
-        );
-      }
-
-      const nextExactPreviewCache: ChampionshipBracketExactPreviewCache = {
-        payload_signature: structuralReviewState.payloadSignature,
-        generated_at: new Date().toISOString(),
-        result: response.data,
-      };
+      const nextExactPreviewCache = resolveExactPreviewCacheFromJob({
+        job: response.data,
+        localPayloadSignature: structuralReviewState.payloadSignature,
+        matchNumberingMode,
+        previousResult: null,
+      });
 
       setExactPreviewCache(nextExactPreviewCache);
+      setExpandedOperationalPreviewDates(new Set());
 
       const nextDraftFormValues = {
         ...resolveWizardDraftFormValues(),
-        exact_preview_cache: nextExactPreviewCache,
+        exact_preview_cache: {
+          ...nextExactPreviewCache,
+          result: null,
+        },
       } satisfies ChampionshipBracketWizardDraftFormValues;
 
       void saveChampionshipBracketWizardDraft(
@@ -6708,7 +6801,7 @@ export function AdminChampionshipBracketPage({
       ).then((draftSaveResponse) => {
         if (draftSaveResponse.error) {
           toast.info(
-            "A simulação exata foi calculada, mas não foi possível sincronizar o cache do rascunho.",
+            "O cálculo foi iniciado, mas não foi possível sincronizar o identificador do job no rascunho.",
           );
           return;
         }
@@ -6724,15 +6817,133 @@ export function AdminChampionshipBracketPage({
           : "Não foi possível calcular a prévia operacional do chaveamento.",
       );
     } finally {
+      operationalPreviewRequestInFlightReference.current = false;
       setLoadingOperationalPreview(false);
     }
   }, [
-    loadingOperationalPreview,
     resolveWizardDraftFormValues,
+    matchNumberingMode,
     selectedChampionship.id,
     structuralReviewState.payload,
     structuralReviewState.payloadSignature,
   ]);
+
+  useEffect(() => {
+    const jobId = exactPreviewCache?.job_id;
+    const jobStatus = exactPreviewCache?.status;
+
+    if (
+      !jobId ||
+      !jobStatus ||
+      !["QUEUED", "INITIALIZING", "SCHEDULING", "FINALIZING"].includes(
+        jobStatus,
+      ) ||
+      !structuralReviewState.payloadSignature ||
+      exactPreviewCache?.payload_signature !=
+        structuralReviewState.payloadSignature
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    const pollJob = async () => {
+      const response = await fetchChampionshipBracketPreviewJobStatus(jobId);
+      if (cancelled || response.error || !response.data) return;
+      const previewJob = response.data;
+
+      setExactPreviewCache((currentCache) => {
+        if (!currentCache || currentCache.job_id != jobId) return currentCache;
+        return resolveExactPreviewCacheFromJob({
+          job: previewJob,
+          localPayloadSignature: currentCache.payload_signature,
+          matchNumberingMode,
+          previousResult: currentCache.result,
+        });
+      });
+    };
+
+    void pollJob();
+    const intervalId = window.setInterval(() => void pollJob(), 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [
+    exactPreviewCache?.job_id,
+    exactPreviewCache?.payload_signature,
+    exactPreviewCache?.status,
+    matchNumberingMode,
+    structuralReviewState.payloadSignature,
+  ]);
+
+  const toggleOperationalPreviewDay = useCallback(
+    async (date: string) => {
+      const isExpanded = expandedOperationalPreviewDates.has(date);
+      if (isExpanded) {
+        setExpandedOperationalPreviewDates((currentDates) => {
+          const nextDates = new Set(currentDates);
+          nextDates.delete(date);
+          return nextDates;
+        });
+        return;
+      }
+
+      setExpandedOperationalPreviewDates((currentDates) =>
+        new Set(currentDates).add(date),
+      );
+
+      const cachedDay = exactPreviewCache?.result?.days.find(
+        (previewDay) =>
+          previewDay.date == date && previewDay.locations.length > 0,
+      );
+      if (cachedDay || !exactPreviewCache?.job_id) return;
+
+      setLoadingOperationalPreviewDate(date);
+      const response = await fetchChampionshipBracketPreviewJobDay(
+        exactPreviewCache.job_id,
+        date,
+      );
+      setLoadingOperationalPreviewDate(null);
+
+      if (response.error || !response.data) {
+        setOperationalPreviewError(
+          response.error?.message ?? "Não foi possível carregar este dia.",
+        );
+        return;
+      }
+
+      setExactPreviewCache((currentCache) => {
+        if (!currentCache?.result) return currentCache;
+        return {
+          ...currentCache,
+          result: {
+            ...currentCache.result,
+            days: currentCache.result.days.map((previewDay) =>
+              previewDay.date == date ? response.data! : previewDay,
+            ),
+          },
+        };
+      });
+    },
+    [exactPreviewCache, expandedOperationalPreviewDates],
+  );
+
+  const cancelOperationalPreview = useCallback(async () => {
+    if (!exactPreviewCache?.job_id) return;
+    const response = await cancelChampionshipBracketPreviewJob(
+      exactPreviewCache.job_id,
+    );
+    if (response.data && structuralReviewState.payloadSignature) {
+      setExactPreviewCache(
+        resolveExactPreviewCacheFromJob({
+          job: response.data,
+          localPayloadSignature: structuralReviewState.payloadSignature,
+          matchNumberingMode,
+          previousResult: exactPreviewCache.result,
+        }),
+      );
+    }
+  }, [exactPreviewCache, matchNumberingMode, structuralReviewState.payloadSignature]);
 
   const persistBeachSoccerEstimatedStartTimeSetting = useCallback(async () => {
     const beachSoccerChampionshipSports = championshipSports.filter(
@@ -6767,11 +6978,46 @@ export function AdminChampionshipBracketPage({
       return;
     }
 
+    if (!hasValidExactPreviewCache || !exactPreviewCache) {
+      setSaveErrorBannerData({
+        title: "Calcule a programação exata antes de criar o campeonato",
+        message:
+          "A criação só é liberada após uma prévia exata válida para a configuração atual.",
+        suggestion:
+          "Use o botão Calcular programação exata na revisão final e tente criar novamente.",
+      });
+      return;
+    }
+
+    if (hasBlockingExactPreviewDiagnostics) {
+      setSaveErrorBannerData({
+        title: "Corrija as pendências da programação exata",
+        message:
+          "A prévia encontrou conflitos impeditivos. Corrija-os e calcule novamente antes de criar o campeonato.",
+        suggestion:
+          "Revise as pendências da prévia exata, ajuste a configuração necessária e faça um novo cálculo.",
+      });
+      return;
+    }
+
     setSaving(true);
     setSaveErrorBannerData(null);
     const payload = resolveSetupPayload();
 
     try {
+      const response = await createChampionshipBracketFromPreviewJob(
+        selectedChampionship.id,
+        payload,
+        exactPreviewCache.job_id,
+      );
+
+      if (response.error || !response.data) {
+        throw new Error(
+          response.error?.message ??
+            "Não foi possível gerar os grupos automaticamente.",
+        );
+      }
+
       await persistBeachSoccerEstimatedStartTimeSetting();
       const seasonSettingsSaveResponse = await saveChampionshipSeasonSettings({
         championship_id: selectedChampionship.id,
@@ -6787,18 +7033,6 @@ export function AdminChampionshipBracketPage({
         throw new Error(
           seasonSettingsSaveResponse.error.message ||
             "Não foi possível salvar a configuração sazonal do campeonato.",
-        );
-      }
-
-      const response = await generateChampionshipBracketGroups(
-        selectedChampionship.id,
-        payload,
-      );
-
-      if (response.error || !response.data) {
-        throw new Error(
-          response.error?.message ??
-            "Não foi possível gerar os grupos automaticamente.",
         );
       }
 
@@ -7497,7 +7731,8 @@ export function AdminChampionshipBracketPage({
 
   const activeErrorBannerData = saveErrorBannerData;
   const shouldAllowDismissActiveErrorBanner = true;
-  const isCreateButtonDisabled = saving;
+  const isCreateButtonDisabled =
+    saving || !hasValidExactPreviewCache || hasBlockingExactPreviewDiagnostics;
   const isEditingLocationTemplate =
     locationTemplateModalTarget?.location_template_id != null ||
     locationTemplateModalTarget?.location_id != null;
@@ -14219,7 +14454,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                   <div className="border-b border-border/50 pb-4 mb-6">
                     <p className="text-lg font-bold">Revisão Final</p>
                     <p className="text-sm text-muted-foreground">
-                      Confira a capacidade estrutural da agenda e, se quiser,
+                      Confira a capacidade estrutural da agenda e, após isso,
                       rode manualmente a simulação exata antes de gerar o
                       chaveamento definitivo.
                     </p>
@@ -14236,38 +14471,83 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                     </Alert>
                   ) : structuralReviewState.review ? (
                     <div className="space-y-6">
+                      {isExactPreviewJobRunning && exactPreviewCache ? (
+                        <div className="space-y-2 rounded-xl border border-border/40 bg-background/30 p-4">
+                          <div className="flex items-center justify-between gap-3 text-xs">
+                            <span className="font-semibold">
+                              {exactPreviewCache.stage}
+                            </span>
+                            <span className="text-muted-foreground">
+                              {Math.round(
+                                exactPreviewCache.progress_percentage,
+                              )}%
+                            </span>
+                          </div>
+                          <Progress
+                            value={exactPreviewCache.progress_percentage}
+                          />
+                          <p className="text-[11px] text-muted-foreground">
+                            Job {exactPreviewCache.job_id.slice(0, 8)} ·{" "}
+                            {exactPreviewCache.processed_slots} de{" "}
+                            {exactPreviewCache.total_slots} janela(s)
+                            processada(s)
+                            {exactPreviewCache.current_date
+                              ? ` · ${resolveBrazilianDateString(
+                                  exactPreviewCache.current_date,
+                                )}`
+                              : ""}
+                            . Os lotes são retomados automaticamente após
+                            falhas de rede ou recarregamento da página.
+                          </p>
+                        </div>
+                      ) : null}
+
                       <div className="flex items-center justify-between gap-4 rounded-xl border border-border/50 bg-muted/20 px-4 py-3">
                         <div>
                           <p className="text-sm font-semibold">
                             Revisão estrutural pronta instantaneamente
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            Baseada apenas nas configurações atuais do wizard,
-                            sem RPC pesado automático.
-                          </p>
                         </div>
 
-                        <Button
-                          type="button"
-                          onClick={() => {
-                            void loadOperationalPreview();
-                          }}
-                          disabled={
-                            loadingOperationalPreview ||
-                            !structuralReviewState.payload
-                          }
-                        >
-                          {loadingOperationalPreview ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Calculando...
-                            </>
-                          ) : exactPreviewCache ? (
-                            "Atualizar programação exata"
-                          ) : (
-                            "Calcular programação exata"
-                          )}
-                        </Button>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              void loadOperationalPreview();
+                            }}
+                            disabled={
+                              loadingOperationalPreview ||
+                              isExactPreviewJobRunning ||
+                              !structuralReviewState.payload
+                            }
+                          >
+                            {loadingOperationalPreview ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Calculando...
+                              </>
+                            ) : isExactPreviewJobRunning ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Processando em segundo plano
+                              </>
+                            ) : exactPreviewCache ? (
+                              "Atualizar programação exata"
+                            ) : (
+                              "Calcular programação exata"
+                            )}
+                          </Button>
+
+                          {isExactPreviewJobRunning ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => void cancelOperationalPreview()}
+                            >
+                              Cancelar cálculo
+                            </Button>
+                          ) : null}
+                        </div>
                       </div>
 
                       {pendingStructuralReviewMatchEntries.length > 0 ? (
@@ -14963,20 +15243,39 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                         <div className="flex items-center justify-between gap-4 rounded-xl border border-border/50 bg-muted/20 px-4 py-3">
                           <div>
                             <p className="text-sm font-semibold">
-                              {hasValidExactPreviewCache
-                                ? "Última simulação exata"
-                                : exactPreviewCache
-                                  ? "Última simulação exata desatualizada"
-                                  : "Prévia exata manual"}
+                              {hasBlockingExactPreviewDiagnostics
+                                ? "Prévia exata com pendências impeditivas"
+                                : isExactPreviewJobRunning
+                                  ? "Prévia exata em processamento"
+                                  : exactPreviewCache?.status == "FAILED"
+                                    ? "Falha ao calcular a prévia exata"
+                                    : exactPreviewCache?.status == "CANCELLED"
+                                      ? "Cálculo da prévia cancelado"
+                                : hasValidExactPreviewCache
+                                  ? "Prévia exata validada"
+                                  : exactPreviewCache
+                                    ? "Última simulação exata desatualizada"
+                                    : "Prévia exata manual"}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {hasValidExactPreviewCache
-                                ? exactPreviewGeneratedAtLabel
-                                  ? `Cache válido gerado em ${exactPreviewGeneratedAtLabel}.`
-                                  : "Cache válido para o payload atual."
-                                : exactPreviewCache
-                                  ? "O payload mudou após a última simulação. Recalcule antes de confiar nesta seção."
-                                  : "Use esta simulação apenas quando precisar do encadeamento exato do backend."}
+                              {hasBlockingExactPreviewDiagnostics
+                                ? "A prévia encontrou conflitos impeditivos. Corrija-os e recalcule antes de criar o campeonato."
+                                : isExactPreviewJobRunning
+                                  ? `${exactPreviewCache?.result?.message ?? "O cálculo continua mesmo se esta aba for fechada."}`
+                                  : exactPreviewCache?.status == "FAILED"
+                                    ? exactPreviewCache.result?.message ??
+                                      "O worker preservou o diagnóstico para uma nova tentativa."
+                                    : exactPreviewCache?.status == "CANCELLED"
+                                      ? "Inicie um novo cálculo quando desejar."
+                                      : hasValidExactPreviewCache
+                                        ? exactPreviewGeneratedAtLabel
+                                          ? operationalPreview
+                                            ? `Prévia válida gerada em ${exactPreviewGeneratedAtLabel}. A criação confirmará a mesma programação em transação.`
+                                            : `Prévia válida gerada em ${exactPreviewGeneratedAtLabel}. Calcule novamente para exibir a cronologia.`
+                                          : "A criação confirmará esta programação em transação."
+                                        : exactPreviewCache
+                                          ? "O payload mudou após a última simulação. Recalcule antes de confiar nesta seção."
+                                          : "Calcule a programação exata para liberar a criação do campeonato."}
                             </p>
                           </div>
 
@@ -14992,7 +15291,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                     ? "por modalidade"
                                     : "por quadra"}
                               </p>
-                              <p>Fonte: preview transacional do backend</p>
+                              <p>Fonte: job durável do backend</p>
                             </div>
                           ) : null}
                         </div>
@@ -15008,13 +15307,108 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                           </Alert>
                         ) : null}
 
-                        {!operationalPreview?.summary ? (
-                          <div className="flex min-h-28 items-center justify-center rounded-xl border border-dashed border-border/50 bg-muted/10 px-6 text-center text-sm text-muted-foreground">
-                            A revisão local acima já está pronta. A simulação
-                            exata do backend só será exibida aqui depois que
-                            você clicar no botão de cálculo manual.
-                          </div>
-                        ) : (
+                        {operationalPreview?.diagnostics.length ? (
+                          <Alert>
+                            <AlertTitle>
+                              Pendências encontradas na programação
+                            </AlertTitle>
+
+                            <AlertDescription className="space-y-3">
+                              <p>
+                                {operationalPreview.diagnostics.length}{" "}
+                                jogo(s) ou pendência(s) precisam ser revisados.
+                              </p>
+
+                              <div className="space-y-2">
+                                {operationalPreview.diagnostics.map(
+                                  (diagnostic, diagnosticIndex) => {
+                                    const hasMatchTeams =
+                                      diagnostic.home_team_name &&
+                                      diagnostic.away_team_name;
+
+                                    return (
+                                      <div
+                                        key={[
+                                          diagnostic.code,
+                                          diagnostic.match_id ??
+                                            diagnostic.sport_id ??
+                                            "sem-modalidade",
+                                          diagnosticIndex,
+                                        ].join("::")}
+                                        className="rounded-lg border border-border/50 bg-background/60 px-3 py-2"
+                                      >
+                                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                          <span className="text-sm font-semibold">
+                                            {hasMatchTeams
+                                              ? `${diagnostic.home_team_name} × ${diagnostic.away_team_name}`
+                                              : (diagnostic.sport_name ??
+                                                "Programação")}
+                                          </span>
+
+                                          {hasMatchTeams &&
+                                          diagnostic.sport_name ? (
+                                            <span className="text-xs text-muted-foreground">
+                                              • {diagnostic.sport_name}
+                                            </span>
+                                          ) : null}
+
+                                          {diagnostic.naipe ? (
+                                            <span className="text-xs text-muted-foreground">
+                                              • {MATCH_NAIPE_LABELS[diagnostic.naipe]}
+                                            </span>
+                                          ) : null}
+
+                                          {diagnostic.division ? (
+                                            <span className="text-xs text-muted-foreground">
+                                              •{" "}
+                                              {
+                                                TEAM_DIVISION_LABELS[
+                                                  diagnostic.division
+                                                ]
+                                              }
+                                            </span>
+                                          ) : null}
+
+                                          {diagnostic.group_number != null ? (
+                                            <span className="text-xs text-muted-foreground">
+                                              •{" "}
+                                              {resolveChampionshipGroupLabel(
+                                                diagnostic.group_number,
+                                              )}
+                                            </span>
+                                          ) : null}
+
+                                          {diagnostic.round_number != null ? (
+                                            <span className="text-xs text-muted-foreground">
+                                              • Rodada {diagnostic.round_number}
+                                            </span>
+                                          ) : null}
+
+                                          {diagnostic.phase &&
+                                          diagnostic.phase != "GROUP_STAGE" ? (
+                                            <span className="text-xs text-muted-foreground">
+                                              •{" "}
+                                              {resolveOperationalPreviewPhaseLabel(
+                                                diagnostic.phase,
+                                                null,
+                                              )}
+                                            </span>
+                                          ) : null}
+                                        </div>
+
+                                        <p className="mt-1 text-xs text-muted-foreground">
+                                          {diagnostic.message}
+                                        </p>
+                                      </div>
+                                    );
+                                  },
+                                )}
+                              </div>
+                            </AlertDescription>
+                          </Alert>
+                        ) : null}
+
+                        {operationalPreview?.summary ? (
                           <div className="space-y-6">
                             {!hasValidExactPreviewCache ? (
                               <Alert>
@@ -15029,69 +15423,6 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                               </Alert>
                             ) : null}
 
-                            <div className="grid grid-cols-6 gap-3">
-                              <div className="rounded-xl border border-border/50 bg-muted/20 p-4">
-                                <p className="text-xs font-medium text-muted-foreground">
-                                  Jogos totais
-                                </p>
-                                <p className="mt-1 text-2xl font-bold">
-                                  {operationalPreview.summary.total_matches}
-                                </p>
-                              </div>
-
-                              <div className="rounded-xl border border-border/50 bg-muted/20 p-4">
-                                <p className="text-xs font-medium text-muted-foreground">
-                                  Grupos
-                                </p>
-                                <p className="mt-1 text-2xl font-bold">
-                                  {
-                                    operationalPreview.summary
-                                      .group_stage_matches
-                                  }
-                                </p>
-                              </div>
-
-                              <div className="rounded-xl border border-border/50 bg-muted/20 p-4">
-                                <p className="text-xs font-medium text-muted-foreground">
-                                  Mata-mata
-                                </p>
-                                <p className="mt-1 text-2xl font-bold">
-                                  {operationalPreview.summary.knockout_matches}
-                                </p>
-                              </div>
-
-                              <div className="rounded-xl border border-border/50 bg-muted/20 p-4">
-                                <p className="text-xs font-medium text-muted-foreground">
-                                  Janelas livres
-                                </p>
-                                <p className="mt-1 text-2xl font-bold">
-                                  {operationalPreview.summary.free_windows}
-                                </p>
-                              </div>
-
-                              <div className="rounded-xl border border-border/50 bg-muted/20 p-4">
-                                <p className="text-xs font-medium text-muted-foreground">
-                                  Conflitos
-                                </p>
-                                <p className="mt-1 text-2xl font-bold">
-                                  {operationalPreview.summary.conflict_count}
-                                </p>
-                              </div>
-
-                              <div className="rounded-xl border border-border/50 bg-muted/20 p-4">
-                                <p className="text-xs font-medium text-muted-foreground">
-                                  Ocupação geral
-                                </p>
-                                <p className="mt-1 text-2xl font-bold">
-                                  {
-                                    operationalPreview.summary
-                                      .utilization_percentage
-                                  }
-                                  %
-                                </p>
-                              </div>
-                            </div>
-
                             {operationalPreview.message ? (
                               <Alert>
                                 <AlertTitle>Resumo da prévia</AlertTitle>
@@ -15101,99 +15432,17 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                               </Alert>
                             ) : null}
 
-                            {operationalPreview.diagnostics.length > 0 ? (
-                              <Alert>
-                                <AlertTitle>
-                                  Pendências encontradas na programação
-                                </AlertTitle>
-
-                                <AlertDescription className="space-y-3">
-                                  <p>
-                                    {operationalPreview.diagnostics.length}{" "}
-                                    conflito(s) ou pendência(s) precisam ser
-                                    revisados.
-                                  </p>
-
-                                  <div className="space-y-2">
-                                    {operationalPreview.diagnostics.map(
-                                      (diagnostic, diagnosticIndex) => (
-                                        <div
-                                          key={[
-                                            diagnostic.code,
-                                            diagnostic.sport_id ??
-                                              "sem-modalidade",
-                                            diagnostic.naipe ?? "sem-naipe",
-                                            diagnostic.division ??
-                                              "sem-divisao",
-                                            diagnostic.phase ?? "sem-fase",
-                                            diagnosticIndex,
-                                          ].join("::")}
-                                          className="rounded-lg border border-border/50 bg-background/60 px-3 py-2"
-                                        >
-                                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                            <span className="text-sm font-semibold">
-                                              {diagnostic.sport_name ??
-                                                "Programação"}
-                                            </span>
-
-                                            {diagnostic.naipe ? (
-                                              <span className="text-xs text-muted-foreground">
-                                                •{" "}
-                                                {
-                                                  MATCH_NAIPE_LABELS[
-                                                    diagnostic.naipe
-                                                  ]
-                                                }
-                                              </span>
-                                            ) : null}
-
-                                            {diagnostic.division ? (
-                                              <span className="text-xs text-muted-foreground">
-                                                •{" "}
-                                                {
-                                                  TEAM_DIVISION_LABELS[
-                                                    diagnostic.division
-                                                  ]
-                                                }
-                                              </span>
-                                            ) : null}
-
-                                            {diagnostic.phase ? (
-                                              <span className="text-xs text-muted-foreground">
-                                                •{" "}
-                                                {resolveOperationalPreviewPhaseLabel(
-                                                  diagnostic.phase,
-                                                  null,
-                                                )}
-                                              </span>
-                                            ) : null}
-                                          </div>
-
-                                          <p className="mt-1 text-xs text-muted-foreground">
-                                            {diagnostic.message}
-                                          </p>
-                                        </div>
-                                      ),
-                                    )}
-                                  </div>
-                                </AlertDescription>
-                              </Alert>
-                            ) : null}
-
                             <div className="space-y-6">
                               {operationalPreview.days.map((previewDay) => {
-                                const dayMatchCount =
+                                const isPreviewDayExpanded =
+                                  expandedOperationalPreviewDates.has(
+                                    previewDay.date,
+                                  );
+                                const previewDayContentId = `operational-preview-day-content-${previewDay.date}`;
+                                const dayCourtCount =
                                   previewDay.locations.reduce(
-                                    (totalMatches, location) =>
-                                      totalMatches +
-                                      location.courts.reduce(
-                                        (courtMatchTotal, court) =>
-                                          courtMatchTotal +
-                                          court.entries.filter(
-                                            (entry) => entry.type == "MATCH",
-                                          ).length,
-                                        0,
-                                      ),
+                                    (totalCourts, location) =>
+                                      totalCourts + location.courts.length,
                                     0,
                                   );
 
@@ -15202,7 +15451,28 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                     key={`preview-day-${previewDay.date}`}
                                     className="rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm"
                                   >
-                                    <div className="flex items-start justify-between gap-4 border-b border-border/40 pb-4">
+                                    <button
+                                      type="button"
+                                      className={cn(
+                                        "flex w-full items-center justify-between gap-4 text-left transition-colors hover:text-foreground",
+                                        isPreviewDayExpanded &&
+                                          "border-b border-border/40 pb-4",
+                                      )}
+                                      aria-expanded={isPreviewDayExpanded}
+                                      aria-controls={previewDayContentId}
+                                      aria-label={`${
+                                        isPreviewDayExpanded
+                                          ? "Recolher"
+                                          : "Expandir"
+                                      } programação de ${resolveBrazilianDateString(
+                                        previewDay.date,
+                                      )}`}
+                                      onClick={() =>
+                                        void toggleOperationalPreviewDay(
+                                          previewDay.date,
+                                        )
+                                      }
+                                    >
                                       <div>
                                         <p className="text-base font-bold">
                                           {resolveBrazilianDateString(
@@ -15215,37 +15485,55 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                         </p>
                                       </div>
 
-                                      <div className="text-right text-xs text-muted-foreground">
-                                        <p>{dayMatchCount} jogo(s)</p>
-                                        <p>
-                                          {previewDay.free_windows} janela(s)
-                                          livre(s)
-                                        </p>
-                                        <p>
-                                          {previewDay.utilization_percentage}%
-                                          de ocupação
-                                        </p>
+                                      <div className="flex items-center gap-3 text-right text-xs text-muted-foreground">
+                                        <div>
+                                          <p>
+                                            {previewDay.locations.length}{" "}
+                                            local(is)
+                                          </p>
+                                          <p>{dayCourtCount} quadra(s)</p>
+                                        </div>
+                                        {isPreviewDayExpanded ? (
+                                          <ChevronUp className="h-4 w-4" />
+                                        ) : (
+                                          <ChevronDown className="h-4 w-4" />
+                                        )}
                                       </div>
-                                    </div>
+                                    </button>
+
+                                    {isPreviewDayExpanded ? (
+                                      <div
+                                        id={previewDayContentId}
+                                        className="mt-5 space-y-5"
+                                      >
+                                    {loadingOperationalPreviewDate ==
+                                    previewDay.date ? (
+                                      <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        Carregando programação deste dia...
+                                      </div>
+                                    ) : (
+                                      <>
 
                                     {previewDay.breaks.length > 0 ? (
-                                      <div className="mt-3 flex flex-wrap gap-2">
+                                      <div className="flex flex-wrap gap-2">
                                         {previewDay.breaks.map(
                                           (previewBreak, breakIndex) => (
-                                            <div
+                                            <AppBadge
                                               key={`preview-day-${previewDay.date}-break-${breakIndex}`}
-                                              className="rounded-full border border-sky-500/20 bg-sky-500/10 px-3 py-1 text-[11px] text-sky-100"
+                                              tone={AppBadgeTone.SKY}
+                                              className="px-2 py-1 text-[10px] leading-none"
                                             >
                                               Intervalo{" "}
                                               {previewBreak.start_time} até{" "}
                                               {previewBreak.end_time}
-                                            </div>
+                                            </AppBadge>
                                           ),
                                         )}
                                       </div>
                                     ) : null}
 
-                                    <div className="mt-5 space-y-5">
+                                    <div className="space-y-5">
                                       {previewDay.locations.map((location) => (
                                         <div
                                           key={`preview-day-${previewDay.date}-location-${location.location_key}`}
@@ -15260,20 +15548,19 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                             </p>
                                           </div>
 
-                                          <div className="overflow-x-auto pb-2">
-                                            <div
-                                              className="grid min-w-max gap-4"
-                                              style={{
-                                                gridTemplateColumns: `repeat(${Math.max(
-                                                  location.courts.length,
-                                                  1,
-                                                )}, minmax(290px, 1fr))`,
-                                              }}
-                                            >
+                                          <div
+                                            className="grid gap-4"
+                                            style={{
+                                              gridTemplateColumns: `repeat(${Math.max(
+                                                location.courts.length,
+                                                1,
+                                              )}, minmax(0, 1fr))`,
+                                            }}
+                                          >
                                               {location.courts.map((court) => (
                                                 <div
                                                   key={`preview-day-${previewDay.date}-court-${court.court_key}`}
-                                                  className="rounded-xl border border-border/40 bg-background/40 p-4"
+                                                  className="min-w-0 overflow-hidden rounded-xl border border-border/40 bg-background/40 p-4"
                                                 >
                                                   <div className="flex items-start justify-between gap-3 border-b border-border/30 pb-3">
                                                     <div>
@@ -15282,31 +15569,44 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                       </p>
                                                       <p className="text-[11px] text-muted-foreground">
                                                         {
-                                                          court.utilization_percentage
-                                                        }
-                                                        % ocupada
-                                                      </p>
-                                                    </div>
-
-                                                    <div className="text-right text-[11px] text-muted-foreground">
-                                                      <p>
-                                                        {
                                                           court.entries.filter(
                                                             (entry) =>
                                                               entry.type ==
                                                               "MATCH",
                                                           ).length
-                                                        }{" "}
-                                                        jogo(s)
+                                                        }
+                                                        {" "}
+                                                        jogo(s) programados
+                                                      </p>
+                                                    </div>
+
+                                                    <div className="text-right text-[11px] text-muted-foreground">
+                                                      <p>
+                                                        {court.available_minutes}{" "}
+                                                        min disponíveis
                                                       </p>
                                                       <p>
-                                                        {court.free_windows}{" "}
-                                                        janela(s) livre(s)
+                                                        {court.occupied_minutes}{" "}
+                                                        min reservados para jogos
+                                                      </p>
+                                                      <p>
+                                                        {Math.max(
+                                                          0,
+                                                          court.available_minutes -
+                                                            court.occupied_minutes,
+                                                        )}{" "}
+                                                        min livres ainda
                                                       </p>
                                                     </div>
                                                   </div>
 
-                                                  <div className="mt-3 space-y-2">
+                                                  <div className="mt-4 space-y-3">
+                                                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                                      Sequência cronológica da
+                                                      quadra
+                                                    </p>
+
+                                                    <div className="space-y-2">
                                                     {court.entries.map(
                                                       (entry, entryIndex) => {
                                                         const matchDetailParts =
@@ -15336,6 +15636,153 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                               : null,
                                                           ].filter(Boolean);
 
+                                                        if (
+                                                          entry.type == "MATCH"
+                                                        ) {
+                                                          const phaseLabel =
+                                                            resolveOperationalPreviewPhaseLabel(
+                                                              entry.phase,
+                                                              entry.phase_label,
+                                                            );
+
+                                                          return (
+                                                            <div
+                                                              key={`preview-day-${previewDay.date}-court-${court.court_key}-entry-${entryIndex}`}
+                                                              className={cn(
+                                                                "structural-review-timeline-entry rounded-md border px-2.5 py-2",
+                                                                resolveOperationalPreviewEntryToneClassName(
+                                                                  entry,
+                                                                ),
+                                                              )}
+                                                            >
+                                                              <div className="flex items-start justify-between gap-2">
+                                                                <div className="min-w-0 flex-1">
+                                                                  <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide">
+                                                                    <AppBadge
+                                                                      tone={
+                                                                        AppBadgeTone.SILVER
+                                                                      }
+                                                                      className="border-slate-300 bg-slate-100 px-1.5 py-0.5 text-[10px] leading-none text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                                                    >
+                                                                      Jogo{" "}
+                                                                      {entry.match_number ??
+                                                                        "—"}
+                                                                    </AppBadge>
+                                                                    <AppBadge
+                                                                      tone={
+                                                                        AppBadgeTone.AMBER
+                                                                      }
+                                                                      className="border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[9px] leading-none text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
+                                                                    >
+                                                                      Programação
+                                                                      exata
+                                                                    </AppBadge>
+                                                                    {entry.naipe ? (
+                                                                      <AppBadge
+                                                                        tone={
+                                                                          MATCH_NAIPE_BADGE_TONES[
+                                                                            entry
+                                                                              .naipe
+                                                                          ]
+                                                                        }
+                                                                        className="px-1.5 py-0.5 text-[10px] leading-none"
+                                                                      >
+                                                                        {
+                                                                          MATCH_NAIPE_LABELS[
+                                                                            entry
+                                                                              .naipe
+                                                                          ]
+                                                                        }
+                                                                      </AppBadge>
+                                                                    ) : null}
+                                                                    {phaseLabel ? (
+                                                                      <span className="rounded-full border border-border/40 bg-background/60 px-1.5 py-0.5 text-foreground/90 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
+                                                                        {
+                                                                          phaseLabel
+                                                                        }
+                                                                      </span>
+                                                                    ) : null}
+                                                                    {entry.group_number !=
+                                                                      null &&
+                                                                    entry.phase ==
+                                                                      "GROUP_STAGE" ? (
+                                                                      <span className="rounded-full border border-border/40 bg-background/60 px-1.5 py-0.5 text-foreground/90 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
+                                                                        {resolveChampionshipGroupLabel(
+                                                                          entry.group_number,
+                                                                        )}
+                                                                      </span>
+                                                                    ) : null}
+                                                                    {entry.division ? (
+                                                                      <AppBadge
+                                                                        tone={
+                                                                          TEAM_DIVISION_BADGE_TONES[
+                                                                            entry
+                                                                              .division
+                                                                          ]
+                                                                        }
+                                                                        className="px-1.5 py-0.5 text-[10px] leading-none"
+                                                                      >
+                                                                        {
+                                                                          TEAM_DIVISION_LABELS[
+                                                                            entry
+                                                                              .division
+                                                                          ]
+                                                                        }
+                                                                      </AppBadge>
+                                                                    ) : null}
+                                                                  </div>
+
+                                                                  <p className="mt-1 truncate text-sm font-semibold leading-tight">
+                                                                    {entry.sport_name ??
+                                                                      "Jogo"}
+                                                                  </p>
+
+                                                                  {entry.projected ? (
+                                                                    <p className="mt-1 text-[10px] text-amber-700 dark:text-amber-300">
+                                                                      Horário
+                                                                      previsto do
+                                                                      mata-mata
+                                                                      automático.
+                                                                    </p>
+                                                                  ) : null}
+
+                                                                  {entry.manual_final ? (
+                                                                    <p className="mt-1 text-[10px] text-primary/90">
+                                                                      Programação
+                                                                      manual de
+                                                                      final.
+                                                                    </p>
+                                                                  ) : null}
+
+                                                                  {entry.reason ? (
+                                                                    <p className="mt-1 text-[10px] text-muted-foreground">
+                                                                      {
+                                                                        entry.reason
+                                                                      }
+                                                                    </p>
+                                                                  ) : null}
+                                                                </div>
+
+                                                                <div className="shrink-0 text-right">
+                                                                  <p className="text-sm font-semibold tabular-nums leading-tight">
+                                                                    {
+                                                                      entry.start_time
+                                                                    }{" "}
+                                                                    -{" "}
+                                                                    {entry.end_time}
+                                                                  </p>
+                                                                  <p className="text-[10px] text-muted-foreground">
+                                                                    {
+                                                                      entry.duration_minutes
+                                                                    }{" "}
+                                                                    min
+                                                                  </p>
+                                                                </div>
+                                                              </div>
+                                                            </div>
+                                                          );
+                                                        }
+
                                                         return (
                                                           <div
                                                             key={`preview-day-${previewDay.date}-court-${court.court_key}-entry-${entryIndex}`}
@@ -15355,16 +15802,17 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                 </p>
                                                                 <p className="mt-1 text-sm font-semibold">
                                                                   {entry.type ==
-                                                                  "MATCH"
-                                                                    ? `Jogo ${
-                                                                        entry.match_number ??
-                                                                        "—"
-                                                                      }`
-                                                                    : entry.type ==
-                                                                        "EMPTY"
-                                                                      ? "Sem ocupação programada"
-                                                                      : (entry.sport_name ??
-                                                                        "Entrada operacional")}
+                                                                  "EMPTY"
+                                                                      ? "Janela livre"
+                                                                      : entry.type ==
+                                                                          "BREAK"
+                                                                        ? "Intervalo"
+                                                                        : entry.type ==
+                                                                            "RESERVATION"
+                                                                          ? (entry.reason ??
+                                                                            "Reserva")
+                                                                          : (entry.sport_name ??
+                                                                            "Sessão individual")}
                                                                 </p>
                                                               </div>
 
@@ -15396,26 +15844,9 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                               </p>
                                                             ) : null}
 
-                                                            {entry.projected &&
-                                                            entry.type ==
-                                                              "MATCH" ? (
-                                                              <p className="mt-2 text-[11px] text-amber-700">
-                                                                Horário previsto
-                                                                do mata-mata
-                                                                automático.
-                                                              </p>
-                                                            ) : null}
-
-                                                            {entry.manual_final &&
-                                                            entry.type ==
-                                                              "MATCH" ? (
-                                                              <p className="mt-2 text-[11px] text-primary/90">
-                                                                Programação
-                                                                manual de final.
-                                                              </p>
-                                                            ) : null}
-
-                                                            {entry.reason ? (
+                                                            {entry.reason &&
+                                                            entry.type !=
+                                                              "RESERVATION" ? (
                                                               <p className="mt-2 text-[11px] text-muted-foreground">
                                                                 {entry.reason}
                                                               </p>
@@ -15424,20 +15855,24 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                         );
                                                       },
                                                     )}
+                                                    </div>
                                                   </div>
                                                 </div>
                                               ))}
-                                            </div>
                                           </div>
                                         </div>
                                       ))}
                                     </div>
+                                      </>
+                                    )}
+                                      </div>
+                                    ) : null}
                                   </section>
                                 );
                               })}
                             </div>
                           </div>
-                        )}
+                        ) : null}
                       </div>
                     </div>
                   ) : null}

@@ -1,10 +1,18 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AdminChampionshipBracketPage } from "@/components/admin/AdminChampionshipBracketPage";
 import { ChampionshipBracketSetupDTO } from "@/domain/championship-brackets/ChampionshipBracketSetupDTO";
 import { resolveChampionshipBracketExactPreviewPayloadSignature } from "@/domain/championship-brackets/championshipBracketStructuralReview";
 import { sanitizeChampionshipBracketWizardDraft } from "@/domain/championship-brackets/championshipBracketWizardSync";
 import type {
+  ChampionshipBracketPreviewJob,
   ChampionshipBracketPreviewResult,
   ChampionshipBracketWizardDraftFormValues,
 } from "@/domain/championship-brackets/championshipBracket.types";
@@ -22,7 +30,11 @@ import type { Championship, ChampionshipSport, Team } from "@/lib/types";
 const fetchChampionshipBracketLocationTemplatesMock = vi.fn();
 const fetchChampionshipBracketWizardDraftMock = vi.fn();
 const saveChampionshipBracketWizardDraftMock = vi.fn();
-const previewChampionshipBracketGroupsMock = vi.fn();
+const startChampionshipBracketPreviewJobMock = vi.fn();
+const fetchChampionshipBracketPreviewJobStatusMock = vi.fn();
+const fetchChampionshipBracketPreviewJobDayMock = vi.fn();
+const cancelChampionshipBracketPreviewJobMock = vi.fn();
+const createChampionshipBracketFromPreviewJobMock = vi.fn();
 const { toastInfoMock } = vi.hoisted(() => ({
   toastInfoMock: vi.fn(),
 }));
@@ -52,13 +64,20 @@ vi.mock("@/domain/championship-brackets/championshipBracketDraft.repository", ()
 }));
 
 vi.mock("@/domain/championship-brackets/championshipBracket.repository", () => ({
+  cancelChampionshipBracketPreviewJob: (...args: unknown[]) =>
+    cancelChampionshipBracketPreviewJobMock(...args),
+  createChampionshipBracketFromPreviewJob: (...args: unknown[]) =>
+    createChampionshipBracketFromPreviewJobMock(...args),
   deleteChampionshipBracketLocationTemplate: vi.fn(),
-  generateChampionshipBracketGroups: vi.fn(),
+  fetchChampionshipBracketPreviewJobDay: (...args: unknown[]) =>
+    fetchChampionshipBracketPreviewJobDayMock(...args),
+  fetchChampionshipBracketPreviewJobStatus: (...args: unknown[]) =>
+    fetchChampionshipBracketPreviewJobStatusMock(...args),
   fetchChampionshipBracketLocationTemplates: (...args: unknown[]) =>
     fetchChampionshipBracketLocationTemplatesMock(...args),
-  previewChampionshipBracketGroups: (...args: unknown[]) =>
-    previewChampionshipBracketGroupsMock(...args),
   saveChampionshipBracketLocationTemplate: vi.fn(),
+  startChampionshipBracketPreviewJob: (...args: unknown[]) =>
+    startChampionshipBracketPreviewJobMock(...args),
 }));
 
 vi.mock("@/domain/championship-seasons/championshipSeason.repository", () => ({
@@ -361,6 +380,8 @@ function buildExactPreviewResult(): ChampionshipBracketPreviewResult {
   return {
     ok: true,
     message: null,
+    server_payload_signature: "server-payload-signature",
+    generation_signature: "generation-signature",
     match_numbering_mode: "COURT",
     summary: {
       total_matches: 3,
@@ -389,12 +410,7 @@ function buildExactPreviewResult(): ChampionshipBracketPreviewResult {
         available_minutes: 540,
         utilization_percentage: 22,
         free_windows: 1,
-        breaks: [
-          {
-            start_time: "12:00",
-            end_time: "13:00",
-          },
-        ],
+        breaks: [],
         locations: [
           {
             location_key: "loc-1",
@@ -408,6 +424,26 @@ function buildExactPreviewResult(): ChampionshipBracketPreviewResult {
                 utilization_percentage: 22,
                 free_windows: 1,
                 entries: [
+                  {
+                    type: "RESERVATION",
+                    start_time: "07:30",
+                    end_time: "08:00",
+                    duration_minutes: 30,
+                    match_kind: null,
+                    match_number: null,
+                    sport_id: null,
+                    sport_name: null,
+                    naipe: null,
+                    division: null,
+                    phase: null,
+                    phase_label: null,
+                    group_number: null,
+                    round_number: null,
+                    reason_code: "HARD",
+                    reason: "Reserva fixa",
+                    projected: false,
+                    manual_final: false,
+                  },
                   {
                     type: "MATCH",
                     start_time: "08:00",
@@ -428,6 +464,46 @@ function buildExactPreviewResult(): ChampionshipBracketPreviewResult {
                     projected: false,
                     manual_final: false,
                   },
+                  {
+                    type: "EMPTY",
+                    start_time: "08:40",
+                    end_time: "12:00",
+                    duration_minutes: 200,
+                    match_kind: null,
+                    match_number: null,
+                    sport_id: null,
+                    sport_name: null,
+                    naipe: null,
+                    division: null,
+                    phase: null,
+                    phase_label: null,
+                    group_number: null,
+                    round_number: null,
+                    reason_code: "FREE_WINDOW",
+                    reason: null,
+                    projected: false,
+                    manual_final: false,
+                  },
+                  {
+                    type: "BREAK",
+                    start_time: "12:00",
+                    end_time: "13:00",
+                    duration_minutes: 60,
+                    match_kind: null,
+                    match_number: null,
+                    sport_id: null,
+                    sport_name: null,
+                    naipe: null,
+                    division: null,
+                    phase: null,
+                    phase_label: null,
+                    group_number: null,
+                    round_number: null,
+                    reason_code: "SCHEDULE_BREAK",
+                    reason: "Intervalo da programação",
+                    projected: false,
+                    manual_final: false,
+                  },
                 ],
               },
             ],
@@ -436,6 +512,63 @@ function buildExactPreviewResult(): ChampionshipBracketPreviewResult {
       },
     ],
     diagnostics: [],
+  };
+}
+
+function buildExactPreviewJob(
+  overrides: Partial<ChampionshipBracketPreviewJob> = {},
+): ChampionshipBracketPreviewJob {
+  const preview = buildExactPreviewResult();
+
+  return {
+    job_id: "preview-job-1",
+    championship_id: "championship-1",
+    season_year: 2026,
+    status: "COMPLETED",
+    stage: "Concluído",
+    current_date: null,
+    progress_percentage: 100,
+    processed_slots: 12,
+    total_slots: 12,
+    attempt_count: 0,
+    error_message: null,
+    summary: preview.summary,
+    diagnostics: preview.diagnostics,
+    payload_signature: "server-payload-signature",
+    dependency_signature: "dependency-signature",
+    algorithm_version: "async-exact-v4",
+    generation_signature: "generation-signature",
+    created_at: "2026-08-12T02:00:00.000Z",
+    completed_at: "2026-08-12T02:01:00.000Z",
+    expires_at: "2099-08-19T02:01:00.000Z",
+    is_valid_for_creation: true,
+    ...overrides,
+  };
+}
+
+function buildStoredExactPreviewCache(
+  payloadSignature: string,
+  result: ChampionshipBracketPreviewResult | null = null,
+) {
+  const job = buildExactPreviewJob();
+
+  return {
+    job_id: job.job_id,
+    payload_signature: payloadSignature,
+    server_payload_signature: job.payload_signature,
+    generation_signature: job.generation_signature ?? "",
+    dependency_signature: job.dependency_signature,
+    algorithm_version: job.algorithm_version,
+    status: job.status,
+    stage: job.stage,
+    current_date: job.current_date,
+    progress_percentage: job.progress_percentage,
+    processed_slots: job.processed_slots,
+    total_slots: job.total_slots,
+    expires_at: job.expires_at,
+    is_valid_for_creation: job.is_valid_for_creation,
+    generated_at: job.completed_at ?? job.created_at,
+    result,
   };
 }
 
@@ -476,8 +609,24 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
       error: null,
       metadata: null,
     });
-    previewChampionshipBracketGroupsMock.mockResolvedValue({
-      data: buildExactPreviewResult(),
+    startChampionshipBracketPreviewJobMock.mockResolvedValue({
+      data: buildExactPreviewJob(),
+      error: null,
+    });
+    fetchChampionshipBracketPreviewJobStatusMock.mockResolvedValue({
+      data: buildExactPreviewJob(),
+      error: null,
+    });
+    fetchChampionshipBracketPreviewJobDayMock.mockResolvedValue({
+      data: buildExactPreviewResult().days[0],
+      error: null,
+    });
+    cancelChampionshipBracketPreviewJobMock.mockResolvedValue({
+      data: buildExactPreviewJob({ status: "CANCELLED" }),
+      error: null,
+    });
+    createChampionshipBracketFromPreviewJobMock.mockResolvedValue({
+      data: "bracket-edition-1",
       error: null,
     });
   });
@@ -503,7 +652,252 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
     expect(
       screen.queryByText("Jogos planejados nas metas"),
     ).not.toBeInTheDocument();
-    expect(previewChampionshipBracketGroupsMock).not.toHaveBeenCalled();
+    expect(startChampionshipBracketPreviewJobMock).not.toHaveBeenCalled();
+  });
+
+  it("bloqueia a criação até a prévia exata manual atual ser concluída", async () => {
+    fetchChampionshipBracketWizardDraftMock.mockResolvedValue({
+      draft_form_values: buildDraft(),
+      metadata: null,
+      source: "local",
+    });
+
+    renderPage();
+
+    const createButton = await screen.findByRole("button", {
+      name: "Criar campeonato",
+    });
+    expect(createButton).toBeDisabled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Calcular programação exata" }),
+    );
+
+    await waitFor(() => expect(createButton).toBeEnabled());
+    expect(createChampionshipBracketFromPreviewJobMock).not.toHaveBeenCalled();
+  });
+
+  it("persiste somente as assinaturas após calcular a prévia exata", async () => {
+    fetchChampionshipBracketWizardDraftMock.mockResolvedValue({
+      draft_form_values: buildDraft(),
+      metadata: null,
+      source: "local",
+    });
+
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Calcular programação exata",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(saveChampionshipBracketWizardDraftMock).toHaveBeenCalled(),
+    );
+
+    expect(saveChampionshipBracketWizardDraftMock).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        exact_preview_cache: expect.objectContaining({
+          server_payload_signature: "server-payload-signature",
+          generation_signature: "generation-signature",
+          is_valid_for_creation: true,
+          result: null,
+        }),
+      }),
+    );
+  });
+
+  it("aguarda a conclusão da prévia para exibir pendências impeditivas", async () => {
+    fetchChampionshipBracketWizardDraftMock.mockResolvedValue({
+      draft_form_values: buildDraft(),
+      metadata: null,
+      source: "local",
+    });
+    const runningJob = buildExactPreviewJob({
+      status: "SCHEDULING",
+      stage: "Distribuindo jogos por dia",
+      progress_percentage: 66,
+      processed_slots: 430,
+      completed_at: null,
+      is_valid_for_creation: false,
+    });
+    startChampionshipBracketPreviewJobMock.mockResolvedValue({
+      data: runningJob,
+      error: null,
+    });
+    fetchChampionshipBracketPreviewJobStatusMock.mockResolvedValue({
+      data: runningJob,
+      error: null,
+    });
+
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Calcular programação exata",
+      }),
+    );
+
+    expect(
+      await screen.findByText("Prévia exata em processamento"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Prévia exata com pendências impeditivas"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("exibe os jogos não alocados quando o job falha sem resumo", async () => {
+    fetchChampionshipBracketWizardDraftMock.mockResolvedValue({
+      draft_form_values: buildDraft(),
+      metadata: null,
+      source: "local",
+    });
+    startChampionshipBracketPreviewJobMock.mockResolvedValue({
+      data: buildExactPreviewJob({
+        status: "SCHEDULING",
+        stage: "Distribuindo jogos por dia",
+        progress_percentage: 80,
+        summary: null,
+        diagnostics: [],
+        generation_signature: null,
+        completed_at: null,
+        is_valid_for_creation: false,
+      }),
+      error: null,
+    });
+    fetchChampionshipBracketPreviewJobStatusMock.mockResolvedValue({
+      data: buildExactPreviewJob({
+        status: "FAILED",
+        stage: "Falha",
+        progress_percentage: 100,
+        error_message:
+          "Não foi possível encaixar 1 jogo na grade configurada.",
+        summary: null,
+        diagnostics: [
+          {
+            code: "UNASSIGNED_MATCH",
+            severity: "ERROR",
+            message:
+              "Atlética A × Atlética B — Grupo 1, rodada 3: todos os horários físicos compatíveis com a meta já estavam ocupados.",
+            reason_code: "COURT_CAPACITY_EXHAUSTED",
+            match_id: "match-1",
+            date: null,
+            location_name: null,
+            court_name: null,
+            sport_id: "sport-1",
+            sport_name: "Futsal",
+            naipe: MatchNaipe.MASCULINO,
+            division: TeamDivision.DIVISAO_PRINCIPAL,
+            phase: "GROUP_STAGE",
+            group_number: 1,
+            round_number: 3,
+            home_team_id: "team-1",
+            home_team_name: "Atlética A",
+            away_team_id: "team-2",
+            away_team_name: "Atlética B",
+          },
+        ],
+        generation_signature: null,
+        completed_at: "2026-08-12T02:01:00.000Z",
+        is_valid_for_creation: false,
+      }),
+      error: null,
+    });
+
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Calcular programação exata",
+      }),
+    );
+
+    expect(
+      await screen.findByText("Falha ao calcular a prévia exata"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Atlética A × Atlética B")).toBeInTheDocument();
+    expect(screen.getByText(/Grupo 1/)).toBeInTheDocument();
+    expect(screen.getByText(/Rodada 3/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/todos os horários físicos compatíveis/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Jogos totais")).not.toBeInTheDocument();
+  });
+
+  it("retoma o job por polling e carrega a cronologia somente ao expandir o dia", async () => {
+    fetchChampionshipBracketWizardDraftMock.mockResolvedValue({
+      draft_form_values: buildDraft(),
+      metadata: null,
+      source: "local",
+    });
+    startChampionshipBracketPreviewJobMock.mockResolvedValue({
+      data: buildExactPreviewJob({
+        status: "SCHEDULING",
+        stage: "Distribuindo jogos por dia",
+        progress_percentage: 35,
+        processed_slots: 7,
+        generation_signature: null,
+        completed_at: null,
+        is_valid_for_creation: false,
+      }),
+      error: null,
+    });
+
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Calcular programação exata",
+      }),
+    );
+
+    expect(
+      await screen.findByText("Prévia exata validada"),
+    ).toBeInTheDocument();
+    expect(fetchChampionshipBracketPreviewJobStatusMock).toHaveBeenCalledWith(
+      "preview-job-1",
+    );
+    expect(fetchChampionshipBracketPreviewJobDayMock).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Expandir programação de 29/08/2026",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(fetchChampionshipBracketPreviewJobDayMock).toHaveBeenCalledWith(
+        "preview-job-1",
+        "2026-08-29",
+      ),
+    );
+    const exactPreviewDayButton = await screen.findByRole("button", {
+      name: "Recolher programação de 29/08/2026",
+    });
+    const exactPreviewDayCard = exactPreviewDayButton.closest("section");
+
+    expect(exactPreviewDayCard).not.toBeNull();
+
+    const exactPreviewDay = within(exactPreviewDayCard!);
+
+    expect(exactPreviewDay.getByText("1 local(is)")).toBeInTheDocument();
+    expect(exactPreviewDay.getAllByText("1 quadra(s)")).toHaveLength(2);
+    expect(exactPreviewDay.getByText("Quadra Interna")).toBeInTheDocument();
+    expect(
+      exactPreviewDay.getByText("Sequência cronológica da quadra"),
+    ).toBeInTheDocument();
+    expect(exactPreviewDay.getByText("Programação exata")).toBeInTheDocument();
+    expect(exactPreviewDay.getByText("Jogo 1")).toBeInTheDocument();
+    expect(exactPreviewDay.getByText("Masculino")).toBeInTheDocument();
+    expect(exactPreviewDay.getByText("Fase de grupos")).toBeInTheDocument();
+    expect(exactPreviewDay.getByText("Grupo A")).toBeInTheDocument();
+    expect(exactPreviewDay.getByText("Futsal")).toBeInTheDocument();
+    expect(exactPreviewDay.getByText("Reserva fixa")).toBeInTheDocument();
+    expect(exactPreviewDay.getAllByText("Janela livre")).toHaveLength(2);
+    expect(exactPreviewDay.getAllByText("Intervalo")).toHaveLength(2);
+    expect(screen.queryByText("Jogos totais")).not.toBeInTheDocument();
   });
 
   it("mantém os dias da revisão estrutural recolhidos até o admin expandir", async () => {
@@ -838,7 +1232,7 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
     });
 
     let resolvePreview: ((value: unknown) => void) | null = null;
-    previewChampionshipBracketGroupsMock.mockImplementation(
+    startChampionshipBracketPreviewJobMock.mockImplementation(
       () =>
         new Promise((resolve) => {
           resolvePreview = resolve;
@@ -852,21 +1246,22 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
     });
 
     fireEvent.click(actionButton);
+    fireEvent.click(actionButton);
     await waitFor(() =>
-      expect(previewChampionshipBracketGroupsMock).toHaveBeenCalledTimes(1),
+      expect(startChampionshipBracketPreviewJobMock).toHaveBeenCalledTimes(1),
     );
 
     expect(screen.getByRole("button", { name: /Calculando/i })).toBeDisabled();
 
     await act(async () => {
       resolvePreview?.({
-        data: buildExactPreviewResult(),
+        data: buildExactPreviewJob(),
         error: null,
       });
     });
   });
 
-  it("reapresenta cache válido restaurado do draft", async () => {
+  it("aceita as assinaturas válidas restauradas do draft sem restaurar a cronologia", async () => {
     const draft = buildDraft();
     const payloadSignature = resolveChampionshipBracketExactPreviewPayloadSignature(
       buildSetupPayloadFromDraft(draft),
@@ -875,11 +1270,7 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
     fetchChampionshipBracketWizardDraftMock.mockResolvedValue({
       draft_form_values: {
         ...draft,
-        exact_preview_cache: {
-          payload_signature: payloadSignature,
-          generated_at: "2026-08-10T02:00:00.000Z",
-          result: buildExactPreviewResult(),
-        },
+        exact_preview_cache: buildStoredExactPreviewCache(payloadSignature),
       },
       metadata: null,
       source: "remote",
@@ -887,9 +1278,9 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Última simulação exata")).toBeInTheDocument();
-    expect(screen.getByText(/Cache válido gerado em/i)).toBeInTheDocument();
-    expect(screen.getByText("Jogos totais")).toBeInTheDocument();
+    expect(await screen.findByText("Prévia exata validada")).toBeInTheDocument();
+    expect(screen.getByText(/Prévia válida gerada em/i)).toBeInTheDocument();
+    expect(screen.queryByText("Jogos totais")).not.toBeInTheDocument();
   });
 
   it("marca o cache como desatualizado quando a assinatura mudou", async () => {
@@ -898,11 +1289,10 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
     fetchChampionshipBracketWizardDraftMock.mockResolvedValue({
       draft_form_values: {
         ...draft,
-        exact_preview_cache: {
-          payload_signature: "stale-signature",
-          generated_at: "2026-08-10T02:00:00.000Z",
-          result: buildExactPreviewResult(),
-        },
+        exact_preview_cache: buildStoredExactPreviewCache(
+          "stale-signature",
+          buildExactPreviewResult(),
+        ),
       },
       metadata: null,
       source: "remote",
@@ -914,5 +1304,31 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
       await screen.findByText("Última simulação exata desatualizada"),
     ).toBeInTheDocument();
     expect(screen.getByText("Prévia exata desatualizada")).toBeInTheDocument();
+  });
+
+  it("invalida uma prévia concluída pela versão antiga do algoritmo", async () => {
+    const draft = buildDraft();
+    const payloadSignature = resolveChampionshipBracketExactPreviewPayloadSignature(
+      buildSetupPayloadFromDraft(draft),
+    );
+
+    fetchChampionshipBracketWizardDraftMock.mockResolvedValue({
+      draft_form_values: {
+        ...draft,
+        exact_preview_cache: {
+          ...buildStoredExactPreviewCache(payloadSignature),
+          algorithm_version: "async-exact-v3",
+        },
+      },
+      metadata: null,
+      source: "remote",
+    });
+
+    renderPage();
+
+    expect(
+      await screen.findByText("Última simulação exata desatualizada"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Prévia exata validada")).not.toBeInTheDocument();
   });
 });

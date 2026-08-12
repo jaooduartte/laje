@@ -1,1 +1,4 @@
 project_id = "cugqidtapnqvonbdbbdf"
+
+[functions.process-championship-bracket-preview]
+verify_jwt = false

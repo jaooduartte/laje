@@ -718,13 +718,26 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
     expect(dto?.bindToSave().exact_preview_cache).toBeNull();
   });
 
-  it("preserva o cache válido da prévia exata ao salvar o draft", () => {
+  it("preserva somente as assinaturas da prévia exata ao salvar o draft", () => {
     const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
       JSON.stringify({
         ...buildDraft(),
         step_flow_version: 2,
         exact_preview_cache: {
+          job_id: "preview-job-1",
           payload_signature: "{\"payload\":1}",
+          server_payload_signature: "server-payload-signature",
+          generation_signature: "generation-signature",
+          dependency_signature: "dependency-signature",
+          algorithm_version: "async-v1",
+          status: "COMPLETED",
+          stage: "Concluído",
+          current_date: null,
+          progress_percentage: 100,
+          processed_slots: 12,
+          total_slots: 12,
+          expires_at: "2026-08-20T03:15:00.000Z",
+          is_valid_for_creation: true,
           generated_at: "2026-08-10T03:15:00.000Z",
           result: {
             ok: true,
@@ -751,28 +764,22 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
     );
 
     expect(dto?.bindToSave().exact_preview_cache).toEqual({
+      job_id: "preview-job-1",
       payload_signature: "{\"payload\":1}",
+      server_payload_signature: "server-payload-signature",
+      generation_signature: "generation-signature",
+      dependency_signature: "dependency-signature",
+      algorithm_version: "async-v1",
+      status: "COMPLETED",
+      stage: "Concluído",
+      current_date: null,
+      progress_percentage: 100,
+      processed_slots: 12,
+      total_slots: 12,
+      expires_at: "2026-08-20T03:15:00.000Z",
+      is_valid_for_creation: true,
       generated_at: "2026-08-10T03:15:00.000Z",
-      result: {
-        ok: true,
-        message: "Prévia pronta",
-        match_numbering_mode: "COURT",
-        summary: {
-          total_matches: 12,
-          group_stage_matches: 8,
-          knockout_matches: 4,
-          scheduled_matches: 12,
-          occupied_minutes: 480,
-          available_minutes: 600,
-          utilization_percentage: 80,
-          free_windows: 2,
-          conflict_count: 0,
-          warning_count: 1,
-          games_by_day: [],
-        },
-        days: [],
-        diagnostics: [],
-      },
+      result: null,
     });
   });
 
@@ -790,6 +797,42 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
     );
 
     expect(dto?.bindToSave().exact_preview_cache).toBeNull();
+  });
+
+  it("preserva o identificador de um job em andamento sem assinatura final", () => {
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      JSON.stringify({
+        ...buildDraft(),
+        step_flow_version: 2,
+        exact_preview_cache: {
+          job_id: "preview-job-running",
+          payload_signature: "local-signature",
+          server_payload_signature: "server-signature",
+          generation_signature: "",
+          dependency_signature: "dependency-signature",
+          algorithm_version: "async-v1",
+          status: "SCHEDULING",
+          stage: "Distribuindo jogos por dia",
+          current_date: "2026-08-29",
+          progress_percentage: 35,
+          processed_slots: 7,
+          total_slots: 20,
+          expires_at: "2099-08-13T03:15:00.000Z",
+          is_valid_for_creation: false,
+          generated_at: "2026-08-12T03:15:00.000Z",
+          result: null,
+        },
+      }),
+    );
+
+    expect(dto?.bindToSave().exact_preview_cache).toEqual(
+      expect.objectContaining({
+        job_id: "preview-job-running",
+        status: "SCHEDULING",
+        generation_signature: "",
+        result: null,
+      }),
+    );
   });
 
   it("preserva e normaliza metas de jogos por modalidade da quadra", () => {

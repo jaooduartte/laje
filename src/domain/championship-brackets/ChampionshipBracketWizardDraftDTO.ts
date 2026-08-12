@@ -136,6 +136,16 @@ function resolvePreviewResult(
     ok: previewResult.ok === true,
     message:
       typeof previewResult.message == "string" ? previewResult.message : null,
+    server_payload_signature:
+      typeof previewResult.server_payload_signature == "string" &&
+      previewResult.server_payload_signature.trim() != ""
+        ? previewResult.server_payload_signature
+        : null,
+    generation_signature:
+      typeof previewResult.generation_signature == "string" &&
+      previewResult.generation_signature.trim() != ""
+        ? previewResult.generation_signature
+        : null,
     match_numbering_mode:
       previewResult.match_numbering_mode == "SPORT_NAIPE"
         ? "SPORT_NAIPE"
@@ -168,17 +178,67 @@ function resolveExactPreviewCache(
   const previewResult = resolvePreviewResult(parsedCache.result);
 
   if (
+    typeof parsedCache.job_id != "string" ||
+    parsedCache.job_id.trim() == "" ||
     typeof parsedCache.payload_signature != "string" ||
     parsedCache.payload_signature.trim() == "" ||
+    typeof parsedCache.server_payload_signature != "string" ||
+    parsedCache.server_payload_signature.trim() == "" ||
+    typeof parsedCache.generation_signature != "string" ||
+    typeof parsedCache.dependency_signature != "string" ||
+    parsedCache.dependency_signature.trim() == "" ||
+    typeof parsedCache.algorithm_version != "string" ||
+    parsedCache.algorithm_version.trim() == "" ||
+    typeof parsedCache.status != "string" ||
+    ![
+      "QUEUED",
+      "INITIALIZING",
+      "SCHEDULING",
+      "FINALIZING",
+      "COMPLETED",
+      "FAILED",
+      "CANCELLED",
+      "CONSUMED",
+    ].includes(parsedCache.status) ||
+    typeof parsedCache.stage != "string" ||
+    typeof parsedCache.progress_percentage != "number" ||
+    typeof parsedCache.processed_slots != "number" ||
+    typeof parsedCache.total_slots != "number" ||
+    typeof parsedCache.expires_at != "string" ||
+    parsedCache.expires_at.trim() == "" ||
+    typeof parsedCache.is_valid_for_creation != "boolean" ||
     typeof parsedCache.generated_at != "string" ||
-    parsedCache.generated_at.trim() == "" ||
-    !previewResult
+    parsedCache.generated_at.trim() == ""
+  ) {
+    return null;
+  }
+
+  if (
+    ["COMPLETED", "CONSUMED"].includes(parsedCache.status) &&
+    parsedCache.generation_signature.trim() == ""
   ) {
     return null;
   }
 
   return {
+    job_id: parsedCache.job_id,
     payload_signature: parsedCache.payload_signature,
+    server_payload_signature: parsedCache.server_payload_signature,
+    generation_signature: parsedCache.generation_signature,
+    dependency_signature: parsedCache.dependency_signature,
+    algorithm_version: parsedCache.algorithm_version,
+    status:
+      parsedCache.status as ChampionshipBracketExactPreviewCache["status"],
+    stage: parsedCache.stage,
+    current_date:
+      typeof parsedCache.current_date == "string"
+        ? parsedCache.current_date
+        : null,
+    progress_percentage: parsedCache.progress_percentage,
+    processed_slots: parsedCache.processed_slots,
+    total_slots: parsedCache.total_slots,
+    expires_at: parsedCache.expires_at,
+    is_valid_for_creation: parsedCache.is_valid_for_creation,
     generated_at: parsedCache.generated_at,
     result: previewResult,
   };
@@ -2041,10 +2101,32 @@ export class ChampionshipBracketWizardDraftDTO {
       ),
       exact_preview_cache: this.form_values.exact_preview_cache
         ? {
+            job_id: this.form_values.exact_preview_cache.job_id,
             payload_signature:
               this.form_values.exact_preview_cache.payload_signature,
+            server_payload_signature:
+              this.form_values.exact_preview_cache.server_payload_signature,
+            generation_signature:
+              this.form_values.exact_preview_cache.generation_signature,
+            dependency_signature:
+              this.form_values.exact_preview_cache.dependency_signature,
+            algorithm_version:
+              this.form_values.exact_preview_cache.algorithm_version,
+            status: this.form_values.exact_preview_cache.status,
+            stage: this.form_values.exact_preview_cache.stage,
+            current_date: this.form_values.exact_preview_cache.current_date,
+            progress_percentage:
+              this.form_values.exact_preview_cache.progress_percentage,
+            processed_slots:
+              this.form_values.exact_preview_cache.processed_slots,
+            total_slots: this.form_values.exact_preview_cache.total_slots,
+            expires_at: this.form_values.exact_preview_cache.expires_at,
+            is_valid_for_creation:
+              this.form_values.exact_preview_cache.is_valid_for_creation,
             generated_at: this.form_values.exact_preview_cache.generated_at,
-            result: this.form_values.exact_preview_cache.result,
+            // A cronologia pode ter centenas de itens. Ela fica somente no estado
+            // da tela; o rascunho guarda apenas as assinaturas de confirmação.
+            result: null,
           }
         : null,
     };

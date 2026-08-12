@@ -273,6 +273,8 @@ export interface ChampionshipBracketPreviewDiagnostic {
   code: string;
   severity: ChampionshipBracketPreviewDiagnosticSeverity;
   message: string;
+  reason_code?: string | null;
+  match_id?: string | null;
   date: string | null;
   location_name: string | null;
   court_name: string | null;
@@ -281,6 +283,12 @@ export interface ChampionshipBracketPreviewDiagnostic {
   naipe: MatchNaipe | null;
   division: TeamDivision | null;
   phase: ChampionshipBracketPreviewPhase | null;
+  group_number?: number | null;
+  round_number?: number | null;
+  home_team_id?: string | null;
+  home_team_name?: string | null;
+  away_team_id?: string | null;
+  away_team_name?: string | null;
 }
 
 export interface ChampionshipBracketPreviewTimelineEntry {
@@ -362,16 +370,73 @@ export interface ChampionshipBracketPreviewSummary {
 export interface ChampionshipBracketPreviewResult {
   ok: boolean;
   message: string | null;
+  server_payload_signature: string | null;
+  generation_signature: string | null;
   match_numbering_mode: ChampionshipBracketMatchNumberingMode;
   summary: ChampionshipBracketPreviewSummary | null;
   days: ChampionshipBracketPreviewDay[];
   diagnostics: ChampionshipBracketPreviewDiagnostic[];
 }
 
-export interface ChampionshipBracketExactPreviewCache {
+export type ChampionshipBracketPreviewJobStatus =
+  | "QUEUED"
+  | "INITIALIZING"
+  | "SCHEDULING"
+  | "FINALIZING"
+  | "COMPLETED"
+  | "FAILED"
+  | "CANCELLED"
+  | "CONSUMED";
+
+export interface ChampionshipBracketPreviewJob {
+  job_id: string;
+  championship_id: string;
+  season_year: number;
+  status: ChampionshipBracketPreviewJobStatus;
+  stage: string;
+  current_date: string | null;
+  progress_percentage: number;
+  processed_slots: number;
+  total_slots: number;
+  attempt_count: number;
+  error_message: string | null;
+  summary: ChampionshipBracketPreviewSummary | null;
+  diagnostics: ChampionshipBracketPreviewDiagnostic[];
   payload_signature: string;
+  dependency_signature: string;
+  algorithm_version: string;
+  generation_signature: string | null;
+  created_at: string;
+  completed_at: string | null;
+  expires_at: string;
+  is_valid_for_creation: boolean;
+}
+
+export interface ChampionshipBracketExactPreviewCache {
+  job_id: string;
+  /** Assinatura local usada apenas para invalidar o cache durante a edição. */
+  payload_signature: string;
+  /** Assinatura SHA-256 normalizada e calculada pelo banco. */
+  server_payload_signature: string;
+  /** Assinatura SHA-256 da agenda integral calculada pela prévia exata. */
+  generation_signature: string;
+  dependency_signature: string;
+  algorithm_version: string;
+  status: ChampionshipBracketPreviewJobStatus;
+  stage: string;
+  current_date: string | null;
+  progress_percentage: number;
+  processed_slots: number;
+  total_slots: number;
+  expires_at: string;
+  /** Só é verdadeiro quando a prévia não contém pendências impeditivas. */
+  is_valid_for_creation: boolean;
   generated_at: string;
-  result: ChampionshipBracketPreviewResult;
+  /**
+   * Mantido apenas durante a sessão para renderizar a cronologia calculada.
+   * O rascunho persiste somente as assinaturas, nunca a lista temporária de jogos.
+   */
+  result: ChampionshipBracketPreviewResult | null;
 }
 
 export interface ChampionshipBracketSportMatchTargetRecommendationLineCompetitionBreakdown {

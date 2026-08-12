@@ -4,7 +4,8 @@ import type {
   ChampionshipCorrectedGroupStanding,
   ChampionshipBracketLocationTemplate,
   ChampionshipBracketLocationTemplateSaveInput,
-  ChampionshipBracketPreviewResult,
+  ChampionshipBracketPreviewDay,
+  ChampionshipBracketPreviewJob,
   ChampionshipBracketResolvedTieBreakOrderContext,
   ChampionshipBracketCourtSequenceMode,
   ChampionshipBracketSetupFormValues,
@@ -33,45 +34,6 @@ function toSupabaseJson(value: unknown): Json {
   return value as Json;
 }
 
-function normalizeChampionshipBracketPreviewResult(
-  value: unknown,
-  fallbackMatchNumberingMode: ChampionshipBracketSetupFormValues["match_numbering_mode"],
-): ChampionshipBracketPreviewResult | null {
-  if (!value || typeof value != "object" || Array.isArray(value)) {
-    return null;
-  }
-
-  const previewResult = value as Record<string, unknown>;
-
-  const matchNumberingMode =
-    previewResult.match_numbering_mode == "SPORT_NAIPE"
-      ? "SPORT_NAIPE"
-      : previewResult.match_numbering_mode == "SPORT"
-        ? "SPORT"
-        : previewResult.match_numbering_mode == "COURT"
-          ? "COURT"
-          : fallbackMatchNumberingMode;
-
-  return {
-    ok: previewResult.ok === true,
-    message:
-      typeof previewResult.message == "string" ? previewResult.message : null,
-    match_numbering_mode: matchNumberingMode,
-    summary:
-      previewResult.summary &&
-      typeof previewResult.summary == "object" &&
-      !Array.isArray(previewResult.summary)
-        ? (previewResult.summary as ChampionshipBracketPreviewResult["summary"])
-        : null,
-    days: Array.isArray(previewResult.days)
-      ? (previewResult.days as ChampionshipBracketPreviewResult["days"])
-      : [],
-    diagnostics: Array.isArray(previewResult.diagnostics)
-      ? (previewResult.diagnostics as ChampionshipBracketPreviewResult["diagnostics"])
-      : [],
-  };
-}
-
 export async function generateChampionshipBracketGroups(
   championship_id: string,
   payload: ChampionshipBracketSetupFormValues,
@@ -82,14 +44,33 @@ export async function generateChampionshipBracketGroups(
   });
 }
 
-export async function previewChampionshipBracketGroups(
+function normalizeChampionshipBracketPreviewJob(
+  value: unknown,
+): ChampionshipBracketPreviewJob | null {
+  if (!value || typeof value != "object" || Array.isArray(value)) return null;
+  return value as ChampionshipBracketPreviewJob;
+}
+
+export async function createChampionshipBracketFromPreviewJob(
+  championship_id: string,
+  payload: ChampionshipBracketSetupFormValues,
+  job_id: string,
+) {
+  return supabase.rpc("create_championship_bracket_from_preview_job", {
+    _job_id: job_id,
+    _championship_id: championship_id,
+    _payload: toSupabaseJson(payload),
+  });
+}
+
+export async function startChampionshipBracketPreviewJob(
   championship_id: string,
   payload: ChampionshipBracketSetupFormValues,
 ): Promise<{
-  data: ChampionshipBracketPreviewResult | null;
+  data: ChampionshipBracketPreviewJob | null;
   error: Error | null;
 }> {
-  const response = await supabase.rpc("preview_championship_bracket_groups", {
+  const response = await supabase.rpc("start_championship_bracket_preview_job", {
     _championship_id: championship_id,
     _payload: toSupabaseJson(payload),
   });
@@ -102,11 +83,45 @@ export async function previewChampionshipBracketGroups(
   }
 
   return {
-    data: normalizeChampionshipBracketPreviewResult(
-      response.data,
-      payload.match_numbering_mode,
-    ),
+    data: normalizeChampionshipBracketPreviewJob(response.data),
     error: null,
+  };
+}
+
+export async function fetchChampionshipBracketPreviewJobStatus(job_id: string) {
+  const response = await supabase.rpc(
+    "get_championship_bracket_preview_job_status",
+    { _job_id: job_id },
+  );
+  return {
+    data: normalizeChampionshipBracketPreviewJob(response.data),
+    error: response.error,
+  };
+}
+
+export async function fetchChampionshipBracketPreviewJobDay(
+  job_id: string,
+  date: string,
+): Promise<{ data: ChampionshipBracketPreviewDay | null; error: Error | null }> {
+  const response = await supabase.rpc("get_championship_bracket_preview_job_day", {
+    _job_id: job_id,
+    _date: date,
+  });
+  return {
+    data:
+      (response.data as unknown as ChampionshipBracketPreviewDay | null) ??
+      null,
+    error: response.error,
+  };
+}
+
+export async function cancelChampionshipBracketPreviewJob(job_id: string) {
+  const response = await supabase.rpc("cancel_championship_bracket_preview_job", {
+    _job_id: job_id,
+  });
+  return {
+    data: normalizeChampionshipBracketPreviewJob(response.data),
+    error: response.error,
   };
 }
 

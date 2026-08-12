@@ -2759,6 +2759,14 @@ export type Database = {
         }
         Returns: string
       }
+      cancel_championship_bracket_preview_job: {
+        Args: { _job_id: string }
+        Returns: Json
+      }
+      create_championship_bracket_from_preview_job: {
+        Args: { _championship_id: string; _job_id: string; _payload: Json }
+        Returns: string
+      }
       can_access_admin_panel: { Args: never; Returns: boolean }
       coerce_division_for_index: {
         Args: { d: Database["public"]["Enums"]["team_division"] }
@@ -2839,6 +2847,23 @@ export type Database = {
       generate_championship_bracket_groups: {
         Args: { _championship_id: string; _payload: Json }
         Returns: string
+      }
+      generate_championship_bracket_groups_from_exact_preview: {
+        Args: {
+          _championship_id: string
+          _payload: Json
+          _expected_payload_signature: string
+          _expected_generation_signature: string
+        }
+        Returns: string
+      }
+      get_championship_bracket_preview_job_day: {
+        Args: { _date: string; _job_id: string }
+        Returns: Json
+      }
+      get_championship_bracket_preview_job_status: {
+        Args: { _job_id: string }
+        Returns: Json
       }
       generate_championship_knockout: {
         Args: { _bracket_edition_id?: string; _championship_id: string }
@@ -3280,6 +3305,10 @@ export type Database = {
         Args: { _championship_id: string; _payload: Json }
         Returns: Json
       }
+      process_championship_bracket_preview_queue: {
+        Args: { _max_messages?: number }
+        Returns: Json
+      }
       preview_championship_individual_session_scoreboard: {
         Args: { _session_id: string }
         Returns: {
@@ -3653,6 +3682,10 @@ export type Database = {
       start_championship_individual_session: {
         Args: { _session_id: string }
         Returns: string
+      }
+      start_championship_bracket_preview_job: {
+        Args: { _championship_id: string; _payload: Json }
+        Returns: Json
       }
       swap_championship_knockout_bracket_teams: {
         Args: {

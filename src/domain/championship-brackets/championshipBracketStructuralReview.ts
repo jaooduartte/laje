@@ -351,7 +351,20 @@ export function resolveChampionshipBracketExactPreviewCacheValidity({
   cache: ChampionshipBracketExactPreviewCache | null | undefined;
   payloadSignature: string;
 }) {
-  return cache?.payload_signature == payloadSignature;
+  return (
+    cache?.payload_signature == payloadSignature &&
+    typeof cache.server_payload_signature == "string" &&
+    cache.server_payload_signature.trim() != "" &&
+    typeof cache.generation_signature == "string" &&
+    cache.generation_signature.trim() != "" &&
+    typeof cache.job_id == "string" &&
+    cache.job_id.trim() != "" &&
+    cache.algorithm_version == "async-exact-v4" &&
+    cache.status == "COMPLETED" &&
+    typeof cache.expires_at == "string" &&
+    new Date(cache.expires_at).getTime() > Date.now() &&
+    cache.is_valid_for_creation
+  );
 }
 
 function resolveSportMetadataBySportId(championshipSports: ChampionshipSport[]) {
