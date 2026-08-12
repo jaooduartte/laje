@@ -514,6 +514,7 @@ DECLARE
   candidate_slot_record RECORD;
   effective_deadline TIMESTAMPTZ :=
     clock_timestamp() + interval '10 seconds';
+  candidate_deadline TIMESTAMPTZ;
   candidate_limit INTEGER := LEAST(
     GREATEST(
       COALESCE(_maximum_moves, 100) * 3,
@@ -590,7 +591,14 @@ BEGIN
   LOOP
     EXIT WHEN clock_timestamp() >= effective_deadline;
 
-    attempted_candidates := attempted_candidates + 1;
+    candidate_deadline :=
+      LEAST(
+        effective_deadline,
+        clock_timestamp() + interval '3 seconds'
+      );
+
+    attempted_candidates :=
+      attempted_candidates + 1;
 
     IF championship_bracket_preview_private.try_place_match_backtracking(
       _job_id,
@@ -602,7 +610,7 @@ BEGIN
       12,
       120,
       40,
-      effective_deadline
+      candidate_deadline
     ) THEN
       UPDATE championship_bracket_preview_private.matches
       SET
@@ -634,17 +642,21 @@ BEGIN
       candidate_slot_record.candidate_rank;
 
     UPDATE championship_bracket_preview_private.matches
-    SET relocation_candidate_cursor =
-      last_candidate_rank
+    SET
+      relocation_candidate_cursor =
+        last_candidate_rank
     WHERE job_id = _job_id
       AND id = _pending_match_id
       AND assigned = false;
+
+    EXIT WHEN clock_timestamp() >= effective_deadline;
   END LOOP;
 
   IF attempted_candidates > 0 THEN
     UPDATE championship_bracket_preview_private.matches
-    SET relocation_attempt_count =
-      relocation_attempt_count + 1
+    SET
+      relocation_attempt_count =
+        relocation_attempt_count + 1
     WHERE job_id = _job_id
       AND id = _pending_match_id
       AND assigned = false;
