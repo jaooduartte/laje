@@ -359,7 +359,7 @@ export function resolveChampionshipBracketExactPreviewCacheValidity({
     cache.generation_signature.trim() != "" &&
     typeof cache.job_id == "string" &&
     cache.job_id.trim() != "" &&
-    cache.algorithm_version == "async-exact-v4" &&
+    cache.algorithm_version == "async-exact-v5" &&
     cache.status == "COMPLETED" &&
     typeof cache.expires_at == "string" &&
     new Date(cache.expires_at).getTime() > Date.now() &&
