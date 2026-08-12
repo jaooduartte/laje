@@ -8,36 +8,29 @@ ALTER TABLE championship_bracket_preview_private.matches
 ADD COLUMN IF NOT EXISTS applied_rest_gap INTEGER NOT NULL DEFAULT 4;
 
 CREATE TABLE IF NOT EXISTS championship_bracket_preview_private.relocation_candidate_states (
-  job_id UUID NOT NULL
-    REFERENCES championship_bracket_preview_private.jobs(id)
-    ON DELETE CASCADE,
-  match_id UUID NOT NULL
-    REFERENCES championship_bracket_preview_private.matches(id)
-    ON DELETE CASCADE,
-  phase TEXT NOT NULL,
-  slot_id BIGINT NOT NULL
-    REFERENCES championship_bracket_preview_private.slots(id)
-    ON DELETE CASCADE,
-  status TEXT NOT NULL,
-  attempt_count INTEGER NOT NULL DEFAULT 0,
-  timeout_count INTEGER NOT NULL DEFAULT 0,
-  last_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  PRIMARY KEY (
+    job_id UUID NOT NULL REFERENCES championship_bracket_preview_private.jobs (id) ON DELETE CASCADE,
+    match_id UUID NOT NULL REFERENCES championship_bracket_preview_private.matches (id) ON DELETE CASCADE,
+    phase TEXT NOT NULL,
+    slot_id BIGINT NOT NULL REFERENCES championship_bracket_preview_private.slots (id) ON DELETE CASCADE,
+    status TEXT NOT NULL,
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+    timeout_count INTEGER NOT NULL DEFAULT 0,
+    last_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (
+        job_id,
+        match_id,
+        phase,
+        slot_id
+    )
+);
+
+CREATE INDEX IF NOT EXISTS championship_bracket_preview_relocation_candidate_states_search_idx ON championship_bracket_preview_private.relocation_candidate_states (
     job_id,
     match_id,
     phase,
-    slot_id
-  )
-);
-
-CREATE INDEX IF NOT EXISTS championship_bracket_preview_relocation_candidate_states_search_idx
-ON championship_bracket_preview_private.relocation_candidate_states (
-  job_id,
-  match_id,
-  phase,
-  status,
-  timeout_count,
-  last_attempt_at
+    status,
+    timeout_count,
+    last_attempt_at
 );
 
 CREATE OR REPLACE FUNCTION championship_bracket_preview_private.is_match_pair_rest_conflict(
@@ -182,14 +175,15 @@ AS $function$
   );
 $function$;
 
-REVOKE ALL ON FUNCTION championship_bracket_preview_private.is_match_pair_rest_conflict(
-  UUID,
-  UUID,
-  BIGINT,
-  UUID,
-  BIGINT,
-  INTEGER
-) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION championship_bracket_preview_private.is_match_pair_rest_conflict (
+    UUID,
+    UUID,
+    BIGINT,
+    UUID,
+    BIGINT,
+    INTEGER
+)
+FROM PUBLIC, anon, authenticated;
 
 CREATE OR REPLACE FUNCTION championship_bracket_preview_private.is_match_rest_conflict_with_gap(
   _job_id UUID,
@@ -228,13 +222,14 @@ AS $function$
   );
 $function$;
 
-REVOKE ALL ON FUNCTION championship_bracket_preview_private.is_match_rest_conflict_with_gap(
-  UUID,
-  UUID,
-  BIGINT,
-  UUID,
-  INTEGER
-) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION championship_bracket_preview_private.is_match_rest_conflict_with_gap (
+    UUID,
+    UUID,
+    BIGINT,
+    UUID,
+    INTEGER
+)
+FROM PUBLIC, anon, authenticated;
 
 CREATE OR REPLACE FUNCTION championship_bracket_preview_private.is_match_slot_eligible_with_rest_gap(
   _job_id UUID,
@@ -274,12 +269,8 @@ AS $function$
     );
 $function$;
 
-REVOKE ALL ON FUNCTION championship_bracket_preview_private.is_match_slot_eligible_with_rest_gap(
-  UUID,
-  UUID,
-  BIGINT,
-  INTEGER
-) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION championship_bracket_preview_private.is_match_slot_eligible_with_rest_gap (UUID, UUID, BIGINT, INTEGER)
+FROM PUBLIC, anon, authenticated;
 
 CREATE OR REPLACE FUNCTION championship_bracket_preview_private.resolve_match_slot_blockers_with_rest_gap(
   _job_id UUID,
@@ -340,12 +331,8 @@ AS $function$
   ) > 0;
 $function$;
 
-REVOKE ALL ON FUNCTION championship_bracket_preview_private.resolve_match_slot_blockers_with_rest_gap(
-  UUID,
-  UUID,
-  BIGINT,
-  INTEGER
-) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION championship_bracket_preview_private.resolve_match_slot_blockers_with_rest_gap (UUID, UUID, BIGINT, INTEGER)
+FROM PUBLIC, anon, authenticated;
 
 CREATE OR REPLACE FUNCTION championship_bracket_preview_private.resolve_match_relocation_candidate_slots_ranked_v7(
   _job_id UUID,
@@ -1385,10 +1372,12 @@ BEGIN
       AND candidate_state.slot_id =
         candidate_slot.slot_id
     WHERE (
-      candidate_state.status IS NULL
-      OR candidate_state.status =
-        'TIMED_OUT'
-    )
+  candidate_state.status IS NULL
+  OR (
+    candidate_state.status = 'TIMED_OUT'
+    AND candidate_state.timeout_count < 5
+  )
+)
       AND NOT (
         candidate_slot.slot_id = ANY(
           attempted_slot_ids
@@ -1430,9 +1419,11 @@ BEGIN
           AND remaining_state.slot_id =
             remaining_candidate.slot_id
         WHERE
-          remaining_state.status IS NULL
-          OR remaining_state.status =
-            'TIMED_OUT'
+  remaining_state.status IS NULL
+  OR (
+    remaining_state.status = 'TIMED_OUT'
+    AND remaining_state.timeout_count < 5
+  )
       )
       INTO has_unresolved_candidates;
 
@@ -1652,77 +1643,84 @@ BEGIN
     END IF;
 
     IF branch_status = 'TIMEOUT' THEN
-      INSERT INTO championship_bracket_preview_private.relocation_candidate_states (
-        job_id,
-        match_id,
-        phase,
-        slot_id,
-        status,
-        attempt_count,
-        timeout_count,
-        last_attempt_at
-      )
-      VALUES (
-        _job_id,
-        _pending_match_id,
-        current_phase,
-        candidate_slot_record.slot_id,
-        'TIMED_OUT',
-        1,
-        1,
-        now()
-      )
-      ON CONFLICT (
-        job_id,
-        match_id,
-        phase,
-        slot_id
-      )
-      DO UPDATE
-      SET
-        status = 'TIMED_OUT',
-        attempt_count =
-          championship_bracket_preview_private.relocation_candidate_states.attempt_count
-            + 1,
-        timeout_count =
-          championship_bracket_preview_private.relocation_candidate_states.timeout_count
-            + 1,
-        last_attempt_at = now();
-    ELSE
-      INSERT INTO championship_bracket_preview_private.relocation_candidate_states (
-        job_id,
-        match_id,
-        phase,
-        slot_id,
-        status,
-        attempt_count,
-        timeout_count,
-        last_attempt_at
-      )
-      VALUES (
-        _job_id,
-        _pending_match_id,
-        current_phase,
-        candidate_slot_record.slot_id,
-        'DEAD_END',
-        1,
-        0,
-        now()
-      )
-      ON CONFLICT (
-        job_id,
-        match_id,
-        phase,
-        slot_id
-      )
-      DO UPDATE
-      SET
-        status = 'DEAD_END',
-        attempt_count =
-          championship_bracket_preview_private.relocation_candidate_states.attempt_count
-            + 1,
-        last_attempt_at = now();
-    END IF;
+  INSERT INTO championship_bracket_preview_private.relocation_candidate_states (
+    job_id,
+    match_id,
+    phase,
+    slot_id,
+    status,
+    attempt_count,
+    timeout_count,
+    last_attempt_at
+  )
+  VALUES (
+    _job_id,
+    _pending_match_id,
+    current_phase,
+    candidate_slot_record.slot_id,
+    CASE
+      WHEN COALESCE(
+        candidate_slot_record.previous_timeout_count,
+        0
+      ) >= 4
+      THEN 'SEARCH_LIMIT'
+      ELSE 'TIMED_OUT'
+    END,
+    1,
+    1,
+    now()
+  )
+  ON CONFLICT (
+    job_id,
+    match_id,
+    phase,
+    slot_id
+  )
+  DO UPDATE
+  SET
+    status = EXCLUDED.status,
+    attempt_count =
+      championship_bracket_preview_private.relocation_candidate_states.attempt_count
+        + 1,
+    timeout_count =
+      championship_bracket_preview_private.relocation_candidate_states.timeout_count
+        + 1,
+    last_attempt_at = now();
+ELSE
+  INSERT INTO championship_bracket_preview_private.relocation_candidate_states (
+    job_id,
+    match_id,
+    phase,
+    slot_id,
+    status,
+    attempt_count,
+    timeout_count,
+    last_attempt_at
+  )
+  VALUES (
+    _job_id,
+    _pending_match_id,
+    current_phase,
+    candidate_slot_record.slot_id,
+    'DEAD_END',
+    1,
+    0,
+    now()
+  )
+  ON CONFLICT (
+    job_id,
+    match_id,
+    phase,
+    slot_id
+  )
+  DO UPDATE
+  SET
+    status = 'DEAD_END',
+    attempt_count =
+      championship_bracket_preview_private.relocation_candidate_states.attempt_count
+        + 1,
+    last_attempt_at = now();
+END IF;
 
     UPDATE championship_bracket_preview_private.matches
     SET
@@ -1760,11 +1758,8 @@ BEGIN
 END;
 $function$;
 
-REVOKE ALL ON FUNCTION championship_bracket_preview_private.try_relocate_for_match_search(
-  UUID,
-  UUID,
-  INTEGER
-) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION championship_bracket_preview_private.try_relocate_for_match_search (UUID, UUID, INTEGER)
+FROM PUBLIC, anon, authenticated;
 
 DO $$
 DECLARE
@@ -1858,21 +1853,19 @@ $$;
 
 UPDATE championship_bracket_preview_private.jobs
 SET
-  status = 'CANCELLED',
-  stage =
-    'Substituída pelo algoritmo async-exact-v7',
-  expires_at =
-    now() + interval '24 hours',
-  heartbeat_at = now(),
-  updated_at = now()
-WHERE algorithm_version =
-    'async-exact-v6'
-  AND status IN (
-    'QUEUED',
-    'INITIALIZING',
-    'SCHEDULING',
-    'FINALIZING'
-  );
+    status = 'CANCELLED',
+    stage = 'Substituída pelo algoritmo async-exact-v7',
+    expires_at = now() + interval '24 hours',
+    heartbeat_at = now(),
+    updated_at = now()
+WHERE
+    algorithm_version = 'async-exact-v6'
+    AND status IN (
+        'QUEUED',
+        'INITIALIZING',
+        'SCHEDULING',
+        'FINALIZING'
+    );
 
 DO $$
 DECLARE
