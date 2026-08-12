@@ -536,7 +536,7 @@ function buildExactPreviewJob(
     diagnostics: preview.diagnostics,
     payload_signature: "server-payload-signature",
     dependency_signature: "dependency-signature",
-    algorithm_version: "async-exact-v5",
+    algorithm_version: "async-exact-v6",
     generation_signature: "generation-signature",
     created_at: "2026-08-12T02:00:00.000Z",
     completed_at: "2026-08-12T02:01:00.000Z",
