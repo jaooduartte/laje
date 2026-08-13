@@ -1,8 +1,19 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AdminLeagueEvents } from "@/components/admin/AdminLeagueEvents";
-import { LeagueEventOrganizerType, LeagueEventType, TeamDivision } from "@/lib/enums";
+import {
+  LeagueEventOrganizerType,
+  LeagueEventType,
+  TeamDivision,
+} from "@/lib/enums";
 import type { LeagueEvent, Team } from "@/lib/types";
 
 const {
@@ -48,17 +59,38 @@ vi.mock("sonner", () => ({
 
 vi.mock("@/components/ui/select", () => ({
   Select: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  SelectTrigger: ({ children, ...props }: { children: ReactNode }) => <button type="button" {...props}>{children}</button>,
-  SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
-  SelectContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  SelectTrigger: ({ children, ...props }: { children: ReactNode }) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
+  SelectValue: ({ placeholder }: { placeholder?: string }) => (
+    <span>{placeholder}</span>
+  ),
+  SelectContent: ({ children }: { children: ReactNode }) => (
+    <div>{children}</div>
+  ),
   SelectItem: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
 vi.mock("@/components/ui/dropdown-menu", () => ({
-  DropdownMenu: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DropdownMenuTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
-  DropdownMenuContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DropdownMenuItem: ({ children, onSelect, ...props }: { children: ReactNode; onSelect?: () => void }) => (
+  DropdownMenu: ({ children }: { children: ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DropdownMenuTrigger: ({ children }: { children: ReactNode }) => (
+    <>{children}</>
+  ),
+  DropdownMenuContent: ({ children }: { children: ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DropdownMenuItem: ({
+    children,
+    onSelect,
+    ...props
+  }: {
+    children: ReactNode;
+    onSelect?: () => void;
+  }) => (
     <button type="button" onClick={() => onSelect?.()} {...props}>
       {children}
     </button>
@@ -84,11 +116,14 @@ vi.mock("@/domain/league-events/leagueEvent.repository", () => ({
   createLeagueEvent: (...args: unknown[]) => createLeagueEventMock(...args),
   updateLeagueEvent: (...args: unknown[]) => updateLeagueEventMock(...args),
   deleteLeagueEvent: (...args: unknown[]) => deleteLeagueEventMock(...args),
-  fetchLeagueEventsByDateRange: (...args: unknown[]) => fetchLeagueEventsByDateRangeMock(...args),
+  fetchLeagueEventsByDateRange: (...args: unknown[]) =>
+    fetchLeagueEventsByDateRangeMock(...args),
 }));
 
 vi.mock("@/domain/league-events/leagueEventReservation.repository", () => ({
-  fetchLeagueEventReservationRequests: vi.fn().mockResolvedValue({ data: [], error: null }),
+  fetchLeagueEventReservationRequests: vi
+    .fn()
+    .mockResolvedValue({ data: [], error: null }),
   reviewLeagueEventReservationRequest: vi.fn(),
 }));
 
@@ -124,7 +159,9 @@ function buildTeam(overrides: Partial<Team> & Pick<Team, "id" | "name">): Team {
   };
 }
 
-function buildLeagueEvent(overrides: Partial<LeagueEvent> & Pick<LeagueEvent, "id" | "name">): LeagueEvent {
+function buildLeagueEvent(
+  overrides: Partial<LeagueEvent> & Pick<LeagueEvent, "id" | "name">,
+): LeagueEvent {
   return {
     id: overrides.id,
     name: overrides.name,
@@ -169,7 +206,10 @@ describe("AdminLeagueEvents loading states", () => {
       buildLeagueEvent({ id: "league-event-1", name: "Evento 1" }),
     ];
 
-    fetchLeagueEventsByDateRangeMock.mockResolvedValue({ data: [], error: null });
+    fetchLeagueEventsByDateRangeMock.mockResolvedValue({
+      data: [],
+      error: null,
+    });
     createLeagueEventMock.mockImplementation(async () => {
       if (createDelay.value) {
         await new Promise<void>((resolve) => {
@@ -190,7 +230,10 @@ describe("AdminLeagueEvents loading states", () => {
       }
 
       return {
-        data: buildLeagueEvent({ id: "updated-event", name: "Evento atualizado" }),
+        data: buildLeagueEvent({
+          id: "updated-event",
+          name: "Evento atualizado",
+        }),
         error: null,
       };
     });
@@ -221,14 +264,18 @@ describe("AdminLeagueEvents loading states", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Criar evento" }));
 
-    const createButtons = screen.getAllByRole("button", { name: "Criar evento" });
+    const createButtons = screen.getAllByRole("button", {
+      name: "Criar evento",
+    });
     const createSubmitButton = createButtons[createButtons.length - 1];
 
     fireEvent.click(createSubmitButton);
 
     await waitFor(() => {
       expect(createSubmitButton).toBeDisabled();
-      expect(createSubmitButton.querySelector("svg.animate-spin")).not.toBeNull();
+      expect(
+        createSubmitButton.querySelector("svg.animate-spin"),
+      ).not.toBeNull();
     });
 
     await act(async () => {
@@ -236,7 +283,11 @@ describe("AdminLeagueEvents loading states", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryAllByRole("button", { name: "Criar evento" }).every((button) => button.querySelector("svg.animate-spin") == null)).toBe(true);
+      expect(
+        screen
+          .queryAllByRole("button", { name: "Criar evento" })
+          .every((button) => button.querySelector("svg.animate-spin") == null),
+      ).toBe(true);
       expect(upsertLeagueEventMock).toHaveBeenCalled();
     });
   });
@@ -245,10 +296,14 @@ describe("AdminLeagueEvents loading states", () => {
     updateDelay.value = true;
     renderAdminLeagueEvents();
 
-    fireEvent.click(screen.getByRole("button", { name: "Ações do evento Evento 1" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ações do evento Evento 1" }),
+    );
     fireEvent.click(await screen.findByText("Editar"));
 
-    const saveButton = await screen.findByRole("button", { name: "Salvar alterações" });
+    const saveButton = await screen.findByRole("button", {
+      name: "Salvar alterações",
+    });
     fireEvent.click(saveButton);
 
     expect(saveButton).toBeDisabled();
@@ -259,7 +314,9 @@ describe("AdminLeagueEvents loading states", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByRole("button", { name: "Salvar alterações" })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Salvar alterações" }),
+      ).not.toBeInTheDocument();
       expect(upsertLeagueEventMock).toHaveBeenCalled();
     });
   });
@@ -268,16 +325,22 @@ describe("AdminLeagueEvents loading states", () => {
     deleteDelay.value = true;
     renderAdminLeagueEvents();
 
-    const actionsButton = screen.getByRole("button", { name: "Ações do evento Evento 1" });
+    const actionsButton = screen.getByRole("button", {
+      name: "Ações do evento Evento 1",
+    });
     fireEvent.click(actionsButton);
     fireEvent.click(await screen.findByText("Apagar"));
 
     const alertDialog = await screen.findByRole("alertdialog");
-    const confirmDeleteButton = within(alertDialog).getByRole("button", { name: "Excluir" });
+    const confirmDeleteButton = within(alertDialog).getByRole("button", {
+      name: "Excluir",
+    });
     fireEvent.click(confirmDeleteButton);
 
     expect(confirmDeleteButton).toBeDisabled();
-    expect(confirmDeleteButton.querySelector("svg.animate-spin")).not.toBeNull();
+    expect(
+      confirmDeleteButton.querySelector("svg.animate-spin"),
+    ).not.toBeNull();
 
     await act(async () => {
       deleteResolver.current?.();
@@ -292,7 +355,12 @@ describe("AdminLeagueEvents loading states", () => {
   it("mostra loading ao confirmar criação com conflito de data", async () => {
     createDelay.value = true;
     fetchLeagueEventsByDateRangeMock.mockResolvedValueOnce({
-      data: [buildLeagueEvent({ id: "conflict-1", name: "Evento existente na data" })],
+      data: [
+        buildLeagueEvent({
+          id: "conflict-1",
+          name: "Evento existente na data",
+        }),
+      ],
       error: null,
     });
 
@@ -300,15 +368,21 @@ describe("AdminLeagueEvents loading states", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Criar evento" }));
 
-    const createButtons = screen.getAllByRole("button", { name: "Criar evento" });
+    const createButtons = screen.getAllByRole("button", {
+      name: "Criar evento",
+    });
     fireEvent.click(createButtons[createButtons.length - 1]);
 
     const alertDialog = await screen.findByRole("alertdialog");
-    const confirmCreateButton = within(alertDialog).getByRole("button", { name: "Criar" });
+    const confirmCreateButton = within(alertDialog).getByRole("button", {
+      name: "Criar",
+    });
     fireEvent.click(confirmCreateButton);
 
     expect(confirmCreateButton).toBeDisabled();
-    expect(confirmCreateButton.querySelector("svg.animate-spin")).not.toBeNull();
+    expect(
+      confirmCreateButton.querySelector("svg.animate-spin"),
+    ).not.toBeNull();
 
     await act(async () => {
       createResolver.current?.();
@@ -321,23 +395,43 @@ describe("AdminLeagueEvents loading states", () => {
   });
 
   it("deixa os cards de eventos passados mais apagados sem afetar os futuros", () => {
+    const formatLocalDate = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+
+      return `${year}-${month}-${day}`;
+    };
+
+    const today = new Date();
+
+    const pastDate = new Date(today);
+    pastDate.setDate(today.getDate() - 1);
+
+    const futureDate = new Date(today);
+    futureDate.setDate(today.getDate() + 1);
+
     mockedLeagueEvents.current = [
       buildLeagueEvent({
         id: "past-event",
         name: "Evento passado",
-        event_date: "2026-08-01",
+        event_date: formatLocalDate(pastDate),
       }),
       buildLeagueEvent({
         id: "future-event",
         name: "Evento futuro",
-        event_date: "2026-08-08",
+        event_date: formatLocalDate(futureDate),
       }),
     ];
 
     renderAdminLeagueEvents();
 
-    const pastEventCard = screen.getByText("Evento passado").closest(".list-item-card");
-    const futureEventCard = screen.getByText("Evento futuro").closest(".list-item-card");
+    const pastEventCard = screen
+      .getByText("Evento passado")
+      .closest(".list-item-card");
+    const futureEventCard = screen
+      .getByText("Evento futuro")
+      .closest(".list-item-card");
 
     expect(pastEventCard).toHaveClass("opacity-70");
     expect(futureEventCard).not.toHaveClass("opacity-70");

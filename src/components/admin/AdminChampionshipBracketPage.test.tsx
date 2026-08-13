@@ -7,11 +7,9 @@ import {
   within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  AdminChampionshipBracketPage,
-  resolveExactPreviewCacheFromJob,
-} from "@/components/admin/AdminChampionshipBracketPage";
+import { AdminChampionshipBracketPage } from "@/components/admin/AdminChampionshipBracketPage";
 import { ChampionshipBracketSetupDTO } from "@/domain/championship-brackets/ChampionshipBracketSetupDTO";
+import { resolveExactPreviewCacheFromJob } from "@/domain/championship-brackets/championshipBracketExactPreview";
 import { resolveChampionshipBracketExactPreviewPayloadSignature } from "@/domain/championship-brackets/championshipBracketStructuralReview";
 import { sanitizeChampionshipBracketWizardDraft } from "@/domain/championship-brackets/championshipBracketWizardSync";
 import type {
