@@ -310,6 +310,11 @@ export interface ChampionshipBracketPreviewTimelineEntry {
   group_number: number | null;
   round_number: number | null;
 
+  home_team_id?: string | null;
+  home_team_name?: string | null;
+  away_team_id?: string | null;
+  away_team_name?: string | null;
+
   projected: boolean;
   manual_final: boolean;
 
@@ -407,6 +412,7 @@ export interface ChampionshipBracketPreviewJob {
   algorithm_version: string;
   generation_signature: string | null;
   created_at: string;
+  started_at: string | null;
   completed_at: string | null;
   expires_at: string;
   is_valid_for_creation: boolean;
@@ -429,6 +435,8 @@ export interface ChampionshipBracketExactPreviewCache {
   processed_slots: number;
   total_slots: number;
   expires_at: string;
+  /** Disponível somente durante a sessão para informar o andamento do job. */
+  started_at?: string | null;
   /** Só é verdadeiro quando a prévia não contém pendências impeditivas. */
   is_valid_for_creation: boolean;
   generated_at: string;
