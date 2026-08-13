@@ -1471,11 +1471,13 @@ function resolveExactPreviewCacheFromJob({
   localPayloadSignature,
   matchNumberingMode,
   previousResult,
+  scheduleDays,
 }: {
   job: ChampionshipBracketPreviewJob;
   localPayloadSignature: string;
   matchNumberingMode: ChampionshipBracketMatchNumberingMode;
   previousResult: ChampionshipBracketPreviewResult | null;
+  scheduleDays: ChampionshipBracketScheduleDayInput[];
 }): ChampionshipBracketExactPreviewCache {
   const availableDays = new Map(
     (previousResult?.days ?? []).map((previewDay) => [
@@ -1507,19 +1509,19 @@ function resolveExactPreviewCacheFromJob({
       generation_signature: job.generation_signature,
       match_numbering_mode: matchNumberingMode,
       summary: job.summary,
-      days: (job.summary?.games_by_day ?? []).map(
-        (daySummary) =>
-          availableDays.get(daySummary.date) ?? {
-            date: daySummary.date,
-            start_time: "",
-            end_time: "",
+      days: scheduleDays.map(
+        (scheduleDay) =>
+          availableDays.get(scheduleDay.date) ?? {
+            date: scheduleDay.date,
+            start_time: scheduleDay.start_time,
+            end_time: scheduleDay.end_time,
             breaks: [],
             occupied_minutes: 0,
             available_minutes: 0,
             utilization_percentage: 0,
             free_windows: 0,
             locations: [],
-          },
+        },
       ),
       diagnostics: job.diagnostics,
     },
@@ -6782,6 +6784,7 @@ export function AdminChampionshipBracketPage({
         localPayloadSignature: structuralReviewState.payloadSignature,
         matchNumberingMode,
         previousResult: null,
+        scheduleDays: structuralReviewState.payload.schedule_days,
       });
 
       setExactPreviewCache(nextExactPreviewCache);
@@ -6858,6 +6861,7 @@ export function AdminChampionshipBracketPage({
           localPayloadSignature: currentCache.payload_signature,
           matchNumberingMode,
           previousResult: currentCache.result,
+          scheduleDays: structuralReviewState.payload?.schedule_days ?? [],
         });
       });
     };
@@ -6873,6 +6877,7 @@ export function AdminChampionshipBracketPage({
     exactPreviewCache?.payload_signature,
     exactPreviewCache?.status,
     matchNumberingMode,
+    structuralReviewState.payload?.schedule_days,
     structuralReviewState.payloadSignature,
   ]);
 
@@ -6940,10 +6945,11 @@ export function AdminChampionshipBracketPage({
           localPayloadSignature: structuralReviewState.payloadSignature,
           matchNumberingMode,
           previousResult: exactPreviewCache.result,
+          scheduleDays: structuralReviewState.payload?.schedule_days ?? [],
         }),
       );
     }
-  }, [exactPreviewCache, matchNumberingMode, structuralReviewState.payloadSignature]);
+  }, [exactPreviewCache, matchNumberingMode, structuralReviewState.payload?.schedule_days, structuralReviewState.payloadSignature]);
 
   const persistBeachSoccerEstimatedStartTimeSetting = useCallback(async () => {
     const beachSoccerChampionshipSports = championshipSports.filter(

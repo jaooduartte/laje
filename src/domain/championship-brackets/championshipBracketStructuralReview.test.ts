@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   resolveChampionshipBracketExactPreviewPayloadSignature,
+  resolveChampionshipBracketExactPreviewCacheValidity,
   resolveChampionshipBracketReviewConfigurationSummary,
   resolveChampionshipBracketSportMatchTargetRecommendations,
   resolveChampionshipBracketStructuralReview,
@@ -2045,6 +2046,43 @@ describe("resolveChampionshipBracketStructuralReview", () => {
           diagnostic.code == "STRUCTURAL_RESTRICTED_TEAM_AVAILABILITY",
       ),
     ).toBe(true);
+  });
+});
+
+describe("resolveChampionshipBracketExactPreviewCacheValidity", () => {
+  const payloadSignature = "payload-v8";
+  const cache = {
+    job_id: "job-v8",
+    payload_signature: payloadSignature,
+    server_payload_signature: "server-v8",
+    generation_signature: "generation-v8",
+    dependency_signature: "dependency-v8",
+    algorithm_version: "async-exact-v8",
+    status: "COMPLETED" as const,
+    stage: "Concluída",
+    current_date: null,
+    progress_percentage: 100,
+    processed_slots: 1,
+    total_slots: 1,
+    expires_at: "2099-09-19T00:00:00.000Z",
+    is_valid_for_creation: true,
+    generated_at: "2026-08-13T00:00:00.000Z",
+    result: null,
+  };
+
+  it("aceita somente uma prévia estrutural v8 concluída", () => {
+    expect(
+      resolveChampionshipBracketExactPreviewCacheValidity({
+        cache,
+        payloadSignature,
+      }),
+    ).toBe(true);
+    expect(
+      resolveChampionshipBracketExactPreviewCacheValidity({
+        cache: { ...cache, algorithm_version: "async-exact-v7" },
+        payloadSignature,
+      }),
+    ).toBe(false);
   });
 });
 
