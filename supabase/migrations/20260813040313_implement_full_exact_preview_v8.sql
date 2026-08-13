@@ -55,6 +55,29 @@ CREATE TABLE IF NOT EXISTS championship_bracket_preview_private.relocation_attem
 CREATE INDEX IF NOT EXISTS championship_bracket_preview_relocation_metrics_job_idx
   ON championship_bracket_preview_private.relocation_attempt_metrics (job_id, created_at DESC);
 
+CREATE TABLE IF NOT EXISTS championship_bracket_preview_private.relocation_candidate_tier_states (
+  job_id UUID NOT NULL REFERENCES championship_bracket_preview_private.jobs(id) ON DELETE CASCADE,
+  match_id UUID NOT NULL REFERENCES championship_bracket_preview_private.matches(id) ON DELETE CASCADE,
+  phase TEXT NOT NULL,
+  search_tier TEXT NOT NULL,
+  slot_id BIGINT NOT NULL REFERENCES championship_bracket_preview_private.slots(id) ON DELETE CASCADE,
+  status TEXT NOT NULL,
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  timeout_count INTEGER NOT NULL DEFAULT 0,
+  last_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (job_id, match_id, phase, search_tier, slot_id)
+);
+CREATE INDEX IF NOT EXISTS championship_bracket_preview_relocation_tier_states_job_idx
+  ON championship_bracket_preview_private.relocation_candidate_tier_states (job_id, match_id, phase, search_tier);
+
+CREATE TABLE IF NOT EXISTS championship_bracket_preview_private.compaction_gaps (
+  job_id UUID NOT NULL REFERENCES championship_bracket_preview_private.jobs(id) ON DELETE CASCADE,
+  gap_key TEXT NOT NULL,
+  status TEXT NOT NULL,
+  attempted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (job_id, gap_key)
+);
+
 CREATE OR REPLACE FUNCTION championship_bracket_preview_private.resolve_v8_sport_targets(
   _job_id UUID
 )
@@ -270,6 +293,7 @@ BEGIN
     tier_deadline := clock_timestamp() + make_interval(secs => tier_record.budget_ms::numeric / 1000);
     tier_attempted := 0;
     candidate_limit := tier_record.candidate_limit;
+    attempted_slot_ids := ARRAY[]::BIGINT[];
     LOOP
       EXIT WHEN clock_timestamp() >= tier_deadline;
       SELECT candidate_slots.*, COALESCE(candidate_states.timeout_count, 0) AS timeout_count
@@ -277,10 +301,11 @@ BEGIN
       FROM championship_bracket_preview_private.resolve_match_relocation_candidate_slots_ranked_v7(
         _job_id, _pending_match_id, NULL, ARRAY[]::BIGINT[], 0, candidate_limit, current_rest_gap
       ) candidate_slots
-      LEFT JOIN championship_bracket_preview_private.relocation_candidate_states candidate_states
+      LEFT JOIN championship_bracket_preview_private.relocation_candidate_tier_states candidate_states
         ON candidate_states.job_id = _job_id AND candidate_states.match_id = _pending_match_id
-        AND candidate_states.phase = current_phase AND candidate_states.slot_id = candidate_slots.slot_id
-      WHERE (candidate_states.status IS NULL OR (candidate_states.status = 'TIMED_OUT' AND candidate_states.timeout_count < 5))
+        AND candidate_states.phase = current_phase AND candidate_states.search_tier = tier_record.search_tier
+        AND candidate_states.slot_id = candidate_slots.slot_id
+      WHERE candidate_states.status IS NULL
         AND NOT candidate_slots.slot_id = ANY(attempted_slot_ids)
       ORDER BY candidate_slots.candidate_rank LIMIT 1;
       EXIT WHEN NOT FOUND;
@@ -303,7 +328,8 @@ BEGIN
         _job_id, _pending_match_id, current_phase, current_rest_gap, tier_record.search_tier,
         candidate_slot_record.candidate_rank, candidate_slot_record.slot_id,
         tier_record.max_depth, tier_record.candidate_limit, tier_record.relocation_limit,
-        branch_status, candidate_slot_record.timeout_count, 0, 0,
+        CASE WHEN branch_status = 'SUCCESS' THEN 'SUCCESS' ELSE format('%s_%s', tier_record.search_tier, CASE WHEN branch_status = 'TIMEOUT' THEN 'TIMEOUT' ELSE 'DEAD_END' END) END,
+        candidate_slot_record.timeout_count, 0, 0,
         (extract(epoch FROM clock_timestamp() - attempt_started_at) * 1000)::integer
       );
       IF branch_status = 'SUCCESS' THEN
@@ -319,15 +345,22 @@ BEGIN
             WHERE changed_assignments.job_id = _job_id
               AND (states.match_id = changed_assignments.match_id OR states.slot_id = changed_assignments.slot_id)
           );
+        DELETE FROM championship_bracket_preview_private.relocation_candidate_tier_states states
+        WHERE states.job_id = _job_id
+          AND EXISTS (
+            SELECT 1 FROM championship_bracket_preview_private.assignments changed_assignments
+            WHERE changed_assignments.job_id = _job_id
+              AND (states.match_id = changed_assignments.match_id OR states.slot_id = changed_assignments.slot_id)
+          );
         RETURN jsonb_build_object('assigned', true, 'progressed', true, 'exhausted', false, 'attempted_candidates', attempted_candidates, 'search_tier', tier_record.search_tier, 'rest_gap', current_rest_gap);
       END IF;
-      INSERT INTO championship_bracket_preview_private.relocation_candidate_states(job_id,match_id,phase,slot_id,status,attempt_count,timeout_count,last_attempt_at)
-      VALUES (_job_id,_pending_match_id,current_phase,candidate_slot_record.slot_id,
-        CASE WHEN branch_status = 'TIMEOUT' THEN 'TIMED_OUT' ELSE 'DEAD_END' END,1,
+      INSERT INTO championship_bracket_preview_private.relocation_candidate_tier_states(job_id,match_id,phase,search_tier,slot_id,status,attempt_count,timeout_count,last_attempt_at)
+      VALUES (_job_id,_pending_match_id,current_phase,tier_record.search_tier,candidate_slot_record.slot_id,
+        format('%s_%s', tier_record.search_tier, CASE WHEN branch_status = 'TIMEOUT' THEN 'TIMEOUT' ELSE 'DEAD_END' END),1,
         CASE WHEN branch_status = 'TIMEOUT' THEN 1 ELSE 0 END,now())
-      ON CONFLICT (job_id,match_id,phase,slot_id) DO UPDATE SET
-        status = EXCLUDED.status, attempt_count = championship_bracket_preview_private.relocation_candidate_states.attempt_count + 1,
-        timeout_count = championship_bracket_preview_private.relocation_candidate_states.timeout_count + EXCLUDED.timeout_count,
+      ON CONFLICT (job_id,match_id,phase,search_tier,slot_id) DO UPDATE SET
+        status = EXCLUDED.status, attempt_count = championship_bracket_preview_private.relocation_candidate_tier_states.attempt_count + 1,
+        timeout_count = championship_bracket_preview_private.relocation_candidate_tier_states.timeout_count + EXCLUDED.timeout_count,
         last_attempt_at = now();
     END LOOP;
   END LOOP;
@@ -362,23 +395,41 @@ RETURNS JSONB
 LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path = public, championship_bracket_preview_private
 AS $function$
-  WITH assigned AS (
+  WITH scheduled AS (
     SELECT
-      assignments_table.match_id,
-      matches_table.competition_id,
+      assignments_table.match_id::text AS match_key,
       slots_table.event_date,
       slots_table.location_key,
       slots_table.court_key,
       slots_table.start_at,
-      slots_table.end_at,
-      lead(slots_table.start_at) OVER (
-        PARTITION BY slots_table.event_date, slots_table.location_key, slots_table.court_key
-        ORDER BY slots_table.start_at, slots_table.end_at, assignments_table.match_id
-      ) AS next_start_at
+      slots_table.end_at
     FROM championship_bracket_preview_private.assignments assignments_table
-    JOIN championship_bracket_preview_private.matches matches_table ON matches_table.id = assignments_table.match_id
     JOIN championship_bracket_preview_private.slots slots_table ON slots_table.id = assignments_table.slot_id
     WHERE assignments_table.job_id = _job_id
+    UNION ALL
+    SELECT
+      knockout_matches.id::text AS match_key,
+      knockout_matches.scheduled_date,
+      knockout_matches.location_key,
+      knockout_matches.court_key,
+      knockout_matches.start_at,
+      knockout_matches.end_at
+    FROM championship_bracket_preview_private.knockout_matches knockout_matches
+    WHERE knockout_matches.job_id = _job_id
+      AND NOT knockout_matches.is_bye
+      AND knockout_matches.scheduled_date IS NOT NULL
+      AND knockout_matches.location_key IS NOT NULL
+      AND knockout_matches.court_key IS NOT NULL
+      AND knockout_matches.start_at IS NOT NULL
+      AND knockout_matches.end_at IS NOT NULL
+  ), assigned AS (
+    SELECT
+      scheduled.*,
+      lead(scheduled.start_at) OVER (
+        PARTITION BY scheduled.event_date, scheduled.location_key, scheduled.court_key
+        ORDER BY scheduled.start_at, scheduled.end_at, scheduled.match_key
+      ) AS next_start_at
+    FROM scheduled
   )
   SELECT COALESCE(jsonb_agg(jsonb_build_object(
     'code', 'INTERNAL_EMPTY_WINDOW',
@@ -403,20 +454,7 @@ AS $function$
         AND free_intervals.start_at <= assigned.end_at
         AND free_intervals.end_at >= assigned.next_start_at
     )
-    AND EXISTS (
-      SELECT 1
-      FROM championship_bracket_preview_private.slots empty_slots
-      WHERE empty_slots.job_id = _job_id
-        AND empty_slots.event_date = assigned.event_date
-        AND empty_slots.location_key = assigned.location_key
-        AND empty_slots.court_key = assigned.court_key
-        AND empty_slots.start_at >= assigned.end_at
-        AND empty_slots.end_at <= assigned.next_start_at
-        AND NOT EXISTS (
-          SELECT 1 FROM championship_bracket_preview_private.assignments occupied
-          WHERE occupied.job_id = _job_id AND occupied.slot_id = empty_slots.id
-        )
-    );
+    ;
 $function$;
 
 CREATE OR REPLACE FUNCTION championship_bracket_preview_private.compact_v8_schedule(
@@ -521,7 +559,8 @@ BEGIN
         ) VALUES (
           _job_id, gap_record.next_match_id, 'COMPACTION', 4, tier_record.search_tier,
           NULL, candidate_slot_record.id, tier_record.max_depth,
-          tier_record.candidate_limit, tier_record.relocation_limit, branch_status,
+          tier_record.candidate_limit, tier_record.relocation_limit,
+          CASE WHEN branch_status = 'SUCCESS' THEN 'SUCCESS' ELSE format('%s_%s', tier_record.search_tier, CASE WHEN branch_status = 'TIMEOUT' THEN 'TIMEOUT' ELSE 'DEAD_END' END) END,
           CASE WHEN branch_status = 'TIMEOUT' THEN 1 ELSE 0 END, 0, 0,
           (extract(epoch FROM clock_timestamp() - attempt_started_at) * 1000)::integer
         );
@@ -542,7 +581,7 @@ CREATE OR REPLACE FUNCTION championship_bracket_preview_private.resolve_v8_knock
   _groups_count INTEGER,
   _qualifiers_per_group INTEGER,
   _best_second BOOLEAN,
-  _pairing_mode TEXT,
+  _use_cross_groups_pairing BOOLEAN,
   _seed_number INTEGER,
   _qualified_count INTEGER
 )
@@ -556,6 +595,15 @@ DECLARE
 BEGIN
   IF _seed_number > _qualified_count THEN
     RETURN jsonb_build_object('type', 'BYE', 'reference', format('BYE_SEED_%s', _seed_number));
+  END IF;
+
+  IF _use_cross_groups_pairing THEN
+    group_number_value := ((_seed_number - 1) / 2) + 1;
+    position_value := ((_seed_number - 1) % 2) + 1;
+    RETURN jsonb_build_object(
+      'type', 'GROUP_POSITION',
+      'reference', format('GROUP_%s_POSITION_%s', group_number_value, position_value)
+    );
   END IF;
 
   IF _seed_number <= _groups_count * _qualifiers_per_group THEN
@@ -590,13 +638,15 @@ RETURNS VOID
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public, championship_bracket_preview_private
 AS $function$
-DECLARE competition_record RECORD; bracket_size INTEGER; direct_qualified_count INTEGER; qualified_count INTEGER; total_rounds INTEGER; round_number_value INTEGER; slot_number_value INTEGER; round_match_count INTEGER; phase_name TEXT; predecessor_ids UUID[]; is_bye_value BOOLEAN; home_seed INTEGER; away_seed INTEGER; home_source JSONB; away_source JSONB;
+DECLARE competition_record RECORD; bracket_size INTEGER; direct_qualified_count INTEGER; qualified_count INTEGER; total_rounds INTEGER; round_number_value INTEGER; slot_number_value INTEGER; round_match_count INTEGER; phase_name TEXT; predecessor_ids UUID[]; is_bye_value BOOLEAN; home_seed INTEGER; away_seed INTEGER; home_source JSONB; away_source JSONB; should_use_cross_groups_pairing BOOLEAN;
 BEGIN
   DELETE FROM championship_bracket_preview_private.knockout_matches WHERE job_id = _job_id;
   FOR competition_record IN
-    SELECT competitions_table.*, COALESCE(championship_sports_table.default_match_duration_minutes, 35)::integer AS duration_minutes
+    SELECT competitions_table.*, COALESCE(championship_sports_table.default_match_duration_minutes, 35)::integer AS duration_minutes,
+      sports_table.code AS sport_code
     FROM championship_bracket_preview_private.competitions competitions_table
     LEFT JOIN public.championship_sports championship_sports_table ON championship_sports_table.championship_id = (SELECT championship_id FROM championship_bracket_preview_private.jobs WHERE id = _job_id) AND championship_sports_table.sport_id = competitions_table.sport_id
+    LEFT JOIN public.sports sports_table ON sports_table.id = competitions_table.sport_id
     WHERE competitions_table.job_id = _job_id ORDER BY competitions_table.position, competitions_table.competition_key
   LOOP
     direct_qualified_count := competition_record.groups_count * competition_record.qualifiers_per_group;
@@ -613,6 +663,14 @@ BEGIN
       ELSE direct_qualified_count
     END;
     IF bracket_size < 2 OR qualified_count < 2 THEN CONTINUE; END IF;
+    should_use_cross_groups_pairing := competition_record.pairing_mode = 'FUTEBOL_SOCIETY_FEM_ACCESS_CROSS_GROUPS'
+      AND competition_record.sport_code = 'FUTEBOL_SOCIETY'
+      AND competition_record.naipe = 'FEMININO'
+      AND competition_record.division = 'DIVISAO_ACESSO'
+      AND competition_record.groups_count = 2
+      AND competition_record.qualifiers_per_group = 1
+      AND competition_record.best_second
+      AND bracket_size = 4;
     total_rounds := 0; WHILE power(2,total_rounds)::integer < bracket_size LOOP total_rounds := total_rounds + 1; END LOOP;
     FOR round_number_value IN 1..total_rounds LOOP
       round_match_count := power(2,total_rounds-round_number_value)::integer;
@@ -626,12 +684,12 @@ BEGIN
         away_seed := bracket_size + 1 - slot_number_value;
         home_source := championship_bracket_preview_private.resolve_v8_knockout_seed_source(
           competition_record.groups_count, competition_record.qualifiers_per_group,
-          competition_record.best_second, competition_record.pairing_mode,
+          competition_record.best_second, should_use_cross_groups_pairing,
           home_seed, qualified_count
         );
         away_source := championship_bracket_preview_private.resolve_v8_knockout_seed_source(
           competition_record.groups_count, competition_record.qualifiers_per_group,
-          competition_record.best_second, competition_record.pairing_mode,
+          competition_record.best_second, should_use_cross_groups_pairing,
           away_seed, qualified_count
         );
         is_bye_value := round_number_value = 1
@@ -696,18 +754,8 @@ AS $function$
     FROM jsonb_array_elements(COALESCE(jobs_table.payload -> 'schedule_days', '[]'::jsonb)) WITH ORDINALITY day_item(value, ordinality)
     CROSS JOIN LATERAL jsonb_array_elements(COALESCE(day_item.value -> 'locations', '[]'::jsonb)) WITH ORDINALITY location_item(value, ordinality)
     CROSS JOIN LATERAL jsonb_array_elements(COALESCE(location_item.value -> 'courts', '[]'::jsonb)) WITH ORDINALITY court_item(value, ordinality)
-    CROSS JOIN LATERAL jsonb_array_elements(
-      CASE
-        WHEN jsonb_array_length(COALESCE(court_item.value -> 'sport_match_targets', '[]'::jsonb)) > 0
-        THEN court_item.value -> 'sport_match_targets'
-        ELSE COALESCE(court_item.value -> 'sport_ids', '[]'::jsonb)
-      END
-    ) sport_item(value)
-    WHERE CASE
-      WHEN jsonb_array_length(COALESCE(court_item.value -> 'sport_match_targets', '[]'::jsonb)) > 0
-      THEN NULLIF(sport_item.value ->> 'sport_id', '')::uuid
-      ELSE trim(both '"' from sport_item.value::text)::uuid
-    END = _sport_id
+    CROSS JOIN LATERAL jsonb_array_elements(COALESCE(court_item.value -> 'sport_ids', '[]'::jsonb)) sport_item(value)
+    WHERE trim(both '"' from sport_item.value::text)::uuid = _sport_id
   ) courts
   CROSS JOIN LATERAL championship_bracket_preview_private.resolve_court_free_intervals(
     jobs_table.payload, courts.event_date, courts.location_key, courts.court_key
@@ -791,7 +839,7 @@ BEGIN
       WHERE block_item.value ->> 'phase' = 'FINAL'
         AND block_item.value ->> 'sport_id' = knockout_record.sport_id::text
         AND (
-          (COALESCE(NULLIF(block_item.value ->> 'division_scope', ''), 'ALL') = 'ALL' AND knockout_record.division IS NULL)
+          COALESCE(NULLIF(block_item.value ->> 'division_scope', ''), 'ALL') = 'ALL'
           OR COALESCE(NULLIF(block_item.value ->> 'division_scope', ''), 'ALL') = knockout_record.division::text
         )
         AND EXISTS (
@@ -944,6 +992,9 @@ BEGIN
       UPDATE championship_bracket_preview_private.jobs SET status='FAILED',stage='Validação estrutural',diagnostics=diagnostics,error_message=diagnostics->0->>'message',completed_at=now(),updated_at=now() WHERE id=_job_id;
       RETURN jsonb_build_object('continue',false);
     END IF;
+    UPDATE championship_bracket_preview_private.jobs
+    SET stage = 'SCHEDULING_GROUPS', updated_at = now()
+    WHERE id = _job_id;
   END IF;
   result := championship_bracket_preview_private.process_batch_v7(_job_id);
   RETURN result;
@@ -1173,7 +1224,7 @@ BEGIN
   PERFORM set_config('app.skip_queue_trigger','true',true);
   PERFORM set_config('app.skip_match_conflict_trigger','true',true);
   INSERT INTO public.championship_bracket_editions(id,championship_id,season_year,status,payload_snapshot,created_by,updated_by)
-  VALUES(edition_id,_championship_id,job_record.season_year,'GROUPS_GENERATED',_payload,auth.uid(),auth.uid());
+  VALUES(edition_id,_championship_id,job_record.season_year,'GROUPS_GENERATED',_payload || jsonb_build_object('exact_preview_algorithm_version','async-exact-v8'),auth.uid(),auth.uid());
   INSERT INTO public.championship_bracket_team_registrations(bracket_edition_id,team_id)
     SELECT DISTINCT edition_id,group_teams.team_id FROM championship_bracket_preview_private.group_teams group_teams WHERE group_teams.job_id=_job_id;
   INSERT INTO public.championship_bracket_team_modalities(bracket_edition_id,team_id,sport_id,naipe,division)
@@ -1333,6 +1384,7 @@ DECLARE
   total_rounds INTEGER := 0;
   should_expand_with_best_second_placed_teams BOOLEAN;
   should_include_best_second_placed_teams BOOLEAN;
+  should_use_cross_groups_pairing BOOLEAN := false;
   additional_qualification_rank INTEGER;
   pending_tie_breaks_count INTEGER;
   standard_seed_order INTEGER[] := ARRAY[]::INTEGER[];
@@ -1350,9 +1402,14 @@ BEGIN
     competitions_table.id,
     competitions_table.bracket_edition_id,
     competitions_table.qualifiers_per_group,
-    competitions_table.should_complete_knockout_with_best_second_placed_teams
+    competitions_table.should_complete_knockout_with_best_second_placed_teams,
+    competitions_table.knockout_pairing_mode,
+    competitions_table.naipe,
+    competitions_table.division,
+    sports_table.code AS sport_code
   INTO competition_record
   FROM public.championship_bracket_competitions AS competitions_table
+  JOIN public.sports AS sports_table ON sports_table.id = competitions_table.sport_id
   WHERE competitions_table.id = _competition_id
     AND competitions_table.bracket_edition_id = _bracket_edition_id
   LIMIT 1;
@@ -1360,10 +1417,9 @@ BEGIN
   IF competition_record.id IS NULL
     OR NOT EXISTS (
       SELECT 1
-      FROM championship_bracket_preview_private.jobs AS jobs_table
-      WHERE jobs_table.result_edition_id = _bracket_edition_id
-        AND jobs_table.algorithm_version = 'async-exact-v8'
-        AND jobs_table.status = 'CONSUMED'
+      FROM public.championship_bracket_editions AS editions_table
+      WHERE editions_table.id = _bracket_edition_id
+        AND editions_table.payload_snapshot ->> 'exact_preview_algorithm_version' = 'async-exact-v8'
     )
   THEN
     RETURN NULL;
@@ -1422,6 +1478,15 @@ BEGIN
   should_include_best_second_placed_teams :=
     competition_record.qualifiers_per_group = 1
     AND target_bracket_size > direct_qualified_team_count;
+  should_use_cross_groups_pairing :=
+    competition_record.knockout_pairing_mode = 'FUTEBOL_SOCIETY_FEM_ACCESS_CROSS_GROUPS'
+    AND competition_record.sport_code = 'FUTEBOL_SOCIETY'
+    AND competition_record.naipe = 'FEMININO'
+    AND competition_record.division = 'DIVISAO_ACESSO'
+    AND group_count_value = 2
+    AND competition_record.qualifiers_per_group = 1
+    AND should_include_best_second_placed_teams
+    AND target_bracket_size = 4;
   additional_qualification_rank := CASE
     WHEN target_bracket_size <= direct_qualified_team_count THEN NULL
     WHEN competition_record.qualifiers_per_group = 1 THEN 2
@@ -1447,8 +1512,29 @@ BEGIN
     RETURN _competition_id;
   END IF;
 
-  FOR ranking_record IN
-    WITH ordered_groups AS (
+  IF should_use_cross_groups_pairing THEN
+    FOR ranking_record IN
+      WITH ordered_groups AS (
+        SELECT groups_table.id AS group_id, groups_table.group_number
+        FROM public.championship_bracket_groups AS groups_table
+        WHERE groups_table.competition_id = _competition_id
+      )
+      SELECT rankings_table.team_id
+      FROM ordered_groups
+      CROSS JOIN generate_series(1, 2) AS qualifiers(rank_number)
+      LEFT JOIN public.get_championship_bracket_competition_group_rankings(
+        _championship_id,
+        _competition_id
+      ) AS rankings_table
+        ON rankings_table.group_id = ordered_groups.group_id
+        AND rankings_table.team_rank = qualifiers.rank_number
+      ORDER BY ordered_groups.group_number, qualifiers.rank_number
+    LOOP
+      qualified_team_ids := array_append(qualified_team_ids, ranking_record.team_id);
+    END LOOP;
+  ELSE
+    FOR ranking_record IN
+      WITH ordered_groups AS (
       SELECT groups_table.id AS group_id, groups_table.group_number
       FROM public.championship_bracket_groups AS groups_table
       WHERE groups_table.competition_id = _competition_id
@@ -1475,9 +1561,10 @@ BEGIN
           THEN COALESCE(pool_rankings.pool_rank, ordered_groups.group_number + 1000)
         ELSE ordered_groups.group_number
       END ASC
-  LOOP
-    qualified_team_ids := array_append(qualified_team_ids, ranking_record.team_id);
-  END LOOP;
+    LOOP
+      qualified_team_ids := array_append(qualified_team_ids, ranking_record.team_id);
+    END LOOP;
+  END IF;
 
   IF additional_qualification_rank IS NOT NULL THEN
     FOR ranking_record IN
@@ -1592,10 +1679,9 @@ BEGIN
   IF resolved_edition_id IS NOT NULL
     AND EXISTS (
       SELECT 1
-      FROM championship_bracket_preview_private.jobs AS jobs_table
-      WHERE jobs_table.result_edition_id = resolved_edition_id
-        AND jobs_table.algorithm_version = 'async-exact-v8'
-        AND jobs_table.status = 'CONSUMED'
+      FROM public.championship_bracket_editions AS editions_table
+      WHERE editions_table.id = resolved_edition_id
+        AND editions_table.payload_snapshot ->> 'exact_preview_algorithm_version' = 'async-exact-v8'
     )
   THEN
     RETURN public.hydrate_championship_bracket_preview_v8_knockout(
@@ -1613,6 +1699,601 @@ BEGIN
 END;
 $function$;
 
+CREATE OR REPLACE FUNCTION championship_bracket_preview_private.compact_v8_schedule_batch(_job_id UUID)
+RETURNS JSONB
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, championship_bracket_preview_private
+AS $function$
+DECLARE
+  gap_record RECORD;
+  candidate_slot_record RECORD;
+  tier_record RECORD;
+  branch_status TEXT := 'DEAD_END';
+  attempt_started_at TIMESTAMPTZ;
+  rest_gap_value INTEGER;
+  moved BOOLEAN := false;
+BEGIN
+  WITH assigned AS (
+    SELECT
+      assignments_table.match_id,
+      slots_table.event_date,
+      slots_table.location_key,
+      slots_table.court_key,
+      slots_table.start_at,
+      slots_table.end_at,
+      lead(assignments_table.match_id) OVER physical_order AS next_match_id,
+      lead(slots_table.start_at) OVER physical_order AS next_start_at
+    FROM championship_bracket_preview_private.assignments assignments_table
+    JOIN championship_bracket_preview_private.slots slots_table ON slots_table.id = assignments_table.slot_id
+    WHERE assignments_table.job_id = _job_id
+    WINDOW physical_order AS (
+      PARTITION BY slots_table.event_date, slots_table.location_key, slots_table.court_key
+      ORDER BY slots_table.start_at, slots_table.end_at, assignments_table.match_id
+    )
+  ), gaps AS (
+    SELECT assigned.*, format('%s:%s:%s:%s', assigned.location_key, assigned.court_key, assigned.end_at, assigned.next_match_id) AS gap_key
+    FROM assigned
+    WHERE assigned.next_start_at > assigned.end_at
+  )
+  SELECT gaps.*
+  INTO gap_record
+  FROM gaps
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM championship_bracket_preview_private.compaction_gaps compaction_gaps
+    WHERE compaction_gaps.job_id = _job_id
+      AND compaction_gaps.gap_key = gaps.gap_key
+  )
+  ORDER BY gaps.event_date, gaps.location_key, gaps.court_key, gaps.end_at, gaps.next_match_id
+  LIMIT 1;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('continue', false, 'done', true);
+  END IF;
+
+  SELECT candidate_slots.*
+  INTO candidate_slot_record
+  FROM championship_bracket_preview_private.slots candidate_slots
+  JOIN championship_bracket_preview_private.matches next_match ON next_match.id = gap_record.next_match_id
+  JOIN championship_bracket_preview_private.competitions next_competition ON next_competition.id = next_match.competition_id
+  WHERE candidate_slots.job_id = _job_id
+    AND candidate_slots.event_date = gap_record.event_date
+    AND candidate_slots.location_key = gap_record.location_key
+    AND candidate_slots.court_key = gap_record.court_key
+    AND candidate_slots.sport_id = next_competition.sport_id
+    AND candidate_slots.start_at >= gap_record.end_at
+    AND candidate_slots.end_at <= gap_record.next_start_at
+    AND NOT EXISTS (
+      SELECT 1 FROM championship_bracket_preview_private.assignments occupied
+      WHERE occupied.job_id = _job_id AND occupied.slot_id = candidate_slots.id
+    )
+  ORDER BY candidate_slots.start_at, candidate_slots.id
+  LIMIT 1;
+
+  IF candidate_slot_record.id IS NOT NULL
+    AND championship_bracket_preview_private.is_match_slot_eligible_with_rest_gap(
+      _job_id, gap_record.next_match_id, candidate_slot_record.id, 4
+    )
+  THEN
+    UPDATE championship_bracket_preview_private.assignments
+    SET slot_id = candidate_slot_record.id
+    WHERE job_id = _job_id AND match_id = gap_record.next_match_id;
+    moved := true;
+  ELSIF candidate_slot_record.id IS NOT NULL THEN
+    FOR rest_gap_value IN SELECT unnest(ARRAY[4, 3]) LOOP
+      IF rest_gap_value = 3
+        AND NOT championship_bracket_preview_private.is_match_slot_eligible_with_rest_gap(
+          _job_id, gap_record.next_match_id, candidate_slot_record.id, 3
+        )
+      THEN
+        CONTINUE;
+      END IF;
+      FOR tier_record IN
+        SELECT *
+        FROM (VALUES
+          ('FAST'::text, 2, 12, 4, 400),
+          ('MEDIUM'::text, 6, 48, 16, 1800),
+          ('DEEP'::text, 12, 120, 40, 8000)
+        ) AS tiers(search_tier, max_depth, candidate_limit, relocation_limit, budget_ms)
+      LOOP
+        attempt_started_at := clock_timestamp();
+        branch_status := championship_bracket_preview_private.try_place_match_backtracking_status(
+          _job_id, gap_record.next_match_id, candidate_slot_record.id,
+          ARRAY[]::uuid[], ARRAY[]::bigint[], 0,
+          tier_record.max_depth, tier_record.candidate_limit, tier_record.relocation_limit,
+          CASE WHEN rest_gap_value = 3 THEN gap_record.next_match_id ELSE NULL END,
+          3, clock_timestamp() + make_interval(secs => tier_record.budget_ms::numeric / 1000)
+        );
+        INSERT INTO championship_bracket_preview_private.relocation_attempt_metrics(
+          job_id, match_id, phase, rest_gap, search_tier, candidate_rank,
+          candidate_slot_id, max_depth, candidate_limit, relocation_limit,
+          result_status, timeout_count, relocations_used, branches_examined, duration_ms
+        ) VALUES (
+          _job_id, gap_record.next_match_id, 'COMPACTION', rest_gap_value, tier_record.search_tier,
+          1, candidate_slot_record.id, tier_record.max_depth,
+          tier_record.candidate_limit, tier_record.relocation_limit, branch_status,
+          CASE WHEN branch_status = 'TIMEOUT' THEN 1 ELSE 0 END, 0, 0,
+          (extract(epoch FROM clock_timestamp() - attempt_started_at) * 1000)::integer
+        );
+        EXIT WHEN branch_status = 'SUCCESS';
+      END LOOP;
+      IF branch_status = 'SUCCESS' THEN
+        moved := true;
+        EXIT;
+      END IF;
+    END LOOP;
+  END IF;
+
+  IF moved THEN
+    RETURN jsonb_build_object('continue', true, 'done', false, 'progressed', true);
+  END IF;
+
+  INSERT INTO championship_bracket_preview_private.compaction_gaps(job_id, gap_key, status)
+  VALUES (_job_id, gap_record.gap_key, 'UNRESOLVED')
+  ON CONFLICT (job_id, gap_key) DO UPDATE SET status = EXCLUDED.status, attempted_at = now();
+  RETURN jsonb_build_object('continue', true, 'done', false, 'progressed', false);
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION championship_bracket_preview_private.schedule_v8_knockout_batch(_job_id UUID)
+RETURNS JSONB
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, championship_bracket_preview_private
+AS $function$
+DECLARE
+  knockout_record RECORD;
+  block_value JSONB;
+  court_window RECORD;
+  candidate_start_at TIMESTAMPTZ;
+  candidate_end_at TIMESTAMPTZ;
+  candidate_conflict_end_at TIMESTAMPTZ;
+  dependency_ready_at TIMESTAMPTZ;
+  group_ready_at TIMESTAMPTZ;
+  sequence_position INTEGER;
+  duration_value INTEGER;
+BEGIN
+  UPDATE championship_bracket_preview_private.knockout_matches knockout_matches
+  SET start_at = group_ready.ready_at, end_at = group_ready.ready_at
+  FROM (
+    SELECT matches_table.competition_id, max(slots_table.end_at) AS ready_at
+    FROM championship_bracket_preview_private.assignments assignments_table
+    JOIN championship_bracket_preview_private.matches matches_table ON matches_table.id = assignments_table.match_id
+    JOIN championship_bracket_preview_private.slots slots_table ON slots_table.id = assignments_table.slot_id
+    WHERE assignments_table.job_id = _job_id
+    GROUP BY matches_table.competition_id
+  ) group_ready
+  WHERE knockout_matches.job_id = _job_id
+    AND knockout_matches.is_bye
+    AND knockout_matches.competition_id = group_ready.competition_id;
+
+  SELECT knockout_matches.*, competitions.sport_id, competitions.naipe, competitions.division, competitions.competition_key, jobs_table.payload
+  INTO knockout_record
+  FROM championship_bracket_preview_private.knockout_matches knockout_matches
+  JOIN championship_bracket_preview_private.competitions competitions ON competitions.id = knockout_matches.competition_id
+  JOIN championship_bracket_preview_private.jobs jobs_table ON jobs_table.id = knockout_matches.job_id
+  WHERE knockout_matches.job_id = _job_id
+    AND NOT knockout_matches.is_bye
+    AND knockout_matches.scheduled_date IS NULL
+    AND (
+      knockout_matches.round_number = 1
+      OR (
+        SELECT count(*)
+        FROM championship_bracket_preview_private.knockout_matches predecessors
+        WHERE predecessors.id = ANY(knockout_matches.predecessor_match_ids)
+          AND predecessors.end_at IS NOT NULL
+      ) = cardinality(knockout_matches.predecessor_match_ids)
+    )
+  ORDER BY knockout_matches.round_number,
+    CASE WHEN knockout_matches.phase = 'THIRD_PLACE' THEN 1 ELSE 0 END,
+    knockout_matches.slot_number, knockout_matches.logical_key
+  LIMIT 1
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    IF EXISTS (
+      SELECT 1 FROM championship_bracket_preview_private.knockout_matches knockout_matches
+      WHERE knockout_matches.job_id = _job_id
+        AND NOT knockout_matches.is_bye
+        AND knockout_matches.scheduled_date IS NULL
+    ) THEN
+      RETURN jsonb_build_object(
+        'continue', false,
+        'diagnostics', jsonb_build_array(jsonb_build_object(
+          'code', 'KNOCKOUT_DEPENDENCY_NOT_SCHEDULED',
+          'message', 'Existem partidas eliminatórias sem uma dependência programada.'
+        ))
+      );
+    END IF;
+    RETURN jsonb_build_object('continue', false, 'done', true, 'diagnostics', '[]'::jsonb);
+  END IF;
+
+  IF knockout_record.round_number = 1 THEN
+    SELECT max(slots_table.end_at) INTO group_ready_at
+    FROM championship_bracket_preview_private.assignments assignments_table
+    JOIN championship_bracket_preview_private.matches group_matches ON group_matches.id = assignments_table.match_id
+    JOIN championship_bracket_preview_private.slots slots_table ON slots_table.id = assignments_table.slot_id
+    WHERE assignments_table.job_id = _job_id AND group_matches.competition_id = knockout_record.competition_id;
+    dependency_ready_at := group_ready_at;
+  ELSE
+    SELECT max(predecessors.end_at) INTO dependency_ready_at
+    FROM championship_bracket_preview_private.knockout_matches predecessors
+    WHERE predecessors.id = ANY(knockout_record.predecessor_match_ids);
+  END IF;
+
+  IF dependency_ready_at IS NULL THEN
+    RETURN jsonb_build_object(
+      'continue', false,
+      'diagnostics', jsonb_build_array(jsonb_build_object(
+        'code', 'KNOCKOUT_DEPENDENCY_NOT_SCHEDULED',
+        'message', format('As dependências de %s não possuem término programado.', knockout_record.logical_key),
+        'logical_key', knockout_record.logical_key
+      ))
+    );
+  END IF;
+
+  block_value := NULL;
+  IF knockout_record.phase = 'FINAL' THEN
+    SELECT block_item.value INTO block_value
+    FROM jsonb_array_elements(COALESCE(knockout_record.payload -> 'knockout_program_blocks', '[]'::jsonb)) WITH ORDINALITY block_item(value, ordinality)
+    WHERE block_item.value ->> 'phase' = 'FINAL'
+      AND block_item.value ->> 'sport_id' = knockout_record.sport_id::text
+      AND (
+        COALESCE(NULLIF(block_item.value ->> 'division_scope', ''), 'ALL') = 'ALL'
+        OR COALESCE(NULLIF(block_item.value ->> 'division_scope', ''), 'ALL') = knockout_record.division::text
+      )
+      AND EXISTS (
+        SELECT 1 FROM jsonb_array_elements_text(COALESCE(block_item.value -> 'naipe_sequence', '[]'::jsonb)) seq(value)
+        WHERE seq.value = knockout_record.naipe::text
+      )
+    ORDER BY COALESCE(NULLIF(block_item.value ->> 'display_order', '')::integer, block_item.ordinality::integer)
+    LIMIT 1;
+  END IF;
+
+  IF block_value IS NOT NULL THEN
+    SELECT seq.ordinality::integer INTO sequence_position
+    FROM jsonb_array_elements_text(COALESCE(block_value -> 'naipe_sequence', '[]'::jsonb)) WITH ORDINALITY seq(value, ordinality)
+    WHERE seq.value = knockout_record.naipe::text;
+    duration_value := COALESCE(NULLIF(block_value ->> 'match_duration_minutes_override', '')::integer, knockout_record.duration_minutes);
+    candidate_start_at := public.combine_bracket_schedule_timestamp((block_value ->> 'date')::date, (block_value ->> 'start_time')::time)
+      + make_interval(mins => (sequence_position - 1) * duration_value);
+    candidate_end_at := candidate_start_at + make_interval(mins => duration_value);
+    IF sequence_position IS NULL OR duration_value < 1
+      OR candidate_end_at > public.combine_bracket_schedule_timestamp((block_value ->> 'date')::date, (block_value ->> 'end_time')::time)
+    THEN
+      RETURN jsonb_build_object('continue', false, 'diagnostics', jsonb_build_array(jsonb_build_object(
+        'code', 'MANUAL_FINAL_CAPACITY_EXCEEDED',
+        'message', format('O bloco manual não comporta a final %s.', knockout_record.logical_key),
+        'logical_key', knockout_record.logical_key
+      )));
+    END IF;
+    IF candidate_start_at < dependency_ready_at THEN
+      RETURN jsonb_build_object('continue', false, 'diagnostics', jsonb_build_array(jsonb_build_object(
+        'code', 'MANUAL_FINAL_DEPENDENCY_CONFLICT',
+        'message', format('A final manual %s inicia antes das semifinal(is).', knockout_record.logical_key),
+        'logical_key', knockout_record.logical_key
+      )));
+    END IF;
+    IF EXISTS (
+      SELECT 1 FROM championship_bracket_preview_private.knockout_matches occupied
+      WHERE occupied.job_id = _job_id AND occupied.id <> knockout_record.id
+        AND occupied.location_key = (block_value ->> 'location_key')::uuid
+        AND occupied.court_key = (block_value ->> 'court_key')::uuid
+        AND occupied.start_at < candidate_end_at AND occupied.end_at > candidate_start_at
+    ) THEN
+      RETURN jsonb_build_object('continue', false, 'diagnostics', jsonb_build_array(jsonb_build_object(
+        'code', 'MANUAL_FINAL_OVERLAP',
+        'message', format('O bloco manual conflita com outra partida em %s.', knockout_record.logical_key),
+        'logical_key', knockout_record.logical_key
+      )));
+    END IF;
+    UPDATE championship_bracket_preview_private.knockout_matches SET
+      scheduled_date = (block_value ->> 'date')::date,
+      location_key = (block_value ->> 'location_key')::uuid,
+      location_name = block_value ->> 'location_name',
+      court_key = (block_value ->> 'court_key')::uuid,
+      court_name = block_value ->> 'court_name',
+      start_at = candidate_start_at, end_at = candidate_end_at,
+      duration_minutes = duration_value, manual_final = true
+    WHERE id = knockout_record.id;
+    RETURN jsonb_build_object('continue', true, 'done', false, 'diagnostics', '[]'::jsonb);
+  END IF;
+
+  candidate_start_at := NULL;
+  candidate_end_at := NULL;
+  FOR court_window IN
+    SELECT court_windows.*, availability_windows.window_start_at, availability_windows.window_end_at
+    FROM championship_bracket_preview_private.resolve_v8_knockout_court_windows(_job_id, knockout_record.sport_id) court_windows
+    CROSS JOIN LATERAL public.resolve_championship_bracket_competition_schedule_windows(
+      knockout_record.payload, knockout_record.competition_key, court_windows.event_date
+    ) availability_windows
+    ORDER BY court_windows.event_date, court_windows.location_position, court_windows.court_position, availability_windows.window_start_at
+  LOOP
+    candidate_conflict_end_at := GREATEST(court_window.free_start_at, court_window.window_start_at, dependency_ready_at);
+    LOOP
+      EXIT WHEN candidate_conflict_end_at + make_interval(mins => knockout_record.duration_minutes)
+        > LEAST(court_window.free_end_at, court_window.window_end_at);
+      SELECT max(conflicts.end_at) INTO candidate_end_at
+      FROM (
+        SELECT slots_table.end_at
+        FROM championship_bracket_preview_private.assignments assignments_table
+        JOIN championship_bracket_preview_private.slots slots_table ON slots_table.id = assignments_table.slot_id
+        WHERE assignments_table.job_id = _job_id
+          AND slots_table.event_date = court_window.event_date
+          AND slots_table.location_key = court_window.location_key
+          AND slots_table.court_key = court_window.court_key
+          AND slots_table.start_at < candidate_conflict_end_at + make_interval(mins => knockout_record.duration_minutes)
+          AND slots_table.end_at > candidate_conflict_end_at
+        UNION ALL
+        SELECT scheduled.end_at
+        FROM championship_bracket_preview_private.knockout_matches scheduled
+        WHERE scheduled.job_id = _job_id AND scheduled.id <> knockout_record.id
+          AND scheduled.location_key = court_window.location_key AND scheduled.court_key = court_window.court_key
+          AND scheduled.start_at < candidate_conflict_end_at + make_interval(mins => knockout_record.duration_minutes)
+          AND scheduled.end_at > candidate_conflict_end_at
+      ) conflicts;
+      IF candidate_end_at IS NULL THEN
+        candidate_start_at := candidate_conflict_end_at;
+        candidate_end_at := candidate_start_at + make_interval(mins => knockout_record.duration_minutes);
+        EXIT;
+      END IF;
+      candidate_conflict_end_at := candidate_end_at;
+    END LOOP;
+    EXIT WHEN candidate_start_at IS NOT NULL;
+  END LOOP;
+
+  IF candidate_start_at IS NULL THEN
+    RETURN jsonb_build_object('continue', false, 'diagnostics', jsonb_build_array(jsonb_build_object(
+      'code', 'KNOCKOUT_NO_AVAILABLE_SLOT',
+      'message', format('Não existe janela compatível após as dependências para %s.', knockout_record.logical_key),
+      'logical_key', knockout_record.logical_key
+    )));
+  END IF;
+
+  UPDATE championship_bracket_preview_private.knockout_matches SET
+    scheduled_date = court_window.event_date, location_key = court_window.location_key,
+    location_name = court_window.location_name, court_key = court_window.court_key,
+    court_name = court_window.court_name, start_at = candidate_start_at, end_at = candidate_end_at
+  WHERE id = knockout_record.id;
+  RETURN jsonb_build_object('continue', true, 'done', false, 'diagnostics', '[]'::jsonb);
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION championship_bracket_preview_private.finalize_job(_job_id UUID)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, championship_bracket_preview_private
+AS $function$
+DECLARE
+  job_record RECORD;
+  target_diagnostics JSONB;
+  timeline_diagnostics JSONB;
+  diagnostics JSONB;
+  manifest JSONB;
+  group_count INTEGER;
+  knockout_count INTEGER;
+  scheduled_knockout_count INTEGER;
+BEGIN
+  SELECT * INTO job_record
+  FROM championship_bracket_preview_private.jobs
+  WHERE id = _job_id
+  FOR UPDATE;
+  IF job_record.status <> 'FINALIZING' OR job_record.stage <> 'FINALIZING' THEN
+    RETURN;
+  END IF;
+  SELECT championship_bracket_preview_private.resolve_v8_target_completion_diagnostics(_job_id) INTO target_diagnostics;
+  SELECT championship_bracket_preview_private.resolve_v8_internal_empty_diagnostics(_job_id) INTO timeline_diagnostics;
+  SELECT count(*) INTO group_count
+  FROM championship_bracket_preview_private.assignments
+  WHERE job_id = _job_id;
+  SELECT count(*) INTO knockout_count
+  FROM championship_bracket_preview_private.knockout_matches
+  WHERE job_id = _job_id AND NOT is_bye;
+  SELECT count(*) INTO scheduled_knockout_count
+  FROM championship_bracket_preview_private.knockout_matches
+  WHERE job_id = _job_id
+    AND NOT is_bye
+    AND scheduled_date IS NOT NULL
+    AND location_key IS NOT NULL
+    AND court_key IS NOT NULL
+    AND start_at IS NOT NULL
+    AND end_at IS NOT NULL;
+  diagnostics := target_diagnostics || timeline_diagnostics;
+  IF group_count <> (SELECT count(*) FROM championship_bracket_preview_private.matches WHERE job_id = _job_id)
+    OR knockout_count <> scheduled_knockout_count
+  THEN
+    diagnostics := diagnostics || jsonb_build_array(jsonb_build_object(
+      'code', 'SCHEDULE_INCOMPLETE',
+      'message', 'A prévia v8 não possui todas as partidas estruturais programadas.',
+      'target', (SELECT count(*) FROM championship_bracket_preview_private.matches WHERE job_id = _job_id) + knockout_count,
+      'obtained', group_count + scheduled_knockout_count
+    ));
+  END IF;
+  IF jsonb_array_length(diagnostics) > 0 THEN
+    UPDATE championship_bracket_preview_private.jobs
+    SET status = 'FAILED', stage = 'Validação da programação', diagnostics = diagnostics,
+      error_message = diagnostics -> 0 ->> 'message', completed_at = now(), updated_at = now()
+    WHERE id = _job_id;
+    RETURN;
+  END IF;
+  SELECT jsonb_build_object(
+    'algorithm_version', 'async-exact-v8',
+    'groups', COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+        'competition', competitions.competition_key,
+        'group', groups.group_number,
+        'teams', (
+          SELECT jsonb_agg(group_teams.team_id ORDER BY group_teams.position)
+          FROM championship_bracket_preview_private.group_teams group_teams
+          WHERE group_teams.group_id = groups.id
+        )
+      ) ORDER BY competitions.position, groups.group_number)
+      FROM championship_bracket_preview_private.groups groups
+      JOIN championship_bracket_preview_private.competitions competitions ON competitions.id = groups.competition_id
+      WHERE groups.job_id = _job_id
+    ), '[]'::jsonb),
+    'group_matches', COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+        'key', matches.logical_key, 'slot_id', assignments.slot_id,
+        'home_team_id', matches.home_team_id, 'away_team_id', matches.away_team_id,
+        'date', slots.event_date, 'location_key', slots.location_key, 'location', slots.location_name,
+        'court_key', slots.court_key, 'court', slots.court_name, 'start', slots.start_at, 'end', slots.end_at,
+        'match_number', assignments.match_number
+      ) ORDER BY matches.logical_key)
+      FROM championship_bracket_preview_private.assignments assignments
+      JOIN championship_bracket_preview_private.matches matches ON matches.id = assignments.match_id
+      JOIN championship_bracket_preview_private.slots slots ON slots.id = assignments.slot_id
+      WHERE assignments.job_id = _job_id
+    ), '[]'::jsonb),
+    'knockout_matches', COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+        'key', knockout_matches.logical_key, 'phase', knockout_matches.phase,
+        'round', knockout_matches.round_number, 'slot', knockout_matches.slot_number,
+        'home_source_type', knockout_matches.home_source_type, 'home_source', knockout_matches.home_source_reference,
+        'away_source_type', knockout_matches.away_source_type, 'away_source', knockout_matches.away_source_reference,
+        'predecessors', knockout_matches.predecessor_match_ids, 'is_bye', knockout_matches.is_bye,
+        'date', knockout_matches.scheduled_date, 'location_key', knockout_matches.location_key,
+        'location', knockout_matches.location_name, 'court_key', knockout_matches.court_key,
+        'court', knockout_matches.court_name,
+        'start', CASE WHEN knockout_matches.is_bye THEN NULL ELSE knockout_matches.start_at END,
+        'end', CASE WHEN knockout_matches.is_bye THEN NULL ELSE knockout_matches.end_at END,
+        'manual_final', knockout_matches.manual_final
+      ) ORDER BY knockout_matches.round_number, knockout_matches.slot_number, knockout_matches.logical_key)
+      FROM championship_bracket_preview_private.knockout_matches knockout_matches
+      WHERE knockout_matches.job_id = _job_id
+    ), '[]'::jsonb)
+  ) INTO manifest;
+  UPDATE championship_bracket_preview_private.jobs
+  SET status = 'COMPLETED', stage = 'Concluída', progress_percentage = 100,
+    summary = jsonb_build_object(
+      'total_matches', group_count + knockout_count,
+      'group_stage_matches', group_count,
+      'knockout_matches', knockout_count,
+      'scheduled_matches', group_count + scheduled_knockout_count,
+      'occupied_minutes', (
+        SELECT COALESCE(sum(minutes), 0)::integer FROM (
+          SELECT extract(epoch FROM (slots_table.end_at - slots_table.start_at)) / 60 AS minutes
+          FROM championship_bracket_preview_private.assignments assignments_table
+          JOIN championship_bracket_preview_private.slots slots_table ON slots_table.id = assignments_table.slot_id
+          WHERE assignments_table.job_id = _job_id
+          UNION ALL
+          SELECT extract(epoch FROM (knockout_matches.end_at - knockout_matches.start_at)) / 60
+          FROM championship_bracket_preview_private.knockout_matches knockout_matches
+          WHERE knockout_matches.job_id = _job_id AND NOT knockout_matches.is_bye
+        ) occupied
+      ),
+      'available_minutes', (
+        SELECT COALESCE(sum(extract(epoch FROM end_at - start_at) / 60)::integer, 0)
+        FROM championship_bracket_preview_private.slots WHERE job_id = _job_id
+      ),
+      'utilization_percentage', NULL, 'free_windows', NULL, 'conflict_count', 0, 'warning_count', 0,
+      'search_tiers', jsonb_build_object(
+        'fast_attempts', (SELECT count(*) FROM championship_bracket_preview_private.relocation_attempt_metrics WHERE job_id = _job_id AND search_tier = 'FAST'),
+        'medium_attempts', (SELECT count(*) FROM championship_bracket_preview_private.relocation_attempt_metrics WHERE job_id = _job_id AND search_tier = 'MEDIUM'),
+        'deep_attempts', (SELECT count(*) FROM championship_bracket_preview_private.relocation_attempt_metrics WHERE job_id = _job_id AND search_tier = 'DEEP'),
+        'relocations_used', 0,
+        'branches_examined', 0
+      )
+    ),
+    generation_signature = encode(extensions.digest(convert_to(manifest::text, 'UTF8'), 'sha256'), 'hex'),
+    completed_at = now(), expires_at = now() + interval '7 days', updated_at = now()
+  WHERE id = _job_id;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION championship_bracket_preview_private.process_job(_job_id UUID)
+RETURNS JSONB
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, championship_bracket_preview_private
+SET statement_timeout = '15s'
+AS $function$
+DECLARE
+  job_record RECORD;
+  result JSONB;
+  diagnostics JSONB;
+BEGIN
+  SELECT * INTO job_record
+  FROM championship_bracket_preview_private.jobs
+  WHERE id = _job_id;
+  IF job_record.id IS NULL THEN
+    RETURN jsonb_build_object('continue', false);
+  END IF;
+  IF job_record.algorithm_version <> 'async-exact-v8' THEN
+    IF job_record.status = 'FINALIZING' THEN
+      PERFORM championship_bracket_preview_private.finalize_job_v7(_job_id);
+      RETURN jsonb_build_object('continue', false);
+    END IF;
+    RETURN championship_bracket_preview_private.process_batch_v7(_job_id);
+  END IF;
+  IF job_record.status IN ('COMPLETED', 'FAILED', 'CANCELLED', 'CONSUMED') THEN
+    RETURN jsonb_build_object('continue', false);
+  END IF;
+  IF job_record.stage = 'COMPACTING_GROUPS' THEN
+    result := championship_bracket_preview_private.compact_v8_schedule_batch(_job_id);
+    IF COALESCE((result ->> 'done')::boolean, false) THEN
+      SELECT championship_bracket_preview_private.resolve_v8_target_completion_diagnostics(_job_id) INTO diagnostics;
+      IF jsonb_array_length(diagnostics) > 0 THEN
+        UPDATE championship_bracket_preview_private.jobs
+        SET status = 'FAILED', stage = 'Validação da grade', diagnostics = diagnostics,
+          error_message = diagnostics -> 0 ->> 'message', completed_at = now(), updated_at = now()
+        WHERE id = _job_id;
+        RETURN jsonb_build_object('continue', false);
+      END IF;
+      PERFORM championship_bracket_preview_private.assign_job_match_numbers(_job_id);
+      PERFORM championship_bracket_preview_private.create_v8_knockout_matches(_job_id);
+      UPDATE championship_bracket_preview_private.jobs
+      SET status = 'SCHEDULING', stage = 'SCHEDULING_KNOCKOUT', updated_at = now()
+      WHERE id = _job_id;
+    END IF;
+    RETURN jsonb_build_object('continue', true);
+  END IF;
+  IF job_record.stage = 'SCHEDULING_KNOCKOUT' THEN
+    result := championship_bracket_preview_private.schedule_v8_knockout_batch(_job_id);
+    diagnostics := COALESCE(result -> 'diagnostics', '[]'::jsonb);
+    IF jsonb_array_length(diagnostics) > 0 THEN
+      UPDATE championship_bracket_preview_private.jobs
+      SET status = 'FAILED', stage = 'Programação eliminatória', diagnostics = diagnostics,
+        error_message = diagnostics -> 0 ->> 'message', completed_at = now(), updated_at = now()
+      WHERE id = _job_id;
+      RETURN jsonb_build_object('continue', false);
+    END IF;
+    IF COALESCE((result ->> 'done')::boolean, false) THEN
+      UPDATE championship_bracket_preview_private.jobs
+      SET status = 'FINALIZING', stage = 'FINALIZING', updated_at = now()
+      WHERE id = _job_id;
+    END IF;
+    RETURN jsonb_build_object('continue', true);
+  END IF;
+  IF job_record.status = 'FINALIZING' OR job_record.stage = 'FINALIZING' THEN
+    UPDATE championship_bracket_preview_private.jobs
+    SET status = 'FINALIZING', stage = 'FINALIZING', updated_at = now()
+    WHERE id = _job_id;
+    PERFORM championship_bracket_preview_private.finalize_job(_job_id);
+    RETURN jsonb_build_object('continue', false);
+  END IF;
+  result := championship_bracket_preview_private.process_batch(_job_id);
+  SELECT * INTO job_record
+  FROM championship_bracket_preview_private.jobs
+  WHERE id = _job_id;
+  IF job_record.status = 'FINALIZING' THEN
+    UPDATE championship_bracket_preview_private.jobs
+    SET status = 'SCHEDULING', stage = 'COMPACTING_GROUPS', updated_at = now()
+    WHERE id = _job_id;
+    RETURN jsonb_build_object('continue', true);
+  END IF;
+  RETURN result;
+EXCEPTION WHEN OTHERS THEN
+  UPDATE championship_bracket_preview_private.jobs
+  SET attempt_count = attempt_count + 1, heartbeat_at = now(), updated_at = now(),
+    error_message = SQLERRM, status = CASE WHEN attempt_count + 1 >= 5 THEN 'FAILED' ELSE status END,
+    stage = CASE WHEN attempt_count + 1 >= 5 THEN 'Falha após cinco tentativas' ELSE stage END,
+    expires_at = CASE WHEN attempt_count + 1 >= 5 THEN now() + interval '24 hours' ELSE expires_at END
+  WHERE id = _job_id;
+  RETURN jsonb_build_object(
+    'continue', (SELECT attempt_count < 5 FROM championship_bracket_preview_private.jobs WHERE id = _job_id),
+    'delay', LEAST(60, power(2, (SELECT attempt_count FROM championship_bracket_preview_private.jobs WHERE id = _job_id))::integer)
+  );
+END;
+$function$;
+
 REVOKE ALL ON FUNCTION public.hydrate_championship_bracket_preview_v8_knockout(UUID, UUID, UUID) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.generate_championship_knockout_for_competition_v7(UUID, UUID, UUID) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.generate_championship_knockout_for_competition(UUID, UUID, UUID) FROM PUBLIC, anon;
@@ -1620,8 +2301,13 @@ GRANT EXECUTE ON FUNCTION public.generate_championship_knockout_for_competition(
 
 REVOKE ALL ON championship_bracket_preview_private.knockout_matches FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON championship_bracket_preview_private.relocation_attempt_metrics FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON championship_bracket_preview_private.relocation_candidate_tier_states FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON championship_bracket_preview_private.compaction_gaps FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON FUNCTION championship_bracket_preview_private.process_batch(UUID) FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON FUNCTION championship_bracket_preview_private.finalize_job(UUID) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION championship_bracket_preview_private.compact_v8_schedule_batch(UUID) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION championship_bracket_preview_private.schedule_v8_knockout_batch(UUID) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION championship_bracket_preview_private.process_job(UUID) FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON FUNCTION public.start_championship_bracket_preview_job(UUID,JSONB) FROM PUBLIC,anon;
 REVOKE ALL ON FUNCTION public.get_championship_bracket_preview_job_status(UUID) FROM PUBLIC,anon;
 REVOKE ALL ON FUNCTION public.get_championship_bracket_preview_job_day(UUID,DATE) FROM PUBLIC,anon;
