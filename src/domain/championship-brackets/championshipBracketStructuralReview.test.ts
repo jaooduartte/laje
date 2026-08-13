@@ -2084,6 +2084,19 @@ describe("resolveChampionshipBracketExactPreviewCacheValidity", () => {
       }),
     ).toBe(false);
   });
+
+  it("rejeita uma prévia v8 expirada mesmo que o servidor a tenha marcado como válida", () => {
+    expect(
+      resolveChampionshipBracketExactPreviewCacheValidity({
+        cache: {
+          ...cache,
+          expires_at: "2020-09-19T00:00:00.000Z",
+          is_valid_for_creation: true,
+        },
+        payloadSignature,
+      }),
+    ).toBe(false);
+  });
 });
 
 describe("resolveChampionshipBracketExactPreviewPayloadSignature", () => {

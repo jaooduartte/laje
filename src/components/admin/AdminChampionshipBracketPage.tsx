@@ -1322,6 +1322,10 @@ function resolveOperationalPreviewPhaseLabel(
   phase: ChampionshipBracketPreviewResult["diagnostics"][number]["phase"],
   phase_label: string | null,
 ): string | null {
+  if (phase == "GROUP_STAGE") {
+    return "Fase de grupos";
+  }
+
   if (phase_label) {
     return phase_label;
   }
@@ -1344,10 +1348,6 @@ function resolveOperationalPreviewPhaseLabel(
 
   if (phase == "ROUND_OF_32") {
     return "32-avos de final";
-  }
-
-  if (phase == "GROUP_STAGE") {
-    return "Grupos";
   }
 
   return null;
@@ -1466,7 +1466,39 @@ function resolvePreviewGeneratedAtLabel(generatedAt: string): string | null {
   });
 }
 
-function resolveExactPreviewCacheFromJob({
+function resolveExactPreviewJobStageLabel(stage: string): string {
+  if (stage == "QUEUED") {
+    return "Na fila";
+  }
+
+  return stage;
+}
+
+function resolveExactPreviewJobElapsedTimeLabel(
+  startedAt: string,
+  currentTime: number,
+): string | null {
+  const startedAtTime = new Date(startedAt).getTime();
+
+  if (Number.isNaN(startedAtTime)) {
+    return null;
+  }
+
+  const elapsedMinutes = Math.max(
+    0,
+    Math.floor((currentTime - startedAtTime) / 60_000),
+  );
+  const elapsedHours = Math.floor(elapsedMinutes / 60);
+  const remainingMinutes = elapsedMinutes % 60;
+
+  if (elapsedHours > 0) {
+    return `${elapsedHours} h${remainingMinutes > 0 ? ` ${remainingMinutes} min` : ""}`;
+  }
+
+  return `${elapsedMinutes} min`;
+}
+
+export function resolveExactPreviewCacheFromJob({
   job,
   localPayloadSignature,
   matchNumberingMode,
@@ -1500,6 +1532,7 @@ function resolveExactPreviewCacheFromJob({
     processed_slots: job.processed_slots,
     total_slots: job.total_slots,
     expires_at: job.expires_at,
+    started_at: job.started_at,
     is_valid_for_creation: job.is_valid_for_creation,
     generated_at: job.completed_at ?? job.created_at,
     result: {
@@ -6678,6 +6711,34 @@ export function AdminChampionshipBracketPage({
     "SCHEDULING",
     "FINALIZING",
   ].includes(exactPreviewCache?.status ?? "");
+  const [exactPreviewJobCurrentTime, setExactPreviewJobCurrentTime] =
+    useState(() => Date.now());
+  const exactPreviewJobStartedAtLabel = useMemo(() => {
+    if (!exactPreviewCache?.started_at) {
+      return null;
+    }
+
+    const parsedStartedAt = new Date(exactPreviewCache.started_at);
+
+    if (Number.isNaN(parsedStartedAt.getTime())) {
+      return null;
+    }
+
+    return parsedStartedAt.toLocaleString("pt-BR", {
+      dateStyle: "short",
+      timeStyle: "short",
+    });
+  }, [exactPreviewCache?.started_at]);
+  const exactPreviewJobElapsedTimeLabel = useMemo(
+    () =>
+      exactPreviewCache?.started_at
+        ? resolveExactPreviewJobElapsedTimeLabel(
+            exactPreviewCache.started_at,
+            exactPreviewJobCurrentTime,
+          )
+        : null,
+    [exactPreviewCache?.started_at, exactPreviewJobCurrentTime],
+  );
   const hasValidExactPreviewCache =
     structuralReviewState.payloadSignature != null &&
     resolveChampionshipBracketExactPreviewCacheValidity({
@@ -6699,6 +6760,20 @@ export function AdminChampionshipBracketPage({
 
     return resolvePreviewGeneratedAtLabel(exactPreviewCache.generated_at);
   }, [exactPreviewCache?.generated_at]);
+
+  useEffect(() => {
+    if (!isExactPreviewJobRunning) {
+      return;
+    }
+
+    setExactPreviewJobCurrentTime(Date.now());
+    const intervalId = window.setInterval(
+      () => setExactPreviewJobCurrentTime(Date.now()),
+      60_000,
+    );
+
+    return () => window.clearInterval(intervalId);
+  }, [isExactPreviewJobRunning]);
 
   const scheduleDayDateById = useMemo(
     () =>
@@ -14481,7 +14556,9 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                         <div className="space-y-2 rounded-xl border border-border/40 bg-background/30 p-4">
                           <div className="flex items-center justify-between gap-3 text-xs">
                             <span className="font-semibold">
-                              {exactPreviewCache.stage}
+                              {resolveExactPreviewJobStageLabel(
+                                exactPreviewCache.stage,
+                              )}
                             </span>
                             <span className="text-muted-foreground">
                               {Math.round(
@@ -14505,6 +14582,17 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                             . Os lotes são retomados automaticamente após
                             falhas de rede ou recarregamento da página.
                           </p>
+                          {exactPreviewJobStartedAtLabel &&
+                          exactPreviewJobElapsedTimeLabel ? (
+                            <p className="text-[11px] text-muted-foreground">
+                              Iniciado em {exactPreviewJobStartedAtLabel} · Em
+                              andamento há {exactPreviewJobElapsedTimeLabel}
+                            </p>
+                          ) : (
+                            <p className="text-[11px] text-muted-foreground">
+                              Aguardando início do processamento.
+                            </p>
+                          )}
                         </div>
                       ) : null}
 
@@ -15285,21 +15373,6 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                             </p>
                           </div>
 
-                          {operationalPreview?.summary ? (
-                            <div className="text-right text-[11px] text-muted-foreground">
-                              <p>
-                                Numeração{" "}
-                                {operationalPreview.match_numbering_mode ==
-                                "SPORT_NAIPE"
-                                  ? "por modalidade + naipe"
-                                  : operationalPreview.match_numbering_mode ==
-                                      "SPORT"
-                                    ? "por modalidade"
-                                    : "por quadra"}
-                              </p>
-                              <p>Fonte: job durável do backend</p>
-                            </div>
-                          ) : null}
                         </div>
 
                         {operationalPreviewError ? (
@@ -15416,19 +15489,6 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
 
                         {operationalPreview?.summary ? (
                           <div className="space-y-6">
-                            {!hasValidExactPreviewCache ? (
-                              <Alert>
-                                <AlertTitle>
-                                  Prévia exata desatualizada
-                                </AlertTitle>
-                                <AlertDescription>
-                                  Os dados abaixo pertencem à última simulação
-                                  salva e não refletem mais o payload atual do
-                                  wizard.
-                                </AlertDescription>
-                              </Alert>
-                            ) : null}
-
                             {operationalPreview.message ? (
                               <Alert>
                                 <AlertTitle>Resumo da prévia</AlertTitle>
@@ -15440,13 +15500,21 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
 
                             <div className="space-y-6">
                               {operationalPreview.days.map((previewDay) => {
+                                const configuredScheduleDay =
+                                  structuralReviewState.payload?.schedule_days.find(
+                                    (scheduleDay) =>
+                                      scheduleDay.date == previewDay.date,
+                                  );
+                                const previewDayHeaderLocations =
+                                  configuredScheduleDay?.locations ??
+                                  previewDay.locations;
                                 const isPreviewDayExpanded =
                                   expandedOperationalPreviewDates.has(
                                     previewDay.date,
                                   );
                                 const previewDayContentId = `operational-preview-day-content-${previewDay.date}`;
                                 const dayCourtCount =
-                                  previewDay.locations.reduce(
+                                  previewDayHeaderLocations.reduce(
                                     (totalCourts, location) =>
                                       totalCourts + location.courts.length,
                                     0,
@@ -15486,15 +15554,18 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                           )}
                                         </p>
                                         <p className="text-xs text-muted-foreground">
-                                          {previewDay.start_time} até{" "}
-                                          {previewDay.end_time}
+                                          {configuredScheduleDay?.start_time ??
+                                            previewDay.start_time}{" "}
+                                          até{" "}
+                                          {configuredScheduleDay?.end_time ??
+                                            previewDay.end_time}
                                         </p>
                                       </div>
 
                                       <div className="flex items-center gap-3 text-right text-xs text-muted-foreground">
                                         <div>
                                           <p>
-                                            {previewDay.locations.length}{" "}
+                                            {previewDayHeaderLocations.length}{" "}
                                             local(is)
                                           </p>
                                           <p>{dayCourtCount} quadra(s)</p>
@@ -15632,14 +15703,6 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                               entry.phase,
                                                               entry.phase_label,
                                                             ),
-                                                            entry.group_number !=
-                                                              null &&
-                                                            entry.phase ==
-                                                              "GROUP_STAGE"
-                                                              ? resolveChampionshipGroupLabel(
-                                                                  entry.group_number,
-                                                                )
-                                                              : null,
                                                           ].filter(Boolean);
 
                                                         if (
@@ -15650,6 +15713,11 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                               entry.phase,
                                                               entry.phase_label,
                                                             );
+                                                          const matchTeamsLabel =
+                                                            entry.home_team_name &&
+                                                            entry.away_team_name
+                                                              ? `${entry.home_team_name} × ${entry.away_team_name}`
+                                                              : null;
 
                                                           return (
                                                             <div
@@ -15708,16 +15776,6 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                         }
                                                                       </span>
                                                                     ) : null}
-                                                                    {entry.group_number !=
-                                                                      null &&
-                                                                    entry.phase ==
-                                                                      "GROUP_STAGE" ? (
-                                                                      <span className="rounded-full border border-border/40 bg-background/60 px-1.5 py-0.5 text-foreground/90 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
-                                                                        {resolveChampionshipGroupLabel(
-                                                                          entry.group_number,
-                                                                        )}
-                                                                      </span>
-                                                                    ) : null}
                                                                     {entry.division ? (
                                                                       <AppBadge
                                                                         tone={
@@ -15739,9 +15797,19 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                   </div>
 
                                                                   <p className="mt-1 truncate text-sm font-semibold leading-tight">
-                                                                    {entry.sport_name ??
+                                                                    {matchTeamsLabel ??
+                                                                      entry.sport_name ??
                                                                       "Jogo"}
                                                                   </p>
+
+                                                                  {matchTeamsLabel &&
+                                                                  entry.sport_name ? (
+                                                                    <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                                                                      {
+                                                                        entry.sport_name
+                                                                      }
+                                                                    </p>
+                                                                  ) : null}
 
                                                                   {entry.projected ? (
                                                                     <p className="mt-1 text-[10px] text-amber-700 dark:text-amber-300">
@@ -15789,6 +15857,12 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                           );
                                                         }
 
+                                                        const isScheduleMarker =
+                                                          entry.type == "EMPTY" ||
+                                                          entry.type == "BREAK" ||
+                                                          entry.type ==
+                                                            "RESERVATION";
+
                                                         return (
                                                           <div
                                                             key={`preview-day-${previewDay.date}-court-${court.court_key}-entry-${entryIndex}`}
@@ -15799,28 +15873,37 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                               ),
                                                             )}
                                                           >
-                                                            <div className="flex items-start justify-between gap-3">
-                                                              <div>
-                                                                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                                                  {resolveOperationalPreviewEntryTypeLabel(
-                                                                    entry,
-                                                                  )}
-                                                                </p>
-                                                                <p className="mt-1 text-sm font-semibold">
+                                                            <div
+                                                              className={cn(
+                                                                "flex gap-3",
+                                                                isScheduleMarker
+                                                                  ? "items-center justify-between"
+                                                                  : "items-start justify-between",
+                                                              )}
+                                                            >
+                                                              {isScheduleMarker ? (
+                                                                <p className="text-sm font-semibold">
                                                                   {entry.type ==
-                                                                  "EMPTY"
-                                                                      ? "Janela livre"
-                                                                      : entry.type ==
-                                                                          "BREAK"
-                                                                        ? "Intervalo"
-                                                                        : entry.type ==
-                                                                            "RESERVATION"
-                                                                          ? (entry.reason ??
-                                                                            "Reserva")
-                                                                          : (entry.sport_name ??
-                                                                            "Sessão individual")}
+                                                                  "RESERVATION"
+                                                                    ? (entry.reason ??
+                                                                      "Reserva")
+                                                                    : resolveOperationalPreviewEntryTypeLabel(
+                                                                        entry,
+                                                                      )}
                                                                 </p>
-                                                              </div>
+                                                              ) : (
+                                                                <div>
+                                                                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                                                    {resolveOperationalPreviewEntryTypeLabel(
+                                                                      entry,
+                                                                    )}
+                                                                  </p>
+                                                                  <p className="mt-1 text-sm font-semibold">
+                                                                    {entry.sport_name ??
+                                                                      "Sessão individual"}
+                                                                  </p>
+                                                                </div>
+                                                              )}
 
                                                               <div className="text-right">
                                                                 <p className="text-sm font-semibold">
@@ -15841,8 +15924,9 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                               </div>
                                                             </div>
 
-                                                            {matchDetailParts.length >
-                                                            0 ? (
+                                                            {!isScheduleMarker &&
+                                                            matchDetailParts.length >
+                                                              0 ? (
                                                               <p className="mt-2 text-xs text-muted-foreground">
                                                                 {matchDetailParts.join(
                                                                   " • ",
@@ -15850,7 +15934,8 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                               </p>
                                                             ) : null}
 
-                                                            {entry.reason &&
+                                                            {!isScheduleMarker &&
+                                                            entry.reason &&
                                                             entry.type !=
                                                               "RESERVATION" ? (
                                                               <p className="mt-2 text-[11px] text-muted-foreground">

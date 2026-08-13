@@ -7,7 +7,10 @@ import {
   within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AdminChampionshipBracketPage } from "@/components/admin/AdminChampionshipBracketPage";
+import {
+  AdminChampionshipBracketPage,
+  resolveExactPreviewCacheFromJob,
+} from "@/components/admin/AdminChampionshipBracketPage";
 import { ChampionshipBracketSetupDTO } from "@/domain/championship-brackets/ChampionshipBracketSetupDTO";
 import { resolveChampionshipBracketExactPreviewPayloadSignature } from "@/domain/championship-brackets/championshipBracketStructuralReview";
 import { sanitizeChampionshipBracketWizardDraft } from "@/domain/championship-brackets/championshipBracketWizardSync";
@@ -456,9 +459,13 @@ function buildExactPreviewResult(): ChampionshipBracketPreviewResult {
                     naipe: MatchNaipe.MASCULINO,
                     division: TeamDivision.DIVISAO_PRINCIPAL,
                     phase: "GROUP_STAGE",
-                    phase_label: "Fase de grupos",
+                    phase_label: "Grupos",
                     group_number: 1,
                     round_number: null,
+                    home_team_id: "team-1",
+                    home_team_name: "Atlética A",
+                    away_team_id: "team-2",
+                    away_team_name: "Atlética B",
                     reason_code: null,
                     reason: null,
                     projected: false,
@@ -539,6 +546,7 @@ function buildExactPreviewJob(
     algorithm_version: "async-exact-v8",
     generation_signature: "generation-signature",
     created_at: "2026-08-12T02:00:00.000Z",
+    started_at: "2026-08-12T02:00:30.000Z",
     completed_at: "2026-08-12T02:01:00.000Z",
     expires_at: "2099-08-19T02:01:00.000Z",
     is_valid_for_creation: true,
@@ -743,9 +751,46 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
     expect(
       await screen.findByText("Prévia exata em processamento"),
     ).toBeInTheDocument();
+    expect(screen.getByText(/Iniciado em/)).toBeInTheDocument();
+    expect(screen.getByText(/Em andamento há/)).toBeInTheDocument();
     expect(
       screen.queryByText("Prévia exata com pendências impeditivas"),
     ).not.toBeInTheDocument();
+  });
+
+  it("traduz o estágio técnico de fila da prévia exata", async () => {
+    fetchChampionshipBracketWizardDraftMock.mockResolvedValue({
+      draft_form_values: buildDraft(),
+      metadata: null,
+      source: "local",
+    });
+    const queuedJob = buildExactPreviewJob({
+      status: "QUEUED",
+      stage: "QUEUED",
+      progress_percentage: 0,
+      processed_slots: 0,
+      completed_at: null,
+      is_valid_for_creation: false,
+    });
+    startChampionshipBracketPreviewJobMock.mockResolvedValue({
+      data: queuedJob,
+      error: null,
+    });
+    fetchChampionshipBracketPreviewJobStatusMock.mockResolvedValue({
+      data: queuedJob,
+      error: null,
+    });
+
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Calcular programação exata",
+      }),
+    );
+
+    expect(await screen.findByText("Na fila")).toBeInTheDocument();
+    expect(screen.queryByText("QUEUED")).not.toBeInTheDocument();
   });
 
   it("exibe os jogos não alocados quando o job falha sem resumo", async () => {
@@ -861,10 +906,28 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
     );
     expect(fetchChampionshipBracketPreviewJobDayMock).not.toHaveBeenCalled();
 
+    const collapsedExactPreviewDayButton = screen.getByRole("button", {
+      name: "Expandir programação de 29/08/2026",
+    });
+    const collapsedExactPreviewDayCard =
+      collapsedExactPreviewDayButton.closest("section");
+
+    expect(collapsedExactPreviewDayCard).not.toBeNull();
+
+    const collapsedExactPreviewDay = within(collapsedExactPreviewDayCard!);
+
+    expect(
+      collapsedExactPreviewDay.getByText("08:00 até 18:00"),
+    ).toBeInTheDocument();
+    expect(
+      collapsedExactPreviewDay.getByText("1 local(is)"),
+    ).toBeInTheDocument();
+    expect(
+      collapsedExactPreviewDay.getByText("1 quadra(s)"),
+    ).toBeInTheDocument();
+
     fireEvent.click(
-      screen.getByRole("button", {
-        name: "Expandir programação de 29/08/2026",
-      }),
+      collapsedExactPreviewDayButton,
     );
 
     await waitFor(() =>
@@ -892,12 +955,48 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
     expect(exactPreviewDay.getByText("Jogo 1")).toBeInTheDocument();
     expect(exactPreviewDay.getByText("Masculino")).toBeInTheDocument();
     expect(exactPreviewDay.getByText("Fase de grupos")).toBeInTheDocument();
-    expect(exactPreviewDay.getByText("Grupo A")).toBeInTheDocument();
+    expect(exactPreviewDay.queryByText("Grupo A")).not.toBeInTheDocument();
+    expect(
+      exactPreviewDay.getByText("Atlética A × Atlética B"),
+    ).toBeInTheDocument();
     expect(exactPreviewDay.getByText("Futsal")).toBeInTheDocument();
     expect(exactPreviewDay.getByText("Reserva fixa")).toBeInTheDocument();
-    expect(exactPreviewDay.getAllByText("Janela livre")).toHaveLength(2);
-    expect(exactPreviewDay.getAllByText("Intervalo")).toHaveLength(2);
+    expect(exactPreviewDay.getAllByText("Janela livre")).toHaveLength(1);
+    expect(exactPreviewDay.getAllByText("Intervalo")).toHaveLength(1);
     expect(screen.queryByText("Jogos totais")).not.toBeInTheDocument();
+  });
+
+  it("mantém todos os schedule_days da prévia exata, inclusive o dia sem jogos de grupos", () => {
+    const setupPayload = buildSetupPayloadFromDraft(buildDraft());
+    const scheduleDays = [
+      ...setupPayload.schedule_days,
+      {
+        date: "2026-09-19",
+        start_time: "09:00",
+        end_time: "12:00",
+        break_start_time: null,
+        break_end_time: null,
+        locations: [],
+      },
+    ];
+
+    const cache = resolveExactPreviewCacheFromJob({
+      job: buildExactPreviewJob(),
+      localPayloadSignature: "payload-signature",
+      matchNumberingMode: "COURT",
+      previousResult: buildExactPreviewResult(),
+      scheduleDays,
+    });
+
+    expect(cache.result?.days.map((day) => day.date)).toEqual([
+      "2026-08-29",
+      "2026-09-19",
+    ]);
+    expect(cache.result?.days[1]).toMatchObject({
+      start_time: "09:00",
+      end_time: "12:00",
+      locations: [],
+    });
   });
 
   it("mantém os dias da revisão estrutural recolhidos até o admin expandir", async () => {
@@ -1303,7 +1402,10 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
     expect(
       await screen.findByText("Última simulação exata desatualizada"),
     ).toBeInTheDocument();
-    expect(screen.getByText("Prévia exata desatualizada")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Prévia exata desatualizada"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Fonte: job durável/i)).not.toBeInTheDocument();
   });
 
   it("invalida uma prévia concluída pela versão antiga do algoritmo", async () => {
