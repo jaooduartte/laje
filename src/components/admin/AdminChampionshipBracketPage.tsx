@@ -132,6 +132,7 @@ import type {
   ChampionshipBracketMatchNumberingMode,
   ChampionshipBracketLocationTemplate,
   ChampionshipBracketLocationTemplateSaveInput,
+  ChampionshipBracketPreviewJobEvent,
   ChampionshipBracketRemoteDraftMetadata,
   ChampionshipBracketIndividualEventConfigInput,
   ChampionshipBracketSetupFormValues,
@@ -1467,11 +1468,100 @@ function resolvePreviewGeneratedAtLabel(generatedAt: string): string | null {
 }
 
 function resolveExactPreviewJobStageLabel(stage: string): string {
-  if (stage == "QUEUED") {
-    return "Na fila";
+  const stageLabels: Record<string, string> = {
+    QUEUED: "Na fila",
+    INITIALIZING: "Preparando programação",
+    SCHEDULING_GROUPS: "Programando fase de grupos",
+    COMPACTING_GROUPS: "Ajustando programação da fase de grupos",
+    SCHEDULING_KNOCKOUT: "Programando mata-mata",
+    FINALIZING: "Finalizando programação",
+  };
+
+  return stageLabels[stage] ?? stage;
+}
+
+function resolveExactPreviewJobStatusLabel(
+  status: ChampionshipBracketPreviewJobEvent["status"],
+): string | null {
+  const statusLabels = {
+    QUEUED: "Na fila",
+    INITIALIZING: "Em preparação",
+    SCHEDULING: "Em andamento",
+    FINALIZING: "Em finalização",
+    COMPLETED: "Concluído",
+    FAILED: "Falhou",
+    CANCELLED: "Cancelado",
+    CONSUMED: "Utilizado para criar o campeonato",
+  } satisfies Record<NonNullable<ChampionshipBracketPreviewJobEvent["status"]>, string>;
+
+  return status ? statusLabels[status] : null;
+}
+
+function resolveExactPreviewJobEventLabel(
+  event: ChampionshipBracketPreviewJobEvent,
+): string {
+  if (event.event_type == "STAGE_CHANGED") {
+    return event.stage
+      ? resolveExactPreviewJobStageLabel(event.stage)
+      : (resolveExactPreviewJobStatusLabel(event.status) ?? "Job atualizado");
   }
 
-  return stage;
+  if (event.event_type == "PENDING_MATCH_COUNT_DECREASED") {
+    const { pending_matches_after, pending_matches_before } = event.details;
+
+    if (
+      typeof pending_matches_before == "number" &&
+      typeof pending_matches_after == "number"
+    ) {
+      return `Pendências reduzidas: ${pending_matches_before} → ${pending_matches_after}`;
+    }
+
+    return "Pendências reduzidas";
+  }
+
+  const phaseLabelByValue: Record<string, string> = {
+    GROUP_STAGE: "Fase de grupos",
+    ROUND_OF_32: "32-avos de final",
+    ROUND_OF_16: "Oitavas de final",
+    QUARTERFINAL: "Quartas de final",
+    SEMIFINAL: "Semifinal",
+    FINAL: "Final",
+  };
+  const phaseLabel = event.details.phase
+    ? (phaseLabelByValue[event.details.phase] ?? event.details.phase)
+    : null;
+  const matchContext = [
+    event.details.sport_name,
+    phaseLabel,
+    event.details.group_number != null
+      ? `Grupo ${event.details.group_number}`
+      : null,
+    event.details.logical_key,
+  ].filter((value): value is string => value != null && value != "");
+
+  return `Jogo encaixado${matchContext.length > 0 ? `: ${matchContext.join(" · ")}` : ""}`;
+}
+
+function resolveExactPreviewJobEventDetails(
+  event: ChampionshipBracketPreviewJobEvent,
+): string | null {
+  if (event.event_type == "STAGE_CHANGED") {
+    return resolveExactPreviewJobStatusLabel(event.status);
+  }
+
+  const schedulingDetails = [
+    event.details.date
+      ? resolveBrazilianDateString(event.details.date)
+      : null,
+    event.details.start_at && event.details.end_at
+      ? `${event.details.start_at}–${event.details.end_at}`
+      : null,
+    [event.details.location_name, event.details.court_name]
+      .filter((value) => value != null && value != "")
+      .join(" · ") || null,
+  ].filter((value): value is string => value != null && value != "");
+
+  return schedulingDetails.length > 0 ? schedulingDetails.join(" · ") : null;
 }
 
 function resolveExactPreviewJobElapsedTimeLabel(
@@ -1484,18 +1574,24 @@ function resolveExactPreviewJobElapsedTimeLabel(
     return null;
   }
 
-  const elapsedMinutes = Math.max(
+  const elapsedSeconds = Math.max(
     0,
-    Math.floor((currentTime - startedAtTime) / 60_000),
+    Math.floor((currentTime - startedAtTime) / 1_000),
   );
+  const elapsedMinutes = Math.floor(elapsedSeconds / 60);
   const elapsedHours = Math.floor(elapsedMinutes / 60);
   const remainingMinutes = elapsedMinutes % 60;
+  const remainingSeconds = elapsedSeconds % 60;
 
   if (elapsedHours > 0) {
     return `${elapsedHours} h${remainingMinutes > 0 ? ` ${remainingMinutes} min` : ""}`;
   }
 
-  return `${elapsedMinutes} min`;
+  if (elapsedMinutes > 0) {
+    return `${elapsedMinutes} min${remainingSeconds > 0 ? ` ${remainingSeconds} s` : ""}`;
+  }
+
+  return `${remainingSeconds} s`;
 }
 
 function resolveEditableDraftSnapshot(
@@ -1784,6 +1880,8 @@ export function AdminChampionshipBracketPage({
 
   const [exactPreviewCache, setExactPreviewCache] =
     useState<ChampionshipBracketExactPreviewCache | null>(null);
+  const [cancellingOperationalPreview, setCancellingOperationalPreview] =
+    useState(false);
 
   const [loadingOperationalPreview, setLoadingOperationalPreview] =
     useState(false);
@@ -2183,6 +2281,8 @@ export function AdminChampionshipBracketPage({
               processed_slots: exactPreviewCache.processed_slots,
               total_slots: exactPreviewCache.total_slots,
               expires_at: exactPreviewCache.expires_at,
+              started_at: exactPreviewCache.started_at,
+              completed_at: exactPreviewCache.completed_at,
               is_valid_for_creation:
                 exactPreviewCache.is_valid_for_creation,
               generated_at: exactPreviewCache.generated_at,
@@ -6642,6 +6742,15 @@ export function AdminChampionshipBracketPage({
   }, [championshipSports, resolveSetupPayload, teams]);
 
   const operationalPreview = exactPreviewCache?.result ?? null;
+  const visibleExactPreviewJobEvents = useMemo(
+    () =>
+      (exactPreviewCache?.events ?? []).filter(
+        (event) =>
+          event.event_type == "STAGE_CHANGED" ||
+          event.event_type == "PENDING_MATCH_COUNT_DECREASED",
+      ),
+    [exactPreviewCache?.events],
+  );
   const isExactPreviewJobRunning = [
     "QUEUED",
     "INITIALIZING",
@@ -6671,10 +6780,23 @@ export function AdminChampionshipBracketPage({
       exactPreviewCache?.started_at
         ? resolveExactPreviewJobElapsedTimeLabel(
             exactPreviewCache.started_at,
-            exactPreviewJobCurrentTime,
+            exactPreviewCache.completed_at
+              ? new Date(exactPreviewCache.completed_at).getTime()
+              : exactPreviewJobCurrentTime,
           )
         : null,
-    [exactPreviewCache?.started_at, exactPreviewJobCurrentTime],
+    [
+      exactPreviewCache?.completed_at,
+      exactPreviewCache?.started_at,
+      exactPreviewJobCurrentTime,
+    ],
+  );
+  const exactPreviewJobCompletedAtLabel = useMemo(
+    () =>
+      exactPreviewCache?.completed_at
+        ? resolvePreviewGeneratedAtLabel(exactPreviewCache.completed_at)
+        : null,
+    [exactPreviewCache?.completed_at],
   );
   const hasValidExactPreviewCache =
     structuralReviewState.payloadSignature != null &&
@@ -6706,7 +6828,7 @@ export function AdminChampionshipBracketPage({
     setExactPreviewJobCurrentTime(Date.now());
     const intervalId = window.setInterval(
       () => setExactPreviewJobCurrentTime(Date.now()),
-      60_000,
+      1_000,
     );
 
     return () => window.clearInterval(intervalId);
@@ -6850,9 +6972,7 @@ export function AdminChampionshipBracketPage({
     if (
       !jobId ||
       !jobStatus ||
-      !["QUEUED", "INITIALIZING", "SCHEDULING", "FINALIZING"].includes(
-        jobStatus,
-      ) ||
+      exactPreviewCache?.algorithm_version != "async-exact-v8" ||
       !structuralReviewState.payloadSignature ||
       exactPreviewCache?.payload_signature !=
         structuralReviewState.payloadSignature
@@ -6868,6 +6988,17 @@ export function AdminChampionshipBracketPage({
 
       setExactPreviewCache((currentCache) => {
         if (!currentCache || currentCache.job_id != jobId) return currentCache;
+        if (
+          ["COMPLETED", "FAILED", "CANCELLED", "CONSUMED"].includes(
+            currentCache.status,
+          ) &&
+          ["QUEUED", "INITIALIZING", "SCHEDULING", "FINALIZING"].includes(
+            previewJob.status,
+          )
+        ) {
+          return currentCache;
+        }
+
         return resolveExactPreviewCacheFromJob({
           job: previewJob,
           localPayloadSignature: currentCache.payload_signature,
@@ -6879,12 +7010,24 @@ export function AdminChampionshipBracketPage({
     };
 
     void pollJob();
+
+    if (
+      !["QUEUED", "INITIALIZING", "SCHEDULING", "FINALIZING"].includes(
+        jobStatus,
+      )
+    ) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
     const intervalId = window.setInterval(() => void pollJob(), 2000);
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
     };
   }, [
+    exactPreviewCache?.algorithm_version,
     exactPreviewCache?.job_id,
     exactPreviewCache?.payload_signature,
     exactPreviewCache?.status,
@@ -6946,22 +7089,46 @@ export function AdminChampionshipBracketPage({
   );
 
   const cancelOperationalPreview = useCallback(async () => {
-    if (!exactPreviewCache?.job_id) return;
-    const response = await cancelChampionshipBracketPreviewJob(
-      exactPreviewCache.job_id,
-    );
-    if (response.data && structuralReviewState.payloadSignature) {
-      setExactPreviewCache(
-        resolveExactPreviewCacheFromJob({
-          job: response.data,
-          localPayloadSignature: structuralReviewState.payloadSignature,
-          matchNumberingMode,
-          previousResult: exactPreviewCache.result,
-          scheduleDays: structuralReviewState.payload?.schedule_days ?? [],
-        }),
+    if (!exactPreviewCache?.job_id || cancellingOperationalPreview) return;
+
+    setCancellingOperationalPreview(true);
+
+    try {
+      const response = await cancelChampionshipBracketPreviewJob(
+        exactPreviewCache.job_id,
       );
+
+      if (response.error) {
+        throw response.error;
+      }
+
+      if (response.data && structuralReviewState.payloadSignature) {
+        setExactPreviewCache(
+          resolveExactPreviewCacheFromJob({
+            job: response.data,
+            localPayloadSignature: structuralReviewState.payloadSignature,
+            matchNumberingMode,
+            previousResult: exactPreviewCache.result,
+            scheduleDays: structuralReviewState.payload?.schedule_days ?? [],
+          }),
+        );
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível cancelar o cálculo.",
+      );
+    } finally {
+      setCancellingOperationalPreview(false);
     }
-  }, [exactPreviewCache, matchNumberingMode, structuralReviewState.payload?.schedule_days, structuralReviewState.payloadSignature]);
+  }, [
+    cancellingOperationalPreview,
+    exactPreviewCache,
+    matchNumberingMode,
+    structuralReviewState.payload?.schedule_days,
+    structuralReviewState.payloadSignature,
+  ]);
 
   const persistBeachSoccerEstimatedStartTimeSetting = useCallback(async () => {
     const beachSoccerChampionshipSports = championshipSports.filter(
@@ -14489,14 +14656,21 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                     </Alert>
                   ) : structuralReviewState.review ? (
                     <div className="space-y-6">
-                      {isExactPreviewJobRunning && exactPreviewCache ? (
+                      {exactPreviewCache ? (
                         <div className="space-y-2 rounded-xl border border-border/40 bg-background/30 p-4">
                           <div className="flex items-center justify-between gap-3 text-xs">
-                            <span className="font-semibold">
-                              {resolveExactPreviewJobStageLabel(
-                                exactPreviewCache.stage,
-                              )}
-                            </span>
+                            <div className="min-w-0">
+                              <span className="font-semibold">
+                                {resolveExactPreviewJobStageLabel(
+                                  exactPreviewCache.stage,
+                                )}
+                              </span>
+                              {!isExactPreviewJobRunning ? (
+                                <span className="ml-2 text-muted-foreground">
+                                  · {resolveExactPreviewJobStatusLabel(exactPreviewCache.status)}
+                                </span>
+                              ) : null}
+                            </div>
                             <span className="text-muted-foreground">
                               {Math.round(
                                 exactPreviewCache.progress_percentage,
@@ -14522,14 +14696,50 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                           {exactPreviewJobStartedAtLabel &&
                           exactPreviewJobElapsedTimeLabel ? (
                             <p className="text-[11px] text-muted-foreground">
-                              Iniciado em {exactPreviewJobStartedAtLabel} · Em
-                              andamento há {exactPreviewJobElapsedTimeLabel}
+                              Iniciado em {exactPreviewJobStartedAtLabel} · {" "}
+                              {exactPreviewCache.completed_at
+                                ? `Duração total: ${exactPreviewJobElapsedTimeLabel}`
+                                : `Em andamento há ${exactPreviewJobElapsedTimeLabel}`}
+                              {exactPreviewJobCompletedAtLabel
+                                ? ` · Finalizado em ${exactPreviewJobCompletedAtLabel}`
+                                : ""}
                             </p>
                           ) : (
                             <p className="text-[11px] text-muted-foreground">
                               Aguardando início do processamento.
                             </p>
                           )}
+                          {visibleExactPreviewJobEvents.length > 0 ? (
+                            <details className="pt-1 text-[11px] text-muted-foreground">
+                              <summary className="cursor-pointer font-medium text-foreground">
+                                Histórico do job ({visibleExactPreviewJobEvents.length} registro(s))
+                              </summary>
+                              <ol className="mt-2 max-h-64 space-y-2 overflow-y-auto border-l border-border/60 pl-3">
+                                {visibleExactPreviewJobEvents.map(
+                                  (event, index) => (
+                                    <li
+                                      key={`${event.occurred_at}-${event.event_type}-${index}`}
+                                      className="space-y-0.5"
+                                    >
+                                      <p className="font-medium text-foreground">
+                                        {resolveExactPreviewJobEventLabel(event)}
+                                      </p>
+                                      <p>
+                                        {resolvePreviewGeneratedAtLabel(
+                                          event.occurred_at,
+                                        ) ?? event.occurred_at}
+                                        {resolveExactPreviewJobEventDetails(
+                                          event,
+                                        )
+                                          ? ` · ${resolveExactPreviewJobEventDetails(event)}`
+                                          : ""}
+                                      </p>
+                                    </li>
+                                  ),
+                                )}
+                              </ol>
+                            </details>
+                          ) : null}
                         </div>
                       ) : null}
 
@@ -14574,8 +14784,16 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                               type="button"
                               variant="outline"
                               onClick={() => void cancelOperationalPreview()}
+                              disabled={cancellingOperationalPreview}
                             >
-                              Cancelar cálculo
+                              {cancellingOperationalPreview ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Cancelando cálculo...
+                                </>
+                              ) : (
+                                "Cancelar cálculo"
+                              )}
                             </Button>
                           ) : null}
                         </div>

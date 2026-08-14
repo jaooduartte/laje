@@ -548,6 +548,7 @@ function buildExactPreviewJob(
     completed_at: "2026-08-12T02:01:00.000Z",
     expires_at: "2099-08-19T02:01:00.000Z",
     is_valid_for_creation: true,
+    events: [],
     ...overrides,
   };
 }
@@ -715,6 +716,144 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
     );
   });
 
+  it("mantém o histórico e a duração do job concluído visíveis", async () => {
+    fetchChampionshipBracketWizardDraftMock.mockResolvedValue({
+      draft_form_values: buildDraft(),
+      metadata: null,
+      source: "local",
+    });
+    const completedJob = buildExactPreviewJob({
+      events: [
+        {
+          event_type: "STAGE_CHANGED",
+          stage: "SCHEDULING_GROUPS",
+          status: "SCHEDULING",
+          occurred_at: "2026-08-12T02:00:30.000Z",
+          details: {},
+        },
+        {
+          event_type: "PENDING_MATCH_COUNT_DECREASED",
+          stage: "COMPACTING_GROUPS",
+          status: "SCHEDULING",
+          occurred_at: "2026-08-12T02:00:45.000Z",
+          details: {
+            pending_matches_before: 4,
+            pending_matches_after: 3,
+          },
+        },
+        {
+          event_type: "GROUP_MATCH_SCHEDULED",
+          stage: "SCHEDULING_GROUPS",
+          status: "SCHEDULING",
+          occurred_at: "2026-08-12T02:00:50.000Z",
+          details: {
+            logical_key: "initial-group-match",
+            sport_name: "Tênis",
+            phase: "GROUP_STAGE",
+          },
+        },
+        {
+          event_type: "STAGE_CHANGED",
+          stage: "Falha após cinco tentativas",
+          status: "FAILED",
+          occurred_at: "2026-08-12T02:01:00.000Z",
+          details: {},
+        },
+      ],
+    });
+    startChampionshipBracketPreviewJobMock.mockResolvedValue({
+      data: completedJob,
+      error: null,
+    });
+    fetchChampionshipBracketPreviewJobStatusMock.mockResolvedValue({
+      data: completedJob,
+      error: null,
+    });
+
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Calcular programação exata",
+      }),
+    );
+
+    expect(await screen.findByText(/Duração total: 30 s/)).toBeInTheDocument();
+    expect(
+      screen.getByText("Histórico do job (3 registro(s))"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Programando fase de grupos")).toBeInTheDocument();
+    expect(screen.getByText("Pendências reduzidas: 4 → 3")).toBeInTheDocument();
+    expect(screen.getByText("Falha após cinco tentativas")).toBeInTheDocument();
+    expect(screen.queryByText(/Jogo encaixado: Tênis/)).not.toBeInTheDocument();
+  });
+
+  it("bloqueia o cancelamento enquanto a solicitação está em andamento", async () => {
+    fetchChampionshipBracketWizardDraftMock.mockResolvedValue({
+      draft_form_values: buildDraft(),
+      metadata: null,
+      source: "local",
+    });
+    const runningJob = buildExactPreviewJob({
+      status: "SCHEDULING",
+      stage: "SCHEDULING_GROUPS",
+      completed_at: null,
+      is_valid_for_creation: false,
+    });
+    startChampionshipBracketPreviewJobMock.mockResolvedValue({
+      data: runningJob,
+      error: null,
+    });
+    fetchChampionshipBracketPreviewJobStatusMock.mockResolvedValue({
+      data: runningJob,
+      error: null,
+    });
+    let resolveCancellation: (value: {
+      data: ChampionshipBracketPreviewJob | null;
+      error: Error | null;
+    }) => void;
+    cancelChampionshipBracketPreviewJobMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveCancellation = resolve;
+        }),
+    );
+
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Calcular programação exata",
+      }),
+    );
+
+    const cancelButton = await screen.findByRole("button", {
+      name: "Cancelar cálculo",
+    });
+    fireEvent.click(cancelButton);
+
+    expect(cancelButton).toBeDisabled();
+    expect(screen.getByText("Cancelando cálculo...")).toBeInTheDocument();
+
+    await act(async () => {
+      resolveCancellation({
+        data: buildExactPreviewJob({
+          status: "CANCELLED",
+          stage: "Cancelado",
+          completed_at: "2026-08-12T02:01:00.000Z",
+          is_valid_for_creation: false,
+        }),
+        error: null,
+      });
+    });
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "Cancelar cálculo" }),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
   it("aguarda a conclusão da prévia para exibir pendências impeditivas", async () => {
     fetchChampionshipBracketWizardDraftMock.mockResolvedValue({
       draft_form_values: buildDraft(),
@@ -723,7 +862,7 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
     });
     const runningJob = buildExactPreviewJob({
       status: "SCHEDULING",
-      stage: "Distribuindo jogos por dia",
+      stage: "SCHEDULING_GROUPS",
       progress_percentage: 66,
       processed_slots: 430,
       completed_at: null,
@@ -749,6 +888,10 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
     expect(
       await screen.findByText("Prévia exata em processamento"),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText("Programando fase de grupos"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("SCHEDULING_GROUPS")).not.toBeInTheDocument();
     expect(screen.getByText(/Iniciado em/)).toBeInTheDocument();
     expect(screen.getByText(/Em andamento há/)).toBeInTheDocument();
     expect(

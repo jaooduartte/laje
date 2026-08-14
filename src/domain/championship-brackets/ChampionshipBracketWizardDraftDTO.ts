@@ -238,6 +238,13 @@ function resolveExactPreviewCache(
     processed_slots: parsedCache.processed_slots,
     total_slots: parsedCache.total_slots,
     expires_at: parsedCache.expires_at,
+    started_at:
+      typeof parsedCache.started_at == "string" ? parsedCache.started_at : null,
+    completed_at:
+      typeof parsedCache.completed_at == "string"
+        ? parsedCache.completed_at
+        : null,
+    events: [],
     is_valid_for_creation: parsedCache.is_valid_for_creation,
     generated_at: parsedCache.generated_at,
     result: previewResult,

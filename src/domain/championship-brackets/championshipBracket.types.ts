@@ -393,6 +393,36 @@ export type ChampionshipBracketPreviewJobStatus =
   | "CANCELLED"
   | "CONSUMED";
 
+export type ChampionshipBracketPreviewJobEventType =
+  | "STAGE_CHANGED"
+  | "GROUP_MATCH_SCHEDULED"
+  | "KNOCKOUT_MATCH_SCHEDULED"
+  | "PENDING_MATCH_COUNT_DECREASED";
+
+export interface ChampionshipBracketPreviewJobEvent {
+  event_type: ChampionshipBracketPreviewJobEventType;
+  stage: string | null;
+  status: ChampionshipBracketPreviewJobStatus | null;
+  occurred_at: string;
+  details: {
+    logical_key?: string;
+    sport_name?: string;
+    naipe?: string;
+    division?: string | null;
+    group_number?: number;
+    round_number?: number;
+    phase?: string;
+    date?: string;
+    start_at?: string;
+    end_at?: string;
+    location_name?: string;
+    court_name?: string;
+    pending_matches_before?: number;
+    pending_matches_after?: number;
+    pending_matches?: number;
+  };
+}
+
 export interface ChampionshipBracketPreviewJob {
   job_id: string;
   championship_id: string;
@@ -416,6 +446,7 @@ export interface ChampionshipBracketPreviewJob {
   completed_at: string | null;
   expires_at: string;
   is_valid_for_creation: boolean;
+  events: ChampionshipBracketPreviewJobEvent[];
 }
 
 export interface ChampionshipBracketExactPreviewCache {
@@ -437,6 +468,10 @@ export interface ChampionshipBracketExactPreviewCache {
   expires_at: string;
   /** Disponível somente durante a sessão para informar o andamento do job. */
   started_at?: string | null;
+  /** Disponível somente durante a sessão para informar a duração final do job. */
+  completed_at?: string | null;
+  /** Histórico operacional retornado pelo job para a sessão atual. */
+  events?: ChampionshipBracketPreviewJobEvent[];
   /** Só é verdadeiro quando a prévia não contém pendências impeditivas. */
   is_valid_for_creation: boolean;
   generated_at: string;

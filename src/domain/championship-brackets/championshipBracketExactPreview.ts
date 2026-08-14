@@ -41,6 +41,8 @@ export function resolveExactPreviewCacheFromJob({
     total_slots: job.total_slots,
     expires_at: job.expires_at,
     started_at: job.started_at,
+    completed_at: job.completed_at,
+    events: job.events,
     is_valid_for_creation: job.is_valid_for_creation,
     generated_at: job.completed_at ?? job.created_at,
     result: {
