@@ -29,6 +29,7 @@ import type {
   ChampionshipBracketReconfigurationPreview,
 } from "@/domain/championship-brackets/championshipBracket.types";
 import type { ChampionshipKnockoutPairingMode } from "@/domain/championship-brackets/championshipBracketPairing";
+import { resolveBracketDaySchedules } from "@/domain/championship-brackets/championshipBracketSchedule.utils";
 import type { ChampionshipBracketView } from "@/lib/types";
 import type { MatchNaipe, TeamDivision } from "@/lib/enums";
 
@@ -577,21 +578,26 @@ export async function swapChampionshipKnockoutBracketTeams(
 export async function getBracketDaySchedules(
   bracketEditionId: string,
 ): Promise<{ data: BracketDaySchedule[]; error: Error | null }> {
-  const response = await supabase
-    .from("championship_bracket_days")
-    .select(
-      `
+  const [scheduleResponse, editionResponse] = await Promise.all([
+    supabase
+      .from("championship_bracket_days")
+      .select(
+        `
       id,
       event_date,
       start_time,
       end_time,
+      break_start_time,
+      break_end_time,
       championship_bracket_locations (
         id,
         name,
+        position,
         location_group_id,
         championship_bracket_courts (
           id,
           name,
+          position,
           court_group_id
         )
       ),
@@ -605,66 +611,27 @@ export async function getBracketDaySchedules(
         bracket_court_id
       )
     `,
-    )
-    .eq("bracket_edition_id", bracketEditionId)
-    .order("event_date", { ascending: true });
+      )
+      .eq("bracket_edition_id", bracketEditionId)
+      .order("event_date", { ascending: true }),
+    supabase
+      .from("championship_bracket_editions")
+      .select("payload_snapshot")
+      .eq("id", bracketEditionId)
+      .maybeSingle(),
+  ]);
 
-  if (response.error) {
-    return { data: [], error: response.error };
+  if (scheduleResponse.error) {
+    return { data: [], error: scheduleResponse.error };
   }
 
-  const data: BracketDaySchedule[] = (response.data ?? []).map((day) => {
-    const rawDay = day as unknown as {
-      id: string;
-      event_date: string;
-      start_time: string;
-      end_time: string;
-      championship_bracket_locations: Array<{
-        id: string;
-        name: string;
-        location_group_id: string;
-        championship_bracket_courts: Array<{
-          id: string;
-          name: string;
-          court_group_id: string;
-        }> | null;
-      }> | null;
-      championship_bracket_day_breaks: Array<{
-        id: string;
-        bracket_day_id: string;
-        break_start_time: string;
-        break_end_time: string;
-        position: number;
-        scope_type: "ALL_COURTS" | "COURT";
-        bracket_court_id: string | null;
-      }> | null;
-    };
-
-    const breaks = (rawDay.championship_bracket_day_breaks ?? []).sort(
-      (a, b) => a.position - b.position,
-    );
-    const courts = (rawDay.championship_bracket_locations ?? []).flatMap(
-      (location) =>
-        (location.championship_bracket_courts ?? []).map((court) => ({
-          id: court.id,
-          court_group_id: court.court_group_id,
-          name: court.name,
-          location_name: location.name,
-          label: `${location.name} • ${court.name}`,
-        })),
-    );
-
-    return {
-      id: rawDay.id,
-      event_date: rawDay.event_date,
-      start_time: rawDay.start_time,
-      end_time: rawDay.end_time,
-      breaks,
-      courts,
-    };
-  });
-
-  return { data, error: null };
+  return {
+    data: resolveBracketDaySchedules(
+      scheduleResponse.data ?? [],
+      editionResponse.data?.payload_snapshot,
+    ),
+    error: null,
+  };
 }
 
 export async function updateBracketDaySchedule(

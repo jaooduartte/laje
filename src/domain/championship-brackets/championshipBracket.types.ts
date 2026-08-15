@@ -900,8 +900,17 @@ export interface BracketDayCourtOption {
   id: string;
   court_group_id: string;
   name: string;
+  position: number;
   location_name: string;
   label: string;
+}
+
+export interface BracketDayLocationOption {
+  id: string;
+  location_group_id: string;
+  name: string;
+  position: number;
+  courts: BracketDayCourtOption[];
 }
 
 export interface BracketDaySchedule {
@@ -911,6 +920,7 @@ export interface BracketDaySchedule {
   end_time: string;
   breaks: BracketDayBreak[];
   courts: BracketDayCourtOption[];
+  locations: BracketDayLocationOption[];
 }
 
 export interface BracketDayScheduleUpdate {

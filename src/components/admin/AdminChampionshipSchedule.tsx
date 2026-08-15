@@ -1,21 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Trash2, Loader2, CalendarClock, Trophy, LayoutGrid } from "lucide-react";
+import { Plus, Trash2, Loader2, CalendarClock, Trophy, LayoutGrid, ChevronDown, ChevronUp, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TimeInput } from "@/components/ui/time-input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Tabs,
+  TabsContent,
+  TabsNavigationList,
+  TabsNavigationTrigger,
+} from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AdminChampionshipQualificationSection } from "@/components/admin/AdminChampionshipQualificationSection";
 import { AdminChampionshipCourtPrioritySection } from "@/components/admin/AdminChampionshipCourtPrioritySection";
-import { AdminChampionshipGeneratedLocationsSection } from "@/components/admin/AdminChampionshipGeneratedLocationsSection";
 import { AdminChampionshipKnockoutPrioritySection } from "@/components/admin/AdminChampionshipKnockoutPrioritySection";
 import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividualEvents";
 import {
@@ -28,13 +26,16 @@ import {
   applyChampionshipBracketReconfiguration,
   getBracketDaySchedules,
   previewChampionshipBracketReconfiguration,
+  updateBracketGeneratedLocationGroup,
 } from "@/domain/championship-brackets/championshipBracket.repository";
 import type {
   BracketDayBreak,
   BracketDayBreakScopeType,
   BracketDayCourtOption,
+  BracketDayLocationOption,
   BracketDaySchedule,
   BracketDayScheduleUpdate,
+  BracketGeneratedLocationGroup,
   ChampionshipBracketReconfigurationPreview,
   ChampionshipBracketReconfigurationRequest,
 } from "@/domain/championship-brackets/championshipBracket.types";
@@ -70,14 +71,35 @@ interface DayScheduleDraft {
   end_time: string;
   breaks: DayBreakDraft[];
   courts: BracketDayCourtOption[];
+  locations: BracketDayLocationOption[];
   saving: boolean;
 }
 
 type DayScheduleSnapshot = Omit<DayScheduleDraft, "saving">;
 
+interface LocationGroupDraft extends BracketGeneratedLocationGroup {
+  saving: boolean;
+}
+
 function formatDate(dateStr: string): string {
   const [year, month, day] = dateStr.split("-");
   return `${day}/${month}/${year}`;
+}
+
+function formatTime(time: string): string {
+  return time.slice(0, 5);
+}
+
+function resolveDayBreakSummary(day: DayScheduleDraft): string[] {
+  return day.breaks.flatMap((brk) => {
+    if (!brk.break_start_time || !brk.break_end_time) return [];
+
+    const period = `${formatTime(brk.break_start_time)} às ${formatTime(brk.break_end_time)}`;
+    if (brk.scope_type !== "COURT") return [`Geral: ${period}`];
+
+    const court = day.courts.find((currentCourt) => currentCourt.id === brk.bracket_court_id);
+    return [`${court?.label ?? "Quadra"}: ${period}`];
+  });
 }
 
 function validationError(day: DayScheduleDraft): string | null {
@@ -124,12 +146,16 @@ export function AdminChampionshipSchedule({
 }: Props) {
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState<DayScheduleDraft[]>([]);
+  const [locationGroups, setLocationGroups] = useState<LocationGroupDraft[]>([]);
+  const [expandedDayIds, setExpandedDayIds] = useState<Set<string>>(new Set());
+  const [editingLocationGroup, setEditingLocationGroup] = useState<LocationGroupDraft | null>(null);
   const [activeSection, setActiveSection] = useState("schedule");
   const [pendingReconfiguration, setPendingReconfiguration] = useState<ChampionshipBracketReconfigurationRequest | null>(null);
   const [reconfigurationPreview, setReconfigurationPreview] = useState<ChampionshipBracketReconfigurationPreview | null>(null);
   const [loadingReconfigurationPreview, setLoadingReconfigurationPreview] = useState(false);
   const [applyingReconfiguration, setApplyingReconfiguration] = useState(false);
   const savedDaysRef = useRef<DayScheduleSnapshot[]>([]);
+  const savedLocationGroupsRef = useRef<Record<string, BracketGeneratedLocationGroup>>({});
   const individualSportIds = useMemo(() => resolveIndividualSportIds(sports), [sports]);
   const { events: individualEvents, sessions: individualSessions } = useChampionshipIndividualEvents({
     championshipId,
@@ -179,11 +205,59 @@ export function AdminChampionshipSchedule({
         bracket_court_id: brk.bracket_court_id,
       })),
       courts: day.courts,
+      locations: day.locations,
       saving: false,
     }));
 
+    const groupsById = new Map<string, BracketGeneratedLocationGroup>();
+    data.forEach((day) => {
+      day.locations.forEach((location) => {
+        if (!groupsById.has(location.location_group_id)) {
+          groupsById.set(location.location_group_id, {
+            location_group_id: location.location_group_id,
+            location_name: location.name,
+            position: location.position,
+            courts: location.courts.map((court) => ({
+              court_group_id: court.court_group_id,
+              court_name: court.name,
+              position: court.position,
+            })),
+          });
+          return;
+        }
+
+        const group = groupsById.get(location.location_group_id);
+        if (!group) return;
+        location.courts.forEach((court) => {
+          if (group.courts.some((currentCourt) => currentCourt.court_group_id === court.court_group_id)) {
+            return;
+          }
+          group.courts.push({
+            court_group_id: court.court_group_id,
+            court_name: court.name,
+            position: court.position,
+          });
+        });
+      });
+    });
+    const groups = [...groupsById.values()]
+      .map((group) => ({
+        ...group,
+        courts: [...group.courts].sort((leftCourt, rightCourt) => leftCourt.position - rightCourt.position),
+      }))
+      .sort((leftGroup, rightGroup) => leftGroup.position - rightGroup.position);
+
     setDays(drafts);
     savedDaysRef.current = drafts.map(({ saving: _saving, ...rest }) => rest);
+    setLocationGroups(groups.map((group) => ({ ...group, saving: false })));
+    savedLocationGroupsRef.current = groups.reduce<Record<string, BracketGeneratedLocationGroup>>(
+      (carry, group) => {
+        carry[group.location_group_id] = group;
+        return carry;
+      },
+      {},
+    );
+    setExpandedDayIds(new Set());
 
     setLoading(false);
   }, [bracketEditionId]);
@@ -217,6 +291,9 @@ export function AdminChampionshipSchedule({
     if (applyingReconfiguration) return;
     setPendingReconfiguration(null);
     setReconfigurationPreview(null);
+    setLocationGroups((previousGroups) =>
+      previousGroups.map((group) => ({ ...group, saving: false })),
+    );
   }
 
   async function applyReconfiguration() {
@@ -248,7 +325,92 @@ export function AdminChampionshipSchedule({
     setDays((prev) => prev.map((d) => (d.id === dayId ? { ...d, ...patch } : d)));
   }
 
-  function addBreak(dayId: string) {
+  function toggleDay(dayId: string) {
+    setExpandedDayIds((previousIds) => {
+      const nextIds = new Set(previousIds);
+      if (nextIds.has(dayId)) {
+        nextIds.delete(dayId);
+      } else {
+        nextIds.add(dayId);
+      }
+      return nextIds;
+    });
+  }
+
+  function updateLocationGroup(
+    locationGroupId: string,
+    updater: (currentGroup: LocationGroupDraft) => LocationGroupDraft,
+  ) {
+    setLocationGroups((previousGroups) =>
+      previousGroups.map((group) =>
+        group.location_group_id === locationGroupId ? updater(group) : group,
+      ),
+    );
+  }
+
+  function isLocationGroupDirty(group: LocationGroupDraft): boolean {
+    const savedGroup = savedLocationGroupsRef.current[group.location_group_id];
+    if (!savedGroup) return false;
+    if (group.location_name !== savedGroup.location_name) return true;
+    if (group.courts.length !== savedGroup.courts.length) return true;
+
+    return group.courts.some((court) => {
+      const savedCourt = savedGroup.courts.find(
+        (savedCourtItem) => savedCourtItem.court_group_id === court.court_group_id,
+      );
+      return !savedCourt || savedCourt.court_name !== court.court_name;
+    });
+  }
+
+  async function saveLocationGroup(group: LocationGroupDraft) {
+    updateLocationGroup(group.location_group_id, (currentGroup) => ({ ...currentGroup, saving: true }));
+
+    const { error } = await updateBracketGeneratedLocationGroup(bracketEditionId, {
+      location_group_id: group.location_group_id,
+      location_name: group.location_name,
+      courts: group.courts.map((court) => ({
+        court_group_id: court.court_group_id,
+        court_name: court.court_name,
+      })),
+    });
+
+    if (error) {
+      toast.error(error.message);
+      updateLocationGroup(group.location_group_id, (currentGroup) => ({ ...currentGroup, saving: false }));
+      return;
+    }
+
+    toast.success("Local e quadras atualizados.");
+    await loadSchedules();
+    onRefetchMatches();
+    onRefetchChampionshipBracket();
+  }
+
+  function openLocationGroupEditor(group: LocationGroupDraft) {
+    setEditingLocationGroup({
+      ...group,
+      courts: group.courts.map((court) => ({ ...court })),
+    });
+  }
+
+  function updateEditingLocationGroup(
+    updater: (group: LocationGroupDraft) => LocationGroupDraft,
+  ) {
+    setEditingLocationGroup((group) => (group ? updater(group) : group));
+  }
+
+  async function saveEditingLocationGroup() {
+    if (!editingLocationGroup) return;
+
+    setEditingLocationGroup(null);
+    await saveLocationGroup(editingLocationGroup);
+  }
+
+  function addBreak(
+    dayId: string,
+    scopeType: BracketDayBreakScopeType = "ALL_COURTS",
+    bracketCourtId: string | null = null,
+  ) {
     setDays((prev) =>
       prev.map((d) => {
         if (d.id !== dayId) return d;
@@ -263,8 +425,8 @@ export function AdminChampionshipSchedule({
               break_start_time: "",
               break_end_time: "",
               position: nextPosition,
-              scope_type: "ALL_COURTS",
-              bracket_court_id: null,
+              scope_type: scopeType,
+              bracket_court_id: scopeType === "COURT" ? bracketCourtId : null,
             },
           ],
         };
@@ -305,6 +467,42 @@ export function AdminChampionshipSchedule({
         }
 
         return { ...d, breaks: updated };
+      }),
+    );
+  }
+
+  function updateGeneralBreak(
+    dayId: string,
+    breakId: string | null,
+    patch: Pick<DayBreakDraft, "break_start_time" | "break_end_time">,
+  ) {
+    if (breakId) {
+      updateBreak(dayId, breakId, patch);
+      return;
+    }
+
+    if (!patch.break_start_time && !patch.break_end_time) return;
+
+    setDays((previousDays) =>
+      previousDays.map((day) => {
+        if (day.id !== dayId) return day;
+
+        const nextPosition = day.breaks.length > 0 ? Math.max(...day.breaks.map((brk) => brk.position)) + 1 : 1;
+        return {
+          ...day,
+          breaks: [
+            ...day.breaks,
+            {
+              localId: `new-${Date.now()}-${Math.random()}`,
+              id: null,
+              break_start_time: patch.break_start_time,
+              break_end_time: patch.break_end_time,
+              position: nextPosition,
+              scope_type: "ALL_COURTS",
+              bracket_court_id: null,
+            },
+          ],
+        };
       }),
     );
   }
@@ -364,6 +562,11 @@ export function AdminChampionshipSchedule({
     });
   }
 
+  const locationGroupById = useMemo(
+    () => new Map(locationGroups.map((group) => [group.location_group_id, group])),
+    [locationGroups],
+  );
+
   return (
     <div className="space-y-6">
       {!isEditable ? (
@@ -373,23 +576,26 @@ export function AdminChampionshipSchedule({
       ) : null}
 
       <Tabs value={activeSection} onValueChange={setActiveSection}>
-        <TabsList className="h-auto w-full justify-start overflow-x-auto p-1">
-          <TabsTrigger value="schedule">Horários e intervalos</TabsTrigger>
-          <TabsTrigger value="sessions">Sessões individuais</TabsTrigger>
-          <TabsTrigger value="qualification">Classificação para o mata-mata</TabsTrigger>
-          <TabsTrigger value="court-priorities">Prioridades de quadra</TabsTrigger>
-          <TabsTrigger value="knockout-priorities">Prioridades do mata-mata</TabsTrigger>
-          <TabsTrigger value="locations">Locais e quadras</TabsTrigger>
-        </TabsList>
+        <TabsNavigationList className="h-auto w-full justify-start">
+          <TabsNavigationTrigger value="schedule" className="px-3 py-2.5 sm:px-4">
+            Agenda
+          </TabsNavigationTrigger>
+          <TabsNavigationTrigger value="sessions" className="px-3 py-2.5 sm:px-4">
+            Sessões individuais
+          </TabsNavigationTrigger>
+          <TabsNavigationTrigger value="qualification" className="px-3 py-2.5 sm:px-4">
+            Classificação para o mata-mata
+          </TabsNavigationTrigger>
+          <TabsNavigationTrigger value="court-priorities" className="px-3 py-2.5 sm:px-4">
+            Prioridades de quadra
+          </TabsNavigationTrigger>
+          <TabsNavigationTrigger value="knockout-priorities" className="px-3 py-2.5 sm:px-4">
+            Prioridades do mata-mata
+          </TabsNavigationTrigger>
+        </TabsNavigationList>
 
       <TabsContent value="schedule" className="mt-6">
       <section className="space-y-4">
-        <div className="flex items-center gap-2">
-          <CalendarClock className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Horários e intervalos
-          </h3>
-        </div>
 
         {loading ? (
           <div className="flex items-center justify-center py-10">
@@ -400,146 +606,272 @@ export function AdminChampionshipSchedule({
             Nenhum dia configurado na agenda deste campeonato.
           </p>
         ) : (
-          <div className="grid gap-6 xl:grid-cols-2 xl:items-start">
-            {days.map((day) => (
-              <div key={day.id} className="glass-card space-y-4 p-4">
-                <h3 className="font-medium text-sm">{formatDate(day.event_date)}</h3>
+          <div className="glass-card space-y-6 p-4 sm:p-6">
+            <div className="border-b border-border/50 pb-4">
+              <p className="text-lg font-bold">Dias da agenda</p>
+              <p className="text-sm text-muted-foreground">
+                Cada dia reúne horários, intervalos, locais e quadras definidos na configuração inicial.
+              </p>
+            </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label
-                      htmlFor={`start-${day.id}`}
-                      className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
+            <div className="space-y-4">
+              {days.map((day, index) => {
+                const isExpanded = expandedDayIds.has(day.id);
+                const dayContentId = `reprogram-schedule-day-${day.id}`;
+                const breakSummary = resolveDayBreakSummary(day);
+                const generalBreaks = day.breaks.filter((brk) => brk.scope_type !== "COURT");
+
+                return (
+                  <div key={day.id} className="overflow-hidden rounded-xl border border-border/50 bg-background/30">
+                    <button
+                      type="button"
+                      aria-expanded={isExpanded}
+                      aria-controls={dayContentId}
+                      aria-label={`${isExpanded ? "Recolher" : "Expandir"} Dia ${index + 1}`}
+                      onClick={() => toggleDay(day.id)}
+                      className="flex w-full items-center justify-between gap-4 border-b border-border/40 bg-background/40 px-4 py-3 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                     >
-                      Início
-                    </Label>
-                    <TimeInput
-                      id={`start-${day.id}`}
-                      value={day.start_time}
-                      disabled={!isEditable || day.saving}
-                      onChange={(value) => updateDay(day.id, { start_time: value })}
-                      className="h-10 border-border/40 bg-background/50"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label
-                      htmlFor={`end-${day.id}`}
-                      className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
-                    >
-                      Fim
-                    </Label>
-                    <TimeInput
-                      id={`end-${day.id}`}
-                      value={day.end_time}
-                      disabled={!isEditable || day.saving}
-                      onChange={(value) => updateDay(day.id, { end_time: value })}
-                      className="h-10 border-border/40 bg-background/50"
-                    />
-                  </div>
-                </div>
+                      <span className="min-w-0">
+                        <span className="block font-semibold">Dia {index + 1}</span>
+                        <span className="block text-sm text-muted-foreground">
+                          {formatDate(day.event_date)} • {formatTime(day.start_time)} às {formatTime(day.end_time)}
+                        </span>
+                        {!isExpanded && breakSummary.length > 0 ? (
+                          <span className="mt-1 block break-words text-xs text-muted-foreground">
+                            Intervalos: {breakSummary.join(" • ")}
+                          </span>
+                        ) : null}
+                      </span>
+                      {isExpanded ? (
+                        <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      )}
+                    </button>
 
-                {day.breaks.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Intervalos
-                    </p>
-                    {day.breaks.map((brk) => (
-                      <div
-                        key={brk.localId}
-                        className="app-card-muted grid gap-2 p-3 xl:grid-cols-[220px_minmax(0,1fr)_auto_minmax(0,1fr)_auto] xl:items-center"
-                      >
-                        <Select
-                          value={brk.scope_type === "COURT" ? `COURT:${brk.bracket_court_id ?? ""}` : "ALL_COURTS"}
-                          disabled={!isEditable || day.saving}
-                          onValueChange={(value) => {
-                            if (value === "ALL_COURTS") {
-                              updateBreak(day.id, brk.localId, {
-                                scope_type: "ALL_COURTS",
-                                bracket_court_id: null,
-                              });
-                              return;
-                            }
+                    {isExpanded ? (
+                      <div id={dayContentId} className="grid items-stretch gap-6 p-4 xl:grid-cols-[minmax(0,200px)_minmax(0,1fr)]">
+                        <div className="flex flex-col">
+                          <div className="space-y-4">
+                            <div className="space-y-1.5">
+                              <Label htmlFor={`start-${day.id}`} className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                Início
+                              </Label>
+                              <TimeInput
+                                id={`start-${day.id}`}
+                                value={formatTime(day.start_time)}
+                                disabled={!isEditable || day.saving}
+                                onChange={(value) => updateDay(day.id, { start_time: value })}
+                                className="h-10 border-border/40 bg-background/50"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label htmlFor={`end-${day.id}`} className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                Fim
+                              </Label>
+                              <TimeInput
+                                id={`end-${day.id}`}
+                                value={formatTime(day.end_time)}
+                                disabled={!isEditable || day.saving}
+                                onChange={(value) => updateDay(day.id, { end_time: value })}
+                                className="h-10 border-border/40 bg-background/50"
+                              />
+                            </div>
+                          </div>
 
-                            updateBreak(day.id, brk.localId, {
-                              scope_type: "COURT",
-                              bracket_court_id: value.replace("COURT:", ""),
-                            });
-                          }}
-                        >
-                          <SelectTrigger className="app-input-field h-10">
-                            <SelectValue placeholder="Escopo do intervalo" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="ALL_COURTS">Todas as quadras</SelectItem>
-                            {day.courts.map((court) => (
-                              <SelectItem key={court.id} value={`COURT:${court.id}`}>
-                                {court.label}
-                              </SelectItem>
+                          <div className="space-y-4 pt-5">
+                            {(generalBreaks.length > 0 ? generalBreaks : [null]).map((brk, breakIndex) => (
+                              <div key={brk?.localId ?? `empty-general-break-${day.id}`} className="space-y-4">
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                    {breakIndex === 0 ? "Intervalo do dia" : `Intervalo do dia ${breakIndex + 1}`}
+                                  </p>
+                                  {isEditable && brk ? (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      disabled={day.saving}
+                                      aria-label={`Remover intervalo do dia ${breakIndex + 1}`}
+                                      className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                      onClick={() => removeBreak(day.id, brk.localId)}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  ) : null}
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Label htmlFor={`break-start-${brk?.localId ?? `empty-general-break-${day.id}`}`} className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                    Início do intervalo
+                                  </Label>
+                                  <TimeInput
+                                    id={`break-start-${brk?.localId ?? `empty-general-break-${day.id}`}`}
+                                    value={brk?.break_start_time ?? ""}
+                                    disabled={!isEditable || day.saving}
+                                    onChange={(value) => updateGeneralBreak(day.id, brk?.localId ?? null, { break_start_time: value, break_end_time: brk?.break_end_time ?? "" })}
+                                    className="h-10 border-border/40 bg-background/50"
+                                  />
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Label htmlFor={`break-end-${brk?.localId ?? `empty-general-break-${day.id}`}`} className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                    Fim do intervalo
+                                  </Label>
+                                  <TimeInput
+                                    id={`break-end-${brk?.localId ?? `empty-general-break-${day.id}`}`}
+                                    value={brk?.break_end_time ?? ""}
+                                    disabled={!isEditable || day.saving}
+                                    onChange={(value) => updateGeneralBreak(day.id, brk?.localId ?? null, { break_start_time: brk?.break_start_time ?? "", break_end_time: value })}
+                                    className="h-10 border-border/40 bg-background/50"
+                                  />
+                                </div>
+                              </div>
                             ))}
-                          </SelectContent>
-                        </Select>
-                        <TimeInput
-                          value={brk.break_start_time}
-                          disabled={!isEditable || day.saving}
-                          onChange={(value) =>
-                            updateBreak(day.id, brk.localId, { break_start_time: value })
-                          }
-                          className="h-10 border-border/40 bg-background/50"
-                          placeholder="Início"
-                        />
-                        <span className="text-xs text-muted-foreground sm:text-center">até</span>
-                        <TimeInput
-                          value={brk.break_end_time}
-                          disabled={!isEditable || day.saving}
-                          onChange={(value) =>
-                            updateBreak(day.id, brk.localId, { break_end_time: value })
-                          }
-                          className="h-10 border-border/40 bg-background/50"
-                          placeholder="Fim"
-                        />
-                        {isEditable && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            disabled={day.saving}
-                            onClick={() => removeBreak(day.id, brk.localId)}
-                            className="shrink-0"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
+                          </div>
+
+                          {isEditable ? (
+                            <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-5">
+                              <Button type="button" size="sm" className="w-full" disabled={day.saving || !isDayDirty(day)} onClick={() => saveDay(day)}>
+                                {day.saving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
+                                Salvar dia
+                              </Button>
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <div className="space-y-3 border-t border-border/30 pt-5 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Locais do dia</Label>
+                            <p className="text-xs text-muted-foreground">Os nomes valem para toda a edição.</p>
+                          </div>
+                          {day.locations.map((location) => {
+                            const group = locationGroupById.get(location.location_group_id);
+                            if (!group) return null;
+
+                            return (
+                              <div key={location.id} className="space-y-4 rounded-lg border border-border/30 bg-background/40 p-3">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Nome do local</p>
+                                    <p className="font-medium">{group.location_name}</p>
+                                  </div>
+                                  {isEditable ? (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      disabled={group.saving}
+                                      aria-label={`Editar ${group.location_name}`}
+                                      title="Editar local e quadras"
+                                      onClick={() => openLocationGroupEditor(group)}
+                                    >
+                                      <Pencil className="h-4 w-4" />
+                                    </Button>
+                                  ) : null}
+                                </div>
+                                <div className="space-y-3">
+                                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Quadras desse local</p>
+                                  <div className="grid grid-cols-1 gap-3 border-t border-border/30 pt-3 md:grid-cols-2 xl:grid-cols-3">
+                                  {location.courts.map((dayCourt) => {
+                                    const court = group.courts.find(
+                                      (currentCourt) => currentCourt.court_group_id === dayCourt.court_group_id,
+                                    );
+                                    if (!court) return null;
+                                    const courtBreaks = day.breaks.filter(
+                                      (brk) => brk.scope_type === "COURT" && brk.bracket_court_id === dayCourt.id,
+                                    );
+
+                                    return (
+                                      <div key={court.court_group_id} className="space-y-3 rounded-lg border border-border/20 bg-background/30 p-3">
+                                        <div className="space-y-1">
+                                          <p className="text-xs font-medium text-muted-foreground">Quadra {court.position}</p>
+                                          <p className="font-medium">{court.court_name}</p>
+                                        </div>
+
+                                        <div className="space-y-3 border-t border-border/30 pt-3">
+                                          <div className="flex items-center justify-between gap-2">
+                                            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Intervalos da quadra</p>
+                                            {isEditable ? (
+                                              <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                disabled={day.saving}
+                                                aria-label={`Adicionar intervalo à ${court.court_name}`}
+                                                className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                                onClick={() => addBreak(day.id, "COURT", dayCourt.id)}
+                                              >
+                                                <Plus className="h-4 w-4" />
+                                              </Button>
+                                            ) : null}
+                                          </div>
+
+                                          {courtBreaks.length === 0 ? (
+                                            <p className="rounded-md border border-dashed border-border/30 px-3 py-2 text-[11px] italic text-muted-foreground">
+                                              Nenhum intervalo específico nesta quadra neste dia.
+                                            </p>
+                                          ) : (
+                                            courtBreaks.map((brk, breakIndex) => (
+                                              <div key={brk.localId} className="rounded-md border border-border/20 bg-background/50 p-3">
+                                                <div className="flex items-start gap-2">
+                                                  <div className="min-w-0 flex-1 space-y-3">
+                                                    <div className="space-y-1.5">
+                                                      <Label htmlFor={`court-break-start-${brk.localId}`} className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                        Início do intervalo
+                                                      </Label>
+                                                      <TimeInput
+                                                        id={`court-break-start-${brk.localId}`}
+                                                        value={brk.break_start_time}
+                                                        disabled={!isEditable || day.saving}
+                                                        onChange={(value) => updateBreak(day.id, brk.localId, { break_start_time: value })}
+                                                        className="h-10 border-border/40 bg-background/50"
+                                                      />
+                                                    </div>
+                                                    <div className="space-y-1.5">
+                                                      <Label htmlFor={`court-break-end-${brk.localId}`} className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                        Fim do intervalo
+                                                      </Label>
+                                                      <TimeInput
+                                                        id={`court-break-end-${brk.localId}`}
+                                                        value={brk.break_end_time}
+                                                        disabled={!isEditable || day.saving}
+                                                        onChange={(value) => updateBreak(day.id, brk.localId, { break_end_time: value })}
+                                                        className="h-10 border-border/40 bg-background/50"
+                                                      />
+                                                    </div>
+                                                  </div>
+                                                  {isEditable ? (
+                                                    <Button
+                                                      type="button"
+                                                      variant="ghost"
+                                                      size="icon"
+                                                      disabled={day.saving}
+                                                      aria-label={`Remover intervalo ${breakIndex + 1} da ${court.court_name}`}
+                                                      className="h-9 w-9 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                                      onClick={() => removeBreak(day.id, brk.localId)}
+                                                    >
+                                                      <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                  ) : null}
+                                                </div>
+                                              </div>
+                                            ))
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                    ))}
+                    ) : null}
                   </div>
-                )}
-
-                {isEditable && (
-                  <div className="flex items-center justify-between gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={day.saving}
-                      onClick={() => addBreak(day.id)}
-                    >
-                      <Plus className="h-4 w-4 mr-1" />
-                      Intervalo
-                    </Button>
-
-                    <Button
-                      type="button"
-                      size="sm"
-                      disabled={day.saving || !isDayDirty(day)}
-                      onClick={() => saveDay(day)}
-                    >
-                      {day.saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-                      Salvar dia
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ))}
+                );
+              })}
+            </div>
           </div>
         )}
       </section>
@@ -638,22 +970,59 @@ export function AdminChampionshipSchedule({
       </section>
       </TabsContent>
 
-      <TabsContent value="locations" className="mt-6"><section className="space-y-4">
-        <div className="flex items-center gap-2">
-          <LayoutGrid className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Locais e quadras
-          </h3>
-        </div>
-
-        <AdminChampionshipGeneratedLocationsSection
-          bracketEditionId={bracketEditionId}
-          isEditable={isEditable}
-          onRequestReconfiguration={requestReconfiguration}
-        />
-      </section>
-      </TabsContent>
       </Tabs>
+
+      <Dialog open={editingLocationGroup != null} onOpenChange={(open) => !open && setEditingLocationGroup(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Editar local e quadras</DialogTitle>
+            <DialogDescription>
+              Os nomes atualizados serão aplicados a todos os dias desta edição que usam este local.
+            </DialogDescription>
+          </DialogHeader>
+          {editingLocationGroup ? (
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="editing-location-name">Nome do local</Label>
+                <Input
+                  id="editing-location-name"
+                  value={editingLocationGroup.location_name}
+                  onChange={(event) => updateEditingLocationGroup((group) => ({ ...group, location_name: event.target.value }))}
+                  className="app-input-field"
+                />
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm font-semibold">Quadras deste local</p>
+                  <p className="text-xs text-muted-foreground">Os nomes também serão replicados nos demais dias desta edição.</p>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {editingLocationGroup.courts.map((court) => (
+                    <div key={court.court_group_id} className="space-y-1.5 rounded-lg border border-border/30 bg-background/40 p-3">
+                      <Label htmlFor={`editing-court-${court.court_group_id}`}>Quadra {court.position}</Label>
+                      <Input
+                        id={`editing-court-${court.court_group_id}`}
+                        value={court.court_name}
+                        onChange={(event) => updateEditingLocationGroup((group) => ({
+                          ...group,
+                          courts: group.courts.map((currentCourt) => currentCourt.court_group_id === court.court_group_id ? { ...currentCourt, court_name: event.target.value } : currentCourt),
+                        }))}
+                        className="app-input-field"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setEditingLocationGroup(null)}>Cancelar</Button>
+                <Button type="button" disabled={!isLocationGroupDirty(editingLocationGroup)} onClick={saveEditingLocationGroup}>
+                  Salvar local e quadras
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={pendingReconfiguration != null} onOpenChange={(open) => !open && closeReconfigurationPreview()}>
         <DialogContent className="max-w-2xl">

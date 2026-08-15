@@ -6385,23 +6385,17 @@ export function AdminMatches({
                               visualQueuePositionByMatchId[match.id],
                             )}
                           </span>
-                          {matchRepresentationByMatchId[match.id] ? (
-                            <span className="break-words">
-                              Representação:{" "}
-                              {matchRepresentationByMatchId[match.id]}
-                            </span>
-                          ) : null}
-                          {match.status == MatchStatus.SCHEDULED &&
-                          estimatedStartTimeByMatchId[match.id] ? (
-                            <span>
-                              Horário estimado:{" "}
-                              {estimatedStartTimeByMatchId[match.id]}
-                            </span>
-                          ) : null}
-                          {startedAtLabel ? (
-                            <span>{startedAtLabel}</span>
-                          ) : null}
                         </div>
+                        {matchRepresentationByMatchId[match.id] ? (
+                          <p className="break-words">
+                            Representação: {matchRepresentationByMatchId[match.id]}
+                          </p>
+                        ) : null}
+                        {match.status == MatchStatus.SCHEDULED &&
+                        estimatedStartTimeByMatchId[match.id] ? (
+                          <p>Horário estimado: {estimatedStartTimeByMatchId[match.id]}</p>
+                        ) : null}
+                        {startedAtLabel ? <p>{startedAtLabel}</p> : null}
                         {tieBreakRuleLabel ? (
                           <p className="mt-1 inline-flex items-center gap-1 font-medium text-amber-500">
                             <AlertTriangle className="h-3 w-3" />
