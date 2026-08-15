@@ -3,6 +3,7 @@ import { BracketEditionStatus, ChampionshipStatus } from "@/lib/enums";
 import {
   resolveCanViewBracketSetupTab,
   resolveCanViewOperationalAdminTabs,
+  resolveCanViewReviewAdminTabs,
 } from "@/pages/admin/adminPageVisibility";
 
 describe("resolveCanViewBracketSetupTab", () => {
@@ -48,6 +49,30 @@ describe("resolveCanViewBracketSetupTab", () => {
         bracketEditionStatus: null,
       }),
     ).toBe(true);
+  });
+});
+
+describe("resolveCanViewReviewAdminTabs", () => {
+  it("shows only the review operational surface when games were generated", () => {
+    expect(
+      resolveCanViewReviewAdminTabs({
+        championshipStatus: ChampionshipStatus.REVIEW,
+        hasFinishedLoadingOperationalState: true,
+        matchesCount: 2,
+        bracketEditionStatus: BracketEditionStatus.GROUPS_GENERATED,
+      }),
+    ).toBe(true);
+  });
+
+  it("does not treat review as a live operational state", () => {
+    expect(
+      resolveCanViewOperationalAdminTabs({
+        championshipStatus: ChampionshipStatus.REVIEW,
+        hasFinishedLoadingOperationalState: true,
+        matchesCount: 2,
+        bracketEditionStatus: BracketEditionStatus.GROUPS_GENERATED,
+      }),
+    ).toBe(false);
   });
 });
 

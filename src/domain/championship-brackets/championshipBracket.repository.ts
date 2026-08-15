@@ -25,6 +25,8 @@ import type {
   EditableMatchScheduleSlot,
   EditableMatchScheduleSlotQueryInput,
   ScheduledMatchLogisticsUpdateInput,
+  ChampionshipBracketReconfigurationAction,
+  ChampionshipBracketReconfigurationPreview,
 } from "@/domain/championship-brackets/championshipBracket.types";
 import type { ChampionshipKnockoutPairingMode } from "@/domain/championship-brackets/championshipBracketPairing";
 import type { ChampionshipBracketView } from "@/lib/types";
@@ -32,6 +34,39 @@ import type { MatchNaipe, TeamDivision } from "@/lib/enums";
 
 function toSupabaseJson(value: unknown): Json {
   return value as Json;
+}
+
+export async function previewChampionshipBracketReconfiguration(
+  bracketEditionId: string,
+  action: ChampionshipBracketReconfigurationAction,
+  payload: Record<string, unknown>,
+): Promise<{ data: ChampionshipBracketReconfigurationPreview | null; error: Error | null }> {
+  const response = await supabase.rpc("preview_championship_bracket_reconfiguration", {
+    _bracket_edition_id: bracketEditionId,
+    _action: action,
+    _payload: toSupabaseJson(payload),
+  });
+
+  return {
+    data: (response.data as ChampionshipBracketReconfigurationPreview | null) ?? null,
+    error: response.error,
+  };
+}
+
+export async function applyChampionshipBracketReconfiguration(
+  bracketEditionId: string,
+  action: ChampionshipBracketReconfigurationAction,
+  payload: Record<string, unknown>,
+  expectedRevision: number,
+): Promise<{ error: Error | null }> {
+  const response = await supabase.rpc("apply_championship_bracket_reconfiguration", {
+    _bracket_edition_id: bracketEditionId,
+    _action: action,
+    _payload: toSupabaseJson(payload),
+    _expected_revision: expectedRevision,
+  });
+
+  return { error: response.error };
 }
 
 export async function generateChampionshipBracketGroups(

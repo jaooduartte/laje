@@ -14,6 +14,23 @@ interface ResolveCanViewOperationalAdminTabsParams {
   bracketEditionStatus: BracketEditionStatus | null;
 }
 
+export function resolveCanViewReviewAdminTabs({
+  championshipStatus,
+  hasFinishedLoadingOperationalState,
+  matchesCount,
+  bracketEditionStatus,
+}: ResolveCanViewOperationalAdminTabsParams): boolean {
+  if (championshipStatus !== ChampionshipStatus.REVIEW) {
+    return false;
+  }
+
+  if (!hasFinishedLoadingOperationalState || matchesCount <= 0) {
+    return false;
+  }
+
+  return bracketEditionStatus != null && bracketEditionStatus !== BracketEditionStatus.DRAFT;
+}
+
 export function resolveCanViewBracketSetupTab({
   championshipStatus,
   hasFinishedLoadingOperationalState,

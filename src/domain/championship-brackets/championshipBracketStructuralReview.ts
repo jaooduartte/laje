@@ -15,9 +15,11 @@ import type {
   ChampionshipBracketStructuralReviewDiagnostic,
   ChampionshipBracketStructuralReviewEstimatedMatchEntry,
   ChampionshipBracketStructuralReviewLocation,
+  ChampionshipBracketStructuralReviewManualFinalEntry,
   ChampionshipBracketStructuralReviewPendingMatchEntry,
   ChampionshipBracketStructuralReviewPlanningItem,
   ChampionshipBracketStructuralReviewResult,
+  ChampionshipBracketStructuralScheduleSlotInput,
   ChampionshipBracketStructuralReviewTimelineEntry,
   ChampionshipBracketTeamCompetitionDateAvailabilityInput,
   ChampionshipBracketWizardDraftFormValues,
@@ -655,6 +657,68 @@ function resolveCompetitionEstimatedMatchDescriptors({
       ...phaseDescriptor,
     })),
   ];
+}
+
+function resolveManualFinalEntries({
+  programBlock,
+  startMinutes,
+  endMinutes,
+  competitions,
+  sportName,
+}: {
+  programBlock: ChampionshipBracketSetupFormValues["knockout_program_blocks"][number];
+  startMinutes: number;
+  endMinutes: number;
+  competitions: ChampionshipBracketSetupFormValues["competitions"];
+  sportName: string;
+}): ChampionshipBracketStructuralReviewManualFinalEntry[] {
+  const competitionsByNaipe = programBlock.naipe_sequence.flatMap((naipe) =>
+    competitions
+      .filter(
+        (competition) =>
+          competition.sport_id == programBlock.sport_id &&
+          competition.naipe == naipe &&
+          (programBlock.division_scope == "ALL" ||
+            competition.division == programBlock.division_scope),
+      )
+      .sort((left, right) =>
+        (left.division ?? "").localeCompare(right.division ?? ""),
+      ),
+  );
+  const durationMinutes =
+    programBlock.match_duration_minutes_override ??
+    Math.max(
+      1,
+      Math.floor(
+        (endMinutes - startMinutes) /
+          Math.max(1, competitionsByNaipe.length),
+      ),
+    );
+
+  return competitionsByNaipe.flatMap((competition, competitionIndex) => {
+    const entryStartMinutes =
+      startMinutes + competitionIndex * durationMinutes;
+    const entryEndMinutes = entryStartMinutes + durationMinutes;
+
+    if (entryEndMinutes > endMinutes) {
+      return [];
+    }
+
+    return [
+      {
+        competition_key: resolveCompetitionKey(competition),
+        sport_id: competition.sport_id,
+        sport_name: sportName,
+        naipe: competition.naipe,
+        division: competition.division,
+        phase: "FINAL" as const,
+        start_time: resolveMinutesToTimeValue(entryStartMinutes),
+        end_time: resolveMinutesToTimeValue(entryEndMinutes),
+        duration_minutes: durationMinutes,
+        manual_final: true as const,
+      },
+    ];
+  });
 }
 
 function resolveCompetitionPreferenceScore({
@@ -1883,6 +1947,8 @@ export function resolveChampionshipBracketStructuralReview({
       const courts = location.courts.map((court) => {
         const fixedEntries: ChampionshipBracketStructuralReviewTimelineEntry[] = [];
         const fixedBlockedIntervals: TimeInterval[] = [];
+        const manualFinalEntries: ChampionshipBracketStructuralReviewManualFinalEntry[] =
+          [];
 
         if (breakInterval) {
           fixedEntries.push({
@@ -2028,6 +2094,17 @@ export function resolveChampionshipBracketStructuralReview({
               division_scope: programBlock.division_scope,
             });
             fixedBlockedIntervals.push(interval);
+            manualFinalEntries.push(
+              ...resolveManualFinalEntries({
+                programBlock,
+                startMinutes: interval.start,
+                endMinutes: interval.end,
+                competitions: collectiveCompetitions,
+                sportName:
+                  sportMetadataBySportId[programBlock.sport_id]?.sport_name ??
+                  "Modalidade",
+              }),
+            );
           });
 
         const conflictIntervals = fixedEntries
@@ -2494,6 +2571,7 @@ export function resolveChampionshipBracketStructuralReview({
           overflow_minutes: courtOverflowMinutes,
           timeline_entries: timelineEntries,
           estimated_match_entries: estimatedMatchEntries,
+          manual_final_entries: manualFinalEntries,
           unallocated_match_count: Math.max(
             0,
             orderedEstimatedMatchDescriptors.length - estimatedMatchEntries.length,
@@ -2561,4 +2639,127 @@ export function resolveChampionshipBracketStructuralReview({
   };
 
   return result;
+}
+
+export function resolveChampionshipBracketStructuralScheduleSlots(
+  review: ChampionshipBracketStructuralReviewResult,
+): ChampionshipBracketStructuralScheduleSlotInput[] {
+  const sources = review.days.flatMap((day) =>
+    day.locations.flatMap((location) =>
+      location.courts.flatMap((court) => [
+        ...court.estimated_match_entries.flatMap((entry) => {
+          if (!entry.phase) {
+            return [];
+          }
+
+          return [
+            {
+              date: day.date,
+              start_time: entry.start_time,
+              end_time: entry.end_time,
+              duration_minutes: entry.duration_minutes,
+              location_key: location.location_key,
+              location_name: location.location_name,
+              court_key: court.court_key,
+              court_name: court.court_name,
+              competition_key: resolveCompetitionKey(entry),
+              sport_id: entry.sport_id,
+              naipe: entry.naipe,
+              division: entry.division,
+              phase: entry.phase,
+              match_kind:
+                entry.phase == "GROUP_STAGE"
+                  ? ("GROUP_STAGE" as const)
+                  : ("KNOCKOUT" as const),
+              manual_final: false as const,
+            },
+          ];
+        }),
+        ...court.manual_final_entries.map((entry) => ({
+          date: day.date,
+          start_time: entry.start_time,
+          end_time: entry.end_time,
+          duration_minutes: entry.duration_minutes,
+          location_key: location.location_key,
+          location_name: location.location_name,
+          court_key: court.court_key,
+          court_name: court.court_name,
+          competition_key: entry.competition_key,
+          sport_id: entry.sport_id,
+          naipe: entry.naipe,
+          division: entry.division,
+          phase: entry.phase,
+          match_kind: "MANUAL_FINAL" as const,
+          manual_final: true as const,
+        })),
+      ]),
+    ),
+  );
+  const orderedSources = [...sources].sort((left, right) => {
+    const leftPhaseKey = [
+      left.competition_key,
+      left.phase,
+      left.date,
+      left.start_time,
+      left.end_time,
+      left.location_key,
+      left.court_key,
+    ].join("::");
+    const rightPhaseKey = [
+      right.competition_key,
+      right.phase,
+      right.date,
+      right.start_time,
+      right.end_time,
+      right.location_key,
+      right.court_key,
+    ].join("::");
+
+    return leftPhaseKey.localeCompare(rightPhaseKey);
+  });
+  const phaseSlotNumberByKey = new Map<string, number>();
+  const slots = orderedSources.map((source) => {
+    const phaseKey = [source.competition_key, source.phase].join("::");
+    const phaseSlotNumber = (phaseSlotNumberByKey.get(phaseKey) ?? 0) + 1;
+    phaseSlotNumberByKey.set(phaseKey, phaseSlotNumber);
+
+    return {
+      ...source,
+      phase_slot_number: phaseSlotNumber,
+      slot_key: [
+        source.date,
+        source.location_key,
+        source.court_key,
+        source.competition_key,
+        source.phase,
+        phaseSlotNumber,
+        source.start_time,
+      ].join("::"),
+    } satisfies ChampionshipBracketStructuralScheduleSlotInput;
+  });
+
+  return slots.sort((left, right) => {
+    const leftScheduleKey = [
+      left.date,
+      left.start_time,
+      left.end_time,
+      left.location_key,
+      left.court_key,
+      left.competition_key,
+      left.phase,
+      left.phase_slot_number,
+    ].join("::");
+    const rightScheduleKey = [
+      right.date,
+      right.start_time,
+      right.end_time,
+      right.location_key,
+      right.court_key,
+      right.competition_key,
+      right.phase,
+      right.phase_slot_number,
+    ].join("::");
+
+    return leftScheduleKey.localeCompare(rightScheduleKey);
+  });
 }

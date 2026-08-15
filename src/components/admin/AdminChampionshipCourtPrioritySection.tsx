@@ -17,12 +17,12 @@ import {
 } from "@/components/admin/adminCourtPriority.utils";
 import {
   getBracketLocationSportPriorities,
-  updateBracketLocationSportPriorities,
 } from "@/domain/championship-brackets/championshipBracket.repository";
 import type {
   BracketLocationSportPriorityGroup,
   BracketLocationSportPriorityUpdate,
   ChampionshipBracketCourtSequenceMode,
+  ChampionshipBracketReconfigurationRequest,
 } from "@/domain/championship-brackets/championshipBracket.types";
 
 interface Props {
@@ -32,7 +32,7 @@ interface Props {
   sportNameBySportId: Record<string, string>;
   naipeOptionsBySportId: Record<string, MatchNaipe[]>;
   divisionOptionsBySportId: Record<string, TeamDivision[]>;
-  onSaved: () => void;
+  onRequestReconfiguration: (request: ChampionshipBracketReconfigurationRequest) => Promise<boolean>;
 }
 
 interface PriorityModeOption {
@@ -205,7 +205,7 @@ export function AdminChampionshipCourtPrioritySection({
   sportNameBySportId,
   naipeOptionsBySportId,
   divisionOptionsBySportId,
-  onSaved,
+  onRequestReconfiguration,
 }: Props) {
   const [loading, setLoading] = useState(true);
   const [savingGroupKey, setSavingGroupKey] = useState<string | null>(null);
@@ -356,26 +356,18 @@ export function AdminChampionshipCourtPrioritySection({
 
     setSavingGroupKey(group.key);
 
-    const { error } = await updateBracketLocationSportPriorities(
-      bracketEditionId,
-      updates,
-    );
+    const previewCreated = await onRequestReconfiguration({
+      action: "LOCATION_SPORT_PRIORITIES",
+      label: `Prioridade de quadras em ${group.location_name}`,
+      payload: { priority_updates: updates },
+    });
 
     setSavingGroupKey(null);
 
-    if (error) {
-      toast.error(error.message);
+    if (!previewCreated) {
       return;
     }
 
-    toast.success(`Prioridade global salva para ${group.location_name}.`);
-    await loadPriorityGroups({ preserveDrafts: true });
-    setSelectedModeByGroupKey((previousState) => {
-      const nextState = { ...previousState };
-      delete nextState[group.key];
-      return nextState;
-    });
-    onSaved();
   }
 
   if (loading) {

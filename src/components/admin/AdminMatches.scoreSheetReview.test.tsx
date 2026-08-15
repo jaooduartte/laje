@@ -22,6 +22,7 @@ import type {
   ChampionshipBracketEdition,
   Championship,
   ChampionshipBracketView,
+  ChampionshipIndividualSession,
   ChampionshipSport,
   Match,
   Sport,
@@ -61,6 +62,7 @@ const {
   updateBracketDayScheduleMock,
   updateScheduledMatchLogisticsMock,
   supabaseChannelMock,
+  individualEventsState,
 } = vi.hoisted(() => ({
   supabaseUpdateCalls: [] as SupabaseUpdateCall[],
   supabaseRpcCalls: [] as SupabaseRpcCall[],
@@ -80,6 +82,11 @@ const {
   saveTieBreakResolutionMock: vi.fn(),
   updateBracketDayScheduleMock: vi.fn(),
   updateScheduledMatchLogisticsMock: vi.fn(),
+  individualEventsState: {
+    current: {
+      sessions: [] as ChampionshipIndividualSession[],
+    },
+  },
   supabaseChannelMock: {
     on: vi.fn(),
     subscribe: vi.fn(),
@@ -102,6 +109,10 @@ vi.mock("@/components/SportFilter", () => ({
       Filtrar modalidade
     </button>
   ),
+}));
+
+vi.mock("@/hooks/useChampionshipIndividualEvents", () => ({
+  useChampionshipIndividualEvents: () => individualEventsState.current,
 }));
 
 vi.mock("@/components/ui/app-pagination-controls", () => ({
@@ -474,6 +485,7 @@ describe("AdminMatches score sheet review", () => {
     saveTieBreakResolutionMock.mockReset();
     updateBracketDayScheduleMock.mockReset();
     updateScheduledMatchLogisticsMock.mockReset();
+    individualEventsState.current = { sessions: [] };
     supabaseChannelMock.on.mockClear();
     supabaseChannelMock.subscribe.mockClear();
 
@@ -506,6 +518,50 @@ describe("AdminMatches score sheet review", () => {
     await waitFor(() => {
       expect(screen.getByTestId("sport-filter-mock")).toBeInTheDocument();
     });
+  });
+
+  it("mostra sessões individuais configuradas na aba Jogos", async () => {
+    const athleticsSport = buildChampionshipSport({
+      id: "championship-sport-athletics",
+      sport_id: "sport-athletics",
+      sports: buildSport({ id: "sport-athletics", name: "Atletismo" }),
+    });
+    individualEventsState.current = {
+      sessions: [
+        {
+          id: "session-athletics",
+          championship_id: "championship-1",
+          season_year: 2026,
+          sport_id: "sport-athletics",
+          naipe: MatchNaipe.FEMININO,
+          division: null,
+          scheduled_date: "2026-04-11",
+          period: "MATUTINO",
+          location_key: "track",
+          court_key: "lane-1",
+          location_name: "Pista de Atletismo",
+          court_name: "Raia 1",
+          status: "SCHEDULED",
+          exclusive_lock_enabled: true,
+          created_at: "2026-04-01T00:00:00.000Z",
+          updated_at: "2026-04-01T00:00:00.000Z",
+          sports: buildSport({ id: "sport-athletics", name: "Atletismo" }),
+        },
+      ],
+    };
+
+    renderAdminMatches({
+      matches: [],
+      championshipSports: [athleticsSport],
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Sessões Individuais")).toBeInTheDocument();
+    });
+    expect(screen.getByText(/Atletismo.*Feminino/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Pista de Atletismo.*Raia 1/),
+    ).toBeInTheDocument();
   });
 
   it("exibe somente jogos encerrados na aba de conferência", async () => {

@@ -166,6 +166,7 @@ export enum ChampionshipCode {
 export enum ChampionshipStatus {
   PLANNING = "PLANNING",
   UPCOMING = "UPCOMING",
+  REVIEW = "REVIEW",
   IN_PROGRESS = "IN_PROGRESS",
   FINISHED = "FINISHED",
 }

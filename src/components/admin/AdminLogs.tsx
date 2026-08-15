@@ -308,6 +308,7 @@ function isChampionshipStatusValue(value: string): value is ChampionshipStatus {
   return (
     value == ChampionshipStatus.PLANNING ||
     value == ChampionshipStatus.UPCOMING ||
+    value == ChampionshipStatus.REVIEW ||
     value == ChampionshipStatus.IN_PROGRESS ||
     value == ChampionshipStatus.FINISHED
   );

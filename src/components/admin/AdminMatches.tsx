@@ -63,6 +63,7 @@ import {
   BracketPhase,
   ChampionshipCode,
   ChampionshipAwardType,
+  ChampionshipIndividualSessionStatus,
   ChampionshipSportResultRule,
   ChampionshipSportTieBreakerRule,
   MatchManualRepresentationMode,
@@ -171,6 +172,7 @@ import {
 } from "@/components/admin/adminMatchesSchedule.utils";
 import { AdminMatchesViewMode } from "@/components/admin/adminMatches.types";
 import { useChampionshipCorrectedGroupStandings } from "@/hooks/useChampionshipCorrectedGroupStandings";
+import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividualEvents";
 import { useChampionshipSeasonRuntime } from "@/hooks/useChampionshipSeasonRuntime";
 import {
   type AwardDrawPendingContext,
@@ -181,6 +183,7 @@ import {
   formatStandingsPoints,
 } from "@/lib/standings";
 import { resolveSportCode } from "@/lib/modalidadeConfig";
+import { INDIVIDUAL_SESSION_STATUS_LABELS } from "@/lib/individualEvents";
 
 type BracketMatchRowLite = {
   id: string;
@@ -407,6 +410,7 @@ interface Props {
   onSeasonYearChange?: (seasonYear: number) => void;
   viewMode?: AdminMatchesViewMode;
   onOpenTieBreaksTab?: () => void;
+  onOpenIndividualEventsTab?: () => void;
   onRefetch: (options?: {
     showLoading?: boolean;
     showFetching?: boolean;
@@ -932,6 +936,7 @@ export function AdminMatches({
   onSeasonYearChange,
   viewMode = AdminMatchesViewMode.DEFAULT,
   onOpenTieBreaksTab,
+  onOpenIndividualEventsTab,
   onRefetch,
   onRefetchChampionshipBracket,
   externalPendingAwardDrawContexts,
@@ -1212,6 +1217,31 @@ export function AdminMatches({
       firstSport.name.localeCompare(secondSport.name),
     );
   }, [championshipSports, matches]);
+
+  const individualSportIds = useMemo(() => {
+    return championshipSports
+      .filter((championshipSport) => {
+        const sportCode = resolveSportCode(
+          championshipSport.sports?.name ?? "",
+        );
+        return sportCode == "ATLETISMO" || sportCode == "NATACAO";
+      })
+      .map((championshipSport) => championshipSport.sport_id);
+  }, [championshipSports]);
+
+  const displayedSeasonYear =
+    selectedSeasonYear ?? selectedChampionship.current_season_year;
+  const { sessions: championshipIndividualSessions } =
+    useChampionshipIndividualEvents({
+      championshipId: selectedChampionship.id,
+      seasonYear: displayedSeasonYear,
+      sportIds: individualSportIds,
+    });
+  const individualSessions = useMemo(() => {
+    return championshipIndividualSessions.filter((session) =>
+      individualSportIds.includes(session.sport_id),
+    );
+  }, [championshipIndividualSessions, individualSportIds]);
 
   const isEditingSetRuleMatch = useMemo(() => {
     if (!editingMatchDraft) {
@@ -1964,17 +1994,118 @@ export function AdminMatches({
     matchesTeamFilter,
   ]);
 
+  const individualSessionsFilteredByBaseCriteria = useMemo(() => {
+    if (isScoreSheetReviewMode || isTieBreaksMode) {
+      return [];
+    }
+
+    return individualSessions.filter((session) => {
+      if (
+        matchesSportFilter != ALL_MATCHES_SPORT_FILTER &&
+        session.sport_id != matchesSportFilter
+      ) {
+        return false;
+      }
+
+      if (
+        matchesStatusFilter == MATCHES_STATUS_FILTER_LIVE &&
+        session.status != ChampionshipIndividualSessionStatus.LIVE
+      ) {
+        return false;
+      }
+
+      if (
+        matchesStatusFilter == MATCHES_STATUS_FILTER_FINISHED &&
+        session.status != ChampionshipIndividualSessionStatus.FINISHED
+      ) {
+        return false;
+      }
+
+      if (
+        matchesStatusFilter == MATCHES_STATUS_FILTER_OPEN &&
+        session.status != ChampionshipIndividualSessionStatus.DRAFT &&
+        session.status != ChampionshipIndividualSessionStatus.SCHEDULED
+      ) {
+        return false;
+      }
+
+      if (matchesTeamFilter != ALL_MATCHES_TEAM_FILTER) {
+        return false;
+      }
+
+      if (
+        matchesNaipeFilter != ALL_MATCHES_NAIPE_FILTER &&
+        session.naipe != matchesNaipeFilter
+      ) {
+        return false;
+      }
+
+      if (
+        championshipUsesDivisions &&
+        matchesDivisionFilter != ALL_MATCHES_DIVISION_FILTER &&
+        session.division != matchesDivisionFilter
+      ) {
+        return false;
+      }
+
+      return matchesGroupFilter == ALL_MATCHES_GROUP_FILTER;
+    });
+  }, [
+    championshipUsesDivisions,
+    individualSessions,
+    isScoreSheetReviewMode,
+    isTieBreaksMode,
+    matchesDivisionFilter,
+    matchesGroupFilter,
+    matchesNaipeFilter,
+    matchesSportFilter,
+    matchesStatusFilter,
+    matchesTeamFilter,
+  ]);
+
+  const availableNaipeOptions = useMemo(() => {
+    const availableNaipes = new Set<MatchNaipe>();
+
+    matches.forEach((match) => {
+      if (
+        matchesSportFilter == ALL_MATCHES_SPORT_FILTER ||
+        match.sport_id == matchesSportFilter
+      ) {
+        availableNaipes.add(match.naipe);
+      }
+    });
+
+    individualSessions.forEach((session) => {
+      if (
+        matchesSportFilter == ALL_MATCHES_SPORT_FILTER ||
+        session.sport_id == matchesSportFilter
+      ) {
+        availableNaipes.add(session.naipe);
+      }
+    });
+
+    return NAIPE_OPTIONS.filter((naipeOption) =>
+      availableNaipes.has(naipeOption),
+    );
+  }, [individualSessions, matches, matchesSportFilter]);
+
   const locationsForMatchesFilter = useMemo(() => {
     return [
       ...new Set(
-        matchesFilteredByBaseCriteria
-          .map((match) => match.location)
-          .filter(Boolean),
+        [
+          ...matchesFilteredByBaseCriteria.map((match) => match.location),
+          ...individualSessionsFilteredByBaseCriteria.map(
+            (session) => session.location_name,
+          ),
+        ].filter((location): location is string => Boolean(location)),
       ),
     ].sort((firstLocation, secondLocation) =>
       firstLocation.localeCompare(secondLocation),
     );
-  }, [matchesFilteredByBaseCriteria]);
+  }, [
+    individualSessionsFilteredByBaseCriteria,
+    matchesFilteredByBaseCriteria,
+  ]);
 
   const courtsForMatchesFilter = useMemo(() => {
     const uniqueCourtNames = new Set<string>();
@@ -1994,10 +2125,29 @@ export function AdminMatches({
       uniqueCourtNames.add(match.court_name);
     });
 
+    individualSessionsFilteredByBaseCriteria.forEach((session) => {
+      if (!session.court_name) {
+        return;
+      }
+
+      if (
+        matchesLocationFilter != ALL_MATCHES_LOCATION_FILTER &&
+        session.location_name != matchesLocationFilter
+      ) {
+        return;
+      }
+
+      uniqueCourtNames.add(session.court_name);
+    });
+
     return [...uniqueCourtNames].sort((firstCourtName, secondCourtName) =>
       firstCourtName.localeCompare(secondCourtName),
     );
-  }, [matchesFilteredByBaseCriteria, matchesLocationFilter]);
+  }, [
+    individualSessionsFilteredByBaseCriteria,
+    matchesFilteredByBaseCriteria,
+    matchesLocationFilter,
+  ]);
 
   const championshipBracketGroupStageOptions = useMemo(() => {
     return resolveChampionshipBracketGroupStageOptions(championshipBracketView);
@@ -2497,6 +2647,30 @@ export function AdminMatches({
     operationalVisualQueuePositionByMatchId,
   ]);
 
+  const visibleIndividualSessions = useMemo(() => {
+    return individualSessionsFilteredByBaseCriteria.filter((session) => {
+      if (
+        matchesLocationFilter != ALL_MATCHES_LOCATION_FILTER &&
+        session.location_name != matchesLocationFilter
+      ) {
+        return false;
+      }
+
+      if (
+        matchesCourtFilter != ALL_MATCHES_COURT_FILTER &&
+        session.court_name != matchesCourtFilter
+      ) {
+        return false;
+      }
+
+      return session.status != ChampionshipIndividualSessionStatus.CANCELLED;
+    });
+  }, [
+    individualSessionsFilteredByBaseCriteria,
+    matchesCourtFilter,
+    matchesLocationFilter,
+  ]);
+
   useEffect(() => {
     if (!showSwapMatchDialog || !pendingSwapSourceMatch) {
       setEligibleSwapTargetMatchCandidates([]);
@@ -2662,6 +2836,15 @@ export function AdminMatches({
 
     scrollToTopOfPage();
   }, [matchesCurrentPage]);
+
+  useEffect(() => {
+    if (
+      matchesNaipeFilter != ALL_MATCHES_NAIPE_FILTER &&
+      !availableNaipeOptions.includes(matchesNaipeFilter as MatchNaipe)
+    ) {
+      setMatchesNaipeFilter(ALL_MATCHES_NAIPE_FILTER);
+    }
+  }, [availableNaipeOptions, matchesNaipeFilter]);
 
   useEffect(() => {
     const validGroupFilterValues = new Set(
@@ -5568,7 +5751,7 @@ export function AdminMatches({
                     <SelectItem value={ALL_MATCHES_NAIPE_FILTER}>
                       Todos os naipes
                     </SelectItem>
-                    {NAIPE_OPTIONS.map((naipeOption) => (
+                    {availableNaipeOptions.map((naipeOption) => (
                       <SelectItem key={naipeOption} value={naipeOption}>
                         {MATCH_NAIPE_LABELS[naipeOption]}
                       </SelectItem>
@@ -5736,6 +5919,62 @@ export function AdminMatches({
             Perfil em visualização: sem permissão para criar, editar ou remover
             jogos.
           </p>
+        ) : null}
+
+        {visibleIndividualSessions.length > 0 ? (
+          <section className="glass-card enter-section space-y-3 p-4">
+            <div>
+              <p className="text-sm font-semibold text-foreground">
+                Sessões Individuais
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Atletismo e Natação são registrados por prova e não como jogo entre duas atléticas.
+              </p>
+            </div>
+
+            <div className="grid gap-3 xl:grid-cols-2">
+              {visibleIndividualSessions.map((session) => (
+                <div
+                  key={session.id}
+                  className="rounded-2xl border border-border/60 bg-background/40 p-4"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <p className="font-display text-base font-semibold">
+                        {session.sports?.name} • {MATCH_NAIPE_LABELS[session.naipe]}
+                        {session.division
+                          ? ` • ${TEAM_DIVISION_LABELS[session.division]}`
+                          : ""}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {session.scheduled_date ?? "Sem data"}
+                        {session.location_name
+                          ? ` • ${session.location_name}`
+                          : ""}
+                        {session.court_name ? ` • ${session.court_name}` : ""}
+                      </p>
+                    </div>
+
+                    <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">
+                      {INDIVIDUAL_SESSION_STATUS_LABELS[session.status]}
+                    </span>
+                  </div>
+
+                  {onOpenIndividualEventsTab ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-3"
+                      onClick={onOpenIndividualEventsTab}
+                    >
+                      Registrar resultados
+                    </Button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </section>
         ) : null}
 
         {isFetchingMatches ? (

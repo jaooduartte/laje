@@ -77,6 +77,7 @@ import {
   resolveChampionshipBracketExactPreviewCacheValidity,
   resolveChampionshipBracketExactPreviewPayloadSignature,
   resolveChampionshipBracketSportMatchTargetRecommendations,
+  resolveChampionshipBracketStructuralScheduleSlots,
   resolveChampionshipBracketStructuralReview,
 } from "@/domain/championship-brackets/championshipBracketStructuralReview";
 import { resolveIndividualSessionSharedSlotKey } from "@/domain/championship-brackets/championshipBracketIndividualSessionSharing";
@@ -133,6 +134,7 @@ import type {
   ChampionshipBracketLocationTemplate,
   ChampionshipBracketLocationTemplateSaveInput,
   ChampionshipBracketPreviewJobEvent,
+  ChampionshipBracketPreviewTimelineEntry,
   ChampionshipBracketRemoteDraftMetadata,
   ChampionshipBracketIndividualEventConfigInput,
   ChampionshipBracketSetupFormValues,
@@ -1323,35 +1325,250 @@ function resolveOperationalPreviewPhaseLabel(
   phase: ChampionshipBracketPreviewResult["diagnostics"][number]["phase"],
   phase_label: string | null,
 ): string | null {
-  if (phase == "GROUP_STAGE") {
+  const phaseValue = phase ?? phase_label;
+
+  if (phaseValue == "GROUP_STAGE") {
     return "Fase de grupos";
   }
 
-  if (phase_label) {
-    return phase_label;
-  }
-
-  if (phase == "FINAL") {
+  if (phaseValue == "FINAL") {
     return "Final";
   }
 
-  if (phase == "SEMIFINAL") {
+  if (phaseValue == "SEMIFINAL") {
     return "Semifinal";
   }
 
-  if (phase == "QUARTERFINAL") {
+  if (phaseValue == "QUARTERFINAL") {
     return "Quartas de final";
   }
 
-  if (phase == "ROUND_OF_16") {
+  if (phaseValue == "ROUND_OF_16") {
     return "Oitavas de final";
   }
 
-  if (phase == "ROUND_OF_32") {
+  if (phaseValue == "ROUND_OF_32") {
     return "32-avos de final";
   }
 
-  return null;
+  return phase_label;
+}
+
+function resolveOperationalPreviewPredecessorMatchLabel({
+  phase,
+  phaseLabel,
+  source,
+}: {
+  phase: ChampionshipBracketPreviewTimelineEntry["phase"];
+  phaseLabel: string | null;
+  source: string;
+}): string | null {
+  const phaseValue = phase ?? phaseLabel;
+  const isWinnerSource = /^WINNER_OF_/.test(source);
+  const isLoserSource = /^LOSER_OF_/.test(source);
+
+  if (!isWinnerSource && !isLoserSource) {
+    return null;
+  }
+
+  if (phaseValue == "SEMIFINAL") {
+    return `${isWinnerSource ? "Vencedor" : "Perdedor"} das quartas de final`;
+  }
+
+  if (phaseValue == "FINAL") {
+    return `${isWinnerSource ? "Vencedor" : "Perdedor"} da semifinal`;
+  }
+
+  if (phaseValue == "QUARTERFINAL") {
+    return `${isWinnerSource ? "Vencedor" : "Perdedor"} das oitavas de final`;
+  }
+
+  if (phaseValue == "ROUND_OF_16") {
+    return `${isWinnerSource ? "Vencedor" : "Perdedor"} dos 32-avos de final`;
+  }
+
+  return `${isWinnerSource ? "Vencedor" : "Perdedor"} do confronto anterior`;
+}
+
+function resolveOperationalPreviewMatchSourceLabel({
+  source,
+  phase,
+  phaseLabel,
+  sourceMatchNumber,
+}: {
+  source: string;
+  phase: ChampionshipBracketPreviewTimelineEntry["phase"];
+  phaseLabel: string | null;
+  sourceMatchNumber: number | null | undefined;
+}): string {
+  if (/^WINNER_OF_/.test(source) && sourceMatchNumber != null) {
+    return `Vencedor do jogo ${sourceMatchNumber}`;
+  }
+
+  if (/^LOSER_OF_/.test(source) && sourceMatchNumber != null) {
+    return `Perdedor do jogo ${sourceMatchNumber}`;
+  }
+
+  const predecessorMatchLabel =
+    resolveOperationalPreviewPredecessorMatchLabel({
+      phase,
+      phaseLabel,
+      source,
+    });
+
+  if (predecessorMatchLabel) {
+    return predecessorMatchLabel;
+  }
+
+  const groupPositionMatch = source.match(/^GROUP_(\d+)_POSITION_(\d+)$/);
+
+  if (groupPositionMatch) {
+    const [, groupNumberValue, positionValue] = groupPositionMatch;
+    const groupNumber = Number(groupNumberValue);
+    const position = Number(positionValue);
+
+    return `${position}º do ${resolveChampionshipGroupLabel(groupNumber)}`;
+  }
+
+  const bestSecondPoolPositionMatch = source.match(
+    /^BEST_SECOND_POOL_POSITION_(\d+)$/,
+  );
+
+  if (bestSecondPoolPositionMatch) {
+    return `${bestSecondPoolPositionMatch[1]}º melhor 2º`;
+  }
+
+  const bestThirdPoolPositionMatch = source.match(
+    /^BEST_THIRD_POOL_POSITION_(\d+)$/,
+  );
+
+  if (bestThirdPoolPositionMatch) {
+    return `${bestThirdPoolPositionMatch[1]}º melhor 3º`;
+  }
+
+  if (/^BYE_SEED_\d+$/.test(source)) {
+    return "BYE";
+  }
+
+  return source;
+}
+
+function resolveOperationalPreviewMatchReason({
+  reason,
+  phase,
+  phaseLabel,
+  homeSourceMatchNumber,
+  awaySourceMatchNumber,
+}: {
+  reason: string;
+  phase: ChampionshipBracketPreviewTimelineEntry["phase"];
+  phaseLabel: string | null;
+  homeSourceMatchNumber: number | null | undefined;
+  awaySourceMatchNumber: number | null | undefined;
+}): string {
+  return reason
+    .split(" × ")
+    .map((source, sourceIndex) =>
+      resolveOperationalPreviewMatchSourceLabel({
+        source,
+        phase,
+        phaseLabel,
+        sourceMatchNumber:
+          sourceIndex == 0 ? homeSourceMatchNumber : awaySourceMatchNumber,
+      }),
+    )
+    .join(" × ");
+}
+
+function resolveOperationalPreviewEntryKey({
+  date,
+  locationKey,
+  courtKey,
+  entryIndex,
+}: {
+  date: string;
+  locationKey: string;
+  courtKey: string;
+  entryIndex: number;
+}): string {
+  return `${date}::${locationKey}::${courtKey}::${entryIndex}`;
+}
+
+function resolveOperationalPreviewMatchNumberingKey({
+  mode,
+  locationKey,
+  courtKey,
+  entry,
+}: {
+  mode: ChampionshipBracketMatchNumberingMode;
+  locationKey: string;
+  courtKey: string;
+  entry: ChampionshipBracketPreviewTimelineEntry;
+}): string {
+  if (mode == "SPORT_NAIPE") {
+    return `${entry.sport_id}::${entry.naipe}`;
+  }
+
+  if (mode == "SPORT") {
+    return entry.sport_id ?? "";
+  }
+
+  return `${locationKey}::${courtKey}`;
+}
+
+function resolveOperationalPreviewMatchNumberByEntryKey(
+  preview: ChampionshipBracketPreviewResult,
+): Map<string, number> {
+  const entries = preview.days
+    .flatMap((day) =>
+      day.locations.flatMap((location) =>
+        location.courts.flatMap((court) =>
+          court.entries.map((entry, entryIndex) => ({
+            date: day.date,
+            locationKey: location.location_key,
+            courtKey: court.court_key,
+            entry,
+            entryIndex,
+          })),
+        ),
+      ),
+    )
+    .filter(({ entry }) => entry.type == "MATCH")
+    .sort((left, right) => {
+      const leftKey = `${left.date}::${left.entry.start_time}::${left.locationKey}::${left.courtKey}::${left.entryIndex}`;
+      const rightKey = `${right.date}::${right.entry.start_time}::${right.locationKey}::${right.courtKey}::${right.entryIndex}`;
+
+      return leftKey.localeCompare(rightKey);
+    });
+  const latestMatchNumberByScope = new Map<string, number>();
+  const matchNumberByEntryKey = new Map<string, number>();
+
+  entries.forEach(({ date, locationKey, courtKey, entry, entryIndex }) => {
+    const numberingKey = resolveOperationalPreviewMatchNumberingKey({
+      mode: preview.match_numbering_mode,
+      locationKey,
+      courtKey,
+      entry,
+    });
+    const previousMatchNumber = latestMatchNumberByScope.get(numberingKey) ?? 0;
+    const matchNumber = entry.match_number ?? previousMatchNumber + 1;
+
+    latestMatchNumberByScope.set(
+      numberingKey,
+      Math.max(previousMatchNumber, matchNumber),
+    );
+    matchNumberByEntryKey.set(
+      resolveOperationalPreviewEntryKey({
+        date,
+        locationKey,
+        courtKey,
+        entryIndex,
+      }),
+      matchNumber,
+    );
+  });
+
+  return matchNumberByEntryKey;
 }
 
 function resolveOperationalPreviewEntryToneClassName(
@@ -6714,18 +6931,24 @@ export function AdminChampionshipBracketPage({
 
   const structuralReviewState = useMemo(() => {
     try {
-      const payload = resolveSetupPayload();
+      const basePayload = resolveSetupPayload();
+      const review = resolveChampionshipBracketStructuralReview({
+        payload: basePayload,
+        championshipSports,
+        teams,
+      });
+      const payload = {
+        ...basePayload,
+        structural_schedule_slots:
+          resolveChampionshipBracketStructuralScheduleSlots(review),
+      };
       const payloadSignature =
         resolveChampionshipBracketExactPreviewPayloadSignature(payload);
 
       return {
         payload,
         payloadSignature,
-        review: resolveChampionshipBracketStructuralReview({
-          payload,
-          championshipSports,
-          teams,
-        }),
+        review,
         error: null,
       };
     } catch (error) {
@@ -6742,6 +6965,13 @@ export function AdminChampionshipBracketPage({
   }, [championshipSports, resolveSetupPayload, teams]);
 
   const operationalPreview = exactPreviewCache?.result ?? null;
+  const operationalPreviewMatchNumberByEntryKey = useMemo(
+    () =>
+      operationalPreview
+        ? resolveOperationalPreviewMatchNumberByEntryKey(operationalPreview)
+        : new Map<string, number>(),
+    [operationalPreview],
+  );
   const visibleExactPreviewJobEvents = useMemo(
     () =>
       (exactPreviewCache?.events ?? []).filter(
@@ -7185,9 +7415,20 @@ export function AdminChampionshipBracketPage({
       return;
     }
 
+    if (!structuralReviewState.payload) {
+      setSaveErrorBannerData({
+        title: "Não foi possível montar a programação estrutural",
+        message:
+          "A configuração atual não gerou os slots estruturais necessários para criar o campeonato.",
+        suggestion:
+          "Revise as configurações da Etapa 13, calcule novamente a programação exata e tente criar o campeonato.",
+      });
+      return;
+    }
+
     setSaving(true);
     setSaveErrorBannerData(null);
-    const payload = resolveSetupPayload();
+    const payload = structuralReviewState.payload;
 
     try {
       const response = await createChampionshipBracketFromPreviewJob(
@@ -15839,8 +16080,26 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                     </p>
 
                                                     <div className="space-y-2">
-                                                    {court.entries.map(
-                                                      (entry, entryIndex) => {
+                                                    {court.entries
+                                                      .map(
+                                                        (entry, entryIndex) => ({
+                                                          entry,
+                                                          entryIndex,
+                                                        }),
+                                                      )
+                                                      .filter(
+                                                        ({ entry }) =>
+                                                          entry.type != "EMPTY" ||
+                                                          !court.entries.some(
+                                                            (courtEntry) =>
+                                                              courtEntry.type ==
+                                                                "MATCH" &&
+                                                              courtEntry.match_kind ==
+                                                                "KNOCKOUT",
+                                                          ),
+                                                      )
+                                                      .map(
+                                                      ({ entry, entryIndex }) => {
                                                         const matchDetailParts =
                                                           [
                                                             entry.sport_name,
@@ -15859,6 +16118,19 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                               entry.phase_label,
                                                             ),
                                                           ].filter(Boolean);
+                                                        const displayedMatchNumber =
+                                                          operationalPreviewMatchNumberByEntryKey.get(
+                                                            resolveOperationalPreviewEntryKey(
+                                                              {
+                                                                date: previewDay.date,
+                                                                locationKey:
+                                                                  location.location_key,
+                                                                courtKey:
+                                                                  court.court_key,
+                                                                entryIndex,
+                                                              },
+                                                            ),
+                                                          ) ?? entry.match_number;
 
                                                         if (
                                                           entry.type == "MATCH"
@@ -15894,7 +16166,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                       className="border-slate-300 bg-slate-100 px-1.5 py-0.5 text-[10px] leading-none text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                                                                     >
                                                                       Jogo{" "}
-                                                                      {entry.match_number ??
+                                                                      {displayedMatchNumber ??
                                                                         "—"}
                                                                     </AppBadge>
                                                                     <AppBadge
@@ -15925,7 +16197,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                       </AppBadge>
                                                                     ) : null}
                                                                     {phaseLabel ? (
-                                                                      <span className="rounded-full border border-border/40 bg-background/60 px-1.5 py-0.5 text-foreground/90 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
+                                                                      <span className="inline-flex items-center whitespace-nowrap rounded-full border border-border/40 bg-background/60 px-1.5 py-0.5 text-[10px] leading-none text-foreground/90 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
                                                                         {
                                                                           phaseLabel
                                                                         }
@@ -15966,28 +16238,18 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                     </p>
                                                                   ) : null}
 
-                                                                  {entry.projected ? (
-                                                                    <p className="mt-1 text-[10px] text-amber-700 dark:text-amber-300">
-                                                                      Horário
-                                                                      previsto do
-                                                                      mata-mata
-                                                                      automático.
-                                                                    </p>
-                                                                  ) : null}
-
-                                                                  {entry.manual_final ? (
-                                                                    <p className="mt-1 text-[10px] text-primary/90">
-                                                                      Programação
-                                                                      manual de
-                                                                      final.
-                                                                    </p>
-                                                                  ) : null}
-
                                                                   {entry.reason ? (
                                                                     <p className="mt-1 text-[10px] text-muted-foreground">
-                                                                      {
-                                                                        entry.reason
-                                                                      }
+                                                                      {resolveOperationalPreviewMatchReason({
+                                                                        reason: entry.reason,
+                                                                        phase: entry.phase,
+                                                                        phaseLabel:
+                                                                          entry.phase_label,
+                                                                        homeSourceMatchNumber:
+                                                                          entry.home_source_match_number,
+                                                                        awaySourceMatchNumber:
+                                                                          entry.away_source_match_number,
+                                                                      })}
                                                                     </p>
                                                                   ) : null}
                                                                 </div>

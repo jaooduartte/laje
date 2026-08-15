@@ -43,6 +43,7 @@ import {
 import {
   resolveCanViewBracketSetupTab,
   resolveCanViewOperationalAdminTabs,
+  resolveCanViewReviewAdminTabs,
 } from "@/pages/admin/adminPageVisibility";
 import { resolvePreferredAdminChampionshipCode } from "@/pages/admin/adminPage.helpers";
 import { AdminPageView } from "@/pages/admin/AdminPageView";
@@ -97,6 +98,7 @@ export function AdminPage() {
     matchRepresentationByMatchId: operationalMatchRepresentationByMatchId,
     visualQueuePositionByMatchId: operationalVisualQueuePositionByMatchId,
     estimatedStartTimeByMatchId: operationalEstimatedStartTimeByMatchId,
+    loading: operationalMatchesLoading,
     isFetching: operationalMatchesFetching,
     refetch: refetchOperationalMatches,
   } = useMatches({
@@ -228,7 +230,7 @@ export function AdminPage() {
   };
 
   const hasFinishedLoadingOperationalState =
-    !operationalMatchesFetching && !loadingOperationalChampionshipBracket;
+    !operationalMatchesLoading && !loadingOperationalChampionshipBracket;
   const operationalBracketEditionStatus = operationalChampionshipBracketView.edition?.status ?? null;
   const canViewBracketSetupTab = resolveCanViewBracketSetupTab({
     championshipStatus: selectedChampionship?.status ?? ChampionshipStatus.PLANNING,
@@ -237,6 +239,12 @@ export function AdminPage() {
     bracketEditionStatus: operationalBracketEditionStatus,
   });
   const canViewOperationalAdminTabs = resolveCanViewOperationalAdminTabs({
+    championshipStatus: selectedChampionship?.status ?? ChampionshipStatus.PLANNING,
+    hasFinishedLoadingOperationalState,
+    matchesCount: operationalMatches.length,
+    bracketEditionStatus: operationalBracketEditionStatus,
+  });
+  const canViewReviewAdminTabs = resolveCanViewReviewAdminTabs({
     championshipStatus: selectedChampionship?.status ?? ChampionshipStatus.PLANNING,
     hasFinishedLoadingOperationalState,
     matchesCount: operationalMatches.length,
@@ -407,7 +415,7 @@ export function AdminPage() {
   const handleKeepCurrentGamesAndMoveToUpcoming = async () => {
     setProcessingChampionshipStatusFlowAction(true);
 
-    const hasUpdatedStatus = await updateChampionshipStatus(ChampionshipStatus.UPCOMING);
+    const hasUpdatedStatus = await updateChampionshipStatus(ChampionshipStatus.REVIEW);
 
     setProcessingChampionshipStatusFlowAction(false);
 
@@ -447,9 +455,11 @@ export function AdminPage() {
 
     if (
       selectedChampionship.status == ChampionshipStatus.PLANNING &&
-      (value == ChampionshipStatus.IN_PROGRESS || value == ChampionshipStatus.FINISHED)
+      (value == ChampionshipStatus.REVIEW ||
+        value == ChampionshipStatus.IN_PROGRESS ||
+        value == ChampionshipStatus.FINISHED)
     ) {
-      toast.error("Para chegar em Em andamento ou Encerrado, o campeonato precisa passar antes por Configurando campeonato.");
+      toast.error("Para chegar em Em revisão, Em andamento ou Encerrado, o campeonato precisa passar antes por Configurando campeonato.");
       return;
     }
 
@@ -521,9 +531,9 @@ export function AdminPage() {
   }
 
   const canViewMatchesTab =
-    canViewOperationalAdminTabs && canViewAdminTab(AdminPanelTab.MATCHES);
+    (canViewOperationalAdminTabs || canViewReviewAdminTabs) && canViewAdminTab(AdminPanelTab.MATCHES);
   const canViewControlTab =
-    canViewOperationalAdminTabs && canViewAdminTab(AdminPanelTab.CONTROL);
+    (canViewOperationalAdminTabs || canViewReviewAdminTabs) && canViewAdminTab(AdminPanelTab.CONTROL);
   const canViewTeamsTab = canViewAdminTab(AdminPanelTab.TEAMS);
   const canViewSportsTab = canViewAdminTab(AdminPanelTab.SPORTS);
   const canViewEventsTab = canViewAdminTab(AdminPanelTab.EVENTS);

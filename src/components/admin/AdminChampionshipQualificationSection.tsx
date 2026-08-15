@@ -12,13 +12,13 @@ import {
   resolveQualificationModeOption,
   type QualificationModeOption,
 } from "@/domain/championship-brackets/championshipBracketQualification";
-import { updateBracketCompetitionSettings } from "@/domain/championship-brackets/championshipBracket.repository";
+import type { ChampionshipBracketReconfigurationRequest } from "@/domain/championship-brackets/championshipBracket.types";
 import type { ChampionshipBracketCompetition } from "@/lib/types";
 
 interface Props {
   competitions: ChampionshipBracketCompetition[];
   isEditable: boolean;
-  onSaved: () => void;
+  onRequestReconfiguration: (request: ChampionshipBracketReconfigurationRequest) => Promise<boolean>;
 }
 
 function resolveCompetitionLabel(competition: ChampionshipBracketCompetition): string {
@@ -29,7 +29,7 @@ function resolveCompetitionLabel(competition: ChampionshipBracketCompetition): s
   return `${competition.sport_name} • ${MATCH_NAIPE_LABELS[competition.naipe]}${divisionSuffix}`;
 }
 
-export function AdminChampionshipQualificationSection({ competitions, isEditable, onSaved }: Props) {
+export function AdminChampionshipQualificationSection({ competitions, isEditable, onRequestReconfiguration }: Props) {
   const [selectedModeByCompetitionId, setSelectedModeByCompetitionId] = useState<
     Record<string, QualificationModeOption>
   >({});
@@ -54,27 +54,24 @@ export function AdminChampionshipQualificationSection({ competitions, isEditable
     );
     setSavingCompetitionId(competition.id);
 
-    const { error } = await updateBracketCompetitionSettings(
-      competition.id,
-      nextConfig.qualifiers_per_group,
-      nextConfig.should_complete_knockout_with_best_second_placed_teams,
-      "LINEAR",
-    );
+    const previewCreated = await onRequestReconfiguration({
+      action: "COMPETITION_SETTINGS",
+      label: `Classificação de ${resolveCompetitionLabel(competition)}`,
+      payload: {
+        competition_id: competition.id,
+        qualifiers_per_group: nextConfig.qualifiers_per_group,
+        should_complete_knockout_with_best_second_placed_teams:
+          nextConfig.should_complete_knockout_with_best_second_placed_teams,
+        knockout_pairing_mode: "LINEAR",
+      },
+    });
 
     setSavingCompetitionId(null);
 
-    if (error) {
-      toast.error(error.message);
+    if (!previewCreated) {
       return;
     }
 
-    toast.success("Configuração de classificação atualizada.");
-    setSelectedModeByCompetitionId((prev) => {
-      const next = { ...prev };
-      delete next[competition.id];
-      return next;
-    });
-    onSaved();
   }
 
   return (

@@ -430,7 +430,7 @@ describe("AdminPageView tabs", () => {
 
     const tabLabels = screen.getAllByRole("tab").map((tab) => tab.textContent?.trim());
 
-    expect(tabLabels.at(-2)).toBe("Agenda");
+    expect(tabLabels.at(-2)).toBe("Reprogramar agenda");
     expect(tabLabels.at(-1)).toBe("Configurações");
   });
 
@@ -599,7 +599,7 @@ describe("AdminPageView tabs", () => {
     expect(screen.queryByRole("tab", { name: "Conferência de Súmula" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Sorteios" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Classificação" })).not.toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Agenda" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Reprogramar agenda" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Provas Individuais" })).toBeInTheDocument();
   });
 

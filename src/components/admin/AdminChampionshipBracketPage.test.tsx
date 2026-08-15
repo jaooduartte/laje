@@ -10,11 +10,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AdminChampionshipBracketPage } from "@/components/admin/AdminChampionshipBracketPage";
 import { ChampionshipBracketSetupDTO } from "@/domain/championship-brackets/ChampionshipBracketSetupDTO";
 import { resolveExactPreviewCacheFromJob } from "@/domain/championship-brackets/championshipBracketExactPreview";
-import { resolveChampionshipBracketExactPreviewPayloadSignature } from "@/domain/championship-brackets/championshipBracketStructuralReview";
+import {
+  resolveChampionshipBracketExactPreviewPayloadSignature,
+  resolveChampionshipBracketStructuralScheduleSlots,
+  resolveChampionshipBracketStructuralReview,
+} from "@/domain/championship-brackets/championshipBracketStructuralReview";
 import { sanitizeChampionshipBracketWizardDraft } from "@/domain/championship-brackets/championshipBracketWizardSync";
 import type {
   ChampionshipBracketPreviewJob,
   ChampionshipBracketPreviewResult,
+  ChampionshipBracketSetupFormValues,
   ChampionshipBracketWizardDraftFormValues,
 } from "@/domain/championship-brackets/championshipBracket.types";
 import {
@@ -377,6 +382,23 @@ function buildSetupPayloadFromDraft(draft: ChampionshipBracketWizardDraftFormVal
   }).bindToSave();
 }
 
+function buildExactPreviewPayloadFromDraft(
+  draft: ChampionshipBracketWizardDraftFormValues,
+) {
+  const payload = buildSetupPayloadFromDraft(draft);
+  const review = resolveChampionshipBracketStructuralReview({
+    payload,
+    championshipSports: buildChampionshipSports(),
+    teams: buildTeams(),
+  });
+
+  return {
+    ...payload,
+    structural_schedule_slots:
+      resolveChampionshipBracketStructuralScheduleSlots(review),
+  };
+}
+
 function buildExactPreviewResult(): ChampionshipBracketPreviewResult {
   return {
     ok: true,
@@ -518,6 +540,123 @@ function buildExactPreviewResult(): ChampionshipBracketPreviewResult {
     ],
     diagnostics: [],
   };
+}
+
+function buildExactPreviewResultWithProjectedKnockout(): ChampionshipBracketPreviewResult {
+  const preview = buildExactPreviewResult();
+  const court = preview.days[0]!.locations[0]!.courts[0]!;
+
+  court.entries = [
+    ...court.entries,
+    {
+      type: "MATCH",
+      start_time: "13:00",
+      end_time: "13:40",
+      duration_minutes: 40,
+      match_kind: "KNOCKOUT",
+      match_number: null,
+      sport_id: "sport-1",
+      sport_name: "Futsal",
+      naipe: MatchNaipe.FEMININO,
+      division: TeamDivision.DIVISAO_PRINCIPAL,
+      phase: "QUARTERFINAL",
+      phase_label: "QUARTERFINAL",
+      group_number: null,
+      round_number: 1,
+      reason_code: null,
+      reason: "GROUP_1_POSITION_1 × BEST_SECOND_POOL_POSITION_3",
+      projected: true,
+      manual_final: false,
+    },
+    {
+      type: "EMPTY",
+      start_time: "13:40",
+      end_time: "14:20",
+      duration_minutes: 40,
+      match_kind: null,
+      match_number: null,
+      sport_id: null,
+      sport_name: null,
+      naipe: null,
+      division: null,
+      phase: null,
+      phase_label: null,
+      group_number: null,
+      round_number: null,
+      reason_code: "FREE_WINDOW",
+      reason: null,
+      projected: false,
+      manual_final: false,
+    },
+    {
+      type: "MATCH",
+      start_time: "14:20",
+      end_time: "15:00",
+      duration_minutes: 40,
+      match_kind: "KNOCKOUT",
+      match_number: null,
+      sport_id: "sport-1",
+      sport_name: "Futsal",
+      naipe: MatchNaipe.FEMININO,
+      division: TeamDivision.DIVISAO_PRINCIPAL,
+      phase: "QUARTERFINAL",
+      phase_label: "QUARTERFINAL",
+      group_number: null,
+      round_number: 1,
+      reason_code: null,
+      reason: "GROUP_2_POSITION_1 × GROUP_3_POSITION_1",
+      projected: true,
+      manual_final: false,
+    },
+    {
+      type: "MATCH",
+      start_time: "15:00",
+      end_time: "15:40",
+      duration_minutes: 40,
+      match_kind: "KNOCKOUT",
+      match_number: null,
+      sport_id: "sport-1",
+      sport_name: "Futsal",
+      naipe: MatchNaipe.FEMININO,
+      division: TeamDivision.DIVISAO_PRINCIPAL,
+      phase: "SEMIFINAL",
+      phase_label: "SEMIFINAL",
+      group_number: null,
+      round_number: 2,
+      reason_code: null,
+      reason:
+        "WINNER_OF_11111111-1111-1111-1111-111111111111 × WINNER_OF_22222222-2222-2222-2222-222222222222",
+      home_source_match_number: 2,
+      away_source_match_number: 3,
+      projected: true,
+      manual_final: false,
+    },
+    {
+      type: "MATCH",
+      start_time: "15:40",
+      end_time: "16:20",
+      duration_minutes: 40,
+      match_kind: "KNOCKOUT",
+      match_number: null,
+      sport_id: "sport-1",
+      sport_name: "Futsal",
+      naipe: MatchNaipe.FEMININO,
+      division: TeamDivision.DIVISAO_PRINCIPAL,
+      phase: "FINAL",
+      phase_label: "FINAL",
+      group_number: null,
+      round_number: 3,
+      reason_code: null,
+      reason:
+        "WINNER_OF_33333333-3333-3333-3333-333333333333 × WINNER_OF_44444444-4444-4444-4444-444444444444",
+      home_source_match_number: 4,
+      away_source_match_number: 5,
+      projected: true,
+      manual_final: true,
+    },
+  ];
+
+  return preview;
 }
 
 function buildExactPreviewJob(
@@ -682,6 +821,44 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
 
     await waitFor(() => expect(createButton).toBeEnabled());
     expect(createChampionshipBracketFromPreviewJobMock).not.toHaveBeenCalled();
+  });
+
+  it("envia os slots estruturais derivados da revisão local para a prévia exata", async () => {
+    fetchChampionshipBracketWizardDraftMock.mockResolvedValue({
+      draft_form_values: buildDraft(),
+      metadata: null,
+      source: "local",
+    });
+
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Calcular programação exata",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(startChampionshipBracketPreviewJobMock).toHaveBeenCalledTimes(1),
+    );
+
+    const payload = startChampionshipBracketPreviewJobMock.mock.calls[0]?.[1] as
+      | ChampionshipBracketSetupFormValues
+      | undefined;
+
+    expect(payload?.structural_schedule_slots).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          date: "2026-08-29",
+          location_key: "loc-1",
+          court_key: "court-1",
+          competition_key: "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
+          phase: "GROUP_STAGE",
+          match_kind: "GROUP_STAGE",
+          manual_final: false,
+        }),
+      ]),
+    );
   });
 
   it("persiste somente as assinaturas após calcular a prévia exata", async () => {
@@ -1107,6 +1284,85 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
     expect(screen.queryByText("Jogos totais")).not.toBeInTheDocument();
   });
 
+  it("oculta janelas livres entre partidas eliminatórias e traduz seus dados", async () => {
+    const projectedKnockoutPreview =
+      buildExactPreviewResultWithProjectedKnockout();
+
+    fetchChampionshipBracketWizardDraftMock.mockResolvedValue({
+      draft_form_values: buildDraft(),
+      metadata: null,
+      source: "local",
+    });
+    fetchChampionshipBracketPreviewJobDayMock.mockResolvedValue({
+      data: projectedKnockoutPreview.days[0],
+      error: null,
+    });
+
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Calcular programação exata",
+      }),
+    );
+
+    const exactPreviewDayButton = await screen.findByRole("button", {
+      name: "Expandir programação de 29/08/2026",
+    });
+    fireEvent.click(exactPreviewDayButton);
+
+    await waitFor(() =>
+      expect(fetchChampionshipBracketPreviewJobDayMock).toHaveBeenCalledWith(
+        "preview-job-1",
+        "2026-08-29",
+      ),
+    );
+
+    const exactPreviewDayCard = exactPreviewDayButton.closest("section");
+
+    expect(exactPreviewDayCard).not.toBeNull();
+
+    const exactPreviewDay = within(exactPreviewDayCard!);
+
+    expect(exactPreviewDay.queryByText("Janela livre")).not.toBeInTheDocument();
+    expect(exactPreviewDay.getAllByText("Quartas de final")).toHaveLength(2);
+    expect(exactPreviewDay.getByText("Jogo 2")).toBeInTheDocument();
+    expect(exactPreviewDay.getByText("Jogo 3")).toBeInTheDocument();
+    expect(exactPreviewDay.queryByText("Jogo —")).not.toBeInTheDocument();
+    expect(exactPreviewDay.getAllByText("Quartas de final")[0]).toHaveClass(
+      "leading-none",
+    );
+    expect(
+      exactPreviewDay.getByText("1º do Grupo A × 3º melhor 2º"),
+    ).toBeInTheDocument();
+    expect(
+      exactPreviewDay.getByText("1º do Grupo B × 1º do Grupo C"),
+    ).toBeInTheDocument();
+    expect(
+      exactPreviewDay.getByText(
+        "Vencedor do jogo 2 × Vencedor do jogo 3",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      exactPreviewDay.getByText("Vencedor do jogo 4 × Vencedor do jogo 5"),
+    ).toBeInTheDocument();
+    expect(exactPreviewDay.queryByText("QUARTERFINAL")).not.toBeInTheDocument();
+    expect(
+      exactPreviewDay.queryByText("GROUP_1_POSITION_1 × BEST_SECOND_POOL_POSITION_3"),
+    ).not.toBeInTheDocument();
+    expect(
+      exactPreviewDay.queryByText(
+        "WINNER_OF_11111111-1111-1111-1111-111111111111 × WINNER_OF_22222222-2222-2222-2222-222222222222",
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      exactPreviewDay.queryByText("Horário previsto do mata-mata automático."),
+    ).not.toBeInTheDocument();
+    expect(
+      exactPreviewDay.queryByText("Programação manual de final."),
+    ).not.toBeInTheDocument();
+  });
+
   it("mantém todos os schedule_days da prévia exata, inclusive o dia sem jogos de grupos", () => {
     const setupPayload = buildSetupPayloadFromDraft(buildDraft());
     const scheduleDays = [
@@ -1504,7 +1760,7 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
   it("aceita as assinaturas válidas restauradas do draft sem restaurar a cronologia", async () => {
     const draft = buildDraft();
     const payloadSignature = resolveChampionshipBracketExactPreviewPayloadSignature(
-      buildSetupPayloadFromDraft(draft),
+      buildExactPreviewPayloadFromDraft(draft),
     );
 
     fetchChampionshipBracketWizardDraftMock.mockResolvedValue({
@@ -1552,7 +1808,7 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
   it("invalida uma prévia concluída pela versão antiga do algoritmo", async () => {
     const draft = buildDraft();
     const payloadSignature = resolveChampionshipBracketExactPreviewPayloadSignature(
-      buildSetupPayloadFromDraft(draft),
+      buildExactPreviewPayloadFromDraft(draft),
     );
 
     fetchChampionshipBracketWizardDraftMock.mockResolvedValue({

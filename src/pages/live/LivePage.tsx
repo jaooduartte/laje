@@ -22,6 +22,14 @@ export function LivePage() {
       return inProgressChampionship;
     }
 
+    const reviewChampionship = championships.find(
+      (championship) => championship.status == ChampionshipStatus.REVIEW,
+    );
+
+    if (reviewChampionship) {
+      return reviewChampionship;
+    }
+
     const upcomingChampionship = championships.find((championship) => championship.status == ChampionshipStatus.UPCOMING);
 
     if (upcomingChampionship) {

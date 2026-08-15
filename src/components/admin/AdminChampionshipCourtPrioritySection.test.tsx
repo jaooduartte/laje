@@ -24,7 +24,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
   getBracketLocationSportPriorities: vi.fn(),
-  updateBracketLocationSportPriorities: vi.fn(),
+  onRequestReconfiguration: vi.fn(),
 
   toast: {
     error: vi.fn(),
@@ -38,8 +38,6 @@ vi.mock(
     getBracketLocationSportPriorities:
       mocks.getBracketLocationSportPriorities,
 
-    updateBracketLocationSportPriorities:
-      mocks.updateBracketLocationSportPriorities,
   }),
 );
 
@@ -47,11 +45,7 @@ vi.mock("sonner", () => ({
   toast: mocks.toast,
 }));
 
-function renderSection({
-  onSaved = vi.fn(),
-}: {
-  onSaved?: ReturnType<typeof vi.fn>;
-} = {}) {
+function renderSection() {
   render(
     <AdminChampionshipCourtPrioritySection
       bracketEditionId="edition-1"
@@ -69,13 +63,10 @@ function renderSection({
       divisionOptionsBySportId={{
         "sport-1": [],
       }}
-      onSaved={onSaved}
+      onRequestReconfiguration={mocks.onRequestReconfiguration}
     />,
   );
 
-  return {
-    onSaved,
-  };
 }
 
 describe(
@@ -85,7 +76,7 @@ describe(
       mocks.getBracketLocationSportPriorities
         .mockReset();
 
-      mocks.updateBracketLocationSportPriorities
+      mocks.onRequestReconfiguration
         .mockReset();
 
       mocks.toast.error.mockReset();
@@ -145,12 +136,9 @@ describe(
             error: null,
           });
 
-        mocks.updateBracketLocationSportPriorities
-          .mockResolvedValue({
-            error: null,
-          });
+        mocks.onRequestReconfiguration.mockResolvedValue(true);
 
-        const { onSaved } = renderSection();
+        renderSection();
 
         await screen.findByText(
           "Arena • Basquetebol",
@@ -192,32 +180,19 @@ describe(
 
         await waitFor(() => {
           expect(
-            mocks
-              .updateBracketLocationSportPriorities,
-          ).toHaveBeenCalledWith(
-            "edition-1",
-            [
-              {
+            mocks.onRequestReconfiguration,
+          ).toHaveBeenCalledWith(expect.objectContaining({
+            action: "LOCATION_SPORT_PRIORITIES",
+            payload: {
+              priority_updates: [{
                 location_group_id:
                   "location-1",
-
                 sport_id: "sport-1",
-
                 priority_mode: "NAIPE",
-              },
-            ],
-          );
+              }],
+            },
+          }));
         });
-
-        await waitFor(() => {
-          expect(onSaved).toHaveBeenCalled();
-        });
-
-        expect(
-          mocks.toast.success,
-        ).toHaveBeenCalledWith(
-          "Prioridade global salva para Arena.",
-        );
       },
     );
 
@@ -274,7 +249,7 @@ describe(
             error: null,
           });
 
-        const { onSaved } = renderSection();
+        renderSection();
 
         await screen.findByText(
           "Arena • Basquetebol",
@@ -304,14 +279,7 @@ describe(
           }),
         ).toBeDisabled();
 
-        expect(
-          mocks
-            .updateBracketLocationSportPriorities,
-        ).not.toHaveBeenCalled();
-
-        expect(
-          onSaved,
-        ).not.toHaveBeenCalled();
+        expect(mocks.onRequestReconfiguration).not.toHaveBeenCalled();
       },
     );
   },

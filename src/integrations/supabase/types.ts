@@ -2737,6 +2737,15 @@ export type Database = {
         Args: { _bracket_edition_id: string }
         Returns: undefined
       }
+      apply_championship_bracket_reconfiguration: {
+        Args: {
+          _action: string
+          _bracket_edition_id: string
+          _expected_revision: number
+          _payload: Json
+        }
+        Returns: undefined
+      }
       assign_championship_knockout_match_planned_schedule: {
         Args: { _bracket_match_id: string; _championship_id: string }
         Returns: undefined
@@ -2766,6 +2775,10 @@ export type Database = {
       create_championship_bracket_from_preview_job: {
         Args: { _championship_id: string; _job_id: string; _payload: Json }
         Returns: string
+      }
+      preview_championship_bracket_reconfiguration: {
+        Args: { _action: string; _bracket_edition_id: string; _payload: Json }
+        Returns: Json
       }
       can_access_admin_panel: { Args: never; Returns: boolean }
       coerce_division_for_index: {
@@ -3918,7 +3931,7 @@ export type Database = {
         | "BEACH_TENNIS"
         | "FUTEBOL_SOCIETY"
         | "HANDEBOL"
-      championship_status: "PLANNING" | "UPCOMING" | "IN_PROGRESS" | "FINISHED"
+      championship_status: "PLANNING" | "UPCOMING" | "REVIEW" | "IN_PROGRESS" | "FINISHED"
       league_calendar_holiday_day_kind: "HOLIDAY" | "OPTIONAL"
       league_calendar_holiday_scope: "NATIONAL" | "JOINVILLE"
       league_event_organizer_type: "ATHLETIC" | "LAJE"
@@ -4152,7 +4165,7 @@ export const Constants = {
         "FUTEBOL_SOCIETY",
         "HANDEBOL",
       ],
-      championship_status: ["PLANNING", "UPCOMING", "IN_PROGRESS", "FINISHED"],
+      championship_status: ["PLANNING", "UPCOMING", "REVIEW", "IN_PROGRESS", "FINISHED"],
       league_calendar_holiday_day_kind: ["HOLIDAY", "OPTIONAL"],
       league_calendar_holiday_scope: ["NATIONAL", "JOINVILLE"],
       league_event_organizer_type: ["ATHLETIC", "LAJE"],

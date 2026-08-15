@@ -81,6 +81,7 @@ export const TEAM_DIVISION_SELECTION_LABELS: Record<
 export const CHAMPIONSHIP_STATUS_LABELS: Record<ChampionshipStatus, string> = {
   [ChampionshipStatus.PLANNING]: "Em breve",
   [ChampionshipStatus.UPCOMING]: "Configurando campeonato",
+  [ChampionshipStatus.REVIEW]: "Em revisão",
   [ChampionshipStatus.IN_PROGRESS]: "Em andamento",
   [ChampionshipStatus.FINISHED]: "Encerrado",
 };
@@ -93,6 +94,8 @@ export const CHAMPIONSHIP_STATUS_BADGE_CLASS_NAMES: Record<
     "border-transparent bg-secondary text-secondary-foreground",
   [ChampionshipStatus.UPCOMING]:
     "border-transparent bg-secondary text-secondary-foreground",
+  [ChampionshipStatus.REVIEW]:
+    "border-transparent bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200",
   [ChampionshipStatus.IN_PROGRESS]:
     "border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200",
   [ChampionshipStatus.FINISHED]:
@@ -1759,6 +1762,7 @@ export function isChampionshipStatus(
   return (
     value === ChampionshipStatus.PLANNING ||
     value === ChampionshipStatus.UPCOMING ||
+    value === ChampionshipStatus.REVIEW ||
     value === ChampionshipStatus.IN_PROGRESS ||
     value === ChampionshipStatus.FINISHED
   );

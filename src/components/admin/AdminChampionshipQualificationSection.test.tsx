@@ -5,15 +5,11 @@ import { BracketThirdPlaceMode, MatchNaipe, TeamDivision } from "@/lib/enums";
 import type { ChampionshipBracketCompetition } from "@/lib/types";
 
 const mocks = vi.hoisted(() => ({
-  updateBracketCompetitionSettings: vi.fn(),
+  onRequestReconfiguration: vi.fn(),
   toast: {
     error: vi.fn(),
     success: vi.fn(),
   },
-}));
-
-vi.mock("@/domain/championship-brackets/championshipBracket.repository", () => ({
-  updateBracketCompetitionSettings: mocks.updateBracketCompetitionSettings,
 }));
 
 vi.mock("sonner", () => ({
@@ -42,14 +38,13 @@ function buildCompetition(
 
 describe("AdminChampionshipQualificationSection", () => {
   beforeEach(() => {
-    mocks.updateBracketCompetitionSettings.mockReset();
+    mocks.onRequestReconfiguration.mockReset();
     mocks.toast.error.mockReset();
     mocks.toast.success.mockReset();
   });
 
-  it("salva apenas a configuração de classificação usando LINEAR internamente", async () => {
-    mocks.updateBracketCompetitionSettings.mockResolvedValue({ error: null });
-    const onSaved = vi.fn();
+  it("solicita a prévia da classificação usando LINEAR", async () => {
+    mocks.onRequestReconfiguration.mockResolvedValue(true);
 
     render(
       <AdminChampionshipQualificationSection
@@ -65,7 +60,7 @@ describe("AdminChampionshipQualificationSection", () => {
           }),
         ]}
         isEditable
-        onSaved={onSaved}
+        onRequestReconfiguration={mocks.onRequestReconfiguration}
       />,
     );
 
@@ -78,18 +73,17 @@ describe("AdminChampionshipQualificationSection", () => {
     fireEvent.click(screen.getByRole("button", { name: "Salvar classificação" }));
 
     await waitFor(() => {
-      expect(mocks.updateBracketCompetitionSettings).toHaveBeenCalledWith(
-        "competition-1",
-        2,
-        false,
-        "LINEAR",
-      );
+      expect(mocks.onRequestReconfiguration).toHaveBeenCalledWith(expect.objectContaining({
+        action: "COMPETITION_SETTINGS",
+        payload: expect.objectContaining({
+          competition_id: "competition-1",
+          qualifiers_per_group: 2,
+          should_complete_knockout_with_best_second_placed_teams: false,
+          knockout_pairing_mode: "LINEAR",
+        }),
+      }));
     });
 
-    expect(onSaved).toHaveBeenCalled();
-    expect(mocks.toast.success).toHaveBeenCalledWith(
-      "Configuração de classificação atualizada.",
-    );
   });
 
   it("bloqueia edição quando o mata-mata já foi gerado", () => {
@@ -128,7 +122,7 @@ describe("AdminChampionshipQualificationSection", () => {
           }),
         ]}
         isEditable
-        onSaved={vi.fn()}
+        onRequestReconfiguration={mocks.onRequestReconfiguration}
       />,
     );
 

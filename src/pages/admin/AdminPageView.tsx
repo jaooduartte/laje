@@ -212,7 +212,13 @@ export function AdminPageView({
     const nextAdminTabItems: AdminTabItem[] = [];
 
     if (canViewControlTab) {
-      nextAdminTabItems.push({ value: AdminPanelTab.CONTROL, label: "Controle ao Vivo" });
+      nextAdminTabItems.push({
+        value: AdminPanelTab.CONTROL,
+        label:
+          selectedChampionship.status === ChampionshipStatus.REVIEW
+            ? "Controle de jogos"
+            : "Controle ao Vivo",
+      });
     }
 
     if (canViewMatchesTab) {
@@ -272,7 +278,7 @@ export function AdminPageView({
     }
 
     if (canViewScheduleTab) {
-      nextAdminTabItems.push({ value: AdminPanelTab.CHAMPIONSHIP_SCHEDULE, label: "Agenda" });
+      nextAdminTabItems.push({ value: AdminPanelTab.CHAMPIONSHIP_SCHEDULE, label: "Reprogramar agenda" });
     }
 
     if (canViewSettingsTab) {
@@ -297,6 +303,7 @@ export function AdminPageView({
     canViewSportsTab,
     canViewTeamsTab,
     canViewUsersTab,
+    selectedChampionship.status,
   ]);
 
   const championshipStatusOptions = useMemo(() => {
@@ -310,6 +317,7 @@ export function AdminPageView({
     return [
       ChampionshipStatus.PLANNING,
       ChampionshipStatus.UPCOMING,
+      ChampionshipStatus.REVIEW,
       ChampionshipStatus.IN_PROGRESS,
       ChampionshipStatus.FINISHED,
     ];
@@ -589,6 +597,9 @@ export function AdminPageView({
                 onRefetch={onRefetchMatches}
                 onRefetchChampionshipBracket={onRefetchChampionshipBracket}
                 onOpenTieBreaksTab={() => onActiveTabChange(TIE_BREAKS_TAB_VALUE)}
+                onOpenIndividualEventsTab={() =>
+                  onActiveTabChange(AdminPanelTab.INDIVIDUAL_EVENTS)
+                }
               />
 	            </TabsContent>
 	          ) : null}
@@ -656,6 +667,9 @@ export function AdminPageView({
                 isFetchingMatches={matchesFetching}
                 onRefetch={onRefetchMatches}
                 onRefetchChampionshipBracket={onRefetchChampionshipBracket}
+                onOpenIndividualEventsTab={() =>
+                  onActiveTabChange(AdminPanelTab.INDIVIDUAL_EVENTS)
+                }
                 canManageScoreboard={canManageScoreboard}
               />
             </TabsContent>

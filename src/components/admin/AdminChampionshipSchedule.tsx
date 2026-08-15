@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { TimeInput } from "@/components/ui/time-input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -22,13 +24,19 @@ import {
 } from "@/components/admin/adminCourtPriority.utils";
 import { resolveIndividualSportIds } from "@/lib/individualEvents";
 import { ChampionshipStatus } from "@/lib/enums";
-import { getBracketDaySchedules, updateBracketDaySchedule } from "@/domain/championship-brackets/championshipBracket.repository";
+import {
+  applyChampionshipBracketReconfiguration,
+  getBracketDaySchedules,
+  previewChampionshipBracketReconfiguration,
+} from "@/domain/championship-brackets/championshipBracket.repository";
 import type {
   BracketDayBreak,
   BracketDayBreakScopeType,
   BracketDayCourtOption,
   BracketDaySchedule,
   BracketDayScheduleUpdate,
+  ChampionshipBracketReconfigurationPreview,
+  ChampionshipBracketReconfigurationRequest,
 } from "@/domain/championship-brackets/championshipBracket.types";
 import type { ChampionshipBracketCompetition, Sport } from "@/lib/types";
 
@@ -116,6 +124,11 @@ export function AdminChampionshipSchedule({
 }: Props) {
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState<DayScheduleDraft[]>([]);
+  const [activeSection, setActiveSection] = useState("schedule");
+  const [pendingReconfiguration, setPendingReconfiguration] = useState<ChampionshipBracketReconfigurationRequest | null>(null);
+  const [reconfigurationPreview, setReconfigurationPreview] = useState<ChampionshipBracketReconfigurationPreview | null>(null);
+  const [loadingReconfigurationPreview, setLoadingReconfigurationPreview] = useState(false);
+  const [applyingReconfiguration, setApplyingReconfiguration] = useState(false);
   const savedDaysRef = useRef<DayScheduleSnapshot[]>([]);
   const individualSportIds = useMemo(() => resolveIndividualSportIds(sports), [sports]);
   const { events: individualEvents, sessions: individualSessions } = useChampionshipIndividualEvents({
@@ -124,7 +137,7 @@ export function AdminChampionshipSchedule({
     sportIds: individualSportIds,
   });
 
-  const isEditable = canManageSchedule && championshipStatus === ChampionshipStatus.UPCOMING;
+  const isEditable = canManageSchedule && championshipStatus === ChampionshipStatus.REVIEW;
 
   const sportNameBySportId = useMemo(() => {
     return competitions.reduce<Record<string, string>>((carry, competition) => {
@@ -178,6 +191,58 @@ export function AdminChampionshipSchedule({
   useEffect(() => {
     loadSchedules();
   }, [loadSchedules]);
+
+  async function requestReconfiguration(request: ChampionshipBracketReconfigurationRequest) {
+    setPendingReconfiguration(request);
+    setReconfigurationPreview(null);
+    setLoadingReconfigurationPreview(true);
+    const { data, error } = await previewChampionshipBracketReconfiguration(
+      bracketEditionId,
+      request.action,
+      request.payload,
+    );
+    setLoadingReconfigurationPreview(false);
+
+    if (error || !data) {
+      toast.error(error?.message ?? "Não foi possível calcular o impacto da reprogramação.");
+      setPendingReconfiguration(null);
+      return false;
+    }
+
+    setReconfigurationPreview(data);
+    return true;
+  }
+
+  function closeReconfigurationPreview() {
+    if (applyingReconfiguration) return;
+    setPendingReconfiguration(null);
+    setReconfigurationPreview(null);
+  }
+
+  async function applyReconfiguration() {
+    if (!pendingReconfiguration || !reconfigurationPreview) return;
+    setApplyingReconfiguration(true);
+    const { error } = await applyChampionshipBracketReconfiguration(
+      bracketEditionId,
+      pendingReconfiguration.action,
+      pendingReconfiguration.payload,
+      reconfigurationPreview.revision,
+    );
+    setApplyingReconfiguration(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(
+      reconfigurationPreview.affected_matches > 0
+        ? `Reprogramação aplicada em ${reconfigurationPreview.affected_matches} jogo(s).`
+        : "Configuração atualizada sem alterar jogos.",
+    );
+    closeReconfigurationPreview();
+    await loadSchedules();
+    onRefetchMatches();
+    onRefetchChampionshipBracket();
+  }
 
   function updateDay(dayId: string, patch: Partial<DayScheduleDraft>) {
     setDays((prev) => prev.map((d) => (d.id === dayId ? { ...d, ...patch } : d)));
@@ -266,29 +331,17 @@ export function AdminChampionshipSchedule({
       })),
     };
 
-    const { error: saveError } = await updateBracketDaySchedule(bracketEditionId, [update]);
+    const previewCreated = await requestReconfiguration({
+      action: "DAY_SCHEDULE",
+      payload: { schedule_updates: [update] },
+      label: `Horários de ${formatDate(day.event_date)}`,
+    });
 
-    if (saveError) {
-      toast.error(saveError.message);
+    if (!previewCreated) {
       updateDay(day.id, { saving: false });
       return;
     }
-
-    toast.success("Horários do dia atualizados e jogos redistribuídos.");
     updateDay(day.id, { saving: false });
-    savedDaysRef.current = savedDaysRef.current.map((s) =>
-      s.id === day.id
-        ? {
-            id: day.id,
-            event_date: day.event_date,
-            start_time: day.start_time,
-            end_time: day.end_time,
-            breaks: day.breaks,
-            courts: day.courts,
-          }
-        : s,
-    );
-    onRefetchMatches();
   }
 
   function isDayDirty(day: DayScheduleDraft): boolean {
@@ -315,11 +368,21 @@ export function AdminChampionshipSchedule({
     <div className="space-y-6">
       {!isEditable ? (
         <div className="rounded-lg border border-amber-300/50 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700/50 dark:bg-amber-950 dark:text-amber-100">
-          Somente leitura: as configurações só podem ser editadas com o campeonato em
-          "Configurando campeonato".
+          Somente leitura: a reprogramação só pode ser feita com o campeonato em "Em revisão".
         </div>
       ) : null}
 
+      <Tabs value={activeSection} onValueChange={setActiveSection}>
+        <TabsList className="h-auto w-full justify-start overflow-x-auto p-1">
+          <TabsTrigger value="schedule">Horários e intervalos</TabsTrigger>
+          <TabsTrigger value="sessions">Sessões individuais</TabsTrigger>
+          <TabsTrigger value="qualification">Classificação para o mata-mata</TabsTrigger>
+          <TabsTrigger value="court-priorities">Prioridades de quadra</TabsTrigger>
+          <TabsTrigger value="knockout-priorities">Prioridades do mata-mata</TabsTrigger>
+          <TabsTrigger value="locations">Locais e quadras</TabsTrigger>
+        </TabsList>
+
+      <TabsContent value="schedule" className="mt-6">
       <section className="space-y-4">
         <div className="flex items-center gap-2">
           <CalendarClock className="h-4 w-4 text-muted-foreground" />
@@ -480,7 +543,9 @@ export function AdminChampionshipSchedule({
           </div>
         )}
       </section>
+      </TabsContent>
 
+      <TabsContent value="sessions" className="mt-6">
       {individualSessions.length > 0 ? (
         <section className="space-y-4">
           <div className="flex items-center gap-2">
@@ -517,8 +582,10 @@ export function AdminChampionshipSchedule({
           </div>
         </section>
       ) : null}
+      {individualSessions.length === 0 ? <p className="py-2 text-sm text-muted-foreground">Nenhuma sessão individual agendada.</p> : null}
+      </TabsContent>
 
-      <section className="space-y-4">
+      <TabsContent value="qualification" className="mt-6"><section className="space-y-4">
         <div className="flex items-center gap-2">
           <Trophy className="h-4 w-4 text-muted-foreground" />
           <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -529,11 +596,12 @@ export function AdminChampionshipSchedule({
         <AdminChampionshipQualificationSection
           competitions={competitions}
           isEditable={isEditable}
-          onSaved={onRefetchChampionshipBracket}
+          onRequestReconfiguration={requestReconfiguration}
         />
       </section>
+      </TabsContent>
 
-      <section className="space-y-4">
+      <TabsContent value="court-priorities" className="mt-6"><section className="space-y-4">
         <div className="flex items-center gap-2">
           <LayoutGrid className="h-4 w-4 text-muted-foreground" />
           <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -548,14 +616,12 @@ export function AdminChampionshipSchedule({
           sportNameBySportId={sportNameBySportId}
           naipeOptionsBySportId={naipeOptionsBySportId}
           divisionOptionsBySportId={divisionOptionsBySportId}
-          onSaved={() => {
-            onRefetchMatches();
-            onRefetchChampionshipBracket();
-          }}
+          onRequestReconfiguration={requestReconfiguration}
         />
       </section>
+      </TabsContent>
 
-      <section className="space-y-4">
+      <TabsContent value="knockout-priorities" className="mt-6"><section className="space-y-4">
         <div className="flex items-center gap-2">
           <Trophy className="h-4 w-4 text-muted-foreground" />
           <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -567,14 +633,12 @@ export function AdminChampionshipSchedule({
           bracketEditionId={bracketEditionId}
           isEditable={isEditable}
           sportNameBySportId={sportNameBySportId}
-          onSaved={() => {
-            onRefetchMatches();
-            onRefetchChampionshipBracket();
-          }}
+          onRequestReconfiguration={requestReconfiguration}
         />
       </section>
+      </TabsContent>
 
-      <section className="space-y-4">
+      <TabsContent value="locations" className="mt-6"><section className="space-y-4">
         <div className="flex items-center gap-2">
           <LayoutGrid className="h-4 w-4 text-muted-foreground" />
           <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -585,12 +649,38 @@ export function AdminChampionshipSchedule({
         <AdminChampionshipGeneratedLocationsSection
           bracketEditionId={bracketEditionId}
           isEditable={isEditable}
-          onSaved={() => {
-            onRefetchMatches();
-            onRefetchChampionshipBracket();
-          }}
+          onRequestReconfiguration={requestReconfiguration}
         />
       </section>
+      </TabsContent>
+      </Tabs>
+
+      <Dialog open={pendingReconfiguration != null} onOpenChange={(open) => !open && closeReconfigurationPreview()}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Confirmar reprogramação</DialogTitle>
+            <DialogDescription>
+              {pendingReconfiguration?.label ?? "Calculando o impacto da alteração"}
+            </DialogDescription>
+          </DialogHeader>
+          {loadingReconfigurationPreview ? (
+            <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Calculando os jogos afetados…</div>
+          ) : reconfigurationPreview ? (
+            <div className="max-h-[50vh] space-y-3 overflow-y-auto text-sm">
+              <p><strong>{reconfigurationPreview.affected_matches}</strong> jogo(s) terão data, horário, local, quadra ou posição alterados.</p>
+              {reconfigurationPreview.blockers.length > 0 ? <ul className="list-disc space-y-1 pl-5 text-destructive">{reconfigurationPreview.blockers.map((blocker) => <li key={blocker}>{blocker}</li>)}</ul> : null}
+              {reconfigurationPreview.changes.length > 0 ? <div className="space-y-2">{reconfigurationPreview.changes.map((change) => <div key={change.match_id} className="rounded-md border p-3"><strong>{change.match_number != null ? `Jogo ${change.match_number}` : `Jogo ${change.match_id.slice(0, 8)}`}</strong><p className="text-xs text-muted-foreground">Alterações: {change.changed_fields.join(", ")}</p></div>)}</div> : <p className="text-muted-foreground">Nenhum jogo será movido.</p>}
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={closeReconfigurationPreview} disabled={applyingReconfiguration}>Cancelar</Button>
+            <Button type="button" onClick={applyReconfiguration} disabled={!reconfigurationPreview || reconfigurationPreview.blockers.length > 0 || applyingReconfiguration}>
+              {applyingReconfiguration ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Aplicar e redistribuir {reconfigurationPreview?.affected_matches ?? 0} jogos
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
