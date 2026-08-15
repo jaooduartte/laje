@@ -30,6 +30,18 @@ function RedCardIndicator({ quantity }: { quantity: number }) {
   );
 }
 
+function BlueCardIndicator({ quantity }: { quantity: number }) {
+  return (
+    <span
+      aria-label={`Cartões azuis: ${quantity}`}
+      className="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-700 dark:text-sky-300"
+    >
+      <Square className="h-2.5 w-2.5 fill-sky-500 text-sky-500 dark:fill-sky-400 dark:text-sky-400" />
+      {quantity}
+    </span>
+  );
+}
+
 export function LiveMatchBanner({
   matches,
   matchRepresentationByMatchId = {},
@@ -53,8 +65,6 @@ export function LiveMatchBanner({
           const displayedHomeScore = isSetMatch ? match.current_set_home_score ?? 0 : match.home_score;
           const displayedAwayScore = isSetMatch ? match.current_set_away_score ?? 0 : match.away_score;
           const isHandballMatch = resolveSportCode(match.sports?.name ?? "") == "HANDEBOL";
-          const blueCards = (match.home_blue_cards ?? 0) + (match.away_blue_cards ?? 0);
-          const twoMinutePenalties = (match.home_two_minute_penalties ?? 0) + (match.away_two_minute_penalties ?? 0);
 
           return (
             <div
@@ -89,6 +99,7 @@ export function LiveMatchBanner({
                     <p className="inline-flex items-center gap-1 text-lg font-display font-bold">
                       {match.home_team?.name}
                       <RedCardIndicator quantity={match.home_red_cards} />
+                      {isHandballMatch ? <BlueCardIndicator quantity={match.home_blue_cards ?? 0} /> : null}
                     </p>
                     <p className="text-xs text-muted-foreground">{match.home_team?.city}</p>
                   </div>
@@ -101,6 +112,7 @@ export function LiveMatchBanner({
                     <p className="inline-flex items-center gap-1 text-lg font-display font-bold">
                       {match.away_team?.name}
                       <RedCardIndicator quantity={match.away_red_cards} />
+                      {isHandballMatch ? <BlueCardIndicator quantity={match.away_blue_cards ?? 0} /> : null}
                     </p>
                     <p className="text-xs text-muted-foreground">{match.away_team?.city}</p>
                   </div>
@@ -121,11 +133,6 @@ export function LiveMatchBanner({
                   </div>
                 ) : null}
 
-                {isHandballMatch && (blueCards > 0 || twoMinutePenalties > 0) ? (
-                  <div className="mt-3 text-center text-xs font-medium text-sky-700 dark:text-sky-300">
-                    CAZ: {blueCards} • 2M: {twoMinutePenalties}
-                  </div>
-                ) : null}
               </div>
             </div>
           );

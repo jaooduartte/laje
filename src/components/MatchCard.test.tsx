@@ -109,7 +109,7 @@ describe("MatchCard", () => {
     expect(screen.getByText("Pênaltis: (4 × 3)")).toBeInTheDocument();
   });
 
-  it("mostra o resumo disciplinar de Handebol com cartões azuis e penalidades de 2 minutos", () => {
+  it("mostra cartões azuis por equipe nos cards de Handebol", () => {
     render(
       <MatchCard
         match={buildMatch({
@@ -128,7 +128,9 @@ describe("MatchCard", () => {
       />,
     );
 
-    expect(screen.getByText("CAZ: 3")).toBeInTheDocument();
-    expect(screen.getByText("2M: 5")).toBeInTheDocument();
+    expect(screen.getByLabelText("Cartões azuis: 1")).toBeInTheDocument();
+    expect(screen.getByLabelText("Cartões azuis: 2")).toBeInTheDocument();
+    expect(screen.queryByText(/CAZ:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/2M:/)).not.toBeInTheDocument();
   });
 });

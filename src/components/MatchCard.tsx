@@ -46,24 +46,15 @@ function RedCardIndicator({ quantity }: { quantity: number }) {
   );
 }
 
-function HandballDisciplineSummary({
-  blueCards,
-  twoMinutePenalties,
-}: {
-  blueCards: number;
-  twoMinutePenalties: number;
-}) {
-  if (blueCards <= 0 && twoMinutePenalties <= 0) {
-    return null;
-  }
-
+function BlueCardIndicator({ quantity }: { quantity: number }) {
   return (
-    <div className="mt-3 flex justify-center">
-      <div className="inline-flex items-center gap-3 rounded-full border border-sky-500/20 bg-sky-500/10 px-3 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300">
-        <span>CAZ: {blueCards}</span>
-        <span>2M: {twoMinutePenalties}</span>
-      </div>
-    </div>
+    <span
+      aria-label={`Cartões azuis: ${quantity}`}
+      className="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-700 dark:text-sky-300"
+    >
+      <Square className="h-2.5 w-2.5 fill-sky-500 text-sky-500 dark:fill-sky-400 dark:text-sky-400" />
+      {quantity}
+    </span>
   );
 }
 
@@ -123,8 +114,6 @@ export function MatchCard({
         ? liveSetAwayScore
         : match.away_score;
   const isHandballMatch = resolveSportCode(match.sports?.name ?? "") == "HANDEBOL";
-  const handballBlueCards = (match.home_blue_cards ?? 0) + (match.away_blue_cards ?? 0);
-  const handballTwoMinutePenalties = (match.home_two_minute_penalties ?? 0) + (match.away_two_minute_penalties ?? 0);
 
   return (
     <div className={matchCardClassName}>
@@ -171,6 +160,7 @@ export function MatchCard({
             <p className="inline-flex items-center gap-1 font-display text-sm font-semibold">
               {match.home_team?.name}
               {match.status != MatchStatus.SCHEDULED ? <RedCardIndicator quantity={match.home_red_cards} /> : null}
+              {isHandballMatch ? <BlueCardIndicator quantity={match.home_blue_cards ?? 0} /> : null}
             </p>
           </div>
           <div className="mx-4 text-center">
@@ -186,6 +176,7 @@ export function MatchCard({
             <p className="inline-flex items-center gap-1 font-display text-sm font-semibold">
               {match.away_team?.name}
               {match.status != MatchStatus.SCHEDULED ? <RedCardIndicator quantity={match.away_red_cards} /> : null}
+              {isHandballMatch ? <BlueCardIndicator quantity={match.away_blue_cards ?? 0} /> : null}
             </p>
           </div>
         </div>
@@ -202,13 +193,6 @@ export function MatchCard({
               Pênaltis: ({penaltyShootoutSummary.homePenaltyScore} × {penaltyShootoutSummary.awayPenaltyScore})
             </p>
           </div>
-        ) : null}
-
-        {match.status != MatchStatus.SCHEDULED && isHandballMatch ? (
-          <HandballDisciplineSummary
-            blueCards={handballBlueCards}
-            twoMinutePenalties={handballTwoMinutePenalties}
-          />
         ) : null}
 
         {matchSetSummary.length > 0 && match.status != MatchStatus.SCHEDULED ? (

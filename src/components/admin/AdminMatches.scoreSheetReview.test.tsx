@@ -304,9 +304,13 @@ function buildMatch(overrides: Partial<Match> & Pick<Match, "id" | "sport_id" | 
     home_score: overrides.home_score ?? 0,
     home_yellow_cards: overrides.home_yellow_cards ?? 0,
     home_red_cards: overrides.home_red_cards ?? 0,
+    home_blue_cards: overrides.home_blue_cards ?? 0,
+    home_two_minute_penalties: overrides.home_two_minute_penalties ?? 0,
     away_score: overrides.away_score ?? 0,
     away_yellow_cards: overrides.away_yellow_cards ?? 0,
     away_red_cards: overrides.away_red_cards ?? 0,
+    away_blue_cards: overrides.away_blue_cards ?? 0,
+    away_two_minute_penalties: overrides.away_two_minute_penalties ?? 0,
     created_at: overrides.created_at ?? "2026-04-11T08:00:00.000Z",
     group_number: overrides.group_number ?? null,
     championships: overrides.championships ?? buildChampionship(),
@@ -558,9 +562,19 @@ describe("AdminMatches score sheet review", () => {
     await waitFor(() => {
       expect(screen.getByText("Sessões Individuais")).toBeInTheDocument();
     });
-    expect(screen.getByText(/Atletismo.*Feminino/)).toBeInTheDocument();
+    const sessionCard = screen
+      .getByText("Sessão de provas")
+      .closest(".list-item-card");
+
+    expect(sessionCard).not.toBeNull();
+    expect(screen.getByText("Atletismo")).toBeInTheDocument();
+    expect(within(sessionCard as HTMLElement).getByText("Feminino")).toBeInTheDocument();
+    expect(within(sessionCard as HTMLElement).getByText("Agendada")).toBeInTheDocument();
     expect(
-      screen.getByText(/Pista de Atletismo.*Raia 1/),
+      within(sessionCard as HTMLElement).getByText(/Pista de Atletismo.*Raia 1/),
+    ).toBeInTheDocument();
+    expect(
+      within(sessionCard as HTMLElement).getByText("Data: 11/04/2026"),
     ).toBeInTheDocument();
   });
 
@@ -966,6 +980,36 @@ describe("AdminMatches score sheet review", () => {
 
     expect(naipeBadge).toHaveClass("min-h-6", "min-w-10", "justify-center");
     expect(naipeIcon).toHaveClass("leading-none");
+  });
+
+  it("exibe cartões azuis somente nos cards de Handebol", async () => {
+    renderAdminMatches({
+      viewMode: AdminMatchesViewMode.DEFAULT,
+      matches: [
+        buildMatch({
+          id: "handball-blue-cards",
+          sport_id: "sport-handball",
+          status: MatchStatus.SCHEDULED,
+          supports_cards: true,
+          sports: buildSport({ id: "sport-handball", name: "Handebol" }),
+          home_blue_cards: 1,
+          away_blue_cards: 2,
+          home_team: buildTeam({ id: "team-blue-home", name: "AZUL CASA" }),
+          away_team: buildTeam({ id: "team-blue-away", name: "AZUL VISITANTE" }),
+        }),
+      ],
+    });
+
+    const matchCardContainer = getMatchCardContainerByTeamName("AZUL CASA");
+
+    expect(
+      within(matchCardContainer).getByTestId("admin-match-home-blue-cards"),
+    ).toHaveTextContent("1");
+    expect(
+      within(matchCardContainer).getByTestId("admin-match-away-blue-cards"),
+    ).toHaveTextContent("2");
+    expect(within(matchCardContainer).queryByText(/CAZ:/)).not.toBeInTheDocument();
+    expect(within(matchCardContainer).queryByText(/2M:/)).not.toBeInTheDocument();
   });
 
   it("mostra no menu as ações editar, trocar jogo e apagar no modo padrão", async () => {

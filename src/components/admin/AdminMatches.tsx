@@ -392,6 +392,21 @@ function normalizeBracketEntityName(value: string | null | undefined) {
   return (value ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase("pt-BR");
 }
 
+function resolveIndividualSessionStatusBadgeTone(
+  status: ChampionshipIndividualSessionStatus,
+) {
+  switch (status) {
+    case ChampionshipIndividualSessionStatus.LIVE:
+      return AppBadgeTone.PRIMARY;
+    case ChampionshipIndividualSessionStatus.FINISHED:
+      return AppBadgeTone.RED;
+    case ChampionshipIndividualSessionStatus.SCHEDULED:
+      return AppBadgeTone.SILVER;
+    default:
+      return AppBadgeTone.NEUTRAL;
+  }
+}
+
 interface Props {
   matches: Match[];
   championshipSports: ChampionshipSport[];
@@ -510,6 +525,16 @@ type ListMatchQueueSwapCandidatesResponseItem = {
 
 function resolveDateOnlyString(date: Date): string {
   return format(date, "yyyy-MM-dd");
+}
+
+function resolveBrazilianDateLabel(dateValue: string | null): string {
+  if (!dateValue) {
+    return "Sem data";
+  }
+
+  return format(new Date(`${dateValue}T12:00:00`), "dd/MM/yyyy", {
+    locale: ptBR,
+  });
 }
 
 function resolveSafeScoreValue(value: number): number {
@@ -5921,62 +5946,6 @@ export function AdminMatches({
           </p>
         ) : null}
 
-        {visibleIndividualSessions.length > 0 ? (
-          <section className="glass-card enter-section space-y-3 p-4">
-            <div>
-              <p className="text-sm font-semibold text-foreground">
-                Sessões Individuais
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Atletismo e Natação são registrados por prova e não como jogo entre duas atléticas.
-              </p>
-            </div>
-
-            <div className="grid gap-3 xl:grid-cols-2">
-              {visibleIndividualSessions.map((session) => (
-                <div
-                  key={session.id}
-                  className="rounded-2xl border border-border/60 bg-background/40 p-4"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <p className="font-display text-base font-semibold">
-                        {session.sports?.name} • {MATCH_NAIPE_LABELS[session.naipe]}
-                        {session.division
-                          ? ` • ${TEAM_DIVISION_LABELS[session.division]}`
-                          : ""}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {session.scheduled_date ?? "Sem data"}
-                        {session.location_name
-                          ? ` • ${session.location_name}`
-                          : ""}
-                        {session.court_name ? ` • ${session.court_name}` : ""}
-                      </p>
-                    </div>
-
-                    <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">
-                      {INDIVIDUAL_SESSION_STATUS_LABELS[session.status]}
-                    </span>
-                  </div>
-
-                  {onOpenIndividualEventsTab ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="mt-3"
-                      onClick={onOpenIndividualEventsTab}
-                    >
-                      Registrar resultados
-                    </Button>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          </section>
-        ) : null}
-
         {isFetchingMatches ? (
           <div className="space-y-3">
             <section className="glass-card enter-section flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
@@ -6136,6 +6105,7 @@ export function AdminMatches({
               const supportsCards =
                 championshipSportSupportsCardsBySportId.get(match.sport_id) ==
                   true || match.supports_cards;
+              const isHandballMatch = isHandballSportName(match.sports?.name);
               const isSavingMatchReviewState =
                 savingReviewStateByMatchId[match.id] == true;
               const setSummary = isSetMatch
@@ -6432,16 +6402,6 @@ export function AdminMatches({
                             <span>{startedAtLabel}</span>
                           ) : null}
                         </div>
-                        {isHandballSportName(match.sports?.name) && (
-                          <p className="mt-1">
-                            CAZ:{" "}
-                            {(match.home_blue_cards ?? 0) +
-                              (match.away_blue_cards ?? 0)}{" "}
-                            • 2M:{" "}
-                            {(match.home_two_minute_penalties ?? 0) +
-                              (match.away_two_minute_penalties ?? 0)}
-                          </p>
-                        )}
                         {tieBreakRuleLabel ? (
                           <p className="mt-1 inline-flex items-center gap-1 font-medium text-amber-500">
                             <AlertTriangle className="h-3 w-3" />
@@ -6470,6 +6430,16 @@ export function AdminMatches({
                                   <Square className="h-2.5 w-2.5 fill-rose-600 text-rose-600 dark:fill-rose-500 dark:text-rose-500" />
                                   {match.home_red_cards}
                                 </span>
+                                {isHandballMatch ? (
+                                  <span
+                                    aria-label={`Cartões azuis da casa: ${match.home_blue_cards ?? 0}`}
+                                    data-testid="admin-match-home-blue-cards"
+                                    className="inline-flex items-center gap-1"
+                                  >
+                                    <Square className="h-2.5 w-2.5 fill-sky-500 text-sky-500 dark:fill-sky-400 dark:text-sky-400" />
+                                    {match.home_blue_cards ?? 0}
+                                  </span>
+                                ) : null}
                               </div>
                             </div>
                             <div className="space-y-0.5 text-center">
@@ -6485,6 +6455,16 @@ export function AdminMatches({
                                   <Square className="h-2.5 w-2.5 fill-rose-600 text-rose-600 dark:fill-rose-500 dark:text-rose-500" />
                                   {match.away_red_cards}
                                 </span>
+                                {isHandballMatch ? (
+                                  <span
+                                    aria-label={`Cartões azuis do visitante: ${match.away_blue_cards ?? 0}`}
+                                    data-testid="admin-match-away-blue-cards"
+                                    className="inline-flex items-center gap-1"
+                                  >
+                                    <Square className="h-2.5 w-2.5 fill-sky-500 text-sky-500 dark:fill-sky-400 dark:text-sky-400" />
+                                    {match.away_blue_cards ?? 0}
+                                  </span>
+                                ) : null}
                               </div>
                             </div>
                           </div>
@@ -6590,6 +6570,145 @@ export function AdminMatches({
             Nenhum jogo encontrado para os filtros selecionados.
           </p>
         )}
+
+        {visibleIndividualSessions.length > 0 ? (
+          <section className="space-y-3">
+            <div>
+              <p className="text-sm font-semibold text-foreground">
+                Sessões Individuais
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Atletismo e Natação são registrados por prova e não como jogo entre duas atléticas.
+              </p>
+            </div>
+
+            {visibleIndividualSessions.map((session) => (
+              <div
+                key={session.id}
+                className="list-item-card list-item-card-hover px-4 py-3"
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                  <div className="flex flex-col gap-2 sm:w-44 sm:shrink-0">
+                    <div className="flex items-center gap-2">
+                      <span className="shrink-0 text-xs font-medium uppercase text-muted-foreground">
+                        {session.sports?.name}
+                      </span>
+
+                      {onOpenIndividualEventsTab ? (
+                        <div className="ml-auto sm:hidden">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label={`Ações da sessão ${session.sports?.name ?? "individual"} ${MATCH_NAIPE_LABELS[session.naipe]} (mobile)`}
+                              >
+                                <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48">
+                              <DropdownMenuItem onSelect={onOpenIndividualEventsTab}>
+                                Registrar resultados
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5 sm:flex-col sm:items-start sm:gap-1">
+                      <AppBadge
+                        tone={resolveMatchNaipeBadgeTone(String(session.naipe))}
+                        className="min-h-6 min-w-10 justify-center px-3 sm:min-h-0 sm:min-w-0 sm:justify-start sm:px-2.5"
+                      >
+                        <span className="flex items-center justify-center leading-none sm:hidden">
+                          {session.naipe === MatchNaipe.MASCULINO
+                            ? "♂"
+                            : session.naipe === MatchNaipe.FEMININO
+                              ? "♀"
+                              : "⚥"}
+                        </span>
+                        <span className="hidden sm:inline">
+                          {MATCH_NAIPE_LABELS[session.naipe]}
+                        </span>
+                      </AppBadge>
+
+                      <AppBadge
+                        tone={resolveIndividualSessionStatusBadgeTone(
+                          session.status,
+                        )}
+                      >
+                        {session.status === ChampionshipIndividualSessionStatus.LIVE ? (
+                          <Radio className="h-3 w-3 sm:hidden" />
+                        ) : session.status === ChampionshipIndividualSessionStatus.FINISHED ? (
+                          <Check className="h-3 w-3 sm:hidden" />
+                        ) : (
+                          <Clock className="h-3 w-3 sm:hidden" />
+                        )}
+                        <span className="hidden sm:inline">
+                          {INDIVIDUAL_SESSION_STATUS_LABELS[session.status]}
+                        </span>
+                      </AppBadge>
+
+                      {session.division ? (
+                        <AppBadge tone={TEAM_DIVISION_BADGE_TONES[session.division]}>
+                          <span className="hidden sm:inline">
+                            {TEAM_DIVISION_LABELS[session.division]}
+                          </span>
+                          <span className="sm:hidden">
+                            {session.division === TeamDivision.DIVISAO_PRINCIPAL
+                              ? "Div. Principal"
+                              : "Div. Acesso"}
+                          </span>
+                        </AppBadge>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="min-w-0 space-y-2 sm:min-w-[220px] sm:max-w-xs">
+                    <p className="text-center font-display text-sm font-semibold">
+                      Sessão de provas
+                    </p>
+                    <div className="text-center text-xs text-muted-foreground">
+                      <div className="flex flex-col items-center gap-y-0.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-x-3 sm:gap-y-0">
+                        <span>
+                          Data: {resolveBrazilianDateLabel(session.scheduled_date)}
+                        </span>
+                        {session.location_name ? (
+                          <span>
+                            Local: {session.location_name}
+                            {session.court_name ? ` • ${session.court_name}` : ""}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+
+                  {onOpenIndividualEventsTab ? (
+                    <div className="hidden sm:flex sm:shrink-0 sm:items-center">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Ações da sessão ${session.sports?.name ?? "individual"} ${MATCH_NAIPE_LABELS[session.naipe]}`}
+                          >
+                            <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuItem onSelect={onOpenIndividualEventsTab}>
+                            Registrar resultados
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </section>
+        ) : null}
       </div>
 
       <Dialog
