@@ -93,6 +93,7 @@ export enum ChampionshipIndividualSessionStatus {
 export enum ChampionshipIndividualEntryStatus {
   PENDING = "PENDING",
   CONFIRMED = "CONFIRMED",
+  WALKOVER = "WALKOVER",
   DNS = "DNS",
   DSQ = "DSQ",
   CANCELLED = "CANCELLED",

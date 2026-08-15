@@ -667,9 +667,6 @@ export function AdminPageView({
                 isFetchingMatches={matchesFetching}
                 onRefetch={onRefetchMatches}
                 onRefetchChampionshipBracket={onRefetchChampionshipBracket}
-                onOpenIndividualEventsTab={() =>
-                  onActiveTabChange(AdminPanelTab.INDIVIDUAL_EVENTS)
-                }
                 canManageScoreboard={canManageScoreboard}
               />
             </TabsContent>

@@ -7,6 +7,7 @@ import type {
   ChampionshipIndividualSession,
   ChampionshipIndividualSessionScoreboardRow,
   ChampionshipIndividualTeamStanding,
+  Team,
 } from "@/lib/types";
 import type {
   ChampionshipIndividualEntryStatus,
@@ -65,7 +66,8 @@ export interface SaveChampionshipIndividualEntryInput {
 export interface SaveChampionshipIndividualEventResultInput {
   entry_id: string;
   status: ChampionshipIndividualEntryStatus;
-  final_position: number | null;
+  result_time_milliseconds: number | null;
+  result_mark_centimeters: number | null;
 }
 
 export interface SaveChampionshipIndividualSessionInput {
@@ -432,6 +434,22 @@ export async function previewChampionshipIndividualSessionScoreboard(
   };
 }
 
+export async function fetchChampionshipIndividualSessionParticipants(
+  sessionId: string,
+): Promise<{ data: Team[]; error: Error | null }> {
+  const response = await supabaseLoose.rpc(
+    "get_championship_individual_session_participants",
+    { _session_id: sessionId },
+  );
+
+  return {
+    data: ((response.data ?? []) as Array<{ teams?: Team | null }>)
+      .map((row) => row.teams)
+      .filter((team): team is Team => team != null),
+    error: response.error,
+  };
+}
+
 export async function startChampionshipIndividualSession(sessionId: string) {
   return supabaseLoose.rpc("start_championship_individual_session", {
     _session_id: sessionId,
@@ -447,6 +465,22 @@ export async function finishChampionshipIndividualSession(sessionId: string) {
 export async function reopenChampionshipIndividualSession(sessionId: string) {
   return supabaseLoose.rpc("reopen_championship_individual_session", {
     _session_id: sessionId,
+  });
+}
+
+export async function returnChampionshipIndividualSessionToScheduled(sessionId: string) {
+  return supabaseLoose.rpc("return_championship_individual_session_to_scheduled", {
+    _session_id: sessionId,
+  });
+}
+
+export async function markChampionshipIndividualEventTeamWalkover(
+  eventId: string,
+  teamId: string,
+) {
+  return supabaseLoose.rpc("mark_championship_individual_event_team_walkover", {
+    _event_id: eventId,
+    _team_id: teamId,
   });
 }
 

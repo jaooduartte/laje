@@ -34,10 +34,11 @@ export const INDIVIDUAL_SESSION_STATUS_LABELS: Record<ChampionshipIndividualSess
 export const INDIVIDUAL_ENTRY_STATUS_LABELS: Record<ChampionshipIndividualEntryStatus, string> = {
   [ChampionshipIndividualEntryStatus.PENDING]: "Pendente",
   [ChampionshipIndividualEntryStatus.CONFIRMED]: "Confirmado",
-  [ChampionshipIndividualEntryStatus.DNS]: "DNS",
-  [ChampionshipIndividualEntryStatus.DSQ]: "DSQ",
+  [ChampionshipIndividualEntryStatus.WALKOVER]: "W.O.",
+  [ChampionshipIndividualEntryStatus.DNS]: "W.O.",
+  [ChampionshipIndividualEntryStatus.DSQ]: "Desclassificado",
   [ChampionshipIndividualEntryStatus.CANCELLED]: "Cancelado",
-  [ChampionshipIndividualEntryStatus.DSQ_OVER_LIMIT]: "DSQ por excesso de provas",
+  [ChampionshipIndividualEntryStatus.DSQ_OVER_LIMIT]: "Desclassificado por excesso de provas",
 };
 
 export const INDIVIDUAL_EVENT_KIND_LABELS: Record<ChampionshipIndividualEventKind, string> = {

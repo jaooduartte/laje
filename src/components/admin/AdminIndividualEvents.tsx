@@ -20,7 +20,7 @@ import {
 } from "@/domain/individual-events/championshipIndividualEvents.repository";
 import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividualEvents";
 import { INDIVIDUAL_ENTRY_STATUS_LABELS, INDIVIDUAL_EVENT_KIND_LABELS, INDIVIDUAL_EVENT_STATUS_LABELS, isIndividualSportId, resolveIndividualSportIds } from "@/lib/individualEvents";
-import { ChampionshipIndividualEntryStatus, ChampionshipIndividualEventStatus, ChampionshipSchedulePeriod, MatchNaipe, TeamDivision } from "@/lib/enums";
+import { ChampionshipIndividualEntryStatus, ChampionshipIndividualEventStatus, ChampionshipSchedulePeriod, ChampionshipStatus, MatchNaipe, TeamDivision } from "@/lib/enums";
 import type { Championship, Sport, Team } from "@/lib/types";
 
 interface Props {
@@ -67,7 +67,7 @@ export function AdminIndividualEvents({
   const [relayMemberIds, setRelayMemberIds] = useState<string[]>([]);
   const [relayStarterIds, setRelayStarterIds] = useState<string[]>([]);
   const [eventDraftById, setEventDraftById] = useState<EventDraftById>({});
-  const [resultDraftByEntryId, setResultDraftByEntryId] = useState<Record<string, { status: ChampionshipIndividualEntryStatus; final_position: string }>>({});
+  const [resultDraftByEntryId, setResultDraftByEntryId] = useState<Record<string, { status: ChampionshipIndividualEntryStatus; result_time_milliseconds: string; result_mark_centimeters: string }>>({});
   const [saving, setSaving] = useState(false);
 
   const filteredSportId = sportFilter == ALL_SPORTS_FILTER ? null : sportFilter;
@@ -81,7 +81,7 @@ export function AdminIndividualEvents({
           ? null
           : (divisionFilter as TeamDivision);
 
-  const { events, athletes, entriesByEventId, standings, loading, refetch } = useChampionshipIndividualEvents({
+  const { events, sessions, athletes, entriesByEventId, standings, loading, refetch } = useChampionshipIndividualEvents({
     championshipId: selectedChampionship.id,
     seasonYear: selectedChampionship.current_season_year,
     sportIds: individualSportIds,
@@ -97,6 +97,14 @@ export function AdminIndividualEvents({
   const selectedEventEntries = useMemo(() => {
     return selectedEvent ? entriesByEventId[selectedEvent.id] ?? [] : [];
   }, [entriesByEventId, selectedEvent]);
+
+  const canRecordSelectedEventResults = useMemo(() => {
+    if (!canManageIndividualEvents || selectedChampionship.status != ChampionshipStatus.IN_PROGRESS || !selectedEvent) {
+      return false;
+    }
+
+    return sessions.some((session) => session.id == selectedEvent.session_id && session.status == "LIVE");
+  }, [canManageIndividualEvents, selectedChampionship.status, selectedEvent, sessions]);
 
   const athleteOptionsForEvent = useMemo(() => {
     if (!selectedEvent || !entryTeamId) {
@@ -142,10 +150,11 @@ export function AdminIndividualEvents({
 
   useEffect(() => {
     setResultDraftByEntryId(
-      selectedEventEntries.reduce<Record<string, { status: ChampionshipIndividualEntryStatus; final_position: string }>>((carry, entry) => {
+      selectedEventEntries.reduce<Record<string, { status: ChampionshipIndividualEntryStatus; result_time_milliseconds: string; result_mark_centimeters: string }>>((carry, entry) => {
         carry[entry.id] = {
           status: entry.status,
-          final_position: entry.final_position != null ? String(entry.final_position) : "",
+          result_time_milliseconds: entry.result_time_milliseconds != null ? String(entry.result_time_milliseconds) : "",
+          result_mark_centimeters: entry.result_mark_centimeters != null ? String(entry.result_mark_centimeters) : "",
         };
         return carry;
       }, {}),
@@ -271,8 +280,11 @@ export function AdminIndividualEvents({
       selectedEventEntries.map((entry) => ({
         entry_id: entry.id,
         status: resultDraftByEntryId[entry.id]?.status ?? ChampionshipIndividualEntryStatus.PENDING,
-        final_position: resultDraftByEntryId[entry.id]?.final_position
-          ? Number(resultDraftByEntryId[entry.id]!.final_position)
+        result_time_milliseconds: resultDraftByEntryId[entry.id]?.result_time_milliseconds
+          ? Number(resultDraftByEntryId[entry.id]!.result_time_milliseconds)
+          : null,
+        result_mark_centimeters: resultDraftByEntryId[entry.id]?.result_mark_centimeters
+          ? Number(resultDraftByEntryId[entry.id]!.result_mark_centimeters)
           : null,
       })),
     );
@@ -722,7 +734,7 @@ export function AdminIndividualEvents({
               </Select>
             </div>
             <div className="flex items-end">
-              <Button type="button" onClick={() => void handleSaveResults()} disabled={!canManageIndividualEvents || saving || !selectedEvent}>
+              <Button type="button" onClick={() => void handleSaveResults()} disabled={!canRecordSelectedEventResults || saving || !selectedEvent}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 Confirmar resultados
               </Button>
@@ -742,13 +754,15 @@ export function AdminIndividualEvents({
                   <Label>Status</Label>
                   <Select
                     value={resultDraftByEntryId[entry.id]?.status ?? ChampionshipIndividualEntryStatus.PENDING}
+                    disabled={!canRecordSelectedEventResults || saving}
                     onValueChange={(value) => {
                       setResultDraftByEntryId((currentResultDraftByEntryId) => ({
                         ...currentResultDraftByEntryId,
                         [entry.id]: {
                           ...(currentResultDraftByEntryId[entry.id] ?? {
                             status: ChampionshipIndividualEntryStatus.PENDING,
-                            final_position: "",
+                            result_time_milliseconds: "",
+                            result_mark_centimeters: "",
                           }),
                           status: value as ChampionshipIndividualEntryStatus,
                         },
@@ -764,26 +778,29 @@ export function AdminIndividualEvents({
                   </Select>
                 </div>
                 <div>
-                  <Label>Colocação final</Label>
+                  <Label>{selectedEvent?.event_code == "ATHLETICS_SHOT_PUT" || selectedEvent?.event_code == "ATHLETICS_LONG_JUMP" ? "Marca (cm)" : "Tempo (ms)"}</Label>
                   <Input
                     type="number"
                     min={1}
-                    value={resultDraftByEntryId[entry.id]?.final_position ?? ""}
+                    disabled={!canRecordSelectedEventResults || saving}
+                    value={selectedEvent?.event_code == "ATHLETICS_SHOT_PUT" || selectedEvent?.event_code == "ATHLETICS_LONG_JUMP" ? resultDraftByEntryId[entry.id]?.result_mark_centimeters ?? "" : resultDraftByEntryId[entry.id]?.result_time_milliseconds ?? ""}
                     onChange={(currentEvent) => {
                       setResultDraftByEntryId((currentResultDraftByEntryId) => ({
                         ...currentResultDraftByEntryId,
                         [entry.id]: {
                           ...(currentResultDraftByEntryId[entry.id] ?? {
                             status: ChampionshipIndividualEntryStatus.PENDING,
-                            final_position: "",
+                            result_time_milliseconds: "",
+                            result_mark_centimeters: "",
                           }),
-                          final_position: currentEvent.target.value,
+                          result_time_milliseconds: selectedEvent?.event_code == "ATHLETICS_SHOT_PUT" || selectedEvent?.event_code == "ATHLETICS_LONG_JUMP" ? "" : currentEvent.target.value,
+                          result_mark_centimeters: selectedEvent?.event_code == "ATHLETICS_SHOT_PUT" || selectedEvent?.event_code == "ATHLETICS_LONG_JUMP" ? currentEvent.target.value : "",
                         },
                       }));
                     }}
                   />
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Informe a colocação oficial apurada pela arbitragem no local.
+                    A classificação é calculada automaticamente pela métrica informada.
                   </p>
                 </div>
               </div>

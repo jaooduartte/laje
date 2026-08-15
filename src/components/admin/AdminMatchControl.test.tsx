@@ -57,14 +57,18 @@ const {
     current: {
       events: [],
       sessions: [],
+      entries: [],
       refetch: vi.fn(),
     },
   },
   individualSessionRepositoryMocks: {
     finish: vi.fn(),
-    preview: vi.fn(),
     reopen: vi.fn(),
+    returnToScheduled: vi.fn(),
+    saveResults: vi.fn(),
     start: vi.fn(),
+    participants: vi.fn(),
+    walkover: vi.fn(),
   },
 }));
 
@@ -87,10 +91,16 @@ vi.mock("@/hooks/useChampionshipIndividualEvents", () => ({
 vi.mock("@/domain/individual-events/championshipIndividualEvents.repository", () => ({
   finishChampionshipIndividualSession: (...args: unknown[]) =>
     individualSessionRepositoryMocks.finish(...args),
-  previewChampionshipIndividualSessionScoreboard: (...args: unknown[]) =>
-    individualSessionRepositoryMocks.preview(...args),
+  fetchChampionshipIndividualSessionParticipants: (...args: unknown[]) =>
+    individualSessionRepositoryMocks.participants(...args),
+  markChampionshipIndividualEventTeamWalkover: (...args: unknown[]) =>
+    individualSessionRepositoryMocks.walkover(...args),
   reopenChampionshipIndividualSession: (...args: unknown[]) =>
     individualSessionRepositoryMocks.reopen(...args),
+  returnChampionshipIndividualSessionToScheduled: (...args: unknown[]) =>
+    individualSessionRepositoryMocks.returnToScheduled(...args),
+  saveChampionshipIndividualEventResults: (...args: unknown[]) =>
+    individualSessionRepositoryMocks.saveResults(...args),
   startChampionshipIndividualSession: (...args: unknown[]) =>
     individualSessionRepositoryMocks.start(...args),
 }));
@@ -298,7 +308,6 @@ function renderAdminMatchControl(params: {
       estimatedStartTimeByMatchId={params.estimatedStartTimeByMatchId}
       onRefetch={onRefetch}
       onRefetchChampionshipBracket={onRefetchChampionshipBracket}
-      onOpenIndividualEventsTab={vi.fn()}
       canManageScoreboard
     />,
   );
@@ -324,7 +333,6 @@ function renderAdminMatchControl(params: {
         estimatedStartTimeByMatchId={nextParams.estimatedStartTimeByMatchId}
         onRefetch={onRefetch}
         onRefetchChampionshipBracket={onRefetchChampionshipBracket}
-        onOpenIndividualEventsTab={vi.fn()}
         canManageScoreboard
       />,
     );
@@ -427,15 +435,19 @@ describe("AdminMatchControl", () => {
     individualEventsState.current = {
       events: [],
       sessions: [],
+      entries: [],
       refetch: vi.fn(),
     };
     individualSessionRepositoryMocks.finish.mockReset();
-    individualSessionRepositoryMocks.preview.mockReset();
-    individualSessionRepositoryMocks.preview.mockResolvedValue({
+    individualSessionRepositoryMocks.reopen.mockReset();
+    individualSessionRepositoryMocks.returnToScheduled.mockReset();
+    individualSessionRepositoryMocks.saveResults.mockReset();
+    individualSessionRepositoryMocks.walkover.mockReset();
+    individualSessionRepositoryMocks.participants.mockReset();
+    individualSessionRepositoryMocks.participants.mockResolvedValue({
       data: [],
       error: null,
     });
-    individualSessionRepositoryMocks.reopen.mockReset();
     individualSessionRepositoryMocks.start.mockReset();
     window.sessionStorage.clear();
     Object.defineProperty(window, "scrollTo", {
@@ -468,6 +480,26 @@ describe("AdminMatchControl", () => {
       ],
       refetch: vi.fn(),
     };
+    individualSessionRepositoryMocks.participants.mockResolvedValue({
+      data: [
+        buildTeam({
+          id: "athletics-participant-zulu",
+          name: "Zulu",
+          division: TeamDivision.DIVISAO_ACESSO,
+        }),
+        buildTeam({
+          id: "athletics-participant-alfa",
+          name: "Alfa",
+          division: TeamDivision.DIVISAO_PRINCIPAL,
+        }),
+        buildTeam({
+          id: "athletics-participant-bravo",
+          name: "Bravo",
+          division: TeamDivision.DIVISAO_ACESSO,
+        }),
+      ],
+      error: null,
+    });
 
     renderAdminMatchControl({
       matches: [],
@@ -475,10 +507,28 @@ describe("AdminMatchControl", () => {
       championshipStatus: ChampionshipStatus.REVIEW,
     });
 
-    expect(screen.getByText(/Atletismo.*Feminino/)).toBeInTheDocument();
-    expect(screen.getByText(/Atletismo.*Feminino/).closest(".glass-card")).not.toBeNull();
-    expect(screen.getByText("Rascunho")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Iniciar sessão" })).toBeDisabled();
+    expect(screen.getByText(/^Atletismo •/)).toBeInTheDocument();
+    expect(screen.getByText("Feminino")).toBeInTheDocument();
+    expect(screen.getByText(/^Atletismo •/).closest(".glass-card")).not.toBeNull();
+    expect(screen.getByText(/11\/04\/2026/)).toBeInTheDocument();
+    expect(screen.getByText("Pendente de agendamento")).toBeInTheDocument();
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const participantsGrid = screen
+      .getByText("Atléticas participantes (3)")
+      .nextElementSibling;
+    expect(participantsGrid).toHaveClass("md:columns-2", "xl:columns-4");
+    expect(
+      within(participantsGrid as HTMLElement)
+        .getAllByText(/^(Alfa|Bravo|Zulu)$/)
+        .map((participant) => participant.textContent),
+    ).toEqual(["Alfa", "Bravo", "Zulu"]);
+    expect(screen.getAllByText("Divisão de Acesso")).toHaveLength(2);
+    expect(screen.queryByText("Provas")).toBeNull();
+    expect(screen.queryByText("Prévia parcial da sessão")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Iniciar sessão" })).toBeNull();
     expect(
       screen.getByRole("button", { name: "Registrar resultados" }),
     ).toBeDisabled();
@@ -492,7 +542,7 @@ describe("AdminMatchControl", () => {
       "Raia 1",
     );
 
-    expect(screen.getByText(/Atletismo.*Feminino/)).toBeInTheDocument();
+    expect(screen.getByText(/^Atletismo •/)).toBeInTheDocument();
 
     const naipeFilter = screen.getByRole("combobox", {
       name: "Filtrar por naipe no controle ao vivo",
@@ -531,10 +581,151 @@ describe("AdminMatchControl", () => {
       championshipStatus: ChampionshipStatus.REVIEW,
     });
 
-    expect(screen.getByText(/Natação.*Feminino/)).toBeInTheDocument();
+    expect(screen.getByText(/^Natação •/)).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Registrar resultados" }),
     ).toBeDisabled();
+  });
+
+  it("inicia uma sessão individual agendada sem validar a data", async () => {
+    const athleticsSport = buildChampionshipSport({
+      id: "championship-sport-athletics",
+      sport_id: "sport-athletics",
+      sports: buildSport({ id: "sport-athletics", name: "Atletismo" }),
+    });
+    individualEventsState.current = {
+      events: [],
+      sessions: [
+        buildIndividualSession({
+          id: "scheduled-individual-session",
+          sport_id: athleticsSport.sport_id,
+          scheduled_date: "2027-12-31",
+          status: ChampionshipIndividualSessionStatus.SCHEDULED,
+        }),
+      ],
+      entries: [],
+      refetch: vi.fn(),
+    };
+    individualSessionRepositoryMocks.start.mockResolvedValue({ error: null });
+
+    renderAdminMatchControl({
+      matches: [],
+      championshipSports: [athleticsSport],
+    });
+
+    const sessionCard = screen.getByText(/^Atletismo •/).closest(".glass-card");
+    expect(sessionCard).not.toBeNull();
+    expect(
+      within(sessionCard as HTMLElement).getByRole("button", {
+        name: "Iniciar sessão",
+      }).parentElement?.previousElementSibling,
+    ).toHaveTextContent("Atletismo");
+    expect(within(sessionCard as HTMLElement).queryByText("Agendada")).toBeNull();
+    expect(within(sessionCard as HTMLElement).queryByText("Prévia parcial da sessão")).toBeNull();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Iniciar sessão" }));
+      await Promise.resolve();
+    });
+
+    expect(individualSessionRepositoryMocks.start).toHaveBeenCalledWith("scheduled-individual-session");
+  });
+
+  it("permite retornar uma sessão individual ao agendamento preservando a ação no servidor", async () => {
+    const swimmingSport = buildChampionshipSport({
+      id: "championship-sport-swimming",
+      sport_id: "sport-swimming",
+      sports: buildSport({ id: "sport-swimming", name: "Natação" }),
+    });
+    individualEventsState.current = {
+      events: [],
+      sessions: [
+        buildIndividualSession({
+          id: "live-individual-session",
+          sport_id: swimmingSport.sport_id,
+          sports: swimmingSport.sports,
+          status: ChampionshipIndividualSessionStatus.LIVE,
+        }),
+      ],
+      entries: [],
+      refetch: vi.fn(),
+    };
+    individualSessionRepositoryMocks.returnToScheduled.mockResolvedValue({ error: null });
+
+    renderAdminMatchControl({
+      matches: [],
+      championshipSports: [swimmingSport],
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole("button", { name: "Voltar para agendada" }).at(-1)!);
+      await Promise.resolve();
+    });
+    expect(screen.getByRole("heading", { name: "Voltar sessão para agendada" })).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Voltar para agendada" }));
+      await Promise.resolve();
+    });
+
+    expect(individualSessionRepositoryMocks.returnToScheduled).toHaveBeenCalledWith("live-individual-session");
+  });
+
+  it("aplica W.O. somente para a atlética e a prova selecionada", async () => {
+    const athleticsSport = buildChampionshipSport({
+      id: "championship-sport-athletics",
+      sport_id: "sport-athletics",
+      sports: buildSport({ id: "sport-athletics", name: "Atletismo" }),
+    });
+    individualEventsState.current = {
+      events: [
+        {
+          id: "event-100m",
+          session_id: "live-individual-session",
+          name: "100 metros rasos",
+          event_code: "ATHLETICS_100M",
+        },
+      ],
+      sessions: [
+        buildIndividualSession({
+          id: "live-individual-session",
+          sport_id: athleticsSport.sport_id,
+          status: ChampionshipIndividualSessionStatus.LIVE,
+        }),
+      ],
+      entries: [
+        {
+          id: "entry-team-1",
+          event_id: "event-100m",
+          team_id: "team-1",
+          athlete_name: "Atleta 1",
+          status: "PENDING",
+          final_position: null,
+          points_awarded: 0,
+          result_time_milliseconds: null,
+          result_mark_centimeters: null,
+          teams: { name: "Atlética 1" },
+        },
+      ],
+      refetch: vi.fn(),
+    };
+    individualSessionRepositoryMocks.walkover.mockResolvedValue({ error: null });
+
+    renderAdminMatchControl({
+      matches: [],
+      championshipSports: [athleticsSport],
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Registrar resultados" }));
+      await Promise.resolve();
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Aplicar W.O." }));
+      await Promise.resolve();
+    });
+
+    expect(individualSessionRepositoryMocks.walkover).toHaveBeenCalledWith("event-100m", "team-1");
   });
 
   it("mantém as sessões individuais após os jogos coletivos no filtro Todas", () => {
@@ -567,9 +758,7 @@ describe("AdminMatchControl", () => {
     });
 
     const collectiveMatchCard = resolveMatchCardElement("Casa");
-    const individualSessionCard = screen
-      .getByText(/Atletismo.*Feminino/)
-      .closest(".glass-card");
+    const individualSessionCard = screen.getByText(/^Atletismo •/).closest(".glass-card");
 
     expect(collectiveMatchCard).toHaveClass("order-2");
     expect(individualSessionCard).toHaveClass("order-3");
@@ -605,11 +794,11 @@ describe("AdminMatchControl", () => {
       championshipSports: [athleticsSport],
     });
 
-    expect(screen.queryByText(/Atletismo.*Feminino/)).toBeNull();
+    expect(screen.queryByText(/^Atletismo •/)).toBeNull();
 
     fireEvent.click(screen.getByTestId("pagination-controls-page-mock"));
 
-    expect(screen.getByText(/Atletismo.*Feminino/)).toBeInTheDocument();
+    expect(screen.getByText(/^Atletismo •/)).toBeInTheDocument();
   });
 
   it("inicia um jogo agendado e envia status ao vivo para o backend", async () => {
@@ -1737,6 +1926,58 @@ describe("AdminMatchControl", () => {
     expect(supabaseUpdateCalls[0]?.payload.home_red_cards).toBe(0);
     expect(supabaseUpdateCalls[0]?.payload.away_yellow_cards).toBe(0);
     expect(supabaseUpdateCalls[0]?.payload.away_red_cards).toBe(0);
+  });
+
+  it("reúne todos os controles disciplinares do handebol no mesmo painel", () => {
+    const match = buildMatch({
+      id: "live-handball-cards-match",
+      sport_id: "sport-handball",
+      status: MatchStatus.LIVE,
+      supports_cards: true,
+      sports: buildSport({ id: "sport-handball", name: "Handebol" }),
+      home_team: buildTeam({ id: "home-handball-team", name: "Atlética Casa Handebol" }),
+      away_team: buildTeam({ id: "away-handball-team", name: "Atlética Visitante Handebol" }),
+    });
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-handball",
+      sport_id: "sport-handball",
+      supports_cards: true,
+      sports: match.sports,
+    });
+
+    renderAdminMatchControl({
+      matches: [match],
+      championshipSports: [championshipSport],
+    });
+
+    const matchCardElement = resolveMatchCardElement("Atlética Casa Handebol");
+    const panelWithYellowCards = within(matchCardElement)
+      .getAllByText("Cartões Amarelos")[0]
+      ?.closest(".glass-panel-muted");
+    const panelWithBlueCards = within(matchCardElement)
+      .getAllByText("Cartões Azuis")[0]
+      ?.closest(".glass-panel-muted");
+    const panelWithTwoMinutePenalties = within(matchCardElement)
+      .getAllByText("Penalidades de 2 Min")[0]
+      ?.closest(".glass-panel-muted");
+
+    expect(panelWithYellowCards).not.toBeNull();
+    expect(panelWithYellowCards).toHaveClass("after:border-l");
+    expect(
+      within(matchCardElement).getAllByText("Cartões Amarelos")[0],
+    ).toHaveClass("dark:text-amber-500");
+    expect(panelWithBlueCards).toBe(panelWithYellowCards);
+    expect(panelWithTwoMinutePenalties).toBe(panelWithYellowCards);
+    expect(
+      within(panelWithYellowCards as HTMLElement).getAllByText(
+        "Atlética Casa Handebol",
+      ),
+    ).toHaveLength(1);
+    expect(
+      within(panelWithYellowCards as HTMLElement).getAllByText(
+        "Atlética Visitante Handebol",
+      ),
+    ).toHaveLength(1);
   });
 
   it("mantém o botão Fim do set desabilitado com placar atual 0 x 0", () => {

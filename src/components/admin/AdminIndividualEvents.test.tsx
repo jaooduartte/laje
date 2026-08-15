@@ -5,6 +5,7 @@ import { AdminIndividualEvents } from "@/components/admin/AdminIndividualEvents"
 import {
   ChampionshipIndividualEntryStatus,
   ChampionshipIndividualEventKind,
+  ChampionshipIndividualSessionStatus,
   ChampionshipIndividualEventStatus,
   ChampionshipSchedulePeriod,
   MatchNaipe,
@@ -196,6 +197,7 @@ describe("AdminIndividualEvents", () => {
           naipe: MatchNaipe.MASCULINO,
           division: TeamDivision.DIVISAO_PRINCIPAL,
           kind: ChampionshipIndividualEventKind.INDIVIDUAL,
+          session_id: "session-1",
           scheduled_date: "2026-08-10",
           period: ChampionshipSchedulePeriod.MATUTINO,
           location: "Pista",
@@ -203,7 +205,26 @@ describe("AdminIndividualEvents", () => {
           sports: { id: "sport-1", name: "Atletismo" },
         },
       ],
-      sessions: [],
+      sessions: [
+        {
+          id: "session-1",
+          championship_id: "championship-1",
+          season_year: 2026,
+          sport_id: "sport-1",
+          naipe: MatchNaipe.MASCULINO,
+          division: TeamDivision.DIVISAO_PRINCIPAL,
+          scheduled_date: "2026-08-10",
+          period: ChampionshipSchedulePeriod.MATUTINO,
+          location_key: "pista",
+          court_key: "raia-1",
+          location_name: "Pista",
+          court_name: "Raia 1",
+          status: ChampionshipIndividualSessionStatus.LIVE,
+          exclusive_lock_enabled: true,
+          created_at: "2026-08-01T00:00:00.000Z",
+          updated_at: "2026-08-01T00:00:00.000Z",
+        },
+      ],
       athletes: [
         {
           id: "athlete-1",
@@ -301,7 +322,7 @@ describe("AdminIndividualEvents", () => {
     expect(toastSuccessMock).toHaveBeenCalledWith("Atleta cadastrado.");
   });
 
-  it("confirma resultados convertendo posições para número e preservando nulos", async () => {
+  it("confirma resultados convertendo métricas para número e preservando nulos", async () => {
     renderAdminIndividualEvents();
 
     await waitFor(() => {
@@ -317,12 +338,14 @@ describe("AdminIndividualEvents", () => {
         {
           entry_id: "entry-1",
           status: ChampionshipIndividualEntryStatus.CONFIRMED,
-          final_position: 1,
+          result_time_milliseconds: null,
+          result_mark_centimeters: null,
         },
         {
           entry_id: "entry-2",
           status: ChampionshipIndividualEntryStatus.PENDING,
-          final_position: null,
+          result_time_milliseconds: null,
+          result_mark_centimeters: null,
         },
       ]);
     });

@@ -195,6 +195,8 @@ export interface ChampionshipIndividualEventEntry {
   athlete_name: string | null;
   entry_type: ChampionshipIndividualEventKind;
   final_position: number | null;
+  result_time_milliseconds: number | null;
+  result_mark_centimeters: number | null;
   status: ChampionshipIndividualEntryStatus;
   points_awarded: number;
   created_at: string;

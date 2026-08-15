@@ -23,8 +23,11 @@ import {
 } from "@/domain/championship-brackets/championshipBracket.repository";
 import {
   finishChampionshipIndividualSession,
-  previewChampionshipIndividualSessionScoreboard,
+  fetchChampionshipIndividualSessionParticipants,
+  markChampionshipIndividualEventTeamWalkover,
   reopenChampionshipIndividualSession,
+  returnChampionshipIndividualSessionToScheduled,
+  saveChampionshipIndividualEventResults,
   startChampionshipIndividualSession,
 } from "@/domain/individual-events/championshipIndividualEvents.repository";
 import type {
@@ -38,6 +41,7 @@ import type {
   ChampionshipSport,
   Match,
   Sport,
+  Team,
 } from "@/lib/types";
 import {
   AppBadgeTone,
@@ -45,6 +49,7 @@ import {
   ChampionshipSportResultRule,
   ChampionshipSportTieBreakerRule,
   ChampionshipStatus,
+  ChampionshipIndividualEntryStatus,
   MatchNaipe,
   MatchStatus,
   TeamDivision,
@@ -81,6 +86,7 @@ import {
   type MatchBracketContext,
   compareAdminMatchCardOrder,
   MATCH_NAIPE_LABELS,
+  TEAM_DIVISION_BADGE_TONES,
   TEAM_DIVISION_LABELS,
   resolveDisplayedMatchQueueLabel,
   resolveBracketGroupFilterOptions,
@@ -97,7 +103,10 @@ import {
 } from "@/lib/championship";
 import { resolveSportCode } from "@/lib/modalidadeConfig";
 import { scrollToTopOfPage } from "@/lib/scroll";
-import { INDIVIDUAL_SESSION_STATUS_LABELS } from "@/lib/individualEvents";
+import {
+  INDIVIDUAL_ENTRY_STATUS_LABELS,
+  INDIVIDUAL_SESSION_STATUS_LABELS,
+} from "@/lib/individualEvents";
 
 interface Props {
   championshipId: string;
@@ -116,7 +125,6 @@ interface Props {
     showFetching?: boolean;
   }) => void | Promise<void>;
   onRefetchChampionshipBracket: () => void;
-  onOpenIndividualEventsTab?: () => void;
   canManageScoreboard: boolean;
 }
 
@@ -144,6 +152,25 @@ interface MatchPenaltyShootoutDraft {
   awayPenaltyScore: string;
 }
 
+interface IndividualResultDraft {
+  status: ChampionshipIndividualEntryStatus;
+  resultTimeMilliseconds: string;
+  resultMarkCentimeters: string;
+}
+
+function formatDateOnlyInBrazilianFormat(value: string | null) {
+  if (!value) {
+    return "Sem data";
+  }
+
+  const [year, month, day] = value.split("-");
+  return year && month && day ? `${day}/${month}/${year}` : value;
+}
+
+function isIndividualMeasurementEvent(eventCode: string) {
+  return eventCode == "ATHLETICS_SHOT_PUT" || eventCode == "ATHLETICS_LONG_JUMP";
+}
+
 type SaveStatus = "saving" | "saved" | "error";
 type MatchSide = "home" | "away";
 type CardColor = "yellow" | "red" | "blue" | "twoMinute";
@@ -166,6 +193,7 @@ const ALL_CONTROL_DIVISION_FILTER = "ALL_CONTROL_DIVISIONS";
 const ALL_CONTROL_GROUP_FILTER = "ALL_CONTROL_GROUPS";
 const ALL_CONTROL_LOCATION_FILTER = "ALL_CONTROL_LOCATIONS";
 const ALL_CONTROL_COURT_FILTER = "ALL_CONTROL_COURTS";
+const EMPTY_INDIVIDUAL_ENTRIES: readonly [] = [];
 const NAIPE_OPTIONS: MatchNaipe[] = [
   MatchNaipe.MASCULINO,
   MatchNaipe.FEMININO,
@@ -559,7 +587,6 @@ export function AdminMatchControl({
   isFetchingMatches = false,
   onRefetch,
   onRefetchChampionshipBracket,
-  onOpenIndividualEventsTab,
   canManageScoreboard,
 }: Props) {
   const [matchDraftById, setMatchDraftById] = useState<
@@ -620,18 +647,17 @@ export function AdminMatchControl({
   const [itemsPerPage, setItemsPerPage] = useState(
     DEFAULT_PAGINATION_ITEMS_PER_PAGE,
   );
-  const [sessionScoreboardBySessionId, setSessionScoreboardBySessionId] =
-    useState<
-      Record<
-        string,
-        Awaited<
-          ReturnType<typeof previewChampionshipIndividualSessionScoreboard>
-        >["data"]
-      >
-    >({});
   const [sessionActionLoadingById, setSessionActionLoadingById] = useState<
     Record<string, boolean>
   >({});
+  const [sessionParticipantsBySessionId, setSessionParticipantsBySessionId] =
+    useState<Record<string, Team[]>>({});
+  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
+  const [selectedEventIdBySessionId, setSelectedEventIdBySessionId] = useState<Record<string, string>>({});
+  const [individualResultDraftByEntryId, setIndividualResultDraftByEntryId] = useState<Record<string, IndividualResultDraft>>({});
+  const [resultSavingByEventId, setResultSavingByEventId] = useState<Record<string, boolean>>({});
+  const [showReturnIndividualSessionDialog, setShowReturnIndividualSessionDialog] = useState(false);
+  const [pendingReturnIndividualSessionId, setPendingReturnIndividualSessionId] = useState<string | null>(null);
 
   const isDraftDirtyByMatchIdRef = useRef<Record<string, boolean>>({});
   const persistedDraftByMatchIdRef = useRef<
@@ -927,6 +953,7 @@ export function AdminMatchControl({
   const {
     sessions: individualSessions,
     events: individualEvents,
+    entries: individualEntries = EMPTY_INDIVIDUAL_ENTRIES,
     refetch: refetchIndividualEvents,
   } = useChampionshipIndividualEvents({
     championshipId,
@@ -950,50 +977,52 @@ export function AdminMatchControl({
 
   useEffect(() => {
     if (individualSessions.length == 0) {
-      setSessionScoreboardBySessionId({});
+      setSessionParticipantsBySessionId({});
       return;
     }
 
     let isMounted = true;
 
-    const loadSessionScoreboards = async () => {
-      const sessionScoreboards = await Promise.all(
-        individualSessions.map(async (session) => {
-          const response = await previewChampionshipIndividualSessionScoreboard(
-            session.id,
-          );
-          return [session.id, response.data] as const;
-        }),
-      );
-
+    void Promise.all(
+      individualSessions.map(async (session) => {
+        const response = await fetchChampionshipIndividualSessionParticipants(session.id);
+        return [session.id, response.data] as const;
+      }),
+    ).then((rows) => {
       if (!isMounted) {
         return;
       }
 
-      setSessionScoreboardBySessionId(
-        sessionScoreboards.reduce<
-          Record<
-            string,
-            Awaited<
-              ReturnType<typeof previewChampionshipIndividualSessionScoreboard>
-            >["data"]
-          >
-        >((carry, [sessionId, rows]) => {
-          carry[sessionId] = rows;
-          return carry;
-        }, {}),
-      );
-    };
-
-    void loadSessionScoreboards();
+      setSessionParticipantsBySessionId(Object.fromEntries(rows));
+    });
 
     return () => {
       isMounted = false;
     };
   }, [individualSessions]);
 
+  useEffect(() => {
+    setIndividualResultDraftByEntryId((current) => {
+      const next = { ...current };
+
+      individualEntries.forEach((entry) => {
+        if (next[entry.id]) {
+          return;
+        }
+
+        next[entry.id] = {
+          status: entry.status,
+          resultTimeMilliseconds: entry.result_time_milliseconds?.toString() ?? "",
+          resultMarkCentimeters: entry.result_mark_centimeters?.toString() ?? "",
+        };
+      });
+
+      return next;
+    });
+  }, [individualEntries]);
+
   const runSessionAction = useCallback(
-    async (sessionId: string, action: "start" | "finish" | "reopen") => {
+    async (sessionId: string, action: "start" | "finish" | "reopen" | "return") => {
       if (!canManageScoreboard || championshipStatus !== ChampionshipStatus.IN_PROGRESS) {
         if (championshipStatus !== ChampionshipStatus.IN_PROGRESS) {
           toast.error("As sessões individuais só podem ser operadas com o campeonato em andamento.");
@@ -1011,7 +1040,9 @@ export function AdminMatchControl({
           ? await startChampionshipIndividualSession(sessionId)
           : action == "finish"
             ? await finishChampionshipIndividualSession(sessionId)
-            : await reopenChampionshipIndividualSession(sessionId);
+            : action == "reopen"
+              ? await reopenChampionshipIndividualSession(sessionId)
+              : await returnChampionshipIndividualSessionToScheduled(sessionId);
 
       setSessionActionLoadingById((current) => ({
         ...current,
@@ -1037,6 +1068,50 @@ export function AdminMatchControl({
       refetchIndividualEvents,
     ],
   );
+
+  const saveIndividualEventResults = useCallback(async (eventId: string) => {
+    const eventEntries = individualEntries.filter((entry) => entry.event_id == eventId);
+
+    setResultSavingByEventId((current) => ({ ...current, [eventId]: true }));
+    const response = await saveChampionshipIndividualEventResults(
+      eventId,
+      eventEntries.map((entry) => {
+        const draft = individualResultDraftByEntryId[entry.id] ?? {
+          status: ChampionshipIndividualEntryStatus.PENDING,
+          resultTimeMilliseconds: "",
+          resultMarkCentimeters: "",
+        };
+
+        return {
+          entry_id: entry.id,
+          status: draft.status,
+          result_time_milliseconds: draft.resultTimeMilliseconds ? Number(draft.resultTimeMilliseconds) : null,
+          result_mark_centimeters: draft.resultMarkCentimeters ? Number(draft.resultMarkCentimeters) : null,
+        };
+      }),
+    );
+    setResultSavingByEventId((current) => ({ ...current, [eventId]: false }));
+
+    if (response.error) {
+      toast.error(response.error.message);
+      return;
+    }
+
+    toast.success("Resultados registrados e classificação recalculada.");
+    await refetchIndividualEvents();
+  }, [individualEntries, individualResultDraftByEntryId, refetchIndividualEvents]);
+
+  const markIndividualEventTeamWalkover = useCallback(async (eventId: string, teamId: string) => {
+    const response = await markChampionshipIndividualEventTeamWalkover(eventId, teamId);
+
+    if (response.error) {
+      toast.error(response.error.message);
+      return;
+    }
+
+    toast.success("W.O. registrado para esta atlética nesta prova.");
+    await refetchIndividualEvents();
+  }, [refetchIndividualEvents]);
 
   const championshipBracketScheduleDays = useMemo(() => {
     return resolveChampionshipBracketScheduleDays(championshipBracketView);
@@ -2875,160 +2950,168 @@ export function AdminMatchControl({
       {paginatedIndividualSessions.length > 0 ? (
         <div className="contents">
           {paginatedIndividualSessions.map((session) => {
-              const linkedEvents = individualEvents.filter(
-                (event) => event.session_id == session.id,
-              );
-              const scoreboardRows =
-                sessionScoreboardBySessionId[session.id] ?? [];
-              const isSessionActionLoading =
-                sessionActionLoadingById[session.id] == true;
+            const linkedEvents = individualEvents.filter((event) => event.session_id == session.id);
+            const configuredParticipants = sessionParticipantsBySessionId[session.id] ?? [];
+            const sortedConfiguredParticipants = [...configuredParticipants].sort(
+              (firstParticipant, secondParticipant) =>
+                firstParticipant.name.localeCompare(secondParticipant.name, "pt-BR"),
+            );
+            const isSessionActionLoading = sessionActionLoadingById[session.id] == true;
+            const isOperational = canManageScoreboard && championshipStatus == ChampionshipStatus.IN_PROGRESS;
+            const isScheduled = session.status == "SCHEDULED";
+            const isLive = session.status == "LIVE";
+            const isExpanded = expandedSessionId == session.id;
+            const selectedEvent = linkedEvents.find((event) => event.id == selectedEventIdBySessionId[session.id]) ?? linkedEvents[0];
+            const selectedEventEntries = selectedEvent
+              ? individualEntries.filter((entry) => entry.event_id == selectedEvent.id)
+              : [];
+            const isMeasurementEvent = selectedEvent ? isIndividualMeasurementEvent(selectedEvent.event_code) : false;
 
-              return (
-                <div
-                  key={session.id}
-                  className="order-3 space-y-4 glass-card p-5"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <p className="font-display text-base font-semibold">
-                        {session.sports?.name} •{" "}
-                        {MATCH_NAIPE_LABELS[session.naipe]}
-                        {session.division
-                          ? ` • ${TEAM_DIVISION_LABELS[session.division]}`
-                          : ""}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {session.scheduled_date ?? "Sem data"}
-                        {session.period
-                          ? ` • ${session.period == "MATUTINO" ? "Matutino" : "Vespertino"}`
-                          : ""}
-                        {session.location_name
-                          ? ` • ${session.location_name}`
-                          : ""}
+            return (
+              <div key={session.id} className="order-3 space-y-4 glass-card p-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="order-2 space-y-1 sm:order-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="shrink-0 text-xs uppercase text-muted-foreground">
+                        {session.sports?.name}
+                        {session.location_name ? ` • ${session.location_name}` : ""}
                         {session.court_name ? ` • ${session.court_name}` : ""}
-                      </p>
+                      </span>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <AppBadge tone={resolveMatchNaipeBadgeTone(String(session.naipe))}>
+                          {resolveMatchNaipeLabel(String(session.naipe))}
+                        </AppBadge>
+                        {session.division ? (
+                          <AppBadge tone={TEAM_DIVISION_BADGE_TONES[session.division]}>
+                            {TEAM_DIVISION_LABELS[session.division]}
+                          </AppBadge>
+                        ) : null}
+                      </div>
                     </div>
-
-                    <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">
-                      {INDIVIDUAL_SESSION_STATUS_LABELS[session.status]}
-                    </span>
-                  </div>
-
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-xl border border-border/50 px-3 py-2">
-                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                        Provas
-                      </p>
-                      <p className="mt-1 text-lg font-semibold">
-                        {linkedEvents.length}
-                      </p>
-                    </div>
-                    <div className="rounded-xl border border-border/50 px-3 py-2">
-                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                        Atléticas na prévia
-                      </p>
-                      <p className="mt-1 text-lg font-semibold">
-                        {scoreboardRows.length}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {onOpenIndividualEventsTab ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={onOpenIndividualEventsTab}
-                        disabled={
-                          championshipStatus == ChampionshipStatus.REVIEW
-                        }
-                      >
-                        Registrar resultados
-                      </Button>
-                    ) : null}
-
-                    {session.status == "DRAFT" ||
-                    session.status == "SCHEDULED" ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={
-                          isSessionActionLoading || !canManageScoreboard || championshipStatus !== ChampionshipStatus.IN_PROGRESS
-                        }
-                        onClick={() =>
-                          void runSessionAction(session.id, "start")
-                        }
-                      >
-                        <Play className="h-4 w-4" />
-                        Iniciar sessão
-                      </Button>
-                    ) : null}
-
-                    {session.status == "LIVE" ? (
-                      <Button
-                        type="button"
-                        disabled={
-                          isSessionActionLoading || !canManageScoreboard || championshipStatus !== ChampionshipStatus.IN_PROGRESS
-                        }
-                        onClick={() =>
-                          void runSessionAction(session.id, "finish")
-                        }
-                      >
-                        <Square className="h-4 w-4" />
-                        Encerrar sessão
-                      </Button>
-                    ) : null}
-
-                    {session.status == "FINISHED" ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={
-                          isSessionActionLoading || !canManageScoreboard || championshipStatus !== ChampionshipStatus.IN_PROGRESS
-                        }
-                        onClick={() =>
-                          void runSessionAction(session.id, "reopen")
-                        }
-                      >
-                        <RotateCcw className="h-4 w-4" />
-                        Reabrir sessão
-                      </Button>
-                    ) : null}
-                  </div>
-
-                  <div className="mt-4 space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Prévia parcial da sessão
+                    <p className="text-xs text-muted-foreground">
+                      {formatDateOnlyInBrazilianFormat(session.scheduled_date)}
+                      {session.period ? ` • ${session.period == "MATUTINO" ? "Matutino" : "Vespertino"}` : ""}
                     </p>
-                    {scoreboardRows.length == 0 ? (
-                      <p className="text-xs text-muted-foreground">
-                        Nenhum resultado parcial salvo nesta sessão.
-                      </p>
-                    ) : (
-                      scoreboardRows.slice(0, 5).map((row, index) => (
-                        <div
-                          key={`${session.id}-${row.team_id}`}
-                          className="flex items-center justify-between rounded-xl border border-border/50 px-3 py-2 text-sm"
-                        >
-                          <div className="min-w-0">
-                            <p className="truncate font-medium">
-                              {index + 1}. {row.teams?.name ?? "Atlética"}
-                            </p>
-                            <p className="text-[11px] text-muted-foreground">
-                              {row.first_places}x 1º • {row.second_places}x 2º •{" "}
-                              {row.third_places}x 3º
-                            </p>
-                          </div>
-                          <p className="font-display text-base font-semibold">
-                            {row.total_points}
-                          </p>
-                        </div>
-                      ))
-                    )}
+                  </div>
+                  <div className="order-1 flex w-full flex-wrap items-center gap-2 sm:order-2 sm:w-auto sm:justify-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={!isOperational || !isLive}
+                      onClick={() => {
+                        setExpandedSessionId((current) => current == session.id ? null : session.id);
+                        if (!selectedEventIdBySessionId[session.id] && linkedEvents[0]) {
+                          setSelectedEventIdBySessionId((current) => ({ ...current, [session.id]: linkedEvents[0].id }));
+                        }
+                      }}
+                    >
+                      Registrar resultados
+                    </Button>
+                    {isScheduled ? (
+                      <Button type="button" variant="outline" disabled={isSessionActionLoading || !isOperational} onClick={() => void runSessionAction(session.id, "start")}>
+                        <Play className="h-4 w-4" /> Iniciar sessão
+                      </Button>
+                    ) : null}
+                    {isLive ? (
+                      <>
+                        <Button type="button" variant="outline" disabled={isSessionActionLoading || !isOperational} onClick={() => {
+                          setPendingReturnIndividualSessionId(session.id);
+                          setShowReturnIndividualSessionDialog(true);
+                        }}>
+                          <RotateCcw className="h-4 w-4" /> Voltar para agendada
+                        </Button>
+                        <Button type="button" disabled={isSessionActionLoading || !isOperational} onClick={() => void runSessionAction(session.id, "finish")}>
+                          <Square className="h-4 w-4" /> Encerrar sessão
+                        </Button>
+                      </>
+                    ) : null}
+                    {session.status == "FINISHED" ? (
+                      <Button type="button" variant="outline" disabled={isSessionActionLoading || !isOperational} onClick={() => void runSessionAction(session.id, "reopen")}>
+                        <RotateCcw className="h-4 w-4" /> Reabrir sessão
+                      </Button>
+                    ) : null}
+                    {session.status != "SCHEDULED" ? (
+                      <AppBadge
+                        tone={
+                          session.status == "DRAFT"
+                            ? AppBadgeTone.AMBER
+                            : session.status == "LIVE"
+                              ? AppBadgeTone.PRIMARY
+                              : AppBadgeTone.RED
+                        }
+                      >
+                        {session.status == "DRAFT"
+                          ? "Pendente de agendamento"
+                          : INDIVIDUAL_SESSION_STATUS_LABELS[session.status]}
+                      </AppBadge>
+                    ) : null}
                   </div>
                 </div>
-              );
-            })}
+
+                <div className="rounded-xl border border-border/50 px-3 py-3">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Atléticas participantes ({sortedConfiguredParticipants.length})
+                  </p>
+                  {sortedConfiguredParticipants.length > 0 ? (
+                    <div className="mt-3 columns-1 gap-4 md:columns-2 xl:columns-4">
+                      {sortedConfiguredParticipants.map((participant) => (
+                        <div key={participant.id} className="mb-2 flex break-inside-avoid flex-wrap items-center gap-2 text-sm">
+                          <span className="font-medium">{participant.name}</span>
+                          <AppBadge tone={TEAM_DIVISION_BADGE_TONES[participant.division]}>
+                            {TEAM_DIVISION_LABELS[participant.division]}
+                          </AppBadge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Nenhuma atlética configurada para esta sessão.
+                    </p>
+                  )}
+                </div>
+
+                {isExpanded && selectedEvent ? (
+                  <div className="space-y-3 rounded-xl border border-border/50 p-4">
+                    <div className="flex flex-wrap items-end gap-3">
+                      <div className="min-w-64 flex-1">
+                        <p className="mb-1 text-xs font-medium">Prova</p>
+                        <Select value={selectedEvent.id} onValueChange={(eventId) => setSelectedEventIdBySessionId((current) => ({ ...current, [session.id]: eventId }))}>
+                          <SelectTrigger className="app-input-field"><SelectValue /></SelectTrigger>
+                          <SelectContent>{linkedEvents.map((event) => <SelectItem key={event.id} value={event.id}>{event.name}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      <Button type="button" disabled={resultSavingByEventId[selectedEvent.id] || !isOperational || !isLive} onClick={() => void saveIndividualEventResults(selectedEvent.id)}>
+                        Confirmar resultados
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {isMeasurementEvent ? "Informe a marca em centímetros. A maior marca vence." : "Informe o tempo em milissegundos. O menor tempo vence."}
+                    </p>
+                    {selectedEventEntries.map((entry, entryIndex) => {
+                      const draft = individualResultDraftByEntryId[entry.id] ?? { status: entry.status, resultTimeMilliseconds: "", resultMarkCentimeters: "" };
+                      const entryDescription = entry.athlete_name ?? entry.members?.filter((member) => member.is_starter).map((member) => member.athlete_name).join(", ") ?? "-";
+                      const isFirstEntryForTeam = selectedEventEntries.findIndex((candidate) => candidate.team_id == entry.team_id) == entryIndex;
+                      return (
+                        <div key={entry.id} className="grid gap-3 rounded-xl border border-border/50 p-3 lg:grid-cols-[2fr_1fr_1fr_auto]">
+                          <div><p className="font-medium">{entry.teams?.name ?? "Atlética"}</p><p className="text-xs text-muted-foreground">{entryDescription}</p></div>
+                          <Select value={draft.status} disabled={!isOperational || !isLive} onValueChange={(status) => setIndividualResultDraftByEntryId((current) => ({ ...current, [entry.id]: { ...draft, status: status as ChampionshipIndividualEntryStatus } }))}>
+                            <SelectTrigger className="app-input-field"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {draft.status == ChampionshipIndividualEntryStatus.WALKOVER ? <SelectItem value={ChampionshipIndividualEntryStatus.WALKOVER} disabled>{INDIVIDUAL_ENTRY_STATUS_LABELS[ChampionshipIndividualEntryStatus.WALKOVER]}</SelectItem> : null}
+                              {[ChampionshipIndividualEntryStatus.PENDING, ChampionshipIndividualEntryStatus.CONFIRMED, ChampionshipIndividualEntryStatus.DSQ].map((status) => <SelectItem key={status} value={status}>{INDIVIDUAL_ENTRY_STATUS_LABELS[status]}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                          <Input type="number" min={0} disabled={!isOperational || !isLive || draft.status != ChampionshipIndividualEntryStatus.CONFIRMED} value={isMeasurementEvent ? draft.resultMarkCentimeters : draft.resultTimeMilliseconds} placeholder={isMeasurementEvent ? "Marca (cm)" : "Tempo (ms)"} onChange={(input) => setIndividualResultDraftByEntryId((current) => ({ ...current, [entry.id]: { ...draft, resultTimeMilliseconds: isMeasurementEvent ? "" : input.target.value, resultMarkCentimeters: isMeasurementEvent ? input.target.value : "" } }))} />
+                          <div className="flex flex-wrap items-center gap-2 text-sm"><span>{entry.final_position ? `${entry.final_position}º • ${entry.points_awarded} pts` : "Sem classificação"}</span>{isFirstEntryForTeam ? <Button type="button" variant="outline" size="sm" disabled={!isOperational || !isLive || draft.status == ChampionshipIndividualEntryStatus.WALKOVER} onClick={() => void markIndividualEventTeamWalkover(selectedEvent.id, entry.team_id)}>Aplicar W.O.</Button> : null}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
+
+              </div>
+            );
+          })}
         </div>
       ) : null}
 
@@ -3928,14 +4011,15 @@ export function AdminMatchControl({
                 ) : null}
 
                 {supportsCards ? (
-                  <div className="grid gap-3 glass-panel-muted p-3 sm:grid-cols-2">
+                  <div className="relative glass-panel-muted p-3 after:pointer-events-none after:absolute after:inset-y-3 after:left-1/2 after:hidden after:border-l after:border-border sm:after:block">
+                  <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-2">
                       <p className="truncate text-xs font-semibold uppercase text-muted-foreground">
                         {match.home_team?.name}
                       </p>
                       <div className="grid grid-cols-2 gap-2">
                         <div className="space-y-1">
-                          <p className="text-[11px] font-semibold uppercase text-amber-700">
+                          <p className="text-[11px] font-semibold uppercase text-amber-700 dark:text-amber-500">
                             Cartões Amarelos
                           </p>
                           <div className="flex items-center gap-1">
@@ -4048,7 +4132,7 @@ export function AdminMatchControl({
                       </p>
                       <div className="grid grid-cols-2 gap-2">
                         <div className="space-y-1">
-                          <p className="text-[11px] font-semibold uppercase text-amber-700">
+                          <p className="text-[11px] font-semibold uppercase text-amber-700 dark:text-amber-500">
                             Cartões Amarelos
                           </p>
                           <div className="flex items-center gap-1">
@@ -4155,14 +4239,10 @@ export function AdminMatchControl({
                       </div>
                     </div>
                   </div>
-                ) : null}
 
-                {supportsCards && handballMatch ? (
-                  <div className="grid gap-3 glass-panel-muted p-3 sm:grid-cols-2">
+                  {handballMatch ? (
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <p className="truncate text-xs font-semibold uppercase text-muted-foreground">
-                        {match.home_team?.name}
-                      </p>
                       <div className="grid grid-cols-2 gap-2">
                         <div className="space-y-1">
                           <p className="text-[11px] font-semibold uppercase text-sky-700">
@@ -4271,9 +4351,6 @@ export function AdminMatchControl({
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <p className="truncate text-xs font-semibold uppercase text-muted-foreground">
-                        {match.away_team?.name}
-                      </p>
                       <div className="grid grid-cols-2 gap-2">
                         <div className="space-y-1">
                           <p className="text-[11px] font-semibold uppercase text-sky-700">
@@ -4381,6 +4458,8 @@ export function AdminMatchControl({
                         </div>
                       </div>
                     </div>
+                  </div>
+                  ) : null}
                   </div>
                 ) : null}
               </div>
@@ -4538,6 +4617,35 @@ export function AdminMatchControl({
               }}
             >
               Voltar ao agendamento
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={showReturnIndividualSessionDialog}
+        onOpenChange={setShowReturnIndividualSessionDialog}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Voltar sessão para agendada</AlertDialogTitle>
+            <AlertDialogDescription>
+              A sessão deixará de estar ao vivo. Os resultados ainda não encerrados serão preservados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingReturnIndividualSessionId(null)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingReturnIndividualSessionId) {
+                  void runSessionAction(pendingReturnIndividualSessionId, "return");
+                  setPendingReturnIndividualSessionId(null);
+                }
+              }}
+            >
+              Voltar para agendada
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
