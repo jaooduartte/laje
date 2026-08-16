@@ -9,6 +9,7 @@ const ROLE_REQUEST_TIMEOUT_IN_MILLISECONDS = 10000;
 const DEFAULT_ADMIN_TAB_PERMISSIONS: AdminTabPermissionByTab = {
   [AdminPanelTab.MATCHES]: AdminPanelPermissionLevel.NONE,
   [AdminPanelTab.CONTROL]: AdminPanelPermissionLevel.NONE,
+  [AdminPanelTab.INDIVIDUAL_EVENTS]: AdminPanelPermissionLevel.NONE,
   [AdminPanelTab.TEAMS]: AdminPanelPermissionLevel.NONE,
   [AdminPanelTab.SPORTS]: AdminPanelPermissionLevel.NONE,
   [AdminPanelTab.EVENTS]: AdminPanelPermissionLevel.NONE,
@@ -55,6 +56,9 @@ function resolveAdminTabPermissionsFromContext(context: CurrentUserAdminContext 
     [AdminPanelTab.CONTROL]: isAdminPanelPermissionLevel(context.control_permission)
       ? context.control_permission
       : AdminPanelPermissionLevel.NONE,
+    [AdminPanelTab.INDIVIDUAL_EVENTS]: isAdminPanelPermissionLevel(context.individual_events_permission ?? null)
+      ? context.individual_events_permission!
+      : fallbackMatchesPermission,
     [AdminPanelTab.TEAMS]: isAdminPanelPermissionLevel(context.teams_permission)
       ? context.teams_permission
       : AdminPanelPermissionLevel.NONE,

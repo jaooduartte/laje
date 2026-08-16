@@ -1,13 +1,85 @@
 import type {
+  ChampionshipBracketExactPreviewCache,
+  ChampionshipBracketCompetitionPeriodAvailabilityInput,
   ChampionshipBracketCompetitionConfigDraft,
+  ChampionshipBracketCompetitionDateAvailabilityInput,
+  ChampionshipBracketCourtSportMatchTargetPlanningMode,
   ChampionshipBracketGroupOrderedTeamIdsByGroupNumberDraft,
+  ChampionshipBracketIndividualSessionConfigInput,
+  ChampionshipBracketIndividualEventConfigInput,
+  ChampionshipBracketKnockoutProgramBlockInput,
+  ChampionshipBracketResourceLockInput,
+  ChampionshipBracketCourtSportPreferenceInput,
+  ChampionshipBracketCourtSportMatchTargetInput,
+  ChampionshipBracketCourtSequenceMode,
+  ChampionshipBracketMatchNumberingMode,
   ChampionshipBracketScheduleCourtDraft,
   ChampionshipBracketScheduleDayDraft,
+  ChampionshipBracketSchedulePeriodInput,
   ChampionshipBracketScheduleLocationDraft,
+  ChampionshipBracketTeamCompetitionAvailabilityInput,
+  ChampionshipBracketTeamCompetitionDateAvailabilityInput,
+  ChampionshipSeasonSettingsInput,
   ChampionshipBracketWizardDraftFormValues,
+  ChampionshipBracketAvailabilityWindowInput,
+  ChampionshipBracketPreviewResult,
 } from "@/domain/championship-brackets/championshipBracket.types";
+import { resolveLegacyPeriodTimeRange } from "@/domain/championship-brackets/championshipBracketFixedTimeRange";
 import { resolveCompetitionKnockoutPairingModeValue } from "@/domain/championship-brackets/championshipBracketPairing";
+import { sanitizeIndividualEventConfigValue } from "@/domain/championship-brackets/championshipBracketWizardSync";
+import {
+  ChampionshipSchedulePeriod,
+  ChampionshipSeasonDivisionFormat,
+  ChampionshipSeasonDivisionSettlementMode,
+  MatchNaipe,
+  TeamDivision,
+} from "@/lib/enums";
 import { resolveRandomUuid } from "@/lib/random";
+
+const CHAMPIONSHIP_BRACKET_WIZARD_STEP_FLOW_VERSION = 2;
+
+type ChampionshipBracketStoredDraftValue = Partial<
+  ChampionshipBracketWizardDraftFormValues
+> & {
+  schedule_periods?: unknown;
+  competition_period_availability?: unknown;
+  team_competition_availability?: unknown;
+};
+
+function resolveStepFlowVersion(value: unknown): number {
+  if (typeof value != "number" || Number.isNaN(value)) {
+    return 1;
+  }
+
+  return Math.max(1, Math.trunc(value));
+}
+
+function resolveCurrentStepIndexByStepFlowVersion(
+  currentStepIndex: number,
+  stepFlowVersion: number,
+): number {
+  if (stepFlowVersion >= CHAMPIONSHIP_BRACKET_WIZARD_STEP_FLOW_VERSION) {
+    return currentStepIndex;
+  }
+
+  const legacyStepIndexMap: Record<number, number> = {
+    0: 0,
+    1: 1,
+    2: 2,
+    3: 3,
+    4: 4,
+    5: 5,
+    6: 11,
+    7: 6,
+    8: 7,
+    9: 8,
+    10: 9,
+    11: 10,
+    12: 12,
+  };
+
+  return legacyStepIndexMap[currentStepIndex] ?? currentStepIndex;
+}
 
 function resolveStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
@@ -38,14 +110,145 @@ function resolveBooleanRecord(value: unknown): Record<string, boolean> {
     return {};
   }
 
-  return Object.entries(value).reduce<Record<string, boolean>>((carry, [key, itemValue]) => {
-    if (typeof itemValue != "boolean") {
-      return carry;
-    }
+  return Object.entries(value).reduce<Record<string, boolean>>(
+    (carry, [key, itemValue]) => {
+      if (typeof itemValue != "boolean") {
+        return carry;
+      }
 
-    carry[key] = itemValue;
-    return carry;
-  }, {});
+      carry[key] = itemValue;
+      return carry;
+    },
+    {},
+  );
+}
+
+function resolvePreviewResult(
+  value: unknown,
+): ChampionshipBracketPreviewResult | null {
+  if (!value || typeof value != "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const previewResult = value as Record<string, unknown>;
+
+  return {
+    ok: previewResult.ok === true,
+    message:
+      typeof previewResult.message == "string" ? previewResult.message : null,
+    server_payload_signature:
+      typeof previewResult.server_payload_signature == "string" &&
+      previewResult.server_payload_signature.trim() != ""
+        ? previewResult.server_payload_signature
+        : null,
+    generation_signature:
+      typeof previewResult.generation_signature == "string" &&
+      previewResult.generation_signature.trim() != ""
+        ? previewResult.generation_signature
+        : null,
+    match_numbering_mode:
+      previewResult.match_numbering_mode == "SPORT_NAIPE"
+        ? "SPORT_NAIPE"
+        : previewResult.match_numbering_mode == "SPORT"
+          ? "SPORT"
+          : "COURT",
+    summary:
+      previewResult.summary &&
+      typeof previewResult.summary == "object" &&
+      !Array.isArray(previewResult.summary)
+        ? (previewResult.summary as ChampionshipBracketPreviewResult["summary"])
+        : null,
+    days: Array.isArray(previewResult.days)
+      ? (previewResult.days as ChampionshipBracketPreviewResult["days"])
+      : [],
+    diagnostics: Array.isArray(previewResult.diagnostics)
+      ? (previewResult.diagnostics as ChampionshipBracketPreviewResult["diagnostics"])
+      : [],
+  };
+}
+
+function resolveExactPreviewCache(
+  value: unknown,
+): ChampionshipBracketExactPreviewCache | null {
+  if (!value || typeof value != "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const parsedCache = value as Partial<ChampionshipBracketExactPreviewCache>;
+  const previewResult = resolvePreviewResult(parsedCache.result);
+
+  if (
+    typeof parsedCache.job_id != "string" ||
+    parsedCache.job_id.trim() == "" ||
+    typeof parsedCache.payload_signature != "string" ||
+    parsedCache.payload_signature.trim() == "" ||
+    typeof parsedCache.server_payload_signature != "string" ||
+    parsedCache.server_payload_signature.trim() == "" ||
+    typeof parsedCache.generation_signature != "string" ||
+    typeof parsedCache.dependency_signature != "string" ||
+    parsedCache.dependency_signature.trim() == "" ||
+    typeof parsedCache.algorithm_version != "string" ||
+    parsedCache.algorithm_version.trim() == "" ||
+    typeof parsedCache.status != "string" ||
+    ![
+      "QUEUED",
+      "INITIALIZING",
+      "SCHEDULING",
+      "FINALIZING",
+      "COMPLETED",
+      "FAILED",
+      "CANCELLED",
+      "CONSUMED",
+    ].includes(parsedCache.status) ||
+    typeof parsedCache.stage != "string" ||
+    typeof parsedCache.progress_percentage != "number" ||
+    typeof parsedCache.processed_slots != "number" ||
+    typeof parsedCache.total_slots != "number" ||
+    typeof parsedCache.expires_at != "string" ||
+    parsedCache.expires_at.trim() == "" ||
+    typeof parsedCache.is_valid_for_creation != "boolean" ||
+    typeof parsedCache.generated_at != "string" ||
+    parsedCache.generated_at.trim() == ""
+  ) {
+    return null;
+  }
+
+  if (
+    ["COMPLETED", "CONSUMED"].includes(parsedCache.status) &&
+    parsedCache.generation_signature.trim() == ""
+  ) {
+    return null;
+  }
+
+  return {
+    job_id: parsedCache.job_id,
+    payload_signature: parsedCache.payload_signature,
+    server_payload_signature: parsedCache.server_payload_signature,
+    generation_signature: parsedCache.generation_signature,
+    dependency_signature: parsedCache.dependency_signature,
+    algorithm_version: parsedCache.algorithm_version,
+    status:
+      parsedCache.status as ChampionshipBracketExactPreviewCache["status"],
+    stage: parsedCache.stage,
+    current_date:
+      typeof parsedCache.current_date == "string"
+        ? parsedCache.current_date
+        : null,
+    progress_percentage: parsedCache.progress_percentage,
+    processed_slots: parsedCache.processed_slots,
+    total_slots: parsedCache.total_slots,
+    expires_at: parsedCache.expires_at,
+    started_at:
+      typeof parsedCache.started_at == "string" ? parsedCache.started_at : null,
+    completed_at:
+      typeof parsedCache.completed_at == "string"
+        ? parsedCache.completed_at
+        : null,
+    events: [],
+    is_valid_for_creation: parsedCache.is_valid_for_creation,
+    generated_at: parsedCache.generated_at,
+    result: previewResult,
+  };
 }
 
 function resolveCompetitionConfigByKey(
@@ -182,6 +385,205 @@ function resolveGroupOrderByCompetitionKey(
   }, {});
 }
 
+function resolveMatchNaipeValue(value: unknown): MatchNaipe | null {
+  switch (value) {
+    case MatchNaipe.MASCULINO:
+      return MatchNaipe.MASCULINO;
+
+    case MatchNaipe.FEMININO:
+      return MatchNaipe.FEMININO;
+
+    case MatchNaipe.MISTO:
+      return MatchNaipe.MISTO;
+
+    default:
+      return null;
+  }
+}
+
+function resolveTeamDivisionValue(value: unknown): TeamDivision | null {
+  switch (value) {
+    case TeamDivision.DIVISAO_PRINCIPAL:
+      return TeamDivision.DIVISAO_PRINCIPAL;
+
+    case TeamDivision.DIVISAO_ACESSO:
+      return TeamDivision.DIVISAO_ACESSO;
+
+    default:
+      return null;
+  }
+}
+
+function resolveCourtSequenceModeValue(
+  value: unknown,
+): ChampionshipBracketCourtSequenceMode {
+  switch (value) {
+    case "GROUP_NAIPE":
+      return "GROUP_NAIPE";
+
+    case "GROUP_DIVISION":
+      return "GROUP_DIVISION";
+
+    case "FLEXIBLE":
+    default:
+      return "FLEXIBLE";
+  }
+}
+
+function resolveMatchNumberingModeValue(
+  value: unknown,
+): ChampionshipBracketMatchNumberingMode {
+  switch (value) {
+    case "SPORT":
+      return "SPORT";
+
+    case "SPORT_NAIPE":
+      return "SPORT_NAIPE";
+
+    case "COURT":
+    default:
+      return "COURT";
+  }
+}
+
+function resolveCourtSportPreferenceCandidate(
+  value: unknown,
+  sportIdField: "preferred_sport_id" | "sport_id",
+  sportIds: string[],
+  allowPreferenceWithoutRefinement: boolean,
+): ChampionshipBracketCourtSportPreferenceInput | null {
+  if (!value || typeof value != "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const parsedPreference = value as Record<string, unknown>;
+
+  const preferredSportId = parsedPreference[sportIdField];
+
+  if (
+    typeof preferredSportId != "string" ||
+    !preferredSportId ||
+    !sportIds.includes(preferredSportId)
+  ) {
+    return null;
+  }
+
+  const preferredNaipe = resolveMatchNaipeValue(
+    parsedPreference["preferred_naipe"],
+  );
+
+  const preferredDivision = resolveTeamDivisionValue(
+    parsedPreference["preferred_division"],
+  );
+
+  const sequenceMode = resolveCourtSequenceModeValue(
+    parsedPreference["sequence_mode"],
+  );
+
+  const alternateNaipeAfterExclusiveKnockoutPhase =
+    parsedPreference["alternate_naipe_after_exclusive_knockout_phase"] ===
+    true;
+
+  if (
+    !allowPreferenceWithoutRefinement &&
+    preferredNaipe == null &&
+    preferredDivision == null
+  ) {
+    return null;
+  }
+
+  return {
+    preferred_sport_id: preferredSportId,
+    preferred_naipe: preferredNaipe,
+    preferred_division: preferredDivision,
+    sequence_mode: sequenceMode,
+    alternate_naipe_after_exclusive_knockout_phase:
+      alternateNaipeAfterExclusiveKnockoutPhase,
+  };
+}
+
+function resolveScheduleCourtSportPreference(
+  scheduleCourt: {
+    sport_preference?: unknown;
+    sport_priorities?: unknown;
+  },
+  sportIds: string[],
+): ChampionshipBracketCourtSportPreferenceInput | null {
+  const currentPreference = resolveCourtSportPreferenceCandidate(
+    scheduleCourt.sport_preference,
+    "preferred_sport_id",
+    sportIds,
+    true,
+  );
+
+  if (currentPreference) {
+    return currentPreference;
+  }
+
+  if (!Array.isArray(scheduleCourt.sport_priorities)) {
+    return null;
+  }
+
+  for (const legacyPriority of scheduleCourt.sport_priorities) {
+    const resolvedLegacyPreference = resolveCourtSportPreferenceCandidate(
+      legacyPriority,
+      "sport_id",
+      sportIds,
+      false,
+    );
+
+    if (resolvedLegacyPreference) {
+      return resolvedLegacyPreference;
+    }
+  }
+
+  return null;
+}
+
+function resolveScheduleCourtSportMatchTargets(
+  value: unknown,
+  sportIds: string[],
+): ChampionshipBracketCourtSportMatchTargetInput[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const targetBySportId = new Map<
+    string,
+    ChampionshipBracketCourtSportMatchTargetInput
+  >();
+
+  for (const target of value) {
+    if (!target || typeof target != "object" || Array.isArray(target)) {
+      continue;
+    }
+
+    const parsedTarget =
+      target as Partial<ChampionshipBracketCourtSportMatchTargetInput>;
+
+    if (
+      typeof parsedTarget.sport_id != "string" ||
+      !sportIds.includes(parsedTarget.sport_id) ||
+      typeof parsedTarget.planned_match_count != "number" ||
+      !Number.isInteger(parsedTarget.planned_match_count) ||
+      parsedTarget.planned_match_count <= 0
+    ) {
+      continue;
+    }
+
+    targetBySportId.set(parsedTarget.sport_id, {
+      sport_id: parsedTarget.sport_id,
+      planned_match_count: parsedTarget.planned_match_count,
+      planning_mode:
+        parsedTarget.planning_mode == "AUTO"
+          ? "AUTO"
+          : ("MANUAL" satisfies ChampionshipBracketCourtSportMatchTargetPlanningMode),
+    });
+  }
+
+  return [...targetBySportId.values()];
+}
+
 function resolveScheduleCourtDraft(
   schedule_court: unknown,
 ): ChampionshipBracketScheduleCourtDraft | null {
@@ -194,22 +596,42 @@ function resolveScheduleCourtDraft(
   }
 
   const parsed_schedule_court =
-    schedule_court as ChampionshipBracketScheduleCourtDraft;
+    schedule_court as Partial<ChampionshipBracketScheduleCourtDraft> & {
+      sport_preference?: unknown;
+      sport_priorities?: unknown;
+    };
+
+  const sportIds = [
+    ...new Set(resolveStringArray(parsed_schedule_court.sport_ids)),
+  ];
 
   return {
     id:
       typeof parsed_schedule_court.id == "string" && parsed_schedule_court.id
         ? parsed_schedule_court.id
         : resolveRandomUuid(),
+
     name:
       typeof parsed_schedule_court.name == "string"
         ? parsed_schedule_court.name
         : "",
+
     position: Math.max(
       1,
       resolveNumberValue(parsed_schedule_court.position, 1),
     ),
-    sport_ids: resolveStringArray(parsed_schedule_court.sport_ids),
+
+    sport_ids: sportIds,
+
+    sport_preference: resolveScheduleCourtSportPreference(
+      parsed_schedule_court,
+      sportIds,
+    ),
+
+    sport_match_targets: resolveScheduleCourtSportMatchTargets(
+      parsed_schedule_court.sport_match_targets,
+      sportIds,
+    ),
   };
 }
 
@@ -330,6 +752,921 @@ function resolveScheduleDays(
     );
 }
 
+function resolveSeasonSettings(
+  season_settings: unknown,
+): ChampionshipSeasonSettingsInput {
+  if (
+    !season_settings ||
+    typeof season_settings != "object" ||
+    Array.isArray(season_settings)
+  ) {
+    return {
+      division_format: ChampionshipSeasonDivisionFormat.UNIFIED,
+      division_settlement_mode: ChampionshipSeasonDivisionSettlementMode.NONE,
+      principal_slots_count: null,
+      principal_relegation_count: null,
+      access_promotion_count: null,
+    };
+  }
+
+  const parsedSeasonSettings =
+    season_settings as Partial<ChampionshipSeasonSettingsInput>;
+
+  return {
+    division_format:
+      parsedSeasonSettings.division_format ==
+      ChampionshipSeasonDivisionFormat.SEPARATED
+        ? ChampionshipSeasonDivisionFormat.SEPARATED
+        : ChampionshipSeasonDivisionFormat.UNIFIED,
+    division_settlement_mode:
+      parsedSeasonSettings.division_settlement_mode ==
+        ChampionshipSeasonDivisionSettlementMode.PROMOTION_RELEGATION ||
+      parsedSeasonSettings.division_settlement_mode ==
+        ChampionshipSeasonDivisionSettlementMode.TOP_N_TO_PRINCIPAL
+        ? parsedSeasonSettings.division_settlement_mode
+        : ChampionshipSeasonDivisionSettlementMode.NONE,
+    principal_slots_count:
+      typeof parsedSeasonSettings.principal_slots_count == "number"
+        ? parsedSeasonSettings.principal_slots_count
+        : null,
+    principal_relegation_count:
+      typeof parsedSeasonSettings.principal_relegation_count == "number"
+        ? parsedSeasonSettings.principal_relegation_count
+        : null,
+    access_promotion_count:
+      typeof parsedSeasonSettings.access_promotion_count == "number"
+        ? parsedSeasonSettings.access_promotion_count
+        : null,
+  };
+}
+
+function resolveSchedulePeriods(
+  schedule_periods: unknown,
+): ChampionshipBracketSchedulePeriodInput[] {
+  if (!Array.isArray(schedule_periods)) {
+    return [];
+  }
+
+  return schedule_periods.reduce<ChampionshipBracketSchedulePeriodInput[]>(
+    (carry, schedulePeriod) => {
+      if (
+        !schedulePeriod ||
+        typeof schedulePeriod != "object" ||
+        Array.isArray(schedulePeriod)
+      ) {
+        return carry;
+      }
+
+      const parsedSchedulePeriod =
+        schedulePeriod as Partial<ChampionshipBracketSchedulePeriodInput>;
+
+      if (
+        typeof parsedSchedulePeriod.date != "string" ||
+        (parsedSchedulePeriod.period != ChampionshipSchedulePeriod.MATUTINO &&
+          parsedSchedulePeriod.period != ChampionshipSchedulePeriod.VESPERTINO)
+      ) {
+        return carry;
+      }
+
+      carry.push({
+        date: parsedSchedulePeriod.date,
+        period: parsedSchedulePeriod.period,
+        enabled: parsedSchedulePeriod.enabled != false,
+      });
+      return carry;
+    },
+    [],
+  );
+}
+
+function resolveCompetitionPeriodAvailability(
+  value: unknown,
+): ChampionshipBracketCompetitionPeriodAvailabilityInput[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.reduce<ChampionshipBracketCompetitionPeriodAvailabilityInput[]>(
+    (carry, availabilityItem) => {
+      if (
+        !availabilityItem ||
+        typeof availabilityItem != "object" ||
+        Array.isArray(availabilityItem)
+      ) {
+        return carry;
+      }
+
+      const parsedAvailability =
+        availabilityItem as Partial<ChampionshipBracketCompetitionPeriodAvailabilityInput>;
+
+      if (
+        typeof parsedAvailability.competition_key != "string" ||
+        typeof parsedAvailability.date != "string" ||
+        (parsedAvailability.period != ChampionshipSchedulePeriod.MATUTINO &&
+          parsedAvailability.period != ChampionshipSchedulePeriod.VESPERTINO)
+      ) {
+        return carry;
+      }
+
+      carry.push({
+        competition_key: parsedAvailability.competition_key,
+        date: parsedAvailability.date,
+        period: parsedAvailability.period,
+        enabled: parsedAvailability.enabled != false,
+      });
+      return carry;
+    },
+    [],
+  );
+}
+
+function resolveTeamCompetitionAvailability(
+  value: unknown,
+): ChampionshipBracketTeamCompetitionAvailabilityInput[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.reduce<ChampionshipBracketTeamCompetitionAvailabilityInput[]>(
+    (carry, availabilityItem) => {
+      if (
+        !availabilityItem ||
+        typeof availabilityItem != "object" ||
+        Array.isArray(availabilityItem)
+      ) {
+        return carry;
+      }
+
+      const parsedAvailability =
+        availabilityItem as Partial<ChampionshipBracketTeamCompetitionAvailabilityInput>;
+
+      if (
+        typeof parsedAvailability.team_id != "string" ||
+        typeof parsedAvailability.competition_key != "string" ||
+        typeof parsedAvailability.date != "string" ||
+        (parsedAvailability.period != ChampionshipSchedulePeriod.MATUTINO &&
+          parsedAvailability.period != ChampionshipSchedulePeriod.VESPERTINO)
+      ) {
+        return carry;
+      }
+
+      carry.push({
+        team_id: parsedAvailability.team_id,
+        competition_key: parsedAvailability.competition_key,
+        date: parsedAvailability.date,
+        period: parsedAvailability.period,
+        enabled: parsedAvailability.enabled != false,
+      });
+      return carry;
+    },
+    [],
+  );
+}
+
+function resolveTimeValueToMinutes(value: string): number | null {
+  const [hourValue, minuteValue] = value.split(":").map(Number);
+
+  if (
+    Number.isNaN(hourValue) ||
+    Number.isNaN(minuteValue) ||
+    hourValue < 0 ||
+    hourValue > 23 ||
+    minuteValue < 0 ||
+    minuteValue > 59
+  ) {
+    return null;
+  }
+
+  return hourValue * 60 + minuteValue;
+}
+
+function resolveMinutesToTimeValue(minutes: number): string {
+  const hourValue = Math.floor(minutes / 60);
+  const minuteValue = minutes % 60;
+
+  return `${String(hourValue).padStart(2, "0")}:${String(minuteValue).padStart(
+    2,
+    "0",
+  )}`;
+}
+
+function resolveLegacyFixedTimeRangeByDate({
+  scheduleDays,
+  date,
+  period,
+}: {
+  scheduleDays: ChampionshipBracketScheduleDayDraft[];
+  date: string;
+  period: ChampionshipSchedulePeriod | null | undefined;
+}) {
+  if (
+    period != ChampionshipSchedulePeriod.MATUTINO &&
+    period != ChampionshipSchedulePeriod.VESPERTINO
+  ) {
+    return null;
+  }
+
+  const scheduleDay =
+    scheduleDays.find((currentScheduleDay) => currentScheduleDay.date == date) ??
+    null;
+
+  if (!scheduleDay) {
+    return null;
+  }
+
+  return resolveLegacyPeriodTimeRange({
+    scheduleDay,
+    period,
+  });
+}
+
+function resolveAvailabilityWindows(
+  value: unknown,
+): ChampionshipBracketAvailabilityWindowInput[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.reduce<ChampionshipBracketAvailabilityWindowInput[]>(
+    (carry, windowValue) => {
+      if (
+        !windowValue ||
+        typeof windowValue != "object" ||
+        Array.isArray(windowValue)
+      ) {
+        return carry;
+      }
+
+      const parsedWindow =
+        windowValue as Partial<ChampionshipBracketAvailabilityWindowInput>;
+
+      if (
+        typeof parsedWindow.start_time != "string" ||
+        typeof parsedWindow.end_time != "string"
+      ) {
+        return carry;
+      }
+
+      const startMinutes = resolveTimeValueToMinutes(parsedWindow.start_time);
+      const endMinutes = resolveTimeValueToMinutes(parsedWindow.end_time);
+
+      if (
+        startMinutes == null ||
+        endMinutes == null ||
+        endMinutes <= startMinutes
+      ) {
+        return carry;
+      }
+
+      carry.push({
+        start_time: parsedWindow.start_time,
+        end_time: parsedWindow.end_time,
+      });
+
+      return carry;
+    },
+    [],
+  );
+}
+
+function resolveCompetitionDateAvailability(
+  value: unknown,
+): ChampionshipBracketCompetitionDateAvailabilityInput[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const availabilityByKey = new Map<
+    string,
+    ChampionshipBracketCompetitionDateAvailabilityInput
+  >();
+
+  value.forEach((availabilityItem) => {
+    if (
+      !availabilityItem ||
+      typeof availabilityItem != "object" ||
+      Array.isArray(availabilityItem)
+    ) {
+      return;
+    }
+
+    const parsedAvailability =
+      availabilityItem as Partial<ChampionshipBracketCompetitionDateAvailabilityInput>;
+
+    if (
+      typeof parsedAvailability.competition_key != "string" ||
+      !parsedAvailability.competition_key ||
+      typeof parsedAvailability.date != "string" ||
+      !parsedAvailability.date ||
+      (parsedAvailability.mode != "UNAVAILABLE" &&
+        parsedAvailability.mode != "FULL_DAY" &&
+        parsedAvailability.mode != "CUSTOM")
+    ) {
+      return;
+    }
+
+    const windows =
+      parsedAvailability.mode == "CUSTOM"
+        ? resolveAvailabilityWindows(parsedAvailability.windows)
+        : [];
+
+    availabilityByKey.set(
+      `${parsedAvailability.competition_key}::${parsedAvailability.date}`,
+      {
+        competition_key: parsedAvailability.competition_key,
+        date: parsedAvailability.date,
+        mode:
+          parsedAvailability.mode == "CUSTOM" && windows.length == 0
+            ? "UNAVAILABLE"
+            : parsedAvailability.mode,
+        windows,
+      },
+    );
+  });
+
+  return [...availabilityByKey.values()];
+}
+
+function resolveTeamCompetitionDateAvailability(
+  value: unknown,
+): ChampionshipBracketTeamCompetitionDateAvailabilityInput[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const availabilityByKey = new Map<
+    string,
+    ChampionshipBracketTeamCompetitionDateAvailabilityInput
+  >();
+
+  value.forEach((availabilityItem) => {
+    if (
+      !availabilityItem ||
+      typeof availabilityItem != "object" ||
+      Array.isArray(availabilityItem)
+    ) {
+      return;
+    }
+
+    const parsedAvailability =
+      availabilityItem as Partial<ChampionshipBracketTeamCompetitionDateAvailabilityInput>;
+
+    if (
+      typeof parsedAvailability.team_id != "string" ||
+      !parsedAvailability.team_id ||
+      typeof parsedAvailability.competition_key != "string" ||
+      !parsedAvailability.competition_key ||
+      typeof parsedAvailability.date != "string" ||
+      !parsedAvailability.date ||
+      (parsedAvailability.mode != "UNAVAILABLE" &&
+        parsedAvailability.mode != "FULL_DAY" &&
+        parsedAvailability.mode != "CUSTOM")
+    ) {
+      return;
+    }
+
+    const windows =
+      parsedAvailability.mode == "CUSTOM"
+        ? resolveAvailabilityWindows(parsedAvailability.windows)
+        : [];
+
+    availabilityByKey.set(
+      `${parsedAvailability.team_id}::${parsedAvailability.competition_key}::${parsedAvailability.date}`,
+      {
+        team_id: parsedAvailability.team_id,
+        competition_key: parsedAvailability.competition_key,
+        date: parsedAvailability.date,
+        mode:
+          parsedAvailability.mode == "CUSTOM" && windows.length == 0
+            ? "UNAVAILABLE"
+            : parsedAvailability.mode,
+        windows,
+      },
+    );
+  });
+
+  return [...availabilityByKey.values()];
+}
+
+function resolveLegacyDateAvailability(
+  scheduleDay: ChampionshipBracketScheduleDayDraft,
+  matutinoEnabled: boolean,
+  vespertinoEnabled: boolean,
+): {
+  mode: "UNAVAILABLE" | "FULL_DAY" | "CUSTOM";
+  windows: ChampionshipBracketAvailabilityWindowInput[];
+} {
+  if (matutinoEnabled && vespertinoEnabled) {
+    return { mode: "FULL_DAY", windows: [] };
+  }
+
+  if (!matutinoEnabled && !vespertinoEnabled) {
+    return { mode: "UNAVAILABLE", windows: [] };
+  }
+
+  const startMinutes = resolveTimeValueToMinutes(scheduleDay.start_time);
+  const endMinutes = resolveTimeValueToMinutes(scheduleDay.end_time);
+
+  if (
+    startMinutes == null ||
+    endMinutes == null ||
+    endMinutes <= startMinutes
+  ) {
+    return { mode: "UNAVAILABLE", windows: [] };
+  }
+
+  const breakStartMinutes = scheduleDay.break_start_time
+    ? resolveTimeValueToMinutes(scheduleDay.break_start_time)
+    : null;
+  const breakEndMinutes = scheduleDay.break_end_time
+    ? resolveTimeValueToMinutes(scheduleDay.break_end_time)
+    : null;
+
+  const hasValidBreak =
+    breakStartMinutes != null &&
+    breakEndMinutes != null &&
+    breakStartMinutes > startMinutes &&
+    breakEndMinutes > breakStartMinutes &&
+    breakEndMinutes < endMinutes;
+
+  const matutinoStartMinutes = startMinutes;
+  const matutinoEndMinutes = hasValidBreak
+    ? breakStartMinutes
+    : startMinutes + Math.floor((endMinutes - startMinutes) / 2);
+  const vespertinoStartMinutes = hasValidBreak
+    ? breakEndMinutes
+    : matutinoEndMinutes;
+  const vespertinoEndMinutes = endMinutes;
+
+  if (matutinoEnabled) {
+    if (matutinoEndMinutes <= matutinoStartMinutes) {
+      return { mode: "UNAVAILABLE", windows: [] };
+    }
+
+    return {
+      mode: "CUSTOM",
+      windows: [
+        {
+          start_time: resolveMinutesToTimeValue(matutinoStartMinutes),
+          end_time: resolveMinutesToTimeValue(matutinoEndMinutes),
+        },
+      ],
+    };
+  }
+
+  if (vespertinoEndMinutes <= vespertinoStartMinutes) {
+    return { mode: "UNAVAILABLE", windows: [] };
+  }
+
+  return {
+    mode: "CUSTOM",
+    windows: [
+      {
+        start_time: resolveMinutesToTimeValue(vespertinoStartMinutes),
+        end_time: resolveMinutesToTimeValue(vespertinoEndMinutes),
+      },
+    ],
+  };
+}
+
+function resolveLegacyCompetitionDateAvailability({
+  scheduleDays,
+  schedulePeriods,
+  competitionPeriodAvailability,
+  competitionKeys,
+}: {
+  scheduleDays: ChampionshipBracketScheduleDayDraft[];
+  schedulePeriods: ChampionshipBracketSchedulePeriodInput[];
+  competitionPeriodAvailability: ChampionshipBracketCompetitionPeriodAvailabilityInput[];
+  competitionKeys: string[];
+}): ChampionshipBracketCompetitionDateAvailabilityInput[] {
+  const schedulePeriodEnabledByKey = new Map(
+    schedulePeriods.map((schedulePeriod) => [
+      `${schedulePeriod.date}::${schedulePeriod.period}`,
+      schedulePeriod.enabled != false,
+    ]),
+  );
+
+  const competitionAvailabilityByKey = new Map(
+    competitionPeriodAvailability.map((availabilityItem) => [
+      `${availabilityItem.competition_key}::${availabilityItem.date}::${availabilityItem.period}`,
+      availabilityItem.enabled != false,
+    ]),
+  );
+
+  return [...new Set(competitionKeys)].flatMap((competitionKey) =>
+    scheduleDays
+      .filter((scheduleDay) => scheduleDay.date)
+      .map((scheduleDay) => {
+        const matutinoEnabled =
+          (schedulePeriodEnabledByKey.get(
+            `${scheduleDay.date}::${ChampionshipSchedulePeriod.MATUTINO}`,
+          ) ?? true) &&
+          (competitionAvailabilityByKey.get(
+            `${competitionKey}::${scheduleDay.date}::${ChampionshipSchedulePeriod.MATUTINO}`,
+          ) ?? true);
+
+        const vespertinoEnabled =
+          (schedulePeriodEnabledByKey.get(
+            `${scheduleDay.date}::${ChampionshipSchedulePeriod.VESPERTINO}`,
+          ) ?? true) &&
+          (competitionAvailabilityByKey.get(
+            `${competitionKey}::${scheduleDay.date}::${ChampionshipSchedulePeriod.VESPERTINO}`,
+          ) ?? true);
+
+        const resolvedAvailability = resolveLegacyDateAvailability(
+          scheduleDay,
+          matutinoEnabled,
+          vespertinoEnabled,
+        );
+
+        return {
+          competition_key: competitionKey,
+          date: scheduleDay.date,
+          ...resolvedAvailability,
+        };
+      }),
+  );
+}
+
+function resolveLegacyTeamCompetitionDateAvailability({
+  scheduleDays,
+  teamCompetitionAvailability,
+  teamCompetitionKeysByTeamId,
+}: {
+  scheduleDays: ChampionshipBracketScheduleDayDraft[];
+  teamCompetitionAvailability: ChampionshipBracketTeamCompetitionAvailabilityInput[];
+  teamCompetitionKeysByTeamId: Record<string, string[]>;
+}): ChampionshipBracketTeamCompetitionDateAvailabilityInput[] {
+  const teamAvailabilityByKey = new Map(
+    teamCompetitionAvailability.map((availabilityItem) => [
+      `${availabilityItem.team_id}::${availabilityItem.competition_key}::${availabilityItem.date}::${availabilityItem.period}`,
+      availabilityItem.enabled != false,
+    ]),
+  );
+
+  return Object.entries(teamCompetitionKeysByTeamId).flatMap(
+    ([teamId, competitionKeys]) =>
+      [...new Set(competitionKeys)].flatMap((competitionKey) =>
+        scheduleDays
+          .filter((scheduleDay) => scheduleDay.date)
+          .map((scheduleDay) => {
+            const matutinoEnabled =
+              teamAvailabilityByKey.get(
+                `${teamId}::${competitionKey}::${scheduleDay.date}::${ChampionshipSchedulePeriod.MATUTINO}`,
+              ) ?? true;
+
+            const vespertinoEnabled =
+              teamAvailabilityByKey.get(
+                `${teamId}::${competitionKey}::${scheduleDay.date}::${ChampionshipSchedulePeriod.VESPERTINO}`,
+              ) ?? true;
+
+            const resolvedAvailability = resolveLegacyDateAvailability(
+              scheduleDay,
+              matutinoEnabled,
+              vespertinoEnabled,
+            );
+
+            return {
+              team_id: teamId,
+              competition_key: competitionKey,
+              date: scheduleDay.date,
+              ...resolvedAvailability,
+            };
+          }),
+      ),
+  );
+}
+
+function resolveIndividualEventConfigs(
+  value: unknown,
+): ChampionshipBracketIndividualEventConfigInput[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.reduce<ChampionshipBracketIndividualEventConfigInput[]>(
+    (carry, configItem) => {
+      if (
+        !configItem ||
+        typeof configItem != "object" ||
+        Array.isArray(configItem)
+      ) {
+        return carry;
+      }
+
+      const parsedConfig =
+        configItem as Partial<ChampionshipBracketIndividualEventConfigInput>;
+
+      if (typeof parsedConfig.sport_id != "string") {
+        return carry;
+      }
+
+      carry.push(
+        sanitizeIndividualEventConfigValue({
+          ...parsedConfig,
+          sport_id: parsedConfig.sport_id,
+        }),
+      );
+      return carry;
+    },
+    [],
+  );
+}
+
+function resolveIndividualSessionConfigs(
+  value: unknown,
+  scheduleDays: ChampionshipBracketScheduleDayDraft[],
+): ChampionshipBracketIndividualSessionConfigInput[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.reduce<ChampionshipBracketIndividualSessionConfigInput[]>(
+    (carry, sessionConfig) => {
+      if (
+        !sessionConfig ||
+        typeof sessionConfig != "object" ||
+        Array.isArray(sessionConfig)
+      ) {
+        return carry;
+      }
+
+      const parsedSessionConfig = sessionConfig as Partial<
+        ChampionshipBracketIndividualSessionConfigInput
+      > & {
+        period?: ChampionshipSchedulePeriod | null;
+      };
+
+      if (
+        typeof parsedSessionConfig.sport_id != "string" ||
+        (parsedSessionConfig.naipe != "MASCULINO" &&
+          parsedSessionConfig.naipe != "FEMININO" &&
+          parsedSessionConfig.naipe != "MISTO")
+      ) {
+        return carry;
+      }
+
+      carry.push({
+        sport_id: parsedSessionConfig.sport_id,
+        naipe: parsedSessionConfig.naipe,
+        division:
+          parsedSessionConfig.division == "DIVISAO_PRINCIPAL" ||
+          parsedSessionConfig.division == "DIVISAO_ACESSO"
+            ? parsedSessionConfig.division
+            : null,
+        scheduled_date:
+          typeof parsedSessionConfig.scheduled_date == "string"
+            ? parsedSessionConfig.scheduled_date
+            : null,
+        start_time:
+          typeof parsedSessionConfig.start_time == "string" &&
+          typeof parsedSessionConfig.end_time == "string"
+            ? parsedSessionConfig.start_time
+            : typeof parsedSessionConfig.scheduled_date == "string"
+              ? (resolveLegacyFixedTimeRangeByDate({
+                  scheduleDays,
+                  date: parsedSessionConfig.scheduled_date,
+                  period: parsedSessionConfig.period,
+                })?.start_time ?? null)
+              : null,
+        end_time:
+          typeof parsedSessionConfig.start_time == "string" &&
+          typeof parsedSessionConfig.end_time == "string"
+            ? parsedSessionConfig.end_time
+            : typeof parsedSessionConfig.scheduled_date == "string"
+              ? (resolveLegacyFixedTimeRangeByDate({
+                  scheduleDays,
+                  date: parsedSessionConfig.scheduled_date,
+                  period: parsedSessionConfig.period,
+                })?.end_time ?? null)
+              : null,
+        location_key:
+          typeof parsedSessionConfig.location_key == "string"
+            ? parsedSessionConfig.location_key
+            : null,
+        court_key:
+          typeof parsedSessionConfig.court_key == "string"
+            ? parsedSessionConfig.court_key
+            : null,
+        location_name:
+          typeof parsedSessionConfig.location_name == "string"
+            ? parsedSessionConfig.location_name
+            : null,
+        court_name:
+          typeof parsedSessionConfig.court_name == "string"
+            ? parsedSessionConfig.court_name
+            : null,
+        exclusive_lock_enabled:
+          parsedSessionConfig.exclusive_lock_enabled == true,
+      });
+      return carry;
+    },
+    [],
+  );
+}
+
+function resolveKnockoutProgramBlocks(
+  value: unknown,
+  scheduleDays: ChampionshipBracketScheduleDayDraft[],
+): ChampionshipBracketKnockoutProgramBlockInput[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const resolvedProgramBlocks = value.reduce<
+    ChampionshipBracketKnockoutProgramBlockInput[]
+  >((carry, knockoutProgramBlock) => {
+    if (
+      !knockoutProgramBlock ||
+      typeof knockoutProgramBlock != "object" ||
+      Array.isArray(knockoutProgramBlock)
+    ) {
+      return carry;
+    }
+
+    const parsedKnockoutProgramBlock = knockoutProgramBlock as Partial<
+      ChampionshipBracketKnockoutProgramBlockInput
+    > & {
+      period?: ChampionshipSchedulePeriod | null;
+    };
+
+    if (
+      typeof parsedKnockoutProgramBlock.date != "string" ||
+      typeof parsedKnockoutProgramBlock.location_key != "string" ||
+      typeof parsedKnockoutProgramBlock.court_key != "string" ||
+      typeof parsedKnockoutProgramBlock.sport_id != "string"
+    ) {
+      return carry;
+    }
+
+    const explicitTimeRange =
+      typeof parsedKnockoutProgramBlock.start_time == "string" &&
+      typeof parsedKnockoutProgramBlock.end_time == "string"
+        ? {
+            start_time: parsedKnockoutProgramBlock.start_time,
+            end_time: parsedKnockoutProgramBlock.end_time,
+          }
+        : resolveLegacyFixedTimeRangeByDate({
+            scheduleDays,
+            date: parsedKnockoutProgramBlock.date,
+            period: parsedKnockoutProgramBlock.period,
+          });
+
+    if (!explicitTimeRange) {
+      return carry;
+    }
+
+    const naipeSequence = Array.isArray(
+      parsedKnockoutProgramBlock.naipe_sequence,
+    )
+      ? parsedKnockoutProgramBlock.naipe_sequence.filter(
+          (naipe): naipe is MatchNaipe =>
+            naipe == "MASCULINO" || naipe == "FEMININO" || naipe == "MISTO",
+        )
+      : [];
+
+    carry.push({
+      date: parsedKnockoutProgramBlock.date,
+      start_time: explicitTimeRange.start_time,
+      end_time: explicitTimeRange.end_time,
+      location_key: parsedKnockoutProgramBlock.location_key,
+      court_key: parsedKnockoutProgramBlock.court_key,
+      location_name:
+        typeof parsedKnockoutProgramBlock.location_name == "string"
+          ? parsedKnockoutProgramBlock.location_name
+          : null,
+      court_name:
+        typeof parsedKnockoutProgramBlock.court_name == "string"
+          ? parsedKnockoutProgramBlock.court_name
+          : null,
+      sport_id: parsedKnockoutProgramBlock.sport_id,
+      phase: "FINAL",
+      division_scope:
+        parsedKnockoutProgramBlock.division_scope == "DIVISAO_PRINCIPAL" ||
+        parsedKnockoutProgramBlock.division_scope == "DIVISAO_ACESSO"
+          ? parsedKnockoutProgramBlock.division_scope
+          : "ALL",
+      naipe_sequence: naipeSequence,
+      match_duration_minutes_override:
+        typeof parsedKnockoutProgramBlock.match_duration_minutes_override ==
+          "number" &&
+        Number.isInteger(
+          parsedKnockoutProgramBlock.match_duration_minutes_override,
+        ) &&
+        parsedKnockoutProgramBlock.match_duration_minutes_override > 0
+          ? parsedKnockoutProgramBlock.match_duration_minutes_override
+          : null,
+      display_order: Math.max(
+        1,
+        resolveNumberValue(parsedKnockoutProgramBlock.display_order, 1),
+      ),
+    });
+
+    return carry;
+  }, []);
+
+  return resolvedProgramBlocks
+    .sort(
+      (leftProgramBlock, rightProgramBlock) =>
+        leftProgramBlock.display_order - rightProgramBlock.display_order,
+    )
+    .map((programBlock, programBlockIndex) => ({
+      ...programBlock,
+      display_order: programBlockIndex + 1,
+    }));
+}
+
+function resolveResourceLocks(
+  value: unknown,
+  scheduleDays: ChampionshipBracketScheduleDayDraft[],
+): ChampionshipBracketResourceLockInput[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.reduce<ChampionshipBracketResourceLockInput[]>(
+    (carry, resourceLock) => {
+      if (
+        !resourceLock ||
+        typeof resourceLock != "object" ||
+        Array.isArray(resourceLock)
+      ) {
+        return carry;
+      }
+
+      const parsedResourceLock = resourceLock as Partial<
+        ChampionshipBracketResourceLockInput
+      > & {
+        period?: ChampionshipSchedulePeriod | null;
+      };
+
+      if (
+        typeof parsedResourceLock.date != "string" ||
+        typeof parsedResourceLock.location_key != "string" ||
+        typeof parsedResourceLock.court_key != "string"
+      ) {
+        return carry;
+      }
+
+      const explicitTimeRange =
+        typeof parsedResourceLock.start_time == "string" &&
+        typeof parsedResourceLock.end_time == "string"
+          ? {
+              start_time: parsedResourceLock.start_time,
+              end_time: parsedResourceLock.end_time,
+            }
+          : resolveLegacyFixedTimeRangeByDate({
+              scheduleDays,
+              date: parsedResourceLock.date,
+              period: parsedResourceLock.period,
+            });
+
+      if (!explicitTimeRange) {
+        return carry;
+      }
+
+      carry.push({
+        date: parsedResourceLock.date,
+        start_time: explicitTimeRange.start_time,
+        end_time: explicitTimeRange.end_time,
+        location_key: parsedResourceLock.location_key,
+        court_key: parsedResourceLock.court_key,
+        location_name:
+          typeof parsedResourceLock.location_name == "string"
+            ? parsedResourceLock.location_name
+            : null,
+        court_name:
+          typeof parsedResourceLock.court_name == "string"
+            ? parsedResourceLock.court_name
+            : null,
+        lock_mode: parsedResourceLock.lock_mode == "HARD" ? "HARD" : "FLEXIBLE",
+        competition_key:
+          typeof parsedResourceLock.competition_key == "string"
+            ? parsedResourceLock.competition_key
+            : null,
+        sport_id:
+          typeof parsedResourceLock.sport_id == "string"
+            ? parsedResourceLock.sport_id
+            : null,
+        naipe:
+          parsedResourceLock.naipe == "MASCULINO" ||
+          parsedResourceLock.naipe == "FEMININO" ||
+          parsedResourceLock.naipe == "MISTO"
+            ? parsedResourceLock.naipe
+            : null,
+        division:
+          parsedResourceLock.division == "DIVISAO_PRINCIPAL" ||
+          parsedResourceLock.division == "DIVISAO_ACESSO"
+            ? parsedResourceLock.division
+            : null,
+      });
+      return carry;
+    },
+    [],
+  );
+}
+
 export class ChampionshipBracketWizardDraftDTO {
   private readonly form_values: ChampionshipBracketWizardDraftFormValues;
 
@@ -353,12 +1690,113 @@ export class ChampionshipBracketWizardDraftDTO {
     try {
       const parsed_storage_value = JSON.parse(
         storage_value,
-      ) as Partial<ChampionshipBracketWizardDraftFormValues>;
-
-      return new ChampionshipBracketWizardDraftDTO({
-        current_step_index: Math.max(
+      ) as ChampionshipBracketStoredDraftValue;
+      const stepFlowVersion = resolveStepFlowVersion(
+        parsed_storage_value.step_flow_version,
+      );
+      const currentStepIndex = resolveCurrentStepIndexByStepFlowVersion(
+        Math.max(
           0,
           resolveNumberValue(parsed_storage_value.current_step_index, 0),
+        ),
+        stepFlowVersion,
+      );
+      const highestUnlockedStepIndex = Math.max(
+        currentStepIndex,
+        resolveCurrentStepIndexByStepFlowVersion(
+          Math.max(
+            0,
+            resolveNumberValue(
+              parsed_storage_value.highest_unlocked_step_index,
+              currentStepIndex,
+            ),
+          ),
+          stepFlowVersion,
+        ),
+      );
+
+      const scheduleDays = resolveScheduleDays(
+        parsed_storage_value.schedule_days,
+      );
+      const schedulePeriods = resolveSchedulePeriods(
+        parsed_storage_value.schedule_periods,
+      );
+      const competitionPeriodAvailability =
+        resolveCompetitionPeriodAvailability(
+          parsed_storage_value.competition_period_availability,
+        );
+      const teamCompetitionAvailability = resolveTeamCompetitionAvailability(
+        parsed_storage_value.team_competition_availability,
+      );
+      const selectedCompetitionKeysByTeamId = Object.entries(
+        parsed_storage_value.selected_competition_keys_by_team_id ?? {},
+      ).reduce<Record<string, string[]>>(
+        (carry, [team_id, selected_competition_keys]) => {
+          carry[team_id] = resolveStringArray(selected_competition_keys);
+          return carry;
+        },
+        {},
+      );
+
+      const legacyCompetitionKeys =
+        competitionPeriodAvailability.length > 0
+          ? competitionPeriodAvailability.map(
+              (availabilityItem) => availabilityItem.competition_key,
+            )
+          : Object.values(selectedCompetitionKeysByTeamId).flat();
+
+      const legacyTeamCompetitionKeysByTeamId =
+        teamCompetitionAvailability.length > 0
+          ? teamCompetitionAvailability.reduce<Record<string, string[]>>(
+              (carry, availabilityItem) => {
+                if (!carry[availabilityItem.team_id]) {
+                  carry[availabilityItem.team_id] = [];
+                }
+
+                carry[availabilityItem.team_id].push(
+                  availabilityItem.competition_key,
+                );
+
+                return carry;
+              },
+              {},
+            )
+          : selectedCompetitionKeysByTeamId;
+
+      const competitionDateAvailability = Array.isArray(
+        parsed_storage_value.competition_date_availability,
+      )
+        ? resolveCompetitionDateAvailability(
+            parsed_storage_value.competition_date_availability,
+          )
+        : resolveLegacyCompetitionDateAvailability({
+            scheduleDays,
+            schedulePeriods,
+            competitionPeriodAvailability,
+            competitionKeys: legacyCompetitionKeys,
+          });
+
+      const teamCompetitionDateAvailability = Array.isArray(
+        parsed_storage_value.team_competition_date_availability,
+      )
+        ? resolveTeamCompetitionDateAvailability(
+            parsed_storage_value.team_competition_date_availability,
+          )
+        : resolveLegacyTeamCompetitionDateAvailability({
+            scheduleDays,
+            teamCompetitionAvailability,
+            teamCompetitionKeysByTeamId: legacyTeamCompetitionKeysByTeamId,
+          });
+
+      return new ChampionshipBracketWizardDraftDTO({
+        step_flow_version: CHAMPIONSHIP_BRACKET_WIZARD_STEP_FLOW_VERSION,
+        current_step_index: currentStepIndex,
+        highest_unlocked_step_index: highestUnlockedStepIndex,
+        season_settings: resolveSeasonSettings(
+          parsed_storage_value.season_settings,
+        ),
+        enabled_sport_ids: resolveStringArray(
+          parsed_storage_value.enabled_sport_ids,
         ),
         selected_team_ids: resolveStringArray(
           parsed_storage_value.selected_team_ids,
@@ -375,15 +1813,8 @@ export class ChampionshipBracketWizardDraftDTO {
         show_estimated_start_time_on_cards_by_sport_id: resolveBooleanRecord(
           parsed_storage_value.show_estimated_start_time_on_cards_by_sport_id,
         ),
-        selected_competition_keys_by_team_id: Object.entries(
-          parsed_storage_value.selected_competition_keys_by_team_id ?? {},
-        ).reduce<Record<string, string[]>>(
-          (carry, [team_id, selected_competition_keys]) => {
-            carry[team_id] = resolveStringArray(selected_competition_keys);
-            return carry;
-          },
-          {},
-        ),
+        selected_competition_keys_by_team_id:
+          selectedCompetitionKeysByTeamId,
         should_apply_modalities_to_all_teams: resolveBooleanValue(
           parsed_storage_value.should_apply_modalities_to_all_teams,
           true,
@@ -406,7 +1837,30 @@ export class ChampionshipBracketWizardDraftDTO {
         group_order_by_competition_key: resolveGroupOrderByCompetitionKey(
           parsed_storage_value.group_order_by_competition_key,
         ),
-        schedule_days: resolveScheduleDays(parsed_storage_value.schedule_days),
+        schedule_days: scheduleDays,
+        competition_date_availability: competitionDateAvailability,
+        team_competition_date_availability: teamCompetitionDateAvailability,
+        individual_event_configs: resolveIndividualEventConfigs(
+          parsed_storage_value.individual_event_configs,
+        ),
+        individual_session_configs: resolveIndividualSessionConfigs(
+          parsed_storage_value.individual_session_configs,
+          scheduleDays,
+        ),
+        resource_locks: resolveResourceLocks(
+          parsed_storage_value.resource_locks,
+          scheduleDays,
+        ),
+        match_numbering_mode: resolveMatchNumberingModeValue(
+          parsed_storage_value.match_numbering_mode,
+        ),
+        knockout_program_blocks: resolveKnockoutProgramBlocks(
+          parsed_storage_value.knockout_program_blocks,
+          scheduleDays,
+        ),
+        exact_preview_cache: resolveExactPreviewCache(
+          parsed_storage_value.exact_preview_cache,
+        ),
       });
     } catch {
       return null;
@@ -415,8 +1869,29 @@ export class ChampionshipBracketWizardDraftDTO {
 
   bindToSave(): ChampionshipBracketWizardDraftFormValues {
     return {
+      step_flow_version: CHAMPIONSHIP_BRACKET_WIZARD_STEP_FLOW_VERSION,
       current_step_index: Math.max(0, this.form_values.current_step_index),
+      highest_unlocked_step_index: Math.max(
+        Math.max(0, this.form_values.current_step_index),
+        Math.max(
+          0,
+          this.form_values.highest_unlocked_step_index ??
+            this.form_values.current_step_index,
+        ),
+      ),
+      season_settings: {
+        division_format: this.form_values.season_settings.division_format,
+        division_settlement_mode:
+          this.form_values.season_settings.division_settlement_mode,
+        principal_slots_count:
+          this.form_values.season_settings.principal_slots_count,
+        principal_relegation_count:
+          this.form_values.season_settings.principal_relegation_count,
+        access_promotion_count:
+          this.form_values.season_settings.access_promotion_count,
+      },
       selected_team_ids: [...new Set(this.form_values.selected_team_ids)],
+      enabled_sport_ids: [...new Set(this.form_values.enabled_sport_ids)],
       selected_sport_ids_by_team_id: Object.entries(
         this.form_values.selected_sport_ids_by_team_id,
       ).reduce<Record<string, string[]>>(
@@ -428,10 +1903,13 @@ export class ChampionshipBracketWizardDraftDTO {
       ),
       show_estimated_start_time_on_cards_by_sport_id: Object.entries(
         this.form_values.show_estimated_start_time_on_cards_by_sport_id,
-      ).reduce<Record<string, boolean>>((carry, [sport_id, shouldShowEstimatedStartTimeOnCards]) => {
-        carry[sport_id] = shouldShowEstimatedStartTimeOnCards;
-        return carry;
-      }, {}),
+      ).reduce<Record<string, boolean>>(
+        (carry, [sport_id, shouldShowEstimatedStartTimeOnCards]) => {
+          carry[sport_id] = shouldShowEstimatedStartTimeOnCards;
+          return carry;
+        },
+        {},
+      ),
       selected_competition_keys_by_team_id: Object.entries(
         this.form_values.selected_competition_keys_by_team_id,
       ).reduce<Record<string, string[]>>(
@@ -516,14 +1994,148 @@ export class ChampionshipBracketWizardDraftDTO {
           location_template_id: schedule_location.location_template_id,
           name: schedule_location.name,
           position: schedule_location.position,
-          courts: schedule_location.courts.map((schedule_court) => ({
-            id: schedule_court.id,
-            name: schedule_court.name,
-            position: schedule_court.position,
-            sport_ids: [...new Set(schedule_court.sport_ids)],
-          })),
+          courts: schedule_location.courts.map((schedule_court) => {
+            const normalizedSportIds = [...new Set(schedule_court.sport_ids)];
+
+            const sportPreference = schedule_court.sport_preference;
+
+            return {
+              id: schedule_court.id,
+              name: schedule_court.name,
+              position: schedule_court.position,
+              sport_ids: normalizedSportIds,
+
+              sport_preference:
+                sportPreference &&
+                normalizedSportIds.includes(sportPreference.preferred_sport_id)
+                  ? {
+                      preferred_sport_id: sportPreference.preferred_sport_id,
+
+                      preferred_naipe: sportPreference.preferred_naipe ?? null,
+
+                      preferred_division:
+                        this.form_values.season_settings.division_format ==
+                        ChampionshipSeasonDivisionFormat.SEPARATED
+                          ? (sportPreference.preferred_division ?? null)
+                          : null,
+
+                      sequence_mode: resolveCourtSequenceModeValue(
+                        sportPreference.sequence_mode,
+                      ),
+
+                      alternate_naipe_after_exclusive_knockout_phase:
+                        sportPreference.alternate_naipe_after_exclusive_knockout_phase ===
+                        true,
+                    }
+                  : null,
+
+              sport_match_targets: resolveScheduleCourtSportMatchTargets(
+                schedule_court.sport_match_targets,
+                normalizedSportIds,
+              ),
+            };
+          }),
         })),
       })),
+      competition_date_availability: resolveCompetitionDateAvailability(
+        this.form_values.competition_date_availability,
+      ),
+      team_competition_date_availability:
+        resolveTeamCompetitionDateAvailability(
+          this.form_values.team_competition_date_availability,
+        ),
+      individual_event_configs: this.form_values.individual_event_configs.map(
+        (configItem) => ({
+          sport_id: configItem.sport_id,
+          placements_count: configItem.placements_count,
+          placement_points: configItem.placement_points.map(
+            (placementPoint) => ({
+              placement: placementPoint.placement,
+              points: placementPoint.points,
+            }),
+          ),
+          relay_multiplier: configItem.relay_multiplier,
+        }),
+      ),
+      individual_session_configs:
+        this.form_values.individual_session_configs.map((sessionConfig) => ({
+          sport_id: sessionConfig.sport_id,
+          naipe: sessionConfig.naipe,
+          division: sessionConfig.division,
+          scheduled_date: sessionConfig.scheduled_date,
+          start_time: sessionConfig.start_time,
+          end_time: sessionConfig.end_time,
+          location_key: sessionConfig.location_key,
+          court_key: sessionConfig.court_key,
+          location_name: sessionConfig.location_name,
+          court_name: sessionConfig.court_name,
+          exclusive_lock_enabled: sessionConfig.exclusive_lock_enabled == true,
+        })),
+      resource_locks: this.form_values.resource_locks.map((resourceLock) => ({
+        date: resourceLock.date,
+        start_time: resourceLock.start_time,
+        end_time: resourceLock.end_time,
+        location_key: resourceLock.location_key,
+        court_key: resourceLock.court_key,
+        location_name: resourceLock.location_name,
+        court_name: resourceLock.court_name,
+        lock_mode: resourceLock.lock_mode,
+        competition_key: resourceLock.competition_key ?? null,
+        sport_id: resourceLock.sport_id ?? null,
+        naipe: resourceLock.naipe ?? null,
+        division: resourceLock.division ?? null,
+      })),
+      match_numbering_mode: resolveMatchNumberingModeValue(
+        this.form_values.match_numbering_mode,
+      ),
+      knockout_program_blocks: this.form_values.knockout_program_blocks.map(
+        (programBlock, programBlockIndex) => ({
+          date: programBlock.date,
+          start_time: programBlock.start_time,
+          end_time: programBlock.end_time,
+          location_key: programBlock.location_key,
+          court_key: programBlock.court_key,
+          location_name: programBlock.location_name,
+          court_name: programBlock.court_name,
+          sport_id: programBlock.sport_id,
+          phase: "FINAL" as const,
+          division_scope: programBlock.division_scope,
+          naipe_sequence: [...new Set(programBlock.naipe_sequence)],
+          match_duration_minutes_override:
+            programBlock.match_duration_minutes_override ?? null,
+          display_order: programBlockIndex + 1,
+        }),
+      ),
+      exact_preview_cache: this.form_values.exact_preview_cache
+        ? {
+            job_id: this.form_values.exact_preview_cache.job_id,
+            payload_signature:
+              this.form_values.exact_preview_cache.payload_signature,
+            server_payload_signature:
+              this.form_values.exact_preview_cache.server_payload_signature,
+            generation_signature:
+              this.form_values.exact_preview_cache.generation_signature,
+            dependency_signature:
+              this.form_values.exact_preview_cache.dependency_signature,
+            algorithm_version:
+              this.form_values.exact_preview_cache.algorithm_version,
+            status: this.form_values.exact_preview_cache.status,
+            stage: this.form_values.exact_preview_cache.stage,
+            current_date: this.form_values.exact_preview_cache.current_date,
+            progress_percentage:
+              this.form_values.exact_preview_cache.progress_percentage,
+            processed_slots:
+              this.form_values.exact_preview_cache.processed_slots,
+            total_slots: this.form_values.exact_preview_cache.total_slots,
+            expires_at: this.form_values.exact_preview_cache.expires_at,
+            is_valid_for_creation:
+              this.form_values.exact_preview_cache.is_valid_for_creation,
+            generated_at: this.form_values.exact_preview_cache.generated_at,
+            // A cronologia pode ter centenas de itens. Ela fica somente no estado
+            // da tela; o rascunho guarda apenas as assinaturas de confirmação.
+            result: null,
+          }
+        : null,
     };
   }
 }

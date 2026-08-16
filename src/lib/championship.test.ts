@@ -780,9 +780,144 @@ describe("resolveVisualQueuePositionByMatchId", () => {
       liveMatch,
     ]);
 
-    expect(visualQueuePositionByMatchId["court-a-live-game-8"]).toBe(8);
+        expect(visualQueuePositionByMatchId["court-a-live-game-8"]).toBe(8);
     expect(visualQueuePositionByMatchId["court-a-scheduled-game-9"]).toBe(9);
     expect(visualQueuePositionByMatchId["court-a-scheduled-game-10"]).toBe(10);
+  });
+
+  it("numera SPORT_NAIPE em uma sequência única mesmo entre quadras e dias diferentes", () => {
+    const firstMatch = buildMatch({
+      id: "futsal-fem-game-1",
+      sport_id: "sport-futsal",
+      naipe: MatchNaipe.FEMININO,
+      division: TeamDivision.DIVISAO_PRINCIPAL,
+      scheduled_date: "2026-03-20",
+      start_time: "2026-03-20T11:00:00.000Z",
+      queue_position: 20,
+      location: "Arena Seven",
+      court_name: "Quadra A",
+    });
+
+    const secondMatch = buildMatch({
+      id: "futsal-fem-game-2",
+      sport_id: "sport-futsal",
+      naipe: MatchNaipe.FEMININO,
+      division: TeamDivision.DIVISAO_ACESSO,
+      scheduled_date: "2026-03-20",
+      start_time: "2026-03-20T12:00:00.000Z",
+      queue_position: 3,
+      location: "Arena Seven",
+      court_name: "Quadra B",
+    });
+
+    const thirdMatch = buildMatch({
+      id: "futsal-fem-game-3",
+      sport_id: "sport-futsal",
+      naipe: MatchNaipe.FEMININO,
+      division: TeamDivision.DIVISAO_PRINCIPAL,
+      scheduled_date: "2026-03-21",
+      start_time: "2026-03-21T11:00:00.000Z",
+      queue_position: 1,
+      location: "Ginásio Principal",
+      court_name: "Quadra Externa",
+    });
+
+    const visualQueuePositionByMatchId = resolveVisualQueuePositionByMatchId(
+      [thirdMatch, secondMatch, firstMatch],
+      undefined,
+      undefined,
+      "SPORT_NAIPE",
+    );
+
+    expect(visualQueuePositionByMatchId["futsal-fem-game-1"]).toBe(1);
+    expect(visualQueuePositionByMatchId["futsal-fem-game-2"]).toBe(2);
+    expect(visualQueuePositionByMatchId["futsal-fem-game-3"]).toBe(3);
+  });
+
+  it("mantém sequências independentes por modalidade e naipe em SPORT_NAIPE", () => {
+    const futsalFemaleMatch = buildMatch({
+      id: "futsal-fem-game",
+      sport_id: "sport-futsal",
+      naipe: MatchNaipe.FEMININO,
+      scheduled_date: "2026-03-20",
+      start_time: "2026-03-20T11:00:00.000Z",
+      location: "Arena Seven",
+      court_name: "Quadra A",
+    });
+
+    const futsalMaleMatch = buildMatch({
+      id: "futsal-masc-game",
+      sport_id: "sport-futsal",
+      naipe: MatchNaipe.MASCULINO,
+      scheduled_date: "2026-03-20",
+      start_time: "2026-03-20T11:30:00.000Z",
+      location: "Arena Seven",
+      court_name: "Quadra A",
+    });
+
+    const volleyballFemaleMatch = buildMatch({
+      id: "volei-fem-game",
+      sport_id: "sport-volei",
+      naipe: MatchNaipe.FEMININO,
+      scheduled_date: "2026-03-20",
+      start_time: "2026-03-20T12:00:00.000Z",
+      location: "Arena Seven",
+      court_name: "Quadra A",
+    });
+
+    const visualQueuePositionByMatchId = resolveVisualQueuePositionByMatchId(
+      [volleyballFemaleMatch, futsalMaleMatch, futsalFemaleMatch],
+      undefined,
+      undefined,
+      "SPORT_NAIPE",
+    );
+
+    expect(visualQueuePositionByMatchId["futsal-fem-game"]).toBe(1);
+    expect(visualQueuePositionByMatchId["futsal-masc-game"]).toBe(1);
+    expect(visualQueuePositionByMatchId["volei-fem-game"]).toBe(1);
+  });
+
+  it("mantém uma única sequência ao trocar de naipe no modo SPORT", () => {
+    const futsalFemaleMatch = buildMatch({
+      id: "futsal-fem-game",
+      sport_id: "sport-futsal",
+      naipe: MatchNaipe.FEMININO,
+      scheduled_date: "2026-03-20",
+      start_time: "2026-03-20T11:00:00.000Z",
+      location: "Arena Seven",
+      court_name: "Quadra A",
+    });
+
+    const futsalMaleMatch = buildMatch({
+      id: "futsal-masc-game",
+      sport_id: "sport-futsal",
+      naipe: MatchNaipe.MASCULINO,
+      scheduled_date: "2026-03-20",
+      start_time: "2026-03-20T11:30:00.000Z",
+      location: "Arena Seven",
+      court_name: "Quadra B",
+    });
+
+    const volleyballFemaleMatch = buildMatch({
+      id: "volei-fem-game",
+      sport_id: "sport-volei",
+      naipe: MatchNaipe.FEMININO,
+      scheduled_date: "2026-03-20",
+      start_time: "2026-03-20T12:00:00.000Z",
+      location: "Arena Seven",
+      court_name: "Quadra A",
+    });
+
+    const visualQueuePositionByMatchId = resolveVisualQueuePositionByMatchId(
+      [volleyballFemaleMatch, futsalMaleMatch, futsalFemaleMatch],
+      undefined,
+      undefined,
+      "SPORT",
+    );
+
+    expect(visualQueuePositionByMatchId["futsal-fem-game"]).toBe(1);
+    expect(visualQueuePositionByMatchId["futsal-masc-game"]).toBe(2);
+    expect(visualQueuePositionByMatchId["volei-fem-game"]).toBe(1);
   });
 });
 
@@ -1155,6 +1290,47 @@ describe("resolveOrderedScheduledMatchesByVisualTime", () => {
 });
 
 describe("resolveOrderedScheduledMatches", () => {
+  it("mantém os jogos de quadras diferentes na sequência operacional do dia", () => {
+    const gymFirstMatch = buildMatch({
+      id: "gym-first-match",
+      queue_position: 1,
+      court_name: "Ginásio",
+      created_at: "2026-03-20T07:30:00.000Z",
+    });
+    const courtFirstMatch = buildMatch({
+      id: "court-first-match",
+      queue_position: 1,
+      court_name: "Quadra",
+      created_at: "2026-03-20T08:00:00.000Z",
+    });
+    const gymSecondMatch = buildMatch({
+      id: "gym-second-match",
+      queue_position: 2,
+      court_name: "Ginásio",
+      created_at: "2026-03-20T08:10:00.000Z",
+    });
+    const courtSecondMatch = buildMatch({
+      id: "court-second-match",
+      queue_position: 2,
+      court_name: "Quadra",
+      created_at: "2026-03-20T08:45:00.000Z",
+    });
+
+    const orderedMatches = resolveOrderedScheduledMatches([
+      courtSecondMatch,
+      gymSecondMatch,
+      courtFirstMatch,
+      gymFirstMatch,
+    ]);
+
+    expect(orderedMatches.map((match) => match.id)).toEqual([
+      "gym-first-match",
+      "court-first-match",
+      "gym-second-match",
+      "court-second-match",
+    ]);
+  });
+
   it("orders scheduled matches by date, queue/slot, created_at and id", () => {
     const dayOneSlotOne = buildMatch({
       id: "day-1-slot-1",

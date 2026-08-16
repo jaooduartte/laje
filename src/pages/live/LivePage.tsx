@@ -3,13 +3,16 @@ import { useMatches } from "@/hooks/useMatches";
 import { useSports } from "@/hooks/useSports";
 import { useChampionships } from "@/hooks/useChampionships";
 import { useChampionshipBracket } from "@/hooks/useChampionshipBracket";
+import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividualEvents";
 import {
   EMPTY_CHAMPIONSHIP_BRACKET_VIEW,
   resolveMatchBracketContextByMatchId,
 } from "@/lib/championship";
 import { ChampionshipStatus, MatchStatus } from "@/lib/enums";
+import { resolveIndividualSportIds } from "@/lib/individualEvents";
 import { LivePageView } from "@/pages/live/LivePageView";
 import { DEFAULT_PAGINATION_ITEMS_PER_PAGE } from "@/components/ui/app-pagination-controls";
+import { resolvePublicScheduleTimelineItems } from "@/domain/public-schedule/publicScheduleTimeline";
 
 export function LivePage() {
   const { championships, loading: championshipsLoading } = useChampionships();
@@ -20,6 +23,14 @@ export function LivePage() {
 
     if (inProgressChampionship) {
       return inProgressChampionship;
+    }
+
+    const reviewChampionship = championships.find(
+      (championship) => championship.status == ChampionshipStatus.REVIEW,
+    );
+
+    if (reviewChampionship) {
+      return reviewChampionship;
     }
 
     const upcomingChampionship = championships.find((championship) => championship.status == ChampionshipStatus.UPCOMING);
@@ -54,6 +65,22 @@ export function LivePage() {
     setUpcomingMatchesCurrentPage(1);
   }, [sportFilter, upcomingMatchesItemsPerPage]);
 
+  const { sports } = useSports({ championshipId: selectedChampionshipId });
+  const individualSportIds = useMemo(
+    () => resolveIndividualSportIds(sports),
+    [sports],
+  );
+  const {
+    events: individualEvents,
+    sessions: individualSessions,
+    loading: individualSessionsLoading,
+  } = useChampionshipIndividualEvents({
+    championshipId: selectedChampionshipId,
+    seasonYear: selectedChampionshipSeasonYear,
+    sportIds: individualSportIds,
+    sportId: sportFilter,
+  });
+
   const {
     matches: filteredLiveMatches,
     matchRepresentationByMatchId: liveMatchRepresentationByMatchId,
@@ -70,8 +97,7 @@ export function LivePage() {
   });
 
   const {
-    matches: paginatedUpcomingMatches,
-    totalCount: upcomingMatchesTotalCount,
+    matches: upcomingMatches,
     matchRepresentationByMatchId: upcomingMatchRepresentationByMatchId,
     visualQueuePositionByMatchId: upcomingVisualQueuePositionByMatchId,
     estimatedStartTimeByMatchId: upcomingEstimatedStartTimeByMatchId,
@@ -82,9 +108,8 @@ export function LivePage() {
     seasonYear: selectedChampionshipSeasonYear,
     statuses: [MatchStatus.SCHEDULED],
     sportId: sportFilter,
-    page: upcomingMatchesCurrentPage,
-    itemsPerPage: upcomingMatchesItemsPerPage,
     sortMode: "SCHEDULED",
+    scheduledMatchOrdering: "OPERATIONAL",
   });
 
   const { championshipBracketView, loading: championshipBracketLoading } = useChampionshipBracket({
@@ -116,9 +141,46 @@ export function LivePage() {
     return resolveMatchBracketContextByMatchId(visibleChampionshipBracketView);
   }, [visibleChampionshipBracketView]);
 
-  const { sports } = useSports({ championshipId: selectedChampionshipId });
+  const individualEventCountBySessionId = useMemo(() => {
+    return individualEvents.reduce<Record<string, number>>((carry, event) => {
+      if (event.session_id) {
+        carry[event.session_id] = (carry[event.session_id] ?? 0) + 1;
+      }
 
-  const upcomingMatchesTotalPages = Math.max(1, Math.ceil(upcomingMatchesTotalCount / upcomingMatchesItemsPerPage));
+      return carry;
+    }, {});
+  }, [individualEvents]);
+  const upcomingScheduleItems = useMemo(() => {
+    return resolvePublicScheduleTimelineItems({
+      matches: upcomingMatches,
+      individualSessions: individualSessions.filter(
+        (session) => session.status == "SCHEDULED",
+      ),
+      individualEventCountBySessionId,
+      estimatedStartTimeByMatchId: upcomingEstimatedStartTimeByMatchId,
+    });
+  }, [
+    individualEventCountBySessionId,
+    individualSessions,
+    upcomingEstimatedStartTimeByMatchId,
+    upcomingMatches,
+  ]);
+  const paginatedUpcomingScheduleItems = useMemo(() => {
+    const rangeStart =
+      (upcomingMatchesCurrentPage - 1) * upcomingMatchesItemsPerPage;
+    return upcomingScheduleItems.slice(
+      rangeStart,
+      rangeStart + upcomingMatchesItemsPerPage,
+    );
+  }, [
+    upcomingMatchesCurrentPage,
+    upcomingMatchesItemsPerPage,
+    upcomingScheduleItems,
+  ]);
+  const upcomingMatchesTotalPages = Math.max(
+    1,
+    Math.ceil(upcomingScheduleItems.length / upcomingMatchesItemsPerPage),
+  );
 
   useEffect(() => {
     if (upcomingMatchesCurrentPage > upcomingMatchesTotalPages) {
@@ -149,10 +211,10 @@ export function LivePage() {
 
   return (
     <LivePageView
-      isLoading={championshipsLoading || liveMatchesLoading || upcomingMatchesLoading || championshipBracketLoading}
+      isLoading={championshipsLoading || liveMatchesLoading || upcomingMatchesLoading || championshipBracketLoading || individualSessionsLoading}
       featuredChampionship={featuredChampionship}
       filteredLiveMatches={filteredLiveMatches}
-      filteredUpcomingMatches={paginatedUpcomingMatches}
+      upcomingScheduleItems={paginatedUpcomingScheduleItems}
       isUpcomingMatchesFetching={upcomingMatchesFetching || liveMatchesFetching}
       upcomingMatchesCurrentPage={upcomingMatchesCurrentPage}
       upcomingMatchesItemsPerPage={upcomingMatchesItemsPerPage}

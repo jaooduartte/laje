@@ -19,6 +19,8 @@ export interface TeamStandingAggregate {
   points: number;
   yellow_cards: number;
   red_cards: number;
+  blue_cards?: number;
+  two_minute_penalties?: number;
 }
 
 export interface TeamStandingOfficialThirdPlacement {
@@ -43,6 +45,8 @@ interface RankingMetrics {
   goals_against: number;
   yellow_cards: number;
   red_cards: number;
+  blue_cards?: number;
+  two_minute_penalties?: number;
 }
 
 interface SortStandingsOptions {
@@ -208,7 +212,13 @@ function calculatePointsAverage(goalsFor: number, goalsAgainst: number): number 
 // ─── Cascade ranking (bucket-and-descend) ────────────────────────────────────
 
 function isCriterionAscending(criterion: TieBreakCriterion): boolean {
-  return criterion === "GOALS_AGAINST_ASC" || criterion === "YELLOW_CARDS_ASC" || criterion === "RED_CARDS_ASC";
+  return (
+    criterion === "GOALS_AGAINST_ASC" ||
+    criterion === "YELLOW_CARDS_ASC" ||
+    criterion === "RED_CARDS_ASC" ||
+    criterion === "BLUE_CARDS_ASC" ||
+    criterion === "TWO_MINUTE_PENALTIES_ASC"
+  );
 }
 
 function resolveNumericValue(criterion: TieBreakCriterion, row: RankingMetrics): number {
@@ -220,6 +230,8 @@ function resolveNumericValue(criterion: TieBreakCriterion, row: RankingMetrics):
     case "GOALS_AGAINST_ASC": return row.goals_against;
     case "YELLOW_CARDS_ASC": return row.yellow_cards;
     case "RED_CARDS_ASC": return row.red_cards;
+    case "BLUE_CARDS_ASC": return row.blue_cards ?? 0;
+    case "TWO_MINUTE_PENALTIES_ASC": return row.two_minute_penalties ?? 0;
     case "POINTS_AVERAGE": return calculatePointsAverage(row.goals_for, row.goals_against);
     default: return 0;
   }
@@ -521,6 +533,30 @@ function compareByRule(
     return compareByManualTieBreakOrder(firstStanding, secondStanding, options);
   }
 
+  if (tieBreakerRule == ChampionshipSportTieBreakerRule.HANDEBOL) {
+    if (compareDirectConfrontation != 0) {
+      return compareDirectConfrontation;
+    }
+
+    if (firstStanding.goal_diff != secondStanding.goal_diff) {
+      return secondStanding.goal_diff - firstStanding.goal_diff;
+    }
+
+    if (firstStanding.goals_for != secondStanding.goals_for) {
+      return secondStanding.goals_for - firstStanding.goals_for;
+    }
+
+    if ((firstStanding.blue_cards ?? 0) != (secondStanding.blue_cards ?? 0)) {
+      return (firstStanding.blue_cards ?? 0) - (secondStanding.blue_cards ?? 0);
+    }
+
+    if ((firstStanding.two_minute_penalties ?? 0) != (secondStanding.two_minute_penalties ?? 0)) {
+      return (firstStanding.two_minute_penalties ?? 0) - (secondStanding.two_minute_penalties ?? 0);
+    }
+
+    return compareByManualTieBreakOrder(firstStanding, secondStanding, options);
+  }
+
   if (tieBreakerRule == ChampionshipSportTieBreakerRule.POINTS_AVERAGE) {
     const firstPointsAverage = calculatePointsAverage(firstStanding.goals_for, firstStanding.goals_against);
     const secondPointsAverage = calculatePointsAverage(secondStanding.goals_for, secondStanding.goals_against);
@@ -603,6 +639,8 @@ export function aggregateStandingsByTeam(
       existingTeamStanding.points += standing.points;
       existingTeamStanding.yellow_cards += standing.yellow_cards;
       existingTeamStanding.red_cards += standing.red_cards;
+      existingTeamStanding.blue_cards += standing.blue_cards ?? 0;
+      existingTeamStanding.two_minute_penalties += standing.two_minute_penalties ?? 0;
       return;
     }
 
@@ -621,6 +659,8 @@ export function aggregateStandingsByTeam(
       points: standing.points,
       yellow_cards: standing.yellow_cards,
       red_cards: standing.red_cards,
+      blue_cards: standing.blue_cards ?? 0,
+      two_minute_penalties: standing.two_minute_penalties ?? 0,
     });
   });
 

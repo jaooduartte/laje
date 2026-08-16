@@ -1,114 +1,114 @@
-import { MatchNaipe, TeamDivision } from "@/lib/enums";
-import {
-  resolveModalidadeConfig,
-  resolveSportCode,
-  type KnockoutPairingMode,
-} from "@/lib/modalidadeConfig";
+import type { KnockoutPairingMode } from "@/lib/modalidadeConfig";
 
-export type ChampionshipKnockoutPairingMode =
-  | KnockoutPairingMode
-  | "FUTEBOL_SOCIETY_FEM_ACCESS_CROSS_GROUPS";
+export type ChampionshipKnockoutPairingMode = KnockoutPairingMode;
 
-export type EditableChampionshipKnockoutPairingMode =
-  | "LINEAR"
-  | "FUTEBOL_SOCIETY_FEM_ACCESS_CROSS_GROUPS";
+const VALID_KNOCKOUT_PAIRING_MODE_VALUES =
+  new Set<ChampionshipKnockoutPairingMode>([
+    "LINEAR",
+    "RANKING_ALTERNATING",
+    "CLASSIC_SEEDED",
+  ]);
 
-export interface ChampionshipKnockoutPairingContext {
-  sport_name: string;
-  naipe: MatchNaipe;
-  division: TeamDivision | null;
-}
-
-export const CHAMPIONSHIP_KNOCKOUT_PAIRING_MODE_OPTIONS: Array<{
-  value: EditableChampionshipKnockoutPairingMode;
-  label: string;
-  helper: string;
-}> = [
-  {
-    value: "LINEAR",
-    label: "Linear",
-    helper: "Mantém o seeding padrão do mata-mata.",
-  },
-  {
-    value: "FUTEBOL_SOCIETY_FEM_ACCESS_CROSS_GROUPS",
-    label: "Cruzar 2 chaves",
-    helper: "Nesta versão, disponível apenas para Futebol Society Feminino Divisão de Acesso.",
-  },
-];
-
-const KNOCKOUT_PAIRING_MODE_VALUES = new Set<ChampionshipKnockoutPairingMode>([
-  "LINEAR",
+const LEGACY_KNOCKOUT_PAIRING_MODE_VALUES = new Set([
   "FUTEVOLEI_FEM_INVERTED",
   "BEACH_SOCCER_FEM_DIRECT_SEMI",
   "FUTEBOL_SOCIETY_FEM_ACCESS_CROSS_GROUPS",
-]);
-
-const LEGACY_KNOCKOUT_PAIRING_MODES = new Set<ChampionshipKnockoutPairingMode>([
-  "FUTEVOLEI_FEM_INVERTED",
-  "BEACH_SOCCER_FEM_DIRECT_SEMI",
 ]);
 
 export function resolveCompetitionKnockoutPairingModeValue(
   value: unknown,
 ): ChampionshipKnockoutPairingMode {
   if (
-    typeof value == "string" &&
-    KNOCKOUT_PAIRING_MODE_VALUES.has(value as ChampionshipKnockoutPairingMode)
+    typeof value === "string" &&
+    VALID_KNOCKOUT_PAIRING_MODE_VALUES.has(
+      value as ChampionshipKnockoutPairingMode,
+    )
   ) {
     return value as ChampionshipKnockoutPairingMode;
   }
 
-  return "LINEAR";
-}
-
-export function resolveCompetitionKnockoutPairingModeControlValue(
-  value: ChampionshipKnockoutPairingMode | null | undefined,
-): EditableChampionshipKnockoutPairingMode {
-  const resolvedValue = resolveCompetitionKnockoutPairingModeValue(value);
-
-  if (resolvedValue == "FUTEBOL_SOCIETY_FEM_ACCESS_CROSS_GROUPS") {
-    return resolvedValue;
+  if (
+    typeof value === "string" &&
+    LEGACY_KNOCKOUT_PAIRING_MODE_VALUES.has(value)
+  ) {
+    return "LINEAR";
   }
 
   return "LINEAR";
 }
 
-export function resolveCompetitionKnockoutPairingModeLabel(
-  value: EditableChampionshipKnockoutPairingMode,
-): string {
+export function resolveDefaultCompetitionKnockoutPairingMode(): ChampionshipKnockoutPairingMode {
+  return "CLASSIC_SEEDED";
+}
+
+function resolveIsSupportedBracketSize(bracketSize: number): boolean {
   return (
-    CHAMPIONSHIP_KNOCKOUT_PAIRING_MODE_OPTIONS.find((option) => option.value == value)
-      ?.label ?? "Linear"
+    Number.isInteger(bracketSize) &&
+    bracketSize >= 2 &&
+    (bracketSize & (bracketSize - 1)) === 0
   );
 }
 
-export function resolveIsLegacyKnockoutPairingMode(
-  value: ChampionshipKnockoutPairingMode | null | undefined,
-): boolean {
-  return LEGACY_KNOCKOUT_PAIRING_MODES.has(
-    resolveCompetitionKnockoutPairingModeValue(value),
-  );
-}
+function resolveLinearSeedOrder(bracketSize: number): number[] {
+  const seedOrder: number[] = [];
 
-export function resolveIsCrossGroupKnockoutPairingAvailable(
-  context: ChampionshipKnockoutPairingContext,
-): boolean {
-  return (
-    context.sport_name == "Futebol Society" &&
-    context.naipe == MatchNaipe.FEMININO &&
-    context.division == TeamDivision.DIVISAO_ACESSO
-  );
-}
-
-export function resolveDefaultCompetitionKnockoutPairingMode(
-  context: ChampionshipKnockoutPairingContext,
-): ChampionshipKnockoutPairingMode {
-  if (resolveIsCrossGroupKnockoutPairingAvailable(context)) {
-    return "FUTEBOL_SOCIETY_FEM_ACCESS_CROSS_GROUPS";
+  for (let seed = 1; seed <= bracketSize / 2; seed += 1) {
+    seedOrder.push(seed, bracketSize + 1 - seed);
   }
 
-  return resolveModalidadeConfig(
-    resolveSportCode(context.sport_name),
-    context.naipe,
-  ).knockout_pairing_mode;
+  return seedOrder;
+}
+
+function resolveRankingAlternatingSeedOrder(
+  bracketSize: number,
+): number[] {
+  const firstHalfSeeds = Array.from(
+    { length: bracketSize / 2 },
+    (_, index) => index + 1,
+  );
+
+  const orderedSeeds = [
+    ...firstHalfSeeds.filter((seed) => seed % 2 === 1),
+    ...firstHalfSeeds.filter((seed) => seed % 2 === 0),
+  ];
+
+  return orderedSeeds.flatMap((seed) => [
+    seed,
+    bracketSize + 1 - seed,
+  ]);
+}
+
+function resolveClassicSeedOrder(bracketSize: number): number[] {
+  if (bracketSize === 2) {
+    return [1, 2];
+  }
+
+  const previousRoundSeedOrder =
+    resolveClassicSeedOrder(bracketSize / 2);
+
+  return previousRoundSeedOrder.flatMap((seed) => [
+    seed,
+    bracketSize + 1 - seed,
+  ]);
+}
+
+export function resolveChampionshipKnockoutSeedOrder(
+  mode: ChampionshipKnockoutPairingMode,
+  bracketSize: number,
+): number[] {
+  if (!resolveIsSupportedBracketSize(bracketSize)) {
+    return [];
+  }
+
+  switch (mode) {
+    case "RANKING_ALTERNATING":
+      return resolveRankingAlternatingSeedOrder(bracketSize);
+
+    case "CLASSIC_SEEDED":
+      return resolveClassicSeedOrder(bracketSize);
+
+    case "LINEAR":
+    default:
+      return resolveLinearSeedOrder(bracketSize);
+  }
 }

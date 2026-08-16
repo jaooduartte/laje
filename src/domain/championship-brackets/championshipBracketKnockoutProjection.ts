@@ -1,3 +1,4 @@
+import { resolveChampionshipKnockoutSeedOrder } from "@/domain/championship-brackets/championshipBracketPairing";
 import { resolveChampionshipGroupLabel } from "@/lib/championship";
 import type { KnockoutPairingMode } from "@/lib/modalidadeConfig";
 
@@ -12,8 +13,10 @@ export interface ChampionshipBracketKnockoutProjection {
   total_qualified_team_count: number;
   projected_bracket_size: number;
   best_second_placed_team_count: number;
+  best_third_placed_team_count: number;
   bye_count: number;
   uses_best_second_placed_teams: boolean;
+  uses_best_third_placed_teams: boolean;
 }
 
 function resolveIsPowerOfTwo(value: number): boolean {
@@ -28,7 +31,10 @@ function resolveOrdinalPlacementLabel(position: number): string {
   return `${position}º`;
 }
 
-function resolveBestPlacedLabel(position: number, placing: "1º" | "2º"): string {
+function resolveBestPlacedLabel(
+  position: number,
+  placing: "1º" | "2º" | "3º",
+): string {
   return `${resolveOrdinalPlacementLabel(position)} melhor ${placing}`;
 }
 
@@ -49,28 +55,16 @@ function resolveProjectedBracketSize(qualified_team_count: number): number {
 export function resolveStandardBalancedBracketSeedOrder(
   bracket_size: number,
 ): number[] {
-  if (bracket_size < 2) {
-    return [];
-  }
-
-  // Seeding linear: slot k pareia seed k vs seed (N+1-k).
-  // bracket_size=8 → [1,8, 2,7, 3,6, 4,5]
-  //   slot1=1v8, slot2=2v7 → mesmo lado (SF1)
-  //   slot3=3v6, slot4=4v5 → mesmo lado (SF2)
-  // bracket_size=4 → [1,4, 2,3]
-  const seed_order: number[] = [];
-  for (let slot = 1; slot <= bracket_size / 2; slot++) {
-    seed_order.push(slot);
-    seed_order.push(bracket_size + 1 - slot);
-  }
-  return seed_order;
+  return resolveChampionshipKnockoutSeedOrder("LINEAR", bracket_size);
 }
 
 export function resolveChampionshipBracketFirstRoundSeedIndexes(
   bracket_size: number,
   slot_number: number,
+  mode: KnockoutPairingMode = "LINEAR",
 ): { home_seed_index: number; away_seed_index: number } {
-  const seed_order = resolveStandardBalancedBracketSeedOrder(bracket_size);
+  const seed_order = resolveChampionshipKnockoutSeedOrder(mode, bracket_size);
+
   const home_seed = seed_order[(slot_number - 1) * 2];
   const away_seed = seed_order[(slot_number - 1) * 2 + 1];
 
@@ -80,19 +74,11 @@ export function resolveChampionshipBracketFirstRoundSeedIndexes(
   };
 }
 
-/**
- * Retorna a ordem de seeds para o primeiro round do mata-mata conforme o modo de pareamento.
- *
- * Todos os modos atualmente usam seeding LINEAR — o resultado correto por modalidade emerge
- * naturalmente da ordenação dos times (1ºs seguidos de 2ºs, por grupo):
- *   - LINEAR / FUTEVOLEI_FEM_INVERTED (8 times): 1ºA×2ºD, 1ºB×2ºC, 1ºC×2ºB, 1ºD×2ºA.
- *   - BEACH_SOCCER_FEM_DIRECT_SEMI (4 times): semis diretas 1ºA×2ºB e 1ºB×2ºA.
- */
 export function resolveBracketPairingByMode(
-  _mode: KnockoutPairingMode,
+  mode: KnockoutPairingMode,
   bracket_size: number,
 ): number[] {
-  return resolveStandardBalancedBracketSeedOrder(bracket_size);
+  return resolveChampionshipKnockoutSeedOrder(mode, bracket_size);
 }
 
 export function resolveChampionshipBracketKnockoutProjection(
@@ -104,9 +90,14 @@ export function resolveChampionshipBracketKnockoutProjection(
   const should_expand_with_best_second_placed_teams =
     qualifiers_per_group == 1 &&
     input.should_complete_knockout_with_best_second_placed_teams == true;
-  let projected_bracket_size = resolveProjectedBracketSize(direct_qualified_team_count);
+  let projected_bracket_size = resolveProjectedBracketSize(
+    direct_qualified_team_count,
+  );
 
-  if (should_expand_with_best_second_placed_teams && direct_qualified_team_count >= 2) {
+  if (
+    should_expand_with_best_second_placed_teams &&
+    direct_qualified_team_count >= 2
+  ) {
     projected_bracket_size = 2;
 
     while (projected_bracket_size <= direct_qualified_team_count) {
@@ -118,15 +109,21 @@ export function resolveChampionshipBracketKnockoutProjection(
     qualifiers_per_group == 1 && direct_qualified_team_count >= 2
       ? Math.max(0, projected_bracket_size - direct_qualified_team_count)
       : 0;
+  const best_third_placed_team_count =
+    qualifiers_per_group == 2 && direct_qualified_team_count >= 2
+      ? Math.max(0, projected_bracket_size - direct_qualified_team_count)
+      : 0;
   const uses_best_second_placed_teams =
     qualifiers_per_group == 1 &&
     best_second_placed_team_count > 0 &&
-    (
-      should_expand_with_best_second_placed_teams ||
-      !resolveIsPowerOfTwo(direct_qualified_team_count)
-    );
+    (should_expand_with_best_second_placed_teams ||
+      !resolveIsPowerOfTwo(direct_qualified_team_count));
+  const uses_best_third_placed_teams =
+    qualifiers_per_group == 2 && best_third_placed_team_count > 0;
   const total_qualified_team_count =
-    direct_qualified_team_count + best_second_placed_team_count;
+    direct_qualified_team_count +
+    best_second_placed_team_count +
+    best_third_placed_team_count;
   const bye_count = Math.max(
     0,
     projected_bracket_size - total_qualified_team_count,
@@ -137,8 +134,10 @@ export function resolveChampionshipBracketKnockoutProjection(
     total_qualified_team_count,
     projected_bracket_size,
     best_second_placed_team_count,
+    best_third_placed_team_count,
     bye_count,
     uses_best_second_placed_teams,
+    uses_best_third_placed_teams,
   };
 }
 
@@ -148,6 +147,10 @@ export function resolveChampionshipBracketQualificationSummary(
   const projection = resolveChampionshipBracketKnockoutProjection(input);
 
   if (input.qualifiers_per_group == 2) {
+    if (projection.uses_best_third_placed_teams) {
+      return `${projection.projected_bracket_size} vagas: ${projection.direct_qualified_team_count} classificadas diretamente + ${projection.best_third_placed_team_count} ${projection.best_third_placed_team_count == 1 ? "melhor 3º" : "melhores 3º"}`;
+    }
+
     return `${projection.direct_qualified_team_count} vagas: 1º e 2º de cada grupo`;
   }
 
@@ -190,10 +193,7 @@ export function resolveChampionshipBracketSeedPlaceholderLabels(
     return seed_labels;
   }
 
-  if (
-    projection.uses_best_second_placed_teams &&
-    projection.best_second_placed_team_count > 0
-  ) {
+  if (input.qualifiers_per_group == 1) {
     for (
       let firstPlaceIndex = 1;
       firstPlaceIndex <= input.groups_count;
@@ -218,14 +218,20 @@ export function resolveChampionshipBracketSeedPlaceholderLabels(
       seed_labels.push(`1º do ${resolveChampionshipGroupLabel(group_number)}`);
     }
 
-    if (input.qualifiers_per_group == 2) {
-      for (
-        let group_number = 1;
-        group_number <= input.groups_count;
-        group_number += 1
-      ) {
-        seed_labels.push(`2º do ${resolveChampionshipGroupLabel(group_number)}`);
-      }
+    for (
+      let group_number = 1;
+      group_number <= input.groups_count;
+      group_number += 1
+    ) {
+      seed_labels.push(`2º do ${resolveChampionshipGroupLabel(group_number)}`);
+    }
+
+    for (
+      let thirdPlaceIndex = 1;
+      thirdPlaceIndex <= projection.best_third_placed_team_count;
+      thirdPlaceIndex += 1
+    ) {
+      seed_labels.push(resolveBestPlacedLabel(thirdPlaceIndex, "3º"));
     }
   }
 

@@ -25,7 +25,12 @@ type MatchQueueSwapComparable = Pick<
 
 type MatchQueueSwapDisplay = Pick<
   Match,
-  "queue_position" | "scheduled_slot" | "scheduled_date" | "home_team" | "away_team"
+  | "queue_position"
+  | "scheduled_slot"
+  | "scheduled_date"
+  | "start_time"
+  | "home_team"
+  | "away_team"
 >;
 
 type MatchSwapOptionLabelParams = {
@@ -74,6 +79,10 @@ export function resolveIsMatchEligibleForQueueSwap(
     return false;
   }
 
+  if (sourceMatch.naipe != candidateMatch.naipe) {
+    return false;
+  }
+
   if (!sourceMatch.location?.trim() || !sourceMatch.court_name?.trim()) {
     return false;
   }
@@ -116,10 +125,11 @@ export function resolveMatchSwapOptionLabel(params: MatchSwapOptionLabelParams):
   const queueSlot = displaySlot ?? resolveMatchSwapDisplaySlot(match, shouldUseScheduledSlot);
   const queueLabel = resolveMatchQueueLabel(queueSlot);
   const scheduledDateLabel = resolveSwapMatchScheduledDateLabel(match.scheduled_date);
+  const startTimeLabel = resolveSwapMatchStartTimeLabel(match.start_time);
   const homeTeamName = match.home_team?.name ?? "Casa";
   const awayTeamName = match.away_team?.name ?? "Visitante";
 
-  return `${scheduledDateLabel ? `${scheduledDateLabel} • ` : ""}${queueLabel} • ${homeTeamName} x ${awayTeamName}`;
+  return `${scheduledDateLabel ? `${scheduledDateLabel} • ` : ""}${startTimeLabel ? `${startTimeLabel} • ` : ""}${queueLabel} • ${homeTeamName} x ${awayTeamName}`;
 }
 
 export function resolveMatchQueueSwapConflictMessage(params: {
@@ -305,4 +315,27 @@ function resolveSwapMatchScheduledDateLabel(scheduledDate: string | null | undef
   }
 
   return `${dateMatch[3]}/${dateMatch[2]}`;
+}
+
+function resolveSwapMatchStartTimeLabel(startTime: string | null | undefined): string | null {
+  if (!startTime) {
+    return null;
+  }
+
+  const parsedStartTime = new Date(startTime);
+
+  if (Number.isNaN(parsedStartTime.getTime())) {
+    return null;
+  }
+
+  try {
+    return new Intl.DateTimeFormat("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).format(parsedStartTime);
+  } catch {
+    return null;
+  }
 }

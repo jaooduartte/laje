@@ -5,7 +5,7 @@ import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { TimeInput } from "@/components/ui/time-input";
 import { cn } from "@/lib/utils";
 
 interface DateTimePickerProps {
@@ -17,9 +17,6 @@ interface DateTimePickerProps {
   defaultTime?: string;
   disabled?: boolean;
 }
-
-const HOUR_OPTIONS = Array.from({ length: 24 }, (_, index) => index.toString().padStart(2, "0"));
-const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) => (index * 5).toString().padStart(2, "0"));
 
 function resolveDefaultTimeParts(defaultTime?: string): { hour: number; minute: number } | null {
   if (!defaultTime) {
@@ -66,26 +63,16 @@ export function DateTimePicker({
   const selectedDate = value ? new Date(value) : undefined;
   const defaultTimeParts = useMemo(() => resolveDefaultTimeParts(defaultTime), [defaultTime]);
 
-  const selectedHour = useMemo(() => {
+  const selectedTimeValue = useMemo(() => {
     if (!value && defaultTimeParts) {
-      return defaultTimeParts.hour.toString().padStart(2, "0");
-    }
-
-    return value ? value.getHours().toString().padStart(2, "0") : HOUR_OPTIONS[12];
-  }, [defaultTimeParts, value]);
-
-  const selectedMinute = useMemo(() => {
-    if (!value && defaultTimeParts) {
-      const roundedMinute = Math.floor(defaultTimeParts.minute / 5) * 5;
-      return roundedMinute.toString().padStart(2, "0");
+      return `${defaultTimeParts.hour.toString().padStart(2, "0")}:${defaultTimeParts.minute.toString().padStart(2, "0")}`;
     }
 
     if (value) {
-      const roundedMinute = Math.floor(value.getMinutes() / 5) * 5;
-      return roundedMinute.toString().padStart(2, "0");
+      return `${value.getHours().toString().padStart(2, "0")}:${value.getMinutes().toString().padStart(2, "0")}`;
     }
 
-    return MINUTE_OPTIONS[0];
+    return "12:00";
   }, [defaultTimeParts, value]);
 
   const handleDateSelect = (nextDate: Date | undefined) => {
@@ -106,15 +93,26 @@ export function DateTimePicker({
     onChange(mergedDate);
   };
 
-  const handleHourChange = (nextHour: string) => {
-    const baseDate = getBaseDate(value, defaultTimeParts);
-    baseDate.setHours(Number(nextHour), Number(selectedMinute), 0, 0);
-    onChange(baseDate);
-  };
+  const handleTimeChange = (nextTime: string) => {
+    if (!nextTime) {
+      return;
+    }
 
-  const handleMinuteChange = (nextMinute: string) => {
+    const [nextHour, nextMinute] = nextTime.split(":").map(Number);
+
+    if (
+      Number.isNaN(nextHour) ||
+      Number.isNaN(nextMinute) ||
+      nextHour < 0 ||
+      nextHour > 23 ||
+      nextMinute < 0 ||
+      nextMinute > 59
+    ) {
+      return;
+    }
+
     const baseDate = getBaseDate(value, defaultTimeParts);
-    baseDate.setHours(Number(selectedHour), Number(nextMinute), 0, 0);
+    baseDate.setHours(nextHour, nextMinute, 0, 0);
     onChange(baseDate);
   };
 
@@ -145,34 +143,11 @@ export function DateTimePicker({
         {showTime ? (
           <div className="flex items-center gap-2">
             <Clock3 className="h-4 w-4 text-muted-foreground" />
-
-            <Select value={selectedHour} onValueChange={handleHourChange}>
-              <SelectTrigger className="app-input-field w-[86px]">
-                <SelectValue placeholder="Hora" />
-              </SelectTrigger>
-              <SelectContent>
-                {HOUR_OPTIONS.map((hourOption) => (
-                  <SelectItem key={hourOption} value={hourOption}>
-                    {hourOption}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <span className="text-sm text-muted-foreground">:</span>
-
-            <Select value={selectedMinute} onValueChange={handleMinuteChange}>
-              <SelectTrigger className="app-input-field w-[86px]">
-                <SelectValue placeholder="Min" />
-              </SelectTrigger>
-              <SelectContent>
-                {MINUTE_OPTIONS.map((minuteOption) => (
-                  <SelectItem key={minuteOption} value={minuteOption}>
-                    {minuteOption}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <TimeInput
+              value={selectedTimeValue}
+              onChange={handleTimeChange}
+              className="w-[132px]"
+            />
           </div>
         ) : null}
       </PopoverContent>

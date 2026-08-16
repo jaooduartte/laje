@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Loader2, MoreVertical, Pencil, Plus, Trash2 } from "lucide-react";
+import { Loader2, MoreVertical, Pencil, Plus, Power, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Team } from "@/lib/types";
@@ -37,6 +37,9 @@ interface Props {
 
 const TEAM_CITY_OPTIONS = ["Joinville", "Blumenau", "Jaraguá do Sul"] as const;
 const ALL_TEAMS_DIVISION_FILTER = "ALL_TEAMS_DIVISION_FILTER";
+const ALL_TEAMS_STATUS_FILTER = "ALL_TEAMS_STATUS_FILTER";
+const ACTIVE_TEAMS_STATUS_FILTER = "ACTIVE_TEAMS_STATUS_FILTER";
+const INACTIVE_TEAMS_STATUS_FILTER = "INACTIVE_TEAMS_STATUS_FILTER";
 
 function resolveTeamDivisionLabel(division: TeamDivision | null): string {
   if (!division) {
@@ -78,6 +81,7 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
   const [division, setDivision] = useState<TeamDivision | null>(TeamDivision.DIVISAO_ACESSO);
   const [teamSearch, setTeamSearch] = useState("");
   const [divisionFilter, setDivisionFilter] = useState<string>(ALL_TEAMS_DIVISION_FILTER);
+  const [statusFilter, setStatusFilter] = useState<string>(ACTIVE_TEAMS_STATUS_FILTER);
   const [showCreateTeamModal, setShowCreateTeamModal] = useState(false);
   const [showEditTeamModal, setShowEditTeamModal] = useState(false);
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
@@ -87,6 +91,7 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
   const [creatingTeam, setCreatingTeam] = useState(false);
   const [savingTeam, setSavingTeam] = useState(false);
   const [deletingTeamId, setDeletingTeamId] = useState<string | null>(null);
+  const [togglingTeamId, setTogglingTeamId] = useState<string | null>(null);
 
   const filteredTeams = useMemo(() => {
     const normalizedTeamSearch = teamSearch.trim().toLowerCase();
@@ -99,13 +104,21 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
         return false;
       }
 
+      if (statusFilter == ACTIVE_TEAMS_STATUS_FILTER && team.is_active == false) {
+        return false;
+      }
+
+      if (statusFilter == INACTIVE_TEAMS_STATUS_FILTER && team.is_active != false) {
+        return false;
+      }
+
       if (normalizedTeamSearch.length == 0) {
         return true;
       }
 
       return `${team.name} ${team.city}`.toLowerCase().includes(normalizedTeamSearch);
     });
-  }, [divisionFilter, teamSearch, teams]);
+  }, [divisionFilter, statusFilter, teamSearch, teams]);
 
   const resetCreateTeamForm = () => {
     setName("");
@@ -146,6 +159,7 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
       name: name.trim(),
       city,
       division,
+      is_active: true,
     });
 
     setCreatingTeam(false);
@@ -193,6 +207,31 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
     setShowEditTeamModal(true);
   };
 
+  const handleToggleTeamActive = async (team: Team) => {
+    if (!canManageTeams || togglingTeamId != null) {
+      return;
+    }
+
+    setTogglingTeamId(team.id);
+
+    const { error } = await supabase
+      .from("teams")
+      .update({
+        is_active: !team.is_active,
+      })
+      .eq("id", team.id);
+
+    setTogglingTeamId(null);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success(team.is_active ? "Atlética inativada." : "Atlética reativada.");
+    onRefetch();
+  };
+
   const handleSaveTeam = async () => {
     if (!canManageTeams || savingTeam) {
       return;
@@ -235,7 +274,7 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
   return (
     <div className="space-y-4">
       <div className="glass-card enter-section flex flex-col gap-3 p-4 xl:flex-row xl:items-center xl:justify-between">
-        <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-3">
           <Input
             type="search"
             value={teamSearch}
@@ -262,6 +301,17 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
               </SelectItem>
             </SelectContent>
           </Select>
+
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="app-input-field">
+              <SelectValue placeholder="Filtrar por status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_TEAMS_STATUS_FILTER}>Ativas e inativas</SelectItem>
+              <SelectItem value={ACTIVE_TEAMS_STATUS_FILTER}>Somente ativas</SelectItem>
+              <SelectItem value={INACTIVE_TEAMS_STATUS_FILTER}>Somente inativas</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {canManageTeams ? (
@@ -280,25 +330,41 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
         <p className="text-sm text-muted-foreground">Nenhuma atlética encontrada para os filtros selecionados.</p>
       ) : (
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-          {filteredTeams.map((team) => (
-            <div key={team.id} className="list-item-card list-item-card-hover space-y-3 p-3">
+          {filteredTeams.map((team) => {
+            const shouldDimInactiveTeam =
+              statusFilter == ALL_TEAMS_STATUS_FILTER && team.is_active == false;
+
+            return (
+            <div
+              key={team.id}
+              className={`list-item-card list-item-card-hover space-y-3 p-3 transition-opacity ${
+                shouldDimInactiveTeam ? "opacity-70" : ""
+              }`}
+            >
               <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-start gap-2">
                 <div className="min-w-0">
-                  <p className="font-display font-semibold leading-tight">{team.name}</p>
-                </div>
-
-                <div className="justify-self-center">
-                  <AppBadge tone={resolveTeamDivisionBadgeTone(team.division)}>
-                    {resolveTeamDivisionLabel(team.division)}
-                  </AppBadge>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-display font-semibold leading-tight">{team.name}</p>
+                    <AppBadge tone={resolveTeamDivisionBadgeTone(team.division)}>
+                      {resolveTeamDivisionLabel(team.division)}
+                    </AppBadge>
+                    <AppBadge tone={team.is_active != false ? AppBadgeTone.EMERALD : AppBadgeTone.RED}>
+                      {team.is_active != false ? "Ativa" : "Inativa"}
+                    </AppBadge>
+                  </div>
                 </div>
 
                 {canManageTeams ? (
                   <div className="justify-self-end">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" aria-label={`Ações da atlética ${team.name}`} disabled={deletingTeamId != null}>
-                          {deletingTeamId == team.id ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Ações da atlética ${team.name}`}
+                          disabled={deletingTeamId != null || togglingTeamId != null}
+                        >
+                          {deletingTeamId == team.id || togglingTeamId == team.id ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
                             <MoreVertical className="h-4 w-4 text-muted-foreground" />
@@ -309,6 +375,10 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
                         <DropdownMenuItem onSelect={() => handleOpenEditTeamModal(team)}>
                           <Pencil className="mr-2 h-4 w-4" />
                           Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => handleToggleTeamActive(team)}>
+                          <Power className="mr-2 h-4 w-4" />
+                          {team.is_active != false ? "Inativar" : "Ativar"}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive"
@@ -325,7 +395,8 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
 
               <p className="text-xs text-muted-foreground">{team.city}</p>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

@@ -11,7 +11,9 @@ export type StandingsColumnKey =
   | "SG"
   | "PA"
   | "CA"
-  | "CV";
+  | "CV"
+  | "CAZ"
+  | "2M";
 
 export type TieBreakCriterion =
   | "POINTS"
@@ -23,13 +25,14 @@ export type TieBreakCriterion =
   | "GOALS_AGAINST_ASC"
   | "YELLOW_CARDS_ASC"
   | "RED_CARDS_ASC"
+  | "BLUE_CARDS_ASC"
+  | "TWO_MINUTE_PENALTIES_ASC"
   | "MANUAL_DRAW";
 
 export type KnockoutPairingMode =
   | "LINEAR"
-  | "FUTEVOLEI_FEM_INVERTED"
-  | "BEACH_SOCCER_FEM_DIRECT_SEMI"
-  | "FUTEBOL_SOCIETY_FEM_ACCESS_CROSS_GROUPS";
+  | "RANKING_ALTERNATING"
+  | "CLASSIC_SEEDED";
 
 export interface ModalidadeConfig {
   sport_code: string;
@@ -53,6 +56,8 @@ export const STANDINGS_COLUMN_LABELS: Record<StandingsColumnKey, string> = {
   PA: "PA",
   CA: "CA",
   CV: "CV",
+  CAZ: "CAZ",
+  "2M": "2M",
 };
 
 export const STANDINGS_COLUMN_TOOLTIPS: Partial<Record<StandingsColumnKey, string>> = {
@@ -66,6 +71,8 @@ export const STANDINGS_COLUMN_TOOLTIPS: Partial<Record<StandingsColumnKey, strin
   PA: "Pontos médios (GP ÷ GC)",
   CA: "Cartões amarelos",
   CV: "Cartões vermelhos",
+  CAZ: "Cartões azuis",
+  "2M": "Penalidades de 2 minutos",
 };
 
 const BEACH_SOCCER_COLUMNS: StandingsColumnKey[] = ["J", "V", "E", "D", "CA", "CV", "GP", "GC", "SG"];
@@ -82,6 +89,19 @@ const FUTEBOL_SOCIETY_CASCADE: TieBreakCriterion[] = [
 const BEACH_TENNIS_COLUMNS: StandingsColumnKey[] = ["J", "V", "E", "D", "GP", "GC", "SG"];
 const BEACH_TENNIS_CASCADE: TieBreakCriterion[] = [
   "POINTS", "WINS", "HEAD_TO_HEAD", "GOAL_DIFF", "GOALS_FOR", "MANUAL_DRAW",
+];
+
+const INTERLAJE_BALL_SPORT_COLUMNS: StandingsColumnKey[] = ["J", "V", "E", "D", "GP", "GC", "SG"];
+const INTERLAJE_CARD_SPORT_COLUMNS: StandingsColumnKey[] = ["J", "V", "E", "D", "CA", "CV", "GP", "GC", "SG"];
+const INTERLAJE_HANDBALL_COLUMNS: StandingsColumnKey[] = ["J", "V", "E", "D", "CAZ", "2M", "CA", "CV", "GP", "GC", "SG"];
+const INTERLAJE_STANDARD_CASCADE: TieBreakCriterion[] = [
+  "POINTS", "HEAD_TO_HEAD", "GOAL_DIFF", "GOALS_FOR", "WINS", "MANUAL_DRAW",
+];
+const INTERLAJE_CARD_CASCADE: TieBreakCriterion[] = [
+  "POINTS", "HEAD_TO_HEAD", "GOAL_DIFF", "GOALS_FOR", "YELLOW_CARDS_ASC", "RED_CARDS_ASC", "MANUAL_DRAW",
+];
+const INTERLAJE_HANDBALL_CASCADE: TieBreakCriterion[] = [
+  "POINTS", "HEAD_TO_HEAD", "GOAL_DIFF", "GOALS_AGAINST_ASC", "BLUE_CARDS_ASC", "RED_CARDS_ASC", "YELLOW_CARDS_ASC", "TWO_MINUTE_PENALTIES_ASC", "MANUAL_DRAW",
 ];
 
 const POINTS_AVERAGE_COLUMNS: StandingsColumnKey[] = ["J", "V", "E", "D", "GP", "GC", "SG", "PA"];
@@ -107,7 +127,7 @@ const MODALIDADE_CONFIGS: ModalidadeConfig[] = [
     tie_breaker_cascade: BEACH_SOCCER_CASCADE,
     uses_points_average: false,
     uses_cards: true,
-    knockout_pairing_mode: "BEACH_SOCCER_FEM_DIRECT_SEMI",
+    knockout_pairing_mode: "LINEAR",
     legacy_tie_breaker_rule: ChampionshipSportTieBreakerRule.BEACH_SOCCER,
   },
   {
@@ -157,7 +177,7 @@ const MODALIDADE_CONFIGS: ModalidadeConfig[] = [
     tie_breaker_cascade: POINTS_AVERAGE_CASCADE,
     uses_points_average: true,
     uses_cards: false,
-    knockout_pairing_mode: "FUTEVOLEI_FEM_INVERTED",
+    knockout_pairing_mode: "LINEAR",
     legacy_tie_breaker_rule: ChampionshipSportTieBreakerRule.POINTS_AVERAGE,
   },
   {
@@ -169,6 +189,72 @@ const MODALIDADE_CONFIGS: ModalidadeConfig[] = [
     uses_cards: false,
     knockout_pairing_mode: "LINEAR",
     legacy_tie_breaker_rule: ChampionshipSportTieBreakerRule.POINTS_AVERAGE,
+  },
+  {
+    sport_code: "BASQUETE",
+    naipe: null,
+    display_columns: POINTS_AVERAGE_COLUMNS,
+    tie_breaker_cascade: POINTS_AVERAGE_CASCADE,
+    uses_points_average: true,
+    uses_cards: false,
+    knockout_pairing_mode: "LINEAR",
+    legacy_tie_breaker_rule: ChampionshipSportTieBreakerRule.STANDARD,
+  },
+  {
+    sport_code: "FUTSAL",
+    naipe: null,
+    display_columns: INTERLAJE_CARD_SPORT_COLUMNS,
+    tie_breaker_cascade: ["POINTS", "HEAD_TO_HEAD", "GOAL_DIFF", "GOALS_FOR", "RED_CARDS_ASC", "YELLOW_CARDS_ASC", "MANUAL_DRAW"],
+    uses_points_average: false,
+    uses_cards: true,
+    knockout_pairing_mode: "LINEAR",
+    legacy_tie_breaker_rule: ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY,
+  },
+  {
+    sport_code: "HANDEBOL",
+    naipe: null,
+    display_columns: INTERLAJE_HANDBALL_COLUMNS,
+    tie_breaker_cascade: INTERLAJE_HANDBALL_CASCADE,
+    uses_points_average: false,
+    uses_cards: true,
+    knockout_pairing_mode: "LINEAR",
+    legacy_tie_breaker_rule: ChampionshipSportTieBreakerRule.HANDEBOL,
+  },
+  {
+    sport_code: "VOLEIBOL",
+    naipe: null,
+    display_columns: POINTS_AVERAGE_COLUMNS,
+    tie_breaker_cascade: POINTS_AVERAGE_CASCADE,
+    uses_points_average: true,
+    uses_cards: false,
+    knockout_pairing_mode: "LINEAR",
+    legacy_tie_breaker_rule: ChampionshipSportTieBreakerRule.POINTS_AVERAGE,
+  },
+  {
+    sport_code: "ATLETISMO",
+    naipe: null,
+    display_columns: ["J", "V", "E", "D", "GP", "GC", "SG"],
+    tie_breaker_cascade: [
+      "POINTS", "GOAL_DIFF", "GOALS_FOR", "WINS",
+      "YELLOW_CARDS_ASC", "RED_CARDS_ASC", "MANUAL_DRAW",
+    ],
+    uses_points_average: false,
+    uses_cards: false,
+    knockout_pairing_mode: "LINEAR",
+    legacy_tie_breaker_rule: ChampionshipSportTieBreakerRule.STANDARD,
+  },
+  {
+    sport_code: "NATACAO",
+    naipe: null,
+    display_columns: ["J", "V", "E", "D", "GP", "GC", "SG"],
+    tie_breaker_cascade: [
+      "POINTS", "GOAL_DIFF", "GOALS_FOR", "WINS",
+      "YELLOW_CARDS_ASC", "RED_CARDS_ASC", "MANUAL_DRAW",
+    ],
+    uses_points_average: false,
+    uses_cards: false,
+    knockout_pairing_mode: "LINEAR",
+    legacy_tie_breaker_rule: ChampionshipSportTieBreakerRule.STANDARD,
   },
 ];
 
@@ -189,8 +275,14 @@ const DEFAULT_CONFIG: ModalidadeConfig = {
 const SPORT_NAME_TO_CODE: Record<string, string> = {
   "Beach Soccer": "BEACH_SOCCER",
   "Beach Tennis": "BEACH_TENNIS",
+  Basquetebol: "BASQUETE",
   "Futevôlei": "FUTEVOLEI",
+  Futsal: "FUTSAL",
+  Handebol: "HANDEBOL",
+  Atletismo: "ATLETISMO",
+  "Natação": "NATACAO",
   "Vôlei de Praia": "VOLEI_PRAIA",
+  Voleibol: "VOLEIBOL",
   "Futebol Society": "FUTEBOL_SOCIETY",
 };
 
@@ -222,6 +314,8 @@ export function resolveCascadeForLegacyRule(rule: ChampionshipSportTieBreakerRul
       return BEACH_TENNIS_CASCADE;
     case ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY:
       return FUTEBOL_SOCIETY_CASCADE;
+    case ChampionshipSportTieBreakerRule.HANDEBOL:
+      return INTERLAJE_HANDBALL_CASCADE;
     case ChampionshipSportTieBreakerRule.POINTS_AVERAGE:
       return POINTS_AVERAGE_CASCADE;
     default:

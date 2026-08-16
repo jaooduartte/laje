@@ -12,6 +12,13 @@ import type {
   LeagueEventReservationRequestStatus,
   LeagueEventType,
   ChampionshipCode,
+  ChampionshipSchedulePeriod,
+  ChampionshipIndividualEntryStatus,
+  ChampionshipIndividualEventKind,
+  ChampionshipIndividualEventStatus,
+  ChampionshipIndividualSessionStatus,
+  ChampionshipSeasonDivisionFormat,
+  ChampionshipSeasonDivisionSettlementMode,
   ChampionshipSportNaipeMode,
   ChampionshipSportResultRule,
   ChampionshipSportTieBreakerRule,
@@ -43,7 +50,208 @@ export interface Team {
   name: string;
   city: string;
   division: TeamDivision | null;
+  is_active?: boolean;
   created_at: string;
+}
+
+export interface ChampionshipSeasonSettings {
+  id: string;
+  championship_id: string;
+  season_year: number;
+  division_format: ChampionshipSeasonDivisionFormat;
+  division_settlement_mode: ChampionshipSeasonDivisionSettlementMode;
+  principal_slots_count: number | null;
+  principal_relegation_count: number | null;
+  access_promotion_count: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChampionshipSeasonDivisionMovement {
+  id: string;
+  championship_id: string;
+  season_year: number;
+  team_id: string;
+  previous_division: TeamDivision | null;
+  next_division: TeamDivision | null;
+  source_division: TeamDivision | null;
+  ranking_position: number;
+  rule_code: string;
+  confirmed_by: string | null;
+  confirmed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  team?: Team | null;
+}
+
+export interface ChampionshipSchedulePeriodOption {
+  date: string;
+  period: ChampionshipSchedulePeriod;
+  enabled: boolean;
+}
+
+export interface ChampionshipCompetitionPeriodAvailability {
+  competition_key: string;
+  date: string;
+  period: ChampionshipSchedulePeriod;
+  enabled: boolean;
+}
+
+export interface ChampionshipTeamCompetitionAvailability {
+  team_id: string;
+  competition_key: string;
+  date: string;
+  period: ChampionshipSchedulePeriod;
+  enabled: boolean;
+}
+
+export interface ChampionshipIndividualPlacementPoint {
+  placement: number;
+  points: number | null;
+}
+
+export interface ChampionshipIndividualEventConfig {
+  sport_id: string;
+  placements_count: number;
+  placement_points: ChampionshipIndividualPlacementPoint[];
+  relay_multiplier: number;
+}
+
+export interface ChampionshipAthlete {
+  id: string;
+  championship_id: string;
+  season_year: number;
+  sport_id: string;
+  team_id: string;
+  naipe: MatchNaipe;
+  division: TeamDivision | null;
+  name: string;
+  normalized_name?: string | null;
+  created_at: string;
+  updated_at?: string;
+  teams?: Team | null;
+  sports?: Sport | null;
+}
+
+export interface ChampionshipIndividualEvent {
+  id: string;
+  session_id?: string | null;
+  championship_id: string;
+  season_year: number;
+  sport_id: string;
+  naipe: MatchNaipe;
+  division: TeamDivision | null;
+  event_code: string;
+  name: string;
+  kind: ChampionshipIndividualEventKind;
+  display_order: number;
+  scheduled_date: string | null;
+  period: ChampionshipSchedulePeriod | null;
+  location: string | null;
+  status: ChampionshipIndividualEventStatus;
+  relay_multiplier: number;
+  created_at: string;
+  updated_at: string;
+  sports?: Sport | null;
+}
+
+export interface ChampionshipIndividualSession {
+  id: string;
+  championship_id: string;
+  season_year: number;
+  sport_id: string;
+  naipe: MatchNaipe;
+  division: TeamDivision | null;
+  scheduled_date: string | null;
+  period: ChampionshipSchedulePeriod | null;
+  location_key: string | null;
+  court_key: string | null;
+  location_name: string | null;
+  court_name: string | null;
+  status: ChampionshipIndividualSessionStatus;
+  exclusive_lock_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+  sports?: Sport | null;
+}
+
+export interface ChampionshipIndividualSessionScoreboardRow {
+  session_id: string;
+  team_id: string;
+  total_points: number;
+  confirmed_entries_count: number;
+  first_places: number;
+  second_places: number;
+  third_places: number;
+  relay_points_total: number;
+  teams?: Team | null;
+}
+
+export interface ChampionshipIndividualEventEntry {
+  id: string;
+  event_id: string;
+  team_id: string;
+  athlete_id: string | null;
+  athlete_name: string | null;
+  entry_type: ChampionshipIndividualEventKind;
+  final_position: number | null;
+  result_time_milliseconds: number | null;
+  result_mark_centimeters: number | null;
+  status: ChampionshipIndividualEntryStatus;
+  points_awarded: number;
+  created_at: string;
+  updated_at: string;
+  teams?: Team | null;
+  athlete?: ChampionshipAthlete | null;
+  members?: ChampionshipIndividualEventEntryMember[];
+}
+
+export interface ChampionshipIndividualEventEntryMember {
+  id: string;
+  entry_id: string;
+  athlete_id: string | null;
+  athlete_name: string;
+  is_starter: boolean;
+  position: number;
+  created_at: string;
+  athlete?: ChampionshipAthlete | null;
+}
+
+export interface ChampionshipIndividualTeamStanding {
+  id: string;
+  championship_id: string;
+  season_year: number;
+  sport_id: string;
+  naipe: MatchNaipe;
+  division: TeamDivision | null;
+  team_id: string;
+  total_points: number;
+  scored_events_count: number;
+  first_places: number;
+  second_places: number;
+  third_places: number;
+  fourth_places: number;
+  fifth_places: number;
+  sixth_places: number;
+  seventh_places: number;
+  eighth_places: number;
+  ninth_places: number;
+  tenth_places: number;
+  eleventh_places: number;
+  twelfth_places: number;
+  thirteenth_places: number;
+  fourteenth_places: number;
+  fifteenth_places: number;
+  sixteenth_places: number;
+  seventeenth_places: number;
+  eighteenth_places: number;
+  nineteenth_places: number;
+  twentieth_places: number;
+  relay_points_total: number;
+  created_at: string;
+  updated_at: string;
+  teams?: Team | null;
+  sports?: Sport | null;
 }
 
 export interface Sport {
@@ -109,9 +317,13 @@ export interface Match {
   home_score: number;
   home_yellow_cards: number;
   home_red_cards: number;
+  home_blue_cards?: number;
+  home_two_minute_penalties?: number;
   away_score: number;
   away_yellow_cards: number;
   away_red_cards: number;
+  away_blue_cards?: number;
+  away_two_minute_penalties?: number;
   created_at: string;
   group_number?: number | null;
   // Joined
@@ -140,7 +352,32 @@ export interface Standing {
   points: number;
   yellow_cards: number;
   red_cards: number;
+  blue_cards?: number;
+  two_minute_penalties?: number;
   updated_at: string;
+  is_individual_sport?: boolean;
+  scored_events_count?: number;
+  first_places?: number;
+  second_places?: number;
+  third_places?: number;
+  fourth_places?: number;
+  fifth_places?: number;
+  sixth_places?: number;
+  seventh_places?: number;
+  eighth_places?: number;
+  ninth_places?: number;
+  tenth_places?: number;
+  eleventh_places?: number;
+  twelfth_places?: number;
+  thirteenth_places?: number;
+  fourteenth_places?: number;
+  fifteenth_places?: number;
+  sixteenth_places?: number;
+  seventeenth_places?: number;
+  eighteenth_places?: number;
+  nineteenth_places?: number;
+  twentieth_places?: number;
+  relay_points_total?: number;
   // Joined
   championships?: Championship;
   teams?: Team;
@@ -226,6 +463,7 @@ export interface CurrentUserAdminContext {
   tie_breaks_permission: AdminPanelPermissionLevel;
   standings_permission?: AdminPanelPermissionLevel;
   championship_schedule_permission?: AdminPanelPermissionLevel;
+  individual_events_permission?: AdminPanelPermissionLevel;
 }
 
 export interface PublicAccessSettings {

@@ -6,6 +6,7 @@ import { useOnlineVisitorsProviderContext } from "@/components/online-visitors/O
 import { AdminTeams } from "@/components/admin/AdminTeams";
 import { AdminSports } from "@/components/admin/AdminSports";
 import { AdminMatches } from "@/components/admin/AdminMatches";
+import { AdminIndividualEvents } from "@/components/admin/AdminIndividualEvents";
 import { AdminMatchesViewMode } from "@/components/admin/adminMatches.types";
 import { AdminMatchControl } from "@/components/admin/AdminMatchControl";
 import { AdminLeagueEvents } from "@/components/admin/AdminLeagueEvents";
@@ -17,10 +18,11 @@ import { AdminUsers } from "@/components/admin/AdminUsers";
 import { AdminStandings } from "@/components/admin/AdminStandings";
 import { AdminChampionshipBracketPage } from "@/components/admin/AdminChampionshipBracketPage";
 import { AdminChampionshipSchedule } from "@/components/admin/AdminChampionshipSchedule";
+import { useChampionshipSeasonRuntime } from "@/hooks/useChampionshipSeasonRuntime";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AdminPanelTab, BracketEditionStatus, ChampionshipCode, ChampionshipStatus, MatchStatus } from "@/lib/enums";
+import { AdminPanelTab, ChampionshipCode, ChampionshipStatus, MatchStatus } from "@/lib/enums";
 import type { MatchBracketContext } from "@/lib/championship";
 import type { AwardDrawPendingContext } from "@/hooks/usePendingAwardDraws";
 import { CHAMPIONSHIP_STATUS_LABELS } from "@/lib/championship";
@@ -34,6 +36,7 @@ interface AdminPageViewProps {
   matches: Match[];
   matchesTabMatches: Match[];
   teams: Team[];
+  allTeams: Team[];
   sports: Sport[];
   championshipSports: ChampionshipSport[];
   liveAndScheduledMatches: Match[];
@@ -59,6 +62,7 @@ interface AdminPageViewProps {
   canViewTeamsTab: boolean;
   canViewSportsTab: boolean;
   canViewEventsTab: boolean;
+  canViewIndividualEventsTab?: boolean;
   canViewLinksTab: boolean;
   canViewLogsTab: boolean;
   canViewUsersTab: boolean;
@@ -78,6 +82,7 @@ interface AdminPageViewProps {
   canManageTeams: boolean;
   canManageSports: boolean;
   canManageLeagueEvents: boolean;
+  canManageIndividualEvents?: boolean;
   canManageLinks: boolean;
   canManageUsers: boolean;
   canManageAccount: boolean;
@@ -93,6 +98,7 @@ interface AdminPageViewProps {
   onSignOut: () => void;
   onRefetchMatches: (options?: { showLoading?: boolean; showFetching?: boolean }) => void | Promise<void>;
   onRefetchChampionshipBracket: () => void;
+  onRefetchSports?: () => void | Promise<void>;
   onRefetchTeams: () => void;
   liveMatchesCount: number;
   pendingLeagueEventReservationsCount: number;
@@ -119,6 +125,7 @@ export function AdminPageView({
   matches,
   matchesTabMatches,
   teams,
+  allTeams,
   sports,
   championshipSports,
   liveAndScheduledMatches,
@@ -144,6 +151,7 @@ export function AdminPageView({
   canViewTeamsTab,
   canViewSportsTab,
   canViewEventsTab,
+  canViewIndividualEventsTab = false,
   canViewLinksTab,
   canViewLogsTab,
   canViewUsersTab,
@@ -163,6 +171,7 @@ export function AdminPageView({
   canManageTeams,
   canManageSports,
   canManageLeagueEvents,
+  canManageIndividualEvents = false,
   canManageLinks,
   canManageUsers,
   canManageAccount,
@@ -178,6 +187,7 @@ export function AdminPageView({
   onSignOut,
   onRefetchMatches,
   onRefetchChampionshipBracket,
+  onRefetchSports,
   onRefetchTeams,
   liveMatchesCount,
   pendingLeagueEventReservationsCount,
@@ -186,6 +196,11 @@ export function AdminPageView({
   loadingPendingAwardDraws = false,
   refetchPendingAwardDraws = () => {},
 }: AdminPageViewProps) {
+  const { usesDivisions: selectedChampionshipHasSeasonDivisions } = useChampionshipSeasonRuntime({
+    championship: selectedChampionship,
+    seasonYear: selectedChampionship.current_season_year ?? null,
+  });
+
   const totalSorteiosCount = pendingTieBreaksCount + pendingAwardDrawContexts.length;
   const pendingScoreSheetReviewCount = useMemo(() => {
     return matches.filter((match) => {
@@ -197,7 +212,13 @@ export function AdminPageView({
     const nextAdminTabItems: AdminTabItem[] = [];
 
     if (canViewControlTab) {
-      nextAdminTabItems.push({ value: AdminPanelTab.CONTROL, label: "Controle ao Vivo" });
+      nextAdminTabItems.push({
+        value: AdminPanelTab.CONTROL,
+        label:
+          selectedChampionship.status === ChampionshipStatus.REVIEW
+            ? "Controle de jogos"
+            : "Controle ao Vivo",
+      });
     }
 
     if (canViewMatchesTab) {
@@ -214,6 +235,10 @@ export function AdminPageView({
 
     if (canViewStandingsTab) {
       nextAdminTabItems.push({ value: AdminPanelTab.STANDINGS, label: "Classificação" });
+    }
+
+    if (canViewIndividualEventsTab) {
+      nextAdminTabItems.push({ value: AdminPanelTab.INDIVIDUAL_EVENTS, label: "Provas Individuais" });
     }
 
     if (canViewTeamsTab) {
@@ -253,7 +278,7 @@ export function AdminPageView({
     }
 
     if (canViewScheduleTab) {
-      nextAdminTabItems.push({ value: AdminPanelTab.CHAMPIONSHIP_SCHEDULE, label: "Agenda" });
+      nextAdminTabItems.push({ value: AdminPanelTab.CHAMPIONSHIP_SCHEDULE, label: "Reprogramar agenda" });
     }
 
     if (canViewSettingsTab) {
@@ -266,6 +291,7 @@ export function AdminPageView({
     canViewScheduleTab,
     canViewControlTab,
     canViewEventsTab,
+    canViewIndividualEventsTab,
     canViewLinksTab,
     canViewLogsTab,
     canViewMatchesTab,
@@ -277,6 +303,7 @@ export function AdminPageView({
     canViewSportsTab,
     canViewTeamsTab,
     canViewUsersTab,
+    selectedChampionship.status,
   ]);
 
   const championshipStatusOptions = useMemo(() => {
@@ -290,6 +317,7 @@ export function AdminPageView({
     return [
       ChampionshipStatus.PLANNING,
       ChampionshipStatus.UPCOMING,
+      ChampionshipStatus.REVIEW,
       ChampionshipStatus.IN_PROGRESS,
       ChampionshipStatus.FINISHED,
     ];
@@ -426,7 +454,7 @@ export function AdminPageView({
         </div>
 
         {canViewChampionshipStatus ? (
-          <div className="glass-panel enter-section flex flex-col gap-3 px-4 py-3">
+          <div className="glass-panel enter-section flex flex-row justify-between gap-3 px-4 py-3">
             <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
               <div className="space-y-1">
                 <span className="text-sm font-medium">Status do campeonato</span>
@@ -535,9 +563,12 @@ export function AdminPageView({
             <TabsContent value={AdminPanelTab.CHAMPIONSHIP_SCHEDULE}>
               <AdminChampionshipSchedule
                 bracketEditionId={championshipBracketView.edition.id}
+                championshipId={selectedChampionship.id}
+                seasonYear={selectedChampionship.current_season_year}
+                sports={sports}
                 canManageSchedule={canManageSchedule}
                 championshipStatus={selectedChampionship.status}
-                usesDivisions={selectedChampionship.uses_divisions}
+                usesDivisions={selectedChampionshipHasSeasonDivisions}
                 competitions={championshipBracketView.competitions}
                 onRefetchMatches={onRefetchMatches}
                 onRefetchChampionshipBracket={onRefetchChampionshipBracket}
@@ -566,6 +597,9 @@ export function AdminPageView({
                 onRefetch={onRefetchMatches}
                 onRefetchChampionshipBracket={onRefetchChampionshipBracket}
                 onOpenTieBreaksTab={() => onActiveTabChange(TIE_BREAKS_TAB_VALUE)}
+                onOpenIndividualEventsTab={() =>
+                  onActiveTabChange(AdminPanelTab.INDIVIDUAL_EVENTS)
+                }
               />
 	            </TabsContent>
 	          ) : null}
@@ -620,6 +654,8 @@ export function AdminPageView({
           {canViewControlTab ? (
             <TabsContent value={AdminPanelTab.CONTROL}>
               <AdminMatchControl
+                championshipId={selectedChampionship.id}
+                seasonYear={selectedChampionship.current_season_year}
                 matches={liveAndScheduledMatches}
                 championshipStatus={selectedChampionship.status}
                 championshipSports={championshipSports}
@@ -644,13 +680,26 @@ export function AdminPageView({
                 sports={sports}
                 championshipBracketView={championshipBracketView}
                 availableSeasonYears={availableMatchSeasonYears}
+                onRefetchTeams={onRefetchTeams}
+              />
+            </TabsContent>
+          ) : null}
+
+          {canViewIndividualEventsTab ? (
+            <TabsContent value={AdminPanelTab.INDIVIDUAL_EVENTS}>
+              <AdminIndividualEvents
+                selectedChampionship={selectedChampionship}
+                sports={sports}
+                teams={allTeams}
+                canManageIndividualEvents={canManageIndividualEvents}
+                usesDivisions={selectedChampionshipHasSeasonDivisions}
               />
             </TabsContent>
           ) : null}
 
           {canViewTeamsTab ? (
             <TabsContent value={AdminPanelTab.TEAMS}>
-              <AdminTeams teams={teams} onRefetch={onRefetchTeams} canManageTeams={canManageTeams} />
+              <AdminTeams teams={allTeams} onRefetch={onRefetchTeams} canManageTeams={canManageTeams} />
             </TabsContent>
           ) : null}
 
@@ -663,6 +712,7 @@ export function AdminPageView({
                 bracketEditionId={championshipBracketView.edition?.id ?? null}
                 canManageSports={canManageSports}
                 onRefetchMatches={onRefetchMatches}
+                onRefetchSports={onRefetchSports}
               />
             </TabsContent>
           ) : null}

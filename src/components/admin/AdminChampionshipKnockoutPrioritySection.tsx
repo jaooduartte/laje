@@ -11,15 +11,14 @@ import {
 } from "@/components/admin/adminKnockoutCourtPriority.utils";
 import {
   getBracketKnockoutCourtPriorities,
-  updateBracketKnockoutCourtPriorities,
 } from "@/domain/championship-brackets/championshipBracket.repository";
-import type { BracketKnockoutCourtPriorityGroup } from "@/domain/championship-brackets/championshipBracket.types";
+import type { BracketKnockoutCourtPriorityGroup, ChampionshipBracketReconfigurationRequest } from "@/domain/championship-brackets/championshipBracket.types";
 
 interface Props {
   bracketEditionId: string;
   isEditable: boolean;
   sportNameBySportId: Record<string, string>;
-  onSaved: () => void;
+  onRequestReconfiguration: (request: ChampionshipBracketReconfigurationRequest) => Promise<boolean>;
 }
 
 interface PriorityGroupDraft extends BracketKnockoutCourtPriorityGroup {
@@ -33,7 +32,7 @@ export function AdminChampionshipKnockoutPrioritySection({
   bracketEditionId,
   isEditable,
   sportNameBySportId,
-  onSaved,
+  onRequestReconfiguration,
 }: Props) {
   const [loading, setLoading] = useState(true);
   const [priorityGroups, setPriorityGroups] = useState<PriorityGroupDraft[]>([]);
@@ -117,7 +116,7 @@ export function AdminChampionshipKnockoutPrioritySection({
 
     updatePriorityGroup(groupKey, (currentGroup) => ({ ...currentGroup, saving: true }));
 
-    const { error } = await updateBracketKnockoutCourtPriorities(bracketEditionId, [
+    const priorityUpdates = [
       {
         sport_id: group.sport_id,
         phase: group.phase,
@@ -125,17 +124,18 @@ export function AdminChampionshipKnockoutPrioritySection({
         location_group_id: selectedLocationGroupId,
         court_group_id: selectedCourtGroupId,
       },
-    ]);
+    ];
+    const previewCreated = await onRequestReconfiguration({
+      action: "KNOCKOUT_COURT_PRIORITIES",
+      label: "Prioridade do mata-mata",
+      payload: { priority_updates: priorityUpdates },
+    });
 
-    if (error) {
-      toast.error(error.message);
+    if (!previewCreated) {
       updatePriorityGroup(groupKey, (currentGroup) => ({ ...currentGroup, saving: false }));
       return;
     }
 
-    toast.success("Prioridade do mata-mata atualizada.");
-    await loadPriorityGroups();
-    onSaved();
   }
 
   if (loading) {

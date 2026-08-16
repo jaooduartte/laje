@@ -30,11 +30,18 @@ function buildMatch(overrides: Partial<Match> = {}): Match {
     away_penalty_score: overrides.away_penalty_score ?? null,
     home_yellow_cards: overrides.home_yellow_cards ?? 0,
     home_red_cards: overrides.home_red_cards ?? 0,
+    home_blue_cards: overrides.home_blue_cards ?? 0,
+    home_two_minute_penalties: overrides.home_two_minute_penalties ?? 0,
     away_yellow_cards: overrides.away_yellow_cards ?? 0,
     away_red_cards: overrides.away_red_cards ?? 0,
+    away_blue_cards: overrides.away_blue_cards ?? 0,
+    away_two_minute_penalties: overrides.away_two_minute_penalties ?? 0,
     created_at: overrides.created_at ?? "2026-06-21T09:00:00.000Z",
     is_walkover: overrides.is_walkover ?? true,
-    disqualification_id: overrides.disqualification_id ?? "disqualification-1",
+    disqualification_id:
+      overrides.disqualification_id === undefined
+        ? "disqualification-1"
+        : overrides.disqualification_id,
     championships: overrides.championships ?? {
       id: "championship-1",
       code: ChampionshipCode.SOCIETY,
@@ -100,5 +107,48 @@ describe("MatchCard", () => {
     );
 
     expect(screen.getByText("Pênaltis: (4 × 3)")).toBeInTheDocument();
+  });
+
+  it("mostra cartões azuis por equipe nos cards de Handebol", () => {
+    render(
+      <MatchCard
+        match={buildMatch({
+          is_walkover: false,
+          disqualification_id: null,
+          sports: {
+            id: "sport-handball",
+            name: "Handebol",
+            created_at: "2026-01-01T00:00:00.000Z",
+          },
+          home_blue_cards: 1,
+          away_blue_cards: 2,
+          home_two_minute_penalties: 3,
+          away_two_minute_penalties: 2,
+        })}
+      />,
+    );
+
+    expect(screen.getByLabelText("Cartões azuis: 1")).toBeInTheDocument();
+    expect(screen.getByLabelText("Cartões azuis: 2")).toBeInTheDocument();
+    expect(screen.queryByText(/CAZ:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/2M:/)).not.toBeInTheDocument();
+  });
+
+  it("oculta cartões azuis sem ocorrência nos cards de Handebol", () => {
+    render(
+      <MatchCard
+        match={buildMatch({
+          is_walkover: false,
+          disqualification_id: null,
+          sports: {
+            id: "sport-handball",
+            name: "Handebol",
+            created_at: "2026-01-01T00:00:00.000Z",
+          },
+        })}
+      />,
+    );
+
+    expect(screen.queryByLabelText("Cartões azuis: 0")).not.toBeInTheDocument();
   });
 });

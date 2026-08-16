@@ -60,6 +60,7 @@ const ADMIN_SYSTEM_PROFILE_NAME = "admin";
 const ADMIN_TAB_LABELS: Record<AdminPanelTab, string> = {
   [AdminPanelTab.MATCHES]: "Jogos",
   [AdminPanelTab.CONTROL]: "Controle ao Vivo",
+  [AdminPanelTab.INDIVIDUAL_EVENTS]: "Provas Individuais",
   [AdminPanelTab.TEAMS]: "Atléticas",
   [AdminPanelTab.SPORTS]: "Modalidades",
   [AdminPanelTab.EVENTS]: "Eventos da Liga",
@@ -86,6 +87,7 @@ const ADMIN_PANEL_TAB_ORDER: AdminPanelTab[] = [
   AdminPanelTab.SCORE_SHEET_REVIEW,
   AdminPanelTab.TIE_BREAKS,
   AdminPanelTab.CONTROL,
+  AdminPanelTab.INDIVIDUAL_EVENTS,
   AdminPanelTab.STANDINGS,
   AdminPanelTab.TEAMS,
   AdminPanelTab.SPORTS,
@@ -177,6 +179,7 @@ function resolveDefaultPermissions(): AdminTabPermissionByTab {
   return {
     [AdminPanelTab.MATCHES]: AdminPanelPermissionLevel.NONE,
     [AdminPanelTab.CONTROL]: AdminPanelPermissionLevel.NONE,
+    [AdminPanelTab.INDIVIDUAL_EVENTS]: AdminPanelPermissionLevel.NONE,
     [AdminPanelTab.TEAMS]: AdminPanelPermissionLevel.NONE,
     [AdminPanelTab.SPORTS]: AdminPanelPermissionLevel.NONE,
     [AdminPanelTab.EVENTS]: AdminPanelPermissionLevel.NONE,

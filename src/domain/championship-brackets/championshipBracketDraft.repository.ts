@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { ChampionshipBracketWizardDraftDTO } from "@/domain/championship-brackets/ChampionshipBracketWizardDraftDTO";
 import type {
   ChampionshipBracketRemoteDraftMetadata,
@@ -137,7 +138,7 @@ export async function saveChampionshipBracketWizardDraft(
   const dto = ChampionshipBracketWizardDraftDTO.fromFormValues(draft_form_values);
   const remoteResponse = await supabase.rpc("save_championship_bracket_draft", {
     _championship_id: championship_id,
-    _payload: dto.bindToSave(),
+    _payload: dto.bindToSave() as unknown as Json,
   });
 
   if (remoteResponse.error) {

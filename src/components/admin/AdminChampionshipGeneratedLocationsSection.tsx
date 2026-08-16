@@ -6,14 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   getBracketGeneratedLocationGroups,
-  updateBracketGeneratedLocationGroup,
 } from "@/domain/championship-brackets/championshipBracket.repository";
-import type { BracketGeneratedLocationGroup } from "@/domain/championship-brackets/championshipBracket.types";
+import type { BracketGeneratedLocationGroup, ChampionshipBracketReconfigurationRequest } from "@/domain/championship-brackets/championshipBracket.types";
 
 interface Props {
   bracketEditionId: string;
   isEditable: boolean;
-  onSaved: () => void;
+  onRequestReconfiguration: (request: ChampionshipBracketReconfigurationRequest) => Promise<boolean>;
 }
 
 interface LocationGroupDraft extends BracketGeneratedLocationGroup {
@@ -23,7 +22,7 @@ interface LocationGroupDraft extends BracketGeneratedLocationGroup {
 export function AdminChampionshipGeneratedLocationsSection({
   bracketEditionId,
   isEditable,
-  onSaved,
+  onRequestReconfiguration,
 }: Props) {
   const [loading, setLoading] = useState(true);
   const [locationGroups, setLocationGroups] = useState<LocationGroupDraft[]>([]);
@@ -97,24 +96,25 @@ export function AdminChampionshipGeneratedLocationsSection({
   async function saveLocationGroup(group: LocationGroupDraft) {
     updateLocationGroup(group.location_group_id, (currentGroup) => ({ ...currentGroup, saving: true }));
 
-    const { error } = await updateBracketGeneratedLocationGroup(bracketEditionId, {
+    const payload = {
       location_group_id: group.location_group_id,
       location_name: group.location_name,
       courts: group.courts.map((court) => ({
         court_group_id: court.court_group_id,
         court_name: court.court_name,
       })),
+    };
+    const previewCreated = await onRequestReconfiguration({
+      action: "LOCATION_GROUP",
+      label: `Local ${group.location_name}`,
+      payload,
     });
 
-    if (error) {
-      toast.error(error.message);
+    if (!previewCreated) {
       updateLocationGroup(group.location_group_id, (currentGroup) => ({ ...currentGroup, saving: false }));
       return;
     }
 
-    toast.success(`Local atualizado: ${group.location_name}.`);
-    await loadLocationGroups();
-    onSaved();
   }
 
   if (loading) {

@@ -45,7 +45,7 @@ export function LeagueCalendarPage() {
   const [monthDate, setMonthDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const { leagueEvents, loading } = useLeagueEvents({ monthDate });
-  const { teams } = useTeams();
+  const { teams } = useTeams({ includeInactive: true });
   const [athleticFilter, setAthleticFilter] = useState<string>(ALL_ATHLETICS_FILTER);
   const [eventTypeFilter, setEventTypeFilter] = useState<string>(ALL_EVENT_TYPES_FILTER);
   const [holidayFilter, setHolidayFilter] = useState<HolidayFilterMode>(HOLIDAY_FILTER_ALL);

@@ -5,15 +5,11 @@ import { BracketThirdPlaceMode, MatchNaipe, TeamDivision } from "@/lib/enums";
 import type { ChampionshipBracketCompetition } from "@/lib/types";
 
 const mocks = vi.hoisted(() => ({
-  updateBracketCompetitionSettings: vi.fn(),
+  onRequestReconfiguration: vi.fn(),
   toast: {
     error: vi.fn(),
     success: vi.fn(),
   },
-}));
-
-vi.mock("@/domain/championship-brackets/championshipBracket.repository", () => ({
-  updateBracketCompetitionSettings: mocks.updateBracketCompetitionSettings,
 }));
 
 vi.mock("sonner", () => ({
@@ -42,51 +38,19 @@ function buildCompetition(
 
 describe("AdminChampionshipQualificationSection", () => {
   beforeEach(() => {
-    mocks.updateBracketCompetitionSettings.mockReset();
+    mocks.onRequestReconfiguration.mockReset();
     mocks.toast.error.mockReset();
     mocks.toast.success.mockReset();
   });
 
-  it("habilita o cruzamento especial apenas no recorte elegível", () => {
-    render(
-      <AdminChampionshipQualificationSection
-        competitions={[
-          buildCompetition({
-            id: "competition-eligible",
-            sport_id: "sport-society",
-            sport_name: "Futebol Society",
-            naipe: MatchNaipe.FEMININO,
-            division: TeamDivision.DIVISAO_ACESSO,
-          }),
-          buildCompetition({
-            id: "competition-ineligible",
-            sport_id: "sport-society",
-            sport_name: "Futebol Society",
-            naipe: MatchNaipe.MASCULINO,
-            division: TeamDivision.DIVISAO_ACESSO,
-          }),
-        ]}
-        isEditable
-        onSaved={vi.fn()}
-      />,
-    );
-
-    const crossGroupRadios = screen.getAllByRole("radio", { name: /Cruzar 2 chaves/i });
-
-    expect(crossGroupRadios).toHaveLength(2);
-    expect(crossGroupRadios[0]).toBeEnabled();
-    expect(crossGroupRadios[1]).toBeDisabled();
-  });
-
-  it("preserva o modo legado ao salvar apenas a classificação", async () => {
-    mocks.updateBracketCompetitionSettings.mockResolvedValue({ error: null });
-    const onSaved = vi.fn();
+  it("solicita a prévia da classificação usando LINEAR", async () => {
+    mocks.onRequestReconfiguration.mockResolvedValue(true);
 
     render(
       <AdminChampionshipQualificationSection
         competitions={[
           buildCompetition({
-            id: "competition-legacy",
+            id: "competition-1",
             sport_id: "sport-beach-soccer",
             sport_name: "Beach Soccer",
             naipe: MatchNaipe.FEMININO,
@@ -96,26 +60,30 @@ describe("AdminChampionshipQualificationSection", () => {
           }),
         ]}
         isEditable
-        onSaved={onSaved}
+        onRequestReconfiguration={mocks.onRequestReconfiguration}
       />,
     );
 
+    expect(screen.queryByText("Tipo de cruzamento")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Salvar classificação e cruzamento" }),
+    ).not.toBeInTheDocument();
+
     fireEvent.click(screen.getByRole("radio", { name: /1º e 2º por grupo/i }));
-    fireEvent.click(screen.getByRole("button", { name: "Salvar classificação e cruzamento" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salvar classificação" }));
 
     await waitFor(() => {
-      expect(mocks.updateBracketCompetitionSettings).toHaveBeenCalledWith(
-        "competition-legacy",
-        2,
-        false,
-        "BEACH_SOCCER_FEM_DIRECT_SEMI",
-      );
+      expect(mocks.onRequestReconfiguration).toHaveBeenCalledWith(expect.objectContaining({
+        action: "COMPETITION_SETTINGS",
+        payload: expect.objectContaining({
+          competition_id: "competition-1",
+          qualifiers_per_group: 2,
+          should_complete_knockout_with_best_second_placed_teams: false,
+          knockout_pairing_mode: "LINEAR",
+        }),
+      }));
     });
 
-    expect(onSaved).toHaveBeenCalled();
-    expect(mocks.toast.success).toHaveBeenCalledWith(
-      "Configuração de classificação e cruzamento atualizada.",
-    );
   });
 
   it("bloqueia edição quando o mata-mata já foi gerado", () => {
@@ -154,13 +122,13 @@ describe("AdminChampionshipQualificationSection", () => {
           }),
         ]}
         isEditable
-        onSaved={vi.fn()}
+        onRequestReconfiguration={mocks.onRequestReconfiguration}
       />,
     );
 
     expect(screen.getByText("Mata-mata já gerado")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Salvar classificação e cruzamento" }),
+      screen.queryByRole("button", { name: "Salvar classificação" }),
     ).not.toBeInTheDocument();
   });
 });

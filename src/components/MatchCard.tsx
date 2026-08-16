@@ -21,6 +21,7 @@ import {
   resolveMatchStatusBadgeTone,
   resolveMatchTieBreakRuleLabel,
 } from "@/lib/championship";
+import { resolveSportCode } from "@/lib/modalidadeConfig";
 
 interface Props {
   match: Match;
@@ -40,6 +41,22 @@ function RedCardIndicator({ quantity }: { quantity: number }) {
   return (
     <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-700 dark:text-rose-400">
       <Square className="h-2.5 w-2.5 fill-rose-600 text-rose-600 dark:fill-rose-500 dark:text-rose-500" />
+      {quantity}
+    </span>
+  );
+}
+
+function BlueCardIndicator({ quantity }: { quantity: number }) {
+  if (quantity <= 0) {
+    return null;
+  }
+
+  return (
+    <span
+      aria-label={`Cartões azuis: ${quantity}`}
+      className="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-700 dark:text-sky-300"
+    >
+      <Square className="h-2.5 w-2.5 fill-sky-500 text-sky-500 dark:fill-sky-400 dark:text-sky-400" />
       {quantity}
     </span>
   );
@@ -100,6 +117,7 @@ export function MatchCard({
       : isSetMatch && match.status == MatchStatus.LIVE
         ? liveSetAwayScore
         : match.away_score;
+  const isHandballMatch = resolveSportCode(match.sports?.name ?? "") == "HANDEBOL";
 
   return (
     <div className={matchCardClassName}>
@@ -146,6 +164,7 @@ export function MatchCard({
             <p className="inline-flex items-center gap-1 font-display text-sm font-semibold">
               {match.home_team?.name}
               {match.status != MatchStatus.SCHEDULED ? <RedCardIndicator quantity={match.home_red_cards} /> : null}
+              {isHandballMatch ? <BlueCardIndicator quantity={match.home_blue_cards ?? 0} /> : null}
             </p>
           </div>
           <div className="mx-4 text-center">
@@ -161,6 +180,7 @@ export function MatchCard({
             <p className="inline-flex items-center gap-1 font-display text-sm font-semibold">
               {match.away_team?.name}
               {match.status != MatchStatus.SCHEDULED ? <RedCardIndicator quantity={match.away_red_cards} /> : null}
+              {isHandballMatch ? <BlueCardIndicator quantity={match.away_blue_cards ?? 0} /> : null}
             </p>
           </div>
         </div>

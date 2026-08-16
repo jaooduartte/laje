@@ -6,14 +6,15 @@ const APP_BADGE_TONE_CLASS_NAMES: Record<AppBadgeTone, string> = {
   [AppBadgeTone.NEUTRAL]: "border-transparent bg-secondary text-secondary-foreground dark:bg-slate-950 dark:text-slate-100",
   [AppBadgeTone.PRIMARY]: "border-transparent bg-primary/10 text-primary dark:bg-primary/50 dark:text-primary-foreground",
   [AppBadgeTone.RED]: "border-transparent bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-100",
-  [AppBadgeTone.AMBER]: "border-transparent bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-100",
+  [AppBadgeTone.AMBER]:
+    "border-transparent bg-amber-100 text-amber-800 dark:bg-amber-400/15 dark:text-amber-200",
   [AppBadgeTone.EMERALD]:
     "border-transparent bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-100",
   [AppBadgeTone.SKY]: "border-transparent bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-100",
   [AppBadgeTone.BLUE]: "border-transparent bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-100",
   [AppBadgeTone.GOLD]: "border-transparent bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-100",
   [AppBadgeTone.SILVER]:
-    "border-transparent bg-slate-200 text-slate-700 dark:bg-[hsl(0_0%_100%/0.14)] dark:text-slate-100",
+    "border-transparent bg-slate-200 text-slate-700 dark:bg-slate-700/70 dark:text-slate-50",
   [AppBadgeTone.BRONZE]: "border-transparent bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-100",
 };
 

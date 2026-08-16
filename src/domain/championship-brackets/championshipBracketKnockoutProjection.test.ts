@@ -46,6 +46,29 @@ describe("resolveChampionshipBracketKnockoutProjection", () => {
     expect(projection.best_second_placed_team_count).toBe(4);
     expect(projection.uses_best_second_placed_teams).toBe(true);
   });
+
+  it("completa a chave de dois classificados por grupo com melhores 3º", () => {
+    const input = {
+      groups_count: 3,
+      qualifiers_per_group: 2,
+      should_complete_knockout_with_best_second_placed_teams: false,
+    };
+
+    expect(resolveChampionshipBracketKnockoutProjection(input)).toMatchObject({
+      direct_qualified_team_count: 6,
+      projected_bracket_size: 8,
+      best_second_placed_team_count: 0,
+      best_third_placed_team_count: 2,
+      uses_best_third_placed_teams: true,
+      total_qualified_team_count: 8,
+    });
+    expect(resolveChampionshipBracketSeedPlaceholderLabels(input)).toContain(
+      "1º melhor 3º",
+    );
+    expect(resolveChampionshipBracketSeedPlaceholderLabels(input)).toContain(
+      "2º melhor 3º",
+    );
+  });
 });
 
 describe("resolveStandardBalancedBracketSeedOrder", () => {
@@ -76,6 +99,52 @@ describe("resolveStandardBalancedBracketSeedOrder", () => {
 });
 
 describe("resolveChampionshipBracketFirstRoundSeedIndexes", () => {
+    it("respeita o pareamento RANKING_ALTERNATING na chave de 8", () => {
+    expect(
+      resolveChampionshipBracketFirstRoundSeedIndexes(
+        8,
+        1,
+        "RANKING_ALTERNATING",
+      ),
+    ).toEqual({
+      home_seed_index: 0,
+      away_seed_index: 7,
+    });
+
+    expect(
+      resolveChampionshipBracketFirstRoundSeedIndexes(
+        8,
+        2,
+        "RANKING_ALTERNATING",
+      ),
+    ).toEqual({
+      home_seed_index: 2,
+      away_seed_index: 5,
+    });
+
+    expect(
+      resolveChampionshipBracketFirstRoundSeedIndexes(
+        8,
+        3,
+        "RANKING_ALTERNATING",
+      ),
+    ).toEqual({
+      home_seed_index: 1,
+      away_seed_index: 6,
+    });
+
+    expect(
+      resolveChampionshipBracketFirstRoundSeedIndexes(
+        8,
+        4,
+        "RANKING_ALTERNATING",
+      ),
+    ).toEqual({
+      home_seed_index: 3,
+      away_seed_index: 4,
+    });
+  });
+  
   it("pairs 1 vs 4 and 2 vs 3 in a 4-team bracket", () => {
     expect(resolveChampionshipBracketFirstRoundSeedIndexes(4, 1)).toEqual({
       home_seed_index: 0,
@@ -116,28 +185,41 @@ describe("resolveChampionshipBracketFirstRoundSeedIndexes", () => {
 });
 
 describe("resolveBracketPairingByMode", () => {
-  it("LINEAR produz seeding padrão para chave de 8", () => {
-    expect(resolveBracketPairingByMode("LINEAR", 8)).toEqual([1, 8, 2, 7, 3, 6, 4, 5]);
+  it("produz pareamento LINEAR para chave de 8", () => {
+    expect(resolveBracketPairingByMode("LINEAR", 8)).toEqual([
+      1, 8, 2, 7, 3, 6, 4, 5,
+    ]);
   });
 
-  it("FUTEVOLEI_FEM_INVERTED produz o mesmo seeding linear para chave de 8", () => {
-    // O cruzamento invertido emerge naturalmente da ordem [1ºA,1ºB,1ºC,1ºD,2ºA,2ºB,2ºC,2ºD]
-    // com seeding linear: 1ºA×2ºD, 1ºB×2ºC, 1ºC×2ºB, 1ºD×2ºA
-    expect(resolveBracketPairingByMode("FUTEVOLEI_FEM_INVERTED", 8)).toEqual([1, 8, 2, 7, 3, 6, 4, 5]);
+  it("produz pareamento RANKING_ALTERNATING para chave de 8", () => {
+    expect(resolveBracketPairingByMode("RANKING_ALTERNATING", 8)).toEqual([
+      1, 8, 3, 6, 2, 7, 4, 5,
+    ]);
   });
 
-  it("BEACH_SOCCER_FEM_DIRECT_SEMI produz seeding linear para chave de 4 (semis diretas)", () => {
-    // 2 grupos × 2 classificados = 4 times → [1ºA,1ºB,2ºA,2ºB]
-    // Seeding [1,4,2,3]: slot1=1ºA×2ºB, slot2=1ºB×2ºA
-    expect(resolveBracketPairingByMode("BEACH_SOCCER_FEM_DIRECT_SEMI", 4)).toEqual([1, 4, 2, 3]);
-  });
-
-  it("FUTEBOL_SOCIETY_FEM_ACCESS_CROSS_GROUPS mantém o seeding linear da chave", () => {
-    expect(resolveBracketPairingByMode("FUTEBOL_SOCIETY_FEM_ACCESS_CROSS_GROUPS", 4)).toEqual([1, 4, 2, 3]);
+  it("produz pareamento CLASSIC_SEEDED para chave de 8", () => {
+    expect(resolveBracketPairingByMode("CLASSIC_SEEDED", 8)).toEqual([
+      1, 8, 4, 5, 2, 7, 3, 6,
+    ]);
   });
 });
 
 describe("resolveChampionshipBracketSeedPlaceholderLabels", () => {
+    it("ranqueia os primeiros colocados entre os grupos no modo de apenas primeiros", () => {
+    const labels = resolveChampionshipBracketSeedPlaceholderLabels({
+      groups_count: 4,
+      qualifiers_per_group: 1,
+      should_complete_knockout_with_best_second_placed_teams: false,
+    });
+
+    expect(labels).toEqual([
+      "1º melhor 1º",
+      "2º melhor 1º",
+      "3º melhor 1º",
+      "4º melhor 1º",
+    ]);
+  });
+
   it("gera rótulos corretos para 2 grupos × 2 classificados (Beach Soccer Fem / semis diretas)", () => {
     const labels = resolveChampionshipBracketSeedPlaceholderLabels({
       groups_count: 2,
@@ -200,9 +282,21 @@ describe("resolveChampionshipBracketSeedPlaceholderLabels", () => {
       away: labels[seedOrder[i * 2 + 1]! - 1],
     }));
 
-    expect(matchups[0]).toEqual({ home: "1º do Grupo A", away: "2º do Grupo D" });
-    expect(matchups[1]).toEqual({ home: "1º do Grupo B", away: "2º do Grupo C" });
-    expect(matchups[2]).toEqual({ home: "1º do Grupo C", away: "2º do Grupo B" });
-    expect(matchups[3]).toEqual({ home: "1º do Grupo D", away: "2º do Grupo A" });
+    expect(matchups[0]).toEqual({
+      home: "1º do Grupo A",
+      away: "2º do Grupo D",
+    });
+    expect(matchups[1]).toEqual({
+      home: "1º do Grupo B",
+      away: "2º do Grupo C",
+    });
+    expect(matchups[2]).toEqual({
+      home: "1º do Grupo C",
+      away: "2º do Grupo B",
+    });
+    expect(matchups[3]).toEqual({
+      home: "1º do Grupo D",
+      away: "2º do Grupo A",
+    });
   });
 });

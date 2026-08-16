@@ -6,6 +6,8 @@ import type { Championship, ChampionshipSport, Sport } from "@/lib/types";
 import {
   ChampionshipCode,
 } from "@/lib/enums";
+import { resolveNormalizedSportName } from "@/lib/championship";
+import { resolveChampionshipSportSupportsAwards } from "@/lib/championshipAwards";
 import {
   CHAMPIONSHIP_SPORT_RESULT_RULE_LABELS,
   CHAMPIONSHIP_SPORT_NAIPE_MODE_LABELS,
@@ -22,14 +24,7 @@ interface Props {
   bracketEditionId?: string | null;
   canManageSports?: boolean;
   onRefetchMatches?: (options?: { showLoading?: boolean; showFetching?: boolean }) => void | Promise<void>;
-}
-
-function normalizeSportName(sportName: string): string {
-  return sportName
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
+  onRefetchSports?: () => void | Promise<void>;
 }
 
 function normalizePositiveIntegerDraftValue(value: string): number | null {
@@ -55,6 +50,7 @@ export function AdminSports({
   bracketEditionId = null,
   canManageSports = true,
   onRefetchMatches,
+  onRefetchSports,
 }: Props) {
   const [savingSportIdById, setSavingSportIdById] = useState<Record<string, boolean>>({});
   const [optimisticEstimatedStartTimeBySportId, setOptimisticEstimatedStartTimeBySportId] = useState<
@@ -63,6 +59,9 @@ export function AdminSports({
   const [optimisticDurationBySportId, setOptimisticDurationBySportId] = useState<Record<string, number | undefined>>(
     {},
   );
+  const [optimisticWalkoverWinnerPointsBySportId, setOptimisticWalkoverWinnerPointsBySportId] = useState<
+    Record<string, number | null | undefined>
+  >({});
   const [walkoverDraftBySportId, setWalkoverDraftBySportId] = useState<Record<string, string>>({});
   const [durationDraftBySportId, setDurationDraftBySportId] = useState<Record<string, string>>({});
   const [optimisticAwardsIncludeKnockoutBySportId, setOptimisticAwardsIncludeKnockoutBySportId] = useState<
@@ -76,7 +75,7 @@ export function AdminSports({
     const map = new Map<string, Sport>();
 
     sports.forEach((sport) => {
-      map.set(normalizeSportName(sport.name), sport);
+      map.set(resolveNormalizedSportName(sport.name), sport);
     });
 
     return map;
@@ -124,6 +123,15 @@ export function AdminSports({
     );
 
     setWalkoverDraftBySportId(nextWalkoverDraftBySportId);
+
+    const nextOptimisticWalkoverWinnerPointsBySportId = championshipSports.reduce<
+      Record<string, number | null | undefined>
+    >((carry, championshipSport) => {
+      carry[championshipSport.sport_id] = championshipSport.walkover_winner_points ?? null;
+      return carry;
+    }, {});
+
+    setOptimisticWalkoverWinnerPointsBySportId(nextOptimisticWalkoverWinnerPointsBySportId);
 
     const nextDurationDraftBySportId = sports.reduce<Record<string, string>>((carry, sport) => {
       carry[sport.id] =
@@ -249,6 +257,15 @@ export function AdminSports({
       return;
     }
 
+    setOptimisticWalkoverWinnerPointsBySportId((current) => ({
+      ...current,
+      [sportId]: parsedValue,
+    }));
+    setWalkoverDraftBySportId((current) => ({
+      ...current,
+      [sportId]: parsedValue != null ? String(parsedValue) : "",
+    }));
+
     toast.success(parsedValue != null ? "Pontuação de W.O. atualizada." : "W.O. desabilitado para esta modalidade.");
   };
 
@@ -292,7 +309,6 @@ export function AdminSports({
       }
     }
 
-    setSavingSportIdById((current) => ({ ...current, [savingKey]: false }));
     setOptimisticDurationBySportId((current) => ({
       ...current,
       [sport.id]: parsedValue,
@@ -302,7 +318,12 @@ export function AdminSports({
       [sport.id]: String(parsedValue),
     }));
 
-    await onRefetchMatches?.({ showFetching: true });
+    await Promise.all([
+      onRefetchSports?.(),
+      onRefetchMatches?.({ showFetching: true }),
+    ]);
+
+    setSavingSportIdById((current) => ({ ...current, [savingKey]: false }));
 
     toast.success(
       bracketEditionId
@@ -404,9 +425,12 @@ export function AdminSports({
 
         <div className="space-y-2">
           {championshipPlatformSportRules.map((platformSportRule) => {
-            const sport = sportsByNormalizedName.get(normalizeSportName(platformSportRule.sportName));
+            const sport = sportsByNormalizedName.get(resolveNormalizedSportName(platformSportRule.sportName));
             const championshipSport = sport ? championshipSportBySportId.get(sport.id) : undefined;
-            const isLinkedToChampionship = !!championshipSport;
+            const supportsAwards = resolveChampionshipSportSupportsAwards(
+              selectedChampionship.code,
+              platformSportRule.sportName,
+            );
 
             const resolvedNaipeMode = championshipSport?.naipe_mode ?? platformSportRule.naipeMode;
             const resolvedPointsWin = championshipSport?.points_win ?? platformSportRule.pointsWin;
@@ -414,6 +438,9 @@ export function AdminSports({
             const resolvedPointsLoss = championshipSport?.points_loss ?? platformSportRule.pointsLoss;
             const resolvedSupportsCards = championshipSport?.supports_cards ?? platformSportRule.supportsCards;
             const resolvedResultRule = championshipSport?.result_rule ?? platformSportRule.resultRule;
+            const isIndividualSport =
+              resolveNormalizedSportName(platformSportRule.sportName) == "atletismo" ||
+              resolveNormalizedSportName(platformSportRule.sportName) == "natacao";
             const resolvedDefaultMatchDurationMinutes =
               optimisticDurationBySportId[sport?.id ?? ""] ??
               sport?.default_match_duration_minutes ??
@@ -433,7 +460,10 @@ export function AdminSports({
               normalizedDraftDurationValue !== resolvedDefaultMatchDurationMinutes;
             const draftWalkoverValue = sport ? (walkoverDraftBySportId[sport.id] ?? "") : "";
             const normalizedDraftWalkoverValue = normalizePositiveIntegerDraftValue(draftWalkoverValue);
-            const currentWalkoverWinnerPoints = championshipSport?.walkover_winner_points ?? null;
+            const currentWalkoverWinnerPoints =
+              optimisticWalkoverWinnerPointsBySportId[sport?.id ?? ""] ??
+              championshipSport?.walkover_winner_points ??
+              null;
             const hasWalkoverChanges =
               !!sport &&
               !!championshipSport &&
@@ -457,7 +487,11 @@ export function AdminSports({
                 </div>
 
                 <p className="text-xs font-medium text-muted-foreground">
-                  {isLinkedToChampionship ? "Vinculada ao campeonato selecionado." : "Não vinculada ao campeonato selecionado."}
+                  {championshipSport
+                    ? "Vinculada ao campeonato selecionado."
+                    : sport
+                      ? "Disponível na plataforma, mas ainda não vinculada ao campeonato selecionado."
+                      : "Modalidade oficial ainda não cadastrada na plataforma."}
                 </p>
 
                 <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
@@ -482,45 +516,47 @@ export function AdminSports({
                   </div>
                 </div>
 
-                <div className="app-card-muted space-y-2 px-3 py-2">
-                  <p className="text-xs font-medium text-muted-foreground">Duração padrão da partida</p>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      min={1}
-                      placeholder="Minutos"
-                      className="h-8 w-32 text-sm"
-                      disabled={!canManageSports || !sport || isSavingSport}
-                      value={sport ? (durationDraftBySportId[sport.id] ?? "") : ""}
-                      onChange={(e) => {
-                        if (!sport) return;
-                        setDurationDraftBySportId((current) => ({
-                          ...current,
-                          [sport.id]: e.target.value,
-                        }));
-                      }}
-                    />
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      disabled={!canManageSports || !sport || isSavingSport || !hasDurationChanges}
-                      onClick={() => {
-                        if (!sport) return;
-                        void handleSaveDefaultMatchDuration(sport, championshipSport);
-                      }}
-                    >
-                      {isSavingSport ? "Salvando…" : "Salvar"}
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Ao salvar, a agenda da edição atual é redistribuída com a nova duração da modalidade.
-                  </p>
-                  {!sport ? (
+                {!isIndividualSport ? (
+                  <div className="app-card-muted space-y-2 px-3 py-2">
+                    <p className="text-xs font-medium text-muted-foreground">Duração padrão da partida</p>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={1}
+                        placeholder="Minutos"
+                        className="h-8 w-32 text-sm"
+                        disabled={!canManageSports || !sport || isSavingSport}
+                        value={sport ? (durationDraftBySportId[sport.id] ?? "") : ""}
+                        onChange={(e) => {
+                          if (!sport) return;
+                          setDurationDraftBySportId((current) => ({
+                            ...current,
+                            [sport.id]: e.target.value,
+                          }));
+                        }}
+                      />
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={!canManageSports || !sport || isSavingSport || !hasDurationChanges}
+                        onClick={() => {
+                          if (!sport) return;
+                          void handleSaveDefaultMatchDuration(sport, championshipSport);
+                        }}
+                      >
+                        {isSavingSport ? "Salvando…" : "Salvar"}
+                      </Button>
+                    </div>
                     <p className="text-xs text-muted-foreground">
-                      A modalidade precisa existir no banco para editar esta configuração.
+                      Ao salvar, a agenda da edição atual é redistribuída com a nova duração da modalidade.
                     </p>
-                  ) : null}
-                </div>
+                    {!sport ? (
+                      <p className="text-xs text-muted-foreground">
+                        A modalidade precisa existir no banco para editar esta configuração.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 <div className="app-card-muted px-3 py-2">
                   <p className="text-xs font-medium text-muted-foreground">Critérios de desempate (ordem de prioridade)</p>
@@ -581,152 +617,158 @@ export function AdminSports({
                   ) : null}
                 </div>
 
-                <div className="app-card-muted space-y-2 px-3 py-2">
-                  <p className="text-xs font-medium text-muted-foreground">Pontuação máxima (W.O.)</p>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      min={1}
-                      placeholder="Desabilitado"
-                      className="h-8 w-32 text-sm"
-                      disabled={!canManageSports || !championshipSport || isSavingSport}
-                      value={sport ? (walkoverDraftBySportId[sport.id] ?? "") : ""}
-                      onChange={(e) => {
-                        if (!sport) return;
-                        setWalkoverDraftBySportId((current) => ({
-                          ...current,
-                          [sport.id]: e.target.value,
-                        }));
-                      }}
-                    />
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      disabled={!canManageSports || !championshipSport || isSavingSport || !hasWalkoverChanges}
-                      onClick={() => {
-                        if (!championshipSport || !sport) return;
-                        void handleSaveWalkoverWinnerPoints(championshipSport, sport.id);
-                      }}
-                    >
-                      {isSavingSport ? "Salvando…" : "Salvar"}
-                    </Button>
+                {!isIndividualSport ? (
+                  <div className="app-card-muted space-y-2 px-3 py-2">
+                    <p className="text-xs font-medium text-muted-foreground">Pontuação máxima (W.O.)</p>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={1}
+                        placeholder="Desabilitado"
+                        className="h-8 w-32 text-sm"
+                        disabled={!canManageSports || !championshipSport || isSavingSport}
+                        value={sport ? (walkoverDraftBySportId[sport.id] ?? "") : ""}
+                        onChange={(e) => {
+                          if (!sport) return;
+                          setWalkoverDraftBySportId((current) => ({
+                            ...current,
+                            [sport.id]: e.target.value,
+                          }));
+                        }}
+                      />
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={!canManageSports || !championshipSport || isSavingSport || !hasWalkoverChanges}
+                        onClick={() => {
+                          if (!championshipSport || !sport) return;
+                          void handleSaveWalkoverWinnerPoints(championshipSport, sport.id);
+                        }}
+                      >
+                        {isSavingSport ? "Salvando…" : "Salvar"}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {sport && walkoverDraftBySportId[sport.id]
+                        ? `Vencedor recebe ${walkoverDraftBySportId[sport.id]} ponto(s) em caso de W.O.`
+                        : "W.O. desabilitado — deixe o campo vazio para desabilitar."}
+                    </p>
+                    {!championshipSport ? (
+                      <p className="text-xs text-muted-foreground">
+                        Vincule a modalidade ao campeonato para editar esta configuração.
+                      </p>
+                    ) : null}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {sport && walkoverDraftBySportId[sport.id]
-                      ? `Vencedor recebe ${walkoverDraftBySportId[sport.id]} ponto(s) em caso de W.O.`
-                      : "W.O. desabilitado — deixe o campo vazio para desabilitar."}
-                  </p>
-                  {!championshipSport ? (
-                    <p className="text-xs text-muted-foreground">
-                      Vincule a modalidade ao campeonato para editar esta configuração.
-                    </p>
-                  ) : null}
-                </div>
+                ) : null}
 
-                <div className="app-card-muted space-y-2 px-3 py-2">
-                  <p className="text-xs font-medium text-muted-foreground">Cadastro de atletas na súmula</p>
-                  <RadioGroup
-                    value={supportsIndividualAwards ? "YES" : "NO"}
-                    onValueChange={(value) => {
-                      if (!championshipSport) {
-                        return;
-                      }
+                {supportsAwards ? (
+                  <>
+                    <div className="app-card-muted space-y-2 px-3 py-2">
+                      <p className="text-xs font-medium text-muted-foreground">Cadastro de atletas na súmula</p>
+                      <RadioGroup
+                        value={supportsIndividualAwards ? "YES" : "NO"}
+                        onValueChange={(value) => {
+                          if (!championshipSport) {
+                            return;
+                          }
 
-                      const nextValue = value == "YES";
+                          const nextValue = value == "YES";
 
-                      if (nextValue == championshipSport.supports_individual_awards) {
-                        return;
-                      }
+                          if (nextValue == championshipSport.supports_individual_awards) {
+                            return;
+                          }
 
-                      void handleToggleSupportsIndividualAwards(championshipSport, nextValue);
-                    }}
-                    className="flex items-center gap-4"
-                  >
-                    <label className="flex items-center gap-2 text-sm">
-                      <RadioGroupItem value="NO" disabled={!canManageSports || !championshipSport || isSavingSport} />
-                      Desabilitado
-                    </label>
-                    <label className="flex items-center gap-2 text-sm">
-                      <RadioGroupItem value="YES" disabled={!canManageSports || !championshipSport || isSavingSport} />
-                      Habilitado
-                    </label>
-                  </RadioGroup>
+                          void handleToggleSupportsIndividualAwards(championshipSport, nextValue);
+                        }}
+                        className="flex items-center gap-4"
+                      >
+                        <label className="flex items-center gap-2 text-sm">
+                          <RadioGroupItem value="NO" disabled={!canManageSports || !championshipSport || isSavingSport} />
+                          Desabilitado
+                        </label>
+                        <label className="flex items-center gap-2 text-sm">
+                          <RadioGroupItem value="YES" disabled={!canManageSports || !championshipSport || isSavingSport} />
+                          Habilitado
+                        </label>
+                      </RadioGroup>
 
-                  {!championshipSport ? (
-                    <p className="text-xs text-muted-foreground">
-                      Vincule a modalidade ao campeonato para editar esta configuração.
-                    </p>
-                  ) : null}
+                      {!championshipSport ? (
+                        <p className="text-xs text-muted-foreground">
+                          Vincule a modalidade ao campeonato para editar esta configuração.
+                        </p>
+                      ) : null}
 
-                  {!canManageSports ? (
-                    <p className="text-xs text-muted-foreground">
-                      Perfil em visualização: sem permissão para editar a aba de modalidades.
-                    </p>
-                  ) : null}
-                </div>
+                      {!canManageSports ? (
+                        <p className="text-xs text-muted-foreground">
+                          Perfil em visualização: sem permissão para editar a aba de modalidades.
+                        </p>
+                      ) : null}
+                    </div>
 
-                <div className="app-card-muted space-y-2 px-3 py-2">
-                  <p className="text-xs font-medium text-muted-foreground">Contabilização de prêmios (artilheiro e melhor defesa)</p>
-                  <RadioGroup
-                    value={awardsIncludeKnockout ? "YES" : "NO"}
-                    onValueChange={(value) => {
-                      if (!championshipSport) {
-                        return;
-                      }
+                    <div className="app-card-muted space-y-2 px-3 py-2">
+                      <p className="text-xs font-medium text-muted-foreground">Contabilização de prêmios (artilheiro e melhor defesa)</p>
+                      <RadioGroup
+                        value={awardsIncludeKnockout ? "YES" : "NO"}
+                        onValueChange={(value) => {
+                          if (!championshipSport) {
+                            return;
+                          }
 
-                      const nextValue = value == "YES";
+                          const nextValue = value == "YES";
 
-                      if (nextValue == championshipSport.awards_include_knockout_phase) {
-                        return;
-                      }
+                          if (nextValue == championshipSport.awards_include_knockout_phase) {
+                            return;
+                          }
 
-                      void handleToggleAwardsIncludeKnockout(championshipSport, nextValue);
-                    }}
-                    className="flex items-center gap-4"
-                  >
-                    <label className="flex items-center gap-2 text-sm">
-                      <RadioGroupItem value="NO" disabled={!canManageSports || !championshipSport || isSavingSport} />
-                      Somente fase de grupos
-                    </label>
-                    <label className="flex items-center gap-2 text-sm">
-                      <RadioGroupItem value="YES" disabled={!canManageSports || !championshipSport || isSavingSport} />
-                      Fase de grupos + Eliminatória
-                    </label>
-                  </RadioGroup>
+                          void handleToggleAwardsIncludeKnockout(championshipSport, nextValue);
+                        }}
+                        className="flex items-center gap-4"
+                      >
+                        <label className="flex items-center gap-2 text-sm">
+                          <RadioGroupItem value="NO" disabled={!canManageSports || !championshipSport || isSavingSport} />
+                          Somente fase de grupos
+                        </label>
+                        <label className="flex items-center gap-2 text-sm">
+                          <RadioGroupItem value="YES" disabled={!canManageSports || !championshipSport || isSavingSport} />
+                          Fase de grupos + Eliminatória
+                        </label>
+                      </RadioGroup>
 
-                  {!championshipSport ? (
-                    <p className="text-xs text-muted-foreground">
-                      Vincule a modalidade ao campeonato para editar esta configuração.
-                    </p>
-                  ) : null}
+                      {!championshipSport ? (
+                        <p className="text-xs text-muted-foreground">
+                          Vincule a modalidade ao campeonato para editar esta configuração.
+                        </p>
+                      ) : null}
 
-                  {!canManageSports ? (
-                    <p className="text-xs text-muted-foreground">
-                      Perfil em visualização: sem permissão para editar a aba de modalidades.
-                    </p>
-                  ) : null}
+                      {!canManageSports ? (
+                        <p className="text-xs text-muted-foreground">
+                          Perfil em visualização: sem permissão para editar a aba de modalidades.
+                        </p>
+                      ) : null}
 
-                  <p className="text-xs text-muted-foreground">
-                    Com a opção desligada, a apuração considera somente a fase de grupos. Com a opção ligada, soma fase
-                    de grupos + eliminatória, mas só entram no ranking atléticas e jogadores de atléticas que
-                    disputaram ao menos um jogo eliminatório válido.
-                  </p>
-                </div>
+                      <p className="text-xs text-muted-foreground">
+                        Com a opção desligada, a apuração considera somente a fase de grupos. Com a opção ligada, soma fase
+                        de grupos + eliminatória, mas só entram no ranking atléticas e jogadores de atléticas que
+                        disputaram ao menos um jogo eliminatório válido.
+                      </p>
+                    </div>
 
-                <div className="app-card-muted space-y-2 px-3 py-2">
-                  <p className="text-xs font-medium text-muted-foreground">Critérios de premiação</p>
-                  <div className="space-y-2 text-sm">
-                    <p>
-                      <span className="font-medium">Artilheiro:</span> maior número de gols, equipe que avançou mais longe no campeonato e, se o empate persistir, sorteio.
-                    </p>
-                    <p>
-                      <span className="font-medium">Melhor defesa:</span> menor média de gols sofridos por jogo, menor total de gols sofridos, maior número de jogos e, se necessário, sorteio.
-                    </p>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    A plataforma define a atlética vencedora da melhor defesa. A própria atlética indica internamente qual goleiro deve receber o prêmio.
-                  </p>
-                </div>
+                    <div className="app-card-muted space-y-2 px-3 py-2">
+                      <p className="text-xs font-medium text-muted-foreground">Critérios de premiação</p>
+                      <div className="space-y-2 text-sm">
+                        <p>
+                          <span className="font-medium">Artilheiro:</span> maior número de gols, equipe que avançou mais longe no campeonato e, se o empate persistir, sorteio.
+                        </p>
+                        <p>
+                          <span className="font-medium">Melhor defesa:</span> menor média de gols sofridos por jogo, menor total de gols sofridos, maior número de jogos e, se necessário, sorteio.
+                        </p>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        A plataforma define a atlética vencedora da melhor defesa. A própria atlética indica internamente qual goleiro deve receber o prêmio.
+                      </p>
+                    </div>
+                  </>
+                ) : null}
               </div>
             );
           })}

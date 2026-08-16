@@ -2,7 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { Team } from '@/lib/types';
 
-export function useTeams() {
+interface UseTeamsOptions {
+  includeInactive?: boolean;
+}
+
+export function useTeams({ includeInactive = false }: UseTeamsOptions = {}) {
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -10,7 +14,13 @@ export function useTeams() {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.from("teams").select("*").order("name");
+      let query = supabase.from("teams").select("*").order("name");
+
+      if (!includeInactive) {
+        query = query.eq("is_active", true);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error("Erro ao carregar atléticas:", error.message);
@@ -27,7 +37,7 @@ export function useTeams() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [includeInactive]);
 
   useEffect(() => {
     fetchTeams();

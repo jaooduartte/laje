@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { SchedulePageView } from "@/pages/schedule/SchedulePageView";
 import { ChampionshipCode, ChampionshipStatus, MatchNaipe, MatchStatus } from "@/lib/enums";
-import type { Championship, Match } from "@/lib/types";
+import type { Championship, ChampionshipIndividualEvent, ChampionshipIndividualSession, Match } from "@/lib/types";
 
 vi.mock("@/components/Header", () => ({
   Header: () => <div>Header</div>,
@@ -169,5 +169,178 @@ describe("SchedulePageView", () => {
     expect(screen.getByText("Arena Central")).toBeInTheDocument();
     expect(screen.getByText("Ginásio 2")).toBeInTheDocument();
     expect(screen.getByText("Quadra 2")).toBeInTheDocument();
+  });
+
+  it("exibe sessões individuais com slot oficial e total de provas vinculadas", () => {
+    const championship = buildChampionship();
+
+    render(
+      <SchedulePageView
+        isLoading={false}
+        selectedChampionship={championship}
+        championships={[championship]}
+        selectedChampionshipCode={championship.code}
+        selectedChampionshipHasDivisions
+        teams={[]}
+        sports={[]}
+        sportFilter={null}
+        naipeFilter={null}
+        teamFilter={null}
+        groupFilter={null}
+        locationFilter={null}
+        courtFilter={null}
+        locationOptions={[]}
+        courtOptions={[]}
+        groupOptions={[]}
+        divisionFilter="ALL_SCHEDULE_DIVISIONS_FILTER"
+        statusFilter={MatchStatus.SCHEDULED}
+        yearFilter="2026"
+        availableSeasonYears={[2026]}
+        orderedDates={["2026-08-10"]}
+        groupedMatches={{}}
+        groupedIndividualSessionsByDate={{
+          "2026-08-10": [
+            {
+              id: "session-1",
+              naipe: MatchNaipe.MASCULINO,
+              scheduled_date: "2026-08-10",
+              period: "MATUTINO",
+              location_name: "Parque Aquático",
+              court_name: "Piscina Olímpica",
+              sports: {
+                name: "Natação",
+              },
+            } as ChampionshipIndividualSession,
+          ],
+        }}
+        individualEvents={[
+          {
+            id: "event-1",
+            session_id: "session-1",
+          } as ChampionshipIndividualEvent,
+        ]}
+        individualSessions={[
+          {
+            id: "session-1",
+            naipe: MatchNaipe.MASCULINO,
+            scheduled_date: "2026-08-10",
+            period: "MATUTINO",
+            location_name: "Parque Aquático",
+            court_name: "Piscina Olímpica",
+            sports: {
+              name: "Natação",
+            },
+          } as ChampionshipIndividualSession,
+        ]}
+        matches={[]}
+        isMatchesFetching={false}
+        matchesCurrentPage={1}
+        matchesItemsPerPage={12}
+        matchesTotalPages={1}
+        matchBracketContextByMatchId={{}}
+        matchRepresentationByMatchId={{}}
+        visualQueuePositionByMatchId={{}}
+        estimatedStartTimeByMatchId={{}}
+        onChampionshipCodeChange={vi.fn()}
+        onSportFilterChange={vi.fn()}
+        onNaipeFilterChange={vi.fn()}
+        onTeamFilterChange={vi.fn()}
+        onGroupFilterChange={vi.fn()}
+        onLocationFilterChange={vi.fn()}
+        onCourtFilterChange={vi.fn()}
+        onDivisionChange={vi.fn()}
+        onStatusFilterChange={vi.fn()}
+        onYearFilterChange={vi.fn()}
+        onMatchesPageChange={vi.fn()}
+        onMatchesItemsPerPageChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Sessão de Natação")).toBeInTheDocument();
+    expect(screen.getByText("Parque Aquático • Piscina Olímpica")).toBeInTheDocument();
+    expect(screen.getByText("1 provas oficiais vinculadas")).toBeInTheDocument();
+    expect(screen.getByText(/Matutino/)).toBeInTheDocument();
+  });
+
+  it("exibe placeholder do mata-mata planejado como A definir na agenda pública", () => {
+    const championship = buildChampionship();
+
+    render(
+      <SchedulePageView
+        isLoading={false}
+        selectedChampionship={championship}
+        championships={[championship]}
+        selectedChampionshipCode={championship.code}
+        selectedChampionshipHasDivisions
+        teams={[]}
+        sports={[]}
+        sportFilter={null}
+        naipeFilter={null}
+        teamFilter={null}
+        groupFilter={null}
+        locationFilter={null}
+        courtFilter={null}
+        locationOptions={["Arena Central"]}
+        courtOptions={["Quadra 1"]}
+        groupOptions={[]}
+        divisionFilter="ALL_SCHEDULE_DIVISIONS_FILTER"
+        statusFilter={MatchStatus.SCHEDULED}
+        yearFilter="2026"
+        availableSeasonYears={[2026]}
+        orderedDates={["2026-08-19"]}
+        groupedMatches={{}}
+        groupedKnockoutPlaceholdersByDate={{
+          "2026-08-19": [
+            {
+              id: "placeholder-1",
+              competition_id: "competition-1",
+              sport_id: "sport-1",
+              sport_name: "Futsal",
+              naipe: MatchNaipe.FEMININO,
+              division: null,
+              round_number: 3,
+              slot_number: 1,
+              is_third_place: false,
+              scheduled_date: "2026-08-19",
+              queue_position: 1,
+              scheduled_slot: 1,
+              start_time: null,
+              end_time: null,
+              location: "Arena Central",
+              court_name: "Quadra 1",
+              stage_label: "Final",
+            },
+          ],
+        }}
+        individualEvents={[]}
+        individualSessions={[]}
+        matches={[]}
+        isMatchesFetching={false}
+        matchesCurrentPage={1}
+        matchesItemsPerPage={12}
+        matchesTotalPages={1}
+        matchBracketContextByMatchId={{}}
+        matchRepresentationByMatchId={{}}
+        visualQueuePositionByMatchId={{}}
+        estimatedStartTimeByMatchId={{}}
+        onChampionshipCodeChange={vi.fn()}
+        onSportFilterChange={vi.fn()}
+        onNaipeFilterChange={vi.fn()}
+        onTeamFilterChange={vi.fn()}
+        onGroupFilterChange={vi.fn()}
+        onLocationFilterChange={vi.fn()}
+        onCourtFilterChange={vi.fn()}
+        onDivisionChange={vi.fn()}
+        onStatusFilterChange={vi.fn()}
+        onYearFilterChange={vi.fn()}
+        onMatchesPageChange={vi.fn()}
+        onMatchesItemsPerPageChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Futsal")).toBeInTheDocument();
+    expect(screen.getAllByText("A definir")).toHaveLength(3);
+    expect(screen.getByText("Representação: Final")).toBeInTheDocument();
+    expect(screen.getByText("Arena Central • Quadra 1")).toBeInTheDocument();
   });
 });
