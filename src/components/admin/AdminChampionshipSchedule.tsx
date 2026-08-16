@@ -1,10 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Trash2, Loader2, CalendarClock, Trophy, LayoutGrid, ChevronDown, ChevronUp, Pencil } from "lucide-react";
+import { Plus, Trash2, Loader2, CalendarClock, Trophy, LayoutGrid, ChevronDown, ChevronUp, Pencil, RotateCcw, ArrowDownUp } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TimeInput } from "@/components/ui/time-input";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Tabs,
   TabsContent,
@@ -22,6 +30,11 @@ import {
 } from "@/components/admin/adminCourtPriority.utils";
 import { resolveIndividualSportIds } from "@/lib/individualEvents";
 import { ChampionshipStatus } from "@/lib/enums";
+import {
+  groupReverseMatchOrderChangesByCourt,
+  resolveReverseMatchOrderCourtPosition,
+  resolveReverseMatchOrderCourtIds,
+} from "@/components/admin/adminChampionshipSchedule.utils";
 import {
   applyChampionshipBracketReconfiguration,
   getBracketDaySchedules,
@@ -90,6 +103,45 @@ function formatTime(time: string): string {
   return time.slice(0, 5);
 }
 
+function formatReconfigurationDateTime(snapshot: Record<string, unknown>): string {
+  const scheduledDate = typeof snapshot.scheduled_date === "string"
+    ? formatDate(snapshot.scheduled_date)
+    : "Sem data";
+  const startTime = typeof snapshot.start_time === "string"
+    ? new Intl.DateTimeFormat("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(new Date(snapshot.start_time))
+    : "Sem horário";
+  return `${scheduledDate} • ${startTime}`;
+}
+
+function resolveReconfigurationSnapshotText(snapshot: Record<string, unknown>, field: string): string | null {
+  const value = snapshot[field];
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function formatNaipe(naipe: string | null): string {
+  if (!naipe) return "Naipe não informado";
+
+  return {
+    MASCULINO: "Masculino",
+    FEMININO: "Feminino",
+    MISTO: "Misto",
+  }[naipe] ?? naipe;
+}
+
+function formatReverseMatchOrderDetails(snapshot: Record<string, unknown>) {
+  const sport = resolveReconfigurationSnapshotText(snapshot, "sport_name") ?? "Modalidade não informada";
+  const naipe = formatNaipe(resolveReconfigurationSnapshotText(snapshot, "naipe"));
+  const homeTeam = resolveReconfigurationSnapshotText(snapshot, "home_team_name") ?? "Atlética a definir";
+  const awayTeam = resolveReconfigurationSnapshotText(snapshot, "away_team_name") ?? "Atlética a definir";
+
+  return { sport, naipe, teams: `${homeTeam} × ${awayTeam}` };
+}
+
 function resolveDayBreakSummary(day: DayScheduleDraft): string[] {
   return day.breaks.flatMap((brk) => {
     if (!brk.break_start_time || !brk.break_end_time) return [];
@@ -154,6 +206,9 @@ export function AdminChampionshipSchedule({
   const [reconfigurationPreview, setReconfigurationPreview] = useState<ChampionshipBracketReconfigurationPreview | null>(null);
   const [loadingReconfigurationPreview, setLoadingReconfigurationPreview] = useState(false);
   const [applyingReconfiguration, setApplyingReconfiguration] = useState(false);
+  const [reverseMatchOrderDate, setReverseMatchOrderDate] = useState("");
+  const [reverseMatchOrderCourtIds, setReverseMatchOrderCourtIds] = useState<string[]>([]);
+  const reconfigurationTriggerRef = useRef<HTMLElement | null>(null);
   const savedDaysRef = useRef<DayScheduleSnapshot[]>([]);
   const savedLocationGroupsRef = useRef<Record<string, BracketGeneratedLocationGroup>>({});
   const individualSportIds = useMemo(() => resolveIndividualSportIds(sports), [sports]);
@@ -247,7 +302,10 @@ export function AdminChampionshipSchedule({
       }))
       .sort((leftGroup, rightGroup) => leftGroup.position - rightGroup.position);
 
+    const firstScheduledDate = drafts[0]?.event_date ?? "";
     setDays(drafts);
+    setReverseMatchOrderDate(firstScheduledDate);
+    setReverseMatchOrderCourtIds(resolveReverseMatchOrderCourtIds(drafts, firstScheduledDate));
     savedDaysRef.current = drafts.map(({ saving: _saving, ...rest }) => rest);
     setLocationGroups(groups.map((group) => ({ ...group, saving: false })));
     savedLocationGroupsRef.current = groups.reduce<Record<string, BracketGeneratedLocationGroup>>(
@@ -267,6 +325,9 @@ export function AdminChampionshipSchedule({
   }, [loadSchedules]);
 
   async function requestReconfiguration(request: ChampionshipBracketReconfigurationRequest) {
+    reconfigurationTriggerRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
     setPendingReconfiguration(request);
     setReconfigurationPreview(null);
     setLoadingReconfigurationPreview(true);
@@ -567,6 +628,41 @@ export function AdminChampionshipSchedule({
     [locationGroups],
   );
 
+  const reverseMatchOrderCourts = useMemo(() => {
+    return days.find((day) => day.event_date === reverseMatchOrderDate)?.courts ?? [];
+  }, [days, reverseMatchOrderDate]);
+
+  const reverseMatchOrderChangesByCourt = useMemo(() => {
+    if (reconfigurationPreview?.action !== "REVERSE_DAY_COURT_MATCH_ORDER") return [];
+
+    return groupReverseMatchOrderChangesByCourt(reconfigurationPreview.changes);
+  }, [reconfigurationPreview]);
+
+  function handleReverseMatchOrderDateChange(nextDate: string) {
+    setReverseMatchOrderDate(nextDate);
+    setReverseMatchOrderCourtIds(resolveReverseMatchOrderCourtIds(days, nextDate));
+  }
+
+  function toggleReverseMatchOrderCourt(courtId: string, checked: boolean) {
+    setReverseMatchOrderCourtIds((currentCourtIds) => {
+      if (checked) return [...new Set([...currentCourtIds, courtId])];
+      return currentCourtIds.filter((currentCourtId) => currentCourtId !== courtId);
+    });
+  }
+
+  function requestReverseMatchOrder() {
+    if (!reverseMatchOrderDate || reverseMatchOrderCourtIds.length === 0) return;
+
+    void requestReconfiguration({
+      action: "REVERSE_DAY_COURT_MATCH_ORDER",
+      payload: {
+        scheduled_date: reverseMatchOrderDate,
+        bracket_court_ids: reverseMatchOrderCourtIds,
+      },
+      label: `Inverter ordem dos jogos de ${formatDate(reverseMatchOrderDate)}`,
+    });
+  }
+
   return (
     <div className="space-y-6">
       {!isEditable ? (
@@ -596,6 +692,69 @@ export function AdminChampionshipSchedule({
 
       <TabsContent value="schedule" className="mt-6">
       <section className="space-y-4">
+
+        <div className="glass-card space-y-4 p-4 sm:p-6">
+          <div className="flex items-start gap-3">
+            <div className="rounded-lg bg-muted p-2 text-muted-foreground">
+              <RotateCcw className="h-4 w-4" />
+            </div>
+            <div className="space-y-1">
+              <p className="font-semibold">Inverter ordem dos jogos</p>
+              <p className="text-sm text-muted-foreground">
+                Troca o primeiro jogo pelo último de cada quadra selecionada. Apenas jogos agendados são alterados; intervalos, slots vazios e sessões individuais permanecem no lugar.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,280px)_minmax(0,1fr)_auto] lg:items-end">
+            <div className="space-y-1.5">
+              <Label htmlFor="reverse-match-order-date">Data</Label>
+              <Select
+                value={reverseMatchOrderDate}
+                onValueChange={handleReverseMatchOrderDateChange}
+                disabled={!isEditable || loading || days.length === 0}
+              >
+                <SelectTrigger id="reverse-match-order-date" className="app-input-field">
+                  <SelectValue placeholder="Selecione a data" />
+                </SelectTrigger>
+                <SelectContent>
+                  {days.map((day) => (
+                    <SelectItem key={day.id} value={day.event_date}>
+                      {formatDate(day.event_date)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Quadras</Label>
+              <div className="flex min-h-10 flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-input bg-background px-3 py-2">
+                {reverseMatchOrderCourts.length === 0 ? (
+                  <span className="text-sm text-muted-foreground">Selecione uma data com quadras configuradas.</span>
+                ) : reverseMatchOrderCourts.map((court) => (
+                  <label key={court.id} className="flex cursor-pointer items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={reverseMatchOrderCourtIds.includes(court.id)}
+                      onCheckedChange={(checked) => toggleReverseMatchOrderCourt(court.id, checked === true)}
+                      disabled={!isEditable}
+                    />
+                    {court.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              disabled={!isEditable || loading || reverseMatchOrderCourtIds.length === 0}
+              onClick={requestReverseMatchOrder}
+            >
+              <RotateCcw className="mr-2 h-4 w-4" />
+              Calcular inversão
+            </Button>
+          </div>
+        </div>
 
         {loading ? (
           <div className="flex items-center justify-center py-10">
@@ -1025,7 +1184,13 @@ export function AdminChampionshipSchedule({
       </Dialog>
 
       <Dialog open={pendingReconfiguration != null} onOpenChange={(open) => !open && closeReconfigurationPreview()}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent
+          className="max-w-5xl"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            reconfigurationTriggerRef.current?.focus();
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Confirmar reprogramação</DialogTitle>
             <DialogDescription>
@@ -1035,17 +1200,62 @@ export function AdminChampionshipSchedule({
           {loadingReconfigurationPreview ? (
             <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Calculando os jogos afetados…</div>
           ) : reconfigurationPreview ? (
-            <div className="max-h-[50vh] space-y-3 overflow-y-auto text-sm">
-              <p><strong>{reconfigurationPreview.affected_matches}</strong> jogo(s) terão data, horário, local, quadra ou posição alterados.</p>
+            <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1 text-sm">
+              {reconfigurationPreview.action === "REVERSE_DAY_COURT_MATCH_ORDER" ? (
+                <div className="space-y-1">
+                  <p><strong>{reconfigurationPreview.affected_matches}</strong> jogo(s) de <strong>{reverseMatchOrderChangesByCourt.length}</strong> quadra(s) terão posição, horário ou representação alterados.</p>
+                  <p className="text-muted-foreground">Em cada quadra, o primeiro jogo ocupará a última vaga, o segundo ocupará a penúltima, e assim sucessivamente.</p>
+                </div>
+              ) : <p><strong>{reconfigurationPreview.affected_matches}</strong> jogo(s) terão data, horário, local, quadra ou posição alterados.</p>}
               {reconfigurationPreview.blockers.length > 0 ? <ul className="list-disc space-y-1 pl-5 text-destructive">{reconfigurationPreview.blockers.map((blocker) => <li key={blocker}>{blocker}</li>)}</ul> : null}
-              {reconfigurationPreview.changes.length > 0 ? <div className="space-y-2">{reconfigurationPreview.changes.map((change) => <div key={change.match_id} className="rounded-md border p-3"><strong>{change.match_number != null ? `Jogo ${change.match_number}` : `Jogo ${change.match_id.slice(0, 8)}`}</strong><p className="text-xs text-muted-foreground">Alterações: {change.changed_fields.join(", ")}</p></div>)}</div> : <p className="text-muted-foreground">Nenhum jogo será movido.</p>}
+              {reconfigurationPreview.changes.length > 0 ? reconfigurationPreview.action === "REVERSE_DAY_COURT_MATCH_ORDER" ? (
+                <div className="space-y-4">
+                  {reverseMatchOrderChangesByCourt.map((courtGroup) => (
+                    <section key={courtGroup.key} className="overflow-hidden rounded-lg border">
+                      <div className="flex items-center justify-between gap-3 border-b bg-muted/35 px-4 py-3">
+                        <div>
+                          <p className="font-semibold">{courtGroup.label}</p>
+                          <p className="text-xs text-muted-foreground">{courtGroup.changes.length} jogo(s) agendado(s)</p>
+                        </div>
+                      </div>
+                      <div className="divide-y">
+                        {courtGroup.changes.map((change, changeIndex) => {
+                          const details = formatReverseMatchOrderDetails(change.after);
+                          const currentCourtPosition = resolveReverseMatchOrderCourtPosition(change.before, changeIndex + 1);
+                          const nextCourtPosition = resolveReverseMatchOrderCourtPosition(
+                            change.after,
+                            courtGroup.changes.length - changeIndex,
+                          );
+                          return (
+                            <div key={change.match_id} className="grid gap-3 p-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:items-center">
+                              <div className="min-w-0">
+                                <p className="font-semibold">{change.match_number != null ? `Jogo ${change.match_number} • ` : ""}{details.sport} • {details.naipe}</p>
+                                <p className="truncate text-sm">{details.teams}</p>
+                              </div>
+                              <div className="flex min-w-0 items-center gap-3">
+                                <ArrowDownUp className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                                <div className="min-w-0 flex-1 rounded-md bg-muted/45 px-3 py-2 text-sm">
+                                  <p><span className="font-medium text-muted-foreground">Atual:</span> {formatReconfigurationDateTime(change.before)} • {currentCourtPosition}ª posição da quadra</p>
+                                  <p className="mt-2 border-t pt-2"><span className="font-medium text-muted-foreground">Nova:</span> {formatReconfigurationDateTime(change.after)} • {nextCourtPosition}ª posição da quadra</p>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              ) : <div className="space-y-2">{reconfigurationPreview.changes.map((change) => <div key={change.match_id} className="rounded-md border p-3"><strong>{change.match_number != null ? `Jogo ${change.match_number}` : `Jogo ${change.match_id.slice(0, 8)}`}</strong><p className="text-xs text-muted-foreground">Alterações: {change.changed_fields.join(", ")}</p></div>)}</div> : <p className="text-muted-foreground">Nenhum jogo será movido.</p>}
             </div>
           ) : null}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={closeReconfigurationPreview} disabled={applyingReconfiguration}>Cancelar</Button>
             <Button type="button" onClick={applyReconfiguration} disabled={!reconfigurationPreview || reconfigurationPreview.blockers.length > 0 || applyingReconfiguration}>
               {applyingReconfiguration ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Aplicar e redistribuir {reconfigurationPreview?.affected_matches ?? 0} jogos
+              {reconfigurationPreview?.action === "REVERSE_DAY_COURT_MATCH_ORDER"
+                ? `Aplicar inversão de ${reconfigurationPreview.affected_matches} jogos`
+                : `Aplicar e redistribuir ${reconfigurationPreview?.affected_matches ?? 0} jogos`}
             </Button>
           </DialogFooter>
         </DialogContent>

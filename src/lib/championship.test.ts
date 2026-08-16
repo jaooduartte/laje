@@ -1290,6 +1290,47 @@ describe("resolveOrderedScheduledMatchesByVisualTime", () => {
 });
 
 describe("resolveOrderedScheduledMatches", () => {
+  it("mantém os jogos de quadras diferentes na sequência operacional do dia", () => {
+    const gymFirstMatch = buildMatch({
+      id: "gym-first-match",
+      queue_position: 1,
+      court_name: "Ginásio",
+      created_at: "2026-03-20T07:30:00.000Z",
+    });
+    const courtFirstMatch = buildMatch({
+      id: "court-first-match",
+      queue_position: 1,
+      court_name: "Quadra",
+      created_at: "2026-03-20T08:00:00.000Z",
+    });
+    const gymSecondMatch = buildMatch({
+      id: "gym-second-match",
+      queue_position: 2,
+      court_name: "Ginásio",
+      created_at: "2026-03-20T08:10:00.000Z",
+    });
+    const courtSecondMatch = buildMatch({
+      id: "court-second-match",
+      queue_position: 2,
+      court_name: "Quadra",
+      created_at: "2026-03-20T08:45:00.000Z",
+    });
+
+    const orderedMatches = resolveOrderedScheduledMatches([
+      courtSecondMatch,
+      gymSecondMatch,
+      courtFirstMatch,
+      gymFirstMatch,
+    ]);
+
+    expect(orderedMatches.map((match) => match.id)).toEqual([
+      "gym-first-match",
+      "court-first-match",
+      "gym-second-match",
+      "court-second-match",
+    ]);
+  });
+
   it("orders scheduled matches by date, queue/slot, created_at and id", () => {
     const dayOneSlotOne = buildMatch({
       id: "day-1-slot-1",

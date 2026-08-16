@@ -19,32 +19,15 @@ import {
   resolveChampionshipGroupLabel,
   resolveMatchBracketContextByMatchId,
   resolveMatchDisplaySlotValue,
-  resolveOrderedScheduledMatchesByVisualTime,
-  resolveMatchScheduledDateValue,
 } from "@/lib/championship";
 import { DEFAULT_PAGINATION_ITEMS_PER_PAGE } from "@/components/ui/app-pagination-controls";
 import { SchedulePageView } from "@/pages/schedule/SchedulePageView";
 import { resolveKnockoutRoundLabel } from "@/lib/championship";
-
-interface ScheduledKnockoutPlaceholder {
-  id: string;
-  competition_id: string;
-  sport_id: string;
-  sport_name: string;
-  naipe: MatchNaipe;
-  division: TeamDivision | null;
-  round_number: number;
-  slot_number: number;
-  is_third_place: boolean;
-  scheduled_date: string;
-  queue_position: number | null;
-  scheduled_slot: number | null;
-  start_time: string | null;
-  end_time: string | null;
-  location: string | null;
-  court_name: string | null;
-  stage_label: string;
-}
+import {
+  type PublicScheduleTimelineItem,
+  type ScheduledKnockoutPlaceholder,
+  resolvePublicScheduleTimelineItems,
+} from "@/domain/public-schedule/publicScheduleTimeline";
 
 const ALL_SCHEDULE_DIVISIONS_FILTER = "ALL_SCHEDULE_DIVISIONS_FILTER";
 
@@ -272,11 +255,18 @@ export function SchedulePage() {
     groupFilterValue: groupFilter,
     location: locationFilter,
     courtName: courtFilter,
-    page: matchesCurrentPage,
-    itemsPerPage: matchesItemsPerPage,
+    page: statusFilter == MatchStatus.SCHEDULED ? undefined : matchesCurrentPage,
+    itemsPerPage:
+      statusFilter == MatchStatus.SCHEDULED
+        ? undefined
+        : matchesItemsPerPage,
     sortMode: statusFilter === MatchStatus.SCHEDULED ? "SCHEDULED" : "FINISHED",
   });
-  const { events: championshipIndividualEvents, sessions: championshipIndividualSessions } = useChampionshipIndividualEvents({
+  const {
+    events: championshipIndividualEvents,
+    sessions: championshipIndividualSessions,
+    loading: individualSessionsLoading,
+  } = useChampionshipIndividualEvents({
     championshipId: selectedChampionshipId,
     seasonYear: correctedYearFilter,
     sportIds: individualSportIds,
@@ -336,6 +326,19 @@ export function SchedulePage() {
     });
   }, [championshipIndividualSessions, locationFilter, statusFilter]);
 
+  const individualEventCountBySessionId = useMemo(() => {
+    return visibleIndividualEvents.reduce<Record<string, number>>(
+      (carry, event) => {
+        if (event.session_id) {
+          carry[event.session_id] = (carry[event.session_id] ?? 0) + 1;
+        }
+
+        return carry;
+      },
+      {},
+    );
+  }, [visibleIndividualEvents]);
+
   const courtOptions = useMemo(() => {
     const uniqueCourtNames = new Set<string>();
 
@@ -379,50 +382,6 @@ export function SchedulePage() {
       setCourtFilter(null);
     }
   }, [courtFilter, courtOptions]);
-
-  const { groupedMatches, orderedDates } = useMemo(() => {
-    const groupedMatchesResult: Record<string, typeof visibleMatches> = {};
-    const orderedDatesResult: string[] = [];
-
-    visibleMatches.forEach((match) => {
-      const dateKey = resolveMatchScheduledDateValue(match);
-
-      if (!dateKey) {
-        return;
-      }
-
-      if (!groupedMatchesResult[dateKey]) {
-        groupedMatchesResult[dateKey] = [];
-        orderedDatesResult.push(dateKey);
-      }
-
-      groupedMatchesResult[dateKey].push(match);
-    });
-
-    if (statusFilter === MatchStatus.FINISHED) {
-      Object.keys(groupedMatchesResult).forEach((dateKey) => {
-        groupedMatchesResult[dateKey].sort((a, b) => {
-          const firstSlot = resolveMatchDisplaySlotValue(a) ?? 0;
-          const secondSlot = resolveMatchDisplaySlotValue(b) ?? 0;
-          return secondSlot - firstSlot;
-        });
-      });
-      // Sort dates DESC
-      orderedDatesResult.sort((a, b) => b.localeCompare(a));
-    } else {
-      Object.keys(groupedMatchesResult).forEach((dateKey) => {
-        groupedMatchesResult[dateKey] = resolveOrderedScheduledMatchesByVisualTime(
-          groupedMatchesResult[dateKey],
-          estimatedStartTimeByMatchId,
-        );
-      });
-    }
-
-    return {
-      groupedMatches: groupedMatchesResult,
-      orderedDates: orderedDatesResult,
-    };
-  }, [estimatedStartTimeByMatchId, statusFilter, visibleMatches]);
 
   const knockoutPlaceholders = useMemo(() => {
     if (statusFilter != MatchStatus.SCHEDULED) {
@@ -512,32 +471,141 @@ export function SchedulePage() {
     visibleChampionshipBracketView,
   ]);
 
-  const groupedKnockoutPlaceholdersByDate = useMemo(() => {
-    return knockoutPlaceholders.reduce<Record<string, ScheduledKnockoutPlaceholder[]>>((carry, placeholder) => {
-      if (!carry[placeholder.scheduled_date]) {
-        carry[placeholder.scheduled_date] = [];
-      }
-
-      carry[placeholder.scheduled_date].push(placeholder);
-      return carry;
-    }, {});
-  }, [knockoutPlaceholders]);
-
-  const orderedPlaceholderDates = useMemo(() => {
-    return Object.keys(groupedKnockoutPlaceholdersByDate).sort((firstDate, secondDate) => firstDate.localeCompare(secondDate));
-  }, [groupedKnockoutPlaceholdersByDate]);
-
-  const orderedDatesWithPlaceholders = useMemo(() => {
-    if (statusFilter == MatchStatus.FINISHED) {
-      return orderedDates;
+  const scheduledTimelineItems = useMemo(() => {
+    if (statusFilter != MatchStatus.SCHEDULED) {
+      return [] as PublicScheduleTimelineItem[];
     }
 
-    return [...new Set([...orderedDates, ...orderedPlaceholderDates])].sort((firstDate, secondDate) =>
-      firstDate.localeCompare(secondDate)
-    );
-  }, [orderedDates, orderedPlaceholderDates, statusFilter]);
+    return resolvePublicScheduleTimelineItems({
+      matches: visibleMatches,
+      placeholders: knockoutPlaceholders,
+      individualSessions: visibleIndividualSessions,
+      individualEventCountBySessionId,
+      estimatedStartTimeByMatchId,
+    });
+  }, [
+    estimatedStartTimeByMatchId,
+    individualEventCountBySessionId,
+    knockoutPlaceholders,
+    statusFilter,
+    visibleIndividualSessions,
+    visibleMatches,
+  ]);
 
-  const matchesTotalPages = Math.max(1, Math.ceil(totalMatches / matchesItemsPerPage));
+  const paginatedScheduledTimelineItems = useMemo(() => {
+    const rangeStart = (matchesCurrentPage - 1) * matchesItemsPerPage;
+    return scheduledTimelineItems.slice(
+      rangeStart,
+      rangeStart + matchesItemsPerPage,
+    );
+  }, [matchesCurrentPage, matchesItemsPerPage, scheduledTimelineItems]);
+
+  const {
+    groupedMatches,
+    groupedKnockoutPlaceholdersByDate,
+    groupedIndividualSessionsByDate,
+    groupedScheduleTimelineItemsByDate,
+    orderedDates,
+  } = useMemo(() => {
+    const groupedMatchesResult: Record<string, typeof visibleMatches> = {};
+    const groupedPlaceholdersResult: Record<
+      string,
+      ScheduledKnockoutPlaceholder[]
+    > = {};
+    const groupedIndividualSessionsResult: Record<
+      string,
+      typeof visibleIndividualSessions
+    > = {};
+    const groupedScheduleTimelineItemsResult: Record<
+      string,
+      PublicScheduleTimelineItem[]
+    > = {};
+    const groupedTimelineItems =
+      statusFilter == MatchStatus.SCHEDULED
+        ? paginatedScheduledTimelineItems
+        : [];
+
+    groupedTimelineItems.forEach((item) => {
+      groupedScheduleTimelineItemsResult[item.scheduledDate] = [
+        ...(groupedScheduleTimelineItemsResult[item.scheduledDate] ?? []),
+        item,
+      ];
+
+      if (item.type == "MATCH") {
+        groupedMatchesResult[item.scheduledDate] = [
+          ...(groupedMatchesResult[item.scheduledDate] ?? []),
+          item.match,
+        ];
+        return;
+      }
+
+      if (item.type == "KNOCKOUT_PLACEHOLDER") {
+        groupedPlaceholdersResult[item.scheduledDate] = [
+          ...(groupedPlaceholdersResult[item.scheduledDate] ?? []),
+          item.placeholder,
+        ];
+        return;
+      }
+
+      groupedIndividualSessionsResult[item.scheduledDate] = [
+        ...(groupedIndividualSessionsResult[item.scheduledDate] ?? []),
+        item.session,
+      ];
+    });
+
+    if (statusFilter == MatchStatus.FINISHED) {
+      visibleMatches.forEach((match) => {
+        const dateKey = match.scheduled_date;
+
+        if (!dateKey) {
+          return;
+        }
+
+        groupedMatchesResult[dateKey] = [
+          ...(groupedMatchesResult[dateKey] ?? []),
+          match,
+        ];
+      });
+    }
+
+    return {
+      groupedMatches: groupedMatchesResult,
+      groupedKnockoutPlaceholdersByDate: groupedPlaceholdersResult,
+      groupedIndividualSessionsByDate: groupedIndividualSessionsResult,
+      groupedScheduleTimelineItemsByDate: groupedScheduleTimelineItemsResult,
+      orderedDates:
+        statusFilter == MatchStatus.SCHEDULED
+          ? [...new Set(groupedTimelineItems.map((item) => item.scheduledDate))]
+          : Object.keys(groupedMatchesResult).sort((firstDate, secondDate) =>
+              secondDate.localeCompare(firstDate),
+            ),
+    };
+  }, [
+    paginatedScheduledTimelineItems,
+    statusFilter,
+    visibleMatches,
+  ]);
+
+  const displayMatches =
+    statusFilter == MatchStatus.SCHEDULED
+      ? paginatedScheduledTimelineItems.flatMap((item) =>
+          item.type == "MATCH" ? [item.match] : [],
+        )
+      : visibleMatches;
+  const displayIndividualSessions =
+    statusFilter == MatchStatus.SCHEDULED
+      ? paginatedScheduledTimelineItems.flatMap((item) =>
+          item.type == "INDIVIDUAL_SESSION" ? [item.session] : [],
+        )
+      : visibleIndividualSessions;
+  const matchesTotalPages = Math.max(
+    1,
+    Math.ceil(
+      (statusFilter == MatchStatus.SCHEDULED
+        ? scheduledTimelineItems.length
+        : totalMatches) / matchesItemsPerPage,
+    ),
+  );
 
   useEffect(() => {
     if (matchesCurrentPage > matchesTotalPages) {
@@ -558,7 +626,7 @@ export function SchedulePage() {
 
   return (
     <SchedulePageView
-      isLoading={matchesLoading || championshipsLoading}
+      isLoading={matchesLoading || championshipsLoading || individualSessionsLoading}
       selectedChampionship={selectedChampionship}
       championships={championships}
       selectedChampionshipCode={selectedChampionshipCode}
@@ -578,12 +646,14 @@ export function SchedulePage() {
       statusFilter={statusFilter}
       yearFilter={yearFilter}
       availableSeasonYears={availableSeasonYears}
-      orderedDates={orderedDatesWithPlaceholders}
+      orderedDates={orderedDates}
       groupedMatches={groupedMatches}
       groupedKnockoutPlaceholdersByDate={groupedKnockoutPlaceholdersByDate}
+      groupedIndividualSessionsByDate={groupedIndividualSessionsByDate}
+      groupedScheduleTimelineItemsByDate={groupedScheduleTimelineItemsByDate}
       individualEvents={visibleIndividualEvents}
-      individualSessions={visibleIndividualSessions}
-      matches={visibleMatches}
+      individualSessions={displayIndividualSessions}
+      matches={displayMatches}
       isMatchesFetching={matchesFetching}
       matchesCurrentPage={matchesCurrentPage}
       matchesItemsPerPage={matchesItemsPerPage}

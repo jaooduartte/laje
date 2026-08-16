@@ -1082,6 +1082,7 @@ export interface BracketGeneratedLocationGroupUpdate {
 
 export type ChampionshipBracketReconfigurationAction =
   | "DAY_SCHEDULE"
+  | "REVERSE_DAY_COURT_MATCH_ORDER"
   | "COMPETITION_SETTINGS"
   | "LOCATION_SPORT_PRIORITIES"
   | "KNOCKOUT_COURT_PRIORITIES"

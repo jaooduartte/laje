@@ -35,6 +35,7 @@ interface UseMatchesOptions {
   itemsPerPage?: number;
   includeRealtime?: boolean;
   sortMode?: "SCHEDULED" | "LIVE" | "FINISHED";
+  scheduledMatchOrdering?: "INTERLEAVED_BY_COMPETITION" | "OPERATIONAL";
 }
 
 type SupabaseLooseQueryError = {
@@ -218,6 +219,7 @@ export function useMatches({
   itemsPerPage,
   includeRealtime = true,
   sortMode = "SCHEDULED",
+  scheduledMatchOrdering = "INTERLEAVED_BY_COMPETITION",
 }: UseMatchesOptions = {}) {
   const normalizedStatusesKey =
     statuses && statuses.length > 0
@@ -529,9 +531,11 @@ export function useMatches({
             []) as MatchRepresentationSource[];
           const normalizedOrderedRows =
             sortMode == "SCHEDULED"
-              ? resolveInterleavedScheduledMatchesByCompetition(
-                  resolveOrderedScheduledMatches(filteredOrderedRows),
-                )
+              ? scheduledMatchOrdering == "INTERLEAVED_BY_COMPETITION"
+                ? resolveInterleavedScheduledMatchesByCompetition(
+                    resolveOrderedScheduledMatches(filteredOrderedRows),
+                  )
+                : resolveOrderedScheduledMatches(filteredOrderedRows)
               : [...filteredOrderedRows].sort((firstMatch, secondMatch) => {
                   const firstSlot =
                     resolveMatchDisplaySlotValue(firstMatch) ?? 0;
@@ -895,9 +899,11 @@ export function useMatches({
 
           const orderedMatchRows =
             sortMode == "SCHEDULED"
-              ? resolveInterleavedScheduledMatchesByCompetition(
-                  resolveOrderedScheduledMatches(matchRows),
-                )
+              ? scheduledMatchOrdering == "INTERLEAVED_BY_COMPETITION"
+                ? resolveInterleavedScheduledMatchesByCompetition(
+                    resolveOrderedScheduledMatches(matchRows),
+                  )
+                : resolveOrderedScheduledMatches(matchRows)
               : matchRows;
 
           setMatches(
@@ -953,6 +959,7 @@ export function useMatches({
       naipe,
       page,
       seasonYear,
+      scheduledMatchOrdering,
       sortMode,
       sportId,
       normalizedStatusesKey,

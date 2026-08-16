@@ -37,10 +37,6 @@ const DialogContent = React.forwardRef<
       ref={ref}
       onOpenAutoFocus={(event) => {
         onOpenAutoFocus?.(event);
-
-        if (!event.defaultPrevented) {
-          event.preventDefault();
-        }
       }}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {

@@ -3,6 +3,8 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { HelpCircle, Loader2 } from "lucide-react";
 import { Header } from "@/components/Header";
+import { ChampionshipIndividualSessionCard } from "@/components/ChampionshipIndividualSessionCard";
+import { ChampionshipKnockoutPlaceholderCard } from "@/components/ChampionshipKnockoutPlaceholderCard";
 import { MatchCard } from "@/components/MatchCard";
 import { SportFilter } from "@/components/SportFilter";
 import { AppPaginationControls } from "@/components/ui/app-pagination-controls";
@@ -43,28 +45,12 @@ import {
   resolveMatchDisplaySlotValue,
   resolveMatchScheduledDateValue,
 } from "@/lib/championship";
+import {
+  type PublicScheduleTimelineItem,
+  type ScheduledKnockoutPlaceholder,
+} from "@/domain/public-schedule/publicScheduleTimeline";
 
 const ALL_SCHEDULE_DIVISIONS_FILTER = "ALL_SCHEDULE_DIVISIONS_FILTER";
-
-interface ScheduledKnockoutPlaceholder {
-  id: string;
-  competition_id: string;
-  sport_id: string;
-  sport_name: string;
-  naipe: MatchNaipe;
-  division: TeamDivision | null;
-  round_number: number;
-  slot_number: number;
-  is_third_place: boolean;
-  scheduled_date: string;
-  queue_position: number | null;
-  scheduled_slot: number | null;
-  start_time: string | null;
-  end_time: string | null;
-  location: string | null;
-  court_name: string | null;
-  stage_label: string;
-}
 
 interface SchedulePageViewProps {
   isLoading: boolean;
@@ -92,6 +78,14 @@ interface SchedulePageViewProps {
   groupedKnockoutPlaceholdersByDate?: Record<
     string,
     ScheduledKnockoutPlaceholder[]
+  >;
+  groupedIndividualSessionsByDate?: Record<
+    string,
+    ChampionshipIndividualSession[]
+  >;
+  groupedScheduleTimelineItemsByDate?: Record<
+    string,
+    PublicScheduleTimelineItem[]
   >;
   individualEvents: ChampionshipIndividualEvent[];
   individualSessions?: ChampionshipIndividualSession[];
@@ -142,6 +136,8 @@ export function SchedulePageView({
   orderedDates,
   groupedMatches,
   groupedKnockoutPlaceholdersByDate = {},
+  groupedIndividualSessionsByDate = {},
+  groupedScheduleTimelineItemsByDate = {},
   individualEvents,
   individualSessions = [],
   matches,
@@ -221,6 +217,39 @@ export function SchedulePageView({
     statusFilter == MatchStatus.SCHEDULED &&
     orderedKnockoutPlaceholders.length > 0;
   const hasVisibleIndividualSessions = individualSessions.length > 0;
+
+  const renderScheduledTimelineItem = (item: PublicScheduleTimelineItem) => {
+    if (item.type == "MATCH") {
+      return (
+        <MatchCard
+          key={item.id}
+          match={item.match}
+          showChampionshipBadge={false}
+          bracketContext={matchBracketContextByMatchId[item.match.id]}
+          matchRepresentation={matchRepresentationByMatchId[item.match.id]}
+          visualQueuePosition={visualQueuePositionByMatchId[item.match.id]}
+          estimatedStartTime={estimatedStartTimeByMatchId[item.match.id]}
+        />
+      );
+    }
+
+    if (item.type == "KNOCKOUT_PLACEHOLDER") {
+      return (
+        <ChampionshipKnockoutPlaceholderCard
+          key={item.id}
+          placeholder={item.placeholder}
+        />
+      );
+    }
+
+    return (
+      <ChampionshipIndividualSessionCard
+        key={item.id}
+        session={item.session}
+        eventCount={item.eventCount}
+      />
+    );
+  };
 
   useEffect(() => {
     if (!hasHandledPaginationScrollRef.current) {
@@ -475,7 +504,10 @@ export function SchedulePageView({
                 </div>
               </section>
             </div>
-          ) : !hasVisibleMatches && !hasVisibleKnockoutPlaceholders ? (
+          ) :
+            !hasVisibleMatches &&
+            !hasVisibleKnockoutPlaceholders &&
+            !hasVisibleIndividualSessions ? (
             <p className="text-muted-foreground">Nenhum jogo encontrado.</p>
           ) : statusFilter == MatchStatus.FINISHED ? (
             <div className="space-y-4">
@@ -519,7 +551,14 @@ export function SchedulePageView({
                     )}
                   </h3>
                   <div className="grid items-center gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {groupedMatches[date].map((match) => (
+                    {(groupedScheduleTimelineItemsByDate[date] ?? []).length >
+                    0 ? (
+                      groupedScheduleTimelineItemsByDate[date].map(
+                        renderScheduledTimelineItem,
+                      )
+                    ) : (
+                      <>
+                    {(groupedMatches[date] ?? []).map((match) => (
                       <MatchCard
                         key={match.id}
                         match={match}
@@ -598,7 +637,9 @@ export function SchedulePageView({
                             {placeholder.start_time ? (
                               <p>
                                 Horário planejado:{" "}
-                                {placeholder.start_time.slice(0, 5)}
+                                {resolvePublicScheduleTimeLabel(
+                                  placeholder.start_time,
+                                ) ?? "A definir"}
                               </p>
                             ) : null}
                             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -627,6 +668,21 @@ export function SchedulePageView({
                         </div>
                       ),
                     )}
+                    {(groupedIndividualSessionsByDate[date] ?? []).map(
+                      (session) => (
+                        <ChampionshipIndividualSessionCard
+                          key={session.id}
+                          session={session}
+                          eventCount={
+                            individualEvents.filter(
+                              (event) => event.session_id == session.id,
+                            ).length
+                          }
+                        />
+                      ),
+                    )}
+                      </>
+                    )}
                   </div>
                 </section>
               ))}
@@ -641,7 +697,7 @@ export function SchedulePageView({
             </div>
           )}
 
-          {hasVisibleIndividualSessions ? (
+          {statusFilter == MatchStatus.FINISHED && hasVisibleIndividualSessions ? (
             <section className="glass-panel enter-section space-y-4 p-4">
               <div>
                 <h3 className="text-sm font-display font-semibold uppercase tracking-wider text-muted-foreground">
@@ -656,45 +712,15 @@ export function SchedulePageView({
 
               <div className="grid items-center gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {individualSessions.map((session) => (
-                  <div
+                  <ChampionshipIndividualSessionCard
                     key={session.id}
-                    className="rounded-2xl border border-border/60 bg-background/40 p-4"
-                  >
-                    <p className="font-display font-semibold">
-                      {session.sports?.name}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {session.naipe}
-                    </p>
-                    <p className="mt-2 text-sm">
-                      {session.scheduled_date
-                        ? format(
-                            new Date(`${session.scheduled_date}T12:00:00`),
-                            "dd/MM/yyyy",
-                            { locale: ptBR },
-                          )
-                        : "Sem data"}
-                      {session.period
-                        ? ` • ${session.period == "MATUTINO" ? "Matutino" : "Vespertino"}`
-                        : ""}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {session.location_name ?? "Local a definir"}
-                      {session.court_name ? ` • ${session.court_name}` : ""}
-                    </p>
-                    {individualEvents.some(
-                      (event) => event.session_id == session.id,
-                    ) ? (
-                      <p className="mt-2 text-[11px] text-muted-foreground">
-                        {
-                          individualEvents.filter(
-                            (event) => event.session_id == session.id,
-                          ).length
-                        }{" "}
-                        provas oficiais vinculadas
-                      </p>
-                    ) : null}
-                  </div>
+                    session={session}
+                    eventCount={
+                      individualEvents.filter(
+                        (event) => event.session_id == session.id,
+                      ).length
+                    }
+                  />
                 ))}
               </div>
             </section>

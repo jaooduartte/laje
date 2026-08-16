@@ -133,4 +133,22 @@ describe("MatchCard", () => {
     expect(screen.queryByText(/CAZ:/)).not.toBeInTheDocument();
     expect(screen.queryByText(/2M:/)).not.toBeInTheDocument();
   });
+
+  it("oculta cartões azuis sem ocorrência nos cards de Handebol", () => {
+    render(
+      <MatchCard
+        match={buildMatch({
+          is_walkover: false,
+          disqualification_id: null,
+          sports: {
+            id: "sport-handball",
+            name: "Handebol",
+            created_at: "2026-01-01T00:00:00.000Z",
+          },
+        })}
+      />,
+    );
+
+    expect(screen.queryByLabelText("Cartões azuis: 0")).not.toBeInTheDocument();
+  });
 });

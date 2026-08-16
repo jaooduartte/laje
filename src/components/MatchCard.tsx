@@ -47,6 +47,10 @@ function RedCardIndicator({ quantity }: { quantity: number }) {
 }
 
 function BlueCardIndicator({ quantity }: { quantity: number }) {
+  if (quantity <= 0) {
+    return null;
+  }
+
   return (
     <span
       aria-label={`Cartões azuis: ${quantity}`}

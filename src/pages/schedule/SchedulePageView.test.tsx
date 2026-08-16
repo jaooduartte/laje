@@ -196,8 +196,23 @@ describe("SchedulePageView", () => {
         statusFilter={MatchStatus.SCHEDULED}
         yearFilter="2026"
         availableSeasonYears={[2026]}
-        orderedDates={[]}
+        orderedDates={["2026-08-10"]}
         groupedMatches={{}}
+        groupedIndividualSessionsByDate={{
+          "2026-08-10": [
+            {
+              id: "session-1",
+              naipe: MatchNaipe.MASCULINO,
+              scheduled_date: "2026-08-10",
+              period: "MATUTINO",
+              location_name: "Parque Aquático",
+              court_name: "Piscina Olímpica",
+              sports: {
+                name: "Natação",
+              },
+            } as ChampionshipIndividualSession,
+          ],
+        }}
         individualEvents={[
           {
             id: "event-1",
@@ -241,8 +256,7 @@ describe("SchedulePageView", () => {
       />,
     );
 
-    expect(screen.getByText("Sessões Individuais")).toBeInTheDocument();
-    expect(screen.getByText("Natação")).toBeInTheDocument();
+    expect(screen.getByText("Sessão de Natação")).toBeInTheDocument();
     expect(screen.getByText("Parque Aquático • Piscina Olímpica")).toBeInTheDocument();
     expect(screen.getByText("1 provas oficiais vinculadas")).toBeInTheDocument();
     expect(screen.getByText(/Matutino/)).toBeInTheDocument();
@@ -274,7 +288,7 @@ describe("SchedulePageView", () => {
         yearFilter="2026"
         availableSeasonYears={[2026]}
         orderedDates={["2026-08-19"]}
-        groupedMatches={{ "2026-08-19": [] }}
+        groupedMatches={{}}
         groupedKnockoutPlaceholdersByDate={{
           "2026-08-19": [
             {

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Header } from "@/components/Header";
+import { ChampionshipIndividualSessionCard } from "@/components/ChampionshipIndividualSessionCard";
 import { LiveMatchBanner } from "@/components/LiveMatchBanner";
 import { MatchCard } from "@/components/MatchCard";
 import { SportFilter } from "@/components/SportFilter";
@@ -26,12 +27,13 @@ import type { MatchBracketContext } from "@/lib/championship";
 import { HelpCircle, Loader2 } from "lucide-react";
 import { ChampionshipBracketBoard } from "@/components/championship-brackets/ChampionshipBracketBoard";
 import { scrollToTopOfPage } from "@/lib/scroll";
+import type { PublicScheduleTimelineItem } from "@/domain/public-schedule/publicScheduleTimeline";
 
 interface LivePageViewProps {
   isLoading: boolean;
   featuredChampionship: Championship | null;
   filteredLiveMatches: Match[];
-  filteredUpcomingMatches: Match[];
+  upcomingScheduleItems: PublicScheduleTimelineItem[];
   isUpcomingMatchesFetching: boolean;
   upcomingMatchesCurrentPage: number;
   upcomingMatchesItemsPerPage: number;
@@ -53,7 +55,7 @@ export function LivePageView({
   isLoading,
   featuredChampionship,
   filteredLiveMatches,
-  filteredUpcomingMatches,
+  upcomingScheduleItems,
   isUpcomingMatchesFetching,
   upcomingMatchesCurrentPage,
   upcomingMatchesItemsPerPage,
@@ -175,30 +177,40 @@ export function LivePageView({
                     ))}
                   </div>
                 </div>
-              ) : filteredUpcomingMatches.length == 0 ? (
+              ) : upcomingScheduleItems.length == 0 ? (
                 <p className="text-center text-sm text-muted-foreground sm:text-left">
                   Nenhum jogo agendado.
                 </p>
               ) : (
                 <div className="space-y-4">
                   <div className="grid items-center grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {filteredUpcomingMatches.map((match) => (
-                      <MatchCard
-                        key={match.id}
-                        match={match}
-                        showChampionshipBadge={false}
-                        bracketContext={matchBracketContextByMatchId[match.id]}
-                        matchRepresentation={
-                          matchRepresentationByMatchId[match.id]
-                        }
-                        visualQueuePosition={
-                          visualQueuePositionByMatchId[match.id]
-                        }
-                        estimatedStartTime={
-                          estimatedStartTimeByMatchId[match.id]
-                        }
-                      />
-                    ))}
+                    {upcomingScheduleItems.map((item) =>
+                      item.type == "MATCH" ? (
+                        <MatchCard
+                          key={item.id}
+                          match={item.match}
+                          showChampionshipBadge={false}
+                          bracketContext={
+                            matchBracketContextByMatchId[item.match.id]
+                          }
+                          matchRepresentation={
+                            matchRepresentationByMatchId[item.match.id]
+                          }
+                          visualQueuePosition={
+                            visualQueuePositionByMatchId[item.match.id]
+                          }
+                          estimatedStartTime={
+                            estimatedStartTimeByMatchId[item.match.id]
+                          }
+                        />
+                      ) : item.type == "INDIVIDUAL_SESSION" ? (
+                        <ChampionshipIndividualSessionCard
+                          key={item.id}
+                          session={item.session}
+                          eventCount={item.eventCount}
+                        />
+                      ) : null,
+                    )}
                   </div>
 
                   <AppPaginationControls
