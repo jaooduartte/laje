@@ -3298,6 +3298,7 @@ export type Database = {
           scheduled_date: string
           scheduled_slot: number
           start_time: string
+          uses_reduced_cross_sport_rest_gap: boolean
         }[]
       }
       normalize_admin_login_identifier: {

@@ -1165,9 +1165,95 @@ describe("AdminMatches score sheet review", () => {
     expect(within(matchCardContainer).queryAllByRole("menuitem", { name: "Apagar" })).toHaveLength(0);
   });
 
+  it("mantém as atléticas vinculadas ao editar jogo sem divisão", async () => {
+    renderAdminMatches({
+      selectedChampionship: buildChampionship({ uses_divisions: true }),
+      matches: [
+        buildMatch({
+          id: "legacy-division-match",
+          sport_id: "sport-1",
+          status: MatchStatus.SCHEDULED,
+          division: null,
+          court_name: "Quadra 1",
+          home_team: buildTeam({
+            id: "legacy-access-team",
+            name: "CASA ACESSO",
+            division: TeamDivision.DIVISAO_ACESSO,
+          }),
+          away_team: buildTeam({
+            id: "legacy-principal-team",
+            name: "VISITANTE PRINCIPAL",
+            division: TeamDivision.DIVISAO_PRINCIPAL,
+          }),
+        }),
+      ],
+    });
+
+    fireEvent.pointerDown(
+      await screen.findByLabelText(
+        "Ações do jogo CASA ACESSO x VISITANTE PRINCIPAL",
+      ),
+    );
+    clickFirstMenuItemInMatchCard(
+      getMatchCardContainerByTeamName("CASA ACESSO"),
+      "Editar",
+    );
+
+    const dialog = await screen.findByRole("dialog");
+
+    expect(
+      within(dialog).getByRole("combobox", { name: "Divisão do jogo" }),
+    ).toHaveTextContent("Sem divisão");
+    expect(
+      within(dialog).getByRole("combobox", { name: "Atlética da casa" }),
+    ).toHaveTextContent("CASA ACESSO");
+    expect(
+      within(dialog).getByRole("combobox", { name: "Atlética visitante" }),
+    ).toHaveTextContent("VISITANTE PRINCIPAL");
+  });
+
+  it("encerra o carregamento de horários quando a consulta falha", async () => {
+    listEditableMatchScheduleSlotsMock.mockRejectedValueOnce(
+      new Error("Falha ao carregar horários"),
+    );
+
+    renderAdminMatches({
+      matches: [
+        buildMatch({
+          id: "schedule-slots-error-match",
+          sport_id: "sport-1",
+          status: MatchStatus.SCHEDULED,
+          court_name: "Quadra 1",
+          home_team: buildTeam({ id: "schedule-error-home", name: "CASA HORÁRIO" }),
+          away_team: buildTeam({ id: "schedule-error-away", name: "VISITANTE HORÁRIO" }),
+        }),
+      ],
+    });
+
+    fireEvent.pointerDown(
+      await screen.findByLabelText(
+        "Ações do jogo CASA HORÁRIO x VISITANTE HORÁRIO",
+      ),
+    );
+    clickFirstMenuItemInMatchCard(
+      getMatchCardContainerByTeamName("CASA HORÁRIO"),
+      "Editar",
+    );
+
+    await waitFor(() => {
+      expect(toastErrorMock).toHaveBeenCalledWith("Falha ao carregar horários");
+    });
+
+    expect(screen.queryByText("Carregando horários")).not.toBeInTheDocument();
+  });
+
   it("abre modal de troca e chama RPC para swap de fila", async () => {
     const { onRefetch, onRefetchChampionshipBracket } = renderAdminMatches({
       viewMode: AdminMatchesViewMode.DEFAULT,
+      visualQueuePositionByMatchId: {
+        "swap-source-match": 18,
+        "swap-target-match": 20,
+      },
       matches: [
         buildMatch({
           id: "swap-source-match",
@@ -1213,6 +1299,7 @@ describe("AdminMatches score sheet review", () => {
           created_at: "2026-04-01T00:00:00.000Z",
           home_team_name: "CANDIDATO CASA",
           away_team_name: "CANDIDATO VISITANTE",
+          uses_reduced_cross_sport_rest_gap: true,
         },
       ],
       error: null,
@@ -1238,7 +1325,7 @@ describe("AdminMatches score sheet review", () => {
     clickFirstMenuItemInMatchCard(sourceCardContainer as HTMLElement, "Trocar jogo");
 
     expect(await screen.findByText("Trocar jogo na fila")).toBeInTheDocument();
-    expect(await screen.findByText("12/04 • Jogo 1 • ORIGEM CASA x ORIGEM VISITANTE")).toBeInTheDocument();
+    expect(await screen.findByText("12/04 • 05:00 • Jogo 18 • ORIGEM CASA x ORIGEM VISITANTE")).toBeInTheDocument();
     await waitFor(() => {
       expect(supabaseRpcCalls[0]).toMatchObject({
         functionName: "list_match_queue_swap_candidates",
@@ -1249,10 +1336,11 @@ describe("AdminMatches score sheet review", () => {
     });
 
     fireEvent.click(screen.getByRole("combobox", { name: "Selecionar jogo para troca de fila" }));
-    expect((await screen.findAllByText("13/04 • Jogo 2 • CANDIDATO CASA x CANDIDATO VISITANTE")).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("13/04 • 05:40 • Jogo 20 • CANDIDATO CASA x CANDIDATO VISITANTE")).length).toBeGreaterThan(0);
+    expect(await screen.findByText("Descanso reduzido: outra modalidade")).toBeInTheDocument();
     expect(screen.queryByText("12/04 • Jogo 3 • OUTRO CASA x OUTRO VISITANTE")).not.toBeInTheDocument();
 
-    fireEvent.click((await screen.findAllByText("13/04 • Jogo 2 • CANDIDATO CASA x CANDIDATO VISITANTE"))[0]);
+    fireEvent.click((await screen.findAllByText("13/04 • 05:40 • Jogo 20 • CANDIDATO CASA x CANDIDATO VISITANTE"))[0]);
 
     onRefetch.mockClear();
     onRefetchChampionshipBracket.mockClear();
@@ -1274,6 +1362,50 @@ describe("AdminMatches score sheet review", () => {
     await waitFor(() => {
       expect(onRefetch).toHaveBeenCalled();
       expect(onRefetchChampionshipBracket).toHaveBeenCalled();
+    });
+  });
+
+  it("filtra jogos pela data cadastrada no campeonato", async () => {
+    renderAdminMatches({
+      bracketView: buildBracketView({
+        edition: buildBracketEdition({
+          payload_snapshot: {
+            schedule_days: [
+              { date: "2026-04-11", locations: [] },
+              { date: "2026-04-12", locations: [] },
+            ],
+          },
+        }),
+      }),
+      matches: [
+        buildMatch({
+          id: "date-filter-first-match",
+          sport_id: "sport-1",
+          status: MatchStatus.SCHEDULED,
+          scheduled_date: "2026-04-11",
+          home_team: buildTeam({ id: "date-filter-first-home", name: "DATA PRIMEIRO" }),
+          away_team: buildTeam({ id: "date-filter-first-away", name: "DATA PRIMEIRO VISITANTE" }),
+        }),
+        buildMatch({
+          id: "date-filter-second-match",
+          sport_id: "sport-1",
+          status: MatchStatus.SCHEDULED,
+          scheduled_date: "2026-04-12",
+          home_team: buildTeam({ id: "date-filter-second-home", name: "DATA SEGUNDO" }),
+          away_team: buildTeam({ id: "date-filter-second-away", name: "DATA SEGUNDO VISITANTE" }),
+        }),
+      ],
+    });
+
+    expect(await screen.findByText("DATA PRIMEIRO")).toBeInTheDocument();
+    expect(screen.getByText("DATA SEGUNDO")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Todas as datas"));
+    fireEvent.click(await screen.findByText("12/04/2026"));
+
+    await waitFor(() => {
+      expect(screen.queryByText("DATA PRIMEIRO")).not.toBeInTheDocument();
+      expect(screen.getByText("DATA SEGUNDO")).toBeInTheDocument();
     });
   });
 

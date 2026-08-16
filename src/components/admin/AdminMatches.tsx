@@ -7,6 +7,7 @@ import {
   Award,
   Check,
   Clock,
+  CircleHelp,
   EyeOff,
   Loader2,
   Medal,
@@ -119,6 +120,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   type MatchBracketContext,
   compareAdminMatchCardOrder,
@@ -459,7 +465,7 @@ interface MatchEditDraft {
   startTime: Date | null;
   gameSlot: string;
   manualRepresentationMode: MatchManualRepresentationMode;
-  division: TeamDivision;
+  division: TeamDivision | null;
   naipe: MatchNaipe;
   status: MatchStatus;
   selectedGroupOptionValue: string;
@@ -482,6 +488,7 @@ const ALL_MATCHES_DIVISION_FILTER = "ALL_MATCHES_DIVISIONS";
 const ALL_MATCHES_GROUP_FILTER = "ALL_MATCHES_GROUPS";
 const ALL_MATCHES_LOCATION_FILTER = "ALL_MATCHES_LOCATIONS";
 const ALL_MATCHES_COURT_FILTER = "ALL_MATCHES_COURTS";
+const ALL_MATCHES_DATE_FILTER = "ALL_MATCHES_DATES";
 const MATCHES_STATUS_FILTER_LIVE = "MATCHES_STATUS_FILTER_LIVE";
 const MATCHES_STATUS_FILTER_FINISHED = "MATCHES_STATUS_FILTER_FINISHED";
 const MATCHES_STATUS_FILTER_OPEN = "MATCHES_STATUS_FILTER_OPEN";
@@ -521,6 +528,7 @@ type ListMatchQueueSwapCandidatesResponseItem = {
   created_at: string;
   home_team_name: string | null;
   away_team_name: string | null;
+  uses_reduced_cross_sport_rest_gap: boolean;
 };
 
 function resolveDateOnlyString(date: Date): string {
@@ -681,7 +689,7 @@ function resolveInitialEditingMatchDraft(
     gameSlot: currentGameSlot == null ? "" : String(currentGameSlot),
     manualRepresentationMode:
       match.manual_representation_mode ?? MatchManualRepresentationMode.AUTO,
-    division: match.division ?? TeamDivision.DIVISAO_PRINCIPAL,
+    division: match.division,
     naipe: match.naipe,
     status: match.status,
     selectedGroupOptionValue,
@@ -1017,6 +1025,9 @@ export function AdminMatches({
   );
   const [matchesCourtFilter, setMatchesCourtFilter] = useState<string>(
     ALL_MATCHES_COURT_FILTER,
+  );
+  const [matchesDateFilter, setMatchesDateFilter] = useState<string>(
+    ALL_MATCHES_DATE_FILTER,
   );
   const [selectedMatchIds, setSelectedMatchIds] = useState<string[]>([]);
   const [matchesCurrentPage, setMatchesCurrentPage] = useState(1);
@@ -1657,6 +1668,7 @@ export function AdminMatches({
     setMatchesGroupFilter(ALL_MATCHES_GROUP_FILTER);
     setMatchesLocationFilter(ALL_MATCHES_LOCATION_FILTER);
     setMatchesCourtFilter(ALL_MATCHES_COURT_FILTER);
+    setMatchesDateFilter(ALL_MATCHES_DATE_FILTER);
     setHideReviewedMatches(isScoreSheetReviewMode);
     setCreatingMatch(false);
     setBulkReviewAction(null);
@@ -1789,67 +1801,84 @@ export function AdminMatches({
 
     setLoadingEditingAvailableScheduleSlots(true);
 
-    void listEditableMatchScheduleSlots({
-      match_id: editingMatchId,
-      target_date: scheduledDateString,
-      target_location: editingMatchDraft.location.trim(),
-      target_court_name: editingMatchDraft.courtName.trim(),
-      sport_id: editingMatchDraft.sportId,
-      naipe: editingMatchDraft.naipe,
-      home_team_id: editingMatchDraft.homeTeamId || null,
-      away_team_id: editingMatchDraft.awayTeamId || null,
-    }).then(({ data, error }) => {
-      if (!isActive) {
-        return;
-      }
+    void (async () => {
+      try {
+        const { data, error } = await listEditableMatchScheduleSlots({
+          match_id: editingMatchId,
+          target_date: scheduledDateString,
+          target_location: editingMatchDraft.location.trim(),
+          target_court_name: editingMatchDraft.courtName.trim(),
+          sport_id: editingMatchDraft.sportId,
+          naipe: editingMatchDraft.naipe,
+          home_team_id: editingMatchDraft.homeTeamId || null,
+          away_team_id: editingMatchDraft.awayTeamId || null,
+        });
 
-      setLoadingEditingAvailableScheduleSlots(false);
+        if (!isActive) {
+          return;
+        }
 
-      if (error) {
+        if (error) {
+          setEditingAvailableScheduleSlots([]);
+          toast.error(resolveAdminMatchesOperationalErrorMessage(error));
+          return;
+        }
+
+        setEditingAvailableScheduleSlots(data);
+        setEditingMatchDraft((currentDraft) => {
+          if (!currentDraft) {
+            return currentDraft;
+          }
+
+          const currentStartTimeValue =
+            currentDraft.startTime?.toISOString() ?? null;
+
+          if (currentDraft.gameSlot && currentStartTimeValue) {
+            return currentDraft;
+          }
+
+          const matchedSlotByGameNumber = currentDraft.gameSlot
+            ? (data.find(
+                (slot) => String(slot.slot_number) == currentDraft.gameSlot,
+              ) ?? null)
+            : null;
+
+          if (currentDraft.gameSlot && !matchedSlotByGameNumber) {
+            return currentDraft;
+          }
+
+          const matchedSlot =
+            matchedSlotByGameNumber ??
+            (currentStartTimeValue
+              ? data.find((slot) => slot.start_time == currentStartTimeValue)
+              : null) ??
+            data.find((slot) => slot.is_current_slot) ??
+            data[0] ??
+            null;
+
+          return {
+            ...currentDraft,
+            startTime: matchedSlot ? new Date(matchedSlot.start_time) : null,
+            gameSlot: matchedSlot ? String(matchedSlot.slot_number) : "",
+          };
+        });
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
         setEditingAvailableScheduleSlots([]);
-        toast.error(resolveAdminMatchesOperationalErrorMessage(error));
-        return;
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Não foi possível carregar os horários disponíveis.",
+        );
+      } finally {
+        if (isActive) {
+          setLoadingEditingAvailableScheduleSlots(false);
+        }
       }
-
-      setEditingAvailableScheduleSlots(data);
-      setEditingMatchDraft((currentDraft) => {
-        if (!currentDraft) {
-          return currentDraft;
-        }
-
-        const currentStartTimeValue =
-          currentDraft.startTime?.toISOString() ?? null;
-
-        if (currentDraft.gameSlot && currentStartTimeValue) {
-          return currentDraft;
-        }
-
-        const matchedSlotByGameNumber = currentDraft.gameSlot
-          ? (data.find(
-              (slot) => String(slot.slot_number) == currentDraft.gameSlot,
-            ) ?? null)
-          : null;
-
-        if (currentDraft.gameSlot && !matchedSlotByGameNumber) {
-          return currentDraft;
-        }
-
-        const matchedSlot =
-          matchedSlotByGameNumber ??
-          (currentStartTimeValue
-            ? data.find((slot) => slot.start_time == currentStartTimeValue)
-            : null) ??
-          data.find((slot) => slot.is_current_slot) ??
-          data[0] ??
-          null;
-
-        return {
-          ...currentDraft,
-          startTime: matchedSlot ? new Date(matchedSlot.start_time) : null,
-          gameSlot: matchedSlot ? String(matchedSlot.slot_number) : "",
-        };
-      });
-    });
+    })();
 
     return () => {
       isActive = false;
@@ -1935,6 +1964,13 @@ export function AdminMatches({
         return false;
       }
 
+      if (
+        matchesDateFilter != ALL_MATCHES_DATE_FILTER &&
+        resolveMatchScheduledDateValue(match) != matchesDateFilter
+      ) {
+        return false;
+      }
+
       if (isScoreSheetReviewMode && match.status != MatchStatus.FINISHED) {
         return false;
       }
@@ -2011,6 +2047,7 @@ export function AdminMatches({
     isScoreSheetReviewMode,
     matchBracketContextByMatchId,
     matches,
+    matchesDateFilter,
     matchesDivisionFilter,
     matchesGroupFilter,
     matchesNaipeFilter,
@@ -2028,6 +2065,13 @@ export function AdminMatches({
       if (
         matchesSportFilter != ALL_MATCHES_SPORT_FILTER &&
         session.sport_id != matchesSportFilter
+      ) {
+        return false;
+      }
+
+      if (
+        matchesDateFilter != ALL_MATCHES_DATE_FILTER &&
+        session.scheduled_date?.slice(0, 10) != matchesDateFilter
       ) {
         return false;
       }
@@ -2081,6 +2125,7 @@ export function AdminMatches({
     isScoreSheetReviewMode,
     isTieBreaksMode,
     matchesDivisionFilter,
+    matchesDateFilter,
     matchesGroupFilter,
     matchesNaipeFilter,
     matchesSportFilter,
@@ -2392,6 +2437,10 @@ export function AdminMatches({
       return teamsAllowedForMatches;
     }
 
+    if (editingMatchDraft.division == null) {
+      return teamsAllowedForMatches;
+    }
+
     return teamsAllowedForMatches.filter(
       (team) => team.division === editingMatchDraft.division,
     );
@@ -2602,9 +2651,12 @@ export function AdminMatches({
       })
       .map((match) => ({
         id: match.match_id,
+        usesReducedCrossSportRestGap:
+          match.uses_reduced_cross_sport_rest_gap,
         label: resolveMatchSwapOptionLabel({
           match: {
             scheduled_date: match.scheduled_date,
+            start_time: match.start_time,
             queue_position: match.queue_position,
             scheduled_slot: match.scheduled_slot,
             home_team: match.home_team_name
@@ -2627,9 +2679,14 @@ export function AdminMatches({
               : undefined,
           },
           shouldUseScheduledSlot: true,
+          displaySlot: visualQueuePositionByMatchId[match.match_id],
         }),
       }));
-  }, [eligibleSwapTargetMatchCandidates, pendingSwapSourceMatch]);
+  }, [
+    eligibleSwapTargetMatchCandidates,
+    pendingSwapSourceMatch,
+    visualQueuePositionByMatchId,
+  ]);
 
   const operationalVisualQueuePositionByMatchId = useMemo(() => {
     return resolveVisualQueuePositionByMatchId(
@@ -2792,6 +2849,7 @@ export function AdminMatches({
   }, [
     hideReviewedMatches,
     matchesDivisionFilter,
+    matchesDateFilter,
     matchesGroupFilter,
     matchesCourtFilter,
     matchesLocationFilter,
@@ -2820,6 +2878,7 @@ export function AdminMatches({
   }, [
     hideReviewedMatches,
     matchesDivisionFilter,
+    matchesDateFilter,
     matchesGroupFilter,
     matchesCourtFilter,
     matchesLocationFilter,
@@ -5701,7 +5760,7 @@ export function AdminMatches({
 
         <div className="glass-card enter-section p-4">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-stretch xl:justify-between">
-            <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {!isScoreSheetReviewMode && !isTieBreaksMode ? (
                 <div className="xl:min-w-0">
                   <Select
@@ -5763,6 +5822,30 @@ export function AdminMatches({
                   </Select>
                 </div>
               ) : null}
+
+              <div className="xl:min-w-0">
+                <Select
+                  value={matchesDateFilter}
+                  onValueChange={setMatchesDateFilter}
+                >
+                  <SelectTrigger className="app-input-field w-full">
+                    <SelectValue placeholder="Filtrar por data" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL_MATCHES_DATE_FILTER}>
+                      Todas as datas
+                    </SelectItem>
+                    {championshipDayDates.map((championshipDayDate) => (
+                      <SelectItem
+                        key={championshipDayDate}
+                        value={championshipDayDate}
+                      >
+                        {resolveBrazilianDateLabel(championshipDayDate)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
               <div className="xl:min-w-0">
                 <Select
@@ -6717,8 +6800,9 @@ export function AdminMatches({
           <DialogHeader>
             <DialogTitle>Trocar jogo na fila</DialogTitle>
             <DialogDescription>
-              Selecione um jogo da mesma quadra para trocar a posição da fila,
-              inclusive em outros dias, sem criar conflito de representação.
+              Selecione um jogo da mesma modalidade, naipe e quadra para trocar
+              a posição da fila, inclusive em outros dias, respeitando a agenda
+              e o descanso das atléticas.
             </DialogDescription>
           </DialogHeader>
 
@@ -6771,6 +6855,11 @@ export function AdminMatches({
                   {eligibleSwapTargetMatchOptions.map((swapOption) => (
                     <SelectItem key={swapOption.id} value={swapOption.id}>
                       {swapOption.label}
+                      {swapOption.usesReducedCrossSportRestGap ? (
+                        <span className="ml-2 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300">
+                          Descanso reduzido: outra modalidade
+                        </span>
+                      ) : null}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -7800,9 +7889,19 @@ export function AdminMatches({
                       <p className="text-xs text-muted-foreground">Divisão</p>
                       {championshipUsesDivisions ? (
                         <Select
-                          value={editingMatchDraft.division}
+                          value={
+                            editingMatchDraft.division ??
+                            EMPTY_GROUP_OPTION_VALUE
+                          }
                           onValueChange={(value) => {
-                            if (!isTeamDivision(value)) {
+                            const nextDivision =
+                              value == EMPTY_GROUP_OPTION_VALUE
+                                ? null
+                                : isTeamDivision(value)
+                                  ? value
+                                  : undefined;
+
+                            if (nextDivision === undefined) {
                               return;
                             }
 
@@ -7810,10 +7909,19 @@ export function AdminMatches({
                               currentDraft
                                 ? {
                                     ...currentDraft,
-                                    division: value,
-                                    homeTeamId: "",
-                                    awayTeamId: "",
-                                    selectedGroupOptionValue: "",
+                                    division: nextDivision,
+                                    homeTeamId:
+                                      currentDraft.division == nextDivision
+                                        ? currentDraft.homeTeamId
+                                        : "",
+                                    awayTeamId:
+                                      currentDraft.division == nextDivision
+                                        ? currentDraft.awayTeamId
+                                        : "",
+                                    selectedGroupOptionValue:
+                                      currentDraft.division == nextDivision
+                                        ? currentDraft.selectedGroupOptionValue
+                                        : "",
                                   }
                                 : currentDraft,
                             );
@@ -7828,6 +7936,9 @@ export function AdminMatches({
                             <SelectValue placeholder="Divisão" />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value={EMPTY_GROUP_OPTION_VALUE}>
+                              Sem divisão
+                            </SelectItem>
                             <SelectItem value={TeamDivision.DIVISAO_PRINCIPAL}>
                               {
                                 TEAM_DIVISION_LABELS[
@@ -8194,17 +8305,28 @@ export function AdminMatches({
                     </div>
 
                     <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">
-                        Representação
-                      </p>
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <p>Representação</p>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              className="inline-flex h-4 w-4 items-center justify-center rounded-full transition-colors hover:text-foreground"
+                              aria-label="Ajuda sobre representação"
+                            >
+                              <CircleHelp className="h-3.5 w-3.5" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs text-xs leading-relaxed">
+                            Mantém a representação automática desligada só para
+                            este jogo.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
                       <div className="app-card-muted flex min-h-10 items-center justify-between rounded-xl px-3 py-2">
                         <div className="space-y-0.5">
                           <p className="text-sm font-medium text-foreground">
                             Forçar CO
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Mantém a representação automática desligada só para
-                            este jogo.
                           </p>
                         </div>
                         <Switch

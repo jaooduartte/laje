@@ -69,7 +69,7 @@ describe("adminMatchesSwap utils", () => {
       id: "match-2",
       queue_position: 5,
       sport_id: "sport-beach-soccer",
-      naipe: MatchNaipe.MASCULINO,
+      naipe: MatchNaipe.FEMININO,
       division: TeamDivision.DIVISAO_PRINCIPAL,
       scheduled_date: "2026-04-13",
       location: "Arena Seven",
@@ -112,6 +112,12 @@ describe("adminMatchesSwap utils", () => {
     expect(
       resolveIsMatchEligibleForQueueSwap(
         sourceMatch,
+        buildScheduledMatch({ id: "match-4-naipe", queue_position: 4, naipe: MatchNaipe.FEMININO }),
+      ),
+    ).toBe(false);
+    expect(
+      resolveIsMatchEligibleForQueueSwap(
+        sourceMatch,
         buildScheduledMatch({ id: "match-5", queue_position: 4, location: "Arena Eight" }),
       ),
     ).toBe(false);
@@ -148,6 +154,17 @@ describe("adminMatchesSwap utils", () => {
     expect(
       resolveMatchSwapOptionLabel({ match: candidateMatch, shouldUseScheduledSlot: true, displaySlot: 20 }),
     ).toBe("12/04 • Jogo 20 • Atlética Delta x Atlética Sigma");
+  });
+
+  it("inclui o horário de São Paulo no rótulo quando o jogo está agendado", () => {
+    const candidateMatch = buildScheduledMatch({
+      id: "match-with-time",
+      start_time: "2026-04-12T11:20:00.000Z",
+    });
+
+    expect(resolveMatchSwapOptionLabel({ match: candidateMatch, shouldUseScheduledSlot: true })).toBe(
+      "12/04 • 08:20 • Jogo 1 • Atlética Casa x Atlética Visitante",
+    );
   });
 
   it("rejeita troca quando a nova sequência da quadra criaria conflito consecutivo", () => {
