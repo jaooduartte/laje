@@ -19,13 +19,12 @@ import {
 } from "@/lib/enums";
 import type { ChampionshipSport, Team } from "@/lib/types";
 
-type ChampionshipBracketLegacyDraftOverrides = Partial<
-  ChampionshipBracketWizardDraftFormValues
-> & {
-  schedule_periods?: unknown[];
-  competition_period_availability?: unknown[];
-  team_competition_availability?: unknown[];
-};
+type ChampionshipBracketLegacyDraftOverrides =
+  Partial<ChampionshipBracketWizardDraftFormValues> & {
+    schedule_periods?: unknown[];
+    competition_period_availability?: unknown[];
+    team_competition_availability?: unknown[];
+  };
 
 function buildPlacementPoints(count = 20) {
   const defaults = [
@@ -161,8 +160,7 @@ describe("sanitizeKnockoutProgramBlocksValues", () => {
       scheduleDays: [buildScheduleDay("2026-08-19")],
       seasonSettings: {
         division_format: ChampionshipSeasonDivisionFormat.SEPARATED,
-        division_settlement_mode:
-          ChampionshipSeasonDivisionSettlementMode.NONE,
+        division_settlement_mode: ChampionshipSeasonDivisionSettlementMode.NONE,
         principal_slots_count: null,
         principal_relegation_count: null,
         access_promotion_count: null,
@@ -264,7 +262,7 @@ describe("sanitizeKnockoutProgramBlocksValues", () => {
     ]);
   });
 
-  it("mantém a final de modalidade mista quando a competição está jogável", () => {
+  it("mantém a final de modalidade mista quando existe competição ativa", () => {
     const sanitizedBlocks = sanitizeKnockoutProgramBlocksValues({
       scheduleDays: [buildScheduleDay("2026-08-19")],
       seasonSettings: {
@@ -281,14 +279,6 @@ describe("sanitizeKnockoutProgramBlocksValues", () => {
           sport_name: "Beach Tennis",
           naipe: MatchNaipe.MISTO,
           division: null,
-        },
-      ],
-      competitionDateAvailability: [
-        {
-          competition_key: "sport-mixed::MISTO::WITHOUT_DIVISION",
-          date: "2026-08-19",
-          mode: "FULL_DAY",
-          windows: [],
         },
       ],
       knockoutProgramBlocks: [
@@ -457,7 +447,10 @@ function sanitizeCourtSportPreference({
 describe("sanitizeChampionshipBracketWizardDraft", () => {
   it("preserva CUSTOM existente e cria FULL_DAY para nova data da competição", () => {
     const result = sanitizeCompetitionDateAvailabilityValues({
-      scheduleDays: [buildScheduleDay("2026-08-10"), buildScheduleDay("2026-08-11")],
+      scheduleDays: [
+        buildScheduleDay("2026-08-10"),
+        buildScheduleDay("2026-08-11"),
+      ],
       competitionKeys: ["competition-1"],
       competitionDateAvailability: [
         {
@@ -883,7 +876,7 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
     });
   });
 
-  it("aplica LINEAR como padrão mesmo no feminino da divisão de acesso do Futebol Society", () => {
+  it("aplica CLASSIC_SEEDED como padrão ao criar uma nova configuração de competição", () => {
     const competitionKey = "sport-society::FEMININO::DIVISAO_ACESSO";
     const teams = [
       buildTeam({
@@ -936,7 +929,7 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
       groups_count: 2,
       qualifiers_per_group: 1,
       should_complete_knockout_with_best_second_placed_teams: true,
-      knockout_pairing_mode: "LINEAR",
+      knockout_pairing_mode: "CLASSIC_SEEDED",
     });
   });
 
@@ -1240,6 +1233,7 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
                       preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
 
                       sequence_mode: "FLEXIBLE",
+                      alternate_naipe_after_exclusive_knockout_phase: false,
                     },
                   },
                 ],
@@ -1352,6 +1346,7 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
                       preferred_division: TeamDivision.DIVISAO_ACESSO,
 
                       sequence_mode: "FLEXIBLE",
+                      alternate_naipe_after_exclusive_knockout_phase: false,
                     },
                   },
                 ],
@@ -1460,6 +1455,7 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
                       preferred_naipe: null,
                       preferred_division: null,
                       sequence_mode: "FLEXIBLE",
+                      alternate_naipe_after_exclusive_knockout_phase: false,
                     },
                   },
                 ],
@@ -1577,6 +1573,7 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
         preferred_naipe: MatchNaipe.MASCULINO,
         preferred_division: null,
         sequence_mode: "GROUP_NAIPE",
+        alternate_naipe_after_exclusive_knockout_phase: false,
       },
     });
 
@@ -1638,6 +1635,7 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
         preferred_naipe: null,
         preferred_division: TeamDivision.DIVISAO_ACESSO,
         sequence_mode: "GROUP_DIVISION",
+        alternate_naipe_after_exclusive_knockout_phase: false,
       },
     });
 
@@ -1680,6 +1678,7 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
         preferred_naipe: null,
         preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
         sequence_mode: "GROUP_DIVISION",
+        alternate_naipe_after_exclusive_knockout_phase: false,
       },
     });
 
@@ -1750,6 +1749,7 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
                       preferred_naipe: MatchNaipe.FEMININO,
                       preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
                       sequence_mode: "GROUP_NAIPE",
+                      alternate_naipe_after_exclusive_knockout_phase: false,
                     },
                   },
                 ],
@@ -1861,6 +1861,7 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
                       preferred_naipe: MatchNaipe.FEMININO,
                       preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
                       sequence_mode: "GROUP_NAIPE",
+                      alternate_naipe_after_exclusive_knockout_phase: false,
                     },
                   },
                 ],

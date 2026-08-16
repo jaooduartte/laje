@@ -1,3 +1,4 @@
+import { resolveChampionshipKnockoutSeedOrder } from "@/domain/championship-brackets/championshipBracketPairing";
 import { resolveChampionshipGroupLabel } from "@/lib/championship";
 import type { KnockoutPairingMode } from "@/lib/modalidadeConfig";
 
@@ -51,21 +52,10 @@ function resolveProjectedBracketSize(qualified_team_count: number): number {
 export function resolveStandardBalancedBracketSeedOrder(
   bracket_size: number,
 ): number[] {
-  if (bracket_size < 2) {
-    return [];
-  }
-
-  // Seeding linear: slot k pareia seed k vs seed (N+1-k).
-  // bracket_size=8 → [1,8, 2,7, 3,6, 4,5]
-  //   slot1=1v8, slot2=2v7 → mesmo lado (SF1)
-  //   slot3=3v6, slot4=4v5 → mesmo lado (SF2)
-  // bracket_size=4 → [1,4, 2,3]
-  const seed_order: number[] = [];
-  for (let slot = 1; slot <= bracket_size / 2; slot++) {
-    seed_order.push(slot);
-    seed_order.push(bracket_size + 1 - slot);
-  }
-  return seed_order;
+  return resolveChampionshipKnockoutSeedOrder(
+    "LINEAR",
+    bracket_size,
+  );
 }
 
 export function resolveChampionshipBracketFirstRoundSeedIndexes(
@@ -82,17 +72,14 @@ export function resolveChampionshipBracketFirstRoundSeedIndexes(
   };
 }
 
-/**
- * Retorna a ordem de seeds para o primeiro round do mata-mata.
- *
- * O sistema agora usa apenas seeding LINEAR. O cruzamento final continua emergindo
- * da ordem dos classificados (1ºs seguidos de 2ºs, por grupo).
- */
 export function resolveBracketPairingByMode(
-  _mode: KnockoutPairingMode,
+  mode: KnockoutPairingMode,
   bracket_size: number,
 ): number[] {
-  return resolveStandardBalancedBracketSeedOrder(bracket_size);
+  return resolveChampionshipKnockoutSeedOrder(
+    mode,
+    bracket_size,
+  );
 }
 
 export function resolveChampionshipBracketKnockoutProjection(

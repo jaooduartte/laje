@@ -30,7 +30,9 @@ export type TieBreakCriterion =
   | "MANUAL_DRAW";
 
 export type KnockoutPairingMode =
-  | "LINEAR";
+  | "LINEAR"
+  | "RANKING_ALTERNATING"
+  | "CLASSIC_SEEDED";
 
 export interface ModalidadeConfig {
   sport_code: string;

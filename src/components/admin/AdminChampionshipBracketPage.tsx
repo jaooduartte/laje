@@ -49,7 +49,10 @@ import {
   resolveQualificationModeOption,
   type QualificationModeOption,
 } from "@/domain/championship-brackets/championshipBracketQualification";
-import { resolveDefaultCompetitionKnockoutPairingMode } from "@/domain/championship-brackets/championshipBracketPairing";
+import {
+  resolveDefaultCompetitionKnockoutPairingMode,
+  type ChampionshipKnockoutPairingMode,
+} from "@/domain/championship-brackets/championshipBracketPairing";
 import {
   resolveGroupEditorColumns,
   resolveOrderedAssignedTeamIds,
@@ -314,6 +317,28 @@ const WIZARD_NAIPE_TAB_DEFAULT_ORDER = [
   MatchNaipe.MISTO,
 ] as const;
 const ALL_TEAMS_FILTER_VALUE = "ALL_TEAMS";
+
+const KNOCKOUT_PAIRING_MODE_OPTIONS = [
+  {
+    value: "CLASSIC_SEEDED",
+    label: "Clássico por cabeça de chave",
+    helper: "1º × 8º, 4º × 5º | 2º × 7º, 3º × 6º",
+  },
+  {
+    value: "RANKING_ALTERNATING",
+    label: "Ranking alternado",
+    helper: "1º × 8º, 3º × 6º | 2º × 7º, 4º × 5º",
+  },
+  {
+    value: "LINEAR",
+    label: "Linear",
+    helper: "1º × 8º, 2º × 7º | 3º × 6º, 4º × 5º",
+  },
+] satisfies ReadonlyArray<{
+  value: ChampionshipKnockoutPairingMode;
+  label: string;
+  helper: string;
+}>;
 
 interface AnimatedTabItem {
   value: string;
@@ -10558,6 +10583,52 @@ export function AdminChampionshipBracketPage({
                                 ))}
                               </RadioGroup>
                             </div>
+                                                        <div className="space-y-2">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                Pareamento do mata-mata
+                              </Label>
+                              <RadioGroup
+                                value={competitionConfig.knockout_pairing_mode}
+                                onValueChange={(value) =>
+                                  setCompetitionConfigByKey((prev) => ({
+                                    ...prev,
+                                    [competitionKey]: {
+                                      ...(prev[competitionKey] ??
+                                        competitionConfig),
+                                      knockout_pairing_mode:
+                                        value as ChampionshipKnockoutPairingMode,
+                                    },
+                                  }))
+                                }
+                                className="flex flex-col gap-2"
+                              >
+                                {KNOCKOUT_PAIRING_MODE_OPTIONS.map((option) => (
+                                  <label
+                                    key={option.value}
+                                    className={cn(
+                                      "flex items-start gap-3 rounded-lg border p-2.5 transition-all cursor-pointer",
+                                      competitionConfig.knockout_pairing_mode ==
+                                        option.value
+                                        ? "border-primary/40 bg-primary/5 ring-1 ring-primary/10"
+                                        : "border-border/40 bg-background/20 hover:bg-background/40",
+                                    )}
+                                  >
+                                    <RadioGroupItem
+                                      value={option.value}
+                                      id={`knockout-pairing-${competitionKey}-${option.value}`}
+                                    />
+                                    <div className="space-y-1">
+                                      <p className="text-xs font-semibold">
+                                        {option.label}
+                                      </p>
+                                      <p className="text-[11px] leading-relaxed text-muted-foreground">
+                                        {option.helper}
+                                      </p>
+                                    </div>
+                                  </label>
+                                ))}
+                              </RadioGroup>
+                            </div>
                           </div>
                         </div>
                       );
@@ -14884,6 +14955,72 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                       rode manualmente a simulação exata antes de gerar o
                       chaveamento definitivo.
                     </p>
+                  </div>
+
+                                    <div className="mb-6 space-y-3">
+                    <div>
+                      <p className="text-sm font-bold">
+                        Pareamento do mata-mata
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Regra que será utilizada na primeira rodada eliminatória
+                        de cada competição.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {sortedActiveCompetitionKeys.map((competitionKey) => {
+                        const competitionOption =
+                          competitionOptionsByKey.get(competitionKey);
+                        const competitionConfig =
+                          competitionConfigByKey[competitionKey];
+
+                        if (!competitionOption || !competitionConfig) {
+                          return null;
+                        }
+
+                        const pairingModeOption =
+                          KNOCKOUT_PAIRING_MODE_OPTIONS.find(
+                            (option) =>
+                              option.value ==
+                              competitionConfig.knockout_pairing_mode,
+                          );
+
+                        return (
+                          <div
+                            key={`review-knockout-pairing-${competitionKey}`}
+                            className="rounded-xl border border-border/40 bg-background/30 p-4"
+                          >
+                            <p className="text-sm font-bold">
+                              {competitionOption.sport_name} •{" "}
+                              {MATCH_NAIPE_LABELS[competitionOption.naipe]}
+                            </p>
+
+                            {competitionOption.division ? (
+                              <p className="mt-0.5 text-xs text-muted-foreground">
+                                {
+                                  TEAM_DIVISION_LABELS[
+                                    competitionOption.division
+                                  ]
+                                }
+                              </p>
+                            ) : null}
+
+                            <div className="mt-3">
+                              <p className="text-xs font-semibold">
+                                {pairingModeOption?.label ??
+                                  competitionConfig.knockout_pairing_mode}
+                              </p>
+                              {pairingModeOption ? (
+                                <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                                  {pairingModeOption.helper}
+                                </p>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   {structuralReviewState.error ? (

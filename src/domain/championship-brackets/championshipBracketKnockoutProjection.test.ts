@@ -62,8 +62,12 @@ describe("resolveChampionshipBracketKnockoutProjection", () => {
       uses_best_third_placed_teams: true,
       total_qualified_team_count: 8,
     });
-    expect(resolveChampionshipBracketSeedPlaceholderLabels(input)).toContain("1º melhor 3º");
-    expect(resolveChampionshipBracketSeedPlaceholderLabels(input)).toContain("2º melhor 3º");
+    expect(resolveChampionshipBracketSeedPlaceholderLabels(input)).toContain(
+      "1º melhor 3º",
+    );
+    expect(resolveChampionshipBracketSeedPlaceholderLabels(input)).toContain(
+      "2º melhor 3º",
+    );
   });
 });
 
@@ -135,8 +139,22 @@ describe("resolveChampionshipBracketFirstRoundSeedIndexes", () => {
 });
 
 describe("resolveBracketPairingByMode", () => {
-  it("produz seeding padrão para chave de 8", () => {
-    expect(resolveBracketPairingByMode("LINEAR", 8)).toEqual([1, 8, 2, 7, 3, 6, 4, 5]);
+  it("produz pareamento LINEAR para chave de 8", () => {
+    expect(resolveBracketPairingByMode("LINEAR", 8)).toEqual([
+      1, 8, 2, 7, 3, 6, 4, 5,
+    ]);
+  });
+
+  it("produz pareamento RANKING_ALTERNATING para chave de 8", () => {
+    expect(resolveBracketPairingByMode("RANKING_ALTERNATING", 8)).toEqual([
+      1, 8, 3, 6, 2, 7, 4, 5,
+    ]);
+  });
+
+  it("produz pareamento CLASSIC_SEEDED para chave de 8", () => {
+    expect(resolveBracketPairingByMode("CLASSIC_SEEDED", 8)).toEqual([
+      1, 8, 4, 5, 2, 7, 3, 6,
+    ]);
   });
 });
 
@@ -203,9 +221,21 @@ describe("resolveChampionshipBracketSeedPlaceholderLabels", () => {
       away: labels[seedOrder[i * 2 + 1]! - 1],
     }));
 
-    expect(matchups[0]).toEqual({ home: "1º do Grupo A", away: "2º do Grupo D" });
-    expect(matchups[1]).toEqual({ home: "1º do Grupo B", away: "2º do Grupo C" });
-    expect(matchups[2]).toEqual({ home: "1º do Grupo C", away: "2º do Grupo B" });
-    expect(matchups[3]).toEqual({ home: "1º do Grupo D", away: "2º do Grupo A" });
+    expect(matchups[0]).toEqual({
+      home: "1º do Grupo A",
+      away: "2º do Grupo D",
+    });
+    expect(matchups[1]).toEqual({
+      home: "1º do Grupo B",
+      away: "2º do Grupo C",
+    });
+    expect(matchups[2]).toEqual({
+      home: "1º do Grupo C",
+      away: "2º do Grupo B",
+    });
+    expect(matchups[3]).toEqual({
+      home: "1º do Grupo D",
+      away: "2º do Grupo A",
+    });
   });
 });

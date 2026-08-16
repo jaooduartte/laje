@@ -28,7 +28,10 @@ import type {
   ChampionshipBracketReconfigurationAction,
   ChampionshipBracketReconfigurationPreview,
 } from "@/domain/championship-brackets/championshipBracket.types";
-import type { ChampionshipKnockoutPairingMode } from "@/domain/championship-brackets/championshipBracketPairing";
+import {
+  resolveCompetitionKnockoutPairingModeValue,
+  type ChampionshipKnockoutPairingMode,
+} from "@/domain/championship-brackets/championshipBracketPairing";
 import { resolveBracketDaySchedules } from "@/domain/championship-brackets/championshipBracketSchedule.utils";
 import type { ChampionshipBracketView } from "@/lib/types";
 import type { MatchNaipe, TeamDivision } from "@/lib/enums";
@@ -41,15 +44,23 @@ export async function previewChampionshipBracketReconfiguration(
   bracketEditionId: string,
   action: ChampionshipBracketReconfigurationAction,
   payload: Record<string, unknown>,
-): Promise<{ data: ChampionshipBracketReconfigurationPreview | null; error: Error | null }> {
-  const response = await supabase.rpc("preview_championship_bracket_reconfiguration", {
-    _bracket_edition_id: bracketEditionId,
-    _action: action,
-    _payload: toSupabaseJson(payload),
-  });
+): Promise<{
+  data: ChampionshipBracketReconfigurationPreview | null;
+  error: Error | null;
+}> {
+  const response = await supabase.rpc(
+    "preview_championship_bracket_reconfiguration",
+    {
+      _bracket_edition_id: bracketEditionId,
+      _action: action,
+      _payload: toSupabaseJson(payload),
+    },
+  );
 
   return {
-    data: (response.data as ChampionshipBracketReconfigurationPreview | null) ?? null,
+    data:
+      (response.data as unknown as ChampionshipBracketReconfigurationPreview | null) ??
+      null,
     error: response.error,
   };
 }
@@ -60,12 +71,15 @@ export async function applyChampionshipBracketReconfiguration(
   payload: Record<string, unknown>,
   expectedRevision: number,
 ): Promise<{ error: Error | null }> {
-  const response = await supabase.rpc("apply_championship_bracket_reconfiguration", {
-    _bracket_edition_id: bracketEditionId,
-    _action: action,
-    _payload: toSupabaseJson(payload),
-    _expected_revision: expectedRevision,
-  });
+  const response = await supabase.rpc(
+    "apply_championship_bracket_reconfiguration",
+    {
+      _bracket_edition_id: bracketEditionId,
+      _action: action,
+      _payload: toSupabaseJson(payload),
+      _expected_revision: expectedRevision,
+    },
+  );
 
   return { error: response.error };
 }
@@ -106,10 +120,13 @@ export async function startChampionshipBracketPreviewJob(
   data: ChampionshipBracketPreviewJob | null;
   error: Error | null;
 }> {
-  const response = await supabase.rpc("start_championship_bracket_preview_job", {
-    _championship_id: championship_id,
-    _payload: toSupabaseJson(payload),
-  });
+  const response = await supabase.rpc(
+    "start_championship_bracket_preview_job",
+    {
+      _championship_id: championship_id,
+      _payload: toSupabaseJson(payload),
+    },
+  );
 
   if (response.error) {
     return {
@@ -138,11 +155,17 @@ export async function fetchChampionshipBracketPreviewJobStatus(job_id: string) {
 export async function fetchChampionshipBracketPreviewJobDay(
   job_id: string,
   date: string,
-): Promise<{ data: ChampionshipBracketPreviewDay | null; error: Error | null }> {
-  const response = await supabase.rpc("get_championship_bracket_preview_job_day", {
-    _job_id: job_id,
-    _date: date,
-  });
+): Promise<{
+  data: ChampionshipBracketPreviewDay | null;
+  error: Error | null;
+}> {
+  const response = await supabase.rpc(
+    "get_championship_bracket_preview_job_day",
+    {
+      _job_id: job_id,
+      _date: date,
+    },
+  );
   return {
     data:
       (response.data as unknown as ChampionshipBracketPreviewDay | null) ??
@@ -152,9 +175,12 @@ export async function fetchChampionshipBracketPreviewJobDay(
 }
 
 export async function cancelChampionshipBracketPreviewJob(job_id: string) {
-  const response = await supabase.rpc("cancel_championship_bracket_preview_job", {
-    _job_id: job_id,
-  });
+  const response = await supabase.rpc(
+    "cancel_championship_bracket_preview_job",
+    {
+      _job_id: job_id,
+    },
+  );
   return {
     data: normalizeChampionshipBracketPreviewJob(response.data),
     error: response.error,
@@ -512,8 +538,9 @@ export async function fetchChampionshipBracketView(
   >(
     (pairingModesResponse.data ?? []).map((competition) => [
       competition.id,
-      (competition.knockout_pairing_mode as ChampionshipKnockoutPairingMode | null) ??
-        "LINEAR",
+      resolveCompetitionKnockoutPairingModeValue(
+        competition.knockout_pairing_mode,
+      ),
     ]),
   );
 
@@ -524,8 +551,9 @@ export async function fetchChampionshipBracketView(
         ...competition,
         knockout_pairing_mode:
           knockoutPairingModeByCompetitionId.get(competition.id) ??
-          competition.knockout_pairing_mode ??
-          "LINEAR",
+          resolveCompetitionKnockoutPairingModeValue(
+            competition.knockout_pairing_mode,
+          ),
       })),
     },
     error: null,

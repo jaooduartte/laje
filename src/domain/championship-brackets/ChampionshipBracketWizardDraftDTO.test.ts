@@ -9,13 +9,12 @@ import {
   TeamDivision,
 } from "@/lib/enums";
 
-type ChampionshipBracketLegacyDraftOverrides = Partial<
-  ChampionshipBracketWizardDraftFormValues
-> & {
-  schedule_periods?: unknown[];
-  competition_period_availability?: unknown[];
-  team_competition_availability?: unknown[];
-};
+type ChampionshipBracketLegacyDraftOverrides =
+  Partial<ChampionshipBracketWizardDraftFormValues> & {
+    schedule_periods?: unknown[];
+    competition_period_availability?: unknown[];
+    team_competition_availability?: unknown[];
+  };
 
 function buildPlacementPoints(count = 20) {
   const defaults = [
@@ -254,6 +253,53 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
     );
 
     expect(dto?.bindToSave().match_numbering_mode).toBe("COURT");
+  });
+
+  it("normaliza knockout_pairing_mode ausente em draft legado para LINEAR", () => {
+    const competitionKey = "sport-1::MASCULINO::DIVISAO_PRINCIPAL";
+
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      JSON.stringify({
+        ...buildDraft(),
+        step_flow_version: 2,
+        competition_config_by_key: {
+          [competitionKey]: {
+            groups_count: 2,
+            qualifiers_per_group: 1,
+            should_complete_knockout_with_best_second_placed_teams: true,
+          },
+        },
+      }),
+    );
+
+    expect(
+      dto?.bindToSave().competition_config_by_key[competitionKey]
+        ?.knockout_pairing_mode,
+    ).toBe("LINEAR");
+  });
+
+  it("preserva CLASSIC_SEEDED ao carregar e salvar um draft", () => {
+    const competitionKey = "sport-1::MASCULINO::DIVISAO_PRINCIPAL";
+
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      JSON.stringify({
+        ...buildDraft(),
+        step_flow_version: 2,
+        competition_config_by_key: {
+          [competitionKey]: {
+            groups_count: 2,
+            qualifiers_per_group: 1,
+            should_complete_knockout_with_best_second_placed_teams: true,
+            knockout_pairing_mode: "CLASSIC_SEEDED",
+          },
+        },
+      }),
+    );
+
+    expect(
+      dto?.bindToSave().competition_config_by_key[competitionKey]
+        ?.knockout_pairing_mode,
+    ).toBe("CLASSIC_SEEDED");
   });
 
   it("preserva modo de numeração SPORT_NAIPE ao carregar e salvar", () => {
@@ -725,7 +771,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
         step_flow_version: 2,
         exact_preview_cache: {
           job_id: "preview-job-1",
-          payload_signature: "{\"payload\":1}",
+          payload_signature: '{"payload":1}',
           server_payload_signature: "server-payload-signature",
           generation_signature: "generation-signature",
           dependency_signature: "dependency-signature",
@@ -765,7 +811,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
 
     expect(dto?.bindToSave().exact_preview_cache).toEqual({
       job_id: "preview-job-1",
-      payload_signature: "{\"payload\":1}",
+      payload_signature: '{"payload":1}',
       server_payload_signature: "server-payload-signature",
       generation_signature: "generation-signature",
       dependency_signature: "dependency-signature",
