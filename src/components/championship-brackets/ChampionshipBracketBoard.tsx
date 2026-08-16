@@ -19,7 +19,12 @@ import type {
   ChampionshipBracketKnockoutMatch,
   ChampionshipBracketView,
 } from "@/lib/types";
-import { BracketThirdPlaceMode, MatchNaipe, MatchStatus, TeamDivision } from "@/lib/enums";
+import {
+  BracketThirdPlaceMode,
+  MatchNaipe,
+  MatchStatus,
+  TeamDivision,
+} from "@/lib/enums";
 import {
   BRACKET_EDITION_STATUS_LABELS,
   BRACKET_THIRD_PLACE_MODE_LABELS,
@@ -30,7 +35,13 @@ import {
   resolveKnockoutRoundLabel,
   resolveMatchStatusLabel,
 } from "@/lib/championship";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Props {
   championshipBracketView: ChampionshipBracketView;
@@ -109,13 +120,27 @@ function resolveTotalRounds(bracketSize: number): number {
   return totalRounds;
 }
 
-function resolveShortKnockoutRoundLabel(roundNumber: number, totalRounds: number): string {
-  return resolveKnockoutRoundLabel(roundNumber, totalRounds).replace(" de final", "");
+function resolveShortKnockoutRoundLabel(
+  roundNumber: number,
+  totalRounds: number,
+): string {
+  return resolveKnockoutRoundLabel(roundNumber, totalRounds).replace(
+    " de final",
+    "",
+  );
 }
 
-function resolveWinnerSourceLabel(roundNumber: number, slotNumber: number, totalRounds: number): string {
-  const shortRoundLabel = resolveShortKnockoutRoundLabel(roundNumber, totalRounds);
-  const article = shortRoundLabel == "Semifinal" || shortRoundLabel == "Final" ? "da" : "das";
+function resolveWinnerSourceLabel(
+  roundNumber: number,
+  slotNumber: number,
+  totalRounds: number,
+): string {
+  const shortRoundLabel = resolveShortKnockoutRoundLabel(
+    roundNumber,
+    totalRounds,
+  );
+  const article =
+    shortRoundLabel == "Semifinal" || shortRoundLabel == "Final" ? "da" : "das";
 
   return `Vencedor ${article} ${shortRoundLabel} ${slotNumber}`;
 }
@@ -130,7 +155,9 @@ function resolveFallbackKnockoutRounds(
       currentKnockoutMatchesByRound[knockoutMatch.round_number] = [];
     }
 
-    currentKnockoutMatchesByRound[knockoutMatch.round_number].push(knockoutMatch);
+    currentKnockoutMatchesByRound[knockoutMatch.round_number].push(
+      knockoutMatch,
+    );
     return currentKnockoutMatchesByRound;
   }, {});
 
@@ -147,7 +174,10 @@ function resolveFallbackKnockoutRounds(
     .map((roundNumber) => ({
       round_number: roundNumber,
       matches: knockoutMatchesByRound[roundNumber]
-        .sort((firstMatch, secondMatch) => firstMatch.slot_number - secondMatch.slot_number)
+        .sort(
+          (firstMatch, secondMatch) =>
+            firstMatch.slot_number - secondMatch.slot_number,
+        )
         .map((knockoutMatch) => ({
           id: knockoutMatch.id,
           round_number: knockoutMatch.round_number,
@@ -168,7 +198,7 @@ function resolveFallbackKnockoutRounds(
           winner_team_name: knockoutMatch.winner_team_name,
           home_placeholder_label: resolveWinnerSourceLabel(
             Math.max(1, knockoutMatch.round_number - 1),
-            Math.max(1, (knockoutMatch.slot_number * 2) - 1),
+            Math.max(1, knockoutMatch.slot_number * 2 - 1),
             totalRounds,
           ),
           away_placeholder_label: resolveWinnerSourceLabel(
@@ -207,7 +237,10 @@ function resolveProjectedKnockoutRounds(
     should_complete_knockout_with_best_second_placed_teams:
       competition.should_complete_knockout_with_best_second_placed_teams,
   });
-  const knockoutMatchByRoundAndSlot = new Map<string, ChampionshipBracketKnockoutMatch>();
+  const knockoutMatchByRoundAndSlot = new Map<
+    string,
+    ChampionshipBracketKnockoutMatch
+  >();
 
   competition.knockout_matches.forEach((knockoutMatch) => {
     knockoutMatchByRoundAndSlot.set(
@@ -223,22 +256,38 @@ function resolveProjectedKnockoutRounds(
     const projectedMatches: ProjectedKnockoutMatchDisplay[] = [];
 
     for (let slotNumber = 1; slotNumber <= matchesInRound; slotNumber += 1) {
-      const knockoutMatch = knockoutMatchByRoundAndSlot.get(`${roundNumber}:${slotNumber}:false`) ?? null;
+      const knockoutMatch =
+        knockoutMatchByRoundAndSlot.get(`${roundNumber}:${slotNumber}:false`) ??
+        null;
       const firstRoundSeedIndexes =
         roundNumber == 1
-          ? resolveChampionshipBracketFirstRoundSeedIndexes(bracketSize, slotNumber)
+          ? resolveChampionshipBracketFirstRoundSeedIndexes(
+              bracketSize,
+              slotNumber,
+              competition.knockout_pairing_mode ?? "LINEAR",
+            )
           : null;
       const homePlaceholderLabel =
         firstRoundSeedIndexes != null
-          ? seedLabels[firstRoundSeedIndexes.home_seed_index] ?? "BYE"
-          : resolveWinnerSourceLabel(roundNumber - 1, (slotNumber * 2) - 1, totalRounds);
+          ? (seedLabels[firstRoundSeedIndexes.home_seed_index] ?? "BYE")
+          : resolveWinnerSourceLabel(
+              roundNumber - 1,
+              slotNumber * 2 - 1,
+              totalRounds,
+            );
       const awayPlaceholderLabel =
         firstRoundSeedIndexes != null
-          ? seedLabels[firstRoundSeedIndexes.away_seed_index] ?? "BYE"
-          : resolveWinnerSourceLabel(roundNumber - 1, slotNumber * 2, totalRounds);
+          ? (seedLabels[firstRoundSeedIndexes.away_seed_index] ?? "BYE")
+          : resolveWinnerSourceLabel(
+              roundNumber - 1,
+              slotNumber * 2,
+              totalRounds,
+            );
 
       projectedMatches.push({
-        id: knockoutMatch?.id ?? `projected-round-${roundNumber}-slot-${slotNumber}`,
+        id:
+          knockoutMatch?.id ??
+          `projected-round-${roundNumber}-slot-${slotNumber}`,
         round_number: roundNumber,
         slot_number: slotNumber,
         is_bye:
@@ -263,8 +312,12 @@ function resolveProjectedKnockoutRounds(
       });
     }
 
-    if (roundNumber == totalRounds && competition.third_place_mode == BracketThirdPlaceMode.MATCH) {
-      const knockoutMatch = knockoutMatchByRoundAndSlot.get(`${roundNumber}:2:true`) ?? null;
+    if (
+      roundNumber == totalRounds &&
+      competition.third_place_mode == BracketThirdPlaceMode.MATCH
+    ) {
+      const knockoutMatch =
+        knockoutMatchByRoundAndSlot.get(`${roundNumber}:2:true`) ?? null;
 
       projectedMatches.push({
         id: knockoutMatch?.id ?? `projected-third-place-${competition.id}`,
@@ -298,32 +351,49 @@ function resolveProjectedKnockoutRounds(
   return projectedRounds;
 }
 
-function resolvePlacedMatchLabels(projectedMatch: ProjectedKnockoutMatchDisplay) {
+function resolvePlacedMatchLabels(
+  projectedMatch: ProjectedKnockoutMatchDisplay,
+) {
   return {
-    resolved_home_label: projectedMatch.home_team_name ?? projectedMatch.home_placeholder_label ?? "A definir",
-    resolved_away_label: projectedMatch.away_team_name ?? projectedMatch.away_placeholder_label ?? "A definir",
+    resolved_home_label:
+      projectedMatch.home_team_name ??
+      projectedMatch.home_placeholder_label ??
+      "A definir",
+    resolved_away_label:
+      projectedMatch.away_team_name ??
+      projectedMatch.away_placeholder_label ??
+      "A definir",
   };
 }
 
-function resolveSideMatchTop(localRoundNumber: number, localSlotIndex: number, verticalUnit: number): number {
+function resolveSideMatchTop(
+  localRoundNumber: number,
+  localSlotIndex: number,
+  verticalUnit: number,
+): number {
   const matchCenter =
     DESKTOP_CARD_HEIGHT / 2 +
-    (((2 ** (localRoundNumber - 1)) - 1) / 2) * verticalUnit +
-    localSlotIndex * (2 ** (localRoundNumber - 1)) * verticalUnit;
+    ((2 ** (localRoundNumber - 1) - 1) / 2) * verticalUnit +
+    localSlotIndex * 2 ** (localRoundNumber - 1) * verticalUnit;
 
   return matchCenter - DESKTOP_CARD_HEIGHT / 2;
 }
 
-function resolveDesktopBracketLayout(projectedRounds: ProjectedKnockoutRoundDisplay[]): DesktopBracketLayout | null {
+function resolveDesktopBracketLayout(
+  projectedRounds: ProjectedKnockoutRoundDisplay[],
+): DesktopBracketLayout | null {
   const mainRounds = projectedRounds
     .map((projectedRound) => ({
       round_number: projectedRound.round_number,
-      matches: projectedRound.matches.filter((projectedMatch) => !projectedMatch.is_third_place),
+      matches: projectedRound.matches.filter(
+        (projectedMatch) => !projectedMatch.is_third_place,
+      ),
     }))
     .filter((projectedRound) => projectedRound.matches.length > 0);
-  const thirdPlaceMatch = projectedRounds
-    .flatMap((projectedRound) => projectedRound.matches)
-    .find((projectedMatch) => projectedMatch.is_third_place) ?? null;
+  const thirdPlaceMatch =
+    projectedRounds
+      .flatMap((projectedRound) => projectedRound.matches)
+      .find((projectedMatch) => projectedMatch.is_third_place) ?? null;
 
   if (mainRounds.length == 0) {
     return null;
@@ -332,20 +402,25 @@ function resolveDesktopBracketLayout(projectedRounds: ProjectedKnockoutRoundDisp
   const totalRounds = mainRounds.length;
   const finalMatch = mainRounds[mainRounds.length - 1].matches[0] ?? null;
   const sideRoundCount = Math.max(0, totalRounds - 1);
-  const sideFirstRoundMatchCount = totalRounds > 1 ? Math.max(1, mainRounds[0].matches.length / 2) : 1;
+  const sideFirstRoundMatchCount =
+    totalRounds > 1 ? Math.max(1, mainRounds[0].matches.length / 2) : 1;
   const verticalUnit = DESKTOP_CARD_HEIGHT + DESKTOP_VERTICAL_GAP;
-  const baseHeight = DESKTOP_CARD_HEIGHT + Math.max(0, sideFirstRoundMatchCount - 1) * verticalUnit;
+  const baseHeight =
+    DESKTOP_CARD_HEIGHT +
+    Math.max(0, sideFirstRoundMatchCount - 1) * verticalUnit;
   const leftSideWidth =
     sideRoundCount > 0
-      ? (sideRoundCount * DESKTOP_CARD_WIDTH) + ((sideRoundCount - 1) * DESKTOP_COLUMN_GAP)
+      ? sideRoundCount * DESKTOP_CARD_WIDTH +
+        (sideRoundCount - 1) * DESKTOP_COLUMN_GAP
       : 0;
   const finalCardWidth = DESKTOP_FINAL_CARD_WIDTH;
-  const finalColumnX = sideRoundCount == 0 ? 0 : leftSideWidth + DESKTOP_COLUMN_GAP;
+  const finalColumnX =
+    sideRoundCount == 0 ? 0 : leftSideWidth + DESKTOP_COLUMN_GAP;
   const rightSideStartX = finalColumnX + finalCardWidth + DESKTOP_COLUMN_GAP;
   const width =
     totalRounds == 1
       ? finalCardWidth
-      : leftSideWidth + finalCardWidth + (DESKTOP_COLUMN_GAP * 2) + leftSideWidth;
+      : leftSideWidth + finalCardWidth + DESKTOP_COLUMN_GAP * 2 + leftSideWidth;
   const height =
     DESKTOP_TOP_OFFSET +
     baseHeight +
@@ -361,21 +436,27 @@ function resolveDesktopBracketLayout(projectedRounds: ProjectedKnockoutRoundDisp
     const sideMatchCount = currentRound.matches.length / 2;
     const leftRoundX = roundIndex * (DESKTOP_CARD_WIDTH + DESKTOP_COLUMN_GAP);
     const rightRoundX =
-      rightSideStartX + ((sideRoundCount - roundIndex - 1) * (DESKTOP_CARD_WIDTH + DESKTOP_COLUMN_GAP));
-    const leftRoundMatches = currentRound.matches.slice(0, sideMatchCount).map((projectedMatch, localSlotIndex) => ({
-      ...projectedMatch,
-      ...resolvePlacedMatchLabels(projectedMatch),
-      card_width: DESKTOP_CARD_WIDTH,
-      x: leftRoundX,
-      y: resolveSideMatchTop(roundNumber, localSlotIndex, verticalUnit),
-    }));
-    const rightRoundMatches = currentRound.matches.slice(sideMatchCount).map((projectedMatch, localSlotIndex) => ({
-      ...projectedMatch,
-      ...resolvePlacedMatchLabels(projectedMatch),
-      card_width: DESKTOP_CARD_WIDTH,
-      x: rightRoundX,
-      y: resolveSideMatchTop(roundNumber, localSlotIndex, verticalUnit),
-    }));
+      rightSideStartX +
+      (sideRoundCount - roundIndex - 1) *
+        (DESKTOP_CARD_WIDTH + DESKTOP_COLUMN_GAP);
+    const leftRoundMatches = currentRound.matches
+      .slice(0, sideMatchCount)
+      .map((projectedMatch, localSlotIndex) => ({
+        ...projectedMatch,
+        ...resolvePlacedMatchLabels(projectedMatch),
+        card_width: DESKTOP_CARD_WIDTH,
+        x: leftRoundX,
+        y: resolveSideMatchTop(roundNumber, localSlotIndex, verticalUnit),
+      }));
+    const rightRoundMatches = currentRound.matches
+      .slice(sideMatchCount)
+      .map((projectedMatch, localSlotIndex) => ({
+        ...projectedMatch,
+        ...resolvePlacedMatchLabels(projectedMatch),
+        card_width: DESKTOP_CARD_WIDTH,
+        x: rightRoundX,
+        y: resolveSideMatchTop(roundNumber, localSlotIndex, verticalUnit),
+      }));
 
     leftMatches.push(leftRoundMatches);
     rightMatches.push(rightRoundMatches);
@@ -406,17 +487,20 @@ function resolveDesktopBracketLayout(projectedRounds: ProjectedKnockoutRoundDisp
       const parentMatch =
         roundIndex == leftMatches.length - 1
           ? placedFinalMatch
-          : leftMatches[roundIndex + 1][Math.floor(localSlotIndex / 2)] ?? null;
+          : (leftMatches[roundIndex + 1][Math.floor(localSlotIndex / 2)] ??
+            null);
 
       if (!parentMatch) {
         return;
       }
 
-      const currentMatchCenterY = DESKTOP_TOP_OFFSET + currentMatch.y + (DESKTOP_CARD_HEIGHT / 2);
-      const parentMatchCenterY = DESKTOP_TOP_OFFSET + parentMatch.y + (DESKTOP_CARD_HEIGHT / 2);
+      const currentMatchCenterY =
+        DESKTOP_TOP_OFFSET + currentMatch.y + DESKTOP_CARD_HEIGHT / 2;
+      const parentMatchCenterY =
+        DESKTOP_TOP_OFFSET + parentMatch.y + DESKTOP_CARD_HEIGHT / 2;
       const currentMatchEdgeX = currentMatch.x + currentMatch.card_width;
       const parentMatchEdgeX = parentMatch.x;
-      const middleX = currentMatchEdgeX + (DESKTOP_COLUMN_GAP / 2);
+      const middleX = currentMatchEdgeX + DESKTOP_COLUMN_GAP / 2;
 
       connectors.push({
         id: `left-connector-${currentMatch.id}-${parentMatch.id}`,
@@ -430,17 +514,20 @@ function resolveDesktopBracketLayout(projectedRounds: ProjectedKnockoutRoundDisp
       const parentMatch =
         roundIndex == rightMatches.length - 1
           ? placedFinalMatch
-          : rightMatches[roundIndex + 1][Math.floor(localSlotIndex / 2)] ?? null;
+          : (rightMatches[roundIndex + 1][Math.floor(localSlotIndex / 2)] ??
+            null);
 
       if (!parentMatch) {
         return;
       }
 
-      const currentMatchCenterY = DESKTOP_TOP_OFFSET + currentMatch.y + (DESKTOP_CARD_HEIGHT / 2);
-      const parentMatchCenterY = DESKTOP_TOP_OFFSET + parentMatch.y + (DESKTOP_CARD_HEIGHT / 2);
+      const currentMatchCenterY =
+        DESKTOP_TOP_OFFSET + currentMatch.y + DESKTOP_CARD_HEIGHT / 2;
+      const parentMatchCenterY =
+        DESKTOP_TOP_OFFSET + parentMatch.y + DESKTOP_CARD_HEIGHT / 2;
       const currentMatchEdgeX = currentMatch.x;
       const parentMatchEdgeX = parentMatch.x + parentMatch.card_width;
-      const middleX = currentMatchEdgeX - (DESKTOP_COLUMN_GAP / 2);
+      const middleX = currentMatchEdgeX - DESKTOP_COLUMN_GAP / 2;
 
       connectors.push({
         id: `right-connector-${currentMatch.id}-${parentMatch.id}`,
@@ -461,7 +548,9 @@ function resolveDesktopBracketLayout(projectedRounds: ProjectedKnockoutRoundDisp
   };
 }
 
-function resolveProjectedMatchStatusSummary(projectedMatch: ProjectedKnockoutMatchDisplay): string {
+function resolveProjectedMatchStatusSummary(
+  projectedMatch: ProjectedKnockoutMatchDisplay,
+): string {
   if (!projectedMatch.status) {
     return "Aguardando definição";
   }
@@ -469,7 +558,9 @@ function resolveProjectedMatchStatusSummary(projectedMatch: ProjectedKnockoutMat
   return resolveMatchStatusLabel(projectedMatch.status);
 }
 
-function resolveProjectedMatchScheduleSummary(projectedMatch: ProjectedKnockoutMatchDisplay): string {
+function resolveProjectedMatchScheduleSummary(
+  projectedMatch: ProjectedKnockoutMatchDisplay,
+): string {
   if (projectedMatch.status == MatchStatus.SCHEDULED) {
     const scheduledDateValue = resolveMatchScheduledDateValue(projectedMatch);
 
@@ -484,10 +575,14 @@ function resolveProjectedMatchScheduleSummary(projectedMatch: ProjectedKnockoutM
     return "A definir em fila";
   }
 
-  return format(new Date(projectedMatch.start_time), "dd/MM HH:mm", { locale: ptBR });
+  return format(new Date(projectedMatch.start_time), "dd/MM HH:mm", {
+    locale: ptBR,
+  });
 }
 
-function resolveProjectedMatchLocationSummary(projectedMatch: ProjectedKnockoutMatchDisplay): string {
+function resolveProjectedMatchLocationSummary(
+  projectedMatch: ProjectedKnockoutMatchDisplay,
+): string {
   const locationLabel = projectedMatch.location ?? "Local a definir";
 
   if (!projectedMatch.court_name) {
@@ -523,7 +618,11 @@ function resolveProjectedTeamPlacementBadge(
 
   if (
     projectedMatch.id == competitionPodium.final_match_id &&
-    doesProjectedTeamMatchPodiumTeam(projectedTeamId, projectedTeamName, competitionPodium.champion)
+    doesProjectedTeamMatchPodiumTeam(
+      projectedTeamId,
+      projectedTeamName,
+      competitionPodium.champion,
+    )
   ) {
     return "CHAMPION";
   }
@@ -531,7 +630,11 @@ function resolveProjectedTeamPlacementBadge(
   if (
     projectedMatch.id == competitionPodium.final_match_id &&
     competitionPodium.runner_up &&
-    doesProjectedTeamMatchPodiumTeam(projectedTeamId, projectedTeamName, competitionPodium.runner_up)
+    doesProjectedTeamMatchPodiumTeam(
+      projectedTeamId,
+      projectedTeamName,
+      competitionPodium.runner_up,
+    )
   ) {
     return "RUNNER_UP";
   }
@@ -551,7 +654,9 @@ function resolveProjectedTeamPlacementBadge(
   return null;
 }
 
-function renderPlacementIcon(placementBadge: KnockoutPlacementBadge | null): JSX.Element | null {
+function renderPlacementIcon(
+  placementBadge: KnockoutPlacementBadge | null,
+): JSX.Element | null {
   if (placementBadge == "CHAMPION") {
     return <Trophy className="h-4 w-4 shrink-0 text-amber-400" />;
   }
@@ -585,11 +690,15 @@ function BracketMatchCard({
   const resolvedHomeLabel =
     "resolved_home_label" in projectedMatch
       ? projectedMatch.resolved_home_label
-      : (projectedMatch.home_team_name ?? projectedMatch.home_placeholder_label ?? "A definir");
+      : (projectedMatch.home_team_name ??
+        projectedMatch.home_placeholder_label ??
+        "A definir");
   const resolvedAwayLabel =
     "resolved_away_label" in projectedMatch
       ? projectedMatch.resolved_away_label
-      : (projectedMatch.away_team_name ?? projectedMatch.away_placeholder_label ?? "A definir");
+      : (projectedMatch.away_team_name ??
+        projectedMatch.away_placeholder_label ??
+        "A definir");
   const isFinishedFinalMatch =
     !projectedMatch.is_third_place &&
     projectedMatch.round_number == totalRounds &&
@@ -643,7 +752,9 @@ function BracketMatchCard({
           )}
         </p>
         {projectedMatch.is_bye ? (
-          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">BYE</span>
+          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            BYE
+          </span>
         ) : null}
       </div>
 
@@ -651,27 +762,36 @@ function BracketMatchCard({
         <div className="app-input-field flex min-h-[44px] items-center justify-center rounded-xl px-3 py-2 text-center">
           <div className="flex max-w-full items-center justify-center gap-2">
             {renderPlacementIcon(homePlacementBadge)}
-            <p className="max-w-full break-words text-center text-sm font-semibold leading-snug">{resolvedHomeLabel}</p>
+            <p className="max-w-full break-words text-center text-sm font-semibold leading-snug">
+              {resolvedHomeLabel}
+            </p>
           </div>
         </div>
 
         <div className="flex justify-center">
-          <span className="font-display text-lg font-bold text-muted-foreground/70">×</span>
+          <span className="font-display text-lg font-bold text-muted-foreground/70">
+            ×
+          </span>
         </div>
 
         <div className="app-input-field flex min-h-[44px] items-center justify-center rounded-xl px-3 py-2 text-center">
           <div className="flex max-w-full items-center justify-center gap-2">
             {renderPlacementIcon(awayPlacementBadge)}
-            <p className="max-w-full break-words text-center text-sm font-semibold leading-snug">{resolvedAwayLabel}</p>
+            <p className="max-w-full break-words text-center text-sm font-semibold leading-snug">
+              {resolvedAwayLabel}
+            </p>
           </div>
         </div>
       </div>
 
       <div className="mt-3 flex flex-col items-center gap-1 text-center text-[11px] leading-tight text-muted-foreground">
         <p className="max-w-full break-words">
-          {resolveProjectedMatchStatusSummary(projectedMatch)} • {resolveProjectedMatchScheduleSummary(projectedMatch)}
+          {resolveProjectedMatchStatusSummary(projectedMatch)} •{" "}
+          {resolveProjectedMatchScheduleSummary(projectedMatch)}
         </p>
-        <p className="max-w-full break-words">{resolveProjectedMatchLocationSummary(projectedMatch)}</p>
+        <p className="max-w-full break-words">
+          {resolveProjectedMatchLocationSummary(projectedMatch)}
+        </p>
       </div>
     </div>
   );
@@ -699,7 +819,8 @@ function DesktopBracketCanvas({
     const updateDesktopBracketScale = () => {
       const availableWidth = Math.max(
         0,
-        currentDesktopBracketCanvas.clientWidth - DESKTOP_LAYOUT_HORIZONTAL_PADDING,
+        currentDesktopBracketCanvas.clientWidth -
+          DESKTOP_LAYOUT_HORIZONTAL_PADDING,
       );
 
       if (availableWidth <= 0) {
@@ -707,7 +828,9 @@ function DesktopBracketCanvas({
         return;
       }
 
-      setDesktopBracketScale(Math.min(1, availableWidth / desktopBracketLayout.width));
+      setDesktopBracketScale(
+        Math.min(1, availableWidth / desktopBracketLayout.width),
+      );
     };
 
     updateDesktopBracketScale();
@@ -864,7 +987,9 @@ export function ChampionshipBracketBoard({
 
   const visibleCompetitions = useMemo(() => {
     return championshipBracketView.competitions.filter((competition) => {
-      return competition.groups_count > 0 || competition.knockout_matches.length > 0;
+      return (
+        competition.groups_count > 0 || competition.knockout_matches.length > 0
+      );
     });
   }, [championshipBracketView.competitions]);
 
@@ -899,7 +1024,9 @@ export function ChampionshipBracketBoard({
   }, [divisionFilter, naipeFilter, visibleCompetitions]);
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">Carregando grupos...</p>;
+    return (
+      <p className="text-sm text-muted-foreground">Carregando grupos...</p>
+    );
   }
 
   if (visibleCompetitions.length == 0) {
@@ -915,9 +1042,15 @@ export function ChampionshipBracketBoard({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL_FILTER}>Todos os naipes</SelectItem>
-            <SelectItem value={MatchNaipe.MASCULINO}>{MATCH_NAIPE_LABELS[MatchNaipe.MASCULINO]}</SelectItem>
-            <SelectItem value={MatchNaipe.FEMININO}>{MATCH_NAIPE_LABELS[MatchNaipe.FEMININO]}</SelectItem>
-            <SelectItem value={MatchNaipe.MISTO}>{MATCH_NAIPE_LABELS[MatchNaipe.MISTO]}</SelectItem>
+            <SelectItem value={MatchNaipe.MASCULINO}>
+              {MATCH_NAIPE_LABELS[MatchNaipe.MASCULINO]}
+            </SelectItem>
+            <SelectItem value={MatchNaipe.FEMININO}>
+              {MATCH_NAIPE_LABELS[MatchNaipe.FEMININO]}
+            </SelectItem>
+            <SelectItem value={MatchNaipe.MISTO}>
+              {MATCH_NAIPE_LABELS[MatchNaipe.MISTO]}
+            </SelectItem>
           </SelectContent>
         </Select>
 
@@ -938,39 +1071,54 @@ export function ChampionshipBracketBoard({
 
       {championshipBracketView.edition ? (
         <p className="text-xs text-muted-foreground">
-          Edição atual: {BRACKET_EDITION_STATUS_LABELS[championshipBracketView.edition.status]}
+          Edição atual:{" "}
+          {
+            BRACKET_EDITION_STATUS_LABELS[
+              championshipBracketView.edition.status
+            ]
+          }
         </p>
       ) : null}
 
       {filteredCompetitions.length == 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhuma competição encontrada para os filtros selecionados.</p>
+        <p className="text-sm text-muted-foreground">
+          Nenhuma competição encontrada para os filtros selecionados.
+        </p>
       ) : null}
 
       {filteredCompetitions.map((competition) => {
-        const projectedKnockoutRounds = resolveProjectedKnockoutRounds(competition);
+        const projectedKnockoutRounds =
+          resolveProjectedKnockoutRounds(competition);
         const competitionPodium = resolveCompetitionPodium(competition);
-        const qualificationSummary = resolveChampionshipBracketQualificationSummary({
-          groups_count: competition.groups_count,
-          qualifiers_per_group: competition.qualifiers_per_group,
-          should_complete_knockout_with_best_second_placed_teams:
-            competition.should_complete_knockout_with_best_second_placed_teams,
-        });
-        const projectedKnockoutSummary = resolveChampionshipBracketProjectedKnockoutSummary({
-          groups_count: competition.groups_count,
-          qualifiers_per_group: competition.qualifiers_per_group,
-          should_complete_knockout_with_best_second_placed_teams:
-            competition.should_complete_knockout_with_best_second_placed_teams,
-        });
-        const desktopBracketLayout = resolveDesktopBracketLayout(projectedKnockoutRounds);
+        const qualificationSummary =
+          resolveChampionshipBracketQualificationSummary({
+            groups_count: competition.groups_count,
+            qualifiers_per_group: competition.qualifiers_per_group,
+            should_complete_knockout_with_best_second_placed_teams:
+              competition.should_complete_knockout_with_best_second_placed_teams,
+          });
+        const projectedKnockoutSummary =
+          resolveChampionshipBracketProjectedKnockoutSummary({
+            groups_count: competition.groups_count,
+            qualifiers_per_group: competition.qualifiers_per_group,
+            should_complete_knockout_with_best_second_placed_teams:
+              competition.should_complete_knockout_with_best_second_placed_teams,
+          });
+        const desktopBracketLayout = resolveDesktopBracketLayout(
+          projectedKnockoutRounds,
+        );
         const mainProjectedRounds = projectedKnockoutRounds
           .map((projectedRound) => ({
             round_number: projectedRound.round_number,
-            matches: projectedRound.matches.filter((projectedMatch) => !projectedMatch.is_third_place),
+            matches: projectedRound.matches.filter(
+              (projectedMatch) => !projectedMatch.is_third_place,
+            ),
           }))
           .filter((projectedRound) => projectedRound.matches.length > 0);
-        const thirdPlaceMatch = projectedKnockoutRounds
-          .flatMap((projectedRound) => projectedRound.matches)
-          .find((projectedMatch) => projectedMatch.is_third_place) ?? null;
+        const thirdPlaceMatch =
+          projectedKnockoutRounds
+            .flatMap((projectedRound) => projectedRound.matches)
+            .find((projectedMatch) => projectedMatch.is_third_place) ?? null;
         const totalRounds = Math.max(
           1,
           ...projectedKnockoutRounds
@@ -980,14 +1128,21 @@ export function ChampionshipBracketBoard({
         );
 
         return (
-          <div key={competition.id} className="space-y-4 rounded-2xl app-card-muted p-4">
+          <div
+            key={competition.id}
+            className="space-y-4 rounded-2xl app-card-muted p-4"
+          >
             <div className="space-y-1">
               <h3 className="font-display text-lg font-bold">
-                {competition.sport_name} • {MATCH_NAIPE_LABELS[competition.naipe]}
-                {competition.division ? ` • ${TEAM_DIVISION_LABELS[competition.division]}` : ""}
+                {competition.sport_name} •{" "}
+                {MATCH_NAIPE_LABELS[competition.naipe]}
+                {competition.division
+                  ? ` • ${TEAM_DIVISION_LABELS[competition.division]}`
+                  : ""}
               </h3>
               <p className="text-xs text-muted-foreground">
-                Grupos: {competition.groups_count} • Classificados/grupo: {competition.qualifiers_per_group} • 3º lugar:{" "}
+                Grupos: {competition.groups_count} • Classificados/grupo:{" "}
+                {competition.qualifiers_per_group} • 3º lugar:{" "}
                 {BRACKET_THIRD_PLACE_MODE_LABELS[competition.third_place_mode]}
               </p>
               <p className="text-xs text-muted-foreground">
@@ -997,7 +1152,8 @@ export function ChampionshipBracketBoard({
 
             {projectedKnockoutRounds.length == 0 ? (
               <p className="text-xs text-muted-foreground">
-                Esta competição ainda não possui participantes suficientes para o mata-mata.
+                Esta competição ainda não possui participantes suficientes para
+                o mata-mata.
               </p>
             ) : (
               <>
@@ -1011,7 +1167,10 @@ export function ChampionshipBracketBoard({
 
                 <div className="space-y-4 md:hidden">
                   {mainProjectedRounds.map((projectedRound) => (
-                    <div key={`${competition.id}-mobile-round-${projectedRound.round_number}`} className="space-y-3">
+                    <div
+                      key={`${competition.id}-mobile-round-${projectedRound.round_number}`}
+                      className="space-y-3"
+                    >
                       <div className="space-y-3">
                         {projectedRound.matches.map((projectedMatch) => (
                           <BracketMatchCard
@@ -1020,7 +1179,8 @@ export function ChampionshipBracketBoard({
                             totalRounds={totalRounds}
                             competitionPodium={competitionPodium}
                             isFinalCard={
-                              projectedMatch.round_number == totalRounds && !projectedMatch.is_third_place
+                              projectedMatch.round_number == totalRounds &&
+                              !projectedMatch.is_third_place
                             }
                           />
                         ))}

@@ -695,9 +695,6 @@ export function AdminChampionshipSchedule({
 
         <div className="glass-card space-y-4 p-4 sm:p-6">
           <div className="flex items-start gap-3">
-            <div className="rounded-lg bg-muted p-2 text-muted-foreground">
-              <RotateCcw className="h-4 w-4" />
-            </div>
             <div className="space-y-1">
               <p className="font-semibold">Inverter ordem dos jogos</p>
               <p className="text-sm text-muted-foreground">
@@ -729,7 +726,7 @@ export function AdminChampionshipSchedule({
 
             <div className="space-y-1.5">
               <Label>Quadras</Label>
-              <div className="flex min-h-10 flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-input bg-background px-3 py-2">
+              <div className="flex min-h-10 flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2">
                 {reverseMatchOrderCourts.length === 0 ? (
                   <span className="text-sm text-muted-foreground">Selecione uma data com quadras configuradas.</span>
                 ) : reverseMatchOrderCourts.map((court) => (

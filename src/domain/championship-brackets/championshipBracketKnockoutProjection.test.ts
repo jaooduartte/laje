@@ -99,6 +99,52 @@ describe("resolveStandardBalancedBracketSeedOrder", () => {
 });
 
 describe("resolveChampionshipBracketFirstRoundSeedIndexes", () => {
+    it("respeita o pareamento RANKING_ALTERNATING na chave de 8", () => {
+    expect(
+      resolveChampionshipBracketFirstRoundSeedIndexes(
+        8,
+        1,
+        "RANKING_ALTERNATING",
+      ),
+    ).toEqual({
+      home_seed_index: 0,
+      away_seed_index: 7,
+    });
+
+    expect(
+      resolveChampionshipBracketFirstRoundSeedIndexes(
+        8,
+        2,
+        "RANKING_ALTERNATING",
+      ),
+    ).toEqual({
+      home_seed_index: 2,
+      away_seed_index: 5,
+    });
+
+    expect(
+      resolveChampionshipBracketFirstRoundSeedIndexes(
+        8,
+        3,
+        "RANKING_ALTERNATING",
+      ),
+    ).toEqual({
+      home_seed_index: 1,
+      away_seed_index: 6,
+    });
+
+    expect(
+      resolveChampionshipBracketFirstRoundSeedIndexes(
+        8,
+        4,
+        "RANKING_ALTERNATING",
+      ),
+    ).toEqual({
+      home_seed_index: 3,
+      away_seed_index: 4,
+    });
+  });
+  
   it("pairs 1 vs 4 and 2 vs 3 in a 4-team bracket", () => {
     expect(resolveChampionshipBracketFirstRoundSeedIndexes(4, 1)).toEqual({
       home_seed_index: 0,
@@ -159,6 +205,21 @@ describe("resolveBracketPairingByMode", () => {
 });
 
 describe("resolveChampionshipBracketSeedPlaceholderLabels", () => {
+    it("ranqueia os primeiros colocados entre os grupos no modo de apenas primeiros", () => {
+    const labels = resolveChampionshipBracketSeedPlaceholderLabels({
+      groups_count: 4,
+      qualifiers_per_group: 1,
+      should_complete_knockout_with_best_second_placed_teams: false,
+    });
+
+    expect(labels).toEqual([
+      "1º melhor 1º",
+      "2º melhor 1º",
+      "3º melhor 1º",
+      "4º melhor 1º",
+    ]);
+  });
+
   it("gera rótulos corretos para 2 grupos × 2 classificados (Beach Soccer Fem / semis diretas)", () => {
     const labels = resolveChampionshipBracketSeedPlaceholderLabels({
       groups_count: 2,
