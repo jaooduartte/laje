@@ -211,11 +211,11 @@ export function LivePage() {
 
   return (
     <LivePageView
-      isLoading={championshipsLoading || liveMatchesLoading || upcomingMatchesLoading || championshipBracketLoading || individualSessionsLoading}
+      isLoading={championshipsLoading || liveMatchesLoading || upcomingMatchesLoading || championshipBracketLoading}
       featuredChampionship={featuredChampionship}
       filteredLiveMatches={filteredLiveMatches}
       upcomingScheduleItems={paginatedUpcomingScheduleItems}
-      isUpcomingMatchesFetching={upcomingMatchesFetching || liveMatchesFetching}
+      isUpcomingMatchesFetching={upcomingMatchesFetching || liveMatchesFetching || individualSessionsLoading}
       upcomingMatchesCurrentPage={upcomingMatchesCurrentPage}
       upcomingMatchesItemsPerPage={upcomingMatchesItemsPerPage}
       upcomingMatchesTotalPages={upcomingMatchesTotalPages}
