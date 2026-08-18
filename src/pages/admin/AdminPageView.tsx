@@ -1,3 +1,4 @@
+import { PageContentSkeleton } from "@/components/skeletons/PageContentSkeleton";
 import {
   useCallback,
   useEffect,
@@ -670,20 +671,30 @@ export function AdminPageView({
             </TabsContent>
           ) : null}
 
-          {canViewScheduleTab && championshipBracketView.edition != null ? (
+          {canViewScheduleTab ? (
             <TabsContent value={AdminPanelTab.CHAMPIONSHIP_SCHEDULE}>
-              <AdminChampionshipSchedule
-                bracketEditionId={championshipBracketView.edition.id}
-                championshipId={selectedChampionship.id}
-                seasonYear={selectedChampionship.current_season_year}
-                sports={sports}
-                canManageSchedule={canManageSchedule}
-                championshipStatus={selectedChampionship.status}
-                usesDivisions={selectedChampionshipHasSeasonDivisions}
-                competitions={championshipBracketView.competitions}
-                onRefetchMatches={onRefetchMatches}
-                onRefetchChampionshipBracket={onRefetchChampionshipBracket}
-              />
+              {loadingChampionshipBracket ? (
+                <PageContentSkeleton filterCount={3} contentCount={3} />
+              ) : championshipBracketView.edition != null ? (
+                <AdminChampionshipSchedule
+                  bracketEditionId={championshipBracketView.edition.id}
+                  championshipId={selectedChampionship.id}
+                  seasonYear={selectedChampionship.current_season_year}
+                  sports={sports}
+                  canManageSchedule={canManageSchedule}
+                  championshipStatus={selectedChampionship.status}
+                  usesDivisions={selectedChampionshipHasSeasonDivisions}
+                  competitions={championshipBracketView.competitions}
+                  onRefetchMatches={onRefetchMatches}
+                  onRefetchChampionshipBracket={onRefetchChampionshipBracket}
+                />
+              ) : (
+                <div className="glass-panel p-5">
+                  <p className="text-sm text-muted-foreground">
+                    A agenda deste campeonato não está disponível.
+                  </p>
+                </div>
+              )}
             </TabsContent>
           ) : null}
 

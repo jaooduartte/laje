@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ExternalLink } from "lucide-react";
-import { CardListSkeleton } from "@/components/skeletons/CardListSkeleton";
+import { PublicLinkSectionsSkeleton } from "@/components/skeletons/PublicLinkSectionsSkeleton";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import {
@@ -147,13 +147,7 @@ export function LinksPageView({
         </section>
 
         {loading ? (
-          <section className="glass-panel p-5">
-            <CardListSkeleton
-              count={4}
-              className="grid-cols-1 md:grid-cols-2"
-              cardClassName="min-h-40"
-            />
-          </section>
+          <PublicLinkSectionsSkeleton count={4} />
         ) : visiblePublicLinkSections.length == 0 ? (
           <section className="glass-panel p-8 text-center">
             <p className="font-display text-xl font-semibold">

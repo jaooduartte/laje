@@ -38,7 +38,6 @@ import {
 import {
   AdminPanelTab,
   AppRoutePath,
-  BracketEditionStatus,
   ChampionshipStatus,
   MatchStatus,
 } from "@/lib/enums";
@@ -646,10 +645,8 @@ export function AdminPage() {
   const canViewTieBreaksTab =
     canViewOperationalAdminTabs && canViewAdminTab(AdminPanelTab.TIE_BREAKS);
   const canViewScheduleTab =
-    canViewAdminTab(AdminPanelTab.CHAMPIONSHIP_SCHEDULE) &&
-    visibleOperationalChampionshipBracketView.edition != null &&
-    visibleOperationalChampionshipBracketView.edition.status !==
-      BracketEditionStatus.DRAFT;
+  (canViewReviewAdminTabs || canViewOperationalAdminTabs) &&
+  canViewAdminTab(AdminPanelTab.CHAMPIONSHIP_SCHEDULE);
 
   const canManageMatches = canEditAdminTab(AdminPanelTab.MATCHES);
   const canManageSchedule = canEditAdminTab(

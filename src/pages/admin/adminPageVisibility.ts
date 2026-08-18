@@ -43,24 +43,9 @@ export function resolveCanViewBracketSetupTab({
 
 export function resolveCanViewOperationalAdminTabs({
   championshipStatus,
-  hasFinishedLoadingOperationalState,
-  matchesCount,
-  bracketEditionStatus,
 }: ResolveCanViewOperationalAdminTabsParams): boolean {
-  if (
-    championshipStatus != ChampionshipStatus.IN_PROGRESS &&
-    championshipStatus != ChampionshipStatus.FINISHED
-  ) {
-    return false;
-  }
-
-  if (!hasFinishedLoadingOperationalState) {
-    return false;
-  }
-
-  if (matchesCount <= 0) {
-    return false;
-  }
-
-  return bracketEditionStatus != null && bracketEditionStatus != BracketEditionStatus.DRAFT;
+  return (
+    championshipStatus == ChampionshipStatus.IN_PROGRESS ||
+    championshipStatus == ChampionshipStatus.FINISHED
+  );
 }
