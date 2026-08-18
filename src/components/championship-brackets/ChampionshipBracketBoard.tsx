@@ -1,3 +1,4 @@
+import { Skeleton } from "@/components/ui/skeleton";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -1024,10 +1025,49 @@ export function ChampionshipBracketBoard({
   }, [divisionFilter, naipeFilter, visibleCompetitions]);
 
   if (loading) {
-    return (
-      <p className="text-sm text-muted-foreground">Carregando grupos...</p>
-    );
-  }
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <Skeleton className="h-10 w-full rounded-xl" />
+        <Skeleton className="h-10 w-full rounded-xl" />
+      </div>
+
+      <div className="space-y-4">
+        {Array.from({ length: 2 }).map((_, competitionIndex) => (
+          <div
+            key={`championship-bracket-skeleton-${competitionIndex}`}
+            className="space-y-4 rounded-2xl app-card-muted p-4"
+          >
+            <div className="flex flex-col items-center space-y-2">
+              <Skeleton className="h-5 w-52 max-w-full" />
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-3 w-32" />
+              <Skeleton className="h-3 w-44 max-w-full" />
+            </div>
+
+            <div className="hidden gap-4 md:grid md:grid-cols-3">
+              {Array.from({ length: 3 }).map((_, matchIndex) => (
+                <Skeleton
+                  key={`championship-bracket-match-skeleton-${competitionIndex}-${matchIndex}`}
+                  className="h-56 w-full rounded-2xl"
+                />
+              ))}
+            </div>
+
+            <div className="space-y-3 md:hidden">
+              {Array.from({ length: 3 }).map((_, matchIndex) => (
+                <Skeleton
+                  key={`championship-bracket-mobile-skeleton-${competitionIndex}-${matchIndex}`}
+                  className="h-52 w-full rounded-2xl"
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
   if (visibleCompetitions.length == 0) {
     return <p className="text-sm text-muted-foreground">{emptyMessage}</p>;

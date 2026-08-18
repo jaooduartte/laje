@@ -1,3 +1,4 @@
+import { Skeleton } from "@/components/ui/skeleton";
 import type { FormEvent } from "react";
 import { Loader2 } from "lucide-react";
 import { Header } from "@/components/Header";
@@ -79,17 +80,27 @@ export function LoginPageView({
   onSignOut,
 }: LoginPageViewProps) {
   if (isLoading) {
-    return (
-      <div className="app-page">
-        <Header />
-        <main className="container py-10">
-          <div className="glass-panel flex min-h-[420px] items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+  return (
+    <div className="app-page">
+      <Header />
+
+      <main className="container flex items-center justify-center py-10">
+        <div className="glass-panel w-full max-w-sm space-y-8 p-8">
+          <div className="flex flex-col items-center space-y-3 text-center">
+            <Skeleton className="h-14 w-14 rounded-xl" />
+            <Skeleton className="h-7 w-36" />
+            <Skeleton className="h-4 w-56 max-w-full" />
           </div>
-        </main>
-      </div>
-    );
-  }
+
+          <div className="space-y-4">
+            <Skeleton className="h-10 w-full rounded-xl" />
+            <Skeleton className="h-10 w-full rounded-xl" />
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
 
   if (isUnauthorized) {
     return (

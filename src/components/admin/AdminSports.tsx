@@ -1,3 +1,4 @@
+import { Skeleton } from "@/components/ui/skeleton";
 import { useEffect, useMemo, useState } from "react";
 import { AdminListSkeleton } from "@/components/skeletons/AdminListSkeleton";
 import { toast } from "sonner";
@@ -500,8 +501,8 @@ export function AdminSports({
       <div className="space-y-6">
         <div className="enter-section space-y-5 glass-card p-4">
           <div className="space-y-2">
-            <div className="h-7 w-64 max-w-full animate-pulse rounded bg-secondary/30" />
-            <div className="h-4 w-96 max-w-full animate-pulse rounded bg-secondary/20" />
+            <Skeleton className="h-7 w-64 max-w-full" />
+            <Skeleton className="h-4 w-96 max-w-full" />
           </div>
 
           <AdminListSkeleton count={6} showActions={false} />

@@ -1,18 +1,22 @@
+import { AdminListSkeleton } from "@/components/skeletons/AdminListSkeleton";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, MapPinned } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  getBracketGeneratedLocationGroups,
-} from "@/domain/championship-brackets/championshipBracket.repository";
-import type { BracketGeneratedLocationGroup, ChampionshipBracketReconfigurationRequest } from "@/domain/championship-brackets/championshipBracket.types";
+import { getBracketGeneratedLocationGroups } from "@/domain/championship-brackets/championshipBracket.repository";
+import type {
+  BracketGeneratedLocationGroup,
+  ChampionshipBracketReconfigurationRequest,
+} from "@/domain/championship-brackets/championshipBracket.types";
 
 interface Props {
   bracketEditionId: string;
   isEditable: boolean;
-  onRequestReconfiguration: (request: ChampionshipBracketReconfigurationRequest) => Promise<boolean>;
+  onRequestReconfiguration: (
+    request: ChampionshipBracketReconfigurationRequest,
+  ) => Promise<boolean>;
 }
 
 interface LocationGroupDraft extends BracketGeneratedLocationGroup {
@@ -25,13 +29,18 @@ export function AdminChampionshipGeneratedLocationsSection({
   onRequestReconfiguration,
 }: Props) {
   const [loading, setLoading] = useState(true);
-  const [locationGroups, setLocationGroups] = useState<LocationGroupDraft[]>([]);
-  const [savedSnapshotByGroupId, setSavedSnapshotByGroupId] = useState<Record<string, BracketGeneratedLocationGroup>>({});
+  const [locationGroups, setLocationGroups] = useState<LocationGroupDraft[]>(
+    [],
+  );
+  const [savedSnapshotByGroupId, setSavedSnapshotByGroupId] = useState<
+    Record<string, BracketGeneratedLocationGroup>
+  >({});
 
   const loadLocationGroups = useCallback(async () => {
     setLoading(true);
 
-    const { data, error } = await getBracketGeneratedLocationGroups(bracketEditionId);
+    const { data, error } =
+      await getBracketGeneratedLocationGroups(bracketEditionId);
 
     if (error) {
       toast.error(error.message);
@@ -41,10 +50,13 @@ export function AdminChampionshipGeneratedLocationsSection({
 
     setLocationGroups(data.map((group) => ({ ...group, saving: false })));
     setSavedSnapshotByGroupId(
-      data.reduce<Record<string, BracketGeneratedLocationGroup>>((carry, group) => {
-        carry[group.location_group_id] = group;
-        return carry;
-      }, {}),
+      data.reduce<Record<string, BracketGeneratedLocationGroup>>(
+        (carry, group) => {
+          carry[group.location_group_id] = group;
+          return carry;
+        },
+        {},
+      ),
     );
     setLoading(false);
   }, [bracketEditionId]);
@@ -54,7 +66,10 @@ export function AdminChampionshipGeneratedLocationsSection({
   }, [loadLocationGroups]);
 
   const orderedLocationGroups = useMemo(
-    () => [...locationGroups].sort((leftGroup, rightGroup) => leftGroup.position - rightGroup.position),
+    () =>
+      [...locationGroups].sort(
+        (leftGroup, rightGroup) => leftGroup.position - rightGroup.position,
+      ),
     [locationGroups],
   );
 
@@ -86,7 +101,8 @@ export function AdminChampionshipGeneratedLocationsSection({
 
     return group.courts.some((court) => {
       const savedCourt = savedGroup.courts.find(
-        (savedCourtItem) => savedCourtItem.court_group_id === court.court_group_id,
+        (savedCourtItem) =>
+          savedCourtItem.court_group_id === court.court_group_id,
       );
 
       return !savedCourt || savedCourt.court_name !== court.court_name;
@@ -94,7 +110,10 @@ export function AdminChampionshipGeneratedLocationsSection({
   }
 
   async function saveLocationGroup(group: LocationGroupDraft) {
-    updateLocationGroup(group.location_group_id, (currentGroup) => ({ ...currentGroup, saving: true }));
+    updateLocationGroup(group.location_group_id, (currentGroup) => ({
+      ...currentGroup,
+      saving: true,
+    }));
 
     const payload = {
       location_group_id: group.location_group_id,
@@ -111,18 +130,16 @@ export function AdminChampionshipGeneratedLocationsSection({
     });
 
     if (!previewCreated) {
-      updateLocationGroup(group.location_group_id, (currentGroup) => ({ ...currentGroup, saving: false }));
+      updateLocationGroup(group.location_group_id, (currentGroup) => ({
+        ...currentGroup,
+        saving: false,
+      }));
       return;
     }
-
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-6">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <AdminListSkeleton count={2} showActions />;
   }
 
   if (orderedLocationGroups.length === 0) {
@@ -137,8 +154,8 @@ export function AdminChampionshipGeneratedLocationsSection({
     <div className="space-y-4">
       <div className="space-y-1">
         <p className="text-xs text-muted-foreground">
-          Edite os nomes dos locais e das quadras geradas para este campeonato. A alteração vale
-          para toda a edição atual.
+          Edite os nomes dos locais e das quadras geradas para este campeonato.
+          A alteração vale para toda a edição atual.
         </p>
       </div>
 
@@ -146,7 +163,10 @@ export function AdminChampionshipGeneratedLocationsSection({
         const isDirty = isLocationGroupDirty(group);
 
         return (
-          <div key={group.location_group_id} className="glass-card space-y-4 p-4">
+          <div
+            key={group.location_group_id}
+            className="glass-card space-y-4 p-4"
+          >
             <div className="flex items-center gap-2">
               <MapPinned className="h-4 w-4 text-muted-foreground" />
               <h4 className="text-sm font-medium">Local e quadras da edição</h4>
@@ -165,10 +185,13 @@ export function AdminChampionshipGeneratedLocationsSection({
                   value={group.location_name}
                   disabled={!isEditable || group.saving}
                   onChange={(event) =>
-                    updateLocationGroup(group.location_group_id, (currentGroup) => ({
-                      ...currentGroup,
-                      location_name: event.target.value,
-                    }))
+                    updateLocationGroup(
+                      group.location_group_id,
+                      (currentGroup) => ({
+                        ...currentGroup,
+                        location_name: event.target.value,
+                      }),
+                    )
                   }
                   className="app-input-field"
                 />
@@ -192,14 +215,21 @@ export function AdminChampionshipGeneratedLocationsSection({
                         value={court.court_name}
                         disabled={!isEditable || group.saving}
                         onChange={(event) =>
-                          updateLocationGroup(group.location_group_id, (currentGroup) => ({
-                            ...currentGroup,
-                            courts: currentGroup.courts.map((currentCourt) =>
-                              currentCourt.court_group_id === court.court_group_id
-                                ? { ...currentCourt, court_name: event.target.value }
-                                : currentCourt,
-                            ),
-                          }))
+                          updateLocationGroup(
+                            group.location_group_id,
+                            (currentGroup) => ({
+                              ...currentGroup,
+                              courts: currentGroup.courts.map((currentCourt) =>
+                                currentCourt.court_group_id ===
+                                court.court_group_id
+                                  ? {
+                                      ...currentCourt,
+                                      court_name: event.target.value,
+                                    }
+                                  : currentCourt,
+                              ),
+                            }),
+                          )
                         }
                         className="app-input-field"
                       />
@@ -215,7 +245,9 @@ export function AdminChampionshipGeneratedLocationsSection({
                       disabled={!isDirty || group.saving}
                       onClick={() => void saveLocationGroup(group)}
                     >
-                      {group.saving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
+                      {group.saving ? (
+                        <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                      ) : null}
                       Salvar local e quadras
                     </Button>
                   </div>
