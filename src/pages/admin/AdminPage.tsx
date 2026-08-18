@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
+import { AdminShellSkeleton } from "@/components/skeletons/AdminShellSkeleton";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,7 +35,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AdminPanelTab, AppRoutePath, BracketEditionStatus, ChampionshipStatus, MatchStatus } from "@/lib/enums";
+import {
+  AdminPanelTab,
+  AppRoutePath,
+  BracketEditionStatus,
+  ChampionshipStatus,
+  MatchStatus,
+} from "@/lib/enums";
 import {
   EMPTY_CHAMPIONSHIP_BRACKET_VIEW,
   isChampionshipStatus,
@@ -68,30 +75,49 @@ export function AdminPage() {
     roleLoading,
     signOut,
   } = useAuth();
-  const { championships, loading: championshipsLoading, refetch: refetchChampionships } = useChampionships();
-  const { selectedChampionshipCode, setSelectedChampionshipCode } = useSelectedChampionship();
-  const [updatingChampionshipStatus, setUpdatingChampionshipStatus] = useState(false);
-  const [advancingChampionshipSeason, setAdvancingChampionshipSeason] = useState(false);
-  const [processingChampionshipStatusFlowAction, setProcessingChampionshipStatusFlowAction] = useState(false);
+  const {
+    championships,
+    loading: championshipsLoading,
+    refetch: refetchChampionships,
+  } = useChampionships();
+  const { selectedChampionshipCode, setSelectedChampionshipCode } =
+    useSelectedChampionship();
+  const [updatingChampionshipStatus, setUpdatingChampionshipStatus] =
+    useState(false);
+  const [advancingChampionshipSeason, setAdvancingChampionshipSeason] =
+    useState(false);
+  const [
+    processingChampionshipStatusFlowAction,
+    setProcessingChampionshipStatusFlowAction,
+  ] = useState(false);
   const [_activeTab, setActiveTab] = useState<string>("");
-  const [matchesSeasonYear, setMatchesSeasonYear] = useState<number | null>(null);
-  const [championshipStatusFlowDialog, setChampionshipStatusFlowDialog] = useState<ChampionshipStatusFlowDialog>(
-    ChampionshipStatusFlowDialog.NONE,
+  const [matchesSeasonYear, setMatchesSeasonYear] = useState<number | null>(
+    null,
   );
+  const [championshipStatusFlowDialog, setChampionshipStatusFlowDialog] =
+    useState<ChampionshipStatusFlowDialog>(ChampionshipStatusFlowDialog.NONE);
   const hasAppliedInitialAdminChampionshipSelectionRef = useRef(false);
   const lastChampionshipSelectionSignatureRef = useRef<string | null>(null);
 
-  const { selectedChampionship, selectedChampionshipId, handleChampionshipCodeChange } = useChampionshipSelection({
+  const {
+    selectedChampionship,
+    selectedChampionshipId,
+    handleChampionshipCodeChange,
+  } = useChampionshipSelection({
     championships,
     selectedChampionshipCode,
     setSelectedChampionshipCode,
   });
-  const selectedChampionshipSeasonYear = selectedChampionship?.current_season_year ?? null;
-  const { seasonYears: availableMatchSeasonYears } = useChampionshipSeasonYears({
-    championshipId: selectedChampionshipId,
-    currentSeasonYear: selectedChampionshipSeasonYear,
-  });
-  const resolvedMatchesSeasonYear = matchesSeasonYear ?? selectedChampionshipSeasonYear;
+  const selectedChampionshipSeasonYear =
+    selectedChampionship?.current_season_year ?? null;
+  const { seasonYears: availableMatchSeasonYears } = useChampionshipSeasonYears(
+    {
+      championshipId: selectedChampionshipId,
+      currentSeasonYear: selectedChampionshipSeasonYear,
+    },
+  );
+  const resolvedMatchesSeasonYear =
+    matchesSeasonYear ?? selectedChampionshipSeasonYear;
 
   const {
     matches: operationalMatches,
@@ -118,6 +144,7 @@ export function AdminPage() {
     matchRepresentationByMatchId: matchesTabMatchRepresentationByMatchId,
     visualQueuePositionByMatchId: matchesTabVisualQueuePositionByMatchId,
     estimatedStartTimeByMatchId: matchesTabEstimatedStartTimeByMatchId,
+    loading: matchesTabLoading,
     isFetching: matchesTabFetching,
     refetch: refetchMatchesTabMatches,
   } = useMatches({
@@ -133,21 +160,39 @@ export function AdminPage() {
     seasonYear: resolvedMatchesSeasonYear,
   });
   const { teams, refetch: refetchTeams } = useTeams();
-  const { teams: allTeams, refetch: refetchAllTeams } = useTeams({
+  const {
+    teams: allTeams,
+    loading: allTeamsLoading,
+    refetch: refetchAllTeams,
+  } = useTeams({
     includeInactive: true,
   });
-  const { sports, refetch: refetchSports } = useSports();
-  const { championshipSports, refetch: refetchChampionshipSports } = useSports({
+  const {
+    sports,
+    loading: sportsLoading,
+    refetch: refetchSports,
+  } = useSports();
+
+  const {
+    championshipSports,
+    loading: championshipSportsLoading,
+    refetch: refetchChampionshipSports,
+  } = useSports({
     championshipId: selectedChampionshipId,
   });
-  const liveMatches = operationalMatches.filter((match) => match.status == MatchStatus.LIVE);
-  const liveAndScheduledMatches = operationalMatches.filter(
-    (match) => match.status == MatchStatus.LIVE || match.status == MatchStatus.SCHEDULED,
+  const liveMatches = operationalMatches.filter(
+    (match) => match.status == MatchStatus.LIVE,
   );
-  const { count: pendingLeagueEventReservationRequestsCount } = usePendingLeagueEventReservationRequests();
-  const { count: pendingTieBreaksCount, refetch: refetchPendingTieBreaks } = usePendingTieBreaks({
-    championshipId: selectedChampionshipId,
-  });
+  const liveAndScheduledMatches = operationalMatches.filter(
+    (match) =>
+      match.status == MatchStatus.LIVE || match.status == MatchStatus.SCHEDULED,
+  );
+  const { count: pendingLeagueEventReservationRequestsCount } =
+    usePendingLeagueEventReservationRequests();
+  const { count: pendingTieBreaksCount, refetch: refetchPendingTieBreaks } =
+    usePendingTieBreaks({
+      championshipId: selectedChampionshipId,
+    });
   const {
     pendingContexts: pendingAwardDrawContexts,
     loading: loadingPendingAwardDraws,
@@ -164,7 +209,9 @@ export function AdminPage() {
     return operationalChampionshipBracketView;
   }, [operationalChampionshipBracketView, operationalMatches.length]);
   const operationalMatchBracketContextByMatchId = useMemo(() => {
-    return resolveMatchBracketContextByMatchId(visibleOperationalChampionshipBracketView);
+    return resolveMatchBracketContextByMatchId(
+      visibleOperationalChampionshipBracketView,
+    );
   }, [visibleOperationalChampionshipBracketView]);
   const visibleMatchesTabChampionshipBracketView = useMemo(() => {
     if (matchesTabMatches.length == 0) {
@@ -174,16 +221,25 @@ export function AdminPage() {
     return matchesTabChampionshipBracketView;
   }, [matchesTabChampionshipBracketView, matchesTabMatches.length]);
   const matchesTabMatchBracketContextByMatchId = useMemo(() => {
-    return resolveMatchBracketContextByMatchId(visibleMatchesTabChampionshipBracketView);
+    return resolveMatchBracketContextByMatchId(
+      visibleMatchesTabChampionshipBracketView,
+    );
   }, [visibleMatchesTabChampionshipBracketView]);
 
-  const handleRefetchMatches = useCallback(async (options?: { showLoading?: boolean; showFetching?: boolean }) => {
-    await Promise.all([
-      refetchOperationalMatches(options),
-      refetchMatchesTabMatches(options),
-    ]);
-    await refetchPendingTieBreaks();
-  }, [refetchMatchesTabMatches, refetchOperationalMatches, refetchPendingTieBreaks]);
+  const handleRefetchMatches = useCallback(
+    async (options?: { showLoading?: boolean; showFetching?: boolean }) => {
+      await Promise.all([
+        refetchOperationalMatches(options),
+        refetchMatchesTabMatches(options),
+      ]);
+      await refetchPendingTieBreaks();
+    },
+    [
+      refetchMatchesTabMatches,
+      refetchOperationalMatches,
+      refetchPendingTieBreaks,
+    ],
+  );
 
   const handleRefetchChampionshipBracket = useCallback(async () => {
     await Promise.all([
@@ -191,13 +247,14 @@ export function AdminPage() {
       refetchMatchesTabChampionshipBracket(),
     ]);
     await refetchPendingTieBreaks();
-  }, [refetchMatchesTabChampionshipBracket, refetchOperationalChampionshipBracket, refetchPendingTieBreaks]);
+  }, [
+    refetchMatchesTabChampionshipBracket,
+    refetchOperationalChampionshipBracket,
+    refetchPendingTieBreaks,
+  ]);
 
   const handleRefetchSports = useCallback(async () => {
-    await Promise.all([
-      refetchSports(),
-      refetchChampionshipSports(),
-    ]);
+    await Promise.all([refetchSports(), refetchChampionshipSports()]);
   }, [refetchChampionshipSports, refetchSports]);
 
   const handleBracketGenerated = useCallback(async () => {
@@ -231,21 +288,25 @@ export function AdminPage() {
 
   const hasFinishedLoadingOperationalState =
     !operationalMatchesLoading && !loadingOperationalChampionshipBracket;
-  const operationalBracketEditionStatus = operationalChampionshipBracketView.edition?.status ?? null;
+  const operationalBracketEditionStatus =
+    operationalChampionshipBracketView.edition?.status ?? null;
   const canViewBracketSetupTab = resolveCanViewBracketSetupTab({
-    championshipStatus: selectedChampionship?.status ?? ChampionshipStatus.PLANNING,
+    championshipStatus:
+      selectedChampionship?.status ?? ChampionshipStatus.PLANNING,
     hasFinishedLoadingOperationalState,
     matchesCount: operationalMatches.length,
     bracketEditionStatus: operationalBracketEditionStatus,
   });
   const canViewOperationalAdminTabs = resolveCanViewOperationalAdminTabs({
-    championshipStatus: selectedChampionship?.status ?? ChampionshipStatus.PLANNING,
+    championshipStatus:
+      selectedChampionship?.status ?? ChampionshipStatus.PLANNING,
     hasFinishedLoadingOperationalState,
     matchesCount: operationalMatches.length,
     bracketEditionStatus: operationalBracketEditionStatus,
   });
   const canViewReviewAdminTabs = resolveCanViewReviewAdminTabs({
-    championshipStatus: selectedChampionship?.status ?? ChampionshipStatus.PLANNING,
+    championshipStatus:
+      selectedChampionship?.status ?? ChampionshipStatus.PLANNING,
     hasFinishedLoadingOperationalState,
     matchesCount: operationalMatches.length,
     bracketEditionStatus: operationalBracketEditionStatus,
@@ -271,18 +332,27 @@ export function AdminPage() {
       return;
     }
 
-    const preferredChampionshipCode = resolvePreferredAdminChampionshipCode(championships);
+    const preferredChampionshipCode =
+      resolvePreferredAdminChampionshipCode(championships);
     const championshipSelectionSignature = championships
-      .map((championship) => `${championship.code}:${championship.current_season_year}:${championship.status}`)
+      .map(
+        (championship) =>
+          `${championship.code}:${championship.current_season_year}:${championship.status}`,
+      )
       .join("|");
-    const shouldApplyPreferredChampionshipSelection = !hasAppliedInitialAdminChampionshipSelectionRef.current;
+    const shouldApplyPreferredChampionshipSelection =
+      !hasAppliedInitialAdminChampionshipSelectionRef.current;
 
-    if (shouldApplyPreferredChampionshipSelection && selectedChampionshipCode != preferredChampionshipCode) {
+    if (
+      shouldApplyPreferredChampionshipSelection &&
+      selectedChampionshipCode != preferredChampionshipCode
+    ) {
       setSelectedChampionshipCode(preferredChampionshipCode);
     }
 
     hasAppliedInitialAdminChampionshipSelectionRef.current = true;
-    lastChampionshipSelectionSignatureRef.current = championshipSelectionSignature;
+    lastChampionshipSelectionSignatureRef.current =
+      championshipSelectionSignature;
   }, [championships, selectedChampionshipCode, setSelectedChampionshipCode]);
 
   const resolveIsMobileViewport = () => {
@@ -294,7 +364,9 @@ export function AdminPage() {
   };
 
   const handleOpenMobileChampionshipConfigurationWarning = () => {
-    setChampionshipStatusFlowDialog(ChampionshipStatusFlowDialog.MOBILE_CONFIGURATION_WARNING);
+    setChampionshipStatusFlowDialog(
+      ChampionshipStatusFlowDialog.MOBILE_CONFIGURATION_WARNING,
+    );
   };
 
   const updateChampionshipStatus = async (nextStatus: ChampionshipStatus) => {
@@ -339,7 +411,9 @@ export function AdminPage() {
       return;
     }
 
-    toast.success(`Temporada ${selectedChampionship.current_season_year + 1} aberta para configuração.`);
+    toast.success(
+      `Temporada ${selectedChampionship.current_season_year + 1} aberta para configuração.`,
+    );
     setChampionshipStatusFlowDialog(ChampionshipStatusFlowDialog.NONE);
     await refetchChampionships();
   };
@@ -384,7 +458,9 @@ export function AdminPage() {
   const handleKeepCurrentGamesAndReturnToPlanning = async () => {
     setProcessingChampionshipStatusFlowAction(true);
 
-    const hasUpdatedStatus = await updateChampionshipStatus(ChampionshipStatus.PLANNING);
+    const hasUpdatedStatus = await updateChampionshipStatus(
+      ChampionshipStatus.PLANNING,
+    );
 
     setProcessingChampionshipStatusFlowAction(false);
 
@@ -403,7 +479,9 @@ export function AdminPage() {
       return;
     }
 
-    const hasUpdatedStatus = await updateChampionshipStatus(ChampionshipStatus.PLANNING);
+    const hasUpdatedStatus = await updateChampionshipStatus(
+      ChampionshipStatus.PLANNING,
+    );
 
     setProcessingChampionshipStatusFlowAction(false);
 
@@ -415,7 +493,9 @@ export function AdminPage() {
   const handleKeepCurrentGamesAndMoveToUpcoming = async () => {
     setProcessingChampionshipStatusFlowAction(true);
 
-    const hasUpdatedStatus = await updateChampionshipStatus(ChampionshipStatus.REVIEW);
+    const hasUpdatedStatus = await updateChampionshipStatus(
+      ChampionshipStatus.REVIEW,
+    );
 
     setProcessingChampionshipStatusFlowAction(false);
 
@@ -459,12 +539,16 @@ export function AdminPage() {
         value == ChampionshipStatus.IN_PROGRESS ||
         value == ChampionshipStatus.FINISHED)
     ) {
-      toast.error("Para chegar em Em revisão, Em andamento ou Encerrado, o campeonato precisa passar antes por Configurando campeonato.");
+      toast.error(
+        "Para chegar em Em revisão, Em andamento ou Encerrado, o campeonato precisa passar antes por Configurando campeonato.",
+      );
       return;
     }
 
     if (value == ChampionshipStatus.PLANNING && operationalMatches.length > 0) {
-      setChampionshipStatusFlowDialog(ChampionshipStatusFlowDialog.RETURN_TO_PLANNING_WITH_GAMES);
+      setChampionshipStatusFlowDialog(
+        ChampionshipStatusFlowDialog.RETURN_TO_PLANNING_WITH_GAMES,
+      );
       return;
     }
 
@@ -473,7 +557,9 @@ export function AdminPage() {
       value == ChampionshipStatus.UPCOMING
     ) {
       if (operationalMatches.length > 0) {
-        setChampionshipStatusFlowDialog(ChampionshipStatusFlowDialog.MOVE_TO_UPCOMING_WITH_GAMES);
+        setChampionshipStatusFlowDialog(
+          ChampionshipStatusFlowDialog.MOVE_TO_UPCOMING_WITH_GAMES,
+        );
         return;
       }
 
@@ -490,10 +576,9 @@ export function AdminPage() {
     return (
       <div className="app-page">
         <Header />
-        <main className="container py-10">
-          <div className="glass-panel flex min-h-[420px] items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
+
+        <main className="container py-8">
+          <AdminShellSkeleton />
         </main>
       </div>
     );
@@ -507,11 +592,9 @@ export function AdminPage() {
     return (
       <div className="app-page">
         <Header />
+
         <main className="container py-8">
-          <div className="glass-panel flex items-center gap-2 p-5 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin text-primary" />
-            <span>Carregando campeonatos...</span>
-          </div>
+          <AdminShellSkeleton />
         </main>
       </div>
     );
@@ -523,25 +606,30 @@ export function AdminPage() {
         <Header />
         <main className="container py-8">
           <div className="glass-panel p-5">
-            <p className="text-sm text-muted-foreground">Nenhum campeonato disponível para gerenciamento.</p>
+            <p className="text-sm text-muted-foreground">
+              Nenhum campeonato disponível para gerenciamento.
+            </p>
           </div>
         </main>
       </div>
     );
   }
 
-const isInitialOperationalLoading =
-  operationalMatchesLoading ||
-  loadingOperationalChampionshipBracket;
+  const isInitialOperationalLoading =
+    operationalMatchesLoading || loadingOperationalChampionshipBracket;
 
   const canViewMatchesTab =
-    (canViewOperationalAdminTabs || canViewReviewAdminTabs) && canViewAdminTab(AdminPanelTab.MATCHES);
+    (canViewOperationalAdminTabs || canViewReviewAdminTabs) &&
+    canViewAdminTab(AdminPanelTab.MATCHES);
   const canViewControlTab =
-    (canViewOperationalAdminTabs || canViewReviewAdminTabs) && canViewAdminTab(AdminPanelTab.CONTROL);
+    (canViewOperationalAdminTabs || canViewReviewAdminTabs) &&
+    canViewAdminTab(AdminPanelTab.CONTROL);
   const canViewTeamsTab = canViewAdminTab(AdminPanelTab.TEAMS);
   const canViewSportsTab = canViewAdminTab(AdminPanelTab.SPORTS);
   const canViewEventsTab = canViewAdminTab(AdminPanelTab.EVENTS);
-  const canViewIndividualEventsTab = canViewAdminTab(AdminPanelTab.INDIVIDUAL_EVENTS);
+  const canViewIndividualEventsTab = canViewAdminTab(
+    AdminPanelTab.INDIVIDUAL_EVENTS,
+  );
   const canViewLinksTab = canViewAdminTab(AdminPanelTab.LINKS);
   const canViewLogsTab = canViewAdminTab(AdminPanelTab.LOGS);
   const canViewUsersTab = canViewAdminTab(AdminPanelTab.USERS);
@@ -549,23 +637,33 @@ const isInitialOperationalLoading =
   const canViewStandingsTab =
     canViewOperationalAdminTabs && canViewAdminTab(AdminPanelTab.STANDINGS);
   const canViewSettingsTab = canViewAdminTab(AdminPanelTab.SETTINGS);
-  const canViewChampionshipStatus = canViewAdminTab(AdminPanelTab.CHAMPIONSHIP_STATUS);
+  const canViewChampionshipStatus = canViewAdminTab(
+    AdminPanelTab.CHAMPIONSHIP_STATUS,
+  );
   const canViewScoreSheetReviewTab =
-    canViewOperationalAdminTabs && canViewAdminTab(AdminPanelTab.SCORE_SHEET_REVIEW);
+    canViewOperationalAdminTabs &&
+    canViewAdminTab(AdminPanelTab.SCORE_SHEET_REVIEW);
   const canViewTieBreaksTab =
     canViewOperationalAdminTabs && canViewAdminTab(AdminPanelTab.TIE_BREAKS);
   const canViewScheduleTab =
     canViewAdminTab(AdminPanelTab.CHAMPIONSHIP_SCHEDULE) &&
     visibleOperationalChampionshipBracketView.edition != null &&
-    visibleOperationalChampionshipBracketView.edition.status !== BracketEditionStatus.DRAFT;
+    visibleOperationalChampionshipBracketView.edition.status !==
+      BracketEditionStatus.DRAFT;
 
   const canManageMatches = canEditAdminTab(AdminPanelTab.MATCHES);
-  const canManageSchedule = canEditAdminTab(AdminPanelTab.CHAMPIONSHIP_SCHEDULE);
-  const canManageChampionshipStatus = canEditAdminTab(AdminPanelTab.CHAMPIONSHIP_STATUS);
+  const canManageSchedule = canEditAdminTab(
+    AdminPanelTab.CHAMPIONSHIP_SCHEDULE,
+  );
+  const canManageChampionshipStatus = canEditAdminTab(
+    AdminPanelTab.CHAMPIONSHIP_STATUS,
+  );
   const canManageTeams = canEditAdminTab(AdminPanelTab.TEAMS);
   const canManageSports = canEditAdminTab(AdminPanelTab.SPORTS);
   const canManageLeagueEvents = canEditAdminTab(AdminPanelTab.EVENTS);
-  const canManageIndividualEvents = canEditAdminTab(AdminPanelTab.INDIVIDUAL_EVENTS);
+  const canManageIndividualEvents = canEditAdminTab(
+    AdminPanelTab.INDIVIDUAL_EVENTS,
+  );
   const canManageLinks = canEditAdminTab(AdminPanelTab.LINKS);
   const canManageUsers = canEditAdminTab(AdminPanelTab.USERS);
   const canManageAccount = canEditAdminTab(AdminPanelTab.ACCOUNT);
@@ -589,7 +687,9 @@ const isInitialOperationalLoading =
       canViewAccountTab ? AdminPanelTab.ACCOUNT : null,
       canViewScheduleTab ? AdminPanelTab.CHAMPIONSHIP_SCHEDULE : null,
       canViewSettingsTab ? AdminPanelTab.SETTINGS : null,
-    ].find((adminPanelTab): adminPanelTab is AdminPanelTab => adminPanelTab != null) ?? "";
+    ].find(
+      (adminPanelTab): adminPanelTab is AdminPanelTab => adminPanelTab != null,
+    ) ?? "";
 
   const activeTab = _activeTab || defaultTabValue;
 
@@ -604,22 +704,37 @@ const isInitialOperationalLoading =
         initialOperationalLoading={isInitialOperationalLoading}
         teams={teams}
         allTeams={allTeams}
+        allTeamsLoading={allTeamsLoading}
         sports={sports}
         championshipSports={championshipSports}
+        sportsLoading={sportsLoading || championshipSportsLoading}
         liveAndScheduledMatches={liveAndScheduledMatches}
         championshipBracketView={visibleOperationalChampionshipBracketView}
-        matchesTabChampionshipBracketView={visibleMatchesTabChampionshipBracketView}
+        matchesTabChampionshipBracketView={
+          visibleMatchesTabChampionshipBracketView
+        }
         loadingChampionshipBracket={loadingOperationalChampionshipBracket}
-        loadingMatchesTabChampionshipBracket={loadingMatchesTabChampionshipBracket}
+        loadingMatchesTabChampionshipBracket={
+          loadingMatchesTabChampionshipBracket
+        }
         matchBracketContextByMatchId={operationalMatchBracketContextByMatchId}
-        matchesTabMatchBracketContextByMatchId={matchesTabMatchBracketContextByMatchId}
+        matchesTabMatchBracketContextByMatchId={
+          matchesTabMatchBracketContextByMatchId
+        }
         matchRepresentationByMatchId={operationalMatchRepresentationByMatchId}
-        matchesTabMatchRepresentationByMatchId={matchesTabMatchRepresentationByMatchId}
+        matchesTabMatchRepresentationByMatchId={
+          matchesTabMatchRepresentationByMatchId
+        }
         visualQueuePositionByMatchId={operationalVisualQueuePositionByMatchId}
-        matchesTabVisualQueuePositionByMatchId={matchesTabVisualQueuePositionByMatchId}
+        matchesTabVisualQueuePositionByMatchId={
+          matchesTabVisualQueuePositionByMatchId
+        }
         estimatedStartTimeByMatchId={operationalEstimatedStartTimeByMatchId}
-        matchesTabEstimatedStartTimeByMatchId={matchesTabEstimatedStartTimeByMatchId}
+        matchesTabEstimatedStartTimeByMatchId={
+          matchesTabEstimatedStartTimeByMatchId
+        }
         matchesFetching={operationalMatchesFetching}
+        matchesTabLoading={matchesTabLoading}
         matchesTabFetching={matchesTabFetching}
         availableMatchSeasonYears={availableMatchSeasonYears}
         selectedMatchesSeasonYear={resolvedMatchesSeasonYear}
@@ -656,10 +771,16 @@ const isInitialOperationalLoading =
         canManageSettings={canManageSettings}
         activeTab={activeTab}
         onActiveTabChange={setActiveTab}
-        updatingChampionshipStatus={updatingChampionshipStatus || processingChampionshipStatusFlowAction}
+        updatingChampionshipStatus={
+          updatingChampionshipStatus || processingChampionshipStatusFlowAction
+        }
         onChampionshipCodeChange={handleChampionshipCodeChange}
         onChampionshipStatusChange={handleChampionshipStatusChange}
-        onAdvanceChampionshipSeason={() => setChampionshipStatusFlowDialog(ChampionshipStatusFlowDialog.ADVANCE_SEASON)}
+        onAdvanceChampionshipSeason={() =>
+          setChampionshipStatusFlowDialog(
+            ChampionshipStatusFlowDialog.ADVANCE_SEASON,
+          )
+        }
         onSelectedMatchesSeasonYearChange={setMatchesSeasonYear}
         onSignOut={signOut}
         onRefetchMatches={handleRefetchMatches}
@@ -670,7 +791,9 @@ const isInitialOperationalLoading =
         }}
         onBracketGenerated={handleBracketGenerated}
         liveMatchesCount={liveMatches.length}
-        pendingLeagueEventReservationsCount={pendingLeagueEventReservationRequestsCount}
+        pendingLeagueEventReservationsCount={
+          pendingLeagueEventReservationRequestsCount
+        }
         pendingTieBreaksCount={pendingTieBreaksCount}
         pendingAwardDrawContexts={pendingAwardDrawContexts}
         loadingPendingAwardDraws={loadingPendingAwardDraws}
@@ -678,7 +801,10 @@ const isInitialOperationalLoading =
       />
 
       <Dialog
-        open={championshipStatusFlowDialog == ChampionshipStatusFlowDialog.RETURN_TO_PLANNING_WITH_GAMES}
+        open={
+          championshipStatusFlowDialog ==
+          ChampionshipStatusFlowDialog.RETURN_TO_PLANNING_WITH_GAMES
+        }
         onOpenChange={(isOpen) => {
           if (!isOpen) {
             closeChampionshipStatusFlowDialog();
@@ -687,10 +813,12 @@ const isInitialOperationalLoading =
       >
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle className="text-center">Voltar campeonato para Em breve?</DialogTitle>
+            <DialogTitle className="text-center">
+              Voltar campeonato para Em breve?
+            </DialogTitle>
             <DialogDescription className="text-center">
-              Este campeonato já possui jogos cadastrados. Escolha se eles devem ser mantidos ao voltar o status para
-              Em breve.
+              Este campeonato já possui jogos cadastrados. Escolha se eles devem
+              ser mantidos ao voltar o status para Em breve.
             </DialogDescription>
           </DialogHeader>
 
@@ -709,7 +837,9 @@ const isInitialOperationalLoading =
               onClick={handleKeepCurrentGamesAndReturnToPlanning}
               disabled={processingChampionshipStatusFlowAction}
             >
-              {processingChampionshipStatusFlowAction ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {processingChampionshipStatusFlowAction ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : null}
               Manter jogos atuais
             </Button>
             <Button
@@ -718,7 +848,9 @@ const isInitialOperationalLoading =
               onClick={handleDeleteCurrentGamesAndReturnToPlanning}
               disabled={processingChampionshipStatusFlowAction}
             >
-              {processingChampionshipStatusFlowAction ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {processingChampionshipStatusFlowAction ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : null}
               Excluir jogos atuais
             </Button>
           </DialogFooter>
@@ -726,7 +858,10 @@ const isInitialOperationalLoading =
       </Dialog>
 
       <Dialog
-        open={championshipStatusFlowDialog == ChampionshipStatusFlowDialog.MOVE_TO_UPCOMING_WITH_GAMES}
+        open={
+          championshipStatusFlowDialog ==
+          ChampionshipStatusFlowDialog.MOVE_TO_UPCOMING_WITH_GAMES
+        }
         onOpenChange={(isOpen) => {
           if (!isOpen) {
             closeChampionshipStatusFlowDialog();
@@ -735,10 +870,13 @@ const isInitialOperationalLoading =
       >
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle className="text-center">Jogos atuais já existem</DialogTitle>
+            <DialogTitle className="text-center">
+              Jogos atuais já existem
+            </DialogTitle>
             <DialogDescription className="text-center">
-              O campeonato está em Em breve, mas já possui jogos cadastrados. Você pode manter os jogos atuais ou
-              limpar tudo para montar uma nova configuração de campeonato.
+              O campeonato está em Em breve, mas já possui jogos cadastrados.
+              Você pode manter os jogos atuais ou limpar tudo para montar uma
+              nova configuração de campeonato.
             </DialogDescription>
           </DialogHeader>
 
@@ -757,7 +895,9 @@ const isInitialOperationalLoading =
               onClick={handleKeepCurrentGamesAndMoveToUpcoming}
               disabled={processingChampionshipStatusFlowAction}
             >
-              {processingChampionshipStatusFlowAction ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {processingChampionshipStatusFlowAction ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : null}
               Manter jogos atuais
             </Button>
             <Button
@@ -765,7 +905,9 @@ const isInitialOperationalLoading =
               onClick={handleConfigureNewGames}
               disabled={processingChampionshipStatusFlowAction}
             >
-              {processingChampionshipStatusFlowAction ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {processingChampionshipStatusFlowAction ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : null}
               Configurar novos jogos
             </Button>
           </DialogFooter>
@@ -773,7 +915,10 @@ const isInitialOperationalLoading =
       </Dialog>
 
       <AlertDialog
-        open={championshipStatusFlowDialog == ChampionshipStatusFlowDialog.MOBILE_CONFIGURATION_WARNING}
+        open={
+          championshipStatusFlowDialog ==
+          ChampionshipStatusFlowDialog.MOBILE_CONFIGURATION_WARNING
+        }
         onOpenChange={(isOpen) => {
           if (!isOpen) {
             closeChampionshipStatusFlowDialog();
@@ -782,15 +927,20 @@ const isInitialOperationalLoading =
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Configuração disponível apenas no computador</AlertDialogTitle>
+            <AlertDialogTitle>
+              Configuração disponível apenas no computador
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              A configuração do campeonato deve ser feita somente no computador, porque na visão de celular os
-              componentes não cabem na tela.
+              A configuração do campeonato deve ser feita somente no computador,
+              porque na visão de celular os componentes não cabem na tela.
             </AlertDialogDescription>
           </AlertDialogHeader>
 
           <AlertDialogFooter className="justify-center sm:justify-center">
-            <AlertDialogAction className="w-full sm:w-auto" onClick={closeChampionshipStatusFlowDialog}>
+            <AlertDialogAction
+              className="w-full sm:w-auto"
+              onClick={closeChampionshipStatusFlowDialog}
+            >
               OK
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -798,7 +948,10 @@ const isInitialOperationalLoading =
       </AlertDialog>
 
       <Dialog
-        open={championshipStatusFlowDialog == ChampionshipStatusFlowDialog.ADVANCE_SEASON}
+        open={
+          championshipStatusFlowDialog ==
+          ChampionshipStatusFlowDialog.ADVANCE_SEASON
+        }
         onOpenChange={(isOpen) => {
           if (!isOpen) {
             closeChampionshipStatusFlowDialog();
@@ -807,11 +960,14 @@ const isInitialOperationalLoading =
       >
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle className="text-center">Abrir nova temporada?</DialogTitle>
+            <DialogTitle className="text-center">
+              Abrir nova temporada?
+            </DialogTitle>
             <DialogDescription className="text-center">
               Essa ação muda o campeonato para Em breve e avança a temporada de{" "}
-              {selectedChampionship.current_season_year} para {selectedChampionship.current_season_year + 1}. Ela não
-              acontece mais automaticamente ao abrir as telas.
+              {selectedChampionship.current_season_year} para{" "}
+              {selectedChampionship.current_season_year + 1}. Ela não acontece
+              mais automaticamente ao abrir as telas.
             </DialogDescription>
           </DialogHeader>
 
@@ -829,7 +985,9 @@ const isInitialOperationalLoading =
               onClick={handleAdvanceChampionshipSeason}
               disabled={advancingChampionshipSeason}
             >
-              {advancingChampionshipSeason ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {advancingChampionshipSeason ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : null}
               Abrir temporada {selectedChampionship.current_season_year + 1}
             </Button>
           </DialogFooter>

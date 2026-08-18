@@ -5,12 +5,13 @@ import { LiveMatchBanner } from "@/components/LiveMatchBanner";
 import { MatchCard } from "@/components/MatchCard";
 import { SportFilter } from "@/components/SportFilter";
 import { AppPaginationControls } from "@/components/ui/app-pagination-controls";
+import { MatchListSkeleton } from "@/components/skeletons/MatchListSkeleton";
+import { PageContentSkeleton } from "@/components/skeletons/PageContentSkeleton";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Tabs,
   TabsContent,
@@ -24,7 +25,7 @@ import type {
   Sport,
 } from "@/lib/types";
 import type { MatchBracketContext } from "@/lib/championship";
-import { HelpCircle, Loader2 } from "lucide-react";
+import { HelpCircle } from "lucide-react";
 import { ChampionshipBracketBoard } from "@/components/championship-brackets/ChampionshipBracketBoard";
 import { scrollToTopOfPage } from "@/lib/scroll";
 import type { PublicScheduleTimelineItem } from "@/domain/public-schedule/publicScheduleTimeline";
@@ -87,10 +88,9 @@ export function LivePageView({
     return (
       <div className="app-page">
         <Header />
-        <main className="container py-10">
-          <div className="glass-panel flex min-h-[420px] items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
+
+        <main className="container py-8">
+          <PageContentSkeleton filterCount={3} contentCount={3} />
         </main>
       </div>
     );
@@ -165,18 +165,10 @@ export function LivePageView({
                 </Tooltip>
               </div>
               {isUpcomingMatchesFetching ? (
-                <div className="space-y-4">
-                  <div className="grid items-center grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {Array.from({
-                      length: Math.max(3, upcomingMatchesItemsPerPage),
-                    }).map((_, index) => (
-                      <Skeleton
-                        key={`live-upcoming-skeleton-${index}`}
-                        className="h-52 w-full rounded-2xl"
-                      />
-                    ))}
-                  </div>
-                </div>
+                <MatchListSkeleton
+                  count={Math.max(3, upcomingMatchesItemsPerPage)}
+                  className="grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+                />
               ) : upcomingScheduleItems.length == 0 ? (
                 <p className="text-center text-sm text-muted-foreground">
                   Nenhum jogo agendado.

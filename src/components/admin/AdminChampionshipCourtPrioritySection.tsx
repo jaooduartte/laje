@@ -1,3 +1,4 @@
+import { AdminListSkeleton } from "@/components/skeletons/AdminListSkeleton";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Info, Loader2, LockKeyhole } from "lucide-react";
 import { toast } from "sonner";
@@ -371,12 +372,13 @@ export function AdminChampionshipCourtPrioritySection({
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-6">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
+  return (
+    <AdminListSkeleton
+      count={3}
+      showActions
+    />
+  );
+}
 
   if (groupedCards.length === 0) {
     return (

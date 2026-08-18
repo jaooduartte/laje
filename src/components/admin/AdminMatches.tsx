@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MatchListSkeleton } from "@/components/skeletons/MatchListSkeleton";
 import type { CheckedState } from "@radix-ui/react-checkbox";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -424,6 +425,7 @@ interface Props {
   matchRepresentationByMatchId?: Record<string, string>;
   visualQueuePositionByMatchId?: Record<string, number>;
   estimatedStartTimeByMatchId?: Record<string, string>;
+  isInitialLoading?: boolean;
   isFetchingMatches?: boolean;
   canManageMatches?: boolean;
   availableSeasonYears?: number[];
@@ -962,6 +964,7 @@ export function AdminMatches({
   matchRepresentationByMatchId = {},
   visualQueuePositionByMatchId = {},
   estimatedStartTimeByMatchId = {},
+  isInitialLoading = false,
   isFetchingMatches = false,
   canManageMatches: canManageMatchesProp = true,
   availableSeasonYears = [],
@@ -2172,10 +2175,7 @@ export function AdminMatches({
     ].sort((firstLocation, secondLocation) =>
       firstLocation.localeCompare(secondLocation),
     );
-  }, [
-    individualSessionsFilteredByBaseCriteria,
-    matchesFilteredByBaseCriteria,
-  ]);
+  }, [individualSessionsFilteredByBaseCriteria, matchesFilteredByBaseCriteria]);
 
   const courtsForMatchesFilter = useMemo(() => {
     const uniqueCourtNames = new Set<string>();
@@ -2651,8 +2651,7 @@ export function AdminMatches({
       })
       .map((match) => ({
         id: match.match_id,
-        usesReducedCrossSportRestGap:
-          match.uses_reduced_cross_sport_rest_gap,
+        usesReducedCrossSportRestGap: match.uses_reduced_cross_sport_rest_gap,
         label: resolveMatchSwapOptionLabel({
           match: {
             scheduled_date: match.scheduled_date,
@@ -6029,20 +6028,17 @@ export function AdminMatches({
           </p>
         ) : null}
 
-        {isFetchingMatches ? (
+        {isInitialLoading || isFetchingMatches ? (
           <div className="space-y-3">
             <section className="glass-card enter-section flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
               <Skeleton className="h-5 w-48 rounded-lg" />
               <Skeleton className="h-9 w-56 rounded-lg" />
             </section>
-            {Array.from({ length: Math.max(3, matchesItemsPerPage) }).map(
-              (_, index) => (
-                <Skeleton
-                  key={`admin-matches-skeleton-${index}`}
-                  className="h-52 w-full rounded-2xl"
-                />
-              ),
-            )}
+
+            <MatchListSkeleton
+              count={Math.max(3, matchesItemsPerPage)}
+              variant="list"
+            />
           </div>
         ) : filteredAndSortedMatches.length > 0 ? (
           <>
@@ -6471,12 +6467,16 @@ export function AdminMatches({
                         </div>
                         {matchRepresentationByMatchId[match.id] ? (
                           <p className="break-words">
-                            Representação: {matchRepresentationByMatchId[match.id]}
+                            Representação:{" "}
+                            {matchRepresentationByMatchId[match.id]}
                           </p>
                         ) : null}
                         {match.status == MatchStatus.SCHEDULED &&
                         estimatedStartTimeByMatchId[match.id] ? (
-                          <p>Horário estimado: {estimatedStartTimeByMatchId[match.id]}</p>
+                          <p>
+                            Horário estimado:{" "}
+                            {estimatedStartTimeByMatchId[match.id]}
+                          </p>
                         ) : null}
                         {startedAtLabel ? <p>{startedAtLabel}</p> : null}
                         {tieBreakRuleLabel ? (
@@ -6655,7 +6655,8 @@ export function AdminMatches({
                 Sessões Individuais
               </p>
               <p className="text-xs text-muted-foreground">
-                Atletismo e Natação são registrados por prova e não como jogo entre duas atléticas.
+                Atletismo e Natação são registrados por prova e não como jogo
+                entre duas atléticas.
               </p>
             </div>
 
@@ -6684,7 +6685,9 @@ export function AdminMatches({
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-48">
-                              <DropdownMenuItem onSelect={onOpenIndividualEventsTab}>
+                              <DropdownMenuItem
+                                onSelect={onOpenIndividualEventsTab}
+                              >
                                 Registrar resultados
                               </DropdownMenuItem>
                             </DropdownMenuContent>
@@ -6715,9 +6718,11 @@ export function AdminMatches({
                           session.status,
                         )}
                       >
-                        {session.status === ChampionshipIndividualSessionStatus.LIVE ? (
+                        {session.status ===
+                        ChampionshipIndividualSessionStatus.LIVE ? (
                           <Radio className="h-3 w-3 sm:hidden" />
-                        ) : session.status === ChampionshipIndividualSessionStatus.FINISHED ? (
+                        ) : session.status ===
+                          ChampionshipIndividualSessionStatus.FINISHED ? (
                           <Check className="h-3 w-3 sm:hidden" />
                         ) : (
                           <Clock className="h-3 w-3 sm:hidden" />
@@ -6728,7 +6733,9 @@ export function AdminMatches({
                       </AppBadge>
 
                       {session.division ? (
-                        <AppBadge tone={TEAM_DIVISION_BADGE_TONES[session.division]}>
+                        <AppBadge
+                          tone={TEAM_DIVISION_BADGE_TONES[session.division]}
+                        >
                           <span className="hidden sm:inline">
                             {TEAM_DIVISION_LABELS[session.division]}
                           </span>
@@ -6749,12 +6756,15 @@ export function AdminMatches({
                     <div className="text-center text-xs text-muted-foreground">
                       <div className="flex flex-col items-center gap-y-0.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-x-3 sm:gap-y-0">
                         <span>
-                          Data: {resolveBrazilianDateLabel(session.scheduled_date)}
+                          Data:{" "}
+                          {resolveBrazilianDateLabel(session.scheduled_date)}
                         </span>
                         {session.location_name ? (
                           <span>
                             Local: {session.location_name}
-                            {session.court_name ? ` • ${session.court_name}` : ""}
+                            {session.court_name
+                              ? ` • ${session.court_name}`
+                              : ""}
                           </span>
                         ) : null}
                       </div>
@@ -6774,7 +6784,9 @@ export function AdminMatches({
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-48">
-                          <DropdownMenuItem onSelect={onOpenIndividualEventsTab}>
+                          <DropdownMenuItem
+                            onSelect={onOpenIndividualEventsTab}
+                          >
                             Registrar resultados
                           </DropdownMenuItem>
                         </DropdownMenuContent>

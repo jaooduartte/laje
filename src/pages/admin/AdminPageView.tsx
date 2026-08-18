@@ -63,8 +63,10 @@ interface AdminPageViewProps {
   initialOperationalLoading: boolean;
   teams: Team[];
   allTeams: Team[];
+  allTeamsLoading: boolean;
   sports: Sport[];
   championshipSports: ChampionshipSport[];
+  sportsLoading: boolean;
   liveAndScheduledMatches: Match[];
   championshipBracketView: ChampionshipBracketView;
   matchesTabChampionshipBracketView: ChampionshipBracketView;
@@ -79,6 +81,7 @@ interface AdminPageViewProps {
   estimatedStartTimeByMatchId: Record<string, string>;
   matchesTabEstimatedStartTimeByMatchId: Record<string, string>;
   matchesFetching: boolean;
+  matchesTabLoading: boolean;
   matchesTabFetching: boolean;
   availableMatchSeasonYears: number[];
   selectedMatchesSeasonYear: number | null;
@@ -159,8 +162,10 @@ export function AdminPageView({
   initialOperationalLoading,
   teams,
   allTeams,
+  allTeamsLoading,
   sports,
   championshipSports,
+  sportsLoading,
   liveAndScheduledMatches,
   championshipBracketView,
   matchesTabChampionshipBracketView,
@@ -175,6 +180,7 @@ export function AdminPageView({
   estimatedStartTimeByMatchId,
   matchesTabEstimatedStartTimeByMatchId,
   matchesFetching,
+  matchesTabLoading,
   matchesTabFetching,
   availableMatchSeasonYears,
   selectedMatchesSeasonYear,
@@ -704,6 +710,9 @@ export function AdminPageView({
                 estimatedStartTimeByMatchId={
                   matchesTabEstimatedStartTimeByMatchId
                 }
+                isInitialLoading={
+                  matchesTabLoading || loadingMatchesTabChampionshipBracket
+                }
                 isFetchingMatches={matchesTabFetching}
                 canManageMatches={canManageMatches}
                 availableSeasonYears={availableMatchSeasonYears}
@@ -734,6 +743,7 @@ export function AdminPageView({
                 matchRepresentationByMatchId={matchRepresentationByMatchId}
                 visualQueuePositionByMatchId={visualQueuePositionByMatchId}
                 estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
+                isInitialLoading={initialOperationalLoading}
                 isFetchingMatches={matchesFetching}
                 canManageMatches={canManageMatches}
                 viewMode={AdminMatchesViewMode.SCORE_SHEET_REVIEW}
@@ -756,6 +766,7 @@ export function AdminPageView({
                 matchRepresentationByMatchId={matchRepresentationByMatchId}
                 visualQueuePositionByMatchId={visualQueuePositionByMatchId}
                 estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
+                isInitialLoading={initialOperationalLoading}
                 isFetchingMatches={matchesFetching}
                 canManageMatches={canManageMatches}
                 viewMode={AdminMatchesViewMode.TIE_BREAKS}
@@ -819,6 +830,7 @@ export function AdminPageView({
             <TabsContent value={AdminPanelTab.TEAMS}>
               <AdminTeams
                 teams={allTeams}
+                isLoading={allTeamsLoading}
                 onRefetch={onRefetchTeams}
                 canManageTeams={canManageTeams}
               />
@@ -830,6 +842,7 @@ export function AdminPageView({
               <AdminSports
                 sports={sports}
                 championshipSports={championshipSports}
+                isLoading={sportsLoading}
                 selectedChampionship={selectedChampionship}
                 bracketEditionId={championshipBracketView.edition?.id ?? null}
                 canManageSports={canManageSports}

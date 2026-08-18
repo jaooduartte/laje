@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
-import { Loader2 } from "lucide-react";
+import { TableSkeleton } from "@/components/skeletons/TableSkeleton";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -23,8 +23,14 @@ import {
   MATCH_NAIPE_LABELS,
   TEAM_DIVISION_LABELS,
 } from "@/lib/championship";
-import { isAdminUserPasswordStatus, resolveAdminUserPasswordStatusLabel } from "@/lib/adminUsers";
-import { LEAGUE_EVENT_ORGANIZER_LABELS, LEAGUE_EVENT_TYPE_LABELS } from "@/domain/league-events/leagueEvent.constants";
+import {
+  isAdminUserPasswordStatus,
+  resolveAdminUserPasswordStatusLabel,
+} from "@/lib/adminUsers";
+import {
+  LEAGUE_EVENT_ORGANIZER_LABELS,
+  LEAGUE_EVENT_TYPE_LABELS,
+} from "@/domain/league-events/leagueEvent.constants";
 import { LEAGUE_EVENT_RESERVATION_REQUEST_STATUS_LABELS } from "@/domain/league-events/leagueEventReservation.types";
 import type { AdminActionLog } from "@/lib/types";
 import { AppBadge } from "@/components/ui/app-badge";
@@ -41,13 +47,20 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { scrollToTopOfPage } from "@/lib/scroll";
 
 const ALL_USERS_FILTER = "ALL_USERS";
 const ALL_ACTIONS_FILTER = "ALL_ACTIONS";
 const MAXIMUM_LOG_CHANGES = 7;
-const LOGS_GRID_TEMPLATE = "lg:grid-cols-[minmax(240px,max-content)_minmax(0,1fr)_120px]";
+const LOGS_GRID_TEMPLATE =
+  "lg:grid-cols-[minmax(240px,max-content)_minmax(0,1fr)_120px]";
 
 type ActionTypeFilterValue = AdminActionType | typeof ALL_ACTIONS_FILTER;
 
@@ -79,29 +92,36 @@ const ADMIN_LOG_RESOURCE_LABELS: Record<AdminLogResourceTable, string> = {
   [AdminLogResourceTable.TEAMS]: "Atléticas",
   [AdminLogResourceTable.MATCHES]: "Jogos",
   [AdminLogResourceTable.LEAGUE_EVENTS]: "Eventos da Liga",
-  [AdminLogResourceTable.LEAGUE_EVENT_RESERVATION_REQUESTS]: "Reservas do Calendário da Liga",
-  [AdminLogResourceTable.LEAGUE_EVENT_ORGANIZER_TEAMS]: "Organização de eventos",
+  [AdminLogResourceTable.LEAGUE_EVENT_RESERVATION_REQUESTS]:
+    "Reservas do Calendário da Liga",
+  [AdminLogResourceTable.LEAGUE_EVENT_ORGANIZER_TEAMS]:
+    "Organização de eventos",
   [AdminLogResourceTable.PUBLIC_LINK_SECTIONS]: "Seções de links",
   [AdminLogResourceTable.PUBLIC_LINK_ITEMS]: "Links públicos",
-  [AdminLogResourceTable.CHAMPIONSHIP_BRACKET_WORKFLOW]: "Configuração de Campeonato",
+  [AdminLogResourceTable.CHAMPIONSHIP_BRACKET_WORKFLOW]:
+    "Configuração de Campeonato",
   [AdminLogResourceTable.AUTH_USERS]: "Usuários administrativos",
   [AdminLogResourceTable.PUBLIC_PAGE_ACCESS_SETTINGS]: "Configurações públicas",
 };
 
-const ADMIN_LOG_RESOURCE_ENTITY_LABELS: Record<AdminLogResourceTable, string> = {
-  [AdminLogResourceTable.CHAMPIONSHIPS]: "campeonato",
-  [AdminLogResourceTable.SPORTS]: "modalidade",
-  [AdminLogResourceTable.TEAMS]: "atlética",
-  [AdminLogResourceTable.MATCHES]: "jogo",
-  [AdminLogResourceTable.LEAGUE_EVENTS]: "evento da liga",
-  [AdminLogResourceTable.LEAGUE_EVENT_RESERVATION_REQUESTS]: "reserva do calendário da liga",
-  [AdminLogResourceTable.LEAGUE_EVENT_ORGANIZER_TEAMS]: "vínculo de organização do evento",
-  [AdminLogResourceTable.PUBLIC_LINK_SECTIONS]: "seção de links",
-  [AdminLogResourceTable.PUBLIC_LINK_ITEMS]: "link público",
-  [AdminLogResourceTable.CHAMPIONSHIP_BRACKET_WORKFLOW]: "configuração de campeonato",
-  [AdminLogResourceTable.AUTH_USERS]: "usuário administrativo",
-  [AdminLogResourceTable.PUBLIC_PAGE_ACCESS_SETTINGS]: "configuração pública",
-};
+const ADMIN_LOG_RESOURCE_ENTITY_LABELS: Record<AdminLogResourceTable, string> =
+  {
+    [AdminLogResourceTable.CHAMPIONSHIPS]: "campeonato",
+    [AdminLogResourceTable.SPORTS]: "modalidade",
+    [AdminLogResourceTable.TEAMS]: "atlética",
+    [AdminLogResourceTable.MATCHES]: "jogo",
+    [AdminLogResourceTable.LEAGUE_EVENTS]: "evento da liga",
+    [AdminLogResourceTable.LEAGUE_EVENT_RESERVATION_REQUESTS]:
+      "reserva do calendário da liga",
+    [AdminLogResourceTable.LEAGUE_EVENT_ORGANIZER_TEAMS]:
+      "vínculo de organização do evento",
+    [AdminLogResourceTable.PUBLIC_LINK_SECTIONS]: "seção de links",
+    [AdminLogResourceTable.PUBLIC_LINK_ITEMS]: "link público",
+    [AdminLogResourceTable.CHAMPIONSHIP_BRACKET_WORKFLOW]:
+      "configuração de campeonato",
+    [AdminLogResourceTable.AUTH_USERS]: "usuário administrativo",
+    [AdminLogResourceTable.PUBLIC_PAGE_ACCESS_SETTINGS]: "configuração pública",
+  };
 
 const ADMIN_LOG_DEFAULT_FIELD_LABELS: Record<string, string> = {
   name: "Nome",
@@ -159,7 +179,9 @@ const ADMIN_LOG_DEFAULT_FIELD_LABELS: Record<string, string> = {
   filters: "Filtros",
 };
 
-const ADMIN_LOG_RESOURCE_FIELD_LABELS: Partial<Record<AdminLogResourceTable, Record<string, string>>> = {
+const ADMIN_LOG_RESOURCE_FIELD_LABELS: Partial<
+  Record<AdminLogResourceTable, Record<string, string>>
+> = {
   [AdminLogResourceTable.MATCHES]: {
     home_team_id: "Atlética da casa",
     away_team_id: "Atlética visitante",
@@ -272,10 +294,16 @@ function isAdminActionType(value: string): value is AdminActionType {
 }
 
 function isAdminPanelRole(value: string): value is AdminPanelRole {
-  return value == AdminPanelRole.ADMIN || value == AdminPanelRole.EVENTOS || value == AdminPanelRole.MESA;
+  return (
+    value == AdminPanelRole.ADMIN ||
+    value == AdminPanelRole.EVENTOS ||
+    value == AdminPanelRole.MESA
+  );
 }
 
-function isAdminLogResourceTable(value: string): value is AdminLogResourceTable {
+function isAdminLogResourceTable(
+  value: string,
+): value is AdminLogResourceTable {
   return (
     value == AdminLogResourceTable.CHAMPIONSHIPS ||
     value == AdminLogResourceTable.SPORTS ||
@@ -293,15 +321,26 @@ function isAdminLogResourceTable(value: string): value is AdminLogResourceTable 
 }
 
 function isMatchStatusValue(value: string): value is MatchStatus {
-  return value == MatchStatus.SCHEDULED || value == MatchStatus.LIVE || value == MatchStatus.FINISHED;
+  return (
+    value == MatchStatus.SCHEDULED ||
+    value == MatchStatus.LIVE ||
+    value == MatchStatus.FINISHED
+  );
 }
 
 function isMatchNaipeValue(value: string): value is MatchNaipe {
-  return value == MatchNaipe.MASCULINO || value == MatchNaipe.FEMININO || value == MatchNaipe.MISTO;
+  return (
+    value == MatchNaipe.MASCULINO ||
+    value == MatchNaipe.FEMININO ||
+    value == MatchNaipe.MISTO
+  );
 }
 
 function isTeamDivisionValue(value: string): value is TeamDivision {
-  return value == TeamDivision.DIVISAO_PRINCIPAL || value == TeamDivision.DIVISAO_ACESSO;
+  return (
+    value == TeamDivision.DIVISAO_PRINCIPAL ||
+    value == TeamDivision.DIVISAO_ACESSO
+  );
 }
 
 function isChampionshipStatusValue(value: string): value is ChampionshipStatus {
@@ -314,12 +353,21 @@ function isChampionshipStatusValue(value: string): value is ChampionshipStatus {
   );
 }
 
-function isChampionshipSportTieBreakerRuleValue(value: string): value is ChampionshipSportTieBreakerRule {
-  return Object.values(ChampionshipSportTieBreakerRule).some((tieBreakerRule) => tieBreakerRule == value);
+function isChampionshipSportTieBreakerRuleValue(
+  value: string,
+): value is ChampionshipSportTieBreakerRule {
+  return Object.values(ChampionshipSportTieBreakerRule).some(
+    (tieBreakerRule) => tieBreakerRule == value,
+  );
 }
 
-function isLeagueEventOrganizerTypeValue(value: string): value is LeagueEventOrganizerType {
-  return value == LeagueEventOrganizerType.ATHLETIC || value == LeagueEventOrganizerType.LAJE;
+function isLeagueEventOrganizerTypeValue(
+  value: string,
+): value is LeagueEventOrganizerType {
+  return (
+    value == LeagueEventOrganizerType.ATHLETIC ||
+    value == LeagueEventOrganizerType.LAJE
+  );
 }
 
 function isLeagueEventTypeValue(value: string): value is LeagueEventType {
@@ -403,7 +451,11 @@ function resolveTeamName(teamNameById: TeamNameById, teamId: unknown): string {
   return teamNameById[teamId] ?? "Atlética cadastrada";
 }
 
-function resolveFieldValueText(fieldName: string, value: unknown, teamNameById: TeamNameById): string {
+function resolveFieldValueText(
+  fieldName: string,
+  value: unknown,
+  teamNameById: TeamNameById,
+): string {
   if (value == null) {
     return "não informado";
   }
@@ -431,7 +483,12 @@ function resolveFieldValueText(fieldName: string, value: unknown, teamNameById: 
       return "item vinculado";
     }
 
-    if (fieldName == "event_date" || fieldName == "start_time" || fieldName == "end_time" || fieldName == "reviewed_at") {
+    if (
+      fieldName == "event_date" ||
+      fieldName == "start_time" ||
+      fieldName == "end_time" ||
+      fieldName == "reviewed_at"
+    ) {
       return resolveDateText(value);
     }
 
@@ -443,11 +500,17 @@ function resolveFieldValueText(fieldName: string, value: unknown, teamNameById: 
       return LEAGUE_EVENT_TYPE_LABELS[value];
     }
 
-    if (fieldName == "organizer_type" && isLeagueEventOrganizerTypeValue(value)) {
+    if (
+      fieldName == "organizer_type" &&
+      isLeagueEventOrganizerTypeValue(value)
+    ) {
       return LEAGUE_EVENT_ORGANIZER_LABELS[value];
     }
 
-    if (fieldName == "status" && isLeagueEventReservationRequestStatusValue(value)) {
+    if (
+      fieldName == "status" &&
+      isLeagueEventReservationRequestStatusValue(value)
+    ) {
       return LEAGUE_EVENT_RESERVATION_REQUEST_STATUS_LABELS[value];
     }
 
@@ -459,7 +522,10 @@ function resolveFieldValueText(fieldName: string, value: unknown, teamNameById: 
       return TEAM_DIVISION_LABELS[value];
     }
 
-    if (fieldName == "resolved_tie_breaker_rule" && isChampionshipSportTieBreakerRuleValue(value)) {
+    if (
+      fieldName == "resolved_tie_breaker_rule" &&
+      isChampionshipSportTieBreakerRuleValue(value)
+    ) {
       return CHAMPIONSHIP_SPORT_TIE_BREAKER_RULE_LABELS[value];
     }
 
@@ -498,7 +564,11 @@ function resolveComparableValue(value: unknown): string {
     return "null";
   }
 
-  if (typeof value == "string" || typeof value == "number" || typeof value == "boolean") {
+  if (
+    typeof value == "string" ||
+    typeof value == "number" ||
+    typeof value == "boolean"
+  ) {
     return String(value);
   }
 
@@ -523,7 +593,10 @@ function isTemporaryQueueSlotValue(value: unknown): boolean {
   return queueSlotNumber >= TEMPORARY_QUEUE_SLOT_THRESHOLD;
 }
 
-function resolveMatchContextDetails(log: AdminActionLog, teamNameById: TeamNameById): string[] {
+function resolveMatchContextDetails(
+  log: AdminActionLog,
+  teamNameById: TeamNameById,
+): string[] {
   if (log.resource_table != AdminLogResourceTable.MATCHES) {
     return [];
   }
@@ -541,9 +614,13 @@ function resolveMatchContextDetails(log: AdminActionLog, teamNameById: TeamNameB
   details.push(`Atléticas: ${homeTeamName} x ${awayTeamName}`);
 
   const previousHomeScore =
-    typeof previousValues.home_score == "number" ? previousValues.home_score : null;
+    typeof previousValues.home_score == "number"
+      ? previousValues.home_score
+      : null;
   const previousAwayScore =
-    typeof previousValues.away_score == "number" ? previousValues.away_score : null;
+    typeof previousValues.away_score == "number"
+      ? previousValues.away_score
+      : null;
   const nextHomeScore =
     typeof nextValues.home_score == "number" ? nextValues.home_score : null;
   const nextAwayScore =
@@ -563,27 +640,47 @@ function resolveMatchContextDetails(log: AdminActionLog, teamNameById: TeamNameB
     return details;
   }
 
-  if (log.action_type == AdminActionType.INSERT && nextHomeScore != null && nextAwayScore != null) {
-    details.push(`Placar inicial: ${homeTeamName} ${nextHomeScore} x ${nextAwayScore} ${awayTeamName}`);
+  if (
+    log.action_type == AdminActionType.INSERT &&
+    nextHomeScore != null &&
+    nextAwayScore != null
+  ) {
+    details.push(
+      `Placar inicial: ${homeTeamName} ${nextHomeScore} x ${nextAwayScore} ${awayTeamName}`,
+    );
     return details;
   }
 
-  if (log.action_type == AdminActionType.DELETE && previousHomeScore != null && previousAwayScore != null) {
-    details.push(`Placar final removido: ${homeTeamName} ${previousHomeScore} x ${previousAwayScore} ${awayTeamName}`);
+  if (
+    log.action_type == AdminActionType.DELETE &&
+    previousHomeScore != null &&
+    previousAwayScore != null
+  ) {
+    details.push(
+      `Placar final removido: ${homeTeamName} ${previousHomeScore} x ${previousAwayScore} ${awayTeamName}`,
+    );
     return details;
   }
 
   return details;
 }
 
-function resolveChangedFields(log: AdminActionLog, teamNameById: TeamNameById): string[] {
-  if (log.resource_table == AdminLogResourceTable.CHAMPIONSHIP_BRACKET_WORKFLOW) {
+function resolveChangedFields(
+  log: AdminActionLog,
+  teamNameById: TeamNameById,
+): string[] {
+  if (
+    log.resource_table == AdminLogResourceTable.CHAMPIONSHIP_BRACKET_WORKFLOW
+  ) {
     const metadata = resolveRecordValue(log.metadata);
     const changedFields = metadata?.changed_fields;
 
     if (Array.isArray(changedFields)) {
       return changedFields
-        .filter((changedField): changedField is string => typeof changedField == "string" && changedField.trim().length > 0)
+        .filter(
+          (changedField): changedField is string =>
+            typeof changedField == "string" && changedField.trim().length > 0,
+        )
         .slice(0, MAXIMUM_LOG_CHANGES);
     }
 
@@ -596,17 +693,34 @@ function resolveChangedFields(log: AdminActionLog, teamNameById: TeamNameById): 
 
   const previousValues = resolveRecordValue(log.old_data) ?? {};
   const nextValues = resolveRecordValue(log.new_data) ?? {};
-  const fieldNames = [...new Set([...Object.keys(previousValues), ...Object.keys(nextValues)])];
+  const fieldNames = [
+    ...new Set([...Object.keys(previousValues), ...Object.keys(nextValues)]),
+  ];
   const isQueueAndScheduledSlotMirrored =
-    resolveQueueSlotNumber(previousValues.queue_position) == resolveQueueSlotNumber(previousValues.scheduled_slot) &&
-    resolveQueueSlotNumber(nextValues.queue_position) == resolveQueueSlotNumber(nextValues.scheduled_slot);
+    resolveQueueSlotNumber(previousValues.queue_position) ==
+      resolveQueueSlotNumber(previousValues.scheduled_slot) &&
+    resolveQueueSlotNumber(nextValues.queue_position) ==
+      resolveQueueSlotNumber(nextValues.scheduled_slot);
 
   return fieldNames
     .filter((fieldName) => !ADMIN_LOG_IGNORED_FIELDS.has(fieldName))
-    .filter((fieldName) => !(log.resource_table == AdminLogResourceTable.MATCHES && MATCH_SCORE_FIELDS.has(fieldName)))
-    .filter((fieldName) => resolveComparableValue(previousValues[fieldName]) != resolveComparableValue(nextValues[fieldName]))
+    .filter(
+      (fieldName) =>
+        !(
+          log.resource_table == AdminLogResourceTable.MATCHES &&
+          MATCH_SCORE_FIELDS.has(fieldName)
+        ),
+    )
+    .filter(
+      (fieldName) =>
+        resolveComparableValue(previousValues[fieldName]) !=
+        resolveComparableValue(nextValues[fieldName]),
+    )
     .filter((fieldName) => {
-      if (log.resource_table != AdminLogResourceTable.MATCHES || !MATCH_QUEUE_SLOT_FIELDS.has(fieldName)) {
+      if (
+        log.resource_table != AdminLogResourceTable.MATCHES ||
+        !MATCH_QUEUE_SLOT_FIELDS.has(fieldName)
+      ) {
         return true;
       }
 
@@ -620,10 +734,21 @@ function resolveChangedFields(log: AdminActionLog, teamNameById: TeamNameById): 
     .map((fieldName) => {
       const fieldLabel = resolveFieldLabel(log.resource_table, fieldName);
 
-      const previousValueText = resolveFieldValueText(fieldName, previousValues[fieldName], teamNameById);
-      const nextValueText = resolveFieldValueText(fieldName, nextValues[fieldName], teamNameById);
+      const previousValueText = resolveFieldValueText(
+        fieldName,
+        previousValues[fieldName],
+        teamNameById,
+      );
+      const nextValueText = resolveFieldValueText(
+        fieldName,
+        nextValues[fieldName],
+        teamNameById,
+      );
 
-      if (log.resource_table == AdminLogResourceTable.MATCHES && MATCH_TEAM_FIELDS.has(fieldName)) {
+      if (
+        log.resource_table == AdminLogResourceTable.MATCHES &&
+        MATCH_TEAM_FIELDS.has(fieldName)
+      ) {
         return `${fieldLabel}: ${previousValueText} para ${nextValueText}`;
       }
 
@@ -633,50 +758,86 @@ function resolveChangedFields(log: AdminActionLog, teamNameById: TeamNameById): 
 }
 
 function shouldHideTemporaryQueueTransitionLog(log: AdminActionLog): boolean {
-  if (log.resource_table != AdminLogResourceTable.MATCHES || log.action_type != AdminActionType.UPDATE) {
+  if (
+    log.resource_table != AdminLogResourceTable.MATCHES ||
+    log.action_type != AdminActionType.UPDATE
+  ) {
     return false;
   }
 
   const previousValues = resolveRecordValue(log.old_data) ?? {};
   const nextValues = resolveRecordValue(log.new_data) ?? {};
-  const fieldNames = [...new Set([...Object.keys(previousValues), ...Object.keys(nextValues)])]
+  const fieldNames = [
+    ...new Set([...Object.keys(previousValues), ...Object.keys(nextValues)]),
+  ]
     .filter((fieldName) => !ADMIN_LOG_IGNORED_FIELDS.has(fieldName))
-    .filter((fieldName) => resolveComparableValue(previousValues[fieldName]) != resolveComparableValue(nextValues[fieldName]));
+    .filter(
+      (fieldName) =>
+        resolveComparableValue(previousValues[fieldName]) !=
+        resolveComparableValue(nextValues[fieldName]),
+    );
 
-  if (fieldNames.length == 0 || !fieldNames.every((fieldName) => MATCH_QUEUE_SLOT_FIELDS.has(fieldName))) {
+  if (
+    fieldNames.length == 0 ||
+    !fieldNames.every((fieldName) => MATCH_QUEUE_SLOT_FIELDS.has(fieldName))
+  ) {
     return false;
   }
 
-  return fieldNames.some((fieldName) => isTemporaryQueueSlotValue(nextValues[fieldName]));
+  return fieldNames.some((fieldName) =>
+    isTemporaryQueueSlotValue(nextValues[fieldName]),
+  );
 }
 
-function resolveLogQueueTransition(log: AdminActionLog): { previous: number | null; next: number | null } {
+function resolveLogQueueTransition(log: AdminActionLog): {
+  previous: number | null;
+  next: number | null;
+} {
   const previousValues = resolveRecordValue(log.old_data) ?? {};
   const nextValues = resolveRecordValue(log.new_data) ?? {};
 
-  const previousQueuePosition = resolveQueueSlotNumber(previousValues.queue_position);
+  const previousQueuePosition = resolveQueueSlotNumber(
+    previousValues.queue_position,
+  );
   const nextQueuePosition = resolveQueueSlotNumber(nextValues.queue_position);
 
-  if (previousQueuePosition != null && nextQueuePosition != null && previousQueuePosition != nextQueuePosition) {
+  if (
+    previousQueuePosition != null &&
+    nextQueuePosition != null &&
+    previousQueuePosition != nextQueuePosition
+  ) {
     return { previous: previousQueuePosition, next: nextQueuePosition };
   }
 
-  const previousScheduledSlot = resolveQueueSlotNumber(previousValues.scheduled_slot);
+  const previousScheduledSlot = resolveQueueSlotNumber(
+    previousValues.scheduled_slot,
+  );
   const nextScheduledSlot = resolveQueueSlotNumber(nextValues.scheduled_slot);
 
-  if (previousScheduledSlot != null && nextScheduledSlot != null && previousScheduledSlot != nextScheduledSlot) {
+  if (
+    previousScheduledSlot != null &&
+    nextScheduledSlot != null &&
+    previousScheduledSlot != nextScheduledSlot
+  ) {
     return { previous: previousScheduledSlot, next: nextScheduledSlot };
   }
 
   return { previous: null, next: null };
 }
 
-function resolveLogQueueTransitionPairingKey(log: AdminActionLog): string | null {
-  if (log.resource_table != AdminLogResourceTable.MATCHES || log.action_type != AdminActionType.UPDATE || !log.record_id) {
+function resolveLogQueueTransitionPairingKey(
+  log: AdminActionLog,
+): string | null {
+  if (
+    log.resource_table != AdminLogResourceTable.MATCHES ||
+    log.action_type != AdminActionType.UPDATE ||
+    !log.record_id
+  ) {
     return null;
   }
 
-  const actorUserIdentifier = log.actor_user_id ?? log.actor_email ?? "unknown-actor";
+  const actorUserIdentifier =
+    log.actor_user_id ?? log.actor_email ?? "unknown-actor";
   const createdAtSecond = log.created_at.slice(0, 19);
   return `${log.record_id}:${actorUserIdentifier}:${createdAtSecond}`;
 }
@@ -698,11 +859,17 @@ function resolvePrimaryName(log: AdminActionLog): string | null {
     return previousValues.name;
   }
 
-  if (previousValues?.event_name && typeof previousValues.event_name == "string") {
+  if (
+    previousValues?.event_name &&
+    typeof previousValues.event_name == "string"
+  ) {
     return previousValues.event_name;
   }
 
-  if (metadata?.target_user_name && typeof metadata.target_user_name == "string") {
+  if (
+    metadata?.target_user_name &&
+    typeof metadata.target_user_name == "string"
+  ) {
     return metadata.target_user_name;
   }
 
@@ -713,7 +880,9 @@ function resolveHeadline(log: AdminActionLog): string {
   const primaryName = resolvePrimaryName(log);
   const metadata = resolveRecordValue(log.metadata);
 
-  if (log.resource_table == AdminLogResourceTable.CHAMPIONSHIP_BRACKET_WORKFLOW) {
+  if (
+    log.resource_table == AdminLogResourceTable.CHAMPIONSHIP_BRACKET_WORKFLOW
+  ) {
     const stepLabel =
       metadata?.step && typeof metadata.step == "string"
         ? metadata.step
@@ -731,7 +900,9 @@ function resolveHeadline(log: AdminActionLog): string {
   }
 
   if (log.action_type == AdminActionType.LOGIN) {
-    return primaryName ? `Acessou a plataforma: ${primaryName}` : "Acessou a plataforma";
+    return primaryName
+      ? `Acessou a plataforma: ${primaryName}`
+      : "Acessou a plataforma";
   }
 
   if (log.action_type == AdminActionType.PASSWORD_CHANGED) {
@@ -757,31 +928,44 @@ function resolveHeadline(log: AdminActionLog): string {
 function resolveFallbackDetail(log: AdminActionLog): string {
   const primaryName = resolvePrimaryName(log);
 
-  if (log.resource_table == AdminLogResourceTable.CHAMPIONSHIP_BRACKET_WORKFLOW) {
+  if (
+    log.resource_table == AdminLogResourceTable.CHAMPIONSHIP_BRACKET_WORKFLOW
+  ) {
     const metadata = resolveRecordValue(log.metadata);
     const changedFields = metadata?.changed_fields;
 
     if (Array.isArray(changedFields)) {
-      const changedFieldsCount = changedFields.filter((changedField) => typeof changedField == "string" && changedField.trim().length > 0).length;
+      const changedFieldsCount = changedFields.filter(
+        (changedField) =>
+          typeof changedField == "string" && changedField.trim().length > 0,
+      ).length;
       if (changedFieldsCount > 0) {
         return `${changedFieldsCount} alteração(ões) registrada(s) nesta etapa.`;
       }
     }
 
-    return log.description ?? "Registro do fluxo de configuração do campeonato.";
+    return (
+      log.description ?? "Registro do fluxo de configuração do campeonato."
+    );
   }
 
   if (log.action_type == AdminActionType.LOGIN) {
     return "Login administrativo registrado.";
   }
 
-  if (log.resource_table == AdminLogResourceTable.AUTH_USERS && log.action_type == AdminActionType.INSERT) {
+  if (
+    log.resource_table == AdminLogResourceTable.AUTH_USERS &&
+    log.action_type == AdminActionType.INSERT
+  ) {
     return primaryName
       ? `Usuário administrativo ${primaryName} criado com sucesso.`
       : "Novo usuário administrativo criado.";
   }
 
-  if (log.resource_table == AdminLogResourceTable.AUTH_USERS && log.action_type == AdminActionType.DELETE) {
+  if (
+    log.resource_table == AdminLogResourceTable.AUTH_USERS &&
+    log.action_type == AdminActionType.DELETE
+  ) {
     return primaryName
       ? `Usuário administrativo ${primaryName} removido.`
       : "Usuário administrativo removido.";
@@ -796,7 +980,9 @@ function resolveFallbackDetail(log: AdminActionLog): string {
   }
 
   if (log.action_type == AdminActionType.PASSWORD_CHANGED) {
-    return primaryName ? `Alteração de senha registrada para ${primaryName}.` : "Alteração de senha registrada.";
+    return primaryName
+      ? `Alteração de senha registrada para ${primaryName}.`
+      : "Alteração de senha registrada.";
   }
 
   return primaryName
@@ -805,7 +991,10 @@ function resolveFallbackDetail(log: AdminActionLog): string {
 }
 
 function resolveOrSearchValue(searchText: string): string {
-  const normalizedSearchText = searchText.trim().replace(/,/g, " ").replace(/%/g, "");
+  const normalizedSearchText = searchText
+    .trim()
+    .replace(/,/g, " ")
+    .replace(/%/g, "");
 
   if (!normalizedSearchText) {
     return "";
@@ -828,32 +1017,43 @@ function resolveOrSearchValue(searchText: string): string {
 export function AdminLogs() {
   const [logs, setLogs] = useState<AdminActionLog[]>([]);
   const [teamNameById, setTeamNameById] = useState<TeamNameById>({});
-  const [availableUsers, setAvailableUsers] = useState<Array<{ id: string; label: string }>>([]);
+  const [availableUsers, setAvailableUsers] = useState<
+    Array<{ id: string; label: string }>
+  >([]);
   const [loading, setLoading] = useState(true);
-  const [selectedLogForJson, setSelectedLogForJson] = useState<AdminActionLog | null>(null);
+  const [selectedLogForJson, setSelectedLogForJson] =
+    useState<AdminActionLog | null>(null);
   const [selectedUserId, setSelectedUserId] = useState(ALL_USERS_FILTER);
-  const [selectedActionType, setSelectedActionType] = useState<ActionTypeFilterValue>(ALL_ACTIONS_FILTER);
+  const [selectedActionType, setSelectedActionType] =
+    useState<ActionTypeFilterValue>(ALL_ACTIONS_FILTER);
   const [resourceSearch, setResourceSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_PAGINATION_ITEMS_PER_PAGE);
+  const [itemsPerPage, setItemsPerPage] = useState(
+    DEFAULT_PAGINATION_ITEMS_PER_PAGE,
+  );
   const [totalCount, setTotalCount] = useState(0);
   const hasHandledPaginationScrollRef = useRef(false);
 
   useEffect(() => {
     const fetchTeamsAndUsers = async () => {
-      const [{ data: teamsData }, { data: adminUsersData }] = await Promise.all([
-        supabase.from("teams").select("id, name"),
-        supabase.rpc("list_admin_users"),
-      ]);
+      const [{ data: teamsData }, { data: adminUsersData }] = await Promise.all(
+        [
+          supabase.from("teams").select("id, name"),
+          supabase.rpc("list_admin_users"),
+        ],
+      );
 
-      const nextTeamNameById = (teamsData ?? []).reduce<TeamNameById>((teamMap, team) => {
-        if (!team.id || !team.name) {
+      const nextTeamNameById = (teamsData ?? []).reduce<TeamNameById>(
+        (teamMap, team) => {
+          if (!team.id || !team.name) {
+            return teamMap;
+          }
+
+          teamMap[team.id] = team.name;
           return teamMap;
-        }
-
-        teamMap[team.id] = team.name;
-        return teamMap;
-      }, {});
+        },
+        {},
+      );
 
       setTeamNameById(nextTeamNameById);
 
@@ -863,7 +1063,9 @@ export function AdminLogs() {
           id: adminUser.user_id,
           label: adminUser.name,
         }))
-        .sort((firstUser, secondUser) => firstUser.label.localeCompare(secondUser.label));
+        .sort((firstUser, secondUser) =>
+          firstUser.label.localeCompare(secondUser.label),
+        );
 
       setAvailableUsers(nextAvailableUsers);
     };
@@ -884,8 +1086,14 @@ export function AdminLogs() {
 
       let logsQuery = supabase
         .from("admin_action_logs")
-        .select("id, actor_user_id, actor_name, actor_email, actor_role, action_type, resource_table, record_id, description, old_data, new_data, metadata, created_at", { count: "exact" })
-        .neq("resource_table", AdminLogResourceTable.LEAGUE_EVENT_ORGANIZER_TEAMS)
+        .select(
+          "id, actor_user_id, actor_name, actor_email, actor_role, action_type, resource_table, record_id, description, old_data, new_data, metadata, created_at",
+          { count: "exact" },
+        )
+        .neq(
+          "resource_table",
+          AdminLogResourceTable.LEAGUE_EVENT_ORGANIZER_TEAMS,
+        )
         .order("created_at", { ascending: false });
 
       if (selectedUserId != ALL_USERS_FILTER) {
@@ -902,7 +1110,10 @@ export function AdminLogs() {
         logsQuery = logsQuery.or(orSearchValue);
       }
 
-      const { data, error, count } = await logsQuery.range(rangeStart, rangeEnd);
+      const { data, error, count } = await logsQuery.range(
+        rangeStart,
+        rangeEnd,
+      );
 
       if (error) {
         toast.error(error.message);
@@ -918,7 +1129,9 @@ export function AdminLogs() {
           log.actor_role && isAdminPanelRole(log.actor_role)
             ? log.actor_role
             : null,
-        action_type: isAdminActionType(log.action_type) ? log.action_type : AdminActionType.UPDATE,
+        action_type: isAdminActionType(log.action_type)
+          ? log.action_type
+          : AdminActionType.UPDATE,
         old_data: resolveRecordValue(log.old_data),
         new_data: resolveRecordValue(log.new_data),
       })) as AdminActionLog[];
@@ -929,7 +1142,13 @@ export function AdminLogs() {
     };
 
     fetchLogs();
-  }, [currentPage, itemsPerPage, resourceSearch, selectedActionType, selectedUserId]);
+  }, [
+    currentPage,
+    itemsPerPage,
+    resourceSearch,
+    selectedActionType,
+    selectedUserId,
+  ]);
 
   const userFilterOptions = useMemo(() => {
     const userById = new Map<string, string>();
@@ -940,17 +1159,25 @@ export function AdminLogs() {
 
     logs.forEach((log) => {
       if (log.actor_user_id) {
-        userById.set(log.actor_user_id, log.actor_name ?? log.actor_email ?? "Usuário desconhecido");
+        userById.set(
+          log.actor_user_id,
+          log.actor_name ?? log.actor_email ?? "Usuário desconhecido",
+        );
       }
     });
 
     return [...userById.entries()]
       .map(([id, label]) => ({ id, label }))
-      .sort((firstUser, secondUser) => firstUser.label.localeCompare(secondUser.label));
+      .sort((firstUser, secondUser) =>
+        firstUser.label.localeCompare(secondUser.label),
+      );
   }, [availableUsers, logs]);
 
   const listItems = useMemo(() => {
-    const hiddenTemporaryQueueTransitionByKey = new Map<string, AdminActionLog>();
+    const hiddenTemporaryQueueTransitionByKey = new Map<
+      string,
+      AdminActionLog
+    >();
 
     logs.forEach((log) => {
       if (!shouldHideTemporaryQueueTransitionLog(log)) {
@@ -980,8 +1207,11 @@ export function AdminLogs() {
           isTemporaryQueueSlotValue(queueTransition.previous) &&
           !isTemporaryQueueSlotValue(queueTransition.next)
         ) {
-          const hiddenTemporaryLog = hiddenTemporaryQueueTransitionByKey.get(pairingKey);
-          const hiddenQueueTransition = hiddenTemporaryLog ? resolveLogQueueTransition(hiddenTemporaryLog) : null;
+          const hiddenTemporaryLog =
+            hiddenTemporaryQueueTransitionByKey.get(pairingKey);
+          const hiddenQueueTransition = hiddenTemporaryLog
+            ? resolveLogQueueTransition(hiddenTemporaryLog)
+            : null;
 
           if (
             hiddenQueueTransition &&
@@ -1002,10 +1232,19 @@ export function AdminLogs() {
           }
         }
 
-        const matchContextDetails = resolveMatchContextDetails(normalizedLog, teamNameById);
+        const matchContextDetails = resolveMatchContextDetails(
+          normalizedLog,
+          teamNameById,
+        );
         const detailChanges = resolveChangedFields(normalizedLog, teamNameById);
-        const detailList = [...matchContextDetails, ...detailChanges].slice(0, MAXIMUM_LOG_CHANGES);
-        const resolvedDetails = detailList.length > 0 ? detailList : [resolveFallbackDetail(normalizedLog)];
+        const detailList = [...matchContextDetails, ...detailChanges].slice(
+          0,
+          MAXIMUM_LOG_CHANGES,
+        );
+        const resolvedDetails =
+          detailList.length > 0
+            ? detailList
+            : [resolveFallbackDetail(normalizedLog)];
         const headline = resolveHeadline(normalizedLog);
         const actorName = normalizedLog.actor_name ?? "Usuário desconhecido";
 
@@ -1069,33 +1308,50 @@ export function AdminLogs() {
           </SelectContent>
         </Select>
 
-        <Select value={selectedActionType} onValueChange={handleSelectedActionTypeChange}>
+        <Select
+          value={selectedActionType}
+          onValueChange={handleSelectedActionTypeChange}
+        >
           <SelectTrigger className="app-input-field">
             <SelectValue placeholder="Filtrar ação" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL_ACTIONS_FILTER}>Todas as ações</SelectItem>
-            <SelectItem value={AdminActionType.INSERT}>{ADMIN_ACTION_TYPE_LABELS[AdminActionType.INSERT]}</SelectItem>
-            <SelectItem value={AdminActionType.UPDATE}>{ADMIN_ACTION_TYPE_LABELS[AdminActionType.UPDATE]}</SelectItem>
-            <SelectItem value={AdminActionType.DELETE}>{ADMIN_ACTION_TYPE_LABELS[AdminActionType.DELETE]}</SelectItem>
+            <SelectItem value={AdminActionType.INSERT}>
+              {ADMIN_ACTION_TYPE_LABELS[AdminActionType.INSERT]}
+            </SelectItem>
+            <SelectItem value={AdminActionType.UPDATE}>
+              {ADMIN_ACTION_TYPE_LABELS[AdminActionType.UPDATE]}
+            </SelectItem>
+            <SelectItem value={AdminActionType.DELETE}>
+              {ADMIN_ACTION_TYPE_LABELS[AdminActionType.DELETE]}
+            </SelectItem>
             <SelectItem value={AdminActionType.PASSWORD_CHANGED}>
               {ADMIN_ACTION_TYPE_LABELS[AdminActionType.PASSWORD_CHANGED]}
             </SelectItem>
-            <SelectItem value={AdminActionType.LOGIN}>{ADMIN_ACTION_TYPE_LABELS[AdminActionType.LOGIN]}</SelectItem>
+            <SelectItem value={AdminActionType.LOGIN}>
+              {ADMIN_ACTION_TYPE_LABELS[AdminActionType.LOGIN]}
+            </SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       <div>
         {loading ? (
-          <div className="glass-card enter-section flex min-h-28 items-center justify-center">
-            <Loader2 className="h-5 w-5 animate-spin text-primary" />
-          </div>
+          <TableSkeleton
+            rows={itemsPerPage}
+            columns={3}
+            className="enter-section"
+          />
         ) : listItems.length == 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhum log encontrado para os filtros aplicados.</p>
+          <p className="text-sm text-muted-foreground">
+            Nenhum log encontrado para os filtros aplicados.
+          </p>
         ) : (
           <div className="glass-card enter-section overflow-hidden">
-            <div className={`hidden ${LOGS_GRID_TEMPLATE} gap-3 border-b border-border/40 bg-secondary/30 px-4 py-2 text-xs font-semibold uppercase text-muted-foreground lg:grid`}>
+            <div
+              className={`hidden ${LOGS_GRID_TEMPLATE} gap-3 border-b border-border/40 bg-secondary/30 px-4 py-2 text-xs font-semibold uppercase text-muted-foreground lg:grid`}
+            >
               <p>Usuário e data</p>
               <p className="text-center">Ação registrada</p>
               <p className="text-right">Tipo</p>
@@ -1104,12 +1360,23 @@ export function AdminLogs() {
             <div className="divide-y divide-border/45">
               {listItems.map((logItem) => (
                 <div key={logItem.id} className="px-4 py-3">
-                  <div className={`grid gap-2 text-center ${LOGS_GRID_TEMPLATE} lg:items-start lg:gap-3 lg:text-left`}>
+                  <div
+                    className={`grid gap-2 text-center ${LOGS_GRID_TEMPLATE} lg:items-start lg:gap-3 lg:text-left`}
+                  >
                     <div className="space-y-1">
-                      <p className="break-words text-sm font-medium leading-tight">{logItem.actorName}</p>
-                      <p className="text-xs text-muted-foreground">{format(new Date(logItem.createdAt), "dd/MM/yyyy HH:mm")}</p>
+                      <p className="break-words text-sm font-medium leading-tight">
+                        {logItem.actorName}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(
+                          new Date(logItem.createdAt),
+                          "dd/MM/yyyy HH:mm",
+                        )}
+                      </p>
                       {logItem.actorRole ? (
-                        <p className="text-xs text-muted-foreground">{ADMIN_PANEL_ROLE_LABELS[logItem.actorRole]}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {ADMIN_PANEL_ROLE_LABELS[logItem.actorRole]}
+                        </p>
                       ) : null}
                     </div>
 
@@ -1124,7 +1391,10 @@ export function AdminLogs() {
 
                       <ul className="space-y-0.5">
                         {logItem.details.map((logDetail, logDetailIndex) => (
-                          <li key={`${logItem.id}-${logDetailIndex}`} className="text-xs text-muted-foreground">
+                          <li
+                            key={`${logItem.id}-${logDetailIndex}`}
+                            className="text-xs text-muted-foreground"
+                          >
                             {logDetail}
                           </li>
                         ))}
@@ -1132,7 +1402,9 @@ export function AdminLogs() {
                     </div>
 
                     <div className="flex justify-center lg:justify-end">
-                      <AppBadge tone={ADMIN_ACTION_TYPE_BADGE_TONES[logItem.actionType]}>
+                      <AppBadge
+                        tone={ADMIN_ACTION_TYPE_BADGE_TONES[logItem.actionType]}
+                      >
                         {ADMIN_ACTION_TYPE_LABELS[logItem.actionType]}
                       </AppBadge>
                     </div>
@@ -1145,7 +1417,9 @@ export function AdminLogs() {
 
         {!loading && totalCount > 0 ? (
           <div className="space-y-2">
-            <p className="mt-4 text-center text-xs text-muted-foreground">Total de itens: {totalCount}</p>
+            <p className="mt-4 text-center text-xs text-muted-foreground">
+              Total de itens: {totalCount}
+            </p>
             <AppPaginationControls
               currentPage={currentPage}
               totalPages={totalPages}
