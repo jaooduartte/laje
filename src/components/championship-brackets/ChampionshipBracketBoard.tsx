@@ -1069,17 +1069,6 @@ export function ChampionshipBracketBoard({
         </Select>
       </div>
 
-      {championshipBracketView.edition ? (
-        <p className="text-xs text-muted-foreground">
-          Edição atual:{" "}
-          {
-            BRACKET_EDITION_STATUS_LABELS[
-              championshipBracketView.edition.status
-            ]
-          }
-        </p>
-      ) : null}
-
       {filteredCompetitions.length == 0 ? (
         <p className="text-sm text-muted-foreground">
           Nenhuma competição encontrada para os filtros selecionados.
@@ -1132,7 +1121,7 @@ export function ChampionshipBracketBoard({
             key={competition.id}
             className="space-y-4 rounded-2xl app-card-muted p-4"
           >
-            <div className="space-y-1">
+            <div className="space-y-1 text-center">
               <h3 className="font-display text-lg font-bold">
                 {competition.sport_name} •{" "}
                 {MATCH_NAIPE_LABELS[competition.naipe]}
@@ -1141,9 +1130,10 @@ export function ChampionshipBracketBoard({
                   : ""}
               </h3>
               <p className="text-xs text-muted-foreground">
-                Grupos: {competition.groups_count} • Classificados/grupo:{" "}
-                {competition.qualifiers_per_group} • 3º lugar:{" "}
-                {BRACKET_THIRD_PLACE_MODE_LABELS[competition.third_place_mode]}
+                Grupos: {competition.groups_count}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Classificados/grupo: {competition.qualifiers_per_group}
               </p>
               <p className="text-xs text-muted-foreground">
                 {qualificationSummary} • {projectedKnockoutSummary}

@@ -4,12 +4,39 @@ import { Header } from "@/components/Header";
 import { MatchCard } from "@/components/MatchCard";
 import { TeamStandingsTable } from "@/components/TeamStandingsTable";
 import { IndividualSportStandingsTable } from "@/components/IndividualSportStandingsTable";
-import { Tabs, TabsContent, TabsNavigationList, TabsNavigationTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Tabs,
+  TabsContent,
+  TabsNavigationList,
+  TabsNavigationTrigger,
+} from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { formatStandingsPoints, type TeamStandingAggregate } from "@/lib/standings";
-import type { Championship, ChampionshipIndividualEvent, ChampionshipIndividualEventEntry, CompetitionTeamDisqualification, Match, Sport, Standing, Team } from "@/lib/types";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  formatStandingsPoints,
+  type TeamStandingAggregate,
+} from "@/lib/standings";
+import type {
+  Championship,
+  ChampionshipIndividualEvent,
+  ChampionshipIndividualEventEntry,
+  CompetitionTeamDisqualification,
+  Match,
+  Sport,
+  Standing,
+  Team,
+} from "@/lib/types";
 import type {
   BracketGroupFilterOption,
   MatchBracketContext,
@@ -27,6 +54,7 @@ import { INDIVIDUAL_ENTRY_STATUS_LABELS } from "@/lib/individualEvents";
 
 interface ChampionshipsPageViewProps {
   isLoading: boolean;
+  isChampionshipContentLoading?: boolean;
   isStandingsLoading: boolean;
   championships: Championship[];
   selectedChampionship: Championship | null;
@@ -48,7 +76,10 @@ interface ChampionshipsPageViewProps {
   isIndividualStandingsView?: boolean;
   individualStandingsRows?: Standing[];
   individualEvents?: ChampionshipIndividualEvent[];
-  individualEntriesByEventId?: Record<string, ChampionshipIndividualEventEntry[]>;
+  individualEntriesByEventId?: Record<
+    string,
+    ChampionshipIndividualEventEntry[]
+  >;
   disqualifiedTeamKeys?: ReadonlySet<string>;
   isStandingsNaipeFilterLocked: boolean;
   standingsModalidadeConfig?: ModalidadeConfig;
@@ -83,6 +114,7 @@ interface ChampionshipsPageViewProps {
 
 export function ChampionshipsPageView({
   isLoading,
+  isChampionshipContentLoading = false,
   isStandingsLoading,
   championships,
   selectedChampionship,
@@ -139,10 +171,15 @@ export function ChampionshipsPageView({
   const firstPlaceTeam = overallPodiumStandings[0] ?? null;
   const secondPlaceTeam = overallPodiumStandings[1] ?? null;
   const thirdPlaceTeam = overallPodiumStandings[2] ?? null;
-  const [isStandingsHelpTooltipHoverOpen, setIsStandingsHelpTooltipHoverOpen] = useState(false);
-  const [isStandingsHelpTooltipClickOpen, setIsStandingsHelpTooltipClickOpen] = useState(false);
-  const standingsHelpTooltipTimeoutReference = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isStandingsHelpTooltipOpen = isStandingsHelpTooltipHoverOpen || isStandingsHelpTooltipClickOpen;
+  const [isStandingsHelpTooltipHoverOpen, setIsStandingsHelpTooltipHoverOpen] =
+    useState(false);
+  const [isStandingsHelpTooltipClickOpen, setIsStandingsHelpTooltipClickOpen] =
+    useState(false);
+  const standingsHelpTooltipTimeoutReference = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+  const isStandingsHelpTooltipOpen =
+    isStandingsHelpTooltipHoverOpen || isStandingsHelpTooltipClickOpen;
 
   useEffect(() => {
     return () => {
@@ -183,7 +220,9 @@ export function ChampionshipsPageView({
         <Header />
         <main className="container py-8">
           <div className="glass-panel p-5">
-            <p className="text-sm text-muted-foreground">Nenhum campeonato disponível.</p>
+            <p className="text-sm text-muted-foreground">
+              Nenhum campeonato disponível.
+            </p>
           </div>
         </main>
       </div>
@@ -195,7 +234,9 @@ export function ChampionshipsPageView({
       <Header />
       <main className="container py-8 space-y-6">
         <section className="glass-panel enter-section space-y-4 p-5">
-          <h1 className="text-center text-2xl font-display font-bold sm:text-left">Campeonatos LAJE</h1>
+          <h1 className="text-center text-2xl font-display font-bold">
+            Campeonatos LAJE
+          </h1>
           <div className="grid gap-3 md:grid-cols-3">
             {championships.map((championship) => {
               const isSelected = championship.code == selectedChampionshipCode;
@@ -206,9 +247,7 @@ export function ChampionshipsPageView({
                   type="button"
                   onClick={() => onSelectChampionshipCode(championship.code)}
                   className={`list-item-card list-item-card-hover enter-item relative h-52 overflow-hidden text-left transition-colors ${
-                    isSelected
-                      ? "app-card-live-active live-glow"
-                      : ""
+                    isSelected ? "app-card-live-active" : ""
                   }`}
                 >
                   <img
@@ -218,10 +257,14 @@ export function ChampionshipsPageView({
                     loading="lazy"
                   />
 
-                  {isSelected ? <div className="pointer-events-none absolute inset-0 bg-primary/10" /> : null}
+                  {isSelected ? (
+                    <div className="pointer-events-none absolute inset-0 bg-primary/10" />
+                  ) : null}
 
                   <div className="absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-background/90 via-background/70 to-transparent p-3">
-                    <p className="font-display text-base font-bold leading-tight">{championship.name}</p>
+                    <p className="font-display text-base font-bold leading-tight">
+                      {championship.name}
+                    </p>
                   </div>
                 </button>
               );
@@ -229,409 +272,599 @@ export function ChampionshipsPageView({
           </div>
         </section>
 
-        <Tabs defaultValue="standings" className="enter-section space-y-4">
-          <TabsNavigationList className="grid w-full grid-cols-2">
-            <TabsNavigationTrigger value="standings">Classificação</TabsNavigationTrigger>
-            <TabsNavigationTrigger value="champions">Campeões</TabsNavigationTrigger>
-          </TabsNavigationList>
+        {isChampionshipContentLoading ? (
+          <section className="glass-panel flex min-h-[320px] items-center justify-center p-5">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </section>
+        ) : (
+          <Tabs defaultValue="standings" className="enter-section space-y-4">
+            <TabsNavigationList className="grid w-full grid-cols-2">
+              <TabsNavigationTrigger value="standings">
+                Classificação
+              </TabsNavigationTrigger>
+              <TabsNavigationTrigger value="champions">
+                Campeões
+              </TabsNavigationTrigger>
+            </TabsNavigationList>
 
-          <TabsContent value="standings" className="space-y-6">
-
-
-            <section className="glass-panel enter-section space-y-4 p-5">
-              <div className="flex items-center justify-center gap-2 sm:justify-start">
-                <h2 className="text-xl font-display font-bold">Classificação</h2>
-                <Tooltip
-                  open={isStandingsHelpTooltipOpen}
-                  onOpenChange={setIsStandingsHelpTooltipHoverOpen}
-                >
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      onClick={handleStandingsHelpClick}
-                      className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:text-foreground transition-colors"
-                      aria-label="Informação sobre pontuação"
-                    >
-                      <HelpCircle className="h-4 w-4" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-xs text-xs">
-                    Algumas pontuações podem aparecer em formato decimal. Isso ocorre quando um multiplicador de 1,5× é
-                    aplicado para equalização proporcional da classificação entre atléticas que jogaram em chaves de tamanhos diferentes.
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-
-              <div
-                className={`grid grid-cols-1 gap-3 ${selectedChampionshipHasDivisions ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}
-              >
-                <Select value={standingsYearFilter} onValueChange={onStandingsYearFilterChange}>
-                  <SelectTrigger className="app-input-field w-full">
-                    <SelectValue placeholder="Filtrar ano" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={allYearFilter}>Todos os anos</SelectItem>
-                    {availableStandingsYears.map((year) => (
-                      <SelectItem key={year} value={year}>
-                        {year}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select value={standingsSportFilter} onValueChange={onStandingsSportFilterChange}>
-                  <SelectTrigger className="app-input-field w-full">
-                    <SelectValue placeholder="Filtrar modalidade" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={allStandingsSportFilter}>Todas as modalidades</SelectItem>
-                    {sports.map((sport) => (
-                      <SelectItem key={sport.id} value={sport.id}>
-                        {sport.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select value={standingsNaipeFilter} onValueChange={onStandingsNaipeFilterChange}>
-                  <SelectTrigger
-                    className={`app-input-field w-full ${
-                      isStandingsNaipeFilterLocked ? "cursor-not-allowed opacity-60" : ""
-                    }`}
-                    disabled={isStandingsNaipeFilterLocked}
+            <TabsContent value="standings" className="space-y-6">
+              <section className="glass-panel enter-section space-y-4 p-5">
+                <div className="flex items-center justify-center gap-2">
+                  <h2 className="text-xl font-display font-bold">
+                    Classificação
+                  </h2>
+                  <Tooltip
+                    open={isStandingsHelpTooltipOpen}
+                    onOpenChange={setIsStandingsHelpTooltipHoverOpen}
                   >
-                    <SelectValue placeholder="Filtrar naipe" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={allStandingsNaipeFilter}>Todos os naipes</SelectItem>
-                    <SelectItem value={MatchNaipe.MASCULINO}>{MATCH_NAIPE_LABELS[MatchNaipe.MASCULINO]}</SelectItem>
-                    <SelectItem value={MatchNaipe.FEMININO}>{MATCH_NAIPE_LABELS[MatchNaipe.FEMININO]}</SelectItem>
-                    <SelectItem value={MatchNaipe.MISTO}>{MATCH_NAIPE_LABELS[MatchNaipe.MISTO]}</SelectItem>
-                  </SelectContent>
-                </Select>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={handleStandingsHelpClick}
+                        className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:text-foreground transition-colors"
+                        aria-label="Informação sobre pontuação"
+                      >
+                        <HelpCircle className="h-4 w-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs text-xs">
+                      Algumas pontuações podem aparecer em formato decimal. Isso
+                      ocorre quando um multiplicador de 1,5× é aplicado para
+                      equalização proporcional da classificação entre atléticas
+                      que jogaram em chaves de tamanhos diferentes.
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
 
-                {selectedChampionshipHasDivisions ? (
-                  <Select value={standingsDivisionFilter} onValueChange={onStandingsDivisionFilterChange}>
+                <div
+                  className={`grid grid-cols-1 gap-3 ${selectedChampionshipHasDivisions ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}
+                >
+                  <Select
+                    value={standingsYearFilter}
+                    onValueChange={onStandingsYearFilterChange}
+                  >
                     <SelectTrigger className="app-input-field w-full">
-                      <SelectValue placeholder="Filtrar divisão" />
+                      <SelectValue placeholder="Filtrar ano" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={allStandingsDivisionFilter}>Todas as divisões</SelectItem>
-                      <SelectItem value={TeamDivision.DIVISAO_PRINCIPAL}>{TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_PRINCIPAL]}</SelectItem>
-                      <SelectItem value={TeamDivision.DIVISAO_ACESSO}>{TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_ACESSO]}</SelectItem>
+                      <SelectItem value={allYearFilter}>
+                        Todos os anos
+                      </SelectItem>
+                      {availableStandingsYears.map((year) => (
+                        <SelectItem key={year} value={year}>
+                          {year}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
-                ) : null}
-              </div>
 
-              {isIndividualStandingsView ? (
-                <IndividualSportStandingsTable standings={individualStandingsRows} isLoading={isStandingsLoading} />
-              ) : (
-                <TeamStandingsTable
-                  standings={filteredStandings}
-                  modalidadeConfig={standingsModalidadeConfig}
-                  isLoading={isStandingsLoading}
-                  variant="public"
-                  disqualifiedTeamKeys={disqualifiedTeamKeys}
-                />
-              )}
-            </section>
-
-            {isIndividualStandingsView && individualEvents.length > 0 ? (
-              <section className="glass-panel enter-section space-y-3 p-5">
-                <div>
-                  <h3 className="text-lg font-display font-bold">Resultados por prova</h3>
-                  <p className="text-xs text-muted-foreground">
-                    O app registra a ordem oficial final definida pela CO para Atletismo e Natação.
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  {individualEvents.map((event) => (
-                    <details key={event.id} className="rounded-2xl border border-border/60 bg-background/40 p-4">
-                      <summary className="cursor-pointer list-none">
-                        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                          <span className="font-medium">{event.name}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {event.naipe} • {event.scheduled_date ?? "Sem data"} • {event.location ?? "Local a definir"}
-                          </span>
-                        </div>
-                      </summary>
-                      <div className="mt-4 space-y-2">
-                        {(individualEntriesByEventId[event.id] ?? []).length == 0 ? (
-                          <p className="text-xs text-muted-foreground">Nenhum resultado lançado até o momento.</p>
-                        ) : (
-                          (individualEntriesByEventId[event.id] ?? []).map((entry) => (
-                            <div key={entry.id} className="flex items-center justify-between gap-3 rounded-xl border border-border/40 px-3 py-2 text-sm">
-                              <div>
-                                <p className="font-medium">{entry.teams?.name ?? "-"}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {entry.athlete_name ?? entry.members?.filter((member) => member.is_starter).map((member) => member.athlete_name).join(", ") ?? "-"}
-                                </p>
-                              </div>
-                              <div className="text-right">
-                                <p className="font-semibold">
-                                  {entry.final_position != null ? `${entry.final_position}º` : INDIVIDUAL_ENTRY_STATUS_LABELS[entry.status]}
-                                </p>
-                                <p className="text-xs text-muted-foreground">{entry.points_awarded} pts</p>
-                              </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </details>
-                  ))}
-                </div>
-              </section>
-            ) : null}
-
-
-          </TabsContent>
-
-          <TabsContent value="champions" className="space-y-4 glass-panel p-5">
-            <h2 className="text-center text-xl font-display font-bold">Campeões por modalidade</h2>
-
-            {championshipChampionHistory.length == 0 ? (
-              <p className="text-center text-sm text-muted-foreground sm:text-left">
-                Nenhum campeão identificado para este campeonato.
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {championshipChampionHistory.map((championshipChampionYearGroup, index) => (
-                  <div
-                    key={championshipChampionYearGroup.year}
-                    className="space-y-4 rounded-2xl app-card-muted p-4 text-center"
+                  <Select
+                    value={standingsSportFilter}
+                    onValueChange={onStandingsSportFilterChange}
                   >
-                    <div className="flex flex-col items-center justify-center gap-1">
-                      <h3 className="font-display text-lg font-bold">{championshipChampionYearGroup.year}</h3>
-                      <p className="text-xs text-muted-foreground">
-                        {championshipChampionYearGroup.champions.length} modalidade(s)
-                      </p>
-                    </div>
+                    <SelectTrigger className="app-input-field w-full">
+                      <SelectValue placeholder="Filtrar modalidade" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={allStandingsSportFilter}>
+                        Todas as modalidades
+                      </SelectItem>
+                      {sports.map((sport) => (
+                        <SelectItem key={sport.id} value={sport.id}>
+                          {sport.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
 
-                    {index === 0 && (firstPlaceTeam || secondPlaceTeam || thirdPlaceTeam) ? (
-                      <div className="space-y-2">
-                        <p className="text-sm font-semibold text-muted-foreground">Pódio geral (tempo real)</p>
-                        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                          {firstPlaceTeam ? (
-                            <div className="rounded-2xl border border-amber-400/40 bg-amber-500/10 p-4 text-center md:order-2">
-                              <div className="inline-flex items-center justify-center gap-2 rounded-full bg-amber-500/20 px-2.5 py-1 text-xs font-semibold text-amber-600 dark:bg-amber-500/25 dark:text-amber-200">
-                                <Trophy className="h-3.5 w-3.5" />
-                                1º lugar
-                              </div>
-                              <p className="mt-3 font-display text-lg font-bold">{firstPlaceTeam.team_name}</p>
-                              <p className="text-sm text-muted-foreground">{formatStandingsPoints(firstPlaceTeam.points)} pts</p>
-                            </div>
-                          ) : null}
+                  <Select
+                    value={standingsNaipeFilter}
+                    onValueChange={onStandingsNaipeFilterChange}
+                  >
+                    <SelectTrigger
+                      className={`app-input-field w-full ${
+                        isStandingsNaipeFilterLocked
+                          ? "cursor-not-allowed opacity-60"
+                          : ""
+                      }`}
+                      disabled={isStandingsNaipeFilterLocked}
+                    >
+                      <SelectValue placeholder="Filtrar naipe" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={allStandingsNaipeFilter}>
+                        Todos os naipes
+                      </SelectItem>
+                      <SelectItem value={MatchNaipe.MASCULINO}>
+                        {MATCH_NAIPE_LABELS[MatchNaipe.MASCULINO]}
+                      </SelectItem>
+                      <SelectItem value={MatchNaipe.FEMININO}>
+                        {MATCH_NAIPE_LABELS[MatchNaipe.FEMININO]}
+                      </SelectItem>
+                      <SelectItem value={MatchNaipe.MISTO}>
+                        {MATCH_NAIPE_LABELS[MatchNaipe.MISTO]}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
 
-                          {secondPlaceTeam ? (
-                            <div className="rounded-2xl app-card-emphasis p-4 text-center md:order-1">
-                              <div className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-500/20 dark:text-slate-300">
-                                <Medal className="h-3.5 w-3.5" />
-                                2º lugar
-                              </div>
-                              <p className="mt-3 font-display text-lg font-bold">{secondPlaceTeam.team_name}</p>
-                              <p className="text-sm text-muted-foreground">{formatStandingsPoints(secondPlaceTeam.points)} pts</p>
-                            </div>
-                          ) : null}
+                  {selectedChampionshipHasDivisions ? (
+                    <Select
+                      value={standingsDivisionFilter}
+                      onValueChange={onStandingsDivisionFilterChange}
+                    >
+                      <SelectTrigger className="app-input-field w-full">
+                        <SelectValue placeholder="Filtrar divisão" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={allStandingsDivisionFilter}>
+                          Todas as divisões
+                        </SelectItem>
+                        <SelectItem value={TeamDivision.DIVISAO_PRINCIPAL}>
+                          {TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_PRINCIPAL]}
+                        </SelectItem>
+                        <SelectItem value={TeamDivision.DIVISAO_ACESSO}>
+                          {TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_ACESSO]}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : null}
+                </div>
 
-                          {thirdPlaceTeam ? (
-                            <div className="rounded-2xl app-card-emphasis p-4 text-center md:order-3">
-                              <div className="inline-flex items-center justify-center gap-2 rounded-full bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-600 dark:bg-orange-500/20 dark:text-orange-300">
-                                <Award className="h-3.5 w-3.5" />
-                                3º lugar
-                              </div>
-                              <p className="mt-3 font-display text-lg font-bold">{thirdPlaceTeam.team_name}</p>
-                              <p className="text-sm text-muted-foreground">{formatStandingsPoints(thirdPlaceTeam.points)} pts</p>
+                {isIndividualStandingsView ? (
+                  <IndividualSportStandingsTable
+                    standings={individualStandingsRows}
+                    isLoading={isStandingsLoading}
+                  />
+                ) : (
+                  <TeamStandingsTable
+                    standings={filteredStandings}
+                    modalidadeConfig={standingsModalidadeConfig}
+                    isLoading={isStandingsLoading}
+                    variant="public"
+                    disqualifiedTeamKeys={disqualifiedTeamKeys}
+                  />
+                )}
+              </section>
+
+              {isIndividualStandingsView && individualEvents.length > 0 ? (
+                <section className="glass-panel enter-section space-y-3 p-5">
+                  <div>
+                    <h3 className="text-lg font-display font-bold">
+                      Resultados por prova
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      O app registra a ordem oficial final definida pela CO para
+                      Atletismo e Natação.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    {individualEvents.map((event) => (
+                      <details
+                        key={event.id}
+                        className="rounded-2xl border border-border/60 bg-background/40 p-4"
+                      >
+                        <summary className="cursor-pointer list-none">
+                          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                            <span className="font-medium">{event.name}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {event.naipe} •{" "}
+                              {event.scheduled_date ?? "Sem data"} •{" "}
+                              {event.location ?? "Local a definir"}
+                            </span>
+                          </div>
+                        </summary>
+                        <div className="mt-4 space-y-2">
+                          {(individualEntriesByEventId[event.id] ?? [])
+                            .length == 0 ? (
+                            <p className="text-xs text-muted-foreground">
+                              Nenhum resultado lançado até o momento.
+                            </p>
+                          ) : (
+                            (individualEntriesByEventId[event.id] ?? []).map(
+                              (entry) => (
+                                <div
+                                  key={entry.id}
+                                  className="flex items-center justify-between gap-3 rounded-xl border border-border/40 px-3 py-2 text-sm"
+                                >
+                                  <div>
+                                    <p className="font-medium">
+                                      {entry.teams?.name ?? "-"}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {entry.athlete_name ??
+                                        entry.members
+                                          ?.filter(
+                                            (member) => member.is_starter,
+                                          )
+                                          .map((member) => member.athlete_name)
+                                          .join(", ") ??
+                                        "-"}
+                                    </p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="font-semibold">
+                                      {entry.final_position != null
+                                        ? `${entry.final_position}º`
+                                        : INDIVIDUAL_ENTRY_STATUS_LABELS[
+                                            entry.status
+                                          ]}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {entry.points_awarded} pts
+                                    </p>
+                                  </div>
+                                </div>
+                              ),
+                            )
+                          )}
+                        </div>
+                      </details>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+            </TabsContent>
+
+            <TabsContent
+              value="champions"
+              className="space-y-4 glass-panel p-5"
+            >
+              <h2 className="text-center text-xl font-display font-bold">
+                Campeões por modalidade
+              </h2>
+
+              {championshipChampionHistory.length == 0 ? (
+                <p className="text-center text-sm text-muted-foreground">
+                  Nenhum campeão identificado para este campeonato.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {championshipChampionHistory.map(
+                    (championshipChampionYearGroup, index) => (
+                      <div
+                        key={championshipChampionYearGroup.year}
+                        className="space-y-4 rounded-2xl app-card-muted p-4 text-center"
+                      >
+                        <div className="flex flex-col items-center justify-center gap-1">
+                          <h3 className="font-display text-lg font-bold">
+                            {championshipChampionYearGroup.year}
+                          </h3>
+                          <p className="text-xs text-muted-foreground">
+                            {championshipChampionYearGroup.champions.length}{" "}
+                            modalidade(s)
+                          </p>
+                        </div>
+
+                        {index === 0 &&
+                        (firstPlaceTeam ||
+                          secondPlaceTeam ||
+                          thirdPlaceTeam) ? (
+                          <div className="space-y-2">
+                            <p className="text-sm font-semibold text-muted-foreground">
+                              Pódio geral (tempo real)
+                            </p>
+                            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                              {firstPlaceTeam ? (
+                                <div className="rounded-2xl border border-amber-400/40 bg-amber-500/10 p-4 text-center md:order-2">
+                                  <div className="inline-flex items-center justify-center gap-2 rounded-full bg-amber-500/20 px-2.5 py-1 text-xs font-semibold text-amber-600 dark:bg-amber-500/25 dark:text-amber-200">
+                                    <Trophy className="h-3.5 w-3.5" />
+                                    1º lugar
+                                  </div>
+                                  <p className="mt-3 font-display text-lg font-bold">
+                                    {firstPlaceTeam.team_name}
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {formatStandingsPoints(
+                                      firstPlaceTeam.points,
+                                    )}{" "}
+                                    pts
+                                  </p>
+                                </div>
+                              ) : null}
+
+                              {secondPlaceTeam ? (
+                                <div className="rounded-2xl app-card-emphasis p-4 text-center md:order-1">
+                                  <div className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-500/20 dark:text-slate-300">
+                                    <Medal className="h-3.5 w-3.5" />
+                                    2º lugar
+                                  </div>
+                                  <p className="mt-3 font-display text-lg font-bold">
+                                    {secondPlaceTeam.team_name}
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {formatStandingsPoints(
+                                      secondPlaceTeam.points,
+                                    )}{" "}
+                                    pts
+                                  </p>
+                                </div>
+                              ) : null}
+
+                              {thirdPlaceTeam ? (
+                                <div className="rounded-2xl app-card-emphasis p-4 text-center md:order-3">
+                                  <div className="inline-flex items-center justify-center gap-2 rounded-full bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-600 dark:bg-orange-500/20 dark:text-orange-300">
+                                    <Award className="h-3.5 w-3.5" />
+                                    3º lugar
+                                  </div>
+                                  <p className="mt-3 font-display text-lg font-bold">
+                                    {thirdPlaceTeam.team_name}
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {formatStandingsPoints(
+                                      thirdPlaceTeam.points,
+                                    )}{" "}
+                                    pts
+                                  </p>
+                                </div>
+                              ) : null}
                             </div>
-                          ) : null}
+                          </div>
+                        ) : null}
+
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          {championshipChampionYearGroup.champions.map(
+                            (championshipChampion) => {
+                              const isCurrentYear =
+                                String(awardsSeasonYear) ===
+                                championshipChampionYearGroup.year;
+                              const supportsAwards =
+                                resolveChampionshipSportSupportsAwards(
+                                  selectedChampionship.code,
+                                  championshipChampion.sport_name,
+                                );
+                              const pendingAwardContext =
+                                awardsRankings?.pending_award_contexts?.find(
+                                  (pendingContext) =>
+                                    pendingContext.naipe ===
+                                      championshipChampion.naipe &&
+                                    pendingContext.division ===
+                                      (championshipChampion.division ?? null),
+                                ) ?? null;
+                              const awardsReady =
+                                supportsAwards &&
+                                isCurrentYear &&
+                                awardsRankings != null &&
+                                (awardsRankings.pending_award_contexts != null
+                                  ? pendingAwardContext == null
+                                  : awardsRankings.pending_matches_count === 0);
+                              const scorerDrawResult =
+                                awardsRankings?.award_draw_results?.find(
+                                  (r) =>
+                                    r.award_type === "TOP_SCORER" &&
+                                    r.naipe === championshipChampion.naipe &&
+                                    r.division ===
+                                      (championshipChampion.division ?? null),
+                                ) ?? null;
+                              const defenseDrawResult =
+                                awardsRankings?.award_draw_results?.find(
+                                  (r) =>
+                                    r.award_type === "BEST_GOALKEEPER" &&
+                                    r.naipe === championshipChampion.naipe &&
+                                    r.division ===
+                                      (championshipChampion.division ?? null),
+                                ) ?? null;
+
+                              const filteredScorers = isCurrentYear
+                                ? [
+                                    ...(awardsRankings?.top_scorers ?? []),
+                                  ].filter(
+                                    (s) =>
+                                      s.naipe === championshipChampion.naipe &&
+                                      s.division ===
+                                        championshipChampion.division &&
+                                      !competitionDisqualifications.some(
+                                        (disqualification) => {
+                                          return (
+                                            disqualification.naipe ===
+                                              championshipChampion.naipe &&
+                                            disqualification.division ===
+                                              championshipChampion.division &&
+                                            disqualification.team_id ===
+                                              s.team_id
+                                          );
+                                        },
+                                      ),
+                                  )
+                                : [];
+                              const sortedScorers = isCurrentYear
+                                ? [...filteredScorers].sort(
+                                    (firstScorer, secondScorer) =>
+                                      compareAwardsRankingGoalScorers(
+                                        firstScorer,
+                                        secondScorer,
+                                        {
+                                          drawWinnerPlayerId:
+                                            scorerDrawResult?.winner_player_id ??
+                                            null,
+                                        },
+                                      ),
+                                  )
+                                : [];
+                              const topScorer = isCurrentYear
+                                ? (sortedScorers[0] ?? null)
+                                : null;
+
+                              const filteredBestDefenses = isCurrentYear
+                                ? [
+                                    ...(awardsRankings?.best_defenses ?? []),
+                                  ].filter(
+                                    (g) =>
+                                      g.naipe === championshipChampion.naipe &&
+                                      g.division ===
+                                        championshipChampion.division &&
+                                      !competitionDisqualifications.some(
+                                        (disqualification) => {
+                                          return (
+                                            disqualification.naipe ===
+                                              championshipChampion.naipe &&
+                                            disqualification.division ===
+                                              championshipChampion.division &&
+                                            disqualification.team_id ===
+                                              g.team_id
+                                          );
+                                        },
+                                      ),
+                                  )
+                                : [];
+                              const bestDefense = isCurrentYear
+                                ? ((defenseDrawResult
+                                    ? (filteredBestDefenses.find(
+                                        (g) =>
+                                          g.team_id ===
+                                          defenseDrawResult.winner_team_id,
+                                      ) ??
+                                      filteredBestDefenses.sort(
+                                        (a, b) =>
+                                          a.goals_against_average -
+                                            b.goals_against_average ||
+                                          a.goals_against - b.goals_against ||
+                                          b.matches_count - a.matches_count,
+                                      )[0])
+                                    : filteredBestDefenses.sort(
+                                        (a, b) =>
+                                          a.goals_against_average -
+                                            b.goals_against_average ||
+                                          a.goals_against - b.goals_against ||
+                                          b.matches_count - a.matches_count,
+                                      )[0]) ?? null)
+                                : null;
+
+                              return (
+                                <div
+                                  key={championshipChampion.match_id}
+                                  className="rounded-2xl app-card-emphasis p-4 text-center shadow-lg"
+                                >
+                                  <div className="space-y-1 text-center">
+                                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                                      {championshipChampion.sport_name}
+                                    </p>
+                                    <p className="text-sm text-muted-foreground">
+                                      {
+                                        MATCH_NAIPE_LABELS[
+                                          championshipChampion.naipe
+                                        ]
+                                      }
+                                      {championshipChampion.division
+                                        ? ` • ${TEAM_DIVISION_LABELS[championshipChampion.division]}`
+                                        : ""}
+                                    </p>
+                                  </div>
+
+                                  <div className="mt-4 flex flex-col items-center gap-3">
+                                    <div className="flex w-full flex-col items-center justify-center gap-1 text-center">
+                                      <span className="inline-flex items-center justify-center gap-1.5 rounded-full bg-amber-500/20 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-600 dark:bg-amber-500/25 dark:text-amber-200">
+                                        <Trophy className="h-3.5 w-3.5" />
+                                        Campeã
+                                      </span>
+                                      <p className="font-display text-lg font-bold">
+                                        {
+                                          championshipChampion.champion_team_name
+                                        }
+                                      </p>
+                                    </div>
+
+                                    {championshipChampion.runner_up_team_name ||
+                                    championshipChampion.third_place_team_name ? (
+                                      <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
+                                        {championshipChampion.runner_up_team_name ? (
+                                          <div className="rounded-lg border border-border/40 px-2 py-1.5 text-center">
+                                            <span className="inline-flex items-center justify-center gap-1.5 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600 dark:bg-slate-500/20 dark:text-slate-300">
+                                              <Medal className="h-3 w-3" />
+                                              Vice
+                                            </span>
+                                            <p className="mt-1 text-sm font-medium text-foreground/90">
+                                              {
+                                                championshipChampion.runner_up_team_name
+                                              }
+                                            </p>
+                                          </div>
+                                        ) : null}
+
+                                        {championshipChampion.third_place_team_name ? (
+                                          <div className="rounded-lg border border-border/40 px-2 py-1.5 text-center">
+                                            <span className="inline-flex items-center justify-center gap-1.5 rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-orange-600 dark:bg-orange-500/20 dark:text-orange-300">
+                                              <Award className="h-3 w-3" />
+                                              3º lugar
+                                            </span>
+                                            <p className="mt-1 text-sm font-medium text-foreground/90">
+                                              {
+                                                championshipChampion.third_place_team_name
+                                              }
+                                            </p>
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                    ) : null}
+                                  </div>
+
+                                  {supportsAwards && isCurrentYear ? (
+                                    <div className="mt-3 border-t border-border/40 pt-3 space-y-1.5">
+                                      <div className="flex items-center justify-between gap-2 text-xs">
+                                        <span className="text-muted-foreground shrink-0">
+                                          Artilheiro
+                                        </span>
+                                        {awardsReady && topScorer ? (
+                                          <span className="truncate text-right font-medium">
+                                            {topScorer.player_name}
+                                            <span className="ml-1 text-muted-foreground">
+                                              • {topScorer.team_name} •{" "}
+                                              {topScorer.goals}{" "}
+                                              {topScorer.goals === 1
+                                                ? "gol"
+                                                : "gols"}
+                                            </span>
+                                          </span>
+                                        ) : (
+                                          <span className="text-muted-foreground">
+                                            —
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center justify-between gap-2 text-xs">
+                                        <span className="text-muted-foreground shrink-0">
+                                          Melhor defesa
+                                        </span>
+                                        {awardsReady && bestDefense ? (
+                                          <span className="truncate text-right font-medium">
+                                            {bestDefense.team_name}
+                                            <span className="ml-1 text-muted-foreground">
+                                              •{" "}
+                                              {bestDefense.goals_against_average.toLocaleString(
+                                                "pt-BR",
+                                                {
+                                                  minimumFractionDigits: 2,
+                                                  maximumFractionDigits: 2,
+                                                },
+                                              )}{" "}
+                                              de média •{" "}
+                                              {bestDefense.goals_against}{" "}
+                                              {bestDefense.goals_against === 1
+                                                ? "gol sofrido"
+                                                : "gols sofridos"}
+                                            </span>
+                                          </span>
+                                        ) : (
+                                          <span className="text-muted-foreground">
+                                            —
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              );
+                            },
+                          )}
                         </div>
                       </div>
-                    ) : null}
-
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      {championshipChampionYearGroup.champions.map((championshipChampion) => {
-                        const isCurrentYear = String(awardsSeasonYear) === championshipChampionYearGroup.year;
-                        const supportsAwards = resolveChampionshipSportSupportsAwards(
-                          selectedChampionship.code,
-                          championshipChampion.sport_name,
-                        );
-                        const pendingAwardContext = awardsRankings?.pending_award_contexts?.find(
-                          (pendingContext) =>
-                            pendingContext.naipe === championshipChampion.naipe &&
-                            pendingContext.division === (championshipChampion.division ?? null)
-                        ) ?? null;
-                        const awardsReady = supportsAwards && isCurrentYear && awardsRankings != null && (
-                          awardsRankings.pending_award_contexts != null
-                            ? pendingAwardContext == null
-                            : awardsRankings.pending_matches_count === 0
-                        );
-                        const scorerDrawResult = awardsRankings?.award_draw_results?.find(
-                          (r) =>
-                            r.award_type === "TOP_SCORER" &&
-                            r.naipe === championshipChampion.naipe &&
-                            r.division === (championshipChampion.division ?? null)
-                        ) ?? null;
-                        const defenseDrawResult = awardsRankings?.award_draw_results?.find(
-                          (r) =>
-                            r.award_type === "BEST_GOALKEEPER" &&
-                            r.naipe === championshipChampion.naipe &&
-                            r.division === (championshipChampion.division ?? null)
-                        ) ?? null;
-
-                        const filteredScorers = isCurrentYear
-                          ? [...(awardsRankings?.top_scorers ?? [])].filter(
-                              (s) =>
-                                s.naipe === championshipChampion.naipe &&
-                                s.division === championshipChampion.division &&
-                                !competitionDisqualifications.some((disqualification) => {
-                                  return (
-                                    disqualification.naipe === championshipChampion.naipe &&
-                                    disqualification.division === championshipChampion.division &&
-                                    disqualification.team_id === s.team_id
-                                  );
-                                })
-                            )
-                          : [];
-                        const sortedScorers = isCurrentYear
-                          ? [...filteredScorers].sort((firstScorer, secondScorer) => compareAwardsRankingGoalScorers(
-                              firstScorer,
-                              secondScorer,
-                              { drawWinnerPlayerId: scorerDrawResult?.winner_player_id ?? null },
-                            ))
-                          : [];
-                        const topScorer = isCurrentYear ? sortedScorers[0] ?? null : null;
-
-                        const filteredBestDefenses = isCurrentYear
-                          ? [...(awardsRankings?.best_defenses ?? [])].filter(
-                              (g) =>
-                                g.naipe === championshipChampion.naipe &&
-                                g.division === championshipChampion.division &&
-                                !competitionDisqualifications.some((disqualification) => {
-                                  return (
-                                    disqualification.naipe === championshipChampion.naipe &&
-                                    disqualification.division === championshipChampion.division &&
-                                    disqualification.team_id === g.team_id
-                                  );
-                                })
-                            )
-                          : [];
-                        const bestDefense = isCurrentYear
-                          ? (defenseDrawResult
-                              ? filteredBestDefenses.find((g) => g.team_id === defenseDrawResult.winner_team_id) ??
-                                filteredBestDefenses.sort(
-                                  (a, b) =>
-                                    a.goals_against_average - b.goals_against_average ||
-                                    a.goals_against - b.goals_against ||
-                                    b.matches_count - a.matches_count
-                                )[0]
-                              : filteredBestDefenses.sort(
-                                  (a, b) =>
-                                    a.goals_against_average - b.goals_against_average ||
-                                    a.goals_against - b.goals_against ||
-                                    b.matches_count - a.matches_count
-                                )[0]) ?? null
-                          : null;
-
-                        return (
-                        <div
-                          key={championshipChampion.match_id}
-                          className="rounded-2xl app-card-emphasis p-4 text-center shadow-lg"
-                        >
-                          <div className="space-y-1 text-center">
-                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                              {championshipChampion.sport_name}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              {MATCH_NAIPE_LABELS[championshipChampion.naipe]}
-                              {championshipChampion.division
-                                ? ` • ${TEAM_DIVISION_LABELS[championshipChampion.division]}`
-                                : ""}
-                            </p>
-                          </div>
-
-                          <div className="mt-4 flex flex-col items-center gap-3">
-                            <div className="flex w-full flex-col items-center justify-center gap-1 text-center">
-                              <span className="inline-flex items-center justify-center gap-1.5 rounded-full bg-amber-500/20 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-600 dark:bg-amber-500/25 dark:text-amber-200">
-                                <Trophy className="h-3.5 w-3.5" />
-                                Campeã
-                              </span>
-                              <p className="font-display text-lg font-bold">{championshipChampion.champion_team_name}</p>
-                            </div>
-
-                            {championshipChampion.runner_up_team_name || championshipChampion.third_place_team_name ? (
-                              <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
-                                {championshipChampion.runner_up_team_name ? (
-                                  <div className="rounded-lg border border-border/40 px-2 py-1.5 text-center">
-                                    <span className="inline-flex items-center justify-center gap-1.5 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600 dark:bg-slate-500/20 dark:text-slate-300">
-                                      <Medal className="h-3 w-3" />
-                                      Vice
-                                    </span>
-                                    <p className="mt-1 text-sm font-medium text-foreground/90">
-                                      {championshipChampion.runner_up_team_name}
-                                    </p>
-                                  </div>
-                                ) : null}
-
-                                {championshipChampion.third_place_team_name ? (
-                                  <div className="rounded-lg border border-border/40 px-2 py-1.5 text-center">
-                                    <span className="inline-flex items-center justify-center gap-1.5 rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-orange-600 dark:bg-orange-500/20 dark:text-orange-300">
-                                      <Award className="h-3 w-3" />
-                                      3º lugar
-                                    </span>
-                                    <p className="mt-1 text-sm font-medium text-foreground/90">
-                                      {championshipChampion.third_place_team_name}
-                                    </p>
-                                  </div>
-                                ) : null}
-                              </div>
-                            ) : null}
-                          </div>
-
-                          {supportsAwards && isCurrentYear ? (
-                            <div className="mt-3 border-t border-border/40 pt-3 space-y-1.5">
-                              <div className="flex items-center justify-between gap-2 text-xs">
-                                <span className="text-muted-foreground shrink-0">Artilheiro</span>
-                                {awardsReady && topScorer ? (
-                                  <span className="truncate text-right font-medium">
-                                    {topScorer.player_name}
-                                    <span className="ml-1 text-muted-foreground">
-                                      • {topScorer.team_name} • {topScorer.goals} {topScorer.goals === 1 ? "gol" : "gols"}
-                                    </span>
-                                  </span>
-                                ) : (
-                                  <span className="text-muted-foreground">—</span>
-                                )}
-                              </div>
-                              <div className="flex items-center justify-between gap-2 text-xs">
-                                <span className="text-muted-foreground shrink-0">Melhor defesa</span>
-                                {awardsReady && bestDefense ? (
-                                  <span className="truncate text-right font-medium">
-                                    {bestDefense.team_name}
-                                    <span className="ml-1 text-muted-foreground">
-                                      • {bestDefense.goals_against_average.toLocaleString("pt-BR", {
-                                        minimumFractionDigits: 2,
-                                        maximumFractionDigits: 2,
-                                      })} de média • {bestDefense.goals_against}{" "}
-                                      {bestDefense.goals_against === 1 ? "gol sofrido" : "gols sofridos"}
-                                    </span>
-                                  </span>
-                                ) : (
-                                  <span className="text-muted-foreground">—</span>
-                                )}
-                              </div>
-                            </div>
-                          ) : null}
-                        </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
+                    ),
+                  )}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        )}
       </main>
     </div>
   );

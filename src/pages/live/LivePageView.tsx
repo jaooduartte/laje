@@ -143,8 +143,8 @@ export function LivePageView({
 
           <TabsContent value="overview" className="space-y-6">
             <section className="glass-panel enter-section space-y-4 p-5">
-              <div className="mb-4 flex items-center justify-center gap-2 sm:justify-start">
-                <h2 className="text-center text-xl font-display font-bold sm:text-left">
+              <div className="mb-4 flex items-center justify-center gap-2">
+                <h2 className="text-center text-xl font-display font-bold">
                   Próximos Jogos
                 </h2>
                 <Tooltip>
@@ -178,7 +178,7 @@ export function LivePageView({
                   </div>
                 </div>
               ) : upcomingScheduleItems.length == 0 ? (
-                <p className="text-center text-sm text-muted-foreground sm:text-left">
+                <p className="text-center text-sm text-muted-foreground">
                   Nenhum jogo agendado.
                 </p>
               ) : (
@@ -226,7 +226,7 @@ export function LivePageView({
           </TabsContent>
 
           <TabsContent value="knockout" className="space-y-3 glass-panel p-5">
-            <h2 className="text-center text-xl font-display font-bold sm:text-left">
+            <h2 className="text-center text-xl font-display font-bold">
               Mata-mata do Campeonato
             </h2>
             <ChampionshipBracketBoard

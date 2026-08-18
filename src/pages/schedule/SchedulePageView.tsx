@@ -46,6 +46,7 @@ import {
   resolveMatchScheduledDateValue,
 } from "@/lib/championship";
 import {
+  resolvePublicScheduleTimeLabel,
   type PublicScheduleTimelineItem,
   type ScheduledKnockoutPlaceholder,
 } from "@/domain/public-schedule/publicScheduleTimeline";
@@ -543,7 +544,7 @@ export function SchedulePageView({
             <div className="space-y-4">
               {orderedDates.map((date) => (
                 <section key={date} className="glass-panel enter-section p-4">
-                  <h3 className="mb-3 text-sm font-display font-semibold uppercase tracking-wider text-muted-foreground">
+                  <h3 className="mb-3 text-sm text-center font-display font-semibold uppercase tracking-wider text-muted-foreground">
                     {format(
                       new Date(`${date}T12:00:00`),
                       "EEEE, dd 'de' MMMM",

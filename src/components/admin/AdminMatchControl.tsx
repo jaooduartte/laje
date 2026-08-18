@@ -112,6 +112,7 @@ interface Props {
   championshipId: string;
   seasonYear: number;
   matches: Match[];
+  isInitialLoading?: boolean;
   championshipStatus: ChampionshipStatus;
   championshipSports: ChampionshipSport[];
   championshipBracketView: ChampionshipBracketView;
@@ -577,6 +578,7 @@ export function AdminMatchControl({
   championshipId,
   seasonYear,
   matches,
+  isInitialLoading = false,
   championshipStatus,
   championshipSports,
   championshipBracketView,
@@ -652,6 +654,10 @@ export function AdminMatchControl({
   >({});
   const [sessionParticipantsBySessionId, setSessionParticipantsBySessionId] =
     useState<Record<string, Team[]>>({});
+    const [sessionParticipantsLoading, setSessionParticipantsLoading] =
+  useState(true);
+
+const hasCompletedInitialControlLoadRef = useRef(false);
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
   const [selectedEventIdBySessionId, setSelectedEventIdBySessionId] = useState<Record<string, string>>({});
   const [individualResultDraftByEntryId, setIndividualResultDraftByEntryId] = useState<Record<string, IndividualResultDraft>>({});
@@ -951,11 +957,12 @@ export function AdminMatchControl({
   }, [championshipSports, individualSportIds, matches]);
 
   const {
-    sessions: individualSessions,
-    events: individualEvents,
-    entries: individualEntries = EMPTY_INDIVIDUAL_ENTRIES,
-    refetch: refetchIndividualEvents,
-  } = useChampionshipIndividualEvents({
+  sessions: individualSessions,
+  events: individualEvents,
+  entries: individualEntries = EMPTY_INDIVIDUAL_ENTRIES,
+  loading: individualEventsLoading,
+  refetch: refetchIndividualEvents,
+} = useChampionshipIndividualEvents({
     championshipId,
     seasonYear,
     sportIds: individualSportIds,
@@ -976,30 +983,69 @@ export function AdminMatchControl({
   }, [controlSports, sportFilter]);
 
   useEffect(() => {
-    if (individualSessions.length == 0) {
-      setSessionParticipantsBySessionId({});
-      return;
-    }
+  if (individualEventsLoading) {
+    return;
+  }
 
-    let isMounted = true;
+  if (individualSessions.length == 0) {
+    setSessionParticipantsBySessionId({});
+    setSessionParticipantsLoading(false);
+    return;
+  }
 
-    void Promise.all(
-      individualSessions.map(async (session) => {
-        const response = await fetchChampionshipIndividualSessionParticipants(session.id);
-        return [session.id, response.data] as const;
-      }),
-    ).then((rows) => {
+  let isMounted = true;
+
+  setSessionParticipantsLoading(true);
+
+  void Promise.all(
+    individualSessions.map(async (session) => {
+      const response =
+        await fetchChampionshipIndividualSessionParticipants(session.id);
+
+      return [session.id, response.data] as const;
+    }),
+  )
+    .then((rows) => {
       if (!isMounted) {
         return;
       }
 
       setSessionParticipantsBySessionId(Object.fromEntries(rows));
+    })
+    .finally(() => {
+      if (!isMounted) {
+        return;
+      }
+
+      setSessionParticipantsLoading(false);
     });
 
-    return () => {
-      isMounted = false;
-    };
-  }, [individualSessions]);
+  return () => {
+    isMounted = false;
+  };
+}, [individualEventsLoading, individualSessions]);
+
+const isInitialControlLoading =
+  !hasCompletedInitialControlLoadRef.current &&
+  (
+    isInitialLoading ||
+    individualEventsLoading ||
+    sessionParticipantsLoading
+  );
+
+useEffect(() => {
+  if (
+    !isInitialLoading &&
+    !individualEventsLoading &&
+    !sessionParticipantsLoading
+  ) {
+    hasCompletedInitialControlLoadRef.current = true;
+  }
+}, [
+  isInitialLoading,
+  individualEventsLoading,
+  sessionParticipantsLoading,
+]);
 
   useEffect(() => {
     setIndividualResultDraftByEntryId((current) => {
@@ -2944,6 +2990,30 @@ export function AdminMatchControl({
 
     scrollToTopOfPage();
   }, [currentPage]);
+
+  if (isInitialControlLoading) {
+  return (
+    <div className="enter-section space-y-4">
+      <div className="glass-card space-y-4 p-4">
+        <Skeleton className="h-4 w-48" />
+
+        <div className="flex gap-3">
+          <Skeleton className="h-10 flex-1" />
+          <Skeleton className="h-10 flex-1" />
+          <Skeleton className="h-10 flex-1" />
+          <Skeleton className="h-10 flex-1" />
+        </div>
+      </div>
+
+      {Array.from({ length: 3 }).map((_, index) => (
+        <Skeleton
+          key={`admin-control-initial-skeleton-${index}`}
+          className="h-56 w-full rounded-2xl"
+        />
+      ))}
+    </div>
+  );
+}
 
   return (
     <div className="enter-section flex flex-col gap-4">

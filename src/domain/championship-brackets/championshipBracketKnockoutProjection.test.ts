@@ -3,11 +3,22 @@ import {
   resolveBracketPairingByMode,
   resolveChampionshipBracketFirstRoundSeedIndexes,
   resolveChampionshipBracketKnockoutProjection,
+  resolveChampionshipBracketQualificationSummary,
   resolveChampionshipBracketSeedPlaceholderLabels,
   resolveStandardBalancedBracketSeedOrder,
 } from "./championshipBracketKnockoutProjection";
 
 describe("resolveChampionshipBracketKnockoutProjection", () => {
+  it("descreve os classificados como melhores primeiros quando a chave fecha apenas com os líderes", () => {
+    const summary = resolveChampionshipBracketQualificationSummary({
+      groups_count: 4,
+      qualifiers_per_group: 1,
+      should_complete_knockout_with_best_second_placed_teams: false,
+    });
+
+    expect(summary).toBe("4 vagas: 4 melhores 1º");
+  });
+
   it("usa apenas melhores 1º quando a quantidade de grupos já fecha chave", () => {
     const projection = resolveChampionshipBracketKnockoutProjection({
       groups_count: 4,
@@ -99,7 +110,7 @@ describe("resolveStandardBalancedBracketSeedOrder", () => {
 });
 
 describe("resolveChampionshipBracketFirstRoundSeedIndexes", () => {
-    it("respeita o pareamento RANKING_ALTERNATING na chave de 8", () => {
+  it("respeita o pareamento RANKING_ALTERNATING na chave de 8", () => {
     expect(
       resolveChampionshipBracketFirstRoundSeedIndexes(
         8,
@@ -144,7 +155,7 @@ describe("resolveChampionshipBracketFirstRoundSeedIndexes", () => {
       away_seed_index: 4,
     });
   });
-  
+
   it("pairs 1 vs 4 and 2 vs 3 in a 4-team bracket", () => {
     expect(resolveChampionshipBracketFirstRoundSeedIndexes(4, 1)).toEqual({
       home_seed_index: 0,
@@ -205,7 +216,7 @@ describe("resolveBracketPairingByMode", () => {
 });
 
 describe("resolveChampionshipBracketSeedPlaceholderLabels", () => {
-    it("ranqueia os primeiros colocados entre os grupos no modo de apenas primeiros", () => {
+  it("ranqueia os primeiros colocados entre os grupos no modo de apenas primeiros", () => {
     const labels = resolveChampionshipBracketSeedPlaceholderLabels({
       groups_count: 4,
       qualifiers_per_group: 1,

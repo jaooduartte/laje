@@ -53,13 +53,13 @@ describe("resolveCanViewBracketSetupTab", () => {
 });
 
 describe("resolveCanViewReviewAdminTabs", () => {
-  it("shows only the review operational surface when games were generated", () => {
+  it("shows review tabs immediately based on championship status", () => {
     expect(
       resolveCanViewReviewAdminTabs({
         championshipStatus: ChampionshipStatus.REVIEW,
-        hasFinishedLoadingOperationalState: true,
-        matchesCount: 2,
-        bracketEditionStatus: BracketEditionStatus.GROUPS_GENERATED,
+        hasFinishedLoadingOperationalState: false,
+        matchesCount: 0,
+        bracketEditionStatus: null,
       }),
     ).toBe(true);
   });

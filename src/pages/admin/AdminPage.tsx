@@ -530,6 +530,10 @@ export function AdminPage() {
     );
   }
 
+const isInitialOperationalLoading =
+  operationalMatchesLoading ||
+  loadingOperationalChampionshipBracket;
+
   const canViewMatchesTab =
     (canViewOperationalAdminTabs || canViewReviewAdminTabs) && canViewAdminTab(AdminPanelTab.MATCHES);
   const canViewControlTab =
@@ -597,6 +601,7 @@ export function AdminPage() {
         selectedChampionshipCode={selectedChampionshipCode}
         matches={operationalMatches}
         matchesTabMatches={matchesTabMatches}
+        initialOperationalLoading={isInitialOperationalLoading}
         teams={teams}
         allTeams={allTeams}
         sports={sports}

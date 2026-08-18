@@ -119,14 +119,14 @@ export function LinksPageView({ championships, publicLinkSections, loading = fal
           <section className="space-y-4">
             {visiblePublicLinkSections.map((publicLinkSection) => (
               <article key={publicLinkSection.id} className="glass-panel p-5 animate-in fade-in-0 slide-in-from-bottom-2 duration-500">
-                <div className="mb-5 space-y-2 text-center sm:text-left">
+                <div className="mb-5 space-y-2 text-center">
                   <h2 className="font-display text-xl font-semibold">{publicLinkSection.name}</h2>
                   {publicLinkSection.description ? (
                     <p className="text-sm text-muted-foreground">{publicLinkSection.description}</p>
                   ) : null}
                 </div>
 
-                <div className="flex flex-wrap justify-center gap-3 sm:justify-start">
+                <div className="flex flex-wrap justify-center gap-3">
                   {(publicLinkSection.public_link_items ?? []).map((publicLinkItem) => (
                     <Button
                       key={publicLinkItem.id}
