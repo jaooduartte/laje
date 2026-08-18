@@ -838,7 +838,7 @@ export function AdminPageView({
           ) : null}
 
           {canViewTeamsTab ? (
-            <TabsContent value={AdminPanelTab.TEAMS}>
+            <TabsContent value={AdminPanelTab.TEAMS} className="enter-section">
               <AdminTeams
                 teams={allTeams}
                 isLoading={allTeamsLoading}

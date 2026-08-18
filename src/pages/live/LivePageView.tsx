@@ -217,7 +217,10 @@ export function LivePageView({
             </section>
           </TabsContent>
 
-          <TabsContent value="knockout" className="space-y-3 glass-panel p-5">
+          <TabsContent
+            value="knockout"
+            className="glass-panel enter-section space-y-3 p-5"
+          >
             <h2 className="text-center text-xl font-display font-bold">
               Mata-mata do Campeonato
             </h2>

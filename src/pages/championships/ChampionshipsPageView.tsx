@@ -294,7 +294,7 @@ export function ChampionshipsPageView({
 
               <TabsContent
                 value="champions"
-                className="space-y-4 glass-panel p-5"
+                className="glass-panel enter-section space-y-4 p-5"
               >
                 <h2 className="text-center text-xl font-display font-bold">
                   Campeões por modalidade
@@ -535,7 +535,7 @@ export function ChampionshipsPageView({
 
               <TabsContent
                 value="champions"
-                className="space-y-4 glass-panel p-5"
+                className="glass-panel enter-section space-y-4 p-5"
               >
                 <h2 className="text-center text-xl font-display font-bold">
                   Campeões por modalidade

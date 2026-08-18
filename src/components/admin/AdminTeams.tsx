@@ -322,7 +322,7 @@ export function AdminTeams({
 
   return (
     <div className="space-y-4">
-      <div className="glass-card enter-section flex flex-col gap-3 p-4 xl:flex-row xl:items-center xl:justify-between">
+      <div className="glass-card flex flex-col gap-3 p-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-3">
           <Input
             type="search"
