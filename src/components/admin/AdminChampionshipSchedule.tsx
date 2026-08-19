@@ -489,6 +489,19 @@ export function AdminChampionshipSchedule({
       return;
     }
 
+    const hasIndividualSessionChanges =
+      editingIndividualSession.scheduled_date != scheduledDate ||
+      formatTime(editingIndividualSession.start_time ?? "") != startTime ||
+      formatTime(editingIndividualSession.end_time ?? "") != endTime ||
+      editingIndividualSession.location_key != locationGroupId ||
+      editingIndividualSession.court_key != courtGroupId ||
+      editingIndividualSession.exclusive_lock_enabled != exclusiveLockEnabled;
+
+    if (!hasIndividualSessionChanges) {
+      toast.info("Nenhuma alteração foi feita nesta sessão.");
+      return;
+    }
+
     const previewOpened = await requestReconfiguration({
       action: "INDIVIDUAL_SESSION",
       payload: {
