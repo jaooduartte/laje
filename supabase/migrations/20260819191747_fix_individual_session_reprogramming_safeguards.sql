@@ -38,6 +38,9 @@ DECLARE
 
   before_session JSONB;
   after_session JSONB;
+
+  next_individual_session_configs JSONB;
+  next_resource_locks JSONB;
 BEGIN
   session_id_value :=
     NULLIF(_payload->>'session_id', '')::uuid;
@@ -195,6 +198,27 @@ BEGIN
       'O horário da sessão conflita com um intervalo configurado.';
   END IF;
 
+    IF session_record.scheduled_date
+      IS NOT DISTINCT FROM scheduled_date_value
+    AND session_record.start_time
+      IS NOT DISTINCT FROM start_time_value
+    AND session_record.end_time
+      IS NOT DISTINCT FROM end_time_value
+    AND session_record.location_key
+      IS NOT DISTINCT FROM location_group_id_value::text
+    AND session_record.court_key
+      IS NOT DISTINCT FROM court_group_id_value::text
+    AND session_record.location_name
+      IS NOT DISTINCT FROM location_name_value
+    AND session_record.court_name
+      IS NOT DISTINCT FROM court_name_value
+    AND session_record.exclusive_lock_enabled
+      IS NOT DISTINCT FROM exclusive_lock_enabled_value
+  THEN
+    RAISE EXCEPTION
+      'Nenhuma alteração foi informada para esta sessão.';
+  END IF;
+
   target_start_at := make_timestamptz(
     EXTRACT(YEAR FROM scheduled_date_value)::integer,
     EXTRACT(MONTH FROM scheduled_date_value)::integer,
@@ -259,7 +283,7 @@ BEGIN
       'A reserva exclusiva da sessão conflita com um jogo já programado.';
   END IF;
 
-  IF EXISTS (
+    IF EXISTS (
     SELECT 1
     FROM public.championship_individual_sessions AS other_session
     WHERE other_session.id <> session_id_value
@@ -274,18 +298,21 @@ BEGIN
         court_group_id_value::text
       AND other_session.start_time IS NOT NULL
       AND other_session.end_time IS NOT NULL
-      AND (
-        exclusive_lock_enabled_value
-        OR other_session.exclusive_lock_enabled
-      )
       AND start_time_value < other_session.end_time
       AND end_time_value > other_session.start_time
+      AND NOT (
+        other_session.sport_id = session_record.sport_id
+        AND other_session.division IS NOT DISTINCT FROM session_record.division
+        AND other_session.naipe <> session_record.naipe
+        AND other_session.start_time = start_time_value
+        AND other_session.end_time = end_time_value
+      )
   ) THEN
     RAISE EXCEPTION
-      'A sessão conflita com outra sessão que possui reserva exclusiva do recurso.';
+      'A sessão conflita com outra sessão individual no mesmo recurso.';
   END IF;
 
-  IF EXISTS (
+    IF EXISTS (
     SELECT 1
     FROM jsonb_array_elements(
       COALESCE(
@@ -303,11 +330,41 @@ BEGIN
         lock_record.value->>'lock_mode',
         'FLEXIBLE'
       ) = 'HARD'
+
+      AND NOT EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(
+          COALESCE(
+            edition_payload->'individual_session_configs',
+            '[]'::jsonb
+          )
+        ) AS session_config_record(value)
+        WHERE session_config_record.value->>'sport_id' =
+            lock_record.value->>'sport_id'
+          AND session_config_record.value->>'naipe' =
+            lock_record.value->>'naipe'
+          AND COALESCE(
+            NULLIF(
+              session_config_record.value->>'division',
+              ''
+            ),
+            'WITHOUT_DIVISION'
+          ) =
+          COALESCE(
+            NULLIF(
+              lock_record.value->>'division',
+              ''
+            ),
+            'WITHOUT_DIVISION'
+          )
+      )
+
       AND start_time_value <
         NULLIF(
           lock_record.value->>'end_time',
           ''
         )::time
+
       AND end_time_value >
         NULLIF(
           lock_record.value->>'start_time',
@@ -343,6 +400,271 @@ BEGIN
       'A configuração original desta sessão não foi encontrada.';
   END IF;
 
+    SELECT COALESCE(
+    jsonb_agg(
+      CASE
+        WHEN config_record.value->>'sport_id' =
+            session_record.sport_id::text
+          AND config_record.value->>'naipe' =
+            session_record.naipe::text
+          AND COALESCE(
+            NULLIF(
+              config_record.value->>'division',
+              ''
+            ),
+            'WITHOUT_DIVISION'
+          ) =
+          COALESCE(
+            session_record.division::text,
+            'WITHOUT_DIVISION'
+          )
+        THEN
+          config_record.value
+          || jsonb_build_object(
+            'scheduled_date',
+            scheduled_date_value::text,
+            'period',
+            NULL::text,
+            'start_time',
+            to_char(start_time_value, 'HH24:MI'),
+            'end_time',
+            to_char(end_time_value, 'HH24:MI'),
+            'location_key',
+            location_group_id_value::text,
+            'court_key',
+            court_group_id_value::text,
+            'location_name',
+            location_name_value,
+            'court_name',
+            court_name_value,
+            'exclusive_lock_enabled',
+            exclusive_lock_enabled_value
+          )
+        ELSE config_record.value
+      END
+      ORDER BY config_record.ordinality
+    ),
+    '[]'::jsonb
+  )
+  INTO next_individual_session_configs
+  FROM jsonb_array_elements(
+    COALESCE(
+      edition_payload->'individual_session_configs',
+      '[]'::jsonb
+    )
+  ) WITH ORDINALITY
+    AS config_record(value, ordinality);
+
+
+  WITH individual_session_keys AS (
+    SELECT
+      session_config.value->>'sport_id' AS sport_id,
+      session_config.value->>'naipe' AS naipe,
+      COALESCE(
+        NULLIF(
+          session_config.value->>'division',
+          ''
+        ),
+        'WITHOUT_DIVISION'
+      ) AS division_key
+    FROM jsonb_array_elements(
+      next_individual_session_configs
+    ) AS session_config(value)
+  ),
+
+  preserved_resource_locks AS (
+    SELECT
+      resource_lock.value,
+      resource_lock.ordinality::bigint AS sort_order
+    FROM jsonb_array_elements(
+      COALESCE(
+        edition_payload->'resource_locks',
+        '[]'::jsonb
+      )
+    ) WITH ORDINALITY
+      AS resource_lock(value, ordinality)
+    WHERE NOT (
+      COALESCE(
+        resource_lock.value->>'lock_mode',
+        ''
+      ) = 'HARD'
+      AND NULLIF(
+        resource_lock.value->>'sport_id',
+        ''
+      ) IS NOT NULL
+      AND NULLIF(
+        resource_lock.value->>'naipe',
+        ''
+      ) IS NOT NULL
+      AND EXISTS (
+        SELECT 1
+        FROM individual_session_keys AS session_key
+        WHERE session_key.sport_id =
+            resource_lock.value->>'sport_id'
+          AND session_key.naipe =
+            resource_lock.value->>'naipe'
+          AND session_key.division_key =
+            COALESCE(
+              NULLIF(
+                resource_lock.value->>'division',
+                ''
+              ),
+              'WITHOUT_DIVISION'
+            )
+      )
+    )
+  ),
+
+  derived_session_lock_candidates AS (
+    SELECT
+      session_config.ordinality::bigint AS sort_order,
+
+      session_config.value->>'scheduled_date'
+        AS scheduled_date,
+
+      session_config.value->>'start_time'
+        AS start_time,
+
+      session_config.value->>'end_time'
+        AS end_time,
+
+      session_config.value->>'location_key'
+        AS location_key,
+
+      session_config.value->>'court_key'
+        AS court_key,
+
+      session_config.value->>'sport_id'
+        AS sport_id,
+
+      COALESCE(
+        NULLIF(
+          session_config.value->>'division',
+          ''
+        ),
+        'WITHOUT_DIVISION'
+      ) AS division_key,
+
+      jsonb_build_object(
+        'date',
+        session_config.value->>'scheduled_date',
+        'start_time',
+        session_config.value->>'start_time',
+        'end_time',
+        session_config.value->>'end_time',
+        'location_key',
+        session_config.value->>'location_key',
+        'court_key',
+        session_config.value->>'court_key',
+        'location_name',
+        session_config.value->>'location_name',
+        'court_name',
+        session_config.value->>'court_name',
+        'lock_mode',
+        'HARD',
+        'competition_key',
+        NULL::text,
+        'sport_id',
+        session_config.value->>'sport_id',
+        'naipe',
+        session_config.value->>'naipe',
+        'division',
+        NULLIF(
+          session_config.value->>'division',
+          ''
+        )
+      ) AS value
+
+    FROM jsonb_array_elements(
+      next_individual_session_configs
+    ) WITH ORDINALITY
+      AS session_config(value, ordinality)
+
+    WHERE COALESCE(
+      (
+        session_config.value
+          ->>'exclusive_lock_enabled'
+      )::boolean,
+      false
+    )
+
+      AND NULLIF(
+        session_config.value->>'scheduled_date',
+        ''
+      ) IS NOT NULL
+
+      AND NULLIF(
+        session_config.value->>'start_time',
+        ''
+      ) IS NOT NULL
+
+      AND NULLIF(
+        session_config.value->>'end_time',
+        ''
+      ) IS NOT NULL
+
+      AND NULLIF(
+        session_config.value->>'location_key',
+        ''
+      ) IS NOT NULL
+
+      AND NULLIF(
+        session_config.value->>'court_key',
+        ''
+      ) IS NOT NULL
+  ),
+
+  derived_session_locks AS (
+    SELECT DISTINCT ON (
+      scheduled_date,
+      start_time,
+      end_time,
+      location_key,
+      court_key,
+      sport_id,
+      division_key
+    )
+      value,
+      sort_order
+    FROM derived_session_lock_candidates
+
+    ORDER BY
+      scheduled_date,
+      start_time,
+      end_time,
+      location_key,
+      court_key,
+      sport_id,
+      division_key,
+      sort_order DESC
+  ),
+
+  combined_resource_locks AS (
+    SELECT
+      0 AS group_order,
+      sort_order,
+      value
+    FROM preserved_resource_locks
+
+    UNION ALL
+
+    SELECT
+      1 AS group_order,
+      sort_order,
+      value
+    FROM derived_session_locks
+  )
+
+  SELECT COALESCE(
+    jsonb_agg(
+      value
+      ORDER BY group_order, sort_order
+    ),
+    '[]'::jsonb
+  )
+  INTO next_resource_locks
+  FROM combined_resource_locks;
+
   UPDATE public.championship_individual_sessions
   SET
     scheduled_date = scheduled_date_value,
@@ -376,65 +698,16 @@ BEGIN
 
   UPDATE public.championship_bracket_editions AS editions_table
   SET
-    payload_snapshot = jsonb_set(
-      editions_table.payload_snapshot,
-      '{individual_session_configs}',
-      (
-        SELECT COALESCE(
-          jsonb_agg(
-            CASE
-              WHEN config_record.value->>'sport_id' =
-                  session_record.sport_id::text
-                AND config_record.value->>'naipe' =
-                  session_record.naipe::text
-                AND COALESCE(
-                  NULLIF(
-                    config_record.value->>'division',
-                    ''
-                  ),
-                  'WITHOUT_DIVISION'
-                ) =
-                COALESCE(
-                  session_record.division::text,
-                  'WITHOUT_DIVISION'
-                )
-              THEN
-                config_record.value
-                || jsonb_build_object(
-                  'scheduled_date',
-                  scheduled_date_value::text,
-                  'period',
-                  NULL,
-                  'start_time',
-                  to_char(start_time_value, 'HH24:MI'),
-                  'end_time',
-                  to_char(end_time_value, 'HH24:MI'),
-                  'location_key',
-                  location_group_id_value::text,
-                  'court_key',
-                  court_group_id_value::text,
-                  'location_name',
-                  location_name_value,
-                  'court_name',
-                  court_name_value,
-                  'exclusive_lock_enabled',
-                  exclusive_lock_enabled_value
-                )
-              ELSE config_record.value
-            END
-            ORDER BY config_record.ordinality
-          ),
-          '[]'::jsonb
-        )
-        FROM jsonb_array_elements(
-          COALESCE(
-            editions_table.payload_snapshot
-              ->'individual_session_configs',
-            '[]'::jsonb
-          )
-        ) WITH ORDINALITY
-          AS config_record(value, ordinality)
-      )
+        payload_snapshot = jsonb_set(
+      jsonb_set(
+        editions_table.payload_snapshot,
+        '{individual_session_configs}',
+        next_individual_session_configs,
+        true
+      ),
+      '{resource_locks}',
+      next_resource_locks,
+      true
     ),
     reprogramming_revision =
       reprogramming_revision + 1,
@@ -474,90 +747,8 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL
-ON FUNCTION public.reprogram_championship_individual_session(UUID, JSONB)
+REVOKE ALL ON FUNCTION public.reprogram_championship_individual_session (UUID, JSONB)
 FROM PUBLIC, anon, authenticated;
 
-
-CREATE OR REPLACE FUNCTION public.execute_championship_bracket_reconfiguration(
-  _bracket_edition_id UUID,
-  _action TEXT,
-  _payload JSONB
-)
-RETURNS VOID
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  CASE _action
-    WHEN 'DAY_SCHEDULE' THEN
-      PERFORM public.update_bracket_day_schedule(
-        _bracket_edition_id,
-        COALESCE(
-          _payload->'schedule_updates',
-          '[]'::jsonb
-        )
-      );
-
-    WHEN 'REVERSE_DAY_COURT_MATCH_ORDER' THEN
-      PERFORM public.reverse_championship_bracket_day_court_match_order(
-        _bracket_edition_id,
-        COALESCE(_payload, '{}'::jsonb)
-      );
-
-    WHEN 'INDIVIDUAL_SESSION' THEN
-      PERFORM public.reprogram_championship_individual_session(
-        _bracket_edition_id,
-        COALESCE(_payload, '{}'::jsonb)
-      );
-
-    WHEN 'COMPETITION_SETTINGS' THEN
-      PERFORM public.update_bracket_competition_settings(
-        (_payload->>'competition_id')::uuid,
-        (_payload->>'qualifiers_per_group')::integer,
-        COALESCE(
-          (
-            _payload
-              ->>'should_complete_knockout_with_best_second_placed_teams'
-          )::boolean,
-          false
-        ),
-        COALESCE(
-          _payload->>'knockout_pairing_mode',
-          'LINEAR'
-        )
-      );
-
-    WHEN 'LOCATION_SPORT_PRIORITIES' THEN
-      PERFORM public.update_bracket_location_sport_priorities(
-        _bracket_edition_id,
-        COALESCE(
-          _payload->'priority_updates',
-          '[]'::jsonb
-        )
-      );
-
-    WHEN 'KNOCKOUT_COURT_PRIORITIES' THEN
-      PERFORM public.update_bracket_knockout_court_priorities(
-        _bracket_edition_id,
-        COALESCE(
-          _payload->'priority_updates',
-          '[]'::jsonb
-        )
-      );
-
-    WHEN 'LOCATION_GROUP' THEN
-      PERFORM public.update_bracket_generated_location_group(
-        _bracket_edition_id,
-        _payload
-      );
-
-    ELSE
-      RAISE EXCEPTION
-        'Tipo de reprogramação inválido.';
-  END CASE;
-END;
-$$;
 
 NOTIFY pgrst, 'reload schema';
