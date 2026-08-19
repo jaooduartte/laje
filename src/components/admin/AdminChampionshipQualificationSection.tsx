@@ -357,11 +357,15 @@ export function AdminChampionshipQualificationSection({
                         (modeOption) => (
                           <label
                             key={modeOption.value}
-                            className="app-card-muted flex cursor-pointer items-start gap-3 p-3 has-[[data-state=checked]]:border-primary/50 has-[[data-state=checked]]:bg-primary/5"
+                            className={`app-card-muted flex items-start gap-3 p-3 transition-opacity has-[[data-state=checked]]:border-primary/50 has-[[data-state=checked]]:bg-primary/5 ${
+                              canEditQualification && !isSaving
+                                ? "cursor-pointer"
+                                : "cursor-default opacity-45"
+                            }`}
                           >
                             <RadioGroupItem
                               value={modeOption.value}
-                              className="mt-0.5"
+                              className="mt-0.5 disabled:cursor-default"
                             />
 
                             <span className="space-y-0.5">
@@ -409,11 +413,15 @@ export function AdminChampionshipQualificationSection({
                         (modeOption) => (
                           <label
                             key={modeOption.value}
-                            className="app-card-muted flex cursor-pointer items-start gap-3 p-3 has-[[data-state=checked]]:border-primary/50 has-[[data-state=checked]]:bg-primary/5"
+                            className={`app-card-muted flex items-start gap-3 p-3 transition-opacity has-[[data-state=checked]]:border-primary/50 has-[[data-state=checked]]:bg-primary/5 ${
+                              canEditPairing && !isSaving
+                                ? "cursor-pointer"
+                                : "cursor-default opacity-45"
+                            }`}
                           >
                             <RadioGroupItem
                               value={modeOption.value}
-                              className="mt-0.5 shrink-0"
+                              className="mt-0.5 shrink-0 disabled:cursor-default"
                             />
 
                             <div className="min-w-0 flex-1 space-y-2">
