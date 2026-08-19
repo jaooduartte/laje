@@ -164,6 +164,8 @@ export interface ChampionshipIndividualSession {
   division: TeamDivision | null;
   scheduled_date: string | null;
   period: ChampionshipSchedulePeriod | null;
+  start_time: string | null;
+  end_time: string | null;
   location_key: string | null;
   court_key: string | null;
   location_name: string | null;
@@ -442,7 +444,10 @@ export interface AdminActionLog {
   created_at: string;
 }
 
-export type AdminTabPermissionByTab = Record<AdminPanelTab, AdminPanelPermissionLevel>;
+export type AdminTabPermissionByTab = Record<
+  AdminPanelTab,
+  AdminPanelPermissionLevel
+>;
 
 export interface CurrentUserAdminContext {
   role: AdminPanelRole | null;

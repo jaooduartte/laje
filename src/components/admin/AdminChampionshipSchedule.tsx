@@ -74,7 +74,11 @@ import type {
   ChampionshipBracketReconfigurationPreview,
   ChampionshipBracketReconfigurationRequest,
 } from "@/domain/championship-brackets/championshipBracket.types";
-import type { ChampionshipBracketCompetition, Sport } from "@/lib/types";
+import type {
+  ChampionshipBracketCompetition,
+  ChampionshipIndividualSession,
+  Sport,
+} from "@/lib/types";
 
 interface Props {
   bracketEditionId: string;
@@ -114,6 +118,15 @@ type DayScheduleSnapshot = Omit<DayScheduleDraft, "saving">;
 
 interface LocationGroupDraft extends BracketGeneratedLocationGroup {
   saving: boolean;
+}
+
+interface IndividualSessionEditDraft {
+  scheduledDate: string;
+  startTime: string;
+  endTime: string;
+  locationGroupId: string;
+  courtGroupId: string;
+  exclusiveLockEnabled: boolean;
 }
 
 function formatDate(dateStr: string): string {
@@ -162,6 +175,26 @@ function formatNaipe(naipe: string | null): string {
       MISTO: "Misto",
     }[naipe] ?? naipe
   );
+}
+
+function formatSessionPreviewDate(value: unknown): string {
+  return typeof value == "string" && value ? formatDate(value) : "Sem data";
+}
+
+function formatSessionPreviewTimeRange(
+  startTime: unknown,
+  endTime: unknown,
+): string {
+  if (
+    typeof startTime != "string" ||
+    typeof endTime != "string" ||
+    !startTime ||
+    !endTime
+  ) {
+    return "Sem horário";
+  }
+
+  return `${formatTime(startTime)} às ${formatTime(endTime)}`;
 }
 
 function formatReverseMatchOrderDetails(snapshot: Record<string, unknown>) {
@@ -333,6 +366,11 @@ export function AdminChampionshipSchedule({
   const [expandedDayIds, setExpandedDayIds] = useState<Set<string>>(new Set());
   const [editingLocationGroup, setEditingLocationGroup] =
     useState<LocationGroupDraft | null>(null);
+  const [editingIndividualSession, setEditingIndividualSession] =
+    useState<ChampionshipIndividualSession | null>(null);
+
+  const [individualSessionEditDraft, setIndividualSessionEditDraft] =
+    useState<IndividualSessionEditDraft | null>(null);
   const [activeSection, setActiveSection] = useState("schedule");
   const [pendingReconfiguration, setPendingReconfiguration] =
     useState<ChampionshipBracketReconfigurationRequest | null>(null);
@@ -358,6 +396,7 @@ export function AdminChampionshipSchedule({
     events: individualEvents,
     sessions: individualSessions,
     loading: individualEventsLoading,
+    refetch: refetchIndividualEvents,
   } = useChampionshipIndividualEvents({
     championshipId,
     seasonYear,
@@ -367,6 +406,146 @@ export function AdminChampionshipSchedule({
 
   const isEditable =
     canManageSchedule && championshipStatus === ChampionshipStatus.REVIEW;
+
+  function openIndividualSessionEditor(session: ChampionshipIndividualSession) {
+    const sessionDay =
+      days.find((day) => day.event_date == session.scheduled_date) ?? null;
+
+    const sessionLocation =
+      sessionDay?.locations.find(
+        (location) =>
+          location.location_group_id == session.location_key ||
+          location.name == session.location_name,
+      ) ?? null;
+
+    const sessionCourt =
+      sessionLocation?.courts.find(
+        (court) =>
+          court.court_group_id == session.court_key ||
+          court.name == session.court_name,
+      ) ?? null;
+
+    setEditingIndividualSession(session);
+
+    setIndividualSessionEditDraft({
+      scheduledDate: session.scheduled_date ?? "",
+      startTime: session.start_time ? formatTime(session.start_time) : "",
+      endTime: session.end_time ? formatTime(session.end_time) : "",
+      locationGroupId: sessionLocation?.location_group_id ?? "",
+      courtGroupId: sessionCourt?.court_group_id ?? "",
+      exclusiveLockEnabled: session.exclusive_lock_enabled,
+    });
+  }
+
+  function closeIndividualSessionEditor() {
+    setEditingIndividualSession(null);
+    setIndividualSessionEditDraft(null);
+  }
+
+  async function requestIndividualSessionReconfiguration() {
+    if (!editingIndividualSession || !individualSessionEditDraft) {
+      return;
+    }
+
+    const {
+      scheduledDate,
+      startTime,
+      endTime,
+      locationGroupId,
+      courtGroupId,
+      exclusiveLockEnabled,
+    } = individualSessionEditDraft;
+
+    if (
+      !scheduledDate ||
+      !startTime ||
+      !endTime ||
+      !locationGroupId ||
+      !courtGroupId
+    ) {
+      toast.error("Preencha data, horário, local e quadra da sessão.");
+      return;
+    }
+
+    if (endTime <= startTime) {
+      toast.error("O horário final deve ser maior que o horário inicial.");
+      return;
+    }
+
+    const selectedLocation =
+      individualSessionEditLocations.find(
+        (location) => location.location_group_id == locationGroupId,
+      ) ?? null;
+
+    const selectedCourt =
+      selectedLocation?.courts.find(
+        (court) => court.court_group_id == courtGroupId,
+      ) ?? null;
+
+    if (!selectedLocation || !selectedCourt) {
+      toast.error(
+        "Não foi possível localizar o local ou a quadra selecionada.",
+      );
+      return;
+    }
+
+    const previewOpened = await requestReconfiguration({
+      action: "INDIVIDUAL_SESSION",
+      payload: {
+        session_id: editingIndividualSession.id,
+
+        scheduled_date: scheduledDate,
+        start_time: startTime,
+        end_time: endTime,
+        location_group_id: locationGroupId,
+        court_group_id: courtGroupId,
+        exclusive_lock_enabled: exclusiveLockEnabled,
+
+        session_sport_name:
+          editingIndividualSession.sports?.name ?? "Modalidade individual",
+        session_naipe: editingIndividualSession.naipe,
+
+        current_scheduled_date: editingIndividualSession.scheduled_date,
+        current_start_time: editingIndividualSession.start_time,
+        current_end_time: editingIndividualSession.end_time,
+        current_location_name: editingIndividualSession.location_name,
+        current_court_name: editingIndividualSession.court_name,
+        current_exclusive_lock_enabled:
+          editingIndividualSession.exclusive_lock_enabled,
+
+        target_location_name: selectedLocation.name,
+        target_court_name: selectedCourt.name,
+      },
+      label: `Reprogramar sessão de ${
+        editingIndividualSession.sports?.name ?? "modalidade individual"
+      }`,
+    });
+
+    if (previewOpened) {
+      closeIndividualSessionEditor();
+    }
+  }
+
+  const individualSessionEditDay = individualSessionEditDraft?.scheduledDate
+    ? (days.find(
+        (day) => day.event_date == individualSessionEditDraft.scheduledDate,
+      ) ?? null)
+    : null;
+
+  const individualSessionEditLocations =
+    individualSessionEditDay?.locations ?? [];
+
+  const individualSessionEditLocation =
+    individualSessionEditDraft?.locationGroupId
+      ? (individualSessionEditLocations.find(
+          (location) =>
+            location.location_group_id ==
+            individualSessionEditDraft.locationGroupId,
+        ) ?? null)
+      : null;
+
+  const individualSessionEditCourts =
+    individualSessionEditLocation?.courts ?? [];
 
   const sportNameBySportId = useMemo(() => {
     return competitions.reduce<Record<string, string>>((carry, competition) => {
@@ -523,6 +702,7 @@ export function AdminChampionshipSchedule({
 
   async function applyReconfiguration() {
     if (!pendingReconfiguration || !reconfigurationPreview) return;
+    const appliedAction = pendingReconfiguration.action;
     setApplyingReconfiguration(true);
     const { error } = await applyChampionshipBracketReconfiguration(
       bracketEditionId,
@@ -536,12 +716,20 @@ export function AdminChampionshipSchedule({
       return;
     }
     toast.success(
-      reconfigurationPreview.affected_matches > 0
-        ? `Reprogramação aplicada em ${reconfigurationPreview.affected_matches} jogo(s).`
-        : "Configuração atualizada sem alterar jogos.",
+      appliedAction == "INDIVIDUAL_SESSION"
+        ? "Sessão individual reprogramada."
+        : reconfigurationPreview.affected_matches > 0
+          ? `Reprogramação aplicada em ${reconfigurationPreview.affected_matches} jogo(s).`
+          : "Configuração atualizada sem alterar jogos.",
     );
     closeReconfigurationPreview();
+
     await loadSchedules();
+
+    if (appliedAction == "INDIVIDUAL_SESSION") {
+      await refetchIndividualEvents();
+    }
+
     onRefetchMatches();
     onRefetchChampionshipBracket();
   }
@@ -1448,24 +1636,47 @@ export function AdminChampionshipSchedule({
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {individualSessions.map((session) => (
                   <div key={session.id} className="glass-card space-y-2 p-4">
-                    <div>
-                      <p className="font-medium">{session.sports?.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {session.naipe}
-                      </p>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-medium">{session.sports?.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatNaipe(session.naipe)}
+                        </p>
+                      </div>
+
+                      {isEditable ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 shrink-0"
+                          aria-label={`Editar sessão de ${
+                            session.sports?.name ?? "modalidade individual"
+                          } ${formatNaipe(session.naipe)}`}
+                          title="Editar sessão"
+                          onClick={() => openIndividualSessionEditor(session)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      ) : null}
                     </div>
 
                     <p className="text-sm">
                       {session.scheduled_date
                         ? formatDate(session.scheduled_date)
                         : "Sem data"}
-                      {session.period
-                        ? ` • ${
-                            session.period == "MATUTINO"
-                              ? "Matutino"
-                              : "Vespertino"
-                          }`
-                        : ""}
+
+                      {session.start_time && session.end_time
+                        ? ` • ${formatTime(session.start_time)} às ${formatTime(
+                            session.end_time,
+                          )}`
+                        : session.period
+                          ? ` • ${
+                              session.period == "MATUTINO"
+                                ? "Matutino"
+                                : "Vespertino"
+                            }`
+                          : ""}
                     </p>
 
                     <p className="text-xs text-muted-foreground">
@@ -1556,6 +1767,230 @@ export function AdminChampionshipSchedule({
           </section>
         </TabsContent>
       </Tabs>
+
+      <Dialog
+        open={editingIndividualSession != null}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeIndividualSessionEditor();
+          }
+        }}
+      >
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Editar sessão individual</DialogTitle>
+            <DialogDescription>
+              Reprograme o dia, horário e recurso reservado para esta sessão.
+            </DialogDescription>
+          </DialogHeader>
+
+          {editingIndividualSession && individualSessionEditDraft ? (
+            <div className="space-y-5">
+              <div className="rounded-xl border border-border/40 bg-background/40 p-4">
+                <p className="font-semibold">
+                  {editingIndividualSession.sports?.name}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {formatNaipe(editingIndividualSession.naipe)}
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Data</Label>
+
+                <Select
+                  value={individualSessionEditDraft.scheduledDate}
+                  onValueChange={(value) =>
+                    setIndividualSessionEditDraft((current) =>
+                      current
+                        ? {
+                            ...current,
+                            scheduledDate: value,
+                            locationGroupId: "",
+                            courtGroupId: "",
+                          }
+                        : current,
+                    )
+                  }
+                >
+                  <SelectTrigger className="app-input-field">
+                    <SelectValue placeholder="Selecione a data" />
+                  </SelectTrigger>
+
+                  <SelectContent>
+                    {days.map((day) => (
+                      <SelectItem key={day.id} value={day.event_date}>
+                        {formatDate(day.event_date)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label>Horário inicial</Label>
+
+                  <TimeInput
+                    value={individualSessionEditDraft.startTime}
+                    onChange={(value) =>
+                      setIndividualSessionEditDraft((current) =>
+                        current
+                          ? {
+                              ...current,
+                              startTime: value,
+                            }
+                          : current,
+                      )
+                    }
+                    className="h-10 border-border/40 bg-background/50"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Horário final</Label>
+
+                  <TimeInput
+                    value={individualSessionEditDraft.endTime}
+                    onChange={(value) =>
+                      setIndividualSessionEditDraft((current) =>
+                        current
+                          ? {
+                              ...current,
+                              endTime: value,
+                            }
+                          : current,
+                      )
+                    }
+                    className="h-10 border-border/40 bg-background/50"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Local</Label>
+
+                <Select
+                  value={individualSessionEditDraft.locationGroupId}
+                  onValueChange={(value) =>
+                    setIndividualSessionEditDraft((current) =>
+                      current
+                        ? {
+                            ...current,
+                            locationGroupId: value,
+                            courtGroupId: "",
+                          }
+                        : current,
+                    )
+                  }
+                  disabled={!individualSessionEditDraft.scheduledDate}
+                >
+                  <SelectTrigger className="app-input-field">
+                    <SelectValue placeholder="Selecione o local" />
+                  </SelectTrigger>
+
+                  <SelectContent>
+                    {individualSessionEditLocations.map((location) => (
+                      <SelectItem
+                        key={location.location_group_id}
+                        value={location.location_group_id}
+                      >
+                        {location.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Quadra / recurso</Label>
+
+                <Select
+                  value={individualSessionEditDraft.courtGroupId}
+                  onValueChange={(value) =>
+                    setIndividualSessionEditDraft((current) =>
+                      current
+                        ? {
+                            ...current,
+                            courtGroupId: value,
+                          }
+                        : current,
+                    )
+                  }
+                  disabled={!individualSessionEditDraft.locationGroupId}
+                >
+                  <SelectTrigger className="app-input-field">
+                    <SelectValue placeholder="Selecione a quadra ou recurso" />
+                  </SelectTrigger>
+
+                  <SelectContent>
+                    {individualSessionEditCourts.map((court) => (
+                      <SelectItem
+                        key={court.court_group_id}
+                        value={court.court_group_id}
+                      >
+                        {court.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border/40 bg-background/40 p-4">
+                <Checkbox
+                  checked={individualSessionEditDraft.exclusiveLockEnabled}
+                  onCheckedChange={(checked) =>
+                    setIndividualSessionEditDraft((current) =>
+                      current
+                        ? {
+                            ...current,
+                            exclusiveLockEnabled: checked === true,
+                          }
+                        : current,
+                    )
+                  }
+                />
+
+                <span className="space-y-1">
+                  <span className="block text-sm font-medium">
+                    Reserva exclusiva do recurso
+                  </span>
+
+                  <span className="block text-xs text-muted-foreground">
+                    Impede que jogos ou outras sessões utilizem este recurso
+                    durante o horário configurado.
+                  </span>
+                </span>
+              </label>
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={closeIndividualSessionEditor}
+                >
+                  Cancelar
+                </Button>
+
+                <Button
+                  type="button"
+                  onClick={() => void requestIndividualSessionReconfiguration()}
+                  disabled={
+                    !individualSessionEditDraft.scheduledDate ||
+                    !individualSessionEditDraft.startTime ||
+                    !individualSessionEditDraft.endTime ||
+                    !individualSessionEditDraft.locationGroupId ||
+                    !individualSessionEditDraft.courtGroupId
+                  }
+                >
+                  <CalendarClock className="mr-2 h-4 w-4" />
+                  Calcular reprogramação
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={editingLocationGroup != null}
@@ -1667,12 +2102,25 @@ export function AdminChampionshipSchedule({
           {loadingReconfigurationPreview ? (
             <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Calculando os jogos afetados…
+
+              {pendingReconfiguration?.action == "INDIVIDUAL_SESSION"
+                ? "Validando a reprogramação da sessão…"
+                : "Calculando os jogos afetados…"}
             </div>
           ) : reconfigurationPreview ? (
             <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1 text-sm">
-              {reconfigurationPreview.action ===
-              "REVERSE_DAY_COURT_MATCH_ORDER" ? (
+              {reconfigurationPreview.action == "INDIVIDUAL_SESSION" ? (
+                <div className="space-y-1">
+                  <p className="font-semibold">
+                    A sessão individual será reprogramada.
+                  </p>
+
+                  <p className="text-muted-foreground">
+                    Revise abaixo a data, horário e recurso antes de confirmar.
+                  </p>
+                </div>
+              ) : reconfigurationPreview.action ==
+                "REVERSE_DAY_COURT_MATCH_ORDER" ? (
                 <div className="space-y-1">
                   <p>
                     <strong>{reconfigurationPreview.affected_matches}</strong>{" "}
@@ -1680,6 +2128,7 @@ export function AdminChampionshipSchedule({
                     <strong>{reverseMatchOrderChangesByCourt.length}</strong>{" "}
                     quadra(s) terão posição, horário ou representação alterados.
                   </p>
+
                   <p className="text-muted-foreground">
                     Em cada quadra, o primeiro jogo ocupará a última vaga, o
                     segundo ocupará a penúltima, e assim sucessivamente.
@@ -1698,6 +2147,137 @@ export function AdminChampionshipSchedule({
                     <li key={blocker}>{blocker}</li>
                   ))}
                 </ul>
+              ) : null}
+              {reconfigurationPreview.action == "INDIVIDUAL_SESSION" &&
+              pendingReconfiguration ? (
+                <div className="space-y-3">
+                  <div>
+                    <p className="font-semibold">
+                      {String(
+                        pendingReconfiguration.payload.session_sport_name ??
+                          "Modalidade individual",
+                      )}
+                    </p>
+
+                    <p className="text-xs text-muted-foreground">
+                      {formatNaipe(
+                        typeof pendingReconfiguration.payload.session_naipe ==
+                          "string"
+                          ? pendingReconfiguration.payload.session_naipe
+                          : null,
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="rounded-lg border border-border/40 bg-muted/20 p-4">
+                      <p className="mb-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                        Antes
+                      </p>
+
+                      <div className="space-y-2">
+                        <p>
+                          <span className="text-muted-foreground">Data:</span>{" "}
+                          {formatSessionPreviewDate(
+                            pendingReconfiguration.payload
+                              .current_scheduled_date,
+                          )}
+                        </p>
+
+                        <p>
+                          <span className="text-muted-foreground">
+                            Horário:
+                          </span>{" "}
+                          {formatSessionPreviewTimeRange(
+                            pendingReconfiguration.payload.current_start_time,
+                            pendingReconfiguration.payload.current_end_time,
+                          )}
+                        </p>
+
+                        <p>
+                          <span className="text-muted-foreground">Local:</span>{" "}
+                          {String(
+                            pendingReconfiguration.payload
+                              .current_location_name ?? "Não definido",
+                          )}
+                        </p>
+
+                        <p>
+                          <span className="text-muted-foreground">
+                            Quadra / recurso:
+                          </span>{" "}
+                          {String(
+                            pendingReconfiguration.payload.current_court_name ??
+                              "Não definido",
+                          )}
+                        </p>
+
+                        <p>
+                          <span className="text-muted-foreground">
+                            Reserva exclusiva:
+                          </span>{" "}
+                          {pendingReconfiguration.payload
+                            .current_exclusive_lock_enabled === true
+                            ? "Sim"
+                            : "Não"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
+                      <p className="mb-3 text-xs font-bold uppercase tracking-wider text-primary">
+                        Depois
+                      </p>
+
+                      <div className="space-y-2">
+                        <p>
+                          <span className="text-muted-foreground">Data:</span>{" "}
+                          {formatSessionPreviewDate(
+                            pendingReconfiguration.payload.scheduled_date,
+                          )}
+                        </p>
+
+                        <p>
+                          <span className="text-muted-foreground">
+                            Horário:
+                          </span>{" "}
+                          {formatSessionPreviewTimeRange(
+                            pendingReconfiguration.payload.start_time,
+                            pendingReconfiguration.payload.end_time,
+                          )}
+                        </p>
+
+                        <p>
+                          <span className="text-muted-foreground">Local:</span>{" "}
+                          {String(
+                            pendingReconfiguration.payload
+                              .target_location_name ?? "Não definido",
+                          )}
+                        </p>
+
+                        <p>
+                          <span className="text-muted-foreground">
+                            Quadra / recurso:
+                          </span>{" "}
+                          {String(
+                            pendingReconfiguration.payload.target_court_name ??
+                              "Não definido",
+                          )}
+                        </p>
+
+                        <p>
+                          <span className="text-muted-foreground">
+                            Reserva exclusiva:
+                          </span>{" "}
+                          {pendingReconfiguration.payload
+                            .exclusive_lock_enabled === true
+                            ? "Sim"
+                            : "Não"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               ) : null}
               {reconfigurationPreview.changes.length > 0 ? (
                 reconfigurationPreview.action ===
@@ -1800,7 +2380,8 @@ export function AdminChampionshipSchedule({
                     ))}
                   </div>
                 )
-              ) : (
+              ) : reconfigurationPreview.action ==
+                "INDIVIDUAL_SESSION" ? null : (
                 <p className="text-muted-foreground">
                   Nenhum jogo será movido.
                 </p>
@@ -1828,10 +2409,12 @@ export function AdminChampionshipSchedule({
               {applyingReconfiguration ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : null}
-              {reconfigurationPreview?.action ===
-              "REVERSE_DAY_COURT_MATCH_ORDER"
-                ? `Aplicar inversão de ${reconfigurationPreview.affected_matches} jogos`
-                : `Aplicar e redistribuir ${reconfigurationPreview?.affected_matches ?? 0} jogos`}
+              {reconfigurationPreview?.action == "INDIVIDUAL_SESSION"
+                ? "Aplicar reprogramação da sessão"
+                : reconfigurationPreview?.action ==
+                    "REVERSE_DAY_COURT_MATCH_ORDER"
+                  ? `Aplicar inversão de ${reconfigurationPreview.affected_matches} jogos`
+                  : `Aplicar e redistribuir ${reconfigurationPreview?.affected_matches ?? 0} jogos`}
             </Button>
           </DialogFooter>
         </DialogContent>
