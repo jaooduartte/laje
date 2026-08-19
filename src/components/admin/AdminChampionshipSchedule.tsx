@@ -305,39 +305,26 @@ function QualificationSectionSkeleton() {
         <Skeleton className="h-4 w-60" />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="space-y-3">
         {Array.from({ length: 4 }).map((_, index) => (
           <div
             key={`qualification-skeleton-${index}`}
-            className="glass-card space-y-5 p-4"
+            className="glass-card overflow-hidden"
           >
-            <div className="flex items-center justify-between gap-3">
-              <Skeleton className="h-5 w-40" />
-              <Skeleton className="h-5 w-32 rounded-full" />
-            </div>
+            <div className="flex items-center justify-between gap-4 p-4">
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Skeleton className="h-5 w-44" />
 
-            <div className="space-y-3">
-              <Skeleton className="h-4 w-48" />
-              <Skeleton className="h-4 w-full max-w-md" />
+                  {index == 1 ? (
+                    <Skeleton className="h-5 w-36 rounded-full" />
+                  ) : null}
+                </div>
 
-              {Array.from({ length: 3 }).map((_, optionIndex) => (
-                <Skeleton
-                  key={`qualification-option-${index}-${optionIndex}`}
-                  className="h-14 w-full rounded-xl"
-                />
-              ))}
-            </div>
+                <Skeleton className="h-4 w-full max-w-md" />
+              </div>
 
-            <div className="space-y-3 border-t border-border/40 pt-4">
-              <Skeleton className="h-4 w-44" />
-              <Skeleton className="h-4 w-full max-w-sm" />
-
-              {Array.from({ length: 3 }).map((_, optionIndex) => (
-                <Skeleton
-                  key={`pairing-option-${index}-${optionIndex}`}
-                  className="h-14 w-full rounded-xl"
-                />
-              ))}
+              <Skeleton className="h-4 w-4 shrink-0 rounded-sm" />
             </div>
           </div>
         ))}
@@ -731,9 +718,13 @@ export function AdminChampionshipSchedule({
     toast.success(
       appliedAction == "INDIVIDUAL_SESSION"
         ? "Sessão individual reprogramada."
-        : reconfigurationPreview.affected_matches > 0
-          ? `Reprogramação aplicada em ${reconfigurationPreview.affected_matches} jogo(s).`
-          : "Configuração atualizada sem alterar jogos.",
+        : appliedAction == "COMPETITION_SETTINGS"
+          ? reconfigurationPreview.affected_matches > 0
+            ? `Configuração atualizada e ${reconfigurationPreview.affected_matches} jogo(s) redistribuído(s).`
+            : "Configuração da competição atualizada."
+          : reconfigurationPreview.affected_matches > 0
+            ? `Reprogramação aplicada em ${reconfigurationPreview.affected_matches} jogo(s).`
+            : "Configuração atualizada sem alterar jogos.",
     );
     closeReconfigurationPreview();
 
@@ -1725,13 +1716,6 @@ export function AdminChampionshipSchedule({
             <QualificationSectionSkeleton />
           ) : (
             <section className="enter-section space-y-4">
-              <div className="flex items-center gap-2">
-                <Trophy className="h-4 w-4 text-muted-foreground" />
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                  Classificação para o mata-mata
-                </h3>
-              </div>
-
               <AdminChampionshipQualificationSection
                 competitions={competitions}
                 isEditable={isEditable}
@@ -2118,7 +2102,10 @@ export function AdminChampionshipSchedule({
 
               {pendingReconfiguration?.action == "INDIVIDUAL_SESSION"
                 ? "Validando a reprogramação da sessão…"
-                : "Calculando os jogos afetados…"}
+                : pendingReconfiguration?.action ==
+                    "COMPETITION_SETTINGS"
+                  ? "Calculando o impacto da classificação e do pareamento…"
+                  : "Calculando os jogos afetados…"}
             </div>
           ) : reconfigurationPreview ? (
             <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1 text-sm">
@@ -2147,6 +2134,22 @@ export function AdminChampionshipSchedule({
                     segundo ocupará a penúltima, e assim sucessivamente.
                   </p>
                 </div>
+              ) : reconfigurationPreview.action ==
+                  "COMPETITION_SETTINGS" ? (
+                <div className="space-y-1">
+                  <p>
+                    <strong>
+                      {reconfigurationPreview.affected_matches}
+                    </strong>{" "}
+                    jogo(s) poderão ser redistribuídos após esta
+                    alteração.
+                  </p>
+
+                  <p className="text-xs text-muted-foreground">
+                    Revise a classificação e o pareamento antes de
+                    aplicar a nova configuração.
+                  </p>
+                </div>
               ) : (
                 <p>
                   <strong>{reconfigurationPreview.affected_matches}</strong>{" "}
@@ -2160,6 +2163,98 @@ export function AdminChampionshipSchedule({
                     <li key={blocker}>{blocker}</li>
                   ))}
                 </ul>
+              ) : null}
+              {reconfigurationPreview.action ==
+                "COMPETITION_SETTINGS" &&
+              pendingReconfiguration ? (
+                <div className="space-y-3">
+                  <div>
+                    <p className="font-semibold">
+                      {String(
+                        pendingReconfiguration.payload
+                          .competition_label ?? "Competição",
+                      )}
+                    </p>
+
+                    <p className="text-xs text-muted-foreground">
+                      Classificação e pareamento do mata-mata
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="rounded-md border p-3">
+                      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Antes
+                      </p>
+
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-xs text-muted-foreground">
+                            Classificação
+                          </p>
+
+                          <p className="mt-0.5 font-medium">
+                            {String(
+                              pendingReconfiguration.payload
+                                .current_qualification_label ??
+                                "Não definida",
+                            )}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-muted-foreground">
+                            Pareamento
+                          </p>
+
+                          <p className="mt-0.5 font-medium">
+                            {String(
+                              pendingReconfiguration.payload
+                                .current_pairing_label ??
+                                "Não definido",
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-md border border-primary/30 bg-primary/5 p-3">
+                      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-primary">
+                        Depois
+                      </p>
+
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-xs text-muted-foreground">
+                            Classificação
+                          </p>
+
+                          <p className="mt-0.5 font-medium">
+                            {String(
+                              pendingReconfiguration.payload
+                                .target_qualification_label ??
+                                "Não definida",
+                            )}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-muted-foreground">
+                            Pareamento
+                          </p>
+
+                          <p className="mt-0.5 font-medium">
+                            {String(
+                              pendingReconfiguration.payload
+                                .target_pairing_label ??
+                                "Não definido",
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               ) : null}
               {reconfigurationPreview.action == "INDIVIDUAL_SESSION" &&
               pendingReconfiguration ? (
@@ -2394,7 +2489,14 @@ export function AdminChampionshipSchedule({
                   </div>
                 )
               ) : reconfigurationPreview.action ==
-                "INDIVIDUAL_SESSION" ? null : (
+                "INDIVIDUAL_SESSION" ? null
+              : reconfigurationPreview.action ==
+                  "COMPETITION_SETTINGS" ? (
+                <p className="text-muted-foreground">
+                  A configuração será atualizada sem necessidade de
+                  redistribuir jogos.
+                </p>
+              ) : (
                 <p className="text-muted-foreground">
                   Nenhum jogo será movido.
                 </p>
@@ -2422,12 +2524,18 @@ export function AdminChampionshipSchedule({
               {applyingReconfiguration ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : null}
-              {reconfigurationPreview?.action == "INDIVIDUAL_SESSION"
+              {reconfigurationPreview?.action ==
+              "INDIVIDUAL_SESSION"
                 ? "Aplicar reprogramação da sessão"
                 : reconfigurationPreview?.action ==
                     "REVERSE_DAY_COURT_MATCH_ORDER"
                   ? `Aplicar inversão de ${reconfigurationPreview.affected_matches} jogos`
-                  : `Aplicar e redistribuir ${reconfigurationPreview?.affected_matches ?? 0} jogos`}
+                  : reconfigurationPreview?.action ==
+                      "COMPETITION_SETTINGS"
+                    ? "Aplicar configuração"
+                    : `Aplicar e redistribuir ${
+                        reconfigurationPreview?.affected_matches ?? 0
+                      } jogos`}
             </Button>
           </DialogFooter>
         </DialogContent>
