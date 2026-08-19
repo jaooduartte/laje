@@ -7,6 +7,7 @@ import type { ChampionshipBracketView } from "@/lib/types";
 interface UseChampionshipBracketOptions {
   championshipId?: string | null;
   seasonYear?: number | null;
+  enabled?: boolean;
 }
 
 interface ChampionshipScopedRealtimeRow {
@@ -14,45 +15,70 @@ interface ChampionshipScopedRealtimeRow {
   season_year?: number | null;
 }
 
-function isChampionshipScopedRealtimeRow(value: unknown): value is ChampionshipScopedRealtimeRow {
+function isChampionshipScopedRealtimeRow(
+  value: unknown,
+): value is ChampionshipScopedRealtimeRow {
   return value != null && typeof value == "object";
 }
 
-export function useChampionshipBracket({ championshipId, seasonYear }: UseChampionshipBracketOptions = {}) {
-  const [championshipBracketView, setChampionshipBracketView] = useState<ChampionshipBracketView>(
-    EMPTY_CHAMPIONSHIP_BRACKET_VIEW,
-  );
+export function useChampionshipBracket({
+  championshipId,
+  seasonYear,
+  enabled = true,
+}: UseChampionshipBracketOptions = {}) {
+  const [championshipBracketView, setChampionshipBracketView] =
+    useState<ChampionshipBracketView>(EMPTY_CHAMPIONSHIP_BRACKET_VIEW);
   const [loading, setLoading] = useState(true);
   const hasLoadedBracketRef = useRef(false);
-  const scheduledRefetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduledRefetchTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
 
-  const fetchBracket = useCallback(async (shouldShowLoading = false) => {
-    if (!championshipId) {
-      setChampionshipBracketView(EMPTY_CHAMPIONSHIP_BRACKET_VIEW);
+  const fetchBracket = useCallback(
+    async (shouldShowLoading = false) => {
+      if (!enabled) {
+        setLoading(true);
+        hasLoadedBracketRef.current = false;
+        return;
+      }
+
+      if (!championshipId) {
+        setChampionshipBracketView(EMPTY_CHAMPIONSHIP_BRACKET_VIEW);
+        setLoading(false);
+        hasLoadedBracketRef.current = false;
+        return;
+      }
+
+      if (shouldShowLoading || !hasLoadedBracketRef.current) {
+        setLoading(true);
+      }
+
+      const { data, error } = await fetchChampionshipBracketView(
+        championshipId,
+        seasonYear,
+      );
+
+      if (error || !data) {
+        setChampionshipBracketView(EMPTY_CHAMPIONSHIP_BRACKET_VIEW);
+        hasLoadedBracketRef.current = true;
+        setLoading(false);
+        return;
+      }
+
+      setChampionshipBracketView(data);
+      hasLoadedBracketRef.current = true;
       setLoading(false);
+    },
+    [championshipId, enabled, seasonYear],
+  );
+
+  useEffect(() => {
+    if (!enabled) {
+      setLoading(true);
       hasLoadedBracketRef.current = false;
       return;
     }
 
-    if (shouldShowLoading || !hasLoadedBracketRef.current) {
-      setLoading(true);
-    }
-
-    const { data, error } = await fetchChampionshipBracketView(championshipId, seasonYear);
-
-    if (error || !data) {
-      setChampionshipBracketView(EMPTY_CHAMPIONSHIP_BRACKET_VIEW);
-      hasLoadedBracketRef.current = true;
-      setLoading(false);
-      return;
-    }
-
-    setChampionshipBracketView(data);
-    hasLoadedBracketRef.current = true;
-    setLoading(false);
-  }, [championshipId, seasonYear]);
-
-  useEffect(() => {
     if (!championshipId) {
       setChampionshipBracketView(EMPTY_CHAMPIONSHIP_BRACKET_VIEW);
       setLoading(false);
@@ -63,7 +89,9 @@ export function useChampionshipBracket({ championshipId, seasonYear }: UseChampi
     fetchBracket(true);
 
     const channel = supabase
-      .channel(`championship-bracket-realtime-${championshipId}-${seasonYear ?? "current"}`)
+      .channel(
+        `championship-bracket-realtime-${championshipId}-${seasonYear ?? "current"}`,
+      )
       .on(
         "postgres_changes",
         {
@@ -73,18 +101,25 @@ export function useChampionshipBracket({ championshipId, seasonYear }: UseChampi
           filter: `championship_id=eq.${championshipId}`,
         },
         (payload) => {
-          const relevantRows = [payload.new, payload.old].filter(isChampionshipScopedRealtimeRow);
-          const shouldRefetch = relevantRows.length == 0 || relevantRows.some((row) => {
-            if (row.championship_id != championshipId) {
-              return false;
-            }
+          const relevantRows = [payload.new, payload.old].filter(
+            isChampionshipScopedRealtimeRow,
+          );
+          const shouldRefetch =
+            relevantRows.length == 0 ||
+            relevantRows.some((row) => {
+              if (row.championship_id != championshipId) {
+                return false;
+              }
 
-            if (typeof seasonYear == "number" && row.season_year != seasonYear) {
-              return false;
-            }
+              if (
+                typeof seasonYear == "number" &&
+                row.season_year != seasonYear
+              ) {
+                return false;
+              }
 
-            return true;
-          });
+              return true;
+            });
 
           if (!shouldRefetch) {
             return;
@@ -99,33 +134,49 @@ export function useChampionshipBracket({ championshipId, seasonYear }: UseChampi
           }, 120);
         },
       )
-      .on("postgres_changes", { event: "*", schema: "public", table: "championship_bracket_matches" }, () => {
-        if (scheduledRefetchTimeoutRef.current) {
-          clearTimeout(scheduledRefetchTimeoutRef.current);
-        }
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "championship_bracket_matches" },
+        () => {
+          if (scheduledRefetchTimeoutRef.current) {
+            clearTimeout(scheduledRefetchTimeoutRef.current);
+          }
 
-        scheduledRefetchTimeoutRef.current = setTimeout(() => {
-          fetchBracket();
-        }, 120);
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "championship_bracket_groups" }, () => {
-        if (scheduledRefetchTimeoutRef.current) {
-          clearTimeout(scheduledRefetchTimeoutRef.current);
-        }
+          scheduledRefetchTimeoutRef.current = setTimeout(() => {
+            fetchBracket();
+          }, 120);
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "championship_bracket_groups" },
+        () => {
+          if (scheduledRefetchTimeoutRef.current) {
+            clearTimeout(scheduledRefetchTimeoutRef.current);
+          }
 
-        scheduledRefetchTimeoutRef.current = setTimeout(() => {
-          fetchBracket();
-        }, 120);
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "championship_bracket_competitions" }, () => {
-        if (scheduledRefetchTimeoutRef.current) {
-          clearTimeout(scheduledRefetchTimeoutRef.current);
-        }
+          scheduledRefetchTimeoutRef.current = setTimeout(() => {
+            fetchBracket();
+          }, 120);
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "championship_bracket_competitions",
+        },
+        () => {
+          if (scheduledRefetchTimeoutRef.current) {
+            clearTimeout(scheduledRefetchTimeoutRef.current);
+          }
 
-        scheduledRefetchTimeoutRef.current = setTimeout(() => {
-          fetchBracket();
-        }, 120);
-      })
+          scheduledRefetchTimeoutRef.current = setTimeout(() => {
+            fetchBracket();
+          }, 120);
+        },
+      )
       .on(
         "postgres_changes",
         {
@@ -135,18 +186,25 @@ export function useChampionshipBracket({ championshipId, seasonYear }: UseChampi
           filter: `championship_id=eq.${championshipId}`,
         },
         (payload) => {
-          const relevantRows = [payload.new, payload.old].filter(isChampionshipScopedRealtimeRow);
-          const shouldRefetch = relevantRows.length == 0 || relevantRows.some((row) => {
-            if (row.championship_id != championshipId) {
-              return false;
-            }
+          const relevantRows = [payload.new, payload.old].filter(
+            isChampionshipScopedRealtimeRow,
+          );
+          const shouldRefetch =
+            relevantRows.length == 0 ||
+            relevantRows.some((row) => {
+              if (row.championship_id != championshipId) {
+                return false;
+              }
 
-            if (typeof seasonYear == "number" && row.season_year != seasonYear) {
-              return false;
-            }
+              if (
+                typeof seasonYear == "number" &&
+                row.season_year != seasonYear
+              ) {
+                return false;
+              }
 
-            return true;
-          });
+              return true;
+            });
 
           if (!shouldRefetch) {
             return;
@@ -171,7 +229,7 @@ export function useChampionshipBracket({ championshipId, seasonYear }: UseChampi
 
       supabase.removeChannel(channel);
     };
-  }, [championshipId, fetchBracket, seasonYear]);
+  }, [championshipId, enabled, fetchBracket, seasonYear]);
 
   useEffect(() => {
     return () => {

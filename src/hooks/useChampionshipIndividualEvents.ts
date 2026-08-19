@@ -22,6 +22,7 @@ interface UseChampionshipIndividualEventsOptions {
   sportId?: string | null;
   naipe?: MatchNaipe | null;
   division?: TeamDivision | null | undefined;
+  enabled?: boolean;
 }
 
 export function useChampionshipIndividualEvents({
@@ -31,15 +32,25 @@ export function useChampionshipIndividualEvents({
   sportId,
   naipe,
   division,
+  enabled = true,
 }: UseChampionshipIndividualEventsOptions = {}) {
   const [events, setEvents] = useState<ChampionshipIndividualEvent[]>([]);
   const [sessions, setSessions] = useState<ChampionshipIndividualSession[]>([]);
   const [athletes, setAthletes] = useState<ChampionshipAthlete[]>([]);
-  const [entries, setEntries] = useState<ChampionshipIndividualEventEntry[]>([]);
-  const [standings, setStandings] = useState<ChampionshipIndividualTeamStanding[]>([]);
+  const [entries, setEntries] = useState<ChampionshipIndividualEventEntry[]>(
+    [],
+  );
+  const [standings, setStandings] = useState<
+    ChampionshipIndividualTeamStanding[]
+  >([]);
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
+    if (!enabled) {
+      setLoading(true);
+      return;
+    }
+
     if (!championshipId || !seasonYear) {
       setEvents([]);
       setSessions([]);
@@ -52,7 +63,12 @@ export function useChampionshipIndividualEvents({
 
     setLoading(true);
 
-    const [eventsResponse, sessionsResponse, athletesResponse, standingsResponse] = await Promise.all([
+    const [
+      eventsResponse,
+      sessionsResponse,
+      athletesResponse,
+      standingsResponse,
+    ] = await Promise.all([
       fetchChampionshipIndividualEvents({
         championshipId,
         seasonYear,
@@ -77,10 +93,18 @@ export function useChampionshipIndividualEvents({
       }),
     ]);
 
-    if (eventsResponse.error || sessionsResponse.error || athletesResponse.error || standingsResponse.error) {
+    if (
+      eventsResponse.error ||
+      sessionsResponse.error ||
+      athletesResponse.error ||
+      standingsResponse.error
+    ) {
       console.error(
         "Erro ao carregar provas individuais:",
-        eventsResponse.error?.message ?? sessionsResponse.error?.message ?? athletesResponse.error?.message ?? standingsResponse.error?.message,
+        eventsResponse.error?.message ??
+          sessionsResponse.error?.message ??
+          athletesResponse.error?.message ??
+          standingsResponse.error?.message,
       );
       setEvents([]);
       setSessions([]);
@@ -97,7 +121,10 @@ export function useChampionshipIndividualEvents({
     });
 
     if (entriesResponse.error) {
-      console.error("Erro ao carregar inscrições das provas individuais:", entriesResponse.error.message);
+      console.error(
+        "Erro ao carregar inscrições das provas individuais:",
+        entriesResponse.error.message,
+      );
       setEvents(eventsResponse.data);
       setSessions(sessionsResponse.data);
       setAthletes(athletesResponse.data);
@@ -113,17 +140,25 @@ export function useChampionshipIndividualEvents({
     setEntries(entriesResponse.data);
     setStandings(standingsResponse.data);
     setLoading(false);
-  }, [championshipId, division, naipe, seasonYear, sportId, sportIds]);
+  }, [championshipId, division, naipe, enabled, seasonYear, sportId, sportIds]);
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(true);
+      return;
+    }
+
     void fetchAll();
-  }, [fetchAll]);
+  }, [enabled, fetchAll]);
 
   const entriesByEventId = useMemo(() => {
-    return entries.reduce<Record<string, ChampionshipIndividualEventEntry[]>>((carry, entry) => {
-      carry[entry.event_id] = [...(carry[entry.event_id] ?? []), entry];
-      return carry;
-    }, {});
+    return entries.reduce<Record<string, ChampionshipIndividualEventEntry[]>>(
+      (carry, entry) => {
+        carry[entry.event_id] = [...(carry[entry.event_id] ?? []), entry];
+        return carry;
+      },
+      {},
+    );
   }, [entries]);
 
   return {

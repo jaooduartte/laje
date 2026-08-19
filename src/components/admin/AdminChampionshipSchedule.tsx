@@ -1,4 +1,5 @@
 import { AdminListSkeleton } from "@/components/skeletons/AdminListSkeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 import { CardListSkeleton } from "@/components/skeletons/CardListSkeleton";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -227,6 +228,91 @@ function validationError(day: DayScheduleDraft): string | null {
   return null;
 }
 
+function ScheduleSectionSkeleton() {
+  return (
+    <section className="enter-section space-y-4">
+      <div className="glass-card space-y-4 p-4 sm:p-6">
+        <div className="space-y-2">
+          <Skeleton className="h-5 w-52" />
+          <Skeleton className="h-4 w-full max-w-3xl" />
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,280px)_minmax(0,1fr)_auto] lg:items-end">
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-12" />
+            <Skeleton className="h-10 w-full rounded-xl" />
+          </div>
+
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-16" />
+            <Skeleton className="h-10 w-full rounded-xl" />
+          </div>
+
+          <Skeleton className="h-10 w-36 rounded-xl" />
+        </div>
+      </div>
+
+      <div className="glass-card space-y-6 p-4 sm:p-6">
+        <div className="space-y-2 border-b border-border/50 pb-4">
+          <Skeleton className="h-5 w-36" />
+          <Skeleton className="h-4 w-full max-w-2xl" />
+        </div>
+
+        <AdminListSkeleton count={4} showActions={false} />
+      </div>
+    </section>
+  );
+}
+
+function QualificationSectionSkeleton() {
+  return (
+    <section className="enter-section space-y-4">
+      <div className="flex items-center gap-2">
+        <Skeleton className="h-4 w-4 rounded-full" />
+        <Skeleton className="h-4 w-60" />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div
+            key={`qualification-skeleton-${index}`}
+            className="glass-card space-y-5 p-4"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-5 w-32 rounded-full" />
+            </div>
+
+            <div className="space-y-3">
+              <Skeleton className="h-4 w-48" />
+              <Skeleton className="h-4 w-full max-w-md" />
+
+              {Array.from({ length: 3 }).map((_, optionIndex) => (
+                <Skeleton
+                  key={`qualification-option-${index}-${optionIndex}`}
+                  className="h-14 w-full rounded-xl"
+                />
+              ))}
+            </div>
+
+            <div className="space-y-3 border-t border-border/40 pt-4">
+              <Skeleton className="h-4 w-44" />
+              <Skeleton className="h-4 w-full max-w-sm" />
+
+              {Array.from({ length: 3 }).map((_, optionIndex) => (
+                <Skeleton
+                  key={`pairing-option-${index}-${optionIndex}`}
+                  className="h-14 w-full rounded-xl"
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function AdminChampionshipSchedule({
   bracketEditionId,
   championshipId,
@@ -276,6 +362,7 @@ export function AdminChampionshipSchedule({
     championshipId,
     seasonYear,
     sportIds: individualSportIds,
+    enabled: activeSection == "sessions",
   });
 
   const isEditable =
@@ -823,536 +910,531 @@ export function AdminChampionshipSchedule({
         </TabsNavigationList>
 
         <TabsContent value="schedule" className="mt-6">
-          <section className="space-y-4">
-            <div className="glass-card space-y-4 p-4 sm:p-6">
-              <div className="flex items-start gap-3">
-                <div className="space-y-1">
-                  <p className="font-semibold">Inverter ordem dos jogos</p>
-                  <p className="text-sm text-muted-foreground">
-                    Troca o primeiro jogo pelo último de cada quadra
-                    selecionada. Apenas jogos agendados são alterados;
-                    intervalos, slots vazios e sessões individuais permanecem no
-                    lugar.
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,280px)_minmax(0,1fr)_auto] lg:items-end">
-                <div className="space-y-1.5">
-                  <Label htmlFor="reverse-match-order-date">Data</Label>
-                  <Select
-                    value={reverseMatchOrderDate}
-                    onValueChange={handleReverseMatchOrderDateChange}
-                    disabled={!isEditable || loading || days.length === 0}
-                  >
-                    <SelectTrigger
-                      id="reverse-match-order-date"
-                      className="app-input-field"
-                    >
-                      <SelectValue placeholder="Selecione a data" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {days.map((day) => (
-                        <SelectItem key={day.id} value={day.event_date}>
-                          {formatDate(day.event_date)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label>Quadras</Label>
-                  <div className="flex min-h-10 flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2">
-                    {reverseMatchOrderCourts.length === 0 ? (
-                      <span className="text-sm text-muted-foreground">
-                        Selecione uma data com quadras configuradas.
-                      </span>
-                    ) : (
-                      reverseMatchOrderCourts.map((court) => (
-                        <label
-                          key={court.id}
-                          className="flex cursor-pointer items-center gap-2 text-sm"
-                        >
-                          <Checkbox
-                            checked={reverseMatchOrderCourtIds.includes(
-                              court.id,
-                            )}
-                            onCheckedChange={(checked) =>
-                              toggleReverseMatchOrderCourt(
-                                court.id,
-                                checked === true,
-                              )
-                            }
-                            disabled={!isEditable}
-                          />
-                          {court.label}
-                        </label>
-                      ))
-                    )}
+          {loading ? (
+            <ScheduleSectionSkeleton />
+          ) : (
+            <section className="enter-section space-y-4">
+              <div className="glass-card space-y-4 p-4 sm:p-6">
+                <div className="flex items-start gap-3">
+                  <div className="space-y-1">
+                    <p className="font-semibold">Inverter ordem dos jogos</p>
+                    <p className="text-sm text-muted-foreground">
+                      Troca o primeiro jogo pelo último de cada quadra
+                      selecionada. Apenas jogos agendados são alterados;
+                      intervalos, slots vazios e sessões individuais permanecem
+                      no lugar.
+                    </p>
                   </div>
                 </div>
 
-                <Button
-                  type="button"
-                  disabled={
-                    !isEditable ||
-                    loading ||
-                    reverseMatchOrderCourtIds.length === 0
-                  }
-                  onClick={requestReverseMatchOrder}
-                >
-                  <RotateCcw className="mr-2 h-4 w-4" />
-                  Calcular inversão
-                </Button>
-              </div>
-            </div>
-
-            {loading ? (
-              <div className="glass-card space-y-6 p-4 sm:p-6">
-                <div className="border-b border-border/50 pb-4">
-                  <p className="text-lg font-bold">Dias da agenda</p>
-                  <p className="text-sm text-muted-foreground">
-                    Cada dia reúne horários, intervalos, locais e quadras
-                    definidos na configuração inicial.
-                  </p>
-                </div>
-
-                <AdminListSkeleton count={4} showActions={false} />
-              </div>
-            ) : days.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4">
-                Nenhum dia configurado na agenda deste campeonato.
-              </p>
-            ) : (
-              <div className="glass-card space-y-6 p-4 sm:p-6">
-                <div className="border-b border-border/50 pb-4">
-                  <p className="text-lg font-bold">Dias da agenda</p>
-                  <p className="text-sm text-muted-foreground">
-                    Cada dia reúne horários, intervalos, locais e quadras
-                    definidos na configuração inicial.
-                  </p>
-                </div>
-
-                <div className="space-y-4">
-                  {days.map((day, index) => {
-                    const isExpanded = expandedDayIds.has(day.id);
-                    const dayContentId = `reprogram-schedule-day-${day.id}`;
-                    const breakSummary = resolveDayBreakSummary(day);
-                    const generalBreaks = day.breaks.filter(
-                      (brk) => brk.scope_type !== "COURT",
-                    );
-
-                    return (
-                      <div
-                        key={day.id}
-                        className="overflow-hidden rounded-xl border border-border/50 bg-background/30"
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,280px)_minmax(0,1fr)_auto] lg:items-end">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="reverse-match-order-date">Data</Label>
+                    <Select
+                      value={reverseMatchOrderDate}
+                      onValueChange={handleReverseMatchOrderDateChange}
+                      disabled={!isEditable || loading || days.length === 0}
+                    >
+                      <SelectTrigger
+                        id="reverse-match-order-date"
+                        className="app-input-field"
                       >
-                        <button
-                          type="button"
-                          aria-expanded={isExpanded}
-                          aria-controls={dayContentId}
-                          aria-label={`${isExpanded ? "Recolher" : "Expandir"} Dia ${index + 1}`}
-                          onClick={() => toggleDay(day.id)}
-                          className="flex w-full items-center justify-between gap-4 border-b border-border/40 bg-background/40 px-4 py-3 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-                        >
-                          <span className="min-w-0">
-                            <span className="block font-semibold">
-                              Dia {index + 1}
-                            </span>
-                            <span className="block text-sm text-muted-foreground">
-                              {formatDate(day.event_date)} •{" "}
-                              {formatTime(day.start_time)} às{" "}
-                              {formatTime(day.end_time)}
-                            </span>
-                            {!isExpanded && breakSummary.length > 0 ? (
-                              <span className="mt-1 block break-words text-xs text-muted-foreground">
-                                Intervalos: {breakSummary.join(" • ")}
-                              </span>
-                            ) : null}
-                          </span>
-                          {isExpanded ? (
-                            <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-                          )}
-                        </button>
+                        <SelectValue placeholder="Selecione a data" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {days.map((day) => (
+                          <SelectItem key={day.id} value={day.event_date}>
+                            {formatDate(day.event_date)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                        {isExpanded ? (
-                          <div
-                            id={dayContentId}
-                            className="grid items-stretch gap-6 p-4 xl:grid-cols-[minmax(0,200px)_minmax(0,1fr)]"
+                  <div className="space-y-1.5">
+                    <Label>Quadras</Label>
+                    <div className="flex min-h-10 flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2">
+                      {reverseMatchOrderCourts.length === 0 ? (
+                        <span className="text-sm text-muted-foreground">
+                          Selecione uma data com quadras configuradas.
+                        </span>
+                      ) : (
+                        reverseMatchOrderCourts.map((court) => (
+                          <label
+                            key={court.id}
+                            className="flex cursor-pointer items-center gap-2 text-sm"
                           >
-                            <div className="flex flex-col">
-                              <div className="space-y-4">
-                                <div className="space-y-1.5">
-                                  <Label
-                                    htmlFor={`start-${day.id}`}
-                                    className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
-                                  >
-                                    Início
-                                  </Label>
-                                  <TimeInput
-                                    id={`start-${day.id}`}
-                                    value={formatTime(day.start_time)}
-                                    disabled={!isEditable || day.saving}
-                                    onChange={(value) =>
-                                      updateDay(day.id, { start_time: value })
-                                    }
-                                    className="h-10 border-border/40 bg-background/50"
-                                  />
-                                </div>
-                                <div className="space-y-1.5">
-                                  <Label
-                                    htmlFor={`end-${day.id}`}
-                                    className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
-                                  >
-                                    Fim
-                                  </Label>
-                                  <TimeInput
-                                    id={`end-${day.id}`}
-                                    value={formatTime(day.end_time)}
-                                    disabled={!isEditable || day.saving}
-                                    onChange={(value) =>
-                                      updateDay(day.id, { end_time: value })
-                                    }
-                                    className="h-10 border-border/40 bg-background/50"
-                                  />
-                                </div>
-                              </div>
+                            <Checkbox
+                              checked={reverseMatchOrderCourtIds.includes(
+                                court.id,
+                              )}
+                              onCheckedChange={(checked) =>
+                                toggleReverseMatchOrderCourt(
+                                  court.id,
+                                  checked === true,
+                                )
+                              }
+                              disabled={!isEditable}
+                            />
+                            {court.label}
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  </div>
 
-                              <div className="space-y-4 pt-5">
-                                {(generalBreaks.length > 0
-                                  ? generalBreaks
-                                  : [null]
-                                ).map((brk, breakIndex) => (
-                                  <div
-                                    key={
-                                      brk?.localId ??
-                                      `empty-general-break-${day.id}`
-                                    }
-                                    className="space-y-4"
-                                  >
-                                    <div className="flex items-center justify-between gap-2">
-                                      <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                                        {breakIndex === 0
-                                          ? "Intervalo do dia"
-                                          : `Intervalo do dia ${breakIndex + 1}`}
-                                      </p>
-                                      {isEditable && brk ? (
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="icon"
-                                          disabled={day.saving}
-                                          aria-label={`Remover intervalo do dia ${breakIndex + 1}`}
-                                          className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                          onClick={() =>
-                                            removeBreak(day.id, brk.localId)
-                                          }
-                                        >
-                                          <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                      ) : null}
-                                    </div>
-                                    <div className="space-y-1.5">
-                                      <Label
-                                        htmlFor={`break-start-${brk?.localId ?? `empty-general-break-${day.id}`}`}
-                                        className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
-                                      >
-                                        Início do intervalo
-                                      </Label>
-                                      <TimeInput
-                                        id={`break-start-${brk?.localId ?? `empty-general-break-${day.id}`}`}
-                                        value={brk?.break_start_time ?? ""}
-                                        disabled={!isEditable || day.saving}
-                                        onChange={(value) =>
-                                          updateGeneralBreak(
-                                            day.id,
-                                            brk?.localId ?? null,
-                                            {
-                                              break_start_time: value,
-                                              break_end_time:
-                                                brk?.break_end_time ?? "",
-                                            },
-                                          )
-                                        }
-                                        className="h-10 border-border/40 bg-background/50"
-                                      />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                      <Label
-                                        htmlFor={`break-end-${brk?.localId ?? `empty-general-break-${day.id}`}`}
-                                        className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
-                                      >
-                                        Fim do intervalo
-                                      </Label>
-                                      <TimeInput
-                                        id={`break-end-${brk?.localId ?? `empty-general-break-${day.id}`}`}
-                                        value={brk?.break_end_time ?? ""}
-                                        disabled={!isEditable || day.saving}
-                                        onChange={(value) =>
-                                          updateGeneralBreak(
-                                            day.id,
-                                            brk?.localId ?? null,
-                                            {
-                                              break_start_time:
-                                                brk?.break_start_time ?? "",
-                                              break_end_time: value,
-                                            },
-                                          )
-                                        }
-                                        className="h-10 border-border/40 bg-background/50"
-                                      />
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
+                  <Button
+                    type="button"
+                    disabled={
+                      !isEditable ||
+                      loading ||
+                      reverseMatchOrderCourtIds.length === 0
+                    }
+                    onClick={requestReverseMatchOrder}
+                  >
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Calcular inversão
+                  </Button>
+                </div>
+              </div>
 
-                              {isEditable ? (
-                                <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-5">
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    className="w-full"
-                                    disabled={day.saving || !isDayDirty(day)}
-                                    onClick={() => saveDay(day)}
-                                  >
-                                    {day.saving ? (
-                                      <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                                    ) : null}
-                                    Salvar dia
-                                  </Button>
-                                </div>
+              {days.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4">
+                  Nenhum dia configurado na agenda deste campeonato.
+                </p>
+              ) : (
+                <div className="glass-card space-y-6 p-4 sm:p-6">
+                  <div className="border-b border-border/50 pb-4">
+                    <p className="text-lg font-bold">Dias da agenda</p>
+                    <p className="text-sm text-muted-foreground">
+                      Cada dia reúne horários, intervalos, locais e quadras
+                      definidos na configuração inicial.
+                    </p>
+                  </div>
+
+                  <div className="space-y-4">
+                    {days.map((day, index) => {
+                      const isExpanded = expandedDayIds.has(day.id);
+                      const dayContentId = `reprogram-schedule-day-${day.id}`;
+                      const breakSummary = resolveDayBreakSummary(day);
+                      const generalBreaks = day.breaks.filter(
+                        (brk) => brk.scope_type !== "COURT",
+                      );
+
+                      return (
+                        <div
+                          key={day.id}
+                          className="overflow-hidden rounded-xl border border-border/50 bg-background/30"
+                        >
+                          <button
+                            type="button"
+                            aria-expanded={isExpanded}
+                            aria-controls={dayContentId}
+                            aria-label={`${isExpanded ? "Recolher" : "Expandir"} Dia ${index + 1}`}
+                            onClick={() => toggleDay(day.id)}
+                            className="flex w-full items-center justify-between gap-4 border-b border-border/40 bg-background/40 px-4 py-3 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                          >
+                            <span className="min-w-0">
+                              <span className="block font-semibold">
+                                Dia {index + 1}
+                              </span>
+                              <span className="block text-sm text-muted-foreground">
+                                {formatDate(day.event_date)} •{" "}
+                                {formatTime(day.start_time)} às{" "}
+                                {formatTime(day.end_time)}
+                              </span>
+                              {!isExpanded && breakSummary.length > 0 ? (
+                                <span className="mt-1 block break-words text-xs text-muted-foreground">
+                                  Intervalos: {breakSummary.join(" • ")}
+                                </span>
                               ) : null}
-                            </div>
+                            </span>
+                            {isExpanded ? (
+                              <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                            )}
+                          </button>
 
-                            <div className="space-y-3 border-t border-border/30 pt-5 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0">
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                                  Locais do dia
-                                </Label>
-                                <p className="text-xs text-muted-foreground">
-                                  Os nomes valem para toda a edição.
-                                </p>
-                              </div>
-                              {day.locations.map((location) => {
-                                const group = locationGroupById.get(
-                                  location.location_group_id,
-                                );
-                                if (!group) return null;
+                          {isExpanded ? (
+                            <div
+                              id={dayContentId}
+                              className="grid items-stretch gap-6 p-4 xl:grid-cols-[minmax(0,200px)_minmax(0,1fr)]"
+                            >
+                              <div className="flex flex-col">
+                                <div className="space-y-4">
+                                  <div className="space-y-1.5">
+                                    <Label
+                                      htmlFor={`start-${day.id}`}
+                                      className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
+                                    >
+                                      Início
+                                    </Label>
+                                    <TimeInput
+                                      id={`start-${day.id}`}
+                                      value={formatTime(day.start_time)}
+                                      disabled={!isEditable || day.saving}
+                                      onChange={(value) =>
+                                        updateDay(day.id, { start_time: value })
+                                      }
+                                      className="h-10 border-border/40 bg-background/50"
+                                    />
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label
+                                      htmlFor={`end-${day.id}`}
+                                      className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
+                                    >
+                                      Fim
+                                    </Label>
+                                    <TimeInput
+                                      id={`end-${day.id}`}
+                                      value={formatTime(day.end_time)}
+                                      disabled={!isEditable || day.saving}
+                                      onChange={(value) =>
+                                        updateDay(day.id, { end_time: value })
+                                      }
+                                      className="h-10 border-border/40 bg-background/50"
+                                    />
+                                  </div>
+                                </div>
 
-                                return (
-                                  <div
-                                    key={location.id}
-                                    className="space-y-4 rounded-lg border border-border/30 bg-background/40 p-3"
-                                  >
-                                    <div className="flex items-start justify-between gap-3">
-                                      <div className="space-y-1">
+                                <div className="space-y-4 pt-5">
+                                  {(generalBreaks.length > 0
+                                    ? generalBreaks
+                                    : [null]
+                                  ).map((brk, breakIndex) => (
+                                    <div
+                                      key={
+                                        brk?.localId ??
+                                        `empty-general-break-${day.id}`
+                                      }
+                                      className="space-y-4"
+                                    >
+                                      <div className="flex items-center justify-between gap-2">
                                         <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                                          Nome do local
+                                          {breakIndex === 0
+                                            ? "Intervalo do dia"
+                                            : `Intervalo do dia ${breakIndex + 1}`}
                                         </p>
-                                        <p className="font-medium">
-                                          {group.location_name}
-                                        </p>
+                                        {isEditable && brk ? (
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            disabled={day.saving}
+                                            aria-label={`Remover intervalo do dia ${breakIndex + 1}`}
+                                            className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                            onClick={() =>
+                                              removeBreak(day.id, brk.localId)
+                                            }
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                          </Button>
+                                        ) : null}
                                       </div>
-                                      {isEditable ? (
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="icon"
-                                          disabled={group.saving}
-                                          aria-label={`Editar ${group.location_name}`}
-                                          title="Editar local e quadras"
-                                          onClick={() =>
-                                            openLocationGroupEditor(group)
-                                          }
+                                      <div className="space-y-1.5">
+                                        <Label
+                                          htmlFor={`break-start-${brk?.localId ?? `empty-general-break-${day.id}`}`}
+                                          className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
                                         >
-                                          <Pencil className="h-4 w-4" />
-                                        </Button>
-                                      ) : null}
+                                          Início do intervalo
+                                        </Label>
+                                        <TimeInput
+                                          id={`break-start-${brk?.localId ?? `empty-general-break-${day.id}`}`}
+                                          value={brk?.break_start_time ?? ""}
+                                          disabled={!isEditable || day.saving}
+                                          onChange={(value) =>
+                                            updateGeneralBreak(
+                                              day.id,
+                                              brk?.localId ?? null,
+                                              {
+                                                break_start_time: value,
+                                                break_end_time:
+                                                  brk?.break_end_time ?? "",
+                                              },
+                                            )
+                                          }
+                                          className="h-10 border-border/40 bg-background/50"
+                                        />
+                                      </div>
+                                      <div className="space-y-1.5">
+                                        <Label
+                                          htmlFor={`break-end-${brk?.localId ?? `empty-general-break-${day.id}`}`}
+                                          className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
+                                        >
+                                          Fim do intervalo
+                                        </Label>
+                                        <TimeInput
+                                          id={`break-end-${brk?.localId ?? `empty-general-break-${day.id}`}`}
+                                          value={brk?.break_end_time ?? ""}
+                                          disabled={!isEditable || day.saving}
+                                          onChange={(value) =>
+                                            updateGeneralBreak(
+                                              day.id,
+                                              brk?.localId ?? null,
+                                              {
+                                                break_start_time:
+                                                  brk?.break_start_time ?? "",
+                                                break_end_time: value,
+                                              },
+                                            )
+                                          }
+                                          className="h-10 border-border/40 bg-background/50"
+                                        />
+                                      </div>
                                     </div>
-                                    <div className="space-y-3">
-                                      <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                                        Quadras desse local
-                                      </p>
-                                      <div className="grid grid-cols-1 gap-3 border-t border-border/30 pt-3 md:grid-cols-2 xl:grid-cols-3">
-                                        {location.courts.map((dayCourt) => {
-                                          const court = group.courts.find(
-                                            (currentCourt) =>
-                                              currentCourt.court_group_id ===
-                                              dayCourt.court_group_id,
-                                          );
-                                          if (!court) return null;
-                                          const courtBreaks = day.breaks.filter(
-                                            (brk) =>
-                                              brk.scope_type === "COURT" &&
-                                              brk.bracket_court_id ===
-                                                dayCourt.id,
-                                          );
+                                  ))}
+                                </div>
 
-                                          return (
-                                            <div
-                                              key={court.court_group_id}
-                                              className="space-y-3 rounded-lg border border-border/20 bg-background/30 p-3"
-                                            >
-                                              <div className="space-y-1">
-                                                <p className="text-xs font-medium text-muted-foreground">
-                                                  Quadra {court.position}
-                                                </p>
-                                                <p className="font-medium">
-                                                  {court.court_name}
-                                                </p>
-                                              </div>
+                                {isEditable ? (
+                                  <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-5">
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      className="w-full"
+                                      disabled={day.saving || !isDayDirty(day)}
+                                      onClick={() => saveDay(day)}
+                                    >
+                                      {day.saving ? (
+                                        <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                                      ) : null}
+                                      Salvar dia
+                                    </Button>
+                                  </div>
+                                ) : null}
+                              </div>
 
-                                              <div className="space-y-3 border-t border-border/30 pt-3">
-                                                <div className="flex items-center justify-between gap-2">
-                                                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                                                    Intervalos da quadra
+                              <div className="space-y-3 border-t border-border/30 pt-5 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                    Locais do dia
+                                  </Label>
+                                  <p className="text-xs text-muted-foreground">
+                                    Os nomes valem para toda a edição.
+                                  </p>
+                                </div>
+                                {day.locations.map((location) => {
+                                  const group = locationGroupById.get(
+                                    location.location_group_id,
+                                  );
+                                  if (!group) return null;
+
+                                  return (
+                                    <div
+                                      key={location.id}
+                                      className="space-y-4 rounded-lg border border-border/30 bg-background/40 p-3"
+                                    >
+                                      <div className="flex items-start justify-between gap-3">
+                                        <div className="space-y-1">
+                                          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                            Nome do local
+                                          </p>
+                                          <p className="font-medium">
+                                            {group.location_name}
+                                          </p>
+                                        </div>
+                                        {isEditable ? (
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            disabled={group.saving}
+                                            aria-label={`Editar ${group.location_name}`}
+                                            title="Editar local e quadras"
+                                            onClick={() =>
+                                              openLocationGroupEditor(group)
+                                            }
+                                          >
+                                            <Pencil className="h-4 w-4" />
+                                          </Button>
+                                        ) : null}
+                                      </div>
+                                      <div className="space-y-3">
+                                        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                          Quadras desse local
+                                        </p>
+                                        <div className="grid grid-cols-1 gap-3 border-t border-border/30 pt-3 md:grid-cols-2 xl:grid-cols-3">
+                                          {location.courts.map((dayCourt) => {
+                                            const court = group.courts.find(
+                                              (currentCourt) =>
+                                                currentCourt.court_group_id ===
+                                                dayCourt.court_group_id,
+                                            );
+                                            if (!court) return null;
+                                            const courtBreaks =
+                                              day.breaks.filter(
+                                                (brk) =>
+                                                  brk.scope_type === "COURT" &&
+                                                  brk.bracket_court_id ===
+                                                    dayCourt.id,
+                                              );
+
+                                            return (
+                                              <div
+                                                key={court.court_group_id}
+                                                className="space-y-3 rounded-lg border border-border/20 bg-background/30 p-3"
+                                              >
+                                                <div className="space-y-1">
+                                                  <p className="text-xs font-medium text-muted-foreground">
+                                                    Quadra {court.position}
                                                   </p>
-                                                  {isEditable ? (
-                                                    <Button
-                                                      type="button"
-                                                      variant="ghost"
-                                                      size="icon"
-                                                      disabled={day.saving}
-                                                      aria-label={`Adicionar intervalo à ${court.court_name}`}
-                                                      className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                                      onClick={() =>
-                                                        addBreak(
-                                                          day.id,
-                                                          "COURT",
-                                                          dayCourt.id,
-                                                        )
-                                                      }
-                                                    >
-                                                      <Plus className="h-4 w-4" />
-                                                    </Button>
-                                                  ) : null}
+                                                  <p className="font-medium">
+                                                    {court.court_name}
+                                                  </p>
                                                 </div>
 
-                                                {courtBreaks.length === 0 ? (
-                                                  <p className="rounded-md border border-dashed border-border/30 px-3 py-2 text-[11px] italic text-muted-foreground">
-                                                    Nenhum intervalo específico
-                                                    nesta quadra neste dia.
-                                                  </p>
-                                                ) : (
-                                                  courtBreaks.map(
-                                                    (brk, breakIndex) => (
-                                                      <div
-                                                        key={brk.localId}
-                                                        className="rounded-md border border-border/20 bg-background/50 p-3"
+                                                <div className="space-y-3 border-t border-border/30 pt-3">
+                                                  <div className="flex items-center justify-between gap-2">
+                                                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                                      Intervalos da quadra
+                                                    </p>
+                                                    {isEditable ? (
+                                                      <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        disabled={day.saving}
+                                                        aria-label={`Adicionar intervalo à ${court.court_name}`}
+                                                        className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                                        onClick={() =>
+                                                          addBreak(
+                                                            day.id,
+                                                            "COURT",
+                                                            dayCourt.id,
+                                                          )
+                                                        }
                                                       >
-                                                        <div className="flex items-start gap-2">
-                                                          <div className="min-w-0 flex-1 space-y-3">
-                                                            <div className="space-y-1.5">
-                                                              <Label
-                                                                htmlFor={`court-break-start-${brk.localId}`}
-                                                                className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
-                                                              >
-                                                                Início do
-                                                                intervalo
-                                                              </Label>
-                                                              <TimeInput
-                                                                id={`court-break-start-${brk.localId}`}
-                                                                value={
-                                                                  brk.break_start_time
-                                                                }
+                                                        <Plus className="h-4 w-4" />
+                                                      </Button>
+                                                    ) : null}
+                                                  </div>
+
+                                                  {courtBreaks.length === 0 ? (
+                                                    <p className="rounded-md border border-dashed border-border/30 px-3 py-2 text-[11px] italic text-muted-foreground">
+                                                      Nenhum intervalo
+                                                      específico nesta quadra
+                                                      neste dia.
+                                                    </p>
+                                                  ) : (
+                                                    courtBreaks.map(
+                                                      (brk, breakIndex) => (
+                                                        <div
+                                                          key={brk.localId}
+                                                          className="rounded-md border border-border/20 bg-background/50 p-3"
+                                                        >
+                                                          <div className="flex items-start gap-2">
+                                                            <div className="min-w-0 flex-1 space-y-3">
+                                                              <div className="space-y-1.5">
+                                                                <Label
+                                                                  htmlFor={`court-break-start-${brk.localId}`}
+                                                                  className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+                                                                >
+                                                                  Início do
+                                                                  intervalo
+                                                                </Label>
+                                                                <TimeInput
+                                                                  id={`court-break-start-${brk.localId}`}
+                                                                  value={
+                                                                    brk.break_start_time
+                                                                  }
+                                                                  disabled={
+                                                                    !isEditable ||
+                                                                    day.saving
+                                                                  }
+                                                                  onChange={(
+                                                                    value,
+                                                                  ) =>
+                                                                    updateBreak(
+                                                                      day.id,
+                                                                      brk.localId,
+                                                                      {
+                                                                        break_start_time:
+                                                                          value,
+                                                                      },
+                                                                    )
+                                                                  }
+                                                                  className="h-10 border-border/40 bg-background/50"
+                                                                />
+                                                              </div>
+                                                              <div className="space-y-1.5">
+                                                                <Label
+                                                                  htmlFor={`court-break-end-${brk.localId}`}
+                                                                  className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+                                                                >
+                                                                  Fim do
+                                                                  intervalo
+                                                                </Label>
+                                                                <TimeInput
+                                                                  id={`court-break-end-${brk.localId}`}
+                                                                  value={
+                                                                    brk.break_end_time
+                                                                  }
+                                                                  disabled={
+                                                                    !isEditable ||
+                                                                    day.saving
+                                                                  }
+                                                                  onChange={(
+                                                                    value,
+                                                                  ) =>
+                                                                    updateBreak(
+                                                                      day.id,
+                                                                      brk.localId,
+                                                                      {
+                                                                        break_end_time:
+                                                                          value,
+                                                                      },
+                                                                    )
+                                                                  }
+                                                                  className="h-10 border-border/40 bg-background/50"
+                                                                />
+                                                              </div>
+                                                            </div>
+                                                            {isEditable ? (
+                                                              <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="icon"
                                                                 disabled={
-                                                                  !isEditable ||
                                                                   day.saving
                                                                 }
-                                                                onChange={(
-                                                                  value,
-                                                                ) =>
-                                                                  updateBreak(
+                                                                aria-label={`Remover intervalo ${breakIndex + 1} da ${court.court_name}`}
+                                                                className="h-9 w-9 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                                                onClick={() =>
+                                                                  removeBreak(
                                                                     day.id,
                                                                     brk.localId,
-                                                                    {
-                                                                      break_start_time:
-                                                                        value,
-                                                                    },
                                                                   )
                                                                 }
-                                                                className="h-10 border-border/40 bg-background/50"
-                                                              />
-                                                            </div>
-                                                            <div className="space-y-1.5">
-                                                              <Label
-                                                                htmlFor={`court-break-end-${brk.localId}`}
-                                                                className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
                                                               >
-                                                                Fim do intervalo
-                                                              </Label>
-                                                              <TimeInput
-                                                                id={`court-break-end-${brk.localId}`}
-                                                                value={
-                                                                  brk.break_end_time
-                                                                }
-                                                                disabled={
-                                                                  !isEditable ||
-                                                                  day.saving
-                                                                }
-                                                                onChange={(
-                                                                  value,
-                                                                ) =>
-                                                                  updateBreak(
-                                                                    day.id,
-                                                                    brk.localId,
-                                                                    {
-                                                                      break_end_time:
-                                                                        value,
-                                                                    },
-                                                                  )
-                                                                }
-                                                                className="h-10 border-border/40 bg-background/50"
-                                                              />
-                                                            </div>
+                                                                <Trash2 className="h-4 w-4" />
+                                                              </Button>
+                                                            ) : null}
                                                           </div>
-                                                          {isEditable ? (
-                                                            <Button
-                                                              type="button"
-                                                              variant="ghost"
-                                                              size="icon"
-                                                              disabled={
-                                                                day.saving
-                                                              }
-                                                              aria-label={`Remover intervalo ${breakIndex + 1} da ${court.court_name}`}
-                                                              className="h-9 w-9 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                                              onClick={() =>
-                                                                removeBreak(
-                                                                  day.id,
-                                                                  brk.localId,
-                                                                )
-                                                              }
-                                                            >
-                                                              <Trash2 className="h-4 w-4" />
-                                                            </Button>
-                                                          ) : null}
                                                         </div>
-                                                      </div>
-                                                    ),
-                                                  )
-                                                )}
+                                                      ),
+                                                    )
+                                                  )}
+                                                </div>
                                               </div>
-                                            </div>
-                                          );
-                                        })}
+                                            );
+                                          })}
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
-                                );
-                              })}
+                                  );
+                                })}
+                              </div>
                             </div>
-                          </div>
-                        ) : null}
-                      </div>
-                    );
-                  })}
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
-          </section>
+              )}
+            </section>
+          )}
         </TabsContent>
 
         <TabsContent value="sessions" className="mt-6">
@@ -1363,13 +1445,6 @@ export function AdminChampionshipSchedule({
             />
           ) : individualSessions.length > 0 ? (
             <section className="space-y-4">
-              <div className="flex items-center gap-2">
-                <CalendarClock className="h-4 w-4 text-muted-foreground" />
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                  Sessões individuais agendadas
-                </h3>
-              </div>
-
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {individualSessions.map((session) => (
                   <div key={session.id} className="glass-card space-y-2 p-4">
@@ -1422,20 +1497,24 @@ export function AdminChampionshipSchedule({
         </TabsContent>
 
         <TabsContent value="qualification" className="mt-6">
-          <section className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Trophy className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                Classificação para o mata-mata
-              </h3>
-            </div>
+          {loading ? (
+            <QualificationSectionSkeleton />
+          ) : (
+            <section className="enter-section space-y-4">
+              <div className="flex items-center gap-2">
+                <Trophy className="h-4 w-4 text-muted-foreground" />
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                  Classificação para o mata-mata
+                </h3>
+              </div>
 
-            <AdminChampionshipQualificationSection
-              competitions={competitions}
-              isEditable={isEditable}
-              onRequestReconfiguration={requestReconfiguration}
-            />
-          </section>
+              <AdminChampionshipQualificationSection
+                competitions={competitions}
+                isEditable={isEditable}
+                onRequestReconfiguration={requestReconfiguration}
+              />
+            </section>
+          )}
         </TabsContent>
 
         <TabsContent value="court-priorities" className="mt-6">

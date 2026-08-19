@@ -231,6 +231,15 @@
     backdrop-filter: none;
   }
 
+  .app-scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.app-scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+
   .app-input-field {
     border-color: transparent;
     background: hsl(var(--background) / 0.58);

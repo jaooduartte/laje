@@ -4,14 +4,25 @@ import type { ChampionshipSport, Sport } from "@/lib/types";
 
 interface UseSportsOptions {
   championshipId?: string | null;
+  enabled?: boolean;
 }
 
-export function useSports({ championshipId }: UseSportsOptions = {}) {
+export function useSports({
+  championshipId,
+  enabled = true,
+}: UseSportsOptions = {}) {
   const [sports, setSports] = useState<Sport[]>([]);
-  const [championshipSports, setChampionshipSports] = useState<ChampionshipSport[]>([]);
+  const [championshipSports, setChampionshipSports] = useState<
+    ChampionshipSport[]
+  >([]);
   const [loading, setLoading] = useState(true);
 
   const fetchSports = useCallback(async () => {
+    if (!enabled) {
+      setLoading(true);
+      return;
+    }
+
     if (championshipId === null) {
       setSports([]);
       setChampionshipSports([]);
@@ -22,7 +33,10 @@ export function useSports({ championshipId }: UseSportsOptions = {}) {
     setLoading(true);
     try {
       if (!championshipId) {
-        const { data, error } = await supabase.from("sports").select("*").order("name");
+        const { data, error } = await supabase
+          .from("sports")
+          .select("*")
+          .order("name");
 
         if (error) {
           console.error("Erro ao carregar modalidades:", error.message);
@@ -46,7 +60,10 @@ export function useSports({ championshipId }: UseSportsOptions = {}) {
         .order("created_at", { ascending: true });
 
       if (error) {
-        console.error("Erro ao carregar modalidades do campeonato:", error.message);
+        console.error(
+          "Erro ao carregar modalidades do campeonato:",
+          error.message,
+        );
         setSports([]);
         setChampionshipSports([]);
         return;
@@ -74,9 +91,14 @@ export function useSports({ championshipId }: UseSportsOptions = {}) {
     } finally {
       setLoading(false);
     }
-  }, [championshipId]);
+  }, [championshipId, enabled]);
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(true);
+      return;
+    }
+
     if (championshipId === null) {
       setSports([]);
       setChampionshipSports([]);
@@ -88,18 +110,26 @@ export function useSports({ championshipId }: UseSportsOptions = {}) {
 
     const channel = supabase
       .channel(`sports-realtime-${championshipId ?? "all"}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "sports" }, () => {
-        fetchSports();
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "championship_sports" }, () => {
-        fetchSports();
-      })
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "sports" },
+        () => {
+          fetchSports();
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "championship_sports" },
+        () => {
+          fetchSports();
+        },
+      )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [championshipId, fetchSports]);
+  }, [championshipId, enabled, fetchSports]);
 
   return { sports, championshipSports, loading, refetch: fetchSports };
 }
