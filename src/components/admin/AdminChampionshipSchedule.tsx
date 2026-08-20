@@ -14,6 +14,7 @@ import {
   Pencil,
   RotateCcw,
   ArrowDownUp,
+  LockKeyhole,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -722,6 +723,10 @@ export function AdminChampionshipSchedule({
           ? reconfigurationPreview.affected_matches > 0
             ? `Configuração atualizada e ${reconfigurationPreview.affected_matches} jogo(s) redistribuído(s).`
             : "Configuração da competição atualizada."
+          : appliedAction == "LOCATION_SPORT_PRIORITIES"
+            ? reconfigurationPreview.affected_matches > 0
+              ? `Prioridades atualizadas e ${reconfigurationPreview.affected_matches} jogo(s) redistribuído(s).`
+              : "Prioridades de quadra atualizadas."
           : reconfigurationPreview.affected_matches > 0
             ? `Reprogramação aplicada em ${reconfigurationPreview.affected_matches} jogo(s).`
             : "Configuração atualizada sem alterar jogos.",
@@ -1727,13 +1732,6 @@ export function AdminChampionshipSchedule({
 
         <TabsContent value="court-priorities" className="mt-6">
           <section className="space-y-4">
-            <div className="flex items-center gap-2">
-              <LayoutGrid className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                Prioridade de quadras
-              </h3>
-            </div>
-
             <AdminChampionshipCourtPrioritySection
               bracketEditionId={bracketEditionId}
               isEditable={isEditable}
@@ -2102,10 +2100,12 @@ export function AdminChampionshipSchedule({
 
               {pendingReconfiguration?.action == "INDIVIDUAL_SESSION"
                 ? "Validando a reprogramação da sessão…"
-                : pendingReconfiguration?.action ==
-                    "COMPETITION_SETTINGS"
+                : pendingReconfiguration?.action == "COMPETITION_SETTINGS"
                   ? "Calculando o impacto da classificação e do pareamento…"
-                  : "Calculando os jogos afetados…"}
+                  : pendingReconfiguration?.action ==
+                      "LOCATION_SPORT_PRIORITIES"
+                    ? "Calculando o impacto da nova prioridade de quadras…"
+                    : "Calculando os jogos afetados…"}
             </div>
           ) : reconfigurationPreview ? (
             <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1 text-sm">
@@ -2134,21 +2134,40 @@ export function AdminChampionshipSchedule({
                     segundo ocupará a penúltima, e assim sucessivamente.
                   </p>
                 </div>
-              ) : reconfigurationPreview.action ==
-                  "COMPETITION_SETTINGS" ? (
+              ) : reconfigurationPreview.action == "COMPETITION_SETTINGS" ? (
                 <div className="space-y-1">
                   <p>
-                    <strong>
-                      {reconfigurationPreview.affected_matches}
-                    </strong>{" "}
-                    jogo(s) poderão ser redistribuídos após esta
-                    alteração.
+                    <strong>{reconfigurationPreview.affected_matches}</strong>{" "}
+                    jogo(s) poderão ser redistribuídos após esta alteração.
                   </p>
 
                   <p className="text-xs text-muted-foreground">
-                    Revise a classificação e o pareamento antes de
-                    aplicar a nova configuração.
+                    Revise a classificação e o pareamento antes de aplicar a
+                    nova configuração.
                   </p>
+                </div>
+              ) : reconfigurationPreview.action == "LOCATION_SPORT_PRIORITIES" ? (
+                <div className="space-y-1">
+                  {reconfigurationPreview.affected_matches > 0 ? (
+                    <>
+                      <p>
+                        <strong>
+                          {reconfigurationPreview.affected_matches}
+                        </strong>{" "}
+                        jogo(s) terão posição, horário ou quadra recalculados
+                        com a nova prioridade.
+                      </p>
+
+                      <p className="text-xs text-muted-foreground">
+                        A redistribuição respeitará as configurações protegidas.
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-muted-foreground">
+                      A prioridade poderá ser atualizada sem necessidade de
+                      redistribuir jogos.
+                    </p>
+                  )}
                 </div>
               ) : (
                 <p>
@@ -2164,15 +2183,14 @@ export function AdminChampionshipSchedule({
                   ))}
                 </ul>
               ) : null}
-              {reconfigurationPreview.action ==
-                "COMPETITION_SETTINGS" &&
+              {reconfigurationPreview.action == "COMPETITION_SETTINGS" &&
               pendingReconfiguration ? (
                 <div className="space-y-3">
                   <div>
                     <p className="font-semibold">
                       {String(
-                        pendingReconfiguration.payload
-                          .competition_label ?? "Competição",
+                        pendingReconfiguration.payload.competition_label ??
+                          "Competição",
                       )}
                     </p>
 
@@ -2196,8 +2214,7 @@ export function AdminChampionshipSchedule({
                           <p className="mt-0.5 font-medium">
                             {String(
                               pendingReconfiguration.payload
-                                .current_qualification_label ??
-                                "Não definida",
+                                .current_qualification_label ?? "Não definida",
                             )}
                           </p>
                         </div>
@@ -2210,8 +2227,7 @@ export function AdminChampionshipSchedule({
                           <p className="mt-0.5 font-medium">
                             {String(
                               pendingReconfiguration.payload
-                                .current_pairing_label ??
-                                "Não definido",
+                                .current_pairing_label ?? "Não definido",
                             )}
                           </p>
                         </div>
@@ -2232,8 +2248,7 @@ export function AdminChampionshipSchedule({
                           <p className="mt-0.5 font-medium">
                             {String(
                               pendingReconfiguration.payload
-                                .target_qualification_label ??
-                                "Não definida",
+                                .target_qualification_label ?? "Não definida",
                             )}
                           </p>
                         </div>
@@ -2246,14 +2261,123 @@ export function AdminChampionshipSchedule({
                           <p className="mt-0.5 font-medium">
                             {String(
                               pendingReconfiguration.payload
-                                .target_pairing_label ??
-                                "Não definido",
+                                .target_pairing_label ?? "Não definido",
                             )}
                           </p>
                         </div>
                       </div>
                     </div>
                   </div>
+                </div>
+              ) : null}
+              {reconfigurationPreview.action ==
+                "LOCATION_SPORT_PRIORITIES" &&
+              pendingReconfiguration ? (
+                <div className="space-y-3">
+                  <div>
+                    <p className="font-semibold">
+                      {String(
+                        pendingReconfiguration.payload.location_name ?? "Local",
+                      )}
+                      {" • "}
+                      {String(
+                        pendingReconfiguration.payload.sport_name ?? "Modalidade",
+                      )}
+                    </p>
+
+                    <p className="text-xs text-muted-foreground">
+                      Prioridade global das quadras
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="rounded-md border p-3">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Antes
+                      </p>
+
+                      <p className="font-medium">
+                        {String(
+                          pendingReconfiguration.payload.current_priority_label ??
+                            "Sem prioridade fixa",
+                        )}
+                      </p>
+                    </div>
+
+                    <div className="rounded-md border border-primary/30 bg-primary/5 p-3">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-primary">
+                        Depois
+                      </p>
+
+                      <p className="font-medium">
+                        {String(
+                          pendingReconfiguration.payload.target_priority_label ??
+                            "Sem prioridade fixa",
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-md border bg-muted/20 p-3">
+                    <div className="space-y-2 text-xs">
+                      <div className="flex items-start justify-between gap-4">
+                        <span className="text-muted-foreground">
+                          Datas abrangidas
+                        </span>
+
+                        <span className="text-right font-medium">
+                          {Array.isArray(
+                            pendingReconfiguration.payload.event_date_labels,
+                          )
+                            ? (
+                                pendingReconfiguration.payload
+                                  .event_date_labels as unknown[]
+                              )
+                                .map(String)
+                                .join(", ")
+                            : "—"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-muted-foreground">
+                          Total de datas
+                        </span>
+
+                        <span className="font-medium">
+                          {String(
+                            pendingReconfiguration.payload.occurrence_count ?? 0,
+                          )}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-muted-foreground">
+                          Configurações protegidas
+                        </span>
+
+                        <span className="font-medium">
+                          {String(
+                            pendingReconfiguration.payload.protected_court_count ??
+                              0,
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {Number(
+                    pendingReconfiguration.payload.protected_court_count ?? 0,
+                  ) > 0 ? (
+                    <div className="flex items-start gap-2 rounded-md border border-primary/15 bg-primary/5 p-3 text-xs text-muted-foreground">
+                      <LockKeyhole className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+
+                      <p>
+                        Quadras com sequenciamento protegido manterão a
+                        configuração definida na montagem do campeonato.
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
               {reconfigurationPreview.action == "INDIVIDUAL_SESSION" &&
@@ -2489,12 +2613,17 @@ export function AdminChampionshipSchedule({
                   </div>
                 )
               ) : reconfigurationPreview.action ==
-                "INDIVIDUAL_SESSION" ? null
-              : reconfigurationPreview.action ==
-                  "COMPETITION_SETTINGS" ? (
+                "INDIVIDUAL_SESSION" ? null : reconfigurationPreview.action ==
+                "COMPETITION_SETTINGS" ? (
                 <p className="text-muted-foreground">
-                  A configuração será atualizada sem necessidade de
-                  redistribuir jogos.
+                  A configuração será atualizada sem necessidade de redistribuir
+                  jogos.
+                </p>
+              ) : reconfigurationPreview.action ==
+                "LOCATION_SPORT_PRIORITIES" ? (
+                <p className="text-muted-foreground">
+                  Nenhum jogo precisa ser redistribuído para aplicar esta
+                  prioridade.
                 </p>
               ) : (
                 <p className="text-muted-foreground">
@@ -2524,15 +2653,16 @@ export function AdminChampionshipSchedule({
               {applyingReconfiguration ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : null}
-              {reconfigurationPreview?.action ==
-              "INDIVIDUAL_SESSION"
+              {reconfigurationPreview?.action == "INDIVIDUAL_SESSION"
                 ? "Aplicar reprogramação da sessão"
                 : reconfigurationPreview?.action ==
                     "REVERSE_DAY_COURT_MATCH_ORDER"
                   ? `Aplicar inversão de ${reconfigurationPreview.affected_matches} jogos`
-                  : reconfigurationPreview?.action ==
-                      "COMPETITION_SETTINGS"
+                  : reconfigurationPreview?.action == "COMPETITION_SETTINGS"
                     ? "Aplicar configuração"
+                    : reconfigurationPreview?.action ==
+                        "LOCATION_SPORT_PRIORITIES"
+                      ? "Aplicar prioridades de quadra"
                     : `Aplicar e redistribuir ${
                         reconfigurationPreview?.affected_matches ?? 0
                       } jogos`}

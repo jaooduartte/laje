@@ -1014,15 +1014,25 @@ export interface BracketLocationSportPriorityCourtGroup {
   court_group_id: string;
   court_name: string;
   position: number;
+
+  preferred_naipe: MatchNaipe | null;
+  preferred_division: TeamDivision | null;
+
   sequence_modes: ChampionshipBracketCourtSequenceMode[];
   is_sequence_locked: boolean;
 }
 
 export interface BracketLocationSportPriorityGroup {
+  bracket_day_id: string;
+  event_date: string;
+
   location_group_id: string;
   location_name: string;
+
   sport_id: string;
+
   priority_mode: BracketLocationSportPriorityMode;
+
   courts: BracketLocationSportPriorityCourtGroup[];
 }
 
