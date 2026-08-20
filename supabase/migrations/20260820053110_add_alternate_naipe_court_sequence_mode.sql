@@ -1,0 +1,3 @@
+ALTER TYPE public.bracket_court_sequence_mode
+ADD VALUE IF NOT EXISTS 'ALTERNATE_NAIPE'
+AFTER 'GROUP_NAIPE';

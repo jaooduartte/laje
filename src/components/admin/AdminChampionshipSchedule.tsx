@@ -723,6 +723,10 @@ export function AdminChampionshipSchedule({
           ? reconfigurationPreview.affected_matches > 0
             ? `Configuração atualizada e ${reconfigurationPreview.affected_matches} jogo(s) redistribuído(s).`
             : "Configuração da competição atualizada."
+          : appliedAction == "COURT_SPORT_SEQUENCE"
+            ? reconfigurationPreview.affected_matches > 0
+              ? `Sequenciamento atualizado e ${reconfigurationPreview.affected_matches} jogo(s) redistribuído(s).`
+              : "Sequenciamento de quadra atualizado."
           : appliedAction == "LOCATION_SPORT_PRIORITIES"
             ? reconfigurationPreview.affected_matches > 0
               ? `Prioridades atualizadas e ${reconfigurationPreview.affected_matches} jogo(s) redistribuído(s).`
@@ -2102,6 +2106,8 @@ export function AdminChampionshipSchedule({
                 ? "Validando a reprogramação da sessão…"
                 : pendingReconfiguration?.action == "COMPETITION_SETTINGS"
                   ? "Calculando o impacto da classificação e do pareamento…"
+                  : pendingReconfiguration?.action == "COURT_SPORT_SEQUENCE"
+                    ? "Calculando o impacto do novo sequenciamento das quadras…"
                   : pendingReconfiguration?.action ==
                       "LOCATION_SPORT_PRIORITIES"
                     ? "Calculando o impacto da nova prioridade de quadras…"
@@ -2145,6 +2151,28 @@ export function AdminChampionshipSchedule({
                     Revise a classificação e o pareamento antes de aplicar a
                     nova configuração.
                   </p>
+                </div>
+              ) : reconfigurationPreview.action == "COURT_SPORT_SEQUENCE" ? (
+                <div className="space-y-1">
+                  {reconfigurationPreview.affected_matches > 0 ? (
+                    <>
+                      <p>
+                        <strong>{reconfigurationPreview.affected_matches}</strong>{" "}
+                        jogo(s) terão data, horário, quadra ou posição
+                        recalculados.
+                      </p>
+
+                      <p className="text-xs text-muted-foreground">
+                        Revise abaixo o sequenciamento solicitado e os jogos
+                        afetados antes de aplicar.
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-muted-foreground">
+                      A configuração da quadra será atualizada sem necessidade
+                      de alterar a posição dos jogos.
+                    </p>
+                  )}
                 </div>
               ) : reconfigurationPreview.action == "LOCATION_SPORT_PRIORITIES" ? (
                 <div className="space-y-1">
@@ -2267,6 +2295,83 @@ export function AdminChampionshipSchedule({
                         </div>
                       </div>
                     </div>
+                  </div>
+                </div>
+              ) : null}
+              {reconfigurationPreview.action == "COURT_SPORT_SEQUENCE" &&
+              pendingReconfiguration ? (
+                <div className="space-y-3">
+                  <div>
+                    <p className="font-semibold">
+                      {String(
+                        pendingReconfiguration.payload.sport_name ??
+                          "Modalidade",
+                      )}
+                    </p>
+
+                    <p className="text-xs text-muted-foreground">
+                      {String(
+                        pendingReconfiguration.payload.location_name ?? "Local",
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    {(Array.isArray(
+                      pendingReconfiguration.payload.sequence_changes,
+                    )
+                      ? pendingReconfiguration.payload.sequence_changes
+                      : []
+                    ).map((rawChange, index) => {
+                      const change = rawChange as Record<string, unknown>;
+
+                      return (
+                        <div
+                          key={`${String(
+                            change.bracket_day_id ?? index,
+                          )}:${String(change.bracket_court_id ?? "")}`}
+                          className="rounded-xl border border-border/60 p-3"
+                        >
+                          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <p className="text-sm font-medium">
+                                {String(change.event_date_label ?? "Data")}
+                              </p>
+
+                              <p className="text-xs text-muted-foreground">
+                                {String(change.court_name ?? "Quadra")}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="grid gap-2 md:grid-cols-2">
+                            <div className="rounded-lg border border-border/50 bg-muted/20 p-3">
+                              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                Antes
+                              </p>
+
+                              <p className="text-sm font-medium">
+                                {String(
+                                  change.current_sequence_label ?? "Flexível",
+                                )}
+                              </p>
+                            </div>
+
+                            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+                              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-primary">
+                                Depois
+                              </p>
+
+                              <p className="text-sm font-medium">
+                                {String(
+                                  change.target_sequence_label ?? "Flexível",
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               ) : null}
@@ -2620,6 +2725,12 @@ export function AdminChampionshipSchedule({
                   jogos.
                 </p>
               ) : reconfigurationPreview.action ==
+                "COURT_SPORT_SEQUENCE" ? (
+                <p className="text-muted-foreground">
+                  Nenhum jogo precisa ser redistribuído para aplicar este
+                  sequenciamento.
+                </p>
+              ) : reconfigurationPreview.action ==
                 "LOCATION_SPORT_PRIORITIES" ? (
                 <p className="text-muted-foreground">
                   Nenhum jogo precisa ser redistribuído para aplicar esta
@@ -2660,6 +2771,9 @@ export function AdminChampionshipSchedule({
                   ? `Aplicar inversão de ${reconfigurationPreview.affected_matches} jogos`
                   : reconfigurationPreview?.action == "COMPETITION_SETTINGS"
                     ? "Aplicar configuração"
+                    : reconfigurationPreview?.action ==
+                        "COURT_SPORT_SEQUENCE"
+                      ? "Aplicar sequenciamento"
                     : reconfigurationPreview?.action ==
                         "LOCATION_SPORT_PRIORITIES"
                       ? "Aplicar prioridades de quadra"

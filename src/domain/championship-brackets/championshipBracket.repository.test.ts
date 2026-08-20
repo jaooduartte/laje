@@ -37,6 +37,7 @@ describe("getBracketLocationSportPriorities", () => {
                   name: "Ginásio",
                   position: 1,
                   court_group_id: "court-group-1",
+                  preferred_sport_id: "futsal",
                   championship_bracket_court_sports: [
                     {
                       sport_id: "basketball",
@@ -57,6 +58,7 @@ describe("getBracketLocationSportPriorities", () => {
                   name: "Quadra",
                   position: 2,
                   court_group_id: "court-group-2",
+                  preferred_sport_id: "basketball",
                   championship_bracket_court_sports: [
                     {
                       sport_id: "basketball",
@@ -85,6 +87,7 @@ describe("getBracketLocationSportPriorities", () => {
                   name: "Ginásio",
                   position: 1,
                   court_group_id: "court-group-1",
+                  preferred_sport_id: "handball",
                   championship_bracket_court_sports: [
                     {
                       sport_id: "basketball",
@@ -177,15 +180,25 @@ describe("getBracketLocationSportPriorities", () => {
         expect.objectContaining({
           event_date: "2026-08-29",
           sport_id: "basketball",
-          courts: expect.arrayContaining([
-            expect.objectContaining({ court_name: "Ginásio" }),
-            expect.objectContaining({ court_name: "Quadra" }),
-          ]),
+          courts: [
+            expect.objectContaining({
+              court_name: "Quadra",
+              bracket_court_id: "court-2",
+              preferred_sport_id: "basketball",
+              is_primary_sport: true,
+              sequence_mode: "FLEXIBLE",
+            }),
+          ],
         }),
         expect.objectContaining({
           event_date: "2026-08-29",
           sport_id: "futsal",
-          courts: [expect.objectContaining({ court_name: "Ginásio" })],
+          courts: [
+            expect.objectContaining({
+              court_name: "Ginásio",
+              is_primary_sport: true,
+            }),
+          ],
         }),
         expect.objectContaining({
           event_date: "2026-08-30",

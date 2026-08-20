@@ -70,17 +70,19 @@ function buildPriorityOccurrence(params: {
   bracketDayId: string;
   eventDate: string;
   locationGroupId: string;
-  priorityMode?: "NONE" | "NAIPE" | "DIVISION";
-  allLocked?: boolean;
-  singleCourt?: boolean;
+  sequenceMode?:
+    | "FLEXIBLE"
+    | "GROUP_NAIPE"
+    | "ALTERNATE_NAIPE"
+    | "GROUP_DIVISION";
+  preferredNaipe?: MatchNaipe | null;
 }): BracketLocationSportPriorityGroup {
   const {
     bracketDayId,
     eventDate,
     locationGroupId,
-    priorityMode = "NONE",
-    allLocked = false,
-    singleCourt = false,
+    sequenceMode = "GROUP_NAIPE",
+    preferredNaipe = MatchNaipe.MASCULINO,
   } = params;
 
   return {
@@ -89,39 +91,25 @@ function buildPriorityOccurrence(params: {
     location_group_id: locationGroupId,
     location_name: "Arena",
     sport_id: "sport-1",
-    priority_mode: priorityMode,
-    courts: singleCourt
-      ? [
-          {
-            court_group_id: `${bracketDayId}-flexible`,
-            court_name: "Quadra única",
-            position: 1,
-            preferred_naipe: null,
-            preferred_division: null,
-            sequence_modes: ["FLEXIBLE"],
-            is_sequence_locked: false,
-          },
-        ]
-      : [
-          {
-            court_group_id: `${bracketDayId}-locked`,
-            court_name: "Quadra protegida",
-            position: 1,
-            preferred_naipe: MatchNaipe.MASCULINO,
-            preferred_division: null,
-            sequence_modes: ["GROUP_NAIPE"],
-            is_sequence_locked: true,
-          },
-          {
-            court_group_id: `${bracketDayId}-flexible`,
-            court_name: allLocked ? "Quadra protegida 2" : "Quadra flexível",
-            position: 2,
-            preferred_naipe: null,
-            preferred_division: null,
-            sequence_modes: [allLocked ? "GROUP_NAIPE" : "FLEXIBLE"],
-            is_sequence_locked: allLocked,
-          },
-        ],
+    priority_mode: "NONE",
+    courts: [
+      {
+        bracket_court_id: `${bracketDayId}-court`,
+        court_group_id: `${bracketDayId}-court-group`,
+        court_name: "Quadra principal",
+        position: 1,
+        preferred_sport_id: "sport-1",
+        is_primary_sport: true,
+        preferred_naipe:
+          sequenceMode === "FLEXIBLE"
+            ? null
+            : preferredNaipe,
+        preferred_division: null,
+        sequence_mode: sequenceMode,
+        sequence_modes: [sequenceMode],
+        is_sequence_locked: false,
+      },
+    ],
   };
 }
 
@@ -133,7 +121,7 @@ describe("AdminChampionshipCourtPrioritySection", () => {
     mocks.toast.success.mockReset();
   });
 
-  it("envia o contexto consolidado no preview de prioridade", async () => {
+  it("envia somente a data alterada no sequenciamento da quadra", async () => {
     mocks.getBracketLocationSportPriorities.mockResolvedValue({
       data: [
         buildPriorityOccurrence({
@@ -159,63 +147,83 @@ describe("AdminChampionshipCourtPrioritySection", () => {
       }),
     );
 
-    expect(screen.getByText("Distribuição por data")).toBeInTheDocument();
     expect(
       screen.getByText(
-        /Veja como as quadras elegíveis ficarão em cada dia/i,
+        /Configure o sequenciamento da modalidade/i,
       ),
     ).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("radio", {
-        name: /Revezar por naipe/i,
-      }),
-    );
+
+    const alternateRadios = screen.getAllByRole("radio", {
+      name: /Alternar naipes/i,
+    });
+
+    expect(alternateRadios).toHaveLength(2);
+
+    fireEvent.click(alternateRadios[0]);
+
+    expect(
+      screen.getByText("1 alteração pendente"),
+    ).toBeInTheDocument();
+
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Salvar prioridades",
+        name: "Salvar sequenciamento",
       }),
     );
 
     await waitFor(() => {
-      expect(mocks.onRequestReconfiguration).toHaveBeenCalledWith({
-        action: "LOCATION_SPORT_PRIORITIES",
-        label: "Prioridade de quadras em Arena • Basquetebol",
-        payload: {
-          priority_updates: [
-            {
-              location_group_id: "location-1",
-              sport_id: "sport-1",
-              priority_mode: "NAIPE",
-            },
-            {
-              location_group_id: "location-2",
-              sport_id: "sport-1",
-              priority_mode: "NAIPE",
-            },
-          ],
-          location_name: "Arena",
-          sport_name: "Basquetebol",
-          occurrence_count: 2,
-          event_dates: ["2026-08-29", "2026-08-30"],
-          event_date_labels: ["29/08", "30/08"],
-          current_priority_mode: "NONE",
-          current_priority_label: "Sem prioridade fixa",
-          target_priority_mode: "NAIPE",
-          target_priority_label: "Revezar por naipe",
-          protected_court_count: 2,
-        },
-      });
+      expect(
+        mocks.onRequestReconfiguration,
+      ).toHaveBeenCalledTimes(1);
+    });
+
+    expect(
+      mocks.onRequestReconfiguration,
+    ).toHaveBeenCalledWith({
+      action: "COURT_SPORT_SEQUENCE",
+      label: "Sequenciamento em Arena • Basquetebol",
+      payload: {
+        sequence_updates: [
+          {
+            bracket_court_id: "day-1-court",
+            sport_id: "sport-1",
+            sequence_mode: "ALTERNATE_NAIPE",
+            preferred_naipe: MatchNaipe.MASCULINO,
+            preferred_division: null,
+          },
+        ],
+        sequence_changes: [
+          {
+            bracket_day_id: "day-1",
+            bracket_court_id: "day-1-court",
+            event_date: "2026-08-29",
+            event_date_label: "29/08",
+            court_name: "Quadra principal",
+            current_sequence_mode: "GROUP_NAIPE",
+            current_sequence_label:
+              "Agrupar por naipe • inicia em Masculino",
+            target_sequence_mode: "ALTERNATE_NAIPE",
+            target_sequence_label:
+              "Alternar naipes • inicia em Masculino",
+          },
+        ],
+        location_name: "Arena",
+        sport_id: "sport-1",
+        sport_name: "Basquetebol",
+        event_dates: ["2026-08-29"],
+        event_date_labels: ["29/08"],
+        occurrence_count: 1,
+      },
     });
   });
 
-  it("não oferece revezamento quando a modalidade possui somente uma quadra elegível", async () => {
+  it("permite alternar naipes na própria quadra quando existe somente uma quadra configurada", async () => {
     mocks.getBracketLocationSportPriorities.mockResolvedValue({
       data: [
         buildPriorityOccurrence({
           bracketDayId: "day-1",
           eventDate: "2026-08-29",
           locationGroupId: "location-1",
-          singleCourt: true,
         }),
       ],
       error: null,
@@ -230,21 +238,86 @@ describe("AdminChampionshipCourtPrioritySection", () => {
     );
 
     expect(
-      screen.getByText(
-        "Sem distribuição entre quadras",
-      ),
+      screen.getByText("Quadra principal"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("radio", {
-        name: /Revezar por naipe/i,
+      screen.getByRole("radio", {
+        name: /Agrupar por naipe/i,
       }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("radio", {
+        name: /Alternar naipes/i,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("radio", {
+        name: /Flexível/i,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Sem distribuição entre quadras"),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByText(
-        /apenas uma quadra elegível em cada data/i,
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByText("Quadra única")).toBeInTheDocument();
-    expect(mocks.onRequestReconfiguration).not.toHaveBeenCalled();
+      mocks.onRequestReconfiguration,
+    ).not.toHaveBeenCalled();
+  });
+
+  it("remove o naipe inicial ao alterar o sequenciamento para flexível", async () => {
+    mocks.getBracketLocationSportPriorities.mockResolvedValue({
+      data: [
+        buildPriorityOccurrence({
+          bracketDayId: "day-1",
+          eventDate: "2026-08-29",
+          locationGroupId: "location-1",
+        }),
+      ],
+      error: null,
+    });
+    mocks.onRequestReconfiguration.mockResolvedValue(true);
+
+    renderSection();
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: /Arena.*Basquetebol/i,
+      }),
+    );
+
+    fireEvent.click(
+      screen.getByRole("radio", {
+        name: /Flexível/i,
+      }),
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Salvar sequenciamento",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(
+        mocks.onRequestReconfiguration,
+      ).toHaveBeenCalledTimes(1);
+    });
+
+    expect(
+      mocks.onRequestReconfiguration,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "COURT_SPORT_SEQUENCE",
+        payload: expect.objectContaining({
+          sequence_updates: [
+            expect.objectContaining({
+              bracket_court_id: "day-1-court",
+              sequence_mode: "FLEXIBLE",
+              preferred_naipe: null,
+              preferred_division: null,
+            }),
+          ],
+        }),
+      }),
+    );
   });
 });

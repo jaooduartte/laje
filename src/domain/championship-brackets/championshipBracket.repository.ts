@@ -867,6 +867,7 @@ export async function getBracketLocationSportPriorities(
             name,
             position,
             court_group_id,
+            preferred_sport_id,
             championship_bracket_court_sports (
               sport_id,
               preferred_naipe,
@@ -964,6 +965,7 @@ export async function getBracketLocationSportPriorities(
           name: string;
           position: number;
           court_group_id: string;
+          preferred_sport_id: string | null;
           championship_bracket_court_sports?: Array<{
             sport_id: string;
             preferred_naipe: MatchNaipe | null;
@@ -997,6 +999,7 @@ export async function getBracketLocationSportPriorities(
         const priorityKey = `${location.location_group_id}:${sportId}`;
         const matchingCourts = (location.championship_bracket_courts ?? [])
           .filter((court) =>
+            court.preferred_sport_id === sportId &&
             (court.championship_bracket_court_sports ?? []).some(
               (courtSport) => courtSport.sport_id === sportId,
             ),
@@ -1043,6 +1046,13 @@ export async function getBracketLocationSportPriorities(
                   courtSport.sport_id === sportId,
               );
 
+          const matchingCourtSport =
+            matchingCourtSports[0] ?? null;
+
+          if (!matchingCourtSport) {
+            return;
+          }
+
           const preferredNaipe =
             matchingCourtSports.find(
               (courtSport) =>
@@ -1067,9 +1077,7 @@ export async function getBracketLocationSportPriorities(
 
             existingCourt.sequence_modes = mergedSequenceModes;
 
-            existingCourt.is_sequence_locked = mergedSequenceModes.some(
-              (mode) => mode !== "FLEXIBLE",
-            );
+            existingCourt.is_sequence_locked = false;
 
             existingCourt.preferred_naipe =
               existingCourt.preferred_naipe ??
@@ -1083,15 +1091,17 @@ export async function getBracketLocationSportPriorities(
           }
 
           currentGroup.courts.push({
+            bracket_court_id: court.id,
             court_group_id: court.court_group_id,
             court_name: court.name,
             position: court.position,
+            preferred_sport_id: court.preferred_sport_id ?? null,
+            is_primary_sport: court.preferred_sport_id === sportId,
             preferred_naipe: preferredNaipe,
             preferred_division: preferredDivision,
+            sequence_mode: matchingCourtSport.sequence_mode,
             sequence_modes: sequenceModes,
-            is_sequence_locked: sequenceModes.some(
-              (mode) => mode !== "FLEXIBLE",
-            ),
+            is_sequence_locked: false,
           });
         });
       });

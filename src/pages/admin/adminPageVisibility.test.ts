@@ -77,7 +77,7 @@ describe("resolveCanViewReviewAdminTabs", () => {
 });
 
 describe("resolveCanViewOperationalAdminTabs", () => {
-  it("does not show operational tabs while operational data is still loading", () => {
+  it("shows operational tabs based on championship status while data is still loading", () => {
     expect(
       resolveCanViewOperationalAdminTabs({
         championshipStatus: ChampionshipStatus.IN_PROGRESS,
@@ -85,7 +85,7 @@ describe("resolveCanViewOperationalAdminTabs", () => {
         matchesCount: 2,
         bracketEditionStatus: BracketEditionStatus.GROUPS_GENERATED,
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("does not show operational tabs for upcoming championships even if games already exist", () => {
@@ -99,7 +99,7 @@ describe("resolveCanViewOperationalAdminTabs", () => {
     ).toBe(false);
   });
 
-  it("does not show operational tabs without generated games", () => {
+  it("shows operational tabs without generated games when the championship is operational", () => {
     expect(
       resolveCanViewOperationalAdminTabs({
         championshipStatus: ChampionshipStatus.IN_PROGRESS,
@@ -107,10 +107,10 @@ describe("resolveCanViewOperationalAdminTabs", () => {
         matchesCount: 0,
         bracketEditionStatus: BracketEditionStatus.GROUPS_GENERATED,
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 
-  it("does not show operational tabs while the bracket edition is still a draft", () => {
+  it("shows operational tabs while the bracket edition is still a draft", () => {
     expect(
       resolveCanViewOperationalAdminTabs({
         championshipStatus: ChampionshipStatus.IN_PROGRESS,
@@ -118,7 +118,7 @@ describe("resolveCanViewOperationalAdminTabs", () => {
         matchesCount: 2,
         bracketEditionStatus: BracketEditionStatus.DRAFT,
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("shows operational tabs only when the championship is operational and games were generated", () => {

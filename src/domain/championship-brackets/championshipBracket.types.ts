@@ -49,6 +49,7 @@ export interface ChampionshipBracketCompetitionInput {
 export type ChampionshipBracketCourtSequenceMode =
   | "FLEXIBLE"
   | "GROUP_NAIPE"
+  | "ALTERNATE_NAIPE"
   | "GROUP_DIVISION";
 
 export type ChampionshipBracketMatchNumberingMode =
@@ -974,6 +975,17 @@ export interface BracketCourtPriorityUpdate {
   preferred_division: TeamDivision | null;
 }
 
+export interface BracketCourtSequenceUpdate {
+  bracket_court_id: string;
+  sport_id: string;
+
+  sequence_mode: ChampionshipBracketCourtSequenceMode;
+
+  preferred_naipe: MatchNaipe | null;
+
+  preferred_division: TeamDivision | null;
+}
+
 export interface BracketCourtSportEntry {
   sport_id: string;
   preferred_naipe: MatchNaipe | null;
@@ -1011,13 +1023,17 @@ export type BracketKnockoutPriorityPhase = "SEMIFINAL" | "FINAL";
 export type BracketKnockoutPriorityDivisionScope = TeamDivision | "ALL";
 
 export interface BracketLocationSportPriorityCourtGroup {
+  bracket_court_id: string;
   court_group_id: string;
   court_name: string;
   position: number;
+  preferred_sport_id: string | null;
+  is_primary_sport: boolean;
 
   preferred_naipe: MatchNaipe | null;
   preferred_division: TeamDivision | null;
 
+  sequence_mode: ChampionshipBracketCourtSequenceMode;
   sequence_modes: ChampionshipBracketCourtSequenceMode[];
   is_sequence_locked: boolean;
 }
@@ -1096,6 +1112,7 @@ export type ChampionshipBracketReconfigurationAction =
   | "INDIVIDUAL_SESSION"
   | "COMPETITION_SETTINGS"
   | "LOCATION_SPORT_PRIORITIES"
+  | "COURT_SPORT_SEQUENCE"
   | "KNOCKOUT_COURT_PRIORITIES"
   | "LOCATION_GROUP";
 
