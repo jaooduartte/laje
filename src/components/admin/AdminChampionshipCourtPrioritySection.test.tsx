@@ -72,6 +72,7 @@ function buildPriorityOccurrence(params: {
   locationGroupId: string;
   priorityMode?: "NONE" | "NAIPE" | "DIVISION";
   allLocked?: boolean;
+  singleCourt?: boolean;
 }): BracketLocationSportPriorityGroup {
   const {
     bracketDayId,
@@ -79,6 +80,7 @@ function buildPriorityOccurrence(params: {
     locationGroupId,
     priorityMode = "NONE",
     allLocked = false,
+    singleCourt = false,
   } = params;
 
   return {
@@ -88,26 +90,38 @@ function buildPriorityOccurrence(params: {
     location_name: "Arena",
     sport_id: "sport-1",
     priority_mode: priorityMode,
-    courts: [
-      {
-        court_group_id: `${bracketDayId}-locked`,
-        court_name: "Quadra protegida",
-        position: 1,
-        preferred_naipe: MatchNaipe.MASCULINO,
-        preferred_division: null,
-        sequence_modes: ["GROUP_NAIPE"],
-        is_sequence_locked: true,
-      },
-      {
-        court_group_id: `${bracketDayId}-flexible`,
-        court_name: allLocked ? "Quadra protegida 2" : "Quadra flexível",
-        position: 2,
-        preferred_naipe: null,
-        preferred_division: null,
-        sequence_modes: [allLocked ? "GROUP_NAIPE" : "FLEXIBLE"],
-        is_sequence_locked: allLocked,
-      },
-    ],
+    courts: singleCourt
+      ? [
+          {
+            court_group_id: `${bracketDayId}-flexible`,
+            court_name: "Quadra única",
+            position: 1,
+            preferred_naipe: null,
+            preferred_division: null,
+            sequence_modes: ["FLEXIBLE"],
+            is_sequence_locked: false,
+          },
+        ]
+      : [
+          {
+            court_group_id: `${bracketDayId}-locked`,
+            court_name: "Quadra protegida",
+            position: 1,
+            preferred_naipe: MatchNaipe.MASCULINO,
+            preferred_division: null,
+            sequence_modes: ["GROUP_NAIPE"],
+            is_sequence_locked: true,
+          },
+          {
+            court_group_id: `${bracketDayId}-flexible`,
+            court_name: allLocked ? "Quadra protegida 2" : "Quadra flexível",
+            position: 2,
+            preferred_naipe: null,
+            preferred_division: null,
+            sequence_modes: [allLocked ? "GROUP_NAIPE" : "FLEXIBLE"],
+            is_sequence_locked: allLocked,
+          },
+        ],
   };
 }
 
@@ -144,6 +158,13 @@ describe("AdminChampionshipCourtPrioritySection", () => {
         name: /Arena.*Basquetebol/i,
       }),
     );
+
+    expect(screen.getByText("Distribuição por data")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Veja como as quadras elegíveis ficarão em cada dia/i,
+      ),
+    ).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("radio", {
         name: /Revezar por naipe/i,
@@ -187,14 +208,14 @@ describe("AdminChampionshipCourtPrioritySection", () => {
     });
   });
 
-  it("mantém a configuração global indisponível sem quadras flexíveis", async () => {
+  it("não oferece revezamento quando a modalidade possui somente uma quadra elegível", async () => {
     mocks.getBracketLocationSportPriorities.mockResolvedValue({
       data: [
         buildPriorityOccurrence({
           bracketDayId: "day-1",
           eventDate: "2026-08-29",
           locationGroupId: "location-1",
-          allLocked: true,
+          singleCourt: true,
         }),
       ],
       error: null,
@@ -210,18 +231,20 @@ describe("AdminChampionshipCourtPrioritySection", () => {
 
     expect(
       screen.getByText(
-        /2 quadras mantêm o sequenciamento definido na etapa 11/i,
+        "Sem distribuição entre quadras",
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("radio", {
+      screen.queryByRole("radio", {
         name: /Revezar por naipe/i,
       }),
-    ).toBeDisabled();
+    ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", {
-        name: "Salvar prioridades",
-      }),
-    ).toBeDisabled();
+      screen.getByText(
+        /apenas uma quadra elegível em cada data/i,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Quadra única")).toBeInTheDocument();
+    expect(mocks.onRequestReconfiguration).not.toHaveBeenCalled();
   });
 });

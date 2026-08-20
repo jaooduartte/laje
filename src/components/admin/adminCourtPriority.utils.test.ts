@@ -9,7 +9,7 @@ import {
 } from "@/components/admin/adminCourtPriority.utils";
 
 describe("adminCourtPriority utils", () => {
-  it("deduplicates naipe options by sport", () => {
+  it("deduplicates and orders naipe options using the scheduling priority order", () => {
     expect(
       resolveNaipeOptionsBySportId([
         {
@@ -53,7 +53,7 @@ describe("adminCourtPriority utils", () => {
         },
       ]),
     ).toEqual({
-      "sport-1": [MatchNaipe.MASCULINO, MatchNaipe.FEMININO],
+      "sport-1": [MatchNaipe.FEMININO, MatchNaipe.MASCULINO],
     });
   });
 

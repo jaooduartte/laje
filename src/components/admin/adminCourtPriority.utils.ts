@@ -1,18 +1,34 @@
 import type { ChampionshipBracketCompetition } from "@/lib/types";
 import { MatchNaipe, type TeamDivision } from "@/lib/enums";
 
+const NAIPE_PRIORITY_ORDER: MatchNaipe[] = [
+  MatchNaipe.FEMININO,
+  MatchNaipe.MASCULINO,
+];
+
 export function resolveNaipeOptionsBySportId(
   competitions: ChampionshipBracketCompetition[],
 ): Record<string, MatchNaipe[]> {
-  return competitions.reduce<Record<string, MatchNaipe[]>>((carry, competition) => {
-    const currentNaipes = carry[competition.sport_id] ?? [];
+  const optionsBySportId =
+    competitions.reduce<Record<string, MatchNaipe[]>>((carry, competition) => {
+      const currentNaipes = carry[competition.sport_id] ?? [];
 
-    if (!currentNaipes.includes(competition.naipe)) {
-      carry[competition.sport_id] = [...currentNaipes, competition.naipe];
-    }
+      if (!currentNaipes.includes(competition.naipe)) {
+        carry[competition.sport_id] = [...currentNaipes, competition.naipe];
+      }
 
-    return carry;
-  }, {});
+      return carry;
+    }, {});
+
+  Object.keys(optionsBySportId).forEach((sportId) => {
+    optionsBySportId[sportId] = [...optionsBySportId[sportId]].sort(
+      (left, right) =>
+        NAIPE_PRIORITY_ORDER.indexOf(left) -
+        NAIPE_PRIORITY_ORDER.indexOf(right),
+    );
+  });
+
+  return optionsBySportId;
 }
 
 export function resolveDivisionOptionsBySportId(

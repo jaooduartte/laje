@@ -78,6 +78,7 @@ interface ConsolidatedPriorityGroup {
   persistedPriorityMode: CourtPriorityMode | null;
   hasMixedPriorityModes: boolean;
 
+  canDistributeAcrossCourts: boolean;
   hasFlexibleCourts: boolean;
   lockedCourtCount: number;
 }
@@ -186,6 +187,7 @@ function resolveModeOptions(params: {
   availableDivisionOptions: TeamDivision[];
   availableNaipeOptions: MatchNaipe[];
   usesDivisions: boolean;
+  canDistributeAcrossCourts: boolean;
 }): PriorityModeOption[] {
   const options: PriorityModeOption[] = [
     {
@@ -196,7 +198,10 @@ function resolveModeOptions(params: {
     },
   ];
 
-  if (params.availableNaipeOptions.length > 1) {
+  if (
+    params.canDistributeAcrossCourts &&
+    params.availableNaipeOptions.length > 1
+  ) {
     options.push({
       value: "NAIPE",
       label: "Revezar por naipe",
@@ -206,7 +211,11 @@ function resolveModeOptions(params: {
     });
   }
 
-  if (params.usesDivisions && params.availableDivisionOptions.length > 1) {
+  if (
+    params.canDistributeAcrossCourts &&
+    params.usesDivisions &&
+    params.availableDivisionOptions.length > 1
+  ) {
     options.push({
       value: "DIVISION",
       label: "Revezar por divisão",
@@ -397,10 +406,21 @@ export function AdminChampionshipCourtPrioritySection({
             group.sport_id
           ] ?? [];
 
+        const canDistributeAcrossCourts =
+          occurrences.some(
+            (occurrence) =>
+              occurrence.courts.length >= 2 &&
+              occurrence.courts.some(
+                (court) =>
+                  !court.is_sequence_locked,
+              ),
+          );
+
         const modeOptions = resolveModeOptions({
           availableDivisionOptions,
           availableNaipeOptions,
           usesDivisions,
+          canDistributeAcrossCourts,
         });
 
         const persistedPriorityModes = [
@@ -433,6 +453,8 @@ export function AdminChampionshipCourtPrioritySection({
 
           hasMixedPriorityModes:
             persistedPriorityModes.length > 1,
+
+          canDistributeAcrossCourts,
 
           hasFlexibleCourts:
             allCourts.some(
@@ -760,7 +782,7 @@ export function AdminChampionshipCourtPrioritySection({
   if (groupedCards.length === 0) {
     return (
       <p className="py-2 text-sm text-muted-foreground">
-        Nenhum local possui duas ou mais quadras para a mesma modalidade.
+        Nenhuma modalidade coletiva possui jogos agendados para configurar.
       </p>
     );
   }
@@ -855,8 +877,8 @@ export function AdminChampionshipCourtPrioritySection({
               <div className="space-y-4 border-t border-border/40 p-4">
                 <div className="flex flex-col gap-1">
                   <p className="text-xs text-muted-foreground">
-                    Essa regra vale para todas as quadras desse local ao longo de
-                    todos os dias da edição.
+                    Esta prioridade é aplicada às quadras elegíveis deste local
+                    nos dias em que a modalidade possui jogos.
                   </p>
                 </div>
 
@@ -874,8 +896,8 @@ export function AdminChampionshipCourtPrioritySection({
                   </div>
                 ) : null}
 
-                <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.95fr)]">
-                  <div className="space-y-3">
+                <div className="space-y-4">
+                  {group.canDistributeAcrossCourts ? (
                     <RadioGroup
                       value={selectedMode ?? undefined}
                       disabled={
@@ -889,16 +911,28 @@ export function AdminChampionshipCourtPrioritySection({
                           [group.key]: value as CourtPriorityMode,
                         }))
                       }
-                      className="space-y-2"
+                      className={`grid gap-2 ${
+                        group.modeOptions.length >= 3
+                          ? "md:grid-cols-3"
+                          : group.modeOptions.length === 2
+                            ? "md:grid-cols-2"
+                            : "grid-cols-1"
+                      }`}
                     >
                       {group.modeOptions.map((modeOption) => (
                         <label
                           key={modeOption.value}
-                          className="app-card-muted flex cursor-pointer items-start gap-3 p-3 has-[[data-state=checked]]:border-primary/50 has-[[data-state=checked]]:bg-primary/5"
+                          className={`app-card-muted flex items-start gap-3 p-3 transition-opacity has-[[data-state=checked]]:border-primary/50 has-[[data-state=checked]]:bg-primary/5 ${
+                            isEditable &&
+                            group.hasFlexibleCourts &&
+                            savingGroupKey == null
+                              ? "cursor-pointer"
+                              : "cursor-default opacity-45"
+                          }`}
                         >
                           <RadioGroupItem
                             value={modeOption.value}
-                            className="mt-0.5"
+                            className="mt-0.5 disabled:cursor-default"
                           />
                           <span className="space-y-0.5">
                             <span className="block text-sm font-medium">
@@ -911,16 +945,33 @@ export function AdminChampionshipCourtPrioritySection({
                         </label>
                       ))}
                     </RadioGroup>
-                  </div>
+                  ) : (
+                    <div className="app-card-muted flex items-start gap-3 p-3">
+                      <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium">
+                          Sem distribuição entre quadras
+                        </p>
+
+                        <p className="text-xs text-muted-foreground">
+                          Esta modalidade possui apenas uma quadra elegível em
+                          cada data. Não há revezamento entre quadras para
+                          configurar.
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="app-card-muted space-y-3 p-3">
                     <div className="flex items-center justify-between gap-2">
                       <div>
                         <p className="text-sm font-medium">
-                          Preview da distribuição
+                          Distribuição por data
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          Veja como cada quadra ficará após salvar.
+                          Veja como as quadras elegíveis ficarão em cada dia em
+                          que a modalidade possui jogos.
                         </p>
                       </div>
                       <AppBadge
@@ -934,7 +985,7 @@ export function AdminChampionshipCourtPrioritySection({
                       </AppBadge>
                     </div>
 
-                    <div className="space-y-3">
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                       {previewDays.map((previewDay) => (
                         <div
                           key={previewDay.bracket_day_id}

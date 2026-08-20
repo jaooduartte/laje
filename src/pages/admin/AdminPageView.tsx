@@ -545,9 +545,9 @@ export function AdminPageView({
         </div>
 
         {canViewChampionshipStatus ? (
-          <div className="glass-panel enter-section flex flex-row justify-between gap-3 px-4 py-3">
-            <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-              <div className="space-y-1">
+          <div className="glass-panel enter-section flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-1 sm:flex-1 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+              <div className="space-y-1 text-center sm:text-left">
                 <span className="text-sm font-medium">
                   Status do campeonato
                 </span>
