@@ -1059,12 +1059,23 @@ export interface BracketLocationSportPriorityUpdate {
 }
 
 export interface BracketKnockoutPriorityCourtOption {
+  logical_key: string;
   location_group_id: string;
+  location_group_ids: string[];
   location_name: string;
   location_position: number;
   court_group_id: string;
+  court_group_ids: string[];
   court_name: string;
   court_position: number;
+}
+
+export interface BracketKnockoutProgrammedFinal {
+  scheduled_date: string;
+  location_name: string;
+  court_name: string;
+  location_group_id: string;
+  court_group_id: string;
 }
 
 export interface BracketKnockoutCourtPriorityGroup {
@@ -1073,6 +1084,8 @@ export interface BracketKnockoutCourtPriorityGroup {
   division_scope: BracketKnockoutPriorityDivisionScope;
   location_group_id: string | null;
   court_group_id: string | null;
+  automatic_court: BracketKnockoutPriorityCourtOption | null;
+  programmed_finals: BracketKnockoutProgrammedFinal[];
   courts: BracketKnockoutPriorityCourtOption[];
 }
 

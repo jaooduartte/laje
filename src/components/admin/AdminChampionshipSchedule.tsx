@@ -727,6 +727,10 @@ export function AdminChampionshipSchedule({
             ? reconfigurationPreview.affected_matches > 0
               ? `Sequenciamento atualizado e ${reconfigurationPreview.affected_matches} jogo(s) redistribuído(s).`
               : "Sequenciamento de quadra atualizado."
+            : appliedAction == "KNOCKOUT_COURT_PRIORITIES"
+              ? reconfigurationPreview.affected_matches > 0
+                ? `Prioridades do mata-mata atualizadas e ${reconfigurationPreview.affected_matches} jogo(s) redistribuído(s).`
+                : "Prioridades do mata-mata atualizadas."
           : appliedAction == "LOCATION_SPORT_PRIORITIES"
             ? reconfigurationPreview.affected_matches > 0
               ? `Prioridades atualizadas e ${reconfigurationPreview.affected_matches} jogo(s) redistribuído(s).`
@@ -1750,13 +1754,6 @@ export function AdminChampionshipSchedule({
 
         <TabsContent value="knockout-priorities" className="mt-6">
           <section className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Trophy className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                Prioridade do mata-mata
-              </h3>
-            </div>
-
             <AdminChampionshipKnockoutPrioritySection
               bracketEditionId={bracketEditionId}
               isEditable={isEditable}
@@ -2108,6 +2105,9 @@ export function AdminChampionshipSchedule({
                   ? "Calculando o impacto da classificação e do pareamento…"
                   : pendingReconfiguration?.action == "COURT_SPORT_SEQUENCE"
                     ? "Calculando o impacto do novo sequenciamento das quadras…"
+                    : pendingReconfiguration?.action ==
+                        "KNOCKOUT_COURT_PRIORITIES"
+                      ? "Calculando o impacto das prioridades do mata-mata…"
                   : pendingReconfiguration?.action ==
                       "LOCATION_SPORT_PRIORITIES"
                     ? "Calculando o impacto da nova prioridade de quadras…"
@@ -2171,6 +2171,28 @@ export function AdminChampionshipSchedule({
                     <p className="text-muted-foreground">
                       A configuração da quadra será atualizada sem necessidade
                       de alterar a posição dos jogos.
+                    </p>
+                  )}
+                </div>
+              ) : reconfigurationPreview.action ==
+                "KNOCKOUT_COURT_PRIORITIES" ? (
+                <div className="space-y-1">
+                  {reconfigurationPreview.affected_matches > 0 ? (
+                    <>
+                      <p>
+                        <strong>{reconfigurationPreview.affected_matches}</strong>{" "}
+                        jogo(s) poderão ter data, horário, quadra ou posição
+                        recalculados.
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Revise as prioridades solicitadas e os jogos afetados
+                        antes de aplicar.
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-muted-foreground">
+                      As prioridades serão atualizadas sem necessidade de mover
+                      jogos.
                     </p>
                   )}
                 </div>
@@ -2366,6 +2388,65 @@ export function AdminChampionshipSchedule({
                                 {String(
                                   change.target_sequence_label ?? "Flexível",
                                 )}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+              {reconfigurationPreview.action == "KNOCKOUT_COURT_PRIORITIES" &&
+              pendingReconfiguration ? (
+                <div className="space-y-3">
+                  <div>
+                    <p className="font-semibold">
+                      {String(
+                        pendingReconfiguration.payload.sport_name ??
+                          "Modalidade",
+                      )}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Prioridades do mata-mata
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    {(Array.isArray(
+                      pendingReconfiguration.payload.priority_changes,
+                    )
+                      ? pendingReconfiguration.payload.priority_changes
+                      : []
+                    ).map((rawChange, index) => {
+                      const change = rawChange as Record<string, unknown>;
+
+                      return (
+                        <div
+                          key={`${String(change.phase ?? index)}:${String(
+                            change.division_scope ?? "",
+                          )}`}
+                          className="rounded-xl border border-border/60 p-3"
+                        >
+                          <div className="mb-3">
+                            <p className="text-sm font-medium">
+                              {String(change.phase_label ?? "Mata-mata")}
+                            </p>
+                          </div>
+                          <div className="grid gap-2 md:grid-cols-2">
+                            <div className="rounded-lg border border-border/50 bg-muted/20 p-3">
+                              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                Antes
+                              </p>
+                              <p className="text-sm font-medium">
+                                {String(change.current_label ?? "Automático")}
+                              </p>
+                            </div>
+                            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+                              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-primary">
+                                Depois
+                              </p>
+                              <p className="text-sm font-medium">
+                                {String(change.target_label ?? "Automático")}
                               </p>
                             </div>
                           </div>
@@ -2731,6 +2812,12 @@ export function AdminChampionshipSchedule({
                   sequenciamento.
                 </p>
               ) : reconfigurationPreview.action ==
+                "KNOCKOUT_COURT_PRIORITIES" ? (
+                <p className="text-muted-foreground">
+                  Nenhum jogo precisa ser redistribuído para aplicar estas
+                  prioridades.
+                </p>
+              ) : reconfigurationPreview.action ==
                 "LOCATION_SPORT_PRIORITIES" ? (
                 <p className="text-muted-foreground">
                   Nenhum jogo precisa ser redistribuído para aplicar esta
@@ -2774,6 +2861,9 @@ export function AdminChampionshipSchedule({
                     : reconfigurationPreview?.action ==
                         "COURT_SPORT_SEQUENCE"
                       ? "Aplicar sequenciamento"
+                    : reconfigurationPreview?.action ==
+                        "KNOCKOUT_COURT_PRIORITIES"
+                      ? "Aplicar prioridades do mata-mata"
                     : reconfigurationPreview?.action ==
                         "LOCATION_SPORT_PRIORITIES"
                       ? "Aplicar prioridades de quadra"
