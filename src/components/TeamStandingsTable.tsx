@@ -5,6 +5,7 @@ import {
   resolveTeamStandingAggregateKey,
   type TeamStandingAggregate,
 } from "@/lib/standings";
+import { TableSkeleton } from "@/components/skeletons/TableSkeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Shuffle } from "lucide-react";
 import { type ModalidadeConfig, type StandingsColumnKey, STANDINGS_COLUMN_LABELS, STANDINGS_COLUMN_TOOLTIPS } from "@/lib/modalidadeConfig";
@@ -65,25 +66,19 @@ export function TeamStandingsTable({
   disqualifiedTeamKeys,
 }: Props) {
   if (isLoading) {
-    return (
-      <div className="glass-panel enter-section overflow-hidden p-1">
-        <div className="space-y-4">
-          <div className="bg-secondary/40 h-10 w-full animate-pulse rounded-t-lg" />
-          <div className="space-y-2 px-3 pb-3">
-            {Array.from({ length: 10 }).map((_, index) => (
-              <div key={`standings-skeleton-${index}`} className="flex gap-3">
-                <div className="h-8 w-8 animate-pulse rounded bg-secondary/20" />
-                <div className="h-8 flex-1 animate-pulse rounded bg-secondary/20" />
-                <div className="h-8 w-10 animate-pulse rounded bg-secondary/20" />
-                <div className="h-8 w-10 animate-pulse rounded bg-secondary/20" />
-                <div className="h-8 w-12 animate-pulse rounded bg-secondary/20" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const columnsCount =
+    variant === "public"
+      ? 3
+      : (modalidadeConfig?.display_columns ?? DEFAULT_COLUMNS).length + 3;
+
+  return (
+    <TableSkeleton
+      rows={10}
+      columns={columnsCount}
+      className="enter-section"
+    />
+  );
+}
 
   if (standings.length === 0) {
     return <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma classificação disponível.</p>;

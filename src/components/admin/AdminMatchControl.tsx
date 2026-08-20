@@ -112,6 +112,7 @@ interface Props {
   championshipId: string;
   seasonYear: number;
   matches: Match[];
+  isInitialLoading?: boolean;
   championshipStatus: ChampionshipStatus;
   championshipSports: ChampionshipSport[];
   championshipBracketView: ChampionshipBracketView;
@@ -168,7 +169,9 @@ function formatDateOnlyInBrazilianFormat(value: string | null) {
 }
 
 function isIndividualMeasurementEvent(eventCode: string) {
-  return eventCode == "ATHLETICS_SHOT_PUT" || eventCode == "ATHLETICS_LONG_JUMP";
+  return (
+    eventCode == "ATHLETICS_SHOT_PUT" || eventCode == "ATHLETICS_LONG_JUMP"
+  );
 }
 
 type SaveStatus = "saving" | "saved" | "error";
@@ -577,6 +580,7 @@ export function AdminMatchControl({
   championshipId,
   seasonYear,
   matches,
+  isInitialLoading = false,
   championshipStatus,
   championshipSports,
   championshipBracketView,
@@ -652,12 +656,29 @@ export function AdminMatchControl({
   >({});
   const [sessionParticipantsBySessionId, setSessionParticipantsBySessionId] =
     useState<Record<string, Team[]>>({});
-  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
-  const [selectedEventIdBySessionId, setSelectedEventIdBySessionId] = useState<Record<string, string>>({});
-  const [individualResultDraftByEntryId, setIndividualResultDraftByEntryId] = useState<Record<string, IndividualResultDraft>>({});
-  const [resultSavingByEventId, setResultSavingByEventId] = useState<Record<string, boolean>>({});
-  const [showReturnIndividualSessionDialog, setShowReturnIndividualSessionDialog] = useState(false);
-  const [pendingReturnIndividualSessionId, setPendingReturnIndividualSessionId] = useState<string | null>(null);
+  const [sessionParticipantsLoading, setSessionParticipantsLoading] =
+    useState(true);
+
+  const hasCompletedInitialControlLoadRef = useRef(false);
+  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(
+    null,
+  );
+  const [selectedEventIdBySessionId, setSelectedEventIdBySessionId] = useState<
+    Record<string, string>
+  >({});
+  const [individualResultDraftByEntryId, setIndividualResultDraftByEntryId] =
+    useState<Record<string, IndividualResultDraft>>({});
+  const [resultSavingByEventId, setResultSavingByEventId] = useState<
+    Record<string, boolean>
+  >({});
+  const [
+    showReturnIndividualSessionDialog,
+    setShowReturnIndividualSessionDialog,
+  ] = useState(false);
+  const [
+    pendingReturnIndividualSessionId,
+    setPendingReturnIndividualSessionId,
+  ] = useState<string | null>(null);
 
   const isDraftDirtyByMatchIdRef = useRef<Record<string, boolean>>({});
   const persistedDraftByMatchIdRef = useRef<
@@ -954,6 +975,7 @@ export function AdminMatchControl({
     sessions: individualSessions,
     events: individualEvents,
     entries: individualEntries = EMPTY_INDIVIDUAL_ENTRIES,
+    loading: individualEventsLoading,
     refetch: refetchIndividualEvents,
   } = useChampionshipIndividualEvents({
     championshipId,
@@ -976,30 +998,62 @@ export function AdminMatchControl({
   }, [controlSports, sportFilter]);
 
   useEffect(() => {
+    if (individualEventsLoading) {
+      return;
+    }
+
     if (individualSessions.length == 0) {
       setSessionParticipantsBySessionId({});
+      setSessionParticipantsLoading(false);
       return;
     }
 
     let isMounted = true;
 
+    setSessionParticipantsLoading(true);
+
     void Promise.all(
       individualSessions.map(async (session) => {
-        const response = await fetchChampionshipIndividualSessionParticipants(session.id);
+        const response = await fetchChampionshipIndividualSessionParticipants(
+          session.id,
+        );
+
         return [session.id, response.data] as const;
       }),
-    ).then((rows) => {
-      if (!isMounted) {
-        return;
-      }
+    )
+      .then((rows) => {
+        if (!isMounted) {
+          return;
+        }
 
-      setSessionParticipantsBySessionId(Object.fromEntries(rows));
-    });
+        setSessionParticipantsBySessionId(Object.fromEntries(rows));
+      })
+      .finally(() => {
+        if (!isMounted) {
+          return;
+        }
+
+        setSessionParticipantsLoading(false);
+      });
 
     return () => {
       isMounted = false;
     };
-  }, [individualSessions]);
+  }, [individualEventsLoading, individualSessions]);
+
+  const isInitialControlLoading =
+    !hasCompletedInitialControlLoadRef.current &&
+    (isInitialLoading || individualEventsLoading || sessionParticipantsLoading);
+
+  useEffect(() => {
+    if (
+      !isInitialLoading &&
+      !individualEventsLoading &&
+      !sessionParticipantsLoading
+    ) {
+      hasCompletedInitialControlLoadRef.current = true;
+    }
+  }, [isInitialLoading, individualEventsLoading, sessionParticipantsLoading]);
 
   useEffect(() => {
     setIndividualResultDraftByEntryId((current) => {
@@ -1012,8 +1066,10 @@ export function AdminMatchControl({
 
         next[entry.id] = {
           status: entry.status,
-          resultTimeMilliseconds: entry.result_time_milliseconds?.toString() ?? "",
-          resultMarkCentimeters: entry.result_mark_centimeters?.toString() ?? "",
+          resultTimeMilliseconds:
+            entry.result_time_milliseconds?.toString() ?? "",
+          resultMarkCentimeters:
+            entry.result_mark_centimeters?.toString() ?? "",
         };
       });
 
@@ -1022,10 +1078,18 @@ export function AdminMatchControl({
   }, [individualEntries]);
 
   const runSessionAction = useCallback(
-    async (sessionId: string, action: "start" | "finish" | "reopen" | "return") => {
-      if (!canManageScoreboard || championshipStatus !== ChampionshipStatus.IN_PROGRESS) {
+    async (
+      sessionId: string,
+      action: "start" | "finish" | "reopen" | "return",
+    ) => {
+      if (
+        !canManageScoreboard ||
+        championshipStatus !== ChampionshipStatus.IN_PROGRESS
+      ) {
         if (championshipStatus !== ChampionshipStatus.IN_PROGRESS) {
-          toast.error("As sessões individuais só podem ser operadas com o campeonato em andamento.");
+          toast.error(
+            "As sessões individuais só podem ser operadas com o campeonato em andamento.",
+          );
         }
         return;
       }
@@ -1069,49 +1133,68 @@ export function AdminMatchControl({
     ],
   );
 
-  const saveIndividualEventResults = useCallback(async (eventId: string) => {
-    const eventEntries = individualEntries.filter((entry) => entry.event_id == eventId);
+  const saveIndividualEventResults = useCallback(
+    async (eventId: string) => {
+      const eventEntries = individualEntries.filter(
+        (entry) => entry.event_id == eventId,
+      );
 
-    setResultSavingByEventId((current) => ({ ...current, [eventId]: true }));
-    const response = await saveChampionshipIndividualEventResults(
-      eventId,
-      eventEntries.map((entry) => {
-        const draft = individualResultDraftByEntryId[entry.id] ?? {
-          status: ChampionshipIndividualEntryStatus.PENDING,
-          resultTimeMilliseconds: "",
-          resultMarkCentimeters: "",
-        };
+      setResultSavingByEventId((current) => ({ ...current, [eventId]: true }));
+      const response = await saveChampionshipIndividualEventResults(
+        eventId,
+        eventEntries.map((entry) => {
+          const draft = individualResultDraftByEntryId[entry.id] ?? {
+            status: ChampionshipIndividualEntryStatus.PENDING,
+            resultTimeMilliseconds: "",
+            resultMarkCentimeters: "",
+          };
 
-        return {
-          entry_id: entry.id,
-          status: draft.status,
-          result_time_milliseconds: draft.resultTimeMilliseconds ? Number(draft.resultTimeMilliseconds) : null,
-          result_mark_centimeters: draft.resultMarkCentimeters ? Number(draft.resultMarkCentimeters) : null,
-        };
-      }),
-    );
-    setResultSavingByEventId((current) => ({ ...current, [eventId]: false }));
+          return {
+            entry_id: entry.id,
+            status: draft.status,
+            result_time_milliseconds: draft.resultTimeMilliseconds
+              ? Number(draft.resultTimeMilliseconds)
+              : null,
+            result_mark_centimeters: draft.resultMarkCentimeters
+              ? Number(draft.resultMarkCentimeters)
+              : null,
+          };
+        }),
+      );
+      setResultSavingByEventId((current) => ({ ...current, [eventId]: false }));
 
-    if (response.error) {
-      toast.error(response.error.message);
-      return;
-    }
+      if (response.error) {
+        toast.error(response.error.message);
+        return;
+      }
 
-    toast.success("Resultados registrados e classificação recalculada.");
-    await refetchIndividualEvents();
-  }, [individualEntries, individualResultDraftByEntryId, refetchIndividualEvents]);
+      toast.success("Resultados registrados e classificação recalculada.");
+      await refetchIndividualEvents();
+    },
+    [
+      individualEntries,
+      individualResultDraftByEntryId,
+      refetchIndividualEvents,
+    ],
+  );
 
-  const markIndividualEventTeamWalkover = useCallback(async (eventId: string, teamId: string) => {
-    const response = await markChampionshipIndividualEventTeamWalkover(eventId, teamId);
+  const markIndividualEventTeamWalkover = useCallback(
+    async (eventId: string, teamId: string) => {
+      const response = await markChampionshipIndividualEventTeamWalkover(
+        eventId,
+        teamId,
+      );
 
-    if (response.error) {
-      toast.error(response.error.message);
-      return;
-    }
+      if (response.error) {
+        toast.error(response.error.message);
+        return;
+      }
 
-    toast.success("W.O. registrado para esta atlética nesta prova.");
-    await refetchIndividualEvents();
-  }, [refetchIndividualEvents]);
+      toast.success("W.O. registrado para esta atlética nesta prova.");
+      await refetchIndividualEvents();
+    },
+    [refetchIndividualEvents],
+  );
 
   const championshipBracketScheduleDays = useMemo(() => {
     return resolveChampionshipBracketScheduleDays(championshipBracketView);
@@ -2739,7 +2822,10 @@ export function AdminMatchControl({
     ].sort((firstLocation, secondLocation) =>
       firstLocation.localeCompare(secondLocation),
     );
-  }, [individualSessionsFilteredByPrimaryCriteria, matchesFilteredByPrimaryCriteria]);
+  }, [
+    individualSessionsFilteredByPrimaryCriteria,
+    matchesFilteredByPrimaryCriteria,
+  ]);
 
   const courtOptions = useMemo(() => {
     const uniqueCourtNames = new Set<string>();
@@ -2900,10 +2986,7 @@ export function AdminMatchControl({
 
   const controlItemsCount =
     sortedMatches.length + visibleIndividualSessions.length;
-  const totalPages = Math.max(
-    1,
-    Math.ceil(controlItemsCount / itemsPerPage),
-  );
+  const totalPages = Math.max(1, Math.ceil(controlItemsCount / itemsPerPage));
 
   const paginatedMatches = useMemo(() => {
     const rangeStart = (currentPage - 1) * itemsPerPage;
@@ -2928,7 +3011,12 @@ export function AdminMatchControl({
       individualSessionsRangeStart,
       individualSessionsRangeEnd,
     );
-  }, [currentPage, itemsPerPage, sortedMatches.length, visibleIndividualSessions]);
+  }, [
+    currentPage,
+    itemsPerPage,
+    sortedMatches.length,
+    visibleIndividualSessions,
+  ]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -2945,44 +3033,96 @@ export function AdminMatchControl({
     scrollToTopOfPage();
   }, [currentPage]);
 
+  if (isInitialControlLoading) {
+    return (
+      <div className="enter-section space-y-4">
+        <div className="glass-card space-y-4 p-4">
+          <Skeleton className="h-4 w-48" />
+
+          <div className="flex gap-3">
+            <Skeleton className="h-10 flex-1" />
+            <Skeleton className="h-10 flex-1" />
+            <Skeleton className="h-10 flex-1" />
+            <Skeleton className="h-10 flex-1" />
+          </div>
+        </div>
+
+        {Array.from({ length: 3 }).map((_, index) => (
+          <Skeleton
+            key={`admin-control-initial-skeleton-${index}`}
+            className="h-56 w-full rounded-2xl"
+          />
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="enter-section flex flex-col gap-4">
       {paginatedIndividualSessions.length > 0 ? (
         <div className="contents">
           {paginatedIndividualSessions.map((session) => {
-            const linkedEvents = individualEvents.filter((event) => event.session_id == session.id);
-            const configuredParticipants = sessionParticipantsBySessionId[session.id] ?? [];
-            const sortedConfiguredParticipants = [...configuredParticipants].sort(
-              (firstParticipant, secondParticipant) =>
-                firstParticipant.name.localeCompare(secondParticipant.name, "pt-BR"),
+            const linkedEvents = individualEvents.filter(
+              (event) => event.session_id == session.id,
             );
-            const isSessionActionLoading = sessionActionLoadingById[session.id] == true;
-            const isOperational = canManageScoreboard && championshipStatus == ChampionshipStatus.IN_PROGRESS;
+            const configuredParticipants =
+              sessionParticipantsBySessionId[session.id] ?? [];
+            const sortedConfiguredParticipants = [
+              ...configuredParticipants,
+            ].sort((firstParticipant, secondParticipant) =>
+              firstParticipant.name.localeCompare(
+                secondParticipant.name,
+                "pt-BR",
+              ),
+            );
+            const isSessionActionLoading =
+              sessionActionLoadingById[session.id] == true;
+            const isOperational =
+              canManageScoreboard &&
+              championshipStatus == ChampionshipStatus.IN_PROGRESS;
             const isScheduled = session.status == "SCHEDULED";
             const isLive = session.status == "LIVE";
             const isExpanded = expandedSessionId == session.id;
-            const selectedEvent = linkedEvents.find((event) => event.id == selectedEventIdBySessionId[session.id]) ?? linkedEvents[0];
+            const selectedEvent =
+              linkedEvents.find(
+                (event) => event.id == selectedEventIdBySessionId[session.id],
+              ) ?? linkedEvents[0];
             const selectedEventEntries = selectedEvent
-              ? individualEntries.filter((entry) => entry.event_id == selectedEvent.id)
+              ? individualEntries.filter(
+                  (entry) => entry.event_id == selectedEvent.id,
+                )
               : [];
-            const isMeasurementEvent = selectedEvent ? isIndividualMeasurementEvent(selectedEvent.event_code) : false;
+            const isMeasurementEvent = selectedEvent
+              ? isIndividualMeasurementEvent(selectedEvent.event_code)
+              : false;
 
             return (
-              <div key={session.id} className="order-3 space-y-4 glass-card p-5">
+              <div
+                key={session.id}
+                className="order-3 space-y-4 glass-card p-5"
+              >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="order-2 space-y-1 sm:order-1">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span className="shrink-0 text-xs uppercase text-muted-foreground">
                         {session.sports?.name}
-                        {session.location_name ? ` • ${session.location_name}` : ""}
+                        {session.location_name
+                          ? ` • ${session.location_name}`
+                          : ""}
                         {session.court_name ? ` • ${session.court_name}` : ""}
                       </span>
                       <div className="flex flex-wrap items-center gap-1">
-                        <AppBadge tone={resolveMatchNaipeBadgeTone(String(session.naipe))}>
+                        <AppBadge
+                          tone={resolveMatchNaipeBadgeTone(
+                            String(session.naipe),
+                          )}
+                        >
                           {resolveMatchNaipeLabel(String(session.naipe))}
                         </AppBadge>
                         {session.division ? (
-                          <AppBadge tone={TEAM_DIVISION_BADGE_TONES[session.division]}>
+                          <AppBadge
+                            tone={TEAM_DIVISION_BADGE_TONES[session.division]}
+                          >
                             {TEAM_DIVISION_LABELS[session.division]}
                           </AppBadge>
                         ) : null}
@@ -2990,44 +3130,111 @@ export function AdminMatchControl({
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {formatDateOnlyInBrazilianFormat(session.scheduled_date)}
-                      {session.period ? ` • ${session.period == "MATUTINO" ? "Matutino" : "Vespertino"}` : ""}
+                      {session.period
+                        ? ` • ${session.period == "MATUTINO" ? "Matutino" : "Vespertino"}`
+                        : ""}
                     </p>
                   </div>
                   <div className="order-1 flex w-full flex-wrap items-center gap-2 sm:order-2 sm:w-auto sm:justify-end">
                     <Button
                       type="button"
                       variant="outline"
+                      size="sm"
+                      className="h-9 w-9 p-0 sm:w-auto sm:px-3"
+                      aria-label="Registrar resultados"
+                      title="Registrar resultados"
                       disabled={!isOperational || !isLive}
                       onClick={() => {
-                        setExpandedSessionId((current) => current == session.id ? null : session.id);
-                        if (!selectedEventIdBySessionId[session.id] && linkedEvents[0]) {
-                          setSelectedEventIdBySessionId((current) => ({ ...current, [session.id]: linkedEvents[0].id }));
+                        setExpandedSessionId((current) =>
+                          current == session.id ? null : session.id,
+                        );
+
+                        if (
+                          !selectedEventIdBySessionId[session.id] &&
+                          linkedEvents[0]
+                        ) {
+                          setSelectedEventIdBySessionId((current) => ({
+                            ...current,
+                            [session.id]: linkedEvents[0].id,
+                          }));
                         }
                       }}
                     >
-                      Registrar resultados
+                      <Pencil className="h-4 w-4 sm:mr-1" />
+                      <span className="hidden sm:inline">
+                        Registrar resultados
+                      </span>
                     </Button>
                     {isScheduled ? (
-                      <Button type="button" variant="outline" disabled={isSessionActionLoading || !isOperational} onClick={() => void runSessionAction(session.id, "start")}>
-                        <Play className="h-4 w-4" /> Iniciar sessão
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-9 w-9 p-0 sm:w-auto sm:px-3"
+                        aria-label="Iniciar sessão"
+                        title="Iniciar sessão"
+                        disabled={isSessionActionLoading || !isOperational}
+                        onClick={() =>
+                          void runSessionAction(session.id, "start")
+                        }
+                      >
+                        <Play className="h-4 w-4 sm:mr-1" />
+                        <span className="hidden sm:inline">Iniciar sessão</span>
                       </Button>
                     ) : null}
                     {isLive ? (
                       <>
-                        <Button type="button" variant="outline" disabled={isSessionActionLoading || !isOperational} onClick={() => {
-                          setPendingReturnIndividualSessionId(session.id);
-                          setShowReturnIndividualSessionDialog(true);
-                        }}>
-                          <RotateCcw className="h-4 w-4" /> Voltar para agendada
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-9 w-9 p-0 sm:w-auto sm:px-3"
+                          aria-label="Voltar para agendada"
+                          title="Voltar para agendada"
+                          disabled={isSessionActionLoading || !isOperational}
+                          onClick={() => {
+                            setPendingReturnIndividualSessionId(session.id);
+                            setShowReturnIndividualSessionDialog(true);
+                          }}
+                        >
+                          <RotateCcw className="h-4 w-4 sm:mr-1" />
+                          <span className="hidden sm:inline">
+                            Voltar para agendada
+                          </span>
                         </Button>
-                        <Button type="button" disabled={isSessionActionLoading || !isOperational} onClick={() => void runSessionAction(session.id, "finish")}>
-                          <Square className="h-4 w-4" /> Encerrar sessão
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-9 w-9 p-0 sm:w-auto sm:px-3"
+                          aria-label="Encerrar sessão"
+                          title="Encerrar sessão"
+                          disabled={isSessionActionLoading || !isOperational}
+                          onClick={() =>
+                            void runSessionAction(session.id, "finish")
+                          }
+                        >
+                          <Square className="h-4 w-4 sm:mr-1" />
+                          <span className="hidden sm:inline">
+                            Encerrar sessão
+                          </span>
                         </Button>
                       </>
                     ) : null}
                     {session.status == "FINISHED" ? (
-                      <Button type="button" variant="outline" disabled={isSessionActionLoading || !isOperational} onClick={() => void runSessionAction(session.id, "reopen")}>
-                        <RotateCcw className="h-4 w-4" /> Reabrir sessão
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-9 w-9 p-0 sm:w-auto sm:px-3"
+                        aria-label="Reabrir sessão"
+                        title="Reabrir sessão"
+                        disabled={isSessionActionLoading || !isOperational}
+                        onClick={() =>
+                          void runSessionAction(session.id, "reopen")
+                        }
+                      >
+                        <RotateCcw className="h-4 w-4 sm:mr-1" />
+                        <span className="hidden sm:inline">Reabrir sessão</span>
                       </Button>
                     ) : null}
                     {session.status != "SCHEDULED" ? (
@@ -3050,14 +3257,24 @@ export function AdminMatchControl({
 
                 <div className="rounded-xl border border-border/50 px-3 py-3">
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Atléticas participantes ({sortedConfiguredParticipants.length})
+                    Atléticas participantes (
+                    {sortedConfiguredParticipants.length})
                   </p>
                   {sortedConfiguredParticipants.length > 0 ? (
                     <div className="mt-3 columns-1 gap-4 md:columns-2 xl:columns-4">
                       {sortedConfiguredParticipants.map((participant) => (
-                        <div key={participant.id} className="mb-2 flex break-inside-avoid flex-wrap items-center gap-2 text-sm">
-                          <span className="font-medium">{participant.name}</span>
-                          <AppBadge tone={TEAM_DIVISION_BADGE_TONES[participant.division]}>
+                        <div
+                          key={participant.id}
+                          className="mb-2 flex break-inside-avoid flex-wrap items-center gap-2 text-sm"
+                        >
+                          <span className="font-medium">
+                            {participant.name}
+                          </span>
+                          <AppBadge
+                            tone={
+                              TEAM_DIVISION_BADGE_TONES[participant.division]
+                            }
+                          >
                             {TEAM_DIVISION_LABELS[participant.division]}
                           </AppBadge>
                         </div>
@@ -3075,40 +3292,187 @@ export function AdminMatchControl({
                     <div className="flex flex-wrap items-end gap-3">
                       <div className="min-w-64 flex-1">
                         <p className="mb-1 text-xs font-medium">Prova</p>
-                        <Select value={selectedEvent.id} onValueChange={(eventId) => setSelectedEventIdBySessionId((current) => ({ ...current, [session.id]: eventId }))}>
-                          <SelectTrigger className="app-input-field"><SelectValue /></SelectTrigger>
-                          <SelectContent>{linkedEvents.map((event) => <SelectItem key={event.id} value={event.id}>{event.name}</SelectItem>)}</SelectContent>
+                        <Select
+                          value={selectedEvent.id}
+                          onValueChange={(eventId) =>
+                            setSelectedEventIdBySessionId((current) => ({
+                              ...current,
+                              [session.id]: eventId,
+                            }))
+                          }
+                        >
+                          <SelectTrigger className="app-input-field">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {linkedEvents.map((event) => (
+                              <SelectItem key={event.id} value={event.id}>
+                                {event.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
                         </Select>
                       </div>
-                      <Button type="button" disabled={resultSavingByEventId[selectedEvent.id] || !isOperational || !isLive} onClick={() => void saveIndividualEventResults(selectedEvent.id)}>
+                      <Button
+                        type="button"
+                        disabled={
+                          resultSavingByEventId[selectedEvent.id] ||
+                          !isOperational ||
+                          !isLive
+                        }
+                        onClick={() =>
+                          void saveIndividualEventResults(selectedEvent.id)
+                        }
+                      >
                         Confirmar resultados
                       </Button>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {isMeasurementEvent ? "Informe a marca em centímetros. A maior marca vence." : "Informe o tempo em milissegundos. O menor tempo vence."}
+                      {isMeasurementEvent
+                        ? "Informe a marca em centímetros. A maior marca vence."
+                        : "Informe o tempo em milissegundos. O menor tempo vence."}
                     </p>
                     {selectedEventEntries.map((entry, entryIndex) => {
-                      const draft = individualResultDraftByEntryId[entry.id] ?? { status: entry.status, resultTimeMilliseconds: "", resultMarkCentimeters: "" };
-                      const entryDescription = entry.athlete_name ?? entry.members?.filter((member) => member.is_starter).map((member) => member.athlete_name).join(", ") ?? "-";
-                      const isFirstEntryForTeam = selectedEventEntries.findIndex((candidate) => candidate.team_id == entry.team_id) == entryIndex;
+                      const draft = individualResultDraftByEntryId[
+                        entry.id
+                      ] ?? {
+                        status: entry.status,
+                        resultTimeMilliseconds: "",
+                        resultMarkCentimeters: "",
+                      };
+                      const entryDescription =
+                        entry.athlete_name ??
+                        entry.members
+                          ?.filter((member) => member.is_starter)
+                          .map((member) => member.athlete_name)
+                          .join(", ") ??
+                        "-";
+                      const isFirstEntryForTeam =
+                        selectedEventEntries.findIndex(
+                          (candidate) => candidate.team_id == entry.team_id,
+                        ) == entryIndex;
                       return (
-                        <div key={entry.id} className="grid gap-3 rounded-xl border border-border/50 p-3 lg:grid-cols-[2fr_1fr_1fr_auto]">
-                          <div><p className="font-medium">{entry.teams?.name ?? "Atlética"}</p><p className="text-xs text-muted-foreground">{entryDescription}</p></div>
-                          <Select value={draft.status} disabled={!isOperational || !isLive} onValueChange={(status) => setIndividualResultDraftByEntryId((current) => ({ ...current, [entry.id]: { ...draft, status: status as ChampionshipIndividualEntryStatus } }))}>
-                            <SelectTrigger className="app-input-field"><SelectValue /></SelectTrigger>
+                        <div
+                          key={entry.id}
+                          className="grid gap-3 rounded-xl border border-border/50 p-3 lg:grid-cols-[2fr_1fr_1fr_auto]"
+                        >
+                          <div>
+                            <p className="font-medium">
+                              {entry.teams?.name ?? "Atlética"}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {entryDescription}
+                            </p>
+                          </div>
+                          <Select
+                            value={draft.status}
+                            disabled={!isOperational || !isLive}
+                            onValueChange={(status) =>
+                              setIndividualResultDraftByEntryId((current) => ({
+                                ...current,
+                                [entry.id]: {
+                                  ...draft,
+                                  status:
+                                    status as ChampionshipIndividualEntryStatus,
+                                },
+                              }))
+                            }
+                          >
+                            <SelectTrigger className="app-input-field">
+                              <SelectValue />
+                            </SelectTrigger>
                             <SelectContent>
-                              {draft.status == ChampionshipIndividualEntryStatus.WALKOVER ? <SelectItem value={ChampionshipIndividualEntryStatus.WALKOVER} disabled>{INDIVIDUAL_ENTRY_STATUS_LABELS[ChampionshipIndividualEntryStatus.WALKOVER]}</SelectItem> : null}
-                              {[ChampionshipIndividualEntryStatus.PENDING, ChampionshipIndividualEntryStatus.CONFIRMED, ChampionshipIndividualEntryStatus.DSQ].map((status) => <SelectItem key={status} value={status}>{INDIVIDUAL_ENTRY_STATUS_LABELS[status]}</SelectItem>)}
+                              {draft.status ==
+                              ChampionshipIndividualEntryStatus.WALKOVER ? (
+                                <SelectItem
+                                  value={
+                                    ChampionshipIndividualEntryStatus.WALKOVER
+                                  }
+                                  disabled
+                                >
+                                  {
+                                    INDIVIDUAL_ENTRY_STATUS_LABELS[
+                                      ChampionshipIndividualEntryStatus.WALKOVER
+                                    ]
+                                  }
+                                </SelectItem>
+                              ) : null}
+                              {[
+                                ChampionshipIndividualEntryStatus.PENDING,
+                                ChampionshipIndividualEntryStatus.CONFIRMED,
+                                ChampionshipIndividualEntryStatus.DSQ,
+                              ].map((status) => (
+                                <SelectItem key={status} value={status}>
+                                  {INDIVIDUAL_ENTRY_STATUS_LABELS[status]}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
-                          <Input type="number" min={0} disabled={!isOperational || !isLive || draft.status != ChampionshipIndividualEntryStatus.CONFIRMED} value={isMeasurementEvent ? draft.resultMarkCentimeters : draft.resultTimeMilliseconds} placeholder={isMeasurementEvent ? "Marca (cm)" : "Tempo (ms)"} onChange={(input) => setIndividualResultDraftByEntryId((current) => ({ ...current, [entry.id]: { ...draft, resultTimeMilliseconds: isMeasurementEvent ? "" : input.target.value, resultMarkCentimeters: isMeasurementEvent ? input.target.value : "" } }))} />
-                          <div className="flex flex-wrap items-center gap-2 text-sm"><span>{entry.final_position ? `${entry.final_position}º • ${entry.points_awarded} pts` : "Sem classificação"}</span>{isFirstEntryForTeam ? <Button type="button" variant="outline" size="sm" disabled={!isOperational || !isLive || draft.status == ChampionshipIndividualEntryStatus.WALKOVER} onClick={() => void markIndividualEventTeamWalkover(selectedEvent.id, entry.team_id)}>Aplicar W.O.</Button> : null}</div>
+                          <Input
+                            type="number"
+                            min={0}
+                            disabled={
+                              !isOperational ||
+                              !isLive ||
+                              draft.status !=
+                                ChampionshipIndividualEntryStatus.CONFIRMED
+                            }
+                            value={
+                              isMeasurementEvent
+                                ? draft.resultMarkCentimeters
+                                : draft.resultTimeMilliseconds
+                            }
+                            placeholder={
+                              isMeasurementEvent ? "Marca (cm)" : "Tempo (ms)"
+                            }
+                            onChange={(input) =>
+                              setIndividualResultDraftByEntryId((current) => ({
+                                ...current,
+                                [entry.id]: {
+                                  ...draft,
+                                  resultTimeMilliseconds: isMeasurementEvent
+                                    ? ""
+                                    : input.target.value,
+                                  resultMarkCentimeters: isMeasurementEvent
+                                    ? input.target.value
+                                    : "",
+                                },
+                              }))
+                            }
+                          />
+                          <div className="flex flex-wrap items-center gap-2 text-sm">
+                            <span>
+                              {entry.final_position
+                                ? `${entry.final_position}º • ${entry.points_awarded} pts`
+                                : "Sem classificação"}
+                            </span>
+                            {isFirstEntryForTeam ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={
+                                  !isOperational ||
+                                  !isLive ||
+                                  draft.status ==
+                                    ChampionshipIndividualEntryStatus.WALKOVER
+                                }
+                                onClick={() =>
+                                  void markIndividualEventTeamWalkover(
+                                    selectedEvent.id,
+                                    entry.team_id,
+                                  )
+                                }
+                              >
+                                Aplicar W.O.
+                              </Button>
+                            ) : null}
+                          </div>
                         </div>
                       );
                     })}
                   </div>
                 ) : null}
-
               </div>
             );
           })}
@@ -3117,7 +3481,8 @@ export function AdminMatchControl({
 
       <div className="order-1 glass-card enter-section space-y-4 p-4">
         <p className="text-sm text-muted-foreground">
-          {controlItemsCount} {controlItemsCount == 1
+          {controlItemsCount}{" "}
+          {controlItemsCount == 1
             ? "item de controle encontrado"
             : "itens de controle encontrados"}
         </p>
@@ -3273,1210 +3638,1391 @@ export function AdminMatchControl({
       </div>
 
       <div className="contents">
-      {isFetchingMatches ? (
-        <div className="space-y-3">
-          {Array.from({ length: Math.max(3, itemsPerPage) }).map((_, index) => (
-            <Skeleton
-              key={`admin-control-skeleton-${index}`}
-              className="h-56 w-full rounded-2xl"
-            />
-          ))}
-        </div>
-      ) : sortedMatches.length == 0 && visibleIndividualSessions.length == 0 ? (
-        <p className="text-sm text-muted-foreground">
-          {showOnlyLiveMatches
-            ? "Nenhum jogo ao vivo para os filtros selecionados."
-            : "Nenhum jogo ao vivo ou agendado."}
-        </p>
-      ) : (
-        <>
-          {paginatedMatches.map((match) => {
-            const matchDraft = getMatchDraft(match);
-            const matchSaveStatus = saveStatusByMatchId[match.id];
-            const matchBracketContext = matchBracketContextByMatchId[match.id];
-            const scheduledDateValue = resolveMatchScheduledDateValue(match);
-            const sportAndDateKey = scheduledDateValue
-              ? `${scheduledDateValue}:${match.sport_id}`
-              : null;
-            const availableCourtsCount = sportAndDateKey
-              ? (availableCourtsCountBySportAndDateKey[sportAndDateKey] ?? 0)
-              : 0;
-            const liveMatchesCount = sportAndDateKey
-              ? (liveMatchesCountBySportAndDateKey[sportAndDateKey] ?? 0)
-              : 0;
-            const isMatchStartBlocked =
-              match.status == MatchStatus.SCHEDULED &&
-              availableCourtsCount > 0 &&
-              liveMatchesCount >= availableCourtsCount;
-            const queueLabel = resolveDisplayedMatchQueueLabel(
-              match,
-              visualQueuePositionByMatchId[match.id],
-            );
-            const queueSummary = scheduledDateValue
-              ? `${format(new Date(`${scheduledDateValue}T12:00:00`), "dd/MM", { locale: ptBR })} • ${queueLabel}`
-              : queueLabel;
-            const isSetMatch = isSetRuleMatch(match);
-            const supportsCards = doesMatchSupportCards(match);
-            const handballMatch = isHandballMatch(match);
-            const closedMatchSets = resolveClosedMatchSets(match);
-            const displayedSetWins = resolveDisplayedSetWins(match);
-            const setSummary = resolveMatchSetSummary({
-              ...match,
-              match_sets: closedMatchSets,
-            });
-            const editingSetDraft = editingSetDraftByMatchId[match.id];
-            const startedAtLabel = resolveMatchStartedAtLabel(
-              match.start_time,
-              match.status,
-            );
-            const tieBreakRuleLabel = resolveMatchTieBreakRuleLabel(
-              match.resolved_tie_breaker_rule,
-            );
-            const penaltyShootoutSummary = resolveMatchPenaltyShootoutSummary(
-              match,
-              matchBracketContext,
-            );
-            const matchRepresentation = matchRepresentationByMatchId[match.id];
-            const estimatedStartTime = estimatedStartTimeByMatchId[match.id];
-            const matchLocationLabel = match.court_name
-              ? `${match.location} • ${match.court_name}`
-              : match.location;
-            const displayedHomeScore =
-              isSetMatch && match.status != MatchStatus.LIVE
-                ? displayedSetWins.home_sets
-                : matchDraft.homeScore;
-            const displayedAwayScore =
-              isSetMatch && match.status != MatchStatus.LIVE
-                ? displayedSetWins.away_sets
-                : matchDraft.awayScore;
-            const hasCurrentSetScore =
-              Number(matchDraft.homeScore) > 0 ||
-              Number(matchDraft.awayScore) > 0;
-            const isChampionshipStartBlocked =
-              championshipStatus != ChampionshipStatus.IN_PROGRESS;
-            const selectedWalkoverMode = resolveSelectedWalkoverMode(match);
-            const hasWalkoverSelection =
-              selectedWalkoverMode != WALKOVER_MODE_NONE;
-            const shouldShowWalkoverSelector =
-              match.status == MatchStatus.SCHEDULED ||
-              match.status == MatchStatus.LIVE;
-            const isKnockoutMatch =
-              matchBracketContext?.phase == BracketPhase.KNOCKOUT;
+        {isFetchingMatches ? (
+          <div className="space-y-3">
+            {Array.from({ length: Math.max(3, itemsPerPage) }).map(
+              (_, index) => (
+                <Skeleton
+                  key={`admin-control-skeleton-${index}`}
+                  className="h-56 w-full rounded-2xl"
+                />
+              ),
+            )}
+          </div>
+        ) : sortedMatches.length == 0 &&
+          visibleIndividualSessions.length == 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {showOnlyLiveMatches
+              ? "Nenhum jogo ao vivo para os filtros selecionados."
+              : "Nenhum jogo ao vivo ou agendado."}
+          </p>
+        ) : (
+          <>
+            {paginatedMatches.map((match) => {
+              const matchDraft = getMatchDraft(match);
+              const matchSaveStatus = saveStatusByMatchId[match.id];
+              const matchBracketContext =
+                matchBracketContextByMatchId[match.id];
+              const scheduledDateValue = resolveMatchScheduledDateValue(match);
+              const sportAndDateKey = scheduledDateValue
+                ? `${scheduledDateValue}:${match.sport_id}`
+                : null;
+              const availableCourtsCount = sportAndDateKey
+                ? (availableCourtsCountBySportAndDateKey[sportAndDateKey] ?? 0)
+                : 0;
+              const liveMatchesCount = sportAndDateKey
+                ? (liveMatchesCountBySportAndDateKey[sportAndDateKey] ?? 0)
+                : 0;
+              const isMatchStartBlocked =
+                match.status == MatchStatus.SCHEDULED &&
+                availableCourtsCount > 0 &&
+                liveMatchesCount >= availableCourtsCount;
+              const queueLabel = resolveDisplayedMatchQueueLabel(
+                match,
+                visualQueuePositionByMatchId[match.id],
+              );
+              const queueSummary = scheduledDateValue
+                ? `${format(new Date(`${scheduledDateValue}T12:00:00`), "dd/MM", { locale: ptBR })} • ${queueLabel}`
+                : queueLabel;
+              const isSetMatch = isSetRuleMatch(match);
+              const supportsCards = doesMatchSupportCards(match);
+              const handballMatch = isHandballMatch(match);
+              const handballMobileTeamColumns = [
+                {
+                  side: "home" as MatchSide,
+                  teamName: match.home_team?.name ?? "Mandante",
+                  counters: [
+                    {
+                      color: "yellow" as CardColor,
+                      label: "Amarelos",
+                      value: matchDraft.homeYellowCards,
+                      className: "text-amber-700 dark:text-amber-500",
+                    },
+                    {
+                      color: "red" as CardColor,
+                      label: "Vermelhos",
+                      value: matchDraft.homeRedCards,
+                      className: "app-text-status-danger",
+                    },
+                    {
+                      color: "blue" as CardColor,
+                      label: "Azuis",
+                      value: matchDraft.homeBlueCards,
+                      className: "text-sky-700",
+                    },
+                    {
+                      color: "twoMinute" as CardColor,
+                      label: "Penal. 2 min",
+                      value: matchDraft.homeTwoMinutePenalties,
+                      className: "text-slate-700 dark:text-slate-300",
+                    },
+                  ],
+                },
+                {
+                  side: "away" as MatchSide,
+                  teamName: match.away_team?.name ?? "Visitante",
+                  counters: [
+                    {
+                      color: "yellow" as CardColor,
+                      label: "Amarelos",
+                      value: matchDraft.awayYellowCards,
+                      className: "text-amber-700 dark:text-amber-500",
+                    },
+                    {
+                      color: "red" as CardColor,
+                      label: "Vermelhos",
+                      value: matchDraft.awayRedCards,
+                      className: "app-text-status-danger",
+                    },
+                    {
+                      color: "blue" as CardColor,
+                      label: "Azuis",
+                      value: matchDraft.awayBlueCards,
+                      className: "text-sky-700",
+                    },
+                    {
+                      color: "twoMinute" as CardColor,
+                      label: "Penal. 2 min",
+                      value: matchDraft.awayTwoMinutePenalties,
+                      className: "text-slate-700 dark:text-slate-300",
+                    },
+                  ],
+                },
+              ];
+              const closedMatchSets = resolveClosedMatchSets(match);
+              const displayedSetWins = resolveDisplayedSetWins(match);
+              const setSummary = resolveMatchSetSummary({
+                ...match,
+                match_sets: closedMatchSets,
+              });
+              const editingSetDraft = editingSetDraftByMatchId[match.id];
+              const startedAtLabel = resolveMatchStartedAtLabel(
+                match.start_time,
+                match.status,
+              );
+              const tieBreakRuleLabel = resolveMatchTieBreakRuleLabel(
+                match.resolved_tie_breaker_rule,
+              );
+              const penaltyShootoutSummary = resolveMatchPenaltyShootoutSummary(
+                match,
+                matchBracketContext,
+              );
+              const matchRepresentation =
+                matchRepresentationByMatchId[match.id];
+              const estimatedStartTime = estimatedStartTimeByMatchId[match.id];
+              const matchLocationLabel = match.court_name
+                ? `${match.location} • ${match.court_name}`
+                : match.location;
+              const displayedHomeScore =
+                isSetMatch && match.status != MatchStatus.LIVE
+                  ? displayedSetWins.home_sets
+                  : matchDraft.homeScore;
+              const displayedAwayScore =
+                isSetMatch && match.status != MatchStatus.LIVE
+                  ? displayedSetWins.away_sets
+                  : matchDraft.awayScore;
+              const hasCurrentSetScore =
+                Number(matchDraft.homeScore) > 0 ||
+                Number(matchDraft.awayScore) > 0;
+              const isChampionshipStartBlocked =
+                championshipStatus != ChampionshipStatus.IN_PROGRESS;
+              const selectedWalkoverMode = resolveSelectedWalkoverMode(match);
+              const hasWalkoverSelection =
+                selectedWalkoverMode != WALKOVER_MODE_NONE;
+              const shouldShowWalkoverSelector =
+                match.status == MatchStatus.SCHEDULED ||
+                match.status == MatchStatus.LIVE;
+              const isKnockoutMatch =
+                matchBracketContext?.phase == BracketPhase.KNOCKOUT;
 
-            const bracketMatch = bracketMatchByMatchId[match.id];
-            const isKnockoutFirstRound =
-              matchBracketContext?.phase == BracketPhase.KNOCKOUT &&
-              bracketMatch != null &&
-              bracketMatch.round_number ==
-                maxRoundByCompetitionId[bracketMatch.competition_id];
-            const firstRoundTeams = bracketMatch
-              ? (firstRoundTeamsByCompetitionId[bracketMatch.competition_id] ??
-                [])
-              : [];
-            const shouldShowKnockoutTeamSwap =
-              isKnockoutFirstRound &&
-              match.status == MatchStatus.SCHEDULED &&
-              !!match.home_team_id &&
-              !!match.away_team_id &&
-              firstRoundTeams.length > 1;
+              const bracketMatch = bracketMatchByMatchId[match.id];
+              const isKnockoutFirstRound =
+                matchBracketContext?.phase == BracketPhase.KNOCKOUT &&
+                bracketMatch != null &&
+                bracketMatch.round_number ==
+                  maxRoundByCompetitionId[bracketMatch.competition_id];
+              const firstRoundTeams = bracketMatch
+                ? (firstRoundTeamsByCompetitionId[
+                    bracketMatch.competition_id
+                  ] ?? [])
+                : [];
+              const shouldShowKnockoutTeamSwap =
+                isKnockoutFirstRound &&
+                match.status == MatchStatus.SCHEDULED &&
+                !!match.home_team_id &&
+                !!match.away_team_id &&
+                firstRoundTeams.length > 1;
 
-            return (
-              <div
-                key={match.id}
-                className={`order-2 space-y-4 glass-card p-5 ${match.status == MatchStatus.LIVE ? "list-item-card-live live-glow" : ""}`}
-              >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  {/* Linha 0 (mobile) / Direita (sm+): ações */}
-                  <div className="order-2 flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
-                    {shouldShowWalkoverSelector ? (
-                      <div className="flex flex-1 items-center gap-1.5 sm:flex-none">
-                        <span
-                          id={`match-walkover-label-${match.id}`}
-                          className="text-xs font-semibold text-muted-foreground"
-                        >
-                          W.O.?
-                        </span>
-                        <Select
-                          value={selectedWalkoverMode}
-                          onValueChange={(value) =>
-                            handleUpdateWalkoverMode(
-                              match,
-                              value as WalkoverMode,
-                            )
+              return (
+                <div
+                  key={match.id}
+                  className={`order-2 space-y-4 glass-card p-5 ${match.status == MatchStatus.LIVE ? "list-item-card-live live-glow" : ""}`}
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    {/* Linha 0 (mobile) / Direita (sm+): ações */}
+                    <div className="order-2 flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+                      {shouldShowWalkoverSelector ? (
+                        <div className="flex flex-1 items-center gap-1.5 sm:flex-none">
+                          <span
+                            id={`match-walkover-label-${match.id}`}
+                            className="text-xs font-semibold text-muted-foreground"
+                          >
+                            W.O.?
+                          </span>
+                          <Select
+                            value={selectedWalkoverMode}
+                            onValueChange={(value) =>
+                              handleUpdateWalkoverMode(
+                                match,
+                                value as WalkoverMode,
+                              )
+                            }
+                            disabled={!canManageScoreboard}
+                          >
+                            <SelectTrigger
+                              aria-labelledby={`match-walkover-label-${match.id}`}
+                              aria-label="W.O.?"
+                              className="h-9 w-full app-input-field px-2 text-xs sm:min-w-36 sm:w-auto"
+                            >
+                              <SelectValue placeholder="Não" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={WALKOVER_MODE_NONE}>
+                                Não
+                              </SelectItem>
+                              <SelectItem value={WALKOVER_MODE_HOME_LOST}>
+                                {match.home_team?.name ?? "Mandante"}
+                              </SelectItem>
+                              <SelectItem value={WALKOVER_MODE_AWAY_LOST}>
+                                {match.away_team?.name ?? "Visitante"}
+                              </SelectItem>
+                              <SelectItem
+                                value={WALKOVER_MODE_DOUBLE}
+                                disabled={isKnockoutMatch}
+                              >
+                                Ambas as atléticas tomaram W.O.
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ) : null}
+
+                      {match.status == MatchStatus.SCHEDULED &&
+                      !hasWalkoverSelection ? (
+                        <Button
+                          size="sm"
+                          onClick={() => handleSetLive(match.id)}
+                          className="bg-live text-primary-foreground hover:bg-live-glow"
+                          disabled={
+                            !canManageScoreboard ||
+                            isMatchStartBlocked ||
+                            isChampionshipStartBlocked
                           }
+                        >
+                          <Play className="h-3 w-3 sm:mr-1" />
+                          <span className="hidden sm:inline">Iniciar</span>
+                        </Button>
+                      ) : null}
+
+                      {match.status == MatchStatus.SCHEDULED &&
+                      hasWalkoverSelection ? (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => {
+                            setPendingFinishMatch(match);
+                            setShowFinishConfirmDialog(true);
+                          }}
+                          disabled={
+                            !canManageScoreboard || isChampionshipStartBlocked
+                          }
+                        >
+                          <Square className="h-3 w-3 sm:mr-1" />
+                          <span className="hidden sm:inline">
+                            Encerrar W.O.
+                          </span>
+                        </Button>
+                      ) : null}
+
+                      {match.status == MatchStatus.LIVE ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setPendingReturnToScheduledMatch(match);
+                            setShowReturnToScheduledConfirmDialog(true);
+                          }}
                           disabled={!canManageScoreboard}
                         >
-                          <SelectTrigger
-                            aria-labelledby={`match-walkover-label-${match.id}`}
-                            aria-label="W.O.?"
-                            className="h-9 w-full app-input-field px-2 text-xs sm:min-w-36 sm:w-auto"
-                          >
-                            <SelectValue placeholder="Não" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={WALKOVER_MODE_NONE}>
-                              Não
-                            </SelectItem>
-                            <SelectItem value={WALKOVER_MODE_HOME_LOST}>
-                              {match.home_team?.name ?? "Mandante"}
-                            </SelectItem>
-                            <SelectItem value={WALKOVER_MODE_AWAY_LOST}>
-                              {match.away_team?.name ?? "Visitante"}
-                            </SelectItem>
-                            <SelectItem
-                              value={WALKOVER_MODE_DOUBLE}
-                              disabled={isKnockoutMatch}
-                            >
-                              Ambas as atléticas tomaram W.O.
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    ) : null}
+                          <RotateCcw className="h-3 w-3 sm:mr-1" />
+                          <span className="hidden sm:inline">
+                            Voltar ao agendamento
+                          </span>
+                        </Button>
+                      ) : null}
 
-                    {match.status == MatchStatus.SCHEDULED &&
-                    !hasWalkoverSelection ? (
-                      <Button
-                        size="sm"
-                        onClick={() => handleSetLive(match.id)}
-                        className="bg-live text-primary-foreground hover:bg-live-glow"
-                        disabled={
-                          !canManageScoreboard ||
-                          isMatchStartBlocked ||
-                          isChampionshipStartBlocked
-                        }
-                      >
-                        <Play className="h-3 w-3 sm:mr-1" />
-                        <span className="hidden sm:inline">Iniciar</span>
-                      </Button>
-                    ) : null}
-
-                    {match.status == MatchStatus.SCHEDULED &&
-                    hasWalkoverSelection ? (
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => {
-                          setPendingFinishMatch(match);
-                          setShowFinishConfirmDialog(true);
-                        }}
-                        disabled={
-                          !canManageScoreboard || isChampionshipStartBlocked
-                        }
-                      >
-                        <Square className="h-3 w-3 sm:mr-1" />
-                        <span className="hidden sm:inline">Encerrar W.O.</span>
-                      </Button>
-                    ) : null}
-
-                    {match.status == MatchStatus.LIVE ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setPendingReturnToScheduledMatch(match);
-                          setShowReturnToScheduledConfirmDialog(true);
-                        }}
-                        disabled={!canManageScoreboard}
-                      >
-                        <RotateCcw className="h-3 w-3 sm:mr-1" />
-                        <span className="hidden sm:inline">
-                          Voltar ao agendamento
-                        </span>
-                      </Button>
-                    ) : null}
-
-                    {match.status == MatchStatus.LIVE && isSetMatch ? (
-                      <Button
-                        size="sm"
-                        onClick={() => handleFinishSet(match)}
-                        disabled={!canManageScoreboard || !hasCurrentSetScore}
-                        className="!bg-amber-500 !text-white hover:!bg-amber-400"
-                      >
-                        <Square className="h-3 w-3 sm:mr-1" />
-                        <span className="hidden sm:inline">Fim do set</span>
-                      </Button>
-                    ) : null}
-
-                    {match.status == MatchStatus.LIVE ? (
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => {
-                          setPendingFinishMatch(match);
-                          setShowFinishConfirmDialog(true);
-                        }}
-                        disabled={
-                          !canManageScoreboard ||
-                          (isSetMatch &&
-                            !hasWalkoverSelection &&
-                            closedMatchSets.length == 0)
-                        }
-                      >
-                        <Square className="h-3 w-3 sm:mr-1" />
-                        <span className="hidden sm:inline">
-                          {hasWalkoverSelection ? "Encerrar W.O." : "Finalizar"}
-                        </span>
-                      </Button>
-                    ) : null}
-                  </div>
-
-                  {/* Linhas 1-6 (mobile) / Esquerda (sm+): informações */}
-                  <div className="order-1 space-y-1">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="shrink-0 text-xs uppercase text-muted-foreground">
-                        {match.sports?.name} • {matchLocationLabel}
-                      </span>
-                      <div className="flex flex-wrap items-center gap-1">
-                        <AppBadge
-                          tone={resolveMatchNaipeBadgeTone(String(match.naipe))}
-                          className="w-fit"
+                      {match.status == MatchStatus.LIVE && isSetMatch ? (
+                        <Button
+                          size="sm"
+                          onClick={() => handleFinishSet(match)}
+                          disabled={!canManageScoreboard || !hasCurrentSetScore}
+                          className="!bg-amber-500 !text-white hover:!bg-amber-400"
                         >
-                          {resolveMatchNaipeLabel(String(match.naipe))}
-                        </AppBadge>
-                        {matchBracketContext ? (
+                          <Square className="h-3 w-3 sm:mr-1" />
+                          <span className="hidden sm:inline">Fim do set</span>
+                        </Button>
+                      ) : null}
+
+                      {match.status == MatchStatus.LIVE ? (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => {
+                            setPendingFinishMatch(match);
+                            setShowFinishConfirmDialog(true);
+                          }}
+                          disabled={
+                            !canManageScoreboard ||
+                            (isSetMatch &&
+                              !hasWalkoverSelection &&
+                              closedMatchSets.length == 0)
+                          }
+                        >
+                          <Square className="h-3 w-3 sm:mr-1" />
+                          <span className="hidden sm:inline">
+                            {hasWalkoverSelection
+                              ? "Encerrar W.O."
+                              : "Finalizar"}
+                          </span>
+                        </Button>
+                      ) : null}
+                    </div>
+
+                    {/* Linhas 1-6 (mobile) / Esquerda (sm+): informações */}
+                    <div className="order-1 space-y-1">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="shrink-0 text-xs uppercase text-muted-foreground">
+                          {match.sports?.name} • {matchLocationLabel}
+                        </span>
+                        <div className="flex flex-wrap items-center gap-1">
                           <AppBadge
-                            tone={AppBadgeTone.NEUTRAL}
+                            tone={resolveMatchNaipeBadgeTone(
+                              String(match.naipe),
+                            )}
                             className="w-fit"
                           >
-                            {matchBracketContext.badgeLabel}
+                            {resolveMatchNaipeLabel(String(match.naipe))}
                           </AppBadge>
+                          {matchBracketContext ? (
+                            <AppBadge
+                              tone={AppBadgeTone.NEUTRAL}
+                              className="w-fit"
+                            >
+                              {matchBracketContext.badgeLabel}
+                            </AppBadge>
+                          ) : null}
+                        </div>
+                        {canManageScoreboard &&
+                        match.status === MatchStatus.LIVE &&
+                        matchSaveStatus ? (
+                          <span
+                            className="ml-auto flex items-center"
+                            title={SAVE_STATUS_LABELS[matchSaveStatus]}
+                          >
+                            {matchSaveStatus === "saving" ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                            ) : matchSaveStatus === "saved" ? (
+                              <Check className="h-3.5 w-3.5 text-primary" />
+                            ) : (
+                              <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
+                            )}
+                          </span>
                         ) : null}
                       </div>
-                      {canManageScoreboard &&
-                      match.status === MatchStatus.LIVE &&
-                      matchSaveStatus ? (
-                        <span
-                          className="ml-auto flex items-center"
-                          title={SAVE_STATUS_LABELS[matchSaveStatus]}
-                        >
-                          {matchSaveStatus === "saving" ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                          ) : matchSaveStatus === "saved" ? (
-                            <Check className="h-3.5 w-3.5 text-primary" />
-                          ) : (
-                            <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
-                          )}
-                        </span>
-                      ) : null}
-                    </div>
 
-                    <div className="space-y-0.5">
-                      {match.status == MatchStatus.LIVE ? (
-                        <>
-                          <span className="text-xs font-bold text-live live-pulse">
-                            ● AO VIVO
+                      <div className="space-y-0.5">
+                        {match.status == MatchStatus.LIVE ? (
+                          <>
+                            <span className="text-xs font-bold text-live live-pulse">
+                              ● AO VIVO
+                            </span>
+                            <p className="text-xs text-muted-foreground">
+                              {queueLabel}
+                            </p>
+                          </>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            {queueSummary}
                           </span>
+                        )}
+
+                        {startedAtLabel ? (
                           <p className="text-xs text-muted-foreground">
-                            {queueLabel}
+                            {startedAtLabel}
                           </p>
-                        </>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">
-                          {queueSummary}
-                        </span>
-                      )}
+                        ) : null}
 
-                      {startedAtLabel ? (
-                        <p className="text-xs text-muted-foreground">
-                          {startedAtLabel}
-                        </p>
-                      ) : null}
+                        {match.status == MatchStatus.SCHEDULED &&
+                        estimatedStartTime ? (
+                          <p className="text-xs text-muted-foreground">
+                            Horário estimado: {estimatedStartTime}
+                          </p>
+                        ) : null}
 
-                      {match.status == MatchStatus.SCHEDULED &&
-                      estimatedStartTime ? (
-                        <p className="text-xs text-muted-foreground">
-                          Horário estimado: {estimatedStartTime}
-                        </p>
-                      ) : null}
+                        {match.status == MatchStatus.SCHEDULED &&
+                        !match.court_name &&
+                        suggestedCourtByMatchId[match.id] ? (
+                          <p className="text-xs text-muted-foreground">
+                            Sugestão de quadra:{" "}
+                            {suggestedCourtByMatchId[match.id]}
+                          </p>
+                        ) : null}
 
-                      {match.status == MatchStatus.SCHEDULED &&
-                      !match.court_name &&
-                      suggestedCourtByMatchId[match.id] ? (
-                        <p className="text-xs text-muted-foreground">
-                          Sugestão de quadra:{" "}
-                          {suggestedCourtByMatchId[match.id]}
-                        </p>
-                      ) : null}
+                        {matchRepresentation ? (
+                          <p className="break-words text-xs text-muted-foreground">
+                            Representação: {matchRepresentation}
+                          </p>
+                        ) : null}
 
-                      {matchRepresentation ? (
-                        <p className="break-words text-xs text-muted-foreground">
-                          Representação: {matchRepresentation}
-                        </p>
-                      ) : null}
+                        {isSetMatch ? (
+                          <p className="text-xs font-medium text-muted-foreground">
+                            Sets ganhos: {displayedSetWins.home_sets} ×{" "}
+                            {displayedSetWins.away_sets}
+                          </p>
+                        ) : null}
 
-                      {isSetMatch ? (
-                        <p className="text-xs font-medium text-muted-foreground">
-                          Sets ganhos: {displayedSetWins.home_sets} ×{" "}
-                          {displayedSetWins.away_sets}
-                        </p>
-                      ) : null}
+                        {penaltyShootoutSummary ? (
+                          <p className="text-xs font-medium text-muted-foreground">
+                            Pênaltis: ({penaltyShootoutSummary.homePenaltyScore}{" "}
+                            × {penaltyShootoutSummary.awayPenaltyScore})
+                          </p>
+                        ) : null}
 
-                      {penaltyShootoutSummary ? (
-                        <p className="text-xs font-medium text-muted-foreground">
-                          Pênaltis: ({penaltyShootoutSummary.homePenaltyScore} ×{" "}
-                          {penaltyShootoutSummary.awayPenaltyScore})
-                        </p>
-                      ) : null}
+                        {match.status != MatchStatus.LIVE &&
+                        isMatchStartBlocked ? (
+                          <p className="text-xs font-medium text-amber-500">
+                            Capacidade ao vivo esgotada: {liveMatchesCount}/
+                            {availableCourtsCount} quadra(s) em uso.
+                          </p>
+                        ) : null}
 
-                      {match.status != MatchStatus.LIVE &&
-                      isMatchStartBlocked ? (
-                        <p className="text-xs font-medium text-amber-500">
-                          Capacidade ao vivo esgotada: {liveMatchesCount}/
-                          {availableCourtsCount} quadra(s) em uso.
-                        </p>
-                      ) : null}
+                        {match.status == MatchStatus.SCHEDULED &&
+                        isChampionshipStartBlocked ? (
+                          <p className="text-xs font-medium text-amber-500">
+                            O campeonato precisa estar Em andamento para iniciar
+                            jogos ao vivo.
+                          </p>
+                        ) : null}
 
-                      {match.status == MatchStatus.SCHEDULED &&
-                      isChampionshipStartBlocked ? (
-                        <p className="text-xs font-medium text-amber-500">
-                          O campeonato precisa estar Em andamento para iniciar
-                          jogos ao vivo.
-                        </p>
-                      ) : null}
-
-                      {match.status == MatchStatus.FINISHED &&
-                      tieBreakRuleLabel ? (
-                        <p className="inline-flex items-center gap-1 text-xs font-medium text-amber-500">
-                          <AlertTriangle className="h-3 w-3" />
-                          Desempate por {tieBreakRuleLabel}.
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3 sm:hidden">
-                  <div className="grid grid-cols-2 gap-2 text-center">
-                    <p className="truncate font-display font-bold">
-                      {match.home_team?.name}
-                    </p>
-                    <p className="truncate font-display font-bold">
-                      {match.away_team?.name}
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-                    <div className="flex items-center justify-center gap-1">
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        className="h-8 w-10"
-                        onClick={() => updateScore(match, "home", -1)}
-                        disabled={
-                          match.status != MatchStatus.LIVE ||
-                          !canManageScoreboard
-                        }
-                      >
-                        <Minus className="h-3 w-3" />
-                      </Button>
-
-                      <Input
-                        type="number"
-                        value={displayedHomeScore}
-                        onChange={(event) =>
-                          updateManualInputScore(
-                            match,
-                            "home",
-                            event.target.value,
-                          )
-                        }
-                        className={SCORE_INPUT_CLASS_NAME}
-                        disabled={
-                          match.status != MatchStatus.LIVE ||
-                          !canManageScoreboard
-                        }
-                      />
-
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        className="h-8 w-10"
-                        onClick={() => updateScore(match, "home", 1)}
-                        disabled={
-                          match.status != MatchStatus.LIVE ||
-                          !canManageScoreboard
-                        }
-                      >
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                    </div>
-
-                    <span className="font-display text-xl text-muted-foreground">
-                      ×
-                    </span>
-
-                    <div className="flex items-center justify-center gap-1">
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        className="h-8 w-10"
-                        onClick={() => updateScore(match, "away", -1)}
-                        disabled={
-                          match.status != MatchStatus.LIVE ||
-                          !canManageScoreboard
-                        }
-                      >
-                        <Minus className="h-3 w-3" />
-                      </Button>
-
-                      <Input
-                        type="number"
-                        value={displayedAwayScore}
-                        onChange={(event) =>
-                          updateManualInputScore(
-                            match,
-                            "away",
-                            event.target.value,
-                          )
-                        }
-                        className={SCORE_INPUT_CLASS_NAME}
-                        disabled={
-                          match.status != MatchStatus.LIVE ||
-                          !canManageScoreboard
-                        }
-                      />
-
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        className="h-8 w-10"
-                        onClick={() => updateScore(match, "away", 1)}
-                        disabled={
-                          match.status != MatchStatus.LIVE ||
-                          !canManageScoreboard
-                        }
-                      >
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="hidden grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-6 sm:grid">
-                  <div className="min-w-0 text-right">
-                    <p className="truncate font-display font-bold">
-                      {match.home_team?.name}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1">
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        className="h-8 w-10"
-                        onClick={() => updateScore(match, "home", -1)}
-                        disabled={
-                          match.status != MatchStatus.LIVE ||
-                          !canManageScoreboard
-                        }
-                      >
-                        <Minus className="h-3 w-3" />
-                      </Button>
-
-                      <Input
-                        type="number"
-                        value={displayedHomeScore}
-                        onChange={(event) =>
-                          updateManualInputScore(
-                            match,
-                            "home",
-                            event.target.value,
-                          )
-                        }
-                        className={SCORE_INPUT_CLASS_NAME}
-                        disabled={
-                          match.status != MatchStatus.LIVE ||
-                          !canManageScoreboard
-                        }
-                      />
-
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        className="h-8 w-10"
-                        onClick={() => updateScore(match, "home", 1)}
-                        disabled={
-                          match.status != MatchStatus.LIVE ||
-                          !canManageScoreboard
-                        }
-                      >
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                    </div>
-
-                    <span className="font-display text-xl text-muted-foreground">
-                      ×
-                    </span>
-
-                    <div className="flex items-center gap-1">
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        className="h-8 w-10"
-                        onClick={() => updateScore(match, "away", -1)}
-                        disabled={
-                          match.status != MatchStatus.LIVE ||
-                          !canManageScoreboard
-                        }
-                      >
-                        <Minus className="h-3 w-3" />
-                      </Button>
-
-                      <Input
-                        type="number"
-                        value={displayedAwayScore}
-                        onChange={(event) =>
-                          updateManualInputScore(
-                            match,
-                            "away",
-                            event.target.value,
-                          )
-                        }
-                        className={SCORE_INPUT_CLASS_NAME}
-                        disabled={
-                          match.status != MatchStatus.LIVE ||
-                          !canManageScoreboard
-                        }
-                      />
-
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        className="h-8 w-10"
-                        onClick={() => updateScore(match, "away", 1)}
-                        disabled={
-                          match.status != MatchStatus.LIVE ||
-                          !canManageScoreboard
-                        }
-                      >
-                        <Plus className="h-3 w-3" />
-                      </Button>
+                        {match.status == MatchStatus.FINISHED &&
+                        tieBreakRuleLabel ? (
+                          <p className="inline-flex items-center gap-1 text-xs font-medium text-amber-500">
+                            <AlertTriangle className="h-3 w-3" />
+                            Desempate por {tieBreakRuleLabel}.
+                          </p>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="min-w-0">
-                    <p className="truncate font-display font-bold">
-                      {match.away_team?.name}
-                    </p>
-                  </div>
-                </div>
-
-                {isSetMatch && setSummary.length > 0 ? (
-                  <div className="space-y-2 app-card-emphasis p-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-xs font-semibold uppercase text-muted-foreground">
-                        Detalhamento por sets
+                  <div className="space-y-3 sm:hidden">
+                    <div className="grid grid-cols-2 gap-2 text-center">
+                      <p className="truncate font-display font-bold">
+                        {match.home_team?.name}
                       </p>
-                      <span className="text-xs font-medium text-muted-foreground">
-                        Sets: {displayedSetWins.home_sets} ×{" "}
-                        {displayedSetWins.away_sets}
-                      </span>
+                      <p className="truncate font-display font-bold">
+                        {match.away_team?.name}
+                      </p>
                     </div>
 
-                    <div className="space-y-1">
-                      {setSummary.map((matchSetSummary) => {
-                        const editableMatchSet =
-                          closedMatchSets.find(
-                            (matchSet) =>
-                              matchSet.set_number == matchSetSummary.setNumber,
-                          ) ?? null;
-                        const isEditingSet =
-                          editingSetDraft?.setNumber ==
-                          matchSetSummary.setNumber;
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+                      <div className="flex items-center justify-center gap-1">
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          className="h-8 w-10"
+                          onClick={() => updateScore(match, "home", -1)}
+                          disabled={
+                            match.status != MatchStatus.LIVE ||
+                            !canManageScoreboard
+                          }
+                        >
+                          <Minus className="h-3 w-3" />
+                        </Button>
 
-                        if (isEditingSet && editingSetDraft) {
+                        <Input
+                          type="number"
+                          value={displayedHomeScore}
+                          onChange={(event) =>
+                            updateManualInputScore(
+                              match,
+                              "home",
+                              event.target.value,
+                            )
+                          }
+                          className={SCORE_INPUT_CLASS_NAME}
+                          disabled={
+                            match.status != MatchStatus.LIVE ||
+                            !canManageScoreboard
+                          }
+                        />
+
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          className="h-8 w-10"
+                          onClick={() => updateScore(match, "home", 1)}
+                          disabled={
+                            match.status != MatchStatus.LIVE ||
+                            !canManageScoreboard
+                          }
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </div>
+
+                      <span className="font-display text-xl text-muted-foreground">
+                        ×
+                      </span>
+
+                      <div className="flex items-center justify-center gap-1">
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          className="h-8 w-10"
+                          onClick={() => updateScore(match, "away", -1)}
+                          disabled={
+                            match.status != MatchStatus.LIVE ||
+                            !canManageScoreboard
+                          }
+                        >
+                          <Minus className="h-3 w-3" />
+                        </Button>
+
+                        <Input
+                          type="number"
+                          value={displayedAwayScore}
+                          onChange={(event) =>
+                            updateManualInputScore(
+                              match,
+                              "away",
+                              event.target.value,
+                            )
+                          }
+                          className={SCORE_INPUT_CLASS_NAME}
+                          disabled={
+                            match.status != MatchStatus.LIVE ||
+                            !canManageScoreboard
+                          }
+                        />
+
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          className="h-8 w-10"
+                          onClick={() => updateScore(match, "away", 1)}
+                          disabled={
+                            match.status != MatchStatus.LIVE ||
+                            !canManageScoreboard
+                          }
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="hidden grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-6 sm:grid">
+                    <div className="min-w-0 text-right">
+                      <p className="truncate font-display font-bold">
+                        {match.home_team?.name}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          className="h-8 w-10"
+                          onClick={() => updateScore(match, "home", -1)}
+                          disabled={
+                            match.status != MatchStatus.LIVE ||
+                            !canManageScoreboard
+                          }
+                        >
+                          <Minus className="h-3 w-3" />
+                        </Button>
+
+                        <Input
+                          type="number"
+                          value={displayedHomeScore}
+                          onChange={(event) =>
+                            updateManualInputScore(
+                              match,
+                              "home",
+                              event.target.value,
+                            )
+                          }
+                          className={SCORE_INPUT_CLASS_NAME}
+                          disabled={
+                            match.status != MatchStatus.LIVE ||
+                            !canManageScoreboard
+                          }
+                        />
+
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          className="h-8 w-10"
+                          onClick={() => updateScore(match, "home", 1)}
+                          disabled={
+                            match.status != MatchStatus.LIVE ||
+                            !canManageScoreboard
+                          }
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </div>
+
+                      <span className="font-display text-xl text-muted-foreground">
+                        ×
+                      </span>
+
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          className="h-8 w-10"
+                          onClick={() => updateScore(match, "away", -1)}
+                          disabled={
+                            match.status != MatchStatus.LIVE ||
+                            !canManageScoreboard
+                          }
+                        >
+                          <Minus className="h-3 w-3" />
+                        </Button>
+
+                        <Input
+                          type="number"
+                          value={displayedAwayScore}
+                          onChange={(event) =>
+                            updateManualInputScore(
+                              match,
+                              "away",
+                              event.target.value,
+                            )
+                          }
+                          className={SCORE_INPUT_CLASS_NAME}
+                          disabled={
+                            match.status != MatchStatus.LIVE ||
+                            !canManageScoreboard
+                          }
+                        />
+
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          className="h-8 w-10"
+                          onClick={() => updateScore(match, "away", 1)}
+                          disabled={
+                            match.status != MatchStatus.LIVE ||
+                            !canManageScoreboard
+                          }
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="min-w-0">
+                      <p className="truncate font-display font-bold">
+                        {match.away_team?.name}
+                      </p>
+                    </div>
+                  </div>
+
+                  {isSetMatch && setSummary.length > 0 ? (
+                    <div className="space-y-2 app-card-emphasis p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-xs font-semibold uppercase text-muted-foreground">
+                          Detalhamento por sets
+                        </p>
+                        <span className="text-xs font-medium text-muted-foreground">
+                          Sets: {displayedSetWins.home_sets} ×{" "}
+                          {displayedSetWins.away_sets}
+                        </span>
+                      </div>
+
+                      <div className="space-y-1">
+                        {setSummary.map((matchSetSummary) => {
+                          const editableMatchSet =
+                            closedMatchSets.find(
+                              (matchSet) =>
+                                matchSet.set_number ==
+                                matchSetSummary.setNumber,
+                            ) ?? null;
+                          const isEditingSet =
+                            editingSetDraft?.setNumber ==
+                            matchSetSummary.setNumber;
+
+                          if (isEditingSet && editingSetDraft) {
+                            return (
+                              <div
+                                key={`${match.id}-set-summary-${matchSetSummary.setNumber}`}
+                                className="flex flex-col gap-2 rounded-lg border border-primary/20 bg-background/60 p-2 sm:flex-row sm:items-center"
+                              >
+                                <span className="min-w-14 text-xs font-medium text-muted-foreground">
+                                  Set {matchSetSummary.setNumber}
+                                </span>
+                                <div className="flex flex-1 items-center justify-center gap-2">
+                                  <span className="truncate text-xs font-medium">
+                                    {match.home_team?.name}
+                                  </span>
+                                  <Input
+                                    type="number"
+                                    value={editingSetDraft.homePoints}
+                                    onChange={(event) =>
+                                      handleUpdateEditingRecordedSetScore(
+                                        match.id,
+                                        "home",
+                                        event.target.value,
+                                      )
+                                    }
+                                    className="h-8 w-16 shrink-0 text-center text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                    disabled={!canManageScoreboard}
+                                  />
+                                  <span className="shrink-0 text-center text-xs text-muted-foreground">
+                                    ×
+                                  </span>
+                                  <Input
+                                    type="number"
+                                    value={editingSetDraft.awayPoints}
+                                    onChange={(event) =>
+                                      handleUpdateEditingRecordedSetScore(
+                                        match.id,
+                                        "away",
+                                        event.target.value,
+                                      )
+                                    }
+                                    className="h-8 w-16 shrink-0 text-center text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                    disabled={!canManageScoreboard}
+                                  />
+                                  <span className="truncate text-xs font-medium">
+                                    {match.away_team?.name}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1 self-end sm:self-auto">
+                                  <Button
+                                    type="button"
+                                    size="icon"
+                                    variant="outline"
+                                    className="h-8 w-10"
+                                    onClick={() =>
+                                      void handleSaveEditedRecordedSet(match)
+                                    }
+                                    disabled={!canManageScoreboard}
+                                  >
+                                    <Check className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-8 w-10"
+                                    onClick={() =>
+                                      handleCancelEditingRecordedSet(match.id)
+                                    }
+                                    disabled={!canManageScoreboard}
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-8 w-10 text-destructive hover:text-destructive"
+                                    onClick={() =>
+                                      void handleDeleteRecordedSet(
+                                        match,
+                                        editingSetDraft.setNumber,
+                                      )
+                                    }
+                                    disabled={!canManageScoreboard}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          }
+
                           return (
                             <div
                               key={`${match.id}-set-summary-${matchSetSummary.setNumber}`}
-                              className="flex flex-col gap-2 rounded-lg border border-primary/20 bg-background/60 p-2 sm:flex-row sm:items-center"
+                              className="flex items-center justify-between gap-2 app-card-muted px-2 py-1.5"
                             >
-                              <span className="min-w-14 text-xs font-medium text-muted-foreground">
-                                Set {matchSetSummary.setNumber}
-                              </span>
-                              <div className="flex flex-1 items-center justify-center gap-2">
-                                <span className="truncate text-xs font-medium">
-                                  {match.home_team?.name}
-                                </span>
-                                <Input
-                                  type="number"
-                                  value={editingSetDraft.homePoints}
-                                  onChange={(event) =>
-                                    handleUpdateEditingRecordedSetScore(
-                                      match.id,
-                                      "home",
-                                      event.target.value,
-                                    )
-                                  }
-                                  className="h-8 w-16 shrink-0 text-center text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                                  disabled={!canManageScoreboard}
-                                />
-                                <span className="shrink-0 text-center text-xs text-muted-foreground">
-                                  ×
-                                </span>
-                                <Input
-                                  type="number"
-                                  value={editingSetDraft.awayPoints}
-                                  onChange={(event) =>
-                                    handleUpdateEditingRecordedSetScore(
-                                      match.id,
-                                      "away",
-                                      event.target.value,
-                                    )
-                                  }
-                                  className="h-8 w-16 shrink-0 text-center text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                                  disabled={!canManageScoreboard}
-                                />
-                                <span className="truncate text-xs font-medium">
-                                  {match.away_team?.name}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1 self-end sm:self-auto">
+                              <p className="min-w-0 text-xs text-muted-foreground">
+                                {matchSetSummary.text}
+                              </p>
+                              {match.status == MatchStatus.LIVE &&
+                              editableMatchSet ? (
                                 <Button
                                   type="button"
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7 shrink-0"
+                                  onClick={() =>
+                                    handleStartEditingRecordedSet(
+                                      match.id,
+                                      editableMatchSet,
+                                    )
+                                  }
+                                  disabled={!canManageScoreboard}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {supportsCards && handballMatch ? (
+                    <div className="glass-panel-muted p-3 sm:hidden">
+                      <div className="grid grid-cols-2 divide-x divide-border/60">
+                        {handballMobileTeamColumns.map((teamColumn) => (
+                          <div
+                            key={`${match.id}-${teamColumn.side}-handball-mobile`}
+                            className="min-w-0 px-2 first:pl-0 last:pr-0"
+                          >
+                            <p className="mb-3 truncate text-center text-xs font-bold uppercase text-foreground">
+                              {teamColumn.teamName}
+                            </p>
+
+                            <div className="space-y-3">
+                              {teamColumn.counters.map((counter) => (
+                                <div
+                                  key={`${match.id}-${teamColumn.side}-${counter.color}`}
+                                  className="space-y-1"
+                                >
+                                  <p
+                                    className={`truncate text-[10px] font-semibold uppercase ${counter.className}`}
+                                  >
+                                    {counter.label}
+                                  </p>
+
+                                  <div className="grid grid-cols-[2.75rem_3rem_2.75rem] items-center justify-center gap-1.5">
+                                    <Button
+                                      size="icon"
+                                      variant="outline"
+                                      className="h-10 w-11"
+                                      onClick={() =>
+                                        updateCards(
+                                          match,
+                                          teamColumn.side,
+                                          counter.color,
+                                          -1,
+                                        )
+                                      }
+                                      disabled={
+                                        match.status != MatchStatus.LIVE ||
+                                        !canManageScoreboard
+                                      }
+                                    >
+                                      <Minus className="h-3 w-3" />
+                                    </Button>
+
+                                    <Input
+                                      type="number"
+                                      value={counter.value}
+                                      onChange={(event) =>
+                                        updateManualInputCards(
+                                          match,
+                                          teamColumn.side,
+                                          counter.color,
+                                          event.target.value,
+                                        )
+                                      }
+                                      className="h-10 w-12 app-input-field px-1 text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                      disabled={
+                                        match.status != MatchStatus.LIVE ||
+                                        !canManageScoreboard
+                                      }
+                                    />
+
+                                    <Button
+                                      size="icon"
+                                      variant="outline"
+                                      className="h-10 w-11"
+                                      onClick={() =>
+                                        updateCards(
+                                          match,
+                                          teamColumn.side,
+                                          counter.color,
+                                          1,
+                                        )
+                                      }
+                                      disabled={
+                                        match.status != MatchStatus.LIVE ||
+                                        !canManageScoreboard
+                                      }
+                                    >
+                                      <Plus className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {supportsCards ? (
+                    <div
+                      className={`relative glass-panel-muted p-3 after:pointer-events-none after:absolute after:inset-y-3 after:left-1/2 after:hidden after:border-l after:border-border sm:after:block ${
+                        handballMatch ? "hidden sm:block" : ""
+                      }`}
+                    >
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <p className="truncate text-xs font-semibold uppercase text-muted-foreground">
+                            {match.home_team?.name}
+                          </p>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <p className="text-[11px] font-semibold uppercase text-amber-700 dark:text-amber-500">
+                                Cartões Amarelos
+                              </p>
+                              <div className="flex items-center gap-1">
+                                <Button
                                   size="icon"
                                   variant="outline"
                                   className="h-8 w-10"
                                   onClick={() =>
-                                    void handleSaveEditedRecordedSet(match)
+                                    updateCards(match, "home", "yellow", -1)
                                   }
-                                  disabled={!canManageScoreboard}
-                                >
-                                  <Check className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-8 w-10"
-                                  onClick={() =>
-                                    handleCancelEditingRecordedSet(match.id)
+                                  disabled={
+                                    match.status != MatchStatus.LIVE ||
+                                    !canManageScoreboard
                                   }
-                                  disabled={!canManageScoreboard}
                                 >
-                                  <X className="h-4 w-4" />
+                                  <Minus className="h-3 w-3" />
                                 </Button>
-                                <Button
-                                  type="button"
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-8 w-10 text-destructive hover:text-destructive"
-                                  onClick={() =>
-                                    void handleDeleteRecordedSet(
+                                <Input
+                                  type="number"
+                                  value={matchDraft.homeYellowCards}
+                                  onChange={(event) =>
+                                    updateManualInputCards(
                                       match,
-                                      editingSetDraft.setNumber,
+                                      "home",
+                                      "yellow",
+                                      event.target.value,
                                     )
                                   }
-                                  disabled={!canManageScoreboard}
+                                  className="h-9 w-20 app-input-field text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                  disabled={
+                                    match.status != MatchStatus.LIVE ||
+                                    !canManageScoreboard
+                                  }
+                                />
+                                <Button
+                                  size="icon"
+                                  variant="outline"
+                                  className="h-8 w-10"
+                                  onClick={() =>
+                                    updateCards(match, "home", "yellow", 1)
+                                  }
+                                  disabled={
+                                    match.status != MatchStatus.LIVE ||
+                                    !canManageScoreboard
+                                  }
                                 >
-                                  <Trash2 className="h-4 w-4" />
+                                  <Plus className="h-3 w-3" />
                                 </Button>
                               </div>
                             </div>
-                          );
-                        }
 
-                        return (
-                          <div
-                            key={`${match.id}-set-summary-${matchSetSummary.setNumber}`}
-                            className="flex items-center justify-between gap-2 app-card-muted px-2 py-1.5"
-                          >
-                            <p className="min-w-0 text-xs text-muted-foreground">
-                              {matchSetSummary.text}
-                            </p>
-                            {match.status == MatchStatus.LIVE &&
-                            editableMatchSet ? (
-                              <Button
-                                type="button"
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7 shrink-0"
-                                onClick={() =>
-                                  handleStartEditingRecordedSet(
-                                    match.id,
-                                    editableMatchSet,
-                                  )
-                                }
-                                disabled={!canManageScoreboard}
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                            ) : null}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : null}
-
-                {supportsCards ? (
-                  <div className="relative glass-panel-muted p-3 after:pointer-events-none after:absolute after:inset-y-3 after:left-1/2 after:hidden after:border-l after:border-border sm:after:block">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <p className="truncate text-xs font-semibold uppercase text-muted-foreground">
-                        {match.home_team?.name}
-                      </p>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-1">
-                          <p className="text-[11px] font-semibold uppercase text-amber-700 dark:text-amber-500">
-                            Cartões Amarelos
-                          </p>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-8 w-10"
-                              onClick={() =>
-                                updateCards(match, "home", "yellow", -1)
-                              }
-                              disabled={
-                                match.status != MatchStatus.LIVE ||
-                                !canManageScoreboard
-                              }
-                            >
-                              <Minus className="h-3 w-3" />
-                            </Button>
-                            <Input
-                              type="number"
-                              value={matchDraft.homeYellowCards}
-                              onChange={(event) =>
-                                updateManualInputCards(
-                                  match,
-                                  "home",
-                                  "yellow",
-                                  event.target.value,
-                                )
-                              }
-                              className="h-9 w-20 app-input-field text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                              disabled={
-                                match.status != MatchStatus.LIVE ||
-                                !canManageScoreboard
-                              }
-                            />
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-8 w-10"
-                              onClick={() =>
-                                updateCards(match, "home", "yellow", 1)
-                              }
-                              disabled={
-                                match.status != MatchStatus.LIVE ||
-                                !canManageScoreboard
-                              }
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Button>
+                            <div className="space-y-1">
+                              <p className="text-[11px] font-semibold uppercase app-text-status-danger">
+                                Cartões Vermelhos
+                              </p>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  size="icon"
+                                  variant="outline"
+                                  className="h-8 w-10"
+                                  onClick={() =>
+                                    updateCards(match, "home", "red", -1)
+                                  }
+                                  disabled={
+                                    match.status != MatchStatus.LIVE ||
+                                    !canManageScoreboard
+                                  }
+                                >
+                                  <Minus className="h-3 w-3" />
+                                </Button>
+                                <Input
+                                  type="number"
+                                  value={matchDraft.homeRedCards}
+                                  onChange={(event) =>
+                                    updateManualInputCards(
+                                      match,
+                                      "home",
+                                      "red",
+                                      event.target.value,
+                                    )
+                                  }
+                                  className="h-9 w-20 app-input-field text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                  disabled={
+                                    match.status != MatchStatus.LIVE ||
+                                    !canManageScoreboard
+                                  }
+                                />
+                                <Button
+                                  size="icon"
+                                  variant="outline"
+                                  className="h-8 w-10"
+                                  onClick={() =>
+                                    updateCards(match, "home", "red", 1)
+                                  }
+                                  disabled={
+                                    match.status != MatchStatus.LIVE ||
+                                    !canManageScoreboard
+                                  }
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
                           </div>
                         </div>
 
-                        <div className="space-y-1">
-                          <p className="text-[11px] font-semibold uppercase app-text-status-danger">
-                            Cartões Vermelhos
+                        <div className="space-y-2">
+                          <p className="truncate text-xs font-semibold uppercase text-muted-foreground">
+                            {match.away_team?.name}
                           </p>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-8 w-10"
-                              onClick={() =>
-                                updateCards(match, "home", "red", -1)
-                              }
-                              disabled={
-                                match.status != MatchStatus.LIVE ||
-                                !canManageScoreboard
-                              }
-                            >
-                              <Minus className="h-3 w-3" />
-                            </Button>
-                            <Input
-                              type="number"
-                              value={matchDraft.homeRedCards}
-                              onChange={(event) =>
-                                updateManualInputCards(
-                                  match,
-                                  "home",
-                                  "red",
-                                  event.target.value,
-                                )
-                              }
-                              className="h-9 w-20 app-input-field text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                              disabled={
-                                match.status != MatchStatus.LIVE ||
-                                !canManageScoreboard
-                              }
-                            />
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-8 w-10"
-                              onClick={() =>
-                                updateCards(match, "home", "red", 1)
-                              }
-                              disabled={
-                                match.status != MatchStatus.LIVE ||
-                                !canManageScoreboard
-                              }
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Button>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <p className="text-[11px] font-semibold uppercase text-amber-700 dark:text-amber-500">
+                                Cartões Amarelos
+                              </p>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  size="icon"
+                                  variant="outline"
+                                  className="h-8 w-10"
+                                  onClick={() =>
+                                    updateCards(match, "away", "yellow", -1)
+                                  }
+                                  disabled={
+                                    match.status != MatchStatus.LIVE ||
+                                    !canManageScoreboard
+                                  }
+                                >
+                                  <Minus className="h-3 w-3" />
+                                </Button>
+                                <Input
+                                  type="number"
+                                  value={matchDraft.awayYellowCards}
+                                  onChange={(event) =>
+                                    updateManualInputCards(
+                                      match,
+                                      "away",
+                                      "yellow",
+                                      event.target.value,
+                                    )
+                                  }
+                                  className="h-9 w-20 app-input-field text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                  disabled={
+                                    match.status != MatchStatus.LIVE ||
+                                    !canManageScoreboard
+                                  }
+                                />
+                                <Button
+                                  size="icon"
+                                  variant="outline"
+                                  className="h-8 w-10"
+                                  onClick={() =>
+                                    updateCards(match, "away", "yellow", 1)
+                                  }
+                                  disabled={
+                                    match.status != MatchStatus.LIVE ||
+                                    !canManageScoreboard
+                                  }
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <p className="text-[11px] font-semibold uppercase app-text-status-danger">
+                                Cartões Vermelhos
+                              </p>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  size="icon"
+                                  variant="outline"
+                                  className="h-8 w-10"
+                                  onClick={() =>
+                                    updateCards(match, "away", "red", -1)
+                                  }
+                                  disabled={
+                                    match.status != MatchStatus.LIVE ||
+                                    !canManageScoreboard
+                                  }
+                                >
+                                  <Minus className="h-3 w-3" />
+                                </Button>
+                                <Input
+                                  type="number"
+                                  value={matchDraft.awayRedCards}
+                                  onChange={(event) =>
+                                    updateManualInputCards(
+                                      match,
+                                      "away",
+                                      "red",
+                                      event.target.value,
+                                    )
+                                  }
+                                  className="h-9 w-20 app-input-field text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                  disabled={
+                                    match.status != MatchStatus.LIVE ||
+                                    !canManageScoreboard
+                                  }
+                                />
+                                <Button
+                                  size="icon"
+                                  variant="outline"
+                                  className="h-8 w-10"
+                                  onClick={() =>
+                                    updateCards(match, "away", "red", 1)
+                                  }
+                                  disabled={
+                                    match.status != MatchStatus.LIVE ||
+                                    !canManageScoreboard
+                                  }
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="space-y-2">
-                      <p className="truncate text-xs font-semibold uppercase text-muted-foreground">
-                        {match.away_team?.name}
-                      </p>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-1">
-                          <p className="text-[11px] font-semibold uppercase text-amber-700 dark:text-amber-500">
-                            Cartões Amarelos
-                          </p>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-8 w-10"
-                              onClick={() =>
-                                updateCards(match, "away", "yellow", -1)
-                              }
-                              disabled={
-                                match.status != MatchStatus.LIVE ||
-                                !canManageScoreboard
-                              }
-                            >
-                              <Minus className="h-3 w-3" />
-                            </Button>
-                            <Input
-                              type="number"
-                              value={matchDraft.awayYellowCards}
-                              onChange={(event) =>
-                                updateManualInputCards(
-                                  match,
-                                  "away",
-                                  "yellow",
-                                  event.target.value,
-                                )
-                              }
-                              className="h-9 w-20 app-input-field text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                              disabled={
-                                match.status != MatchStatus.LIVE ||
-                                !canManageScoreboard
-                              }
-                            />
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-8 w-10"
-                              onClick={() =>
-                                updateCards(match, "away", "yellow", 1)
-                              }
-                              disabled={
-                                match.status != MatchStatus.LIVE ||
-                                !canManageScoreboard
-                              }
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Button>
+                      {handballMatch ? (
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <p className="text-[11px] font-semibold uppercase text-sky-700">
+                                  Cartões Azuis
+                                </p>
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    size="icon"
+                                    variant="outline"
+                                    className="h-8 w-10"
+                                    onClick={() =>
+                                      updateCards(match, "home", "blue", -1)
+                                    }
+                                    disabled={
+                                      match.status != MatchStatus.LIVE ||
+                                      !canManageScoreboard
+                                    }
+                                  >
+                                    <Minus className="h-3 w-3" />
+                                  </Button>
+                                  <Input
+                                    type="number"
+                                    value={matchDraft.homeBlueCards}
+                                    onChange={(event) =>
+                                      updateManualInputCards(
+                                        match,
+                                        "home",
+                                        "blue",
+                                        event.target.value,
+                                      )
+                                    }
+                                    className="h-9 w-20 app-input-field text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                    disabled={
+                                      match.status != MatchStatus.LIVE ||
+                                      !canManageScoreboard
+                                    }
+                                  />
+                                  <Button
+                                    size="icon"
+                                    variant="outline"
+                                    className="h-8 w-10"
+                                    onClick={() =>
+                                      updateCards(match, "home", "blue", 1)
+                                    }
+                                    disabled={
+                                      match.status != MatchStatus.LIVE ||
+                                      !canManageScoreboard
+                                    }
+                                  >
+                                    <Plus className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                              <div className="space-y-1">
+                                <p className="text-[11px] font-semibold uppercase text-slate-700 dark:text-slate-300">
+                                  Penalidades de 2 Min
+                                </p>
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    size="icon"
+                                    variant="outline"
+                                    className="h-8 w-10"
+                                    onClick={() =>
+                                      updateCards(
+                                        match,
+                                        "home",
+                                        "twoMinute",
+                                        -1,
+                                      )
+                                    }
+                                    disabled={
+                                      match.status != MatchStatus.LIVE ||
+                                      !canManageScoreboard
+                                    }
+                                  >
+                                    <Minus className="h-3 w-3" />
+                                  </Button>
+                                  <Input
+                                    type="number"
+                                    value={matchDraft.homeTwoMinutePenalties}
+                                    onChange={(event) =>
+                                      updateManualInputCards(
+                                        match,
+                                        "home",
+                                        "twoMinute",
+                                        event.target.value,
+                                      )
+                                    }
+                                    className="h-9 w-20 app-input-field text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                    disabled={
+                                      match.status != MatchStatus.LIVE ||
+                                      !canManageScoreboard
+                                    }
+                                  />
+                                  <Button
+                                    size="icon"
+                                    variant="outline"
+                                    className="h-8 w-10"
+                                    onClick={() =>
+                                      updateCards(match, "home", "twoMinute", 1)
+                                    }
+                                    disabled={
+                                      match.status != MatchStatus.LIVE ||
+                                      !canManageScoreboard
+                                    }
+                                  >
+                                    <Plus className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <p className="text-[11px] font-semibold uppercase text-sky-700">
+                                  Cartões Azuis
+                                </p>
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    size="icon"
+                                    variant="outline"
+                                    className="h-8 w-10"
+                                    onClick={() =>
+                                      updateCards(match, "away", "blue", -1)
+                                    }
+                                    disabled={
+                                      match.status != MatchStatus.LIVE ||
+                                      !canManageScoreboard
+                                    }
+                                  >
+                                    <Minus className="h-3 w-3" />
+                                  </Button>
+                                  <Input
+                                    type="number"
+                                    value={matchDraft.awayBlueCards}
+                                    onChange={(event) =>
+                                      updateManualInputCards(
+                                        match,
+                                        "away",
+                                        "blue",
+                                        event.target.value,
+                                      )
+                                    }
+                                    className="h-9 w-20 app-input-field text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                    disabled={
+                                      match.status != MatchStatus.LIVE ||
+                                      !canManageScoreboard
+                                    }
+                                  />
+                                  <Button
+                                    size="icon"
+                                    variant="outline"
+                                    className="h-8 w-10"
+                                    onClick={() =>
+                                      updateCards(match, "away", "blue", 1)
+                                    }
+                                    disabled={
+                                      match.status != MatchStatus.LIVE ||
+                                      !canManageScoreboard
+                                    }
+                                  >
+                                    <Plus className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                              <div className="space-y-1">
+                                <p className="text-[11px] font-semibold uppercase text-slate-700 dark:text-slate-300">
+                                  Penalidades de 2 Min
+                                </p>
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    size="icon"
+                                    variant="outline"
+                                    className="h-8 w-10"
+                                    onClick={() =>
+                                      updateCards(
+                                        match,
+                                        "away",
+                                        "twoMinute",
+                                        -1,
+                                      )
+                                    }
+                                    disabled={
+                                      match.status != MatchStatus.LIVE ||
+                                      !canManageScoreboard
+                                    }
+                                  >
+                                    <Minus className="h-3 w-3" />
+                                  </Button>
+                                  <Input
+                                    type="number"
+                                    value={matchDraft.awayTwoMinutePenalties}
+                                    onChange={(event) =>
+                                      updateManualInputCards(
+                                        match,
+                                        "away",
+                                        "twoMinute",
+                                        event.target.value,
+                                      )
+                                    }
+                                    className="h-9 w-20 app-input-field text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                    disabled={
+                                      match.status != MatchStatus.LIVE ||
+                                      !canManageScoreboard
+                                    }
+                                  />
+                                  <Button
+                                    size="icon"
+                                    variant="outline"
+                                    className="h-8 w-10"
+                                    onClick={() =>
+                                      updateCards(match, "away", "twoMinute", 1)
+                                    }
+                                    disabled={
+                                      match.status != MatchStatus.LIVE ||
+                                      !canManageScoreboard
+                                    }
+                                  >
+                                    <Plus className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         </div>
-
-                        <div className="space-y-1">
-                          <p className="text-[11px] font-semibold uppercase app-text-status-danger">
-                            Cartões Vermelhos
-                          </p>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-8 w-10"
-                              onClick={() =>
-                                updateCards(match, "away", "red", -1)
-                              }
-                              disabled={
-                                match.status != MatchStatus.LIVE ||
-                                !canManageScoreboard
-                              }
-                            >
-                              <Minus className="h-3 w-3" />
-                            </Button>
-                            <Input
-                              type="number"
-                              value={matchDraft.awayRedCards}
-                              onChange={(event) =>
-                                updateManualInputCards(
-                                  match,
-                                  "away",
-                                  "red",
-                                  event.target.value,
-                                )
-                              }
-                              className="h-9 w-20 app-input-field text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                              disabled={
-                                match.status != MatchStatus.LIVE ||
-                                !canManageScoreboard
-                              }
-                            />
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-8 w-10"
-                              onClick={() =>
-                                updateCards(match, "away", "red", 1)
-                              }
-                              disabled={
-                                match.status != MatchStatus.LIVE ||
-                                !canManageScoreboard
-                              }
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
+                      ) : null}
                     </div>
-                  </div>
-
-                  {handballMatch ? (
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-1">
-                          <p className="text-[11px] font-semibold uppercase text-sky-700">
-                            Cartões Azuis
-                          </p>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-8 w-10"
-                              onClick={() =>
-                                updateCards(match, "home", "blue", -1)
-                              }
-                              disabled={
-                                match.status != MatchStatus.LIVE ||
-                                !canManageScoreboard
-                              }
-                            >
-                              <Minus className="h-3 w-3" />
-                            </Button>
-                            <Input
-                              type="number"
-                              value={matchDraft.homeBlueCards}
-                              onChange={(event) =>
-                                updateManualInputCards(
-                                  match,
-                                  "home",
-                                  "blue",
-                                  event.target.value,
-                                )
-                              }
-                              className="h-9 w-20 app-input-field text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                              disabled={
-                                match.status != MatchStatus.LIVE ||
-                                !canManageScoreboard
-                              }
-                            />
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-8 w-10"
-                              onClick={() =>
-                                updateCards(match, "home", "blue", 1)
-                              }
-                              disabled={
-                                match.status != MatchStatus.LIVE ||
-                                !canManageScoreboard
-                              }
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          <p className="text-[11px] font-semibold uppercase text-slate-700 dark:text-slate-300">
-                            Penalidades de 2 Min
-                          </p>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-8 w-10"
-                              onClick={() =>
-                                updateCards(match, "home", "twoMinute", -1)
-                              }
-                              disabled={
-                                match.status != MatchStatus.LIVE ||
-                                !canManageScoreboard
-                              }
-                            >
-                              <Minus className="h-3 w-3" />
-                            </Button>
-                            <Input
-                              type="number"
-                              value={matchDraft.homeTwoMinutePenalties}
-                              onChange={(event) =>
-                                updateManualInputCards(
-                                  match,
-                                  "home",
-                                  "twoMinute",
-                                  event.target.value,
-                                )
-                              }
-                              className="h-9 w-20 app-input-field text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                              disabled={
-                                match.status != MatchStatus.LIVE ||
-                                !canManageScoreboard
-                              }
-                            />
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-8 w-10"
-                              onClick={() =>
-                                updateCards(match, "home", "twoMinute", 1)
-                              }
-                              disabled={
-                                match.status != MatchStatus.LIVE ||
-                                !canManageScoreboard
-                              }
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-1">
-                          <p className="text-[11px] font-semibold uppercase text-sky-700">
-                            Cartões Azuis
-                          </p>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-8 w-10"
-                              onClick={() =>
-                                updateCards(match, "away", "blue", -1)
-                              }
-                              disabled={
-                                match.status != MatchStatus.LIVE ||
-                                !canManageScoreboard
-                              }
-                            >
-                              <Minus className="h-3 w-3" />
-                            </Button>
-                            <Input
-                              type="number"
-                              value={matchDraft.awayBlueCards}
-                              onChange={(event) =>
-                                updateManualInputCards(
-                                  match,
-                                  "away",
-                                  "blue",
-                                  event.target.value,
-                                )
-                              }
-                              className="h-9 w-20 app-input-field text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                              disabled={
-                                match.status != MatchStatus.LIVE ||
-                                !canManageScoreboard
-                              }
-                            />
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-8 w-10"
-                              onClick={() =>
-                                updateCards(match, "away", "blue", 1)
-                              }
-                              disabled={
-                                match.status != MatchStatus.LIVE ||
-                                !canManageScoreboard
-                              }
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          <p className="text-[11px] font-semibold uppercase text-slate-700 dark:text-slate-300">
-                            Penalidades de 2 Min
-                          </p>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-8 w-10"
-                              onClick={() =>
-                                updateCards(match, "away", "twoMinute", -1)
-                              }
-                              disabled={
-                                match.status != MatchStatus.LIVE ||
-                                !canManageScoreboard
-                              }
-                            >
-                              <Minus className="h-3 w-3" />
-                            </Button>
-                            <Input
-                              type="number"
-                              value={matchDraft.awayTwoMinutePenalties}
-                              onChange={(event) =>
-                                updateManualInputCards(
-                                  match,
-                                  "away",
-                                  "twoMinute",
-                                  event.target.value,
-                                )
-                              }
-                              className="h-9 w-20 app-input-field text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                              disabled={
-                                match.status != MatchStatus.LIVE ||
-                                !canManageScoreboard
-                              }
-                            />
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-8 w-10"
-                              onClick={() =>
-                                updateCards(match, "away", "twoMinute", 1)
-                              }
-                              disabled={
-                                match.status != MatchStatus.LIVE ||
-                                !canManageScoreboard
-                              }
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
                   ) : null}
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
+                </div>
+              );
+            })}
 
-          <div className="order-4">
-            <AppPaginationControls
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onPageChange={setCurrentPage}
-              itemsPerPage={itemsPerPage}
-              onItemsPerPageChange={setItemsPerPage}
-            />
-          </div>
-        </>
-      )}
+            <div className="order-4">
+              <AppPaginationControls
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                itemsPerPage={itemsPerPage}
+                onItemsPerPageChange={setItemsPerPage}
+              />
+            </div>
+          </>
+        )}
       </div>
 
       <AlertDialog
@@ -4630,17 +5176,23 @@ export function AdminMatchControl({
           <AlertDialogHeader>
             <AlertDialogTitle>Voltar sessão para agendada</AlertDialogTitle>
             <AlertDialogDescription>
-              A sessão deixará de estar ao vivo. Os resultados ainda não encerrados serão preservados.
+              A sessão deixará de estar ao vivo. Os resultados ainda não
+              encerrados serão preservados.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setPendingReturnIndividualSessionId(null)}>
+            <AlertDialogCancel
+              onClick={() => setPendingReturnIndividualSessionId(null)}
+            >
               Cancelar
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (pendingReturnIndividualSessionId) {
-                  void runSessionAction(pendingReturnIndividualSessionId, "return");
+                  void runSessionAction(
+                    pendingReturnIndividualSessionId,
+                    "return",
+                  );
                   setPendingReturnIndividualSessionId(null);
                 }
               }}

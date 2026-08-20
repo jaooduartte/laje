@@ -1543,6 +1543,46 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
     });
   });
 
+  it("preserva alternância válida por naipe", () => {
+    const masculineCompetitionKey = "sport-1::MASCULINO::DIVISAO_PRINCIPAL";
+    const feminineCompetitionKey = "sport-1::FEMININO::DIVISAO_PRINCIPAL";
+    const teams = [
+      buildTeam({
+        id: "team-1",
+        name: "Atlética 1",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+      }),
+      buildTeam({
+        id: "team-2",
+        name: "Atlética 2",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+      }),
+    ];
+
+    const sanitizedPreference = sanitizeCourtSportPreference({
+      teams,
+      selectedCompetitionKeysByTeamId: {
+        "team-1": [masculineCompetitionKey, feminineCompetitionKey],
+        "team-2": [masculineCompetitionKey, feminineCompetitionKey],
+      },
+      sportPreference: {
+        preferred_sport_id: "sport-1",
+        preferred_naipe: MatchNaipe.MASCULINO,
+        preferred_division: null,
+        sequence_mode: "ALTERNATE_NAIPE",
+        alternate_naipe_after_exclusive_knockout_phase: false,
+      },
+    });
+
+    expect(sanitizedPreference).toEqual({
+      preferred_sport_id: "sport-1",
+      preferred_naipe: MatchNaipe.MASCULINO,
+      preferred_division: null,
+      sequence_mode: "ALTERNATE_NAIPE",
+      alternate_naipe_after_exclusive_knockout_phase: false,
+    });
+  });
+
   it("retorna agrupamento por naipe para FLEXIBLE quando existe apenas um naipe ativo", () => {
     const competitionKey = "sport-1::MASCULINO::DIVISAO_PRINCIPAL";
 
@@ -1573,6 +1613,45 @@ describe("sanitizeChampionshipBracketWizardDraft", () => {
         preferred_naipe: MatchNaipe.MASCULINO,
         preferred_division: null,
         sequence_mode: "GROUP_NAIPE",
+        alternate_naipe_after_exclusive_knockout_phase: false,
+      },
+    });
+
+    expect(sanitizedPreference).toEqual({
+      preferred_sport_id: "sport-1",
+      preferred_naipe: MatchNaipe.MASCULINO,
+      preferred_division: null,
+      sequence_mode: "FLEXIBLE",
+      alternate_naipe_after_exclusive_knockout_phase: false,
+    });
+  });
+
+  it("retorna alternância por naipe para FLEXIBLE quando existe apenas um naipe ativo", () => {
+    const competitionKey = "sport-1::MASCULINO::DIVISAO_PRINCIPAL";
+    const teams = [
+      buildTeam({
+        id: "team-1",
+        name: "Atlética 1",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+      }),
+      buildTeam({
+        id: "team-2",
+        name: "Atlética 2",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+      }),
+    ];
+
+    const sanitizedPreference = sanitizeCourtSportPreference({
+      teams,
+      selectedCompetitionKeysByTeamId: {
+        "team-1": [competitionKey],
+        "team-2": [competitionKey],
+      },
+      sportPreference: {
+        preferred_sport_id: "sport-1",
+        preferred_naipe: MatchNaipe.MASCULINO,
+        preferred_division: null,
+        sequence_mode: "ALTERNATE_NAIPE",
         alternate_naipe_after_exclusive_knockout_phase: false,
       },
     });

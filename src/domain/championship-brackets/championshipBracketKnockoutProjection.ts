@@ -164,7 +164,13 @@ export function resolveChampionshipBracketQualificationSummary(
     return `${projection.projected_bracket_size} vagas: ${bestFirstPlacedLabel} + ${bestSecondPlacedLabel}`;
   }
 
-  return `${projection.direct_qualified_team_count} vaga${projection.direct_qualified_team_count == 1 ? "" : "s"}: 1º de cada grupo`;
+  const bestFirstPlacedLabel = `${projection.direct_qualified_team_count} ${
+    projection.direct_qualified_team_count == 1 ? "melhor 1º" : "melhores 1º"
+  }`;
+
+  return `${projection.direct_qualified_team_count} vaga${
+    projection.direct_qualified_team_count == 1 ? "" : "s"
+  }: ${bestFirstPlacedLabel}`;
 }
 
 export function resolveChampionshipBracketProjectedKnockoutSummary(

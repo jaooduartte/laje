@@ -231,6 +231,15 @@
     backdrop-filter: none;
   }
 
+  .app-scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.app-scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+
   .app-input-field {
     border-color: transparent;
     background: hsl(var(--background) / 0.58);
@@ -426,9 +435,18 @@
   }
 
   .app-card-live-active {
-    border-color: hsl(var(--live) / 0.5);
+  border-color: hsl(var(--live) / 0.5);
+  background: hsl(var(--primary) / 0.1);
+  box-shadow: 0 0 0 1px hsl(var(--live) / 0.45);
+}
+
+  .app-card-live-active:hover {
+    border-color: hsl(var(--live) / 0.7);
     background: hsl(var(--primary) / 0.1);
-    box-shadow: 0 0 0 1px hsl(var(--live) / 0.45);
+    box-shadow:
+      0 0 0 1px hsl(var(--live) / 0.55),
+      0 0 20px hsl(var(--live) / 0.3),
+      0 0 60px hsl(var(--live) / 0.1);
   }
 
   .app-text-status-danger {
@@ -490,6 +508,15 @@
   .dark .app-pill-container,
   .dark .live-glow {
     box-shadow: 0 10px 32px hsl(0 0% 0% / 0.5);
+  }
+
+  .dark .app-card-live-active:hover {
+    border-color: hsl(var(--live) / 0.7);
+    background: hsl(var(--primary) / 0.1);
+    box-shadow:
+      0 0 0 1px hsl(var(--live) / 0.55),
+      0 0 20px hsl(var(--live) / 0.3),
+      0 0 60px hsl(var(--live) / 0.1);
   }
 
   .dark .glass-panel,

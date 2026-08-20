@@ -36,6 +36,7 @@ interface UseMatchesOptions {
   includeRealtime?: boolean;
   sortMode?: "SCHEDULED" | "LIVE" | "FINISHED";
   scheduledMatchOrdering?: "INTERLEAVED_BY_COMPETITION" | "OPERATIONAL";
+  enabled?: boolean;
 }
 
 type SupabaseLooseQueryError = {
@@ -220,6 +221,7 @@ export function useMatches({
   includeRealtime = true,
   sortMode = "SCHEDULED",
   scheduledMatchOrdering = "INTERLEAVED_BY_COMPETITION",
+  enabled = true,
 }: UseMatchesOptions = {}) {
   const normalizedStatusesKey =
     statuses && statuses.length > 0
@@ -254,6 +256,12 @@ export function useMatches({
       showLoading?: boolean;
       showFetching?: boolean;
     } = {}) => {
+      if (!enabled) {
+        setLoading(true);
+        setIsFetching(false);
+        hasLoadedMatchesRef.current = false;
+        return;
+      }
       if (championshipId === null) {
         setMatches([]);
         setChampionshipSportsForEstimatedStartTime([]);
@@ -953,6 +961,7 @@ export function useMatches({
       championshipId,
       courtName,
       division,
+      enabled,
       groupFilterValue,
       itemsPerPage,
       location,
@@ -968,6 +977,12 @@ export function useMatches({
   );
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(true);
+      setIsFetching(false);
+      hasLoadedMatchesRef.current = false;
+      return;
+    }
     if (championshipId === null) {
       setMatches([]);
       setChampionshipSportsForEstimatedStartTime([]);
@@ -1111,7 +1126,7 @@ export function useMatches({
 
       supabase.removeChannel(channel);
     };
-  }, [championshipId, fetchMatches, includeRealtime, seasonYear]);
+  }, [championshipId, enabled, fetchMatches, includeRealtime, seasonYear]);
 
   useEffect(() => {
     return () => {

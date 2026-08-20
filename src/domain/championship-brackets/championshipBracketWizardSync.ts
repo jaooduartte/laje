@@ -574,6 +574,9 @@ function resolveCourtSequenceModeValue(
     case "GROUP_NAIPE":
       return "GROUP_NAIPE";
 
+    case "ALTERNATE_NAIPE":
+      return "ALTERNATE_NAIPE";
+
     case "GROUP_DIVISION":
       return "GROUP_DIVISION";
 
@@ -705,7 +708,8 @@ function sanitizeScheduleDaysValues({
         );
 
         if (
-          sequenceMode == "GROUP_NAIPE" &&
+          (sequenceMode == "GROUP_NAIPE" ||
+            sequenceMode == "ALTERNATE_NAIPE") &&
           (preferredNaipe == null || availableNaipes.length < 2)
         ) {
           sequenceMode = "FLEXIBLE";
@@ -725,7 +729,10 @@ function sanitizeScheduleDaysValues({
 
         let nextPreferredDivision = preferredDivision;
 
-        if (sequenceMode == "GROUP_NAIPE") {
+        if (
+          sequenceMode == "GROUP_NAIPE" ||
+          sequenceMode == "ALTERNATE_NAIPE"
+        ) {
           nextPreferredDivision = null;
         }
 

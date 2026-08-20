@@ -1,7 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
+import { AdminListSkeleton } from "@/components/skeletons/AdminListSkeleton";
 import { addMonths, format, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Check, ChevronLeft, ChevronRight, Loader2, MoreVertical, Pencil, Plus, Save, Trash2, X } from "lucide-react";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  MoreVertical,
+  Pencil,
+  Plus,
+  Save,
+  Trash2,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import type { TablesInsert } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,12 +47,30 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useLeagueEvents } from "@/hooks/useLeagueEvents";
 import { useLeagueEventYears } from "@/hooks/useLeagueEventYears";
-import type { Team, LeagueEvent, LeagueEventReservationRequest } from "@/lib/types";
-import { LeagueEventOrganizerType, LeagueEventReservationRequestStatus, LeagueEventType } from "@/lib/enums";
+import type {
+  Team,
+  LeagueEvent,
+  LeagueEventReservationRequest,
+} from "@/lib/types";
+import {
+  LeagueEventOrganizerType,
+  LeagueEventReservationRequestStatus,
+  LeagueEventType,
+} from "@/lib/enums";
 import { TEAM_DIVISION_LABELS } from "@/lib/championship";
 import { cn } from "@/lib/utils";
 import {
@@ -83,7 +113,6 @@ const ALL_LEAGUE_EVENT_TYPES_FILTER = "ALL_LEAGUE_EVENT_TYPES_FILTER";
 const ALL_LEAGUE_EVENT_ORGANIZER_FILTER = "ALL_LEAGUE_EVENT_ORGANIZER_FILTER";
 const LAJE_LEAGUE_EVENT_ORGANIZER_FILTER = "LAJE_LEAGUE_EVENT_ORGANIZER_FILTER";
 
-
 function resolveDefaultFormValues(): LeagueEventFormValues {
   return {
     name: "",
@@ -93,7 +122,9 @@ function resolveDefaultFormValues(): LeagueEventFormValues {
   };
 }
 
-function resolveFormValuesFromLeagueEvent(leagueEvent: LeagueEvent): LeagueEventFormValues {
+function resolveFormValuesFromLeagueEvent(
+  leagueEvent: LeagueEvent,
+): LeagueEventFormValues {
   return {
     name: leagueEvent.name,
     eventType: leagueEvent.event_type,
@@ -117,16 +148,21 @@ function OrganizerTeamsSelector({
     .map((organizerTeamId) => teamsById.get(organizerTeamId)?.name)
     .filter((teamName): teamName is string => Boolean(teamName));
 
-  const selectedOrganizerLabel = selectedTeamNames.length == 0 ? placeholder : selectedTeamNames.join(" + ");
+  const selectedOrganizerLabel =
+    selectedTeamNames.length == 0 ? placeholder : selectedTeamNames.join(" + ");
 
   const handleToggleTeam = (teamId: string) => {
     const nextOrganizerTeamIds = selectedOrganizerTeamIds.includes(teamId)
-      ? selectedOrganizerTeamIds.filter((organizerTeamId) => organizerTeamId != teamId)
+      ? selectedOrganizerTeamIds.filter(
+          (organizerTeamId) => organizerTeamId != teamId,
+        )
       : [...selectedOrganizerTeamIds, teamId];
 
     const orderedOrganizerTeamIds = orderedTeams
       .map((team) => team.id)
-      .filter((organizerTeamId) => nextOrganizerTeamIds.includes(organizerTeamId));
+      .filter((organizerTeamId) =>
+        nextOrganizerTeamIds.includes(organizerTeamId),
+      );
 
     onSelectionChange(orderedOrganizerTeamIds);
   };
@@ -144,7 +180,9 @@ function OrganizerTeamsSelector({
         >
           <span className="truncate">{selectedOrganizerLabel}</span>
           <span className="ml-2 shrink-0 text-xs text-muted-foreground">
-            {selectedOrganizerTeamIds.length > 0 ? `${selectedOrganizerTeamIds.length} selecionada(s)` : ""}
+            {selectedOrganizerTeamIds.length > 0
+              ? `${selectedOrganizerTeamIds.length} selecionada(s)`
+              : ""}
           </span>
         </Button>
       </PopoverTrigger>
@@ -153,7 +191,10 @@ function OrganizerTeamsSelector({
         className="w-[340px] border-border/50 bg-background/80 p-3 backdrop-blur-xl"
         align="start"
       >
-        <div className="max-h-60 space-y-1 overflow-y-auto overscroll-contain pr-1" onWheelCapture={(event) => event.stopPropagation()}>
+        <div
+          className="max-h-60 space-y-1 overflow-y-auto overscroll-contain pr-1"
+          onWheelCapture={(event) => event.stopPropagation()}
+        >
           {orderedTeams.map((team) => (
             <label
               key={team.id}
@@ -165,14 +206,21 @@ function OrganizerTeamsSelector({
               />
               <span className="min-w-0 flex-1 truncate">{team.name}</span>
               <span className="text-[11px] text-muted-foreground">
-                {team.division ? TEAM_DIVISION_LABELS[team.division] : "Sem divisão"}
+                {team.division
+                  ? TEAM_DIVISION_LABELS[team.division]
+                  : "Sem divisão"}
               </span>
             </label>
           ))}
         </div>
 
         <div className="mt-3 flex justify-center">
-          <Button type="button" variant="ghost" size="sm" onClick={() => onSelectionChange([])}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => onSelectionChange([])}
+          >
             Limpar
           </Button>
         </div>
@@ -181,36 +229,66 @@ function OrganizerTeamsSelector({
   );
 }
 
-export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props) {
+export function AdminLeagueEvents({
+  teams,
+  canManageLeagueEvents = true,
+}: Props) {
   const [selectedMonthDate, setSelectedMonthDate] = useState(new Date());
-  const { leagueEvents, loading, upsertLeagueEvent, removeLeagueEvent } = useLeagueEvents({ monthDate: selectedMonthDate });
+  const { leagueEvents, loading, upsertLeagueEvent, removeLeagueEvent } =
+    useLeagueEvents({ monthDate: selectedMonthDate });
   const { years: availableEventYears } = useLeagueEventYears();
 
-  const [createFormValues, setCreateFormValues] = useState<LeagueEventFormValues>(resolveDefaultFormValues());
-  const [editingLeagueEventId, setEditingLeagueEventId] = useState<string | null>(null);
-  const [showEditLeagueEventModal, setShowEditLeagueEventModal] = useState(false);
-  const [editingFormValues, setEditingFormValues] = useState<LeagueEventFormValues>(resolveDefaultFormValues());
+  const [createFormValues, setCreateFormValues] =
+    useState<LeagueEventFormValues>(resolveDefaultFormValues());
+  const [editingLeagueEventId, setEditingLeagueEventId] = useState<
+    string | null
+  >(null);
+  const [showEditLeagueEventModal, setShowEditLeagueEventModal] =
+    useState(false);
+  const [editingFormValues, setEditingFormValues] =
+    useState<LeagueEventFormValues>(resolveDefaultFormValues());
   const [leagueEventSearch, setLeagueEventSearch] = useState("");
-  const [leagueEventTypeFilter, setLeagueEventTypeFilter] = useState<string>(ALL_LEAGUE_EVENT_TYPES_FILTER);
-  const [leagueEventOrganizerFilter, setLeagueEventOrganizerFilter] = useState<string>(ALL_LEAGUE_EVENT_ORGANIZER_FILTER);
-  const [showCreateLeagueEventModal, setShowCreateLeagueEventModal] = useState(false);
-  const [pendingCreateLeagueEventConflicts, setPendingCreateLeagueEventConflicts] = useState<LeagueEvent[] | null>(null);
+  const [leagueEventTypeFilter, setLeagueEventTypeFilter] = useState<string>(
+    ALL_LEAGUE_EVENT_TYPES_FILTER,
+  );
+  const [leagueEventOrganizerFilter, setLeagueEventOrganizerFilter] =
+    useState<string>(ALL_LEAGUE_EVENT_ORGANIZER_FILTER);
+  const [showCreateLeagueEventModal, setShowCreateLeagueEventModal] =
+    useState(false);
+  const [
+    pendingCreateLeagueEventConflicts,
+    setPendingCreateLeagueEventConflicts,
+  ] = useState<LeagueEvent[] | null>(null);
   const [creatingLeagueEvent, setCreatingLeagueEvent] = useState(false);
-  const [savingEditingLeagueEvent, setSavingEditingLeagueEvent] = useState(false);
-  const [deletingLeagueEventId, setDeletingLeagueEventId] = useState<string | null>(null);
-  const [pendingDeleteLeagueEvent, setPendingDeleteLeagueEvent] = useState<LeagueEvent | null>(null);
-  const [reservationRequests, setReservationRequests] = useState<LeagueEventReservationRequest[]>([]);
-  const [loadingReservationRequests, setLoadingReservationRequests] = useState(false);
-  const [reviewingReservationRequestId, setReviewingReservationRequestId] = useState<string | null>(null);
-  const [pendingApproveReservationConflict, setPendingApproveReservationConflict] = useState<{
+  const [savingEditingLeagueEvent, setSavingEditingLeagueEvent] =
+    useState(false);
+  const [deletingLeagueEventId, setDeletingLeagueEventId] = useState<
+    string | null
+  >(null);
+  const [pendingDeleteLeagueEvent, setPendingDeleteLeagueEvent] =
+    useState<LeagueEvent | null>(null);
+  const [reservationRequests, setReservationRequests] = useState<
+    LeagueEventReservationRequest[]
+  >([]);
+  const [loadingReservationRequests, setLoadingReservationRequests] =
+    useState(false);
+  const [reviewingReservationRequestId, setReviewingReservationRequestId] =
+    useState<string | null>(null);
+  const [
+    pendingApproveReservationConflict,
+    setPendingApproveReservationConflict,
+  ] = useState<{
     request: LeagueEventReservationRequest;
     conflictingLeagueEvents: LeagueEvent[];
   } | null>(null);
-  const [pendingRejectReservation, setPendingRejectReservation] = useState<LeagueEventReservationRequest | null>(null);
+  const [pendingRejectReservation, setPendingRejectReservation] =
+    useState<LeagueEventReservationRequest | null>(null);
   const [rejectionNotes, setRejectionNotes] = useState("");
 
   const orderedTeams = useMemo(() => {
-    return [...teams].sort((firstTeam, secondTeam) => firstTeam.name.localeCompare(secondTeam.name));
+    return [...teams].sort((firstTeam, secondTeam) =>
+      firstTeam.name.localeCompare(secondTeam.name),
+    );
   }, [teams]);
 
   const selectedYear = Number(format(selectedMonthDate, "yyyy"));
@@ -224,13 +302,18 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
       });
 
       if (error) {
-        console.error("Erro ao carregar solicitações de reserva:", error.message);
+        console.error(
+          "Erro ao carregar solicitações de reserva:",
+          error.message,
+        );
         setReservationRequests([]);
         setLoadingReservationRequests(false);
         return;
       }
 
-      setReservationRequests((data as unknown as LeagueEventReservationRequest[] | null) ?? []);
+      setReservationRequests(
+        (data as unknown as LeagueEventReservationRequest[] | null) ?? [],
+      );
       setLoadingReservationRequests(false);
     };
 
@@ -239,7 +322,9 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
 
   const pendingReservationRequests = useMemo(() => {
     return reservationRequests.filter((reservationRequest) => {
-      return reservationRequest.status == LeagueEventReservationRequestStatus.PENDING;
+      return (
+        reservationRequest.status == LeagueEventReservationRequestStatus.PENDING
+      );
     });
   }, [reservationRequests]);
 
@@ -265,7 +350,8 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
             return false;
           }
         } else {
-          const organizerTeamIds = resolveLeagueEventOrganizerTeamIds(leagueEvent);
+          const organizerTeamIds =
+            resolveLeagueEventOrganizerTeamIds(leagueEvent);
 
           if (!organizerTeamIds.includes(leagueEventOrganizerFilter)) {
             return false;
@@ -277,20 +363,33 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
         return true;
       }
 
-      return leagueEvent.name.toLowerCase().includes(normalizedLeagueEventSearch);
+      return leagueEvent.name
+        .toLowerCase()
+        .includes(normalizedLeagueEventSearch);
     });
-  }, [leagueEventOrganizerFilter, leagueEventSearch, leagueEventTypeFilter, leagueEvents, selectedMonthDate]);
+  }, [
+    leagueEventOrganizerFilter,
+    leagueEventSearch,
+    leagueEventTypeFilter,
+    leagueEvents,
+    selectedMonthDate,
+  ]);
 
   const todayDateKey = format(new Date(), "yyyy-MM-dd");
 
-  const monthControlClassName = "h-9 rounded-xl border border-transparent app-input-field text-secondary-foreground";
+  const monthControlClassName =
+    "h-9 rounded-xl border border-transparent app-input-field text-secondary-foreground";
 
   const editingLeagueEvent = useMemo(() => {
     if (!editingLeagueEventId) {
       return null;
     }
 
-    return leagueEvents.find((leagueEvent) => leagueEvent.id == editingLeagueEventId) ?? null;
+    return (
+      leagueEvents.find(
+        (leagueEvent) => leagueEvent.id == editingLeagueEventId,
+      ) ?? null
+    );
   }, [editingLeagueEventId, leagueEvents]);
 
   useEffect(() => {
@@ -302,7 +401,9 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
       return;
     }
 
-    if (leagueEvents.some((leagueEvent) => leagueEvent.id == editingLeagueEventId)) {
+    if (
+      leagueEvents.some((leagueEvent) => leagueEvent.id == editingLeagueEventId)
+    ) {
       return;
     }
 
@@ -327,7 +428,9 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
     setEditingFormValues(resolveDefaultFormValues());
   };
 
-  const handleChangeCreateField = <FieldName extends keyof LeagueEventFormValues>(
+  const handleChangeCreateField = <
+    FieldName extends keyof LeagueEventFormValues,
+  >(
     fieldName: FieldName,
     value: LeagueEventFormValues[FieldName],
   ) => {
@@ -396,7 +499,9 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
     });
 
     if (error) {
-      throw new Error("Não foi possível validar se já existe evento nessa data.");
+      throw new Error(
+        "Não foi possível validar se já existe evento nessa data.",
+      );
     }
 
     return data;
@@ -408,12 +513,14 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
     }
 
     try {
-      const leagueEventSaveDTO = LeagueEventSaveDTO.fromFormValues(createFormValues);
+      const leagueEventSaveDTO =
+        LeagueEventSaveDTO.fromFormValues(createFormValues);
       const payload = leagueEventSaveDTO.bindToSave();
       const organizerTeamIds = leagueEventSaveDTO.resolveOrganizerTeamIds();
 
       if (!shouldIgnoreDateConflict) {
-        const conflictingLeagueEvents = await resolveConflictingLeagueEventsByDate(payload.event_date);
+        const conflictingLeagueEvents =
+          await resolveConflictingLeagueEventsByDate(payload.event_date);
 
         if (conflictingLeagueEvents.length > 0) {
           setPendingCreateLeagueEventConflicts(conflictingLeagueEvents);
@@ -423,7 +530,10 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
 
       await persistCreateLeagueEvent(payload, organizerTeamIds);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Não foi possível criar o evento.";
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Não foi possível criar o evento.";
       toast.error(errorMessage);
     }
   };
@@ -457,11 +567,16 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
     }
 
     try {
-      const leagueEventSaveDTO = LeagueEventSaveDTO.fromFormValues(editingFormValues);
+      const leagueEventSaveDTO =
+        LeagueEventSaveDTO.fromFormValues(editingFormValues);
       const payload = leagueEventSaveDTO.bindToSave();
       const organizerTeamIds = leagueEventSaveDTO.resolveOrganizerTeamIds();
       setSavingEditingLeagueEvent(true);
-      const { data, error } = await updateLeagueEvent(editingLeagueEventId, payload, organizerTeamIds);
+      const { data, error } = await updateLeagueEvent(
+        editingLeagueEventId,
+        payload,
+        organizerTeamIds,
+      );
       setSavingEditingLeagueEvent(false);
 
       if (error) {
@@ -478,7 +593,10 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
       setSelectedMonthDate(new Date(`${payload.event_date}T12:00:00`));
     } catch (error) {
       setSavingEditingLeagueEvent(false);
-      const errorMessage = error instanceof Error ? error.message : "Não foi possível atualizar o evento.";
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Não foi possível atualizar o evento.";
       toast.error(errorMessage);
     }
   };
@@ -519,13 +637,23 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
     }
 
     setSelectedMonthDate((currentSelectedMonthDate) => {
-      return new Date(parsedYear, currentSelectedMonthDate.getMonth(), 1, 12, 0, 0, 0);
+      return new Date(
+        parsedYear,
+        currentSelectedMonthDate.getMonth(),
+        1,
+        12,
+        0,
+        0,
+        0,
+      );
     });
   };
 
   const performReviewReservationRequest = async (
     reservationRequestId: string,
-    decision: LeagueEventReservationRequestStatus.APPROVED | LeagueEventReservationRequestStatus.REJECTED,
+    decision:
+      | LeagueEventReservationRequestStatus.APPROVED
+      | LeagueEventReservationRequestStatus.REJECTED,
     reviewNotes?: string,
   ) => {
     if (!canManageLeagueEvents || reviewingReservationRequestId != null) {
@@ -534,7 +662,9 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
 
     setReviewingReservationRequestId(reservationRequestId);
 
-    const originalRequest = reservationRequests.find((r) => r.id === reservationRequestId);
+    const originalRequest = reservationRequests.find(
+      (r) => r.id === reservationRequestId,
+    );
 
     const { data, error } = await reviewLeagueEventReservationRequest({
       requestId: reservationRequestId,
@@ -567,16 +697,23 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
           type: decision,
           requesterEmail: updatedRequest.requester_email,
           requesterName: updatedRequest.requester_name,
-          teamName: originalRequest?.team?.name ?? updatedRequest.team?.name ?? "",
+          teamName:
+            originalRequest?.team?.name ?? updatedRequest.team?.name ?? "",
           eventName: updatedRequest.event_name,
           eventType: updatedRequest.event_type,
           eventDate: updatedRequest.event_date,
-          ...(decision === LeagueEventReservationRequestStatus.REJECTED && reviewNotes ? { reviewNotes } : {}),
+          ...(decision === LeagueEventReservationRequestStatus.REJECTED &&
+          reviewNotes
+            ? { reviewNotes }
+            : {}),
         },
       });
     }
 
-    if (decision == LeagueEventReservationRequestStatus.APPROVED && data?.league_event) {
+    if (
+      decision == LeagueEventReservationRequestStatus.APPROVED &&
+      data?.league_event
+    ) {
       upsertLeagueEvent(data.league_event as LeagueEvent);
       toast.success("Reserva aprovada e publicada no calendário.");
       return;
@@ -587,14 +724,18 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
 
   const handleReviewReservationRequest = async (
     reservationRequestId: string,
-    decision: LeagueEventReservationRequestStatus.APPROVED | LeagueEventReservationRequestStatus.REJECTED,
+    decision:
+      | LeagueEventReservationRequestStatus.APPROVED
+      | LeagueEventReservationRequestStatus.REJECTED,
   ) => {
     if (!canManageLeagueEvents || reviewingReservationRequestId != null) {
       return;
     }
 
     if (decision != LeagueEventReservationRequestStatus.APPROVED) {
-      const reservationRequest = reservationRequests.find((r) => r.id === reservationRequestId);
+      const reservationRequest = reservationRequests.find(
+        (r) => r.id === reservationRequestId,
+      );
       if (!reservationRequest) {
         toast.error("Solicitação não encontrada.");
         return;
@@ -604,7 +745,9 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
       return;
     }
 
-    const reservationRequest = reservationRequests.find((request) => request.id == reservationRequestId);
+    const reservationRequest = reservationRequests.find(
+      (request) => request.id == reservationRequestId,
+    );
 
     if (!reservationRequest) {
       toast.error("Solicitação não encontrada para aprovação.");
@@ -612,11 +755,15 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
     }
 
     setReviewingReservationRequestId(reservationRequestId);
-    const conflictingLeagueEvents = await resolveConflictingLeagueEventsByDate(reservationRequest.event_date).catch(() => null);
+    const conflictingLeagueEvents = await resolveConflictingLeagueEventsByDate(
+      reservationRequest.event_date,
+    ).catch(() => null);
     setReviewingReservationRequestId(null);
 
     if (conflictingLeagueEvents == null) {
-      toast.error("Não foi possível validar conflito de data antes da aprovação.");
+      toast.error(
+        "Não foi possível validar conflito de data antes da aprovação.",
+      );
       return;
     }
 
@@ -628,7 +775,10 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
       return;
     }
 
-    await performReviewReservationRequest(reservationRequestId, LeagueEventReservationRequestStatus.APPROVED);
+    await performReviewReservationRequest(
+      reservationRequestId,
+      LeagueEventReservationRequestStatus.APPROVED,
+    );
   };
 
   const handleConfirmApproveReservationDespiteConflict = async () => {
@@ -636,7 +786,8 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
       return;
     }
 
-    const pendingReservationRequestId = pendingApproveReservationConflict.request.id;
+    const pendingReservationRequestId =
+      pendingApproveReservationConflict.request.id;
     setPendingApproveReservationConflict(null);
     await performReviewReservationRequest(
       pendingReservationRequestId,
@@ -653,24 +804,32 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
     const notes = rejectionNotes.trim() || undefined;
     setPendingRejectReservation(null);
     setRejectionNotes("");
-    await performReviewReservationRequest(requestId, LeagueEventReservationRequestStatus.REJECTED, notes);
+    await performReviewReservationRequest(
+      requestId,
+      LeagueEventReservationRequestStatus.REJECTED,
+      notes,
+    );
   };
 
-  const pendingCreateLeagueEventConflictCount = pendingCreateLeagueEventConflicts?.length ?? 0;
-  const pendingCreateLeagueEventConflictDate = pendingCreateLeagueEventConflicts?.[0]?.event_date ?? null;
+  const pendingCreateLeagueEventConflictCount =
+    pendingCreateLeagueEventConflicts?.length ?? 0;
+  const pendingCreateLeagueEventConflictDate =
+    pendingCreateLeagueEventConflicts?.[0]?.event_date ?? null;
   const pendingCreateLeagueEventConflictTitle =
     pendingCreateLeagueEventConflictCount > 1
       ? "Já existem eventos nessa data"
       : "Já existe um evento nessa data";
-  const pendingCreateLeagueEventConflictDescription = pendingCreateLeagueEventConflictDate
-    ? `Encontramos ${
-        pendingCreateLeagueEventConflictCount > 1 ? "eventos cadastrados" : "evento cadastrado"
-      } em ${format(new Date(`${pendingCreateLeagueEventConflictDate}T12:00:00`), "dd/MM/yyyy")}. Deseja criar o evento mesmo assim?`
-    : "Encontramos evento cadastrado nessa data. Deseja criar o evento mesmo assim?";
+  const pendingCreateLeagueEventConflictDescription =
+    pendingCreateLeagueEventConflictDate
+      ? `Encontramos ${
+          pendingCreateLeagueEventConflictCount > 1
+            ? "eventos cadastrados"
+            : "evento cadastrado"
+        } em ${format(new Date(`${pendingCreateLeagueEventConflictDate}T12:00:00`), "dd/MM/yyyy")}. Deseja criar o evento mesmo assim?`
+      : "Encontramos evento cadastrado nessa data. Deseja criar o evento mesmo assim?";
 
   return (
     <div className="space-y-6">
-
       <div className="glass-card enter-section flex flex-col gap-3 p-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           <Input
@@ -682,13 +841,20 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
             autoComplete="off"
           />
 
-          <Select value={leagueEventOrganizerFilter} onValueChange={setLeagueEventOrganizerFilter}>
+          <Select
+            value={leagueEventOrganizerFilter}
+            onValueChange={setLeagueEventOrganizerFilter}
+          >
             <SelectTrigger className="app-input-field">
               <SelectValue placeholder="Filtrar por origem" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ALL_LEAGUE_EVENT_ORGANIZER_FILTER}>Todos os organizadores</SelectItem>
-              <SelectItem value={LAJE_LEAGUE_EVENT_ORGANIZER_FILTER}>Eventos da LAJE</SelectItem>
+              <SelectItem value={ALL_LEAGUE_EVENT_ORGANIZER_FILTER}>
+                Todos os organizadores
+              </SelectItem>
+              <SelectItem value={LAJE_LEAGUE_EVENT_ORGANIZER_FILTER}>
+                Eventos da LAJE
+              </SelectItem>
               {orderedTeams.map((team) => (
                 <SelectItem key={team.id} value={team.id}>
                   {team.name}
@@ -697,22 +863,39 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
             </SelectContent>
           </Select>
 
-          <Select value={leagueEventTypeFilter} onValueChange={setLeagueEventTypeFilter}>
+          <Select
+            value={leagueEventTypeFilter}
+            onValueChange={setLeagueEventTypeFilter}
+          >
             <SelectTrigger className="app-input-field">
               <SelectValue placeholder="Filtrar por tipo" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ALL_LEAGUE_EVENT_TYPES_FILTER}>Todos os tipos</SelectItem>
-              <SelectItem value={LeagueEventType.HH}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.HH]}</SelectItem>
-              <SelectItem value={LeagueEventType.OPEN_BAR}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.OPEN_BAR]}</SelectItem>
-              <SelectItem value={LeagueEventType.CHAMPIONSHIP}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.CHAMPIONSHIP]}</SelectItem>
-              <SelectItem value={LeagueEventType.LAJE_EVENT}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.LAJE_EVENT]}</SelectItem>
+              <SelectItem value={ALL_LEAGUE_EVENT_TYPES_FILTER}>
+                Todos os tipos
+              </SelectItem>
+              <SelectItem value={LeagueEventType.HH}>
+                {LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.HH]}
+              </SelectItem>
+              <SelectItem value={LeagueEventType.OPEN_BAR}>
+                {LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.OPEN_BAR]}
+              </SelectItem>
+              <SelectItem value={LeagueEventType.CHAMPIONSHIP}>
+                {LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.CHAMPIONSHIP]}
+              </SelectItem>
+              <SelectItem value={LeagueEventType.LAJE_EVENT}>
+                {LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.LAJE_EVENT]}
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         {canManageLeagueEvents ? (
-          <Button type="button" onClick={handleOpenCreateLeagueEventModal} className="w-full xl:w-auto">
+          <Button
+            type="button"
+            onClick={handleOpenCreateLeagueEventModal}
+            className="w-full xl:w-auto"
+          >
             <Plus className="mr-2 h-4 w-4" />
             Criar evento
           </Button>
@@ -721,7 +904,9 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
 
       <div className="enter-section flex w-full flex-col gap-2 glass-card px-4 py-3 sm:flex-row sm:items-center sm:justify-end">
         <Select value={String(selectedYear)} onValueChange={handleYearChange}>
-          <SelectTrigger className={`${monthControlClassName} w-full sm:min-w-24 sm:w-auto`}>
+          <SelectTrigger
+            className={`${monthControlClassName} w-full sm:min-w-24 sm:w-auto`}
+          >
             <SelectValue placeholder="Ano" />
           </SelectTrigger>
           <SelectContent>
@@ -761,24 +946,28 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
       </div>
 
       {!canManageLeagueEvents ? (
-        <p className="text-sm text-muted-foreground">Perfil em visualização: sem permissão para criar ou editar eventos.</p>
+        <p className="text-sm text-muted-foreground">
+          Perfil em visualização: sem permissão para criar ou editar eventos.
+        </p>
       ) : null}
 
       <div className="space-y-3">
         <div>
           <p className="text-sm font-medium">Solicitações de reserva</p>
           <p className="text-xs text-muted-foreground">
-            Pedidos públicos recebidos para o calendário da liga em ordem de chegada.
+            Pedidos públicos recebidos para o calendário da liga em ordem de
+            chegada.
           </p>
-          <Badge variant="outline" className="mt-1.5 rounded-xl px-3 py-1 text-xs font-semibold">
+          <Badge
+            variant="outline"
+            className="mt-1.5 rounded-xl px-3 py-1 text-xs font-semibold"
+          >
             {pendingReservationRequests.length} pendente(s)
           </Badge>
         </div>
 
         {loadingReservationRequests ? (
-          <div className="enter-section flex min-h-24 items-center justify-center rounded-2xl border border-border/50 bg-muted/20">
-            <Loader2 className="h-5 w-5 animate-spin text-primary" />
-          </div>
+          <AdminListSkeleton count={3} showActions />
         ) : pendingReservationRequests.length == 0 ? (
           <div className="rounded-2xl border border-border/50 bg-muted/20 p-4 text-sm text-muted-foreground">
             Nenhuma solicitação pendente para {selectedYear}.
@@ -786,48 +975,104 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
         ) : (
           <div className="space-y-2">
             {pendingReservationRequests.map((reservationRequest) => (
-              <div key={reservationRequest.id} className="relative list-item-card list-item-card-hover enter-section p-4 pr-12 lg:pr-4">
+              <div
+                key={reservationRequest.id}
+                className="relative list-item-card list-item-card-hover enter-section p-4 pr-12 lg:pr-4"
+              >
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_90px_1fr_1fr_1.5fr_110px_90px_130px_48px] lg:items-center">
                   <div className="space-y-1">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">Evento</p>
-                    <p className="truncate text-sm font-semibold">{reservationRequest.event_name}</p>
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                      Evento
+                    </p>
+                    <p className="truncate text-sm font-semibold">
+                      {reservationRequest.event_name}
+                    </p>
                   </div>
                   <div className="space-y-1 lg:text-center">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">Data</p>
-                    <p className="truncate text-sm text-foreground">{format(new Date(`${reservationRequest.event_date}T12:00:00`), "dd/MM/yyyy")}</p>
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                      Data
+                    </p>
+                    <p className="truncate text-sm text-foreground">
+                      {format(
+                        new Date(`${reservationRequest.event_date}T12:00:00`),
+                        "dd/MM/yyyy",
+                      )}
+                    </p>
                   </div>
                   <div className="space-y-1 lg:text-center">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">Atlética</p>
-                    <p className="truncate text-sm text-foreground">{reservationRequest.team?.name ?? "—"}</p>
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                      Atlética
+                    </p>
+                    <p className="truncate text-sm text-foreground">
+                      {reservationRequest.team?.name ?? "—"}
+                    </p>
                   </div>
                   <div className="space-y-1 lg:text-center">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">Solicitante</p>
-                    <p className="truncate text-sm text-foreground">{reservationRequest.requester_name}</p>
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                      Solicitante
+                    </p>
+                    <p className="truncate text-sm text-foreground">
+                      {reservationRequest.requester_name}
+                    </p>
                   </div>
                   <div className="space-y-1 lg:text-center">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">Email</p>
-                    <p className="truncate text-sm text-foreground">{reservationRequest.requester_email}</p>
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                      Email
+                    </p>
+                    <p className="truncate text-sm text-foreground">
+                      {reservationRequest.requester_email}
+                    </p>
                   </div>
                   <div className="space-y-1 lg:flex lg:flex-col lg:items-center">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">Tipo</p>
-                    <AppBadge tone={LEAGUE_EVENT_TYPE_BADGE_TONES[reservationRequest.event_type]}>
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                      Tipo
+                    </p>
+                    <AppBadge
+                      tone={
+                        LEAGUE_EVENT_TYPE_BADGE_TONES[
+                          reservationRequest.event_type
+                        ]
+                      }
+                    >
                       {LEAGUE_EVENT_TYPE_LABELS[reservationRequest.event_type]}
                     </AppBadge>
                   </div>
                   <div className="space-y-1 lg:text-center">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">Status</p>
-                    <p className="text-sm text-foreground">{LEAGUE_EVENT_RESERVATION_REQUEST_STATUS_LABELS[reservationRequest.status]}</p>
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                      Status
+                    </p>
+                    <p className="text-sm text-foreground">
+                      {
+                        LEAGUE_EVENT_RESERVATION_REQUEST_STATUS_LABELS[
+                          reservationRequest.status
+                        ]
+                      }
+                    </p>
                   </div>
                   <div className="space-y-1 lg:text-center">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">Solicitado em</p>
-                    <p className="truncate text-sm text-foreground">{format(new Date(reservationRequest.created_at), "dd/MM/yyyy HH:mm")}</p>
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                      Solicitado em
+                    </p>
+                    <p className="truncate text-sm text-foreground">
+                      {format(
+                        new Date(reservationRequest.created_at),
+                        "dd/MM/yyyy HH:mm",
+                      )}
+                    </p>
                   </div>
                   {canManageLeagueEvents ? (
                     <div className="absolute right-3 top-3 lg:static lg:flex lg:justify-end">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button type="button" variant="ghost" size="icon" className="h-8 w-8" disabled={reviewingReservationRequestId != null}>
-                            {reviewingReservationRequestId == reservationRequest.id ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            disabled={reviewingReservationRequestId != null}
+                          >
+                            {reviewingReservationRequestId ==
+                            reservationRequest.id ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
                               <MoreVertical className="h-4 w-4" />
@@ -870,9 +1115,10 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
       </div>
 
       {loading ? (
-        <div className="enter-section flex min-h-28 items-center justify-center glass-card">
-          <Loader2 className="h-5 w-5 animate-spin text-primary" />
-        </div>
+        <AdminListSkeleton
+          count={6}
+          className="grid gap-2 space-y-0 sm:grid-cols-2 xl:grid-cols-3"
+        />
       ) : null}
 
       <div className="flex items-center gap-3">
@@ -880,73 +1126,99 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
         <div className="h-px flex-1 bg-border/50" />
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-        {filteredLeagueEvents.map((leagueEvent) => {
-          const organizerName = resolveLeagueEventOrganizerName(leagueEvent);
-          const isPastLeagueEvent = leagueEvent.event_date < todayDateKey;
+      {!loading ? (
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {filteredLeagueEvents.map((leagueEvent) => {
+            const organizerName = resolveLeagueEventOrganizerName(leagueEvent);
+            const isPastLeagueEvent = leagueEvent.event_date < todayDateKey;
 
-          return (
-            <div
-              key={leagueEvent.id}
-              className={cn(
-                "list-item-card list-item-card-hover p-4 transition-opacity",
-                isPastLeagueEvent && "opacity-70",
-              )}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1 space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="space-y-1">
-                      <p className="font-display font-semibold">{leagueEvent.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {format(new Date(`${leagueEvent.event_date}T12:00:00`), "dd/MM/yyyy")}
-                      </p>
+            return (
+              <div
+                key={leagueEvent.id}
+                className={cn(
+                  "list-item-card list-item-card-hover p-4 transition-opacity",
+                  isPastLeagueEvent && "opacity-70",
+                )}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="space-y-1">
+                        <p className="font-display font-semibold">
+                          {leagueEvent.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {format(
+                            new Date(`${leagueEvent.event_date}T12:00:00`),
+                            "dd/MM/yyyy",
+                          )}
+                        </p>
+                      </div>
+
+                      <AppBadge
+                        tone={
+                          LEAGUE_EVENT_TYPE_BADGE_TONES[leagueEvent.event_type]
+                        }
+                      >
+                        {LEAGUE_EVENT_TYPE_LABELS[leagueEvent.event_type]}
+                      </AppBadge>
                     </div>
 
-                    <AppBadge tone={LEAGUE_EVENT_TYPE_BADGE_TONES[leagueEvent.event_type]}>
-                      {LEAGUE_EVENT_TYPE_LABELS[leagueEvent.event_type]}
-                    </AppBadge>
+                    <div className="mt-2 space-y-0.5 border-t border-border/40 pt-2">
+                      <p className="text-sm text-muted-foreground">
+                        Organizado por: {organizerName}
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="mt-2 space-y-0.5 border-t border-border/40 pt-2">
-                    <p className="text-sm text-muted-foreground">Organizado por: {organizerName}</p>
-                  </div>
-                </div>
-
-                {canManageLeagueEvents ? (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" aria-label={`Ações do evento ${leagueEvent.name}`} disabled={deletingLeagueEventId != null}>
-                        {deletingLeagueEventId == leagueEvent.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <MoreVertical className="h-4 w-4 text-muted-foreground" />
-                        )}
-                      </Button>
-                    </DropdownMenuTrigger>
+                  {canManageLeagueEvents ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Ações do evento ${leagueEvent.name}`}
+                          disabled={deletingLeagueEventId != null}
+                        >
+                          {deletingLeagueEventId == leagueEvent.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </Button>
+                      </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuItem onSelect={() => handleOpenEditLeagueEventModal(leagueEvent)}>
+                        <DropdownMenuItem
+                          onSelect={() =>
+                            handleOpenEditLeagueEventModal(leagueEvent)
+                          }
+                        >
                           <Pencil className="mr-2 h-4 w-4" />
                           Editar
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive"
-                          onSelect={() => handleRequestDeleteLeagueEvent(leagueEvent)}
+                          onSelect={() =>
+                            handleRequestDeleteLeagueEvent(leagueEvent)
+                          }
                         >
                           <Trash2 className="mr-2 h-4 w-4" />
                           Apagar
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                ) : null}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : null}
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      ) : null}
 
       {!loading && filteredLeagueEvents.length == 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhum evento cadastrado para os filtros selecionados.</p>
+        <p className="text-sm text-muted-foreground">
+          Nenhum evento cadastrado para os filtros selecionados.
+        </p>
       ) : null}
 
       <Dialog
@@ -963,13 +1235,17 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Criar evento da liga</DialogTitle>
-            <DialogDescription>Cadastre o evento com nome, tipo, organização e data.</DialogDescription>
+            <DialogDescription>
+              Cadastre o evento com nome, tipo, organização e data.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-3">
             <Input
               value={createFormValues.name}
-              onChange={(event) => handleChangeCreateField("name", event.target.value)}
+              onChange={(event) =>
+                handleChangeCreateField("name", event.target.value)
+              }
               placeholder="Nome do evento"
               className="app-input-field"
             />
@@ -986,10 +1262,18 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
                 <SelectValue placeholder="Selecione o tipo do evento" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={LeagueEventType.HH}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.HH]}</SelectItem>
-                <SelectItem value={LeagueEventType.OPEN_BAR}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.OPEN_BAR]}</SelectItem>
-                <SelectItem value={LeagueEventType.CHAMPIONSHIP}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.CHAMPIONSHIP]}</SelectItem>
-                <SelectItem value={LeagueEventType.LAJE_EVENT}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.LAJE_EVENT]}</SelectItem>
+                <SelectItem value={LeagueEventType.HH}>
+                  {LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.HH]}
+                </SelectItem>
+                <SelectItem value={LeagueEventType.OPEN_BAR}>
+                  {LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.OPEN_BAR]}
+                </SelectItem>
+                <SelectItem value={LeagueEventType.CHAMPIONSHIP}>
+                  {LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.CHAMPIONSHIP]}
+                </SelectItem>
+                <SelectItem value={LeagueEventType.LAJE_EVENT}>
+                  {LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.LAJE_EVENT]}
+                </SelectItem>
               </SelectContent>
             </Select>
 
@@ -1002,12 +1286,19 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
                 placeholder="Selecione o tipo do evento para definir a organização"
               />
             ) : createFormValues.eventType == LeagueEventType.LAJE_EVENT ? (
-              <Input value="LAJE" readOnly disabled className="app-input-field" />
+              <Input
+                value="LAJE"
+                readOnly
+                disabled
+                className="app-input-field"
+              />
             ) : (
               <OrganizerTeamsSelector
                 orderedTeams={orderedTeams}
                 selectedOrganizerTeamIds={createFormValues.organizerTeamIds}
-                onSelectionChange={(value) => handleChangeCreateField("organizerTeamIds", value)}
+                onSelectionChange={(value) =>
+                  handleChangeCreateField("organizerTeamIds", value)
+                }
                 placeholder="Selecione as atléticas"
               />
             )}
@@ -1021,11 +1312,24 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
           </div>
 
           <DialogFooter className="pt-2">
-            <Button type="button" variant="outline" onClick={() => setShowCreateLeagueEventModal(false)} disabled={creatingLeagueEvent}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowCreateLeagueEventModal(false)}
+              disabled={creatingLeagueEvent}
+            >
               Cancelar
             </Button>
-            <Button type="button" onClick={handleSubmitCreateLeagueEvent} disabled={creatingLeagueEvent}>
-              {creatingLeagueEvent ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+            <Button
+              type="button"
+              onClick={handleSubmitCreateLeagueEvent}
+              disabled={creatingLeagueEvent}
+            >
+              {creatingLeagueEvent ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="mr-2 h-4 w-4" />
+              )}
               Criar evento
             </Button>
           </DialogFooter>
@@ -1044,13 +1348,17 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
           <DialogContent className="sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle>Editar evento da liga</DialogTitle>
-              <DialogDescription>Atualize nome, tipo, organização e data do evento selecionado.</DialogDescription>
+              <DialogDescription>
+                Atualize nome, tipo, organização e data do evento selecionado.
+              </DialogDescription>
             </DialogHeader>
 
             <div className="grid gap-3">
               <Input
                 value={editingFormValues.name}
-                onChange={(event) => handleChangeEditField("name", event.target.value)}
+                onChange={(event) =>
+                  handleChangeEditField("name", event.target.value)
+                }
                 placeholder="Nome do evento"
                 className="app-input-field"
               />
@@ -1067,10 +1375,18 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
                   <SelectValue placeholder="Selecione o tipo do evento" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={LeagueEventType.HH}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.HH]}</SelectItem>
-                  <SelectItem value={LeagueEventType.OPEN_BAR}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.OPEN_BAR]}</SelectItem>
-                  <SelectItem value={LeagueEventType.CHAMPIONSHIP}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.CHAMPIONSHIP]}</SelectItem>
-                  <SelectItem value={LeagueEventType.LAJE_EVENT}>{LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.LAJE_EVENT]}</SelectItem>
+                  <SelectItem value={LeagueEventType.HH}>
+                    {LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.HH]}
+                  </SelectItem>
+                  <SelectItem value={LeagueEventType.OPEN_BAR}>
+                    {LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.OPEN_BAR]}
+                  </SelectItem>
+                  <SelectItem value={LeagueEventType.CHAMPIONSHIP}>
+                    {LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.CHAMPIONSHIP]}
+                  </SelectItem>
+                  <SelectItem value={LeagueEventType.LAJE_EVENT}>
+                    {LEAGUE_EVENT_TYPE_LABELS[LeagueEventType.LAJE_EVENT]}
+                  </SelectItem>
                 </SelectContent>
               </Select>
 
@@ -1083,12 +1399,19 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
                   placeholder="Selecione o tipo do evento para definir a organização"
                 />
               ) : editingFormValues.eventType == LeagueEventType.LAJE_EVENT ? (
-                <Input value="LAJE" readOnly disabled className="app-input-field" />
+                <Input
+                  value="LAJE"
+                  readOnly
+                  disabled
+                  className="app-input-field"
+                />
               ) : (
                 <OrganizerTeamsSelector
                   orderedTeams={orderedTeams}
                   selectedOrganizerTeamIds={editingFormValues.organizerTeamIds}
-                  onSelectionChange={(value) => handleChangeEditField("organizerTeamIds", value)}
+                  onSelectionChange={(value) =>
+                    handleChangeEditField("organizerTeamIds", value)
+                  }
                   placeholder="Selecione as atléticas"
                 />
               )}
@@ -1102,11 +1425,24 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
             </div>
 
             <DialogFooter className="gap-3 pt-2 sm:gap-2 sm:pt-0">
-              <Button type="button" variant="outline" onClick={handleCloseEditLeagueEventModal} disabled={savingEditingLeagueEvent}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCloseEditLeagueEventModal}
+                disabled={savingEditingLeagueEvent}
+              >
                 Cancelar
               </Button>
-              <Button type="button" onClick={handleSaveEditEvent} disabled={savingEditingLeagueEvent}>
-                {savingEditingLeagueEvent ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              <Button
+                type="button"
+                onClick={handleSaveEditEvent}
+                disabled={savingEditingLeagueEvent}
+              >
+                {savingEditingLeagueEvent ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="mr-2 h-4 w-4" />
+                )}
                 Salvar alterações
               </Button>
             </DialogFooter>
@@ -1124,17 +1460,27 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{pendingCreateLeagueEventConflictTitle}</AlertDialogTitle>
-            <AlertDialogDescription>{pendingCreateLeagueEventConflictDescription}</AlertDialogDescription>
+            <AlertDialogTitle>
+              {pendingCreateLeagueEventConflictTitle}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingCreateLeagueEventConflictDescription}
+            </AlertDialogDescription>
           </AlertDialogHeader>
 
           {pendingCreateLeagueEventConflicts ? (
             <div className="space-y-2 rounded-2xl border border-border/50 bg-muted/30 p-3">
               {pendingCreateLeagueEventConflicts.map((leagueEvent) => (
-                <div key={leagueEvent.id} className="space-y-1 rounded-xl border border-border/40 bg-background p-3">
-                  <p className="text-sm font-semibold text-foreground">{leagueEvent.name}</p>
+                <div
+                  key={leagueEvent.id}
+                  className="space-y-1 rounded-xl border border-border/40 bg-background p-3"
+                >
+                  <p className="text-sm font-semibold text-foreground">
+                    {leagueEvent.name}
+                  </p>
                   <p className="text-sm text-muted-foreground">
-                    {LEAGUE_EVENT_TYPE_LABELS[leagueEvent.event_type]} • Organizado por{" "}
+                    {LEAGUE_EVENT_TYPE_LABELS[leagueEvent.event_type]} •
+                    Organizado por{" "}
                     {resolveLeagueEventOrganizerName(leagueEvent)}
                   </p>
                 </div>
@@ -1143,9 +1489,16 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
           ) : null}
 
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={creatingLeagueEvent}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmCreateLeagueEventDespiteConflict} disabled={creatingLeagueEvent}>
-              {creatingLeagueEvent ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            <AlertDialogCancel disabled={creatingLeagueEvent}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmCreateLeagueEventDespiteConflict}
+              disabled={creatingLeagueEvent}
+            >
+              {creatingLeagueEvent ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
               Criar
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1165,11 +1518,16 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
             <AlertDialogTitle>Excluir evento da liga?</AlertDialogTitle>
             <AlertDialogDescription>
               Essa ação removerá o evento{" "}
-              <span className="font-semibold text-foreground">{pendingDeleteLeagueEvent?.name ?? ""}</span> do calendário.
+              <span className="font-semibold text-foreground">
+                {pendingDeleteLeagueEvent?.name ?? ""}
+              </span>{" "}
+              do calendário.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deletingLeagueEventId != null}>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel disabled={deletingLeagueEventId != null}>
+              Cancelar
+            </AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={deletingLeagueEventId != null}
@@ -1182,7 +1540,9 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
                 await handleDeleteEvent(pendingDeleteLeagueEventId);
               }}
             >
-              {deletingLeagueEventId != null ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {deletingLeagueEventId != null ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
               Excluir
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1201,31 +1561,44 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
           <AlertDialogHeader>
             <AlertDialogTitle>Já existem eventos nessa data</AlertDialogTitle>
             <AlertDialogDescription>
-              Existe(m) evento(s) no mesmo dia da reserva. Você deseja aprovar mesmo assim?
+              Existe(m) evento(s) no mesmo dia da reserva. Você deseja aprovar
+              mesmo assim?
             </AlertDialogDescription>
           </AlertDialogHeader>
 
           {pendingApproveReservationConflict ? (
             <div className="space-y-2 rounded-2xl border border-border/50 bg-muted/30 p-3">
-              {pendingApproveReservationConflict.conflictingLeagueEvents.map((leagueEvent) => (
-                <div key={leagueEvent.id} className="space-y-1 rounded-xl border border-border/40 bg-background p-3">
-                  <p className="text-sm font-semibold text-foreground">{leagueEvent.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {LEAGUE_EVENT_TYPE_LABELS[leagueEvent.event_type]} • Organizado por{" "}
-                    {resolveLeagueEventOrganizerName(leagueEvent)}
-                  </p>
-                </div>
-              ))}
+              {pendingApproveReservationConflict.conflictingLeagueEvents.map(
+                (leagueEvent) => (
+                  <div
+                    key={leagueEvent.id}
+                    className="space-y-1 rounded-xl border border-border/40 bg-background p-3"
+                  >
+                    <p className="text-sm font-semibold text-foreground">
+                      {leagueEvent.name}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {LEAGUE_EVENT_TYPE_LABELS[leagueEvent.event_type]} •
+                      Organizado por{" "}
+                      {resolveLeagueEventOrganizerName(leagueEvent)}
+                    </p>
+                  </div>
+                ),
+              )}
             </div>
           ) : null}
 
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={reviewingReservationRequestId != null}>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel disabled={reviewingReservationRequestId != null}>
+              Cancelar
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmApproveReservationDespiteConflict}
               disabled={reviewingReservationRequestId != null}
             >
-              {reviewingReservationRequestId != null ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {reviewingReservationRequestId != null ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
               Aprovar mesmo assim
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1252,16 +1625,24 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
           <div className="space-y-3">
             {pendingRejectReservation ? (
               <div className="rounded-xl border border-border/50 bg-muted/30 p-3 text-sm">
-                <p className="font-semibold text-foreground">{pendingRejectReservation.event_name}</p>
+                <p className="font-semibold text-foreground">
+                  {pendingRejectReservation.event_name}
+                </p>
                 <p className="text-muted-foreground">
-                  {format(new Date(`${pendingRejectReservation.event_date}T12:00:00`), "dd/MM/yyyy", { locale: ptBR })} •{" "}
-                  {pendingRejectReservation.team?.name ?? ""}
+                  {format(
+                    new Date(`${pendingRejectReservation.event_date}T12:00:00`),
+                    "dd/MM/yyyy",
+                    { locale: ptBR },
+                  )}{" "}
+                  • {pendingRejectReservation.team?.name ?? ""}
                 </p>
               </div>
             ) : null}
 
             <div className="space-y-1">
-              <label className="text-sm font-medium text-foreground">Motivo da recusa</label>
+              <label className="text-sm font-medium text-foreground">
+                Motivo da recusa
+              </label>
               <textarea
                 value={rejectionNotes}
                 onChange={(event) => setRejectionNotes(event.target.value)}
@@ -1290,7 +1671,11 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
               onClick={() => void handleConfirmRejectReservation()}
               disabled={reviewingReservationRequestId != null}
             >
-              {reviewingReservationRequestId != null ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <X className="mr-2 h-4 w-4" />}
+              {reviewingReservationRequestId != null ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <X className="mr-2 h-4 w-4" />
+              )}
               Recusar solicitação
             </Button>
           </DialogFooter>

@@ -1,19 +1,65 @@
 import { useMemo, useState } from "react";
-import { ArrowRightLeft, Copy, Link2, Loader2, MoreVertical, Pencil, Plus, Trash2 } from "lucide-react";
+import { AdminListSkeleton } from "@/components/skeletons/AdminListSkeleton";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  ArrowRightLeft,
+  Copy,
+  Link2,
+  Loader2,
+  MoreVertical,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { usePublicLinkSections } from "@/hooks/usePublicLinkSections";
 import { CHAMPIONSHIP_CODE_LABELS } from "@/lib/championship";
 import { PublicLinkFilterMode } from "@/lib/enums";
-import { isValidPublicLinkUrl, PUBLIC_LINK_FILTER_MODE_LABELS, sortPublicLinkSections } from "@/lib/publicLinks";
-import type { Championship, PublicLinkItem, PublicLinkSection } from "@/lib/types";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import {
+  isValidPublicLinkUrl,
+  PUBLIC_LINK_FILTER_MODE_LABELS,
+  sortPublicLinkSections,
+} from "@/lib/publicLinks";
+import type {
+  Championship,
+  PublicLinkItem,
+  PublicLinkSection,
+} from "@/lib/types";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -66,7 +112,9 @@ function resolveEmptySectionDraft(sortOrder = 1): SectionDraft {
   };
 }
 
-function resolveSectionDraftFromSection(publicLinkSection: PublicLinkSection): SectionDraft {
+function resolveSectionDraftFromSection(
+  publicLinkSection: PublicLinkSection,
+): SectionDraft {
   return {
     id: publicLinkSection.id,
     name: publicLinkSection.name,
@@ -109,11 +157,13 @@ function resolveItemDraftFromItem(publicLinkItem: PublicLinkItem): ItemDraft {
     filters:
       publicLinkItem.filter_mode == PublicLinkFilterMode.BY_CHAMPIONSHIP_YEAR &&
       (publicLinkItem.public_link_item_filters?.length ?? 0) > 0
-        ? (publicLinkItem.public_link_item_filters ?? []).map((publicLinkItemFilter) => ({
-            id: publicLinkItemFilter.id,
-            championshipId: publicLinkItemFilter.championship_id,
-            seasonYear: String(publicLinkItemFilter.season_year),
-          }))
+        ? (publicLinkItem.public_link_item_filters ?? []).map(
+            (publicLinkItemFilter) => ({
+              id: publicLinkItemFilter.id,
+              championshipId: publicLinkItemFilter.championship_id,
+              seasonYear: String(publicLinkItemFilter.season_year),
+            }),
+          )
         : [createLinkFilterDraft()],
   };
 }
@@ -123,28 +173,43 @@ function resolveDuplicatedName(value: string): string {
 }
 
 export function AdminLinks({ championships, canManageLinks = false }: Props) {
-  const { publicLinkSections, loading, refetch } = usePublicLinkSections({ includeInactive: true });
+  const { publicLinkSections, loading, refetch } = usePublicLinkSections({
+    includeInactive: true,
+  });
   const [isSectionDialogOpen, setIsSectionDialogOpen] = useState(false);
   const [isItemDialogOpen, setIsItemDialogOpen] = useState(false);
-  const [sectionDraft, setSectionDraft] = useState<SectionDraft>(resolveEmptySectionDraft());
+  const [sectionDraft, setSectionDraft] = useState<SectionDraft>(
+    resolveEmptySectionDraft(),
+  );
   const [itemDraft, setItemDraft] = useState<ItemDraft | null>(null);
   const [savingSection, setSavingSection] = useState(false);
   const [savingItem, setSavingItem] = useState(false);
-  const [duplicatingSectionId, setDuplicatingSectionId] = useState<string | null>(null);
-  const [duplicatingItemId, setDuplicatingItemId] = useState<string | null>(null);
-  const [deletingSectionId, setDeletingSectionId] = useState<string | null>(null);
+  const [duplicatingSectionId, setDuplicatingSectionId] = useState<
+    string | null
+  >(null);
+  const [duplicatingItemId, setDuplicatingItemId] = useState<string | null>(
+    null,
+  );
+  const [deletingSectionId, setDeletingSectionId] = useState<string | null>(
+    null,
+  );
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const [movingItemId, setMovingItemId] = useState<string | null>(null);
-  const [pendingDeleteSection, setPendingDeleteSection] = useState<PublicLinkSection | null>(null);
-  const [pendingDeleteItem, setPendingDeleteItem] = useState<PublicLinkItem | null>(null);
-  const [moveItemDialogState, setMoveItemDialogState] = useState<MoveItemDialogState | null>(null);
+  const [pendingDeleteSection, setPendingDeleteSection] =
+    useState<PublicLinkSection | null>(null);
+  const [pendingDeleteItem, setPendingDeleteItem] =
+    useState<PublicLinkItem | null>(null);
+  const [moveItemDialogState, setMoveItemDialogState] =
+    useState<MoveItemDialogState | null>(null);
 
   const sortedPublicLinkSections = useMemo(() => {
     return sortPublicLinkSections(publicLinkSections);
   }, [publicLinkSections]);
 
   const sectionSortOrderOptions = useMemo(() => {
-    const totalOptions = sectionDraft.id ? sortedPublicLinkSections.length : sortedPublicLinkSections.length + 1;
+    const totalOptions = sectionDraft.id
+      ? sortedPublicLinkSections.length
+      : sortedPublicLinkSections.length + 1;
 
     return Array.from({ length: Math.max(totalOptions, 1) }, (_, index) => {
       const order = index + 1;
@@ -161,9 +226,12 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
       return [];
     }
 
-    const selectedSection = sortedPublicLinkSections.find((publicLinkSection) => publicLinkSection.id == itemDraft.sectionId) ?? null;
+    const selectedSection =
+      sortedPublicLinkSections.find(
+        (publicLinkSection) => publicLinkSection.id == itemDraft.sectionId,
+      ) ?? null;
     const totalOptions = itemDraft.id
-      ? selectedSection?.public_link_items?.length ?? 1
+      ? (selectedSection?.public_link_items?.length ?? 1)
       : (selectedSection?.public_link_items?.length ?? 0) + 1;
 
     return Array.from({ length: Math.max(totalOptions, 1) }, (_, index) => {
@@ -177,10 +245,13 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
   }, [itemDraft, sortedPublicLinkSections]);
 
   const championshipById = useMemo(() => {
-    return championships.reduce<Record<string, Championship>>((carry, championship) => {
-      carry[championship.id] = championship;
-      return carry;
-    }, {});
+    return championships.reduce<Record<string, Championship>>(
+      (carry, championship) => {
+        carry[championship.id] = championship;
+        return carry;
+      },
+      {},
+    );
   }, [championships]);
 
   const availableMoveTargetSections = useMemo(() => {
@@ -188,35 +259,51 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
       return [];
     }
 
-    return sortedPublicLinkSections.filter((publicLinkSection) => publicLinkSection.id != moveItemDialogState.item.section_id);
+    return sortedPublicLinkSections.filter(
+      (publicLinkSection) =>
+        publicLinkSection.id != moveItemDialogState.item.section_id,
+    );
   }, [moveItemDialogState, sortedPublicLinkSections]);
 
   const buildItemFiltersPayload = (publicLinkItem: PublicLinkItem) => {
-    return publicLinkItem.filter_mode == PublicLinkFilterMode.BY_CHAMPIONSHIP_YEAR
-      ? (publicLinkItem.public_link_item_filters ?? []).map((publicLinkItemFilter) => ({
-          championship_id: publicLinkItemFilter.championship_id,
-          season_year: publicLinkItemFilter.season_year,
-        }))
+    return publicLinkItem.filter_mode ==
+      PublicLinkFilterMode.BY_CHAMPIONSHIP_YEAR
+      ? (publicLinkItem.public_link_item_filters ?? []).map(
+          (publicLinkItemFilter) => ({
+            championship_id: publicLinkItemFilter.championship_id,
+            season_year: publicLinkItemFilter.season_year,
+          }),
+        )
       : [];
   };
 
   const resolveNextItemSortOrder = (sectionId: string) => {
-    const selectedSection = sortedPublicLinkSections.find((publicLinkSection) => publicLinkSection.id == sectionId) ?? null;
+    const selectedSection =
+      sortedPublicLinkSections.find(
+        (publicLinkSection) => publicLinkSection.id == sectionId,
+      ) ?? null;
     return (selectedSection?.public_link_items?.length ?? 0) + 1;
   };
 
   const handleOpenCreateSectionDialog = () => {
-    setSectionDraft(resolveEmptySectionDraft(sortedPublicLinkSections.length + 1));
+    setSectionDraft(
+      resolveEmptySectionDraft(sortedPublicLinkSections.length + 1),
+    );
     setIsSectionDialogOpen(true);
   };
 
-  const handleOpenEditSectionDialog = (publicLinkSection: PublicLinkSection) => {
+  const handleOpenEditSectionDialog = (
+    publicLinkSection: PublicLinkSection,
+  ) => {
     setSectionDraft(resolveSectionDraftFromSection(publicLinkSection));
     setIsSectionDialogOpen(true);
   };
 
   const handleOpenCreateItemDialog = (sectionId: string) => {
-    const selectedSection = sortedPublicLinkSections.find((publicLinkSection) => publicLinkSection.id == sectionId) ?? null;
+    const selectedSection =
+      sortedPublicLinkSections.find(
+        (publicLinkSection) => publicLinkSection.id == sectionId,
+      ) ?? null;
     const nextSortOrder = (selectedSection?.public_link_items?.length ?? 0) + 1;
 
     setItemDraft({
@@ -231,7 +318,9 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
     setIsItemDialogOpen(true);
   };
 
-  const handleDuplicateSection = async (publicLinkSection: PublicLinkSection) => {
+  const handleDuplicateSection = async (
+    publicLinkSection: PublicLinkSection,
+  ) => {
     if (!canManageLinks || duplicatingSectionId) {
       return;
     }
@@ -253,16 +342,19 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
       }
 
       for (const publicLinkItem of publicLinkSection.public_link_items ?? []) {
-        const { error: duplicateItemError } = await supabase.rpc("upsert_public_link_item", {
-          _item_id: null,
-          _section_id: data,
-          _display_name: publicLinkItem.display_name,
-          _url: publicLinkItem.url,
-          _sort_order: publicLinkItem.sort_order,
-          _is_active: publicLinkItem.is_active,
-          _filter_mode: publicLinkItem.filter_mode,
-          _filters: buildItemFiltersPayload(publicLinkItem),
-        });
+        const { error: duplicateItemError } = await supabase.rpc(
+          "upsert_public_link_item",
+          {
+            _item_id: null,
+            _section_id: data,
+            _display_name: publicLinkItem.display_name,
+            _url: publicLinkItem.url,
+            _sort_order: publicLinkItem.sort_order,
+            _is_active: publicLinkItem.is_active,
+            _filter_mode: publicLinkItem.filter_mode,
+            _filters: buildItemFiltersPayload(publicLinkItem),
+          },
+        );
 
         if (duplicateItemError) {
           toast.error(duplicateItemError.message);
@@ -309,7 +401,9 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
   };
 
   const handleOpenMoveItemDialog = (publicLinkItem: PublicLinkItem) => {
-    const targetSections = sortedPublicLinkSections.filter((publicLinkSection) => publicLinkSection.id != publicLinkItem.section_id);
+    const targetSections = sortedPublicLinkSections.filter(
+      (publicLinkSection) => publicLinkSection.id != publicLinkItem.section_id,
+    );
 
     if (targetSections.length == 0) {
       toast.error("Crie outra seção antes de mover o link.");
@@ -335,7 +429,9 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
         _section_id: moveItemDialogState.targetSectionId,
         _display_name: moveItemDialogState.item.display_name,
         _url: moveItemDialogState.item.url,
-        _sort_order: resolveNextItemSortOrder(moveItemDialogState.targetSectionId),
+        _sort_order: resolveNextItemSortOrder(
+          moveItemDialogState.targetSectionId,
+        ),
         _is_active: moveItemDialogState.item.is_active,
         _filter_mode: moveItemDialogState.item.filter_mode,
         _filters: buildItemFiltersPayload(moveItemDialogState.item),
@@ -346,9 +442,12 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
         return;
       }
 
-      const { error: deleteError } = await supabase.rpc("delete_public_link_item", {
-        _item_id: moveItemDialogState.item.id,
-      });
+      const { error: deleteError } = await supabase.rpc(
+        "delete_public_link_item",
+        {
+          _item_id: moveItemDialogState.item.id,
+        },
+      );
 
       if (deleteError) {
         toast.error(deleteError.message);
@@ -421,7 +520,9 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
     }
 
     if (!isValidPublicLinkUrl(normalizedUrl)) {
-      toast.error("Informe uma URL absoluta válida começando com http:// ou https://.");
+      toast.error(
+        "Informe uma URL absoluta válida começando com http:// ou https://.",
+      );
       return;
     }
 
@@ -437,11 +538,19 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
 
     if (itemDraft.filterMode == PublicLinkFilterMode.BY_CHAMPIONSHIP_YEAR) {
       if (normalizedFilters.length == 0) {
-        toast.error("Adicione ao menos um filtro de campeonato e ano para esse link.");
+        toast.error(
+          "Adicione ao menos um filtro de campeonato e ano para esse link.",
+        );
         return;
       }
 
-      if (normalizedFilters.some((filter) => filter.championship_id.length == 0 || filter.season_year.length == 0)) {
+      if (
+        normalizedFilters.some(
+          (filter) =>
+            filter.championship_id.length == 0 ||
+            filter.season_year.length == 0,
+        )
+      ) {
         toast.error("Preencha campeonato e ano em todos os filtros do link.");
         return;
       }
@@ -539,8 +648,17 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
 
   if (loading) {
     return (
-      <div className="glass-card enter-section flex min-h-40 items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      <div className="glass-card enter-section space-y-5 p-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-2">
+            <Skeleton className="h-6 w-40" />
+            <Skeleton className="h-4 w-72 max-w-full" />
+          </div>
+
+          <Skeleton className="h-10 w-36 rounded-xl" />
+        </div>
+
+        <AdminListSkeleton count={4} showActions />
       </div>
     );
   }
@@ -553,7 +671,8 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
             <div>
               <p className="text-sm font-semibold">Links públicos</p>
               <p className="text-xs text-muted-foreground">
-                Organize links externos em seções, com nome amigável e filtros por campeonato e ano.
+                Organize links externos em seções, com nome amigável e filtros
+                por campeonato e ano.
               </p>
             </div>
           </div>
@@ -578,12 +697,17 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
         ) : (
           <div className="space-y-4">
             {sortedPublicLinkSections.map((publicLinkSection) => (
-              <section key={publicLinkSection.id} className="rounded-3xl border border-border/60 bg-background/35 p-4">
+              <section
+                key={publicLinkSection.id}
+                className="rounded-3xl border border-border/60 bg-background/35 p-4"
+              >
                 <div className="flex flex-col gap-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1 space-y-1 text-left">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-display text-lg font-semibold">{publicLinkSection.name}</h3>
+                        <h3 className="font-display text-lg font-semibold">
+                          {publicLinkSection.name}
+                        </h3>
                         {!publicLinkSection.is_active ? (
                           <span className="rounded-full border border-amber-300/60 bg-amber-100/70 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-700">
                             Inativa
@@ -592,21 +716,27 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
                       </div>
 
                       {publicLinkSection.description ? (
-                        <p className="pt-2 text-sm text-muted-foreground">{publicLinkSection.description}</p>
+                        <p className="pt-2 text-sm text-muted-foreground">
+                          {publicLinkSection.description}
+                        </p>
                       ) : null}
                     </div>
 
                     {canManageLinks ? (
-                    <div className="flex shrink-0 items-start gap-1 pt-0.5">
+                      <div className="flex shrink-0 items-start gap-1 pt-0.5">
                         <Button
                           type="button"
                           size="icon"
-                          onClick={() => handleOpenCreateItemDialog(publicLinkSection.id)}
+                          onClick={() =>
+                            handleOpenCreateItemDialog(publicLinkSection.id)
+                          }
                           aria-label={`Adicionar link na seção ${publicLinkSection.name}`}
                           className="sm:h-9 sm:w-auto sm:px-3"
                         >
                           <Plus className="h-4 w-4 sm:mr-2" />
-                          <span className="hidden sm:inline">Adicionar link</span>
+                          <span className="hidden sm:inline">
+                            Adicionar link
+                          </span>
                         </Button>
 
                         <DropdownMenu>
@@ -626,17 +756,27 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-52">
-                            <DropdownMenuItem onSelect={() => handleDuplicateSection(publicLinkSection)}>
+                            <DropdownMenuItem
+                              onSelect={() =>
+                                handleDuplicateSection(publicLinkSection)
+                              }
+                            >
                               <Copy className="mr-2 h-4 w-4" />
                               Duplicar seção
                             </DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => handleOpenEditSectionDialog(publicLinkSection)}>
+                            <DropdownMenuItem
+                              onSelect={() =>
+                                handleOpenEditSectionDialog(publicLinkSection)
+                              }
+                            >
                               <Pencil className="mr-2 h-4 w-4" />
                               Editar seção
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               className="text-destructive focus:text-destructive"
-                              onSelect={() => setPendingDeleteSection(publicLinkSection)}
+                              onSelect={() =>
+                                setPendingDeleteSection(publicLinkSection)
+                              }
                             >
                               <Trash2 className="mr-2 h-4 w-4" />
                               Excluir seção
@@ -654,94 +794,131 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
                       Nenhum link cadastrado nesta seção.
                     </div>
                   ) : (
-                    (publicLinkSection.public_link_items ?? []).map((publicLinkItem) => (
-                      <div key={publicLinkItem.id} className="rounded-2xl border border-border/50 bg-background/60 p-4">
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <p className="font-medium">{publicLinkItem.display_name}</p>
-                                {!publicLinkItem.is_active ? (
-                                  <span className="rounded-full border border-amber-300/60 bg-amber-100/70 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-700">
-                                    Inativo
-                                  </span>
-                                ) : null}
+                    (publicLinkSection.public_link_items ?? []).map(
+                      (publicLinkItem) => (
+                        <div
+                          key={publicLinkItem.id}
+                          className="rounded-2xl border border-border/50 bg-background/60 p-4"
+                        >
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="font-medium">
+                                    {publicLinkItem.display_name}
+                                  </p>
+                                  {!publicLinkItem.is_active ? (
+                                    <span className="rounded-full border border-amber-300/60 bg-amber-100/70 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-700">
+                                      Inativo
+                                    </span>
+                                  ) : null}
+                                </div>
                               </div>
+
+                              {canManageLinks ? (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      aria-label={`Ações do link ${publicLinkItem.display_name}`}
+                                      disabled={
+                                        deletingItemId != null ||
+                                        movingItemId != null
+                                      }
+                                    >
+                                      {deletingItemId == publicLinkItem.id ||
+                                      movingItemId == publicLinkItem.id ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                                      )}
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent
+                                    align="end"
+                                    className="w-48"
+                                  >
+                                    <DropdownMenuItem
+                                      onSelect={() =>
+                                        handleDuplicateItem(publicLinkItem)
+                                      }
+                                    >
+                                      <Copy className="mr-2 h-4 w-4" />
+                                      Duplicar
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onSelect={() =>
+                                        handleOpenMoveItemDialog(publicLinkItem)
+                                      }
+                                    >
+                                      <ArrowRightLeft className="mr-2 h-4 w-4" />
+                                      Mover de seção
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onSelect={() =>
+                                        handleOpenEditItemDialog(publicLinkItem)
+                                      }
+                                    >
+                                      <Pencil className="mr-2 h-4 w-4" />
+                                      Editar
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      className="text-destructive focus:text-destructive"
+                                      onSelect={() =>
+                                        setPendingDeleteItem(publicLinkItem)
+                                      }
+                                    >
+                                      <Trash2 className="mr-2 h-4 w-4" />
+                                      Excluir
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              ) : null}
                             </div>
 
-                            {canManageLinks ? (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    aria-label={`Ações do link ${publicLinkItem.display_name}`}
-                                    disabled={deletingItemId != null || movingItemId != null}
-                                  >
-                                    {deletingItemId == publicLinkItem.id || movingItemId == publicLinkItem.id ? (
-                                      <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : (
-                                      <MoreVertical className="h-4 w-4 text-muted-foreground" />
-                                    )}
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-48">
-                                  <DropdownMenuItem onSelect={() => handleDuplicateItem(publicLinkItem)}>
-                                    <Copy className="mr-2 h-4 w-4" />
-                                    Duplicar
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onSelect={() => handleOpenMoveItemDialog(publicLinkItem)}>
-                                    <ArrowRightLeft className="mr-2 h-4 w-4" />
-                                    Mover de seção
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onSelect={() => handleOpenEditItemDialog(publicLinkItem)}>
-                                    <Pencil className="mr-2 h-4 w-4" />
-                                    Editar
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    className="text-destructive focus:text-destructive"
-                                    onSelect={() => setPendingDeleteItem(publicLinkItem)}
-                                  >
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    Excluir
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                            <a
+                              href={publicLinkItem.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex max-w-full break-all text-sm text-primary underline underline-offset-4"
+                            >
+                              {publicLinkItem.url}
+                            </a>
+
+                            {publicLinkItem.filter_mode ==
+                            PublicLinkFilterMode.BY_CHAMPIONSHIP_YEAR ? (
+                              <div className="flex flex-wrap gap-2">
+                                {(
+                                  publicLinkItem.public_link_item_filters ?? []
+                                ).map((publicLinkItemFilter) => {
+                                  const championship =
+                                    championshipById[
+                                      publicLinkItemFilter.championship_id
+                                    ];
+                                  const championshipLabel = championship
+                                    ? CHAMPIONSHIP_CODE_LABELS[
+                                        championship.code
+                                      ]
+                                    : "Campeonato removido";
+
+                                  return (
+                                    <span
+                                      key={publicLinkItemFilter.id}
+                                      className="rounded-full border border-border/70 bg-background px-3 py-1 text-xs text-muted-foreground"
+                                    >
+                                      {championshipLabel} •{" "}
+                                      {publicLinkItemFilter.season_year}
+                                    </span>
+                                  );
+                                })}
+                              </div>
                             ) : null}
                           </div>
-
-                          <a
-                            href={publicLinkItem.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex max-w-full break-all text-sm text-primary underline underline-offset-4"
-                          >
-                            {publicLinkItem.url}
-                          </a>
-
-                          {publicLinkItem.filter_mode == PublicLinkFilterMode.BY_CHAMPIONSHIP_YEAR ? (
-                            <div className="flex flex-wrap gap-2">
-                              {(publicLinkItem.public_link_item_filters ?? []).map((publicLinkItemFilter) => {
-                                const championship = championshipById[publicLinkItemFilter.championship_id];
-                                const championshipLabel = championship
-                                  ? CHAMPIONSHIP_CODE_LABELS[championship.code]
-                                  : "Campeonato removido";
-
-                                return (
-                                  <span
-                                    key={publicLinkItemFilter.id}
-                                    className="rounded-full border border-border/70 bg-background px-3 py-1 text-xs text-muted-foreground"
-                                  >
-                                    {championshipLabel} • {publicLinkItemFilter.season_year}
-                                  </span>
-                                );
-                              })}
-                            </div>
-                          ) : null}
                         </div>
-                      </div>
-                    ))
+                      ),
+                    )
                   )}
                 </div>
               </section>
@@ -759,8 +936,12 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
       <Dialog open={isSectionDialogOpen} onOpenChange={setIsSectionDialogOpen}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>{sectionDraft.id ? "Editar seção" : "Criar seção"}</DialogTitle>
-            <DialogDescription>Defina nome, descrição, ordem e status da seção pública.</DialogDescription>
+            <DialogTitle>
+              {sectionDraft.id ? "Editar seção" : "Criar seção"}
+            </DialogTitle>
+            <DialogDescription>
+              Defina nome, descrição, ordem e status da seção pública.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
@@ -769,18 +950,30 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
               <Input
                 id="public-link-section-name"
                 value={sectionDraft.name}
-                onChange={(event) => setSectionDraft((currentSectionDraft) => ({ ...currentSectionDraft, name: event.target.value }))}
+                onChange={(event) =>
+                  setSectionDraft((currentSectionDraft) => ({
+                    ...currentSectionDraft,
+                    name: event.target.value,
+                  }))
+                }
                 placeholder="Ex.: Fotos dos campeonatos"
                 className="app-input-field"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="public-link-section-description">Descrição (opcional)</Label>
+              <Label htmlFor="public-link-section-description">
+                Descrição (opcional)
+              </Label>
               <Textarea
                 id="public-link-section-description"
                 value={sectionDraft.description}
-                onChange={(event) => setSectionDraft((currentSectionDraft) => ({ ...currentSectionDraft, description: event.target.value }))}
+                onChange={(event) =>
+                  setSectionDraft((currentSectionDraft) => ({
+                    ...currentSectionDraft,
+                    description: event.target.value,
+                  }))
+                }
                 placeholder="Ex.: Álbuns e materiais públicos organizados por campeonato."
                 className="app-input-field min-h-24 resize-none"
               />
@@ -791,14 +984,25 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
                 <Label htmlFor="public-link-section-order">Ordem</Label>
                 <Select
                   value={sectionDraft.sortOrder}
-                  onValueChange={(sortOrder) => setSectionDraft((currentSectionDraft) => ({ ...currentSectionDraft, sortOrder }))}
+                  onValueChange={(sortOrder) =>
+                    setSectionDraft((currentSectionDraft) => ({
+                      ...currentSectionDraft,
+                      sortOrder,
+                    }))
+                  }
                 >
-                  <SelectTrigger id="public-link-section-order" className="app-input-field">
+                  <SelectTrigger
+                    id="public-link-section-order"
+                    className="app-input-field"
+                  >
                     <SelectValue placeholder="Selecione a ordem" />
                   </SelectTrigger>
                   <SelectContent>
                     {sectionSortOrderOptions.map((sectionSortOrderOption) => (
-                      <SelectItem key={sectionSortOrderOption.value} value={sectionSortOrderOption.value}>
+                      <SelectItem
+                        key={sectionSortOrderOption.value}
+                        value={sectionSortOrderOption.value}
+                      >
                         {sectionSortOrderOption.label}
                       </SelectItem>
                     ))}
@@ -809,11 +1013,18 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
               <div className="flex items-center justify-between rounded-2xl border border-border/60 px-4 py-3">
                 <div>
                   <p className="text-sm font-medium">Seção ativa</p>
-                  <p className="text-xs text-muted-foreground">Seções inativas não aparecem na página pública.</p>
+                  <p className="text-xs text-muted-foreground">
+                    Seções inativas não aparecem na página pública.
+                  </p>
                 </div>
                 <Switch
                   checked={sectionDraft.isActive}
-                  onCheckedChange={(isActive) => setSectionDraft((currentSectionDraft) => ({ ...currentSectionDraft, isActive }))}
+                  onCheckedChange={(isActive) =>
+                    setSectionDraft((currentSectionDraft) => ({
+                      ...currentSectionDraft,
+                      isActive,
+                    }))
+                  }
                   aria-label="Alternar seção ativa"
                 />
               </div>
@@ -821,11 +1032,21 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setIsSectionDialogOpen(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsSectionDialogOpen(false)}
+            >
               Cancelar
             </Button>
-            <Button type="button" onClick={handleSaveSection} disabled={savingSection}>
-              {savingSection ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            <Button
+              type="button"
+              onClick={handleSaveSection}
+              disabled={savingSection}
+            >
+              {savingSection ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
               {sectionDraft.id ? "Salvar alterações" : "Criar seção"}
             </Button>
           </DialogFooter>
@@ -835,18 +1056,34 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
       <Dialog open={isItemDialogOpen} onOpenChange={setIsItemDialogOpen}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{itemDraft?.id ? "Editar link" : "Criar link"}</DialogTitle>
-            <DialogDescription>Cadastre um nome amigável, a URL de destino, a ordem e os vínculos usados nos filtros públicos.</DialogDescription>
+            <DialogTitle>
+              {itemDraft?.id ? "Editar link" : "Criar link"}
+            </DialogTitle>
+            <DialogDescription>
+              Cadastre um nome amigável, a URL de destino, a ordem e os vínculos
+              usados nos filtros públicos.
+            </DialogDescription>
           </DialogHeader>
 
           {itemDraft ? (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="public-link-item-display-name">Nome de exibição</Label>
+                <Label htmlFor="public-link-item-display-name">
+                  Nome de exibição
+                </Label>
                 <Input
                   id="public-link-item-display-name"
                   value={itemDraft.displayName}
-                  onChange={(event) => setItemDraft((currentItemDraft) => (currentItemDraft ? { ...currentItemDraft, displayName: event.target.value } : currentItemDraft))}
+                  onChange={(event) =>
+                    setItemDraft((currentItemDraft) =>
+                      currentItemDraft
+                        ? {
+                            ...currentItemDraft,
+                            displayName: event.target.value,
+                          }
+                        : currentItemDraft,
+                    )
+                  }
                   placeholder="Ex.: Fotos da final 2026"
                   className="app-input-field"
                 />
@@ -857,7 +1094,13 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
                 <Input
                   id="public-link-item-url"
                   value={itemDraft.url}
-                  onChange={(event) => setItemDraft((currentItemDraft) => (currentItemDraft ? { ...currentItemDraft, url: event.target.value } : currentItemDraft))}
+                  onChange={(event) =>
+                    setItemDraft((currentItemDraft) =>
+                      currentItemDraft
+                        ? { ...currentItemDraft, url: event.target.value }
+                        : currentItemDraft,
+                    )
+                  }
                   placeholder="https://drive.google.com/..."
                   className="app-input-field"
                 />
@@ -869,15 +1112,25 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
                   <Select
                     value={itemDraft.sortOrder}
                     onValueChange={(sortOrder) =>
-                      setItemDraft((currentItemDraft) => (currentItemDraft ? { ...currentItemDraft, sortOrder } : currentItemDraft))
+                      setItemDraft((currentItemDraft) =>
+                        currentItemDraft
+                          ? { ...currentItemDraft, sortOrder }
+                          : currentItemDraft,
+                      )
                     }
                   >
-                    <SelectTrigger id="public-link-item-order" className="app-input-field">
+                    <SelectTrigger
+                      id="public-link-item-order"
+                      className="app-input-field"
+                    >
                       <SelectValue placeholder="Selecione a ordem" />
                     </SelectTrigger>
                     <SelectContent>
                       {itemSortOrderOptions.map((itemSortOrderOption) => (
-                        <SelectItem key={itemSortOrderOption.value} value={itemSortOrderOption.value}>
+                        <SelectItem
+                          key={itemSortOrderOption.value}
+                          value={itemSortOrderOption.value}
+                        >
                           {itemSortOrderOption.label}
                         </SelectItem>
                       ))}
@@ -888,18 +1141,28 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
                 <div className="flex items-center justify-between rounded-2xl border border-border/60 px-4 py-3">
                   <div>
                     <p className="text-sm font-medium">Link ativo</p>
-                    <p className="text-xs text-muted-foreground">Links inativos não aparecem na página pública.</p>
+                    <p className="text-xs text-muted-foreground">
+                      Links inativos não aparecem na página pública.
+                    </p>
                   </div>
                   <Switch
                     checked={itemDraft.isActive}
-                    onCheckedChange={(isActive) => setItemDraft((currentItemDraft) => (currentItemDraft ? { ...currentItemDraft, isActive } : currentItemDraft))}
+                    onCheckedChange={(isActive) =>
+                      setItemDraft((currentItemDraft) =>
+                        currentItemDraft
+                          ? { ...currentItemDraft, isActive }
+                          : currentItemDraft,
+                      )
+                    }
                     aria-label="Alternar link ativo"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="public-link-item-filter-mode">Vínculo para filtros públicos</Label>
+                <Label htmlFor="public-link-item-filter-mode">
+                  Vínculo para filtros públicos
+                </Label>
                 <Select
                   value={itemDraft.filterMode}
                   onValueChange={(value) =>
@@ -919,25 +1182,43 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
                     )
                   }
                 >
-                  <SelectTrigger id="public-link-item-filter-mode" className="app-input-field">
+                  <SelectTrigger
+                    id="public-link-item-filter-mode"
+                    className="app-input-field"
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={PublicLinkFilterMode.GLOBAL}>{PUBLIC_LINK_FILTER_MODE_LABELS[PublicLinkFilterMode.GLOBAL]}</SelectItem>
-                    <SelectItem value={PublicLinkFilterMode.BY_CHAMPIONSHIP_YEAR}>
-                      {PUBLIC_LINK_FILTER_MODE_LABELS[PublicLinkFilterMode.BY_CHAMPIONSHIP_YEAR]}
+                    <SelectItem value={PublicLinkFilterMode.GLOBAL}>
+                      {
+                        PUBLIC_LINK_FILTER_MODE_LABELS[
+                          PublicLinkFilterMode.GLOBAL
+                        ]
+                      }
+                    </SelectItem>
+                    <SelectItem
+                      value={PublicLinkFilterMode.BY_CHAMPIONSHIP_YEAR}
+                    >
+                      {
+                        PUBLIC_LINK_FILTER_MODE_LABELS[
+                          PublicLinkFilterMode.BY_CHAMPIONSHIP_YEAR
+                        ]
+                      }
                     </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              {itemDraft.filterMode == PublicLinkFilterMode.BY_CHAMPIONSHIP_YEAR ? (
+              {itemDraft.filterMode ==
+              PublicLinkFilterMode.BY_CHAMPIONSHIP_YEAR ? (
                 <div className="space-y-3 rounded-2xl border border-border/60 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium">Filtros do link</p>
                       <p className="text-xs text-muted-foreground">
-                        Adicione um ou mais vínculos de campeonato e ano. Sem filtros aplicados na página pública, o link continua visível.
+                        Adicione um ou mais vínculos de campeonato e ano. Sem
+                        filtros aplicados na página pública, o link continua
+                        visível.
                       </p>
                     </div>
                     <Button
@@ -949,7 +1230,10 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
                           currentItemDraft
                             ? {
                                 ...currentItemDraft,
-                                filters: [...currentItemDraft.filters, createLinkFilterDraft()],
+                                filters: [
+                                  ...currentItemDraft.filters,
+                                  createLinkFilterDraft(),
+                                ],
                               }
                             : currentItemDraft,
                         )
@@ -962,7 +1246,10 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
 
                   <div className="space-y-3">
                     {itemDraft.filters.map((filter, index) => (
-                      <div key={filter.id} className="grid gap-3 rounded-2xl border border-border/50 bg-background/60 p-3 md:grid-cols-[minmax(0,1fr)_140px_auto]">
+                      <div
+                        key={filter.id}
+                        className="grid gap-3 rounded-2xl border border-border/50 bg-background/60 p-3 md:grid-cols-[minmax(0,1fr)_140px_auto]"
+                      >
                         <div className="space-y-2">
                           <Label>Campeonato</Label>
                           <Select
@@ -972,10 +1259,17 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
                                 currentItemDraft
                                   ? {
                                       ...currentItemDraft,
-                                      filters: currentItemDraft.filters.map((currentFilter) =>
-                                        currentFilter.id == filter.id
-                                          ? { ...currentFilter, championshipId: value == "__empty__" ? "" : value }
-                                          : currentFilter,
+                                      filters: currentItemDraft.filters.map(
+                                        (currentFilter) =>
+                                          currentFilter.id == filter.id
+                                            ? {
+                                                ...currentFilter,
+                                                championshipId:
+                                                  value == "__empty__"
+                                                    ? ""
+                                                    : value,
+                                              }
+                                            : currentFilter,
                                       ),
                                     }
                                   : currentItemDraft,
@@ -986,9 +1280,14 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
                               <SelectValue placeholder="Selecione um campeonato" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="__empty__">Selecione</SelectItem>
+                              <SelectItem value="__empty__">
+                                Selecione
+                              </SelectItem>
                               {championships.map((championship) => (
-                                <SelectItem key={championship.id} value={championship.id}>
+                                <SelectItem
+                                  key={championship.id}
+                                  value={championship.id}
+                                >
                                   {CHAMPIONSHIP_CODE_LABELS[championship.code]}
                                 </SelectItem>
                               ))}
@@ -1006,10 +1305,14 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
                                 currentItemDraft
                                   ? {
                                       ...currentItemDraft,
-                                      filters: currentItemDraft.filters.map((currentFilter) =>
-                                        currentFilter.id == filter.id
-                                          ? { ...currentFilter, seasonYear: event.target.value }
-                                          : currentFilter,
+                                      filters: currentItemDraft.filters.map(
+                                        (currentFilter) =>
+                                          currentFilter.id == filter.id
+                                            ? {
+                                                ...currentFilter,
+                                                seasonYear: event.target.value,
+                                              }
+                                            : currentFilter,
                                       ),
                                     }
                                   : currentItemDraft,
@@ -1031,7 +1334,10 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
                                       ...currentItemDraft,
                                       filters:
                                         currentItemDraft.filters.length > 1
-                                          ? currentItemDraft.filters.filter((currentFilter) => currentFilter.id != filter.id)
+                                          ? currentItemDraft.filters.filter(
+                                              (currentFilter) =>
+                                                currentFilter.id != filter.id,
+                                            )
                                           : [createLinkFilterDraft()],
                                     }
                                   : currentItemDraft,
@@ -1044,7 +1350,9 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
                         </div>
 
                         <div className="md:col-span-3">
-                          <p className="text-xs text-muted-foreground">Filtro {index + 1}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Filtro {index + 1}
+                          </p>
                         </div>
                       </div>
                     ))}
@@ -1055,47 +1363,76 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
           ) : null}
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setIsItemDialogOpen(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsItemDialogOpen(false)}
+            >
               Cancelar
             </Button>
-            <Button type="button" onClick={handleSaveItem} disabled={savingItem}>
-              {savingItem ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            <Button
+              type="button"
+              onClick={handleSaveItem}
+              disabled={savingItem}
+            >
+              {savingItem ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
               {itemDraft?.id ? "Salvar alterações" : "Criar link"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={moveItemDialogState != null} onOpenChange={(open) => !open && setMoveItemDialogState(null)}>
+      <Dialog
+        open={moveItemDialogState != null}
+        onOpenChange={(open) => !open && setMoveItemDialogState(null)}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Mover link</DialogTitle>
-            <DialogDescription>Escolha a seção de destino para esse link.</DialogDescription>
+            <DialogDescription>
+              Escolha a seção de destino para esse link.
+            </DialogDescription>
           </DialogHeader>
 
           {moveItemDialogState ? (
             <div className="space-y-4">
               <div className="space-y-1">
-                <p className="text-sm font-medium">{moveItemDialogState.item.display_name}</p>
-                <p className="text-xs text-muted-foreground break-all">{moveItemDialogState.item.url}</p>
+                <p className="text-sm font-medium">
+                  {moveItemDialogState.item.display_name}
+                </p>
+                <p className="text-xs text-muted-foreground break-all">
+                  {moveItemDialogState.item.url}
+                </p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="move-public-link-target-section">Seção de destino</Label>
+                <Label htmlFor="move-public-link-target-section">
+                  Seção de destino
+                </Label>
                 <Select
                   value={moveItemDialogState.targetSectionId}
                   onValueChange={(targetSectionId) =>
                     setMoveItemDialogState((currentMoveItemDialogState) =>
-                      currentMoveItemDialogState ? { ...currentMoveItemDialogState, targetSectionId } : currentMoveItemDialogState,
+                      currentMoveItemDialogState
+                        ? { ...currentMoveItemDialogState, targetSectionId }
+                        : currentMoveItemDialogState,
                     )
                   }
                 >
-                  <SelectTrigger id="move-public-link-target-section" className="app-input-field">
+                  <SelectTrigger
+                    id="move-public-link-target-section"
+                    className="app-input-field"
+                  >
                     <SelectValue placeholder="Selecione a seção" />
                   </SelectTrigger>
                   <SelectContent>
                     {availableMoveTargetSections.map((publicLinkSection) => (
-                      <SelectItem key={publicLinkSection.id} value={publicLinkSection.id}>
+                      <SelectItem
+                        key={publicLinkSection.id}
+                        value={publicLinkSection.id}
+                      >
                         {publicLinkSection.name}
                       </SelectItem>
                     ))}
@@ -1106,41 +1443,64 @@ export function AdminLinks({ championships, canManageLinks = false }: Props) {
           ) : null}
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setMoveItemDialogState(null)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setMoveItemDialogState(null)}
+            >
               Cancelar
             </Button>
-            <Button type="button" onClick={handleConfirmMoveItem} disabled={movingItemId != null}>
-              {movingItemId != null ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            <Button
+              type="button"
+              onClick={handleConfirmMoveItem}
+              disabled={movingItemId != null}
+            >
+              {movingItemId != null ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
               Mover link
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={pendingDeleteSection != null} onOpenChange={(open) => !open && setPendingDeleteSection(null)}>
+      <AlertDialog
+        open={pendingDeleteSection != null}
+        onOpenChange={(open) => !open && setPendingDeleteSection(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir seção</AlertDialogTitle>
             <AlertDialogDescription>
-              Essa ação remove a seção permanentemente. Se ainda houver links nela, a exclusão será bloqueada.
+              Essa ação remove a seção permanentemente. Se ainda houver links
+              nela, a exclusão será bloqueada.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmDeleteSection}>Excluir seção</AlertDialogAction>
+            <AlertDialogAction onClick={handleConfirmDeleteSection}>
+              Excluir seção
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={pendingDeleteItem != null} onOpenChange={(open) => !open && setPendingDeleteItem(null)}>
+      <AlertDialog
+        open={pendingDeleteItem != null}
+        onOpenChange={(open) => !open && setPendingDeleteItem(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir link</AlertDialogTitle>
-            <AlertDialogDescription>Essa ação remove o link e todos os filtros vinculados a ele.</AlertDialogDescription>
+            <AlertDialogDescription>
+              Essa ação remove o link e todos os filtros vinculados a ele.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmDeleteItem}>Excluir link</AlertDialogAction>
+            <AlertDialogAction onClick={handleConfirmDeleteItem}>
+              Excluir link
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

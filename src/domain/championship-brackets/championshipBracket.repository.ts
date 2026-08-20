@@ -19,6 +19,7 @@ import type {
   BracketLocationSportPriorityGroup,
   BracketLocationSportPriorityUpdate,
   BracketKnockoutCourtPriorityGroup,
+  BracketKnockoutProgrammedFinal,
   BracketKnockoutCourtPriorityUpdate,
   BracketGeneratedLocationGroup,
   BracketGeneratedLocationGroupUpdate,
@@ -38,6 +39,29 @@ import type { MatchNaipe, TeamDivision } from "@/lib/enums";
 
 function toSupabaseJson(value: unknown): Json {
   return value as Json;
+}
+
+function resolveScheduleDateKey(scheduledDate: string): string {
+  return scheduledDate.slice(0, 10);
+}
+
+function normalizeKnockoutCourtIdentity(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase("pt-BR");
+}
+
+function resolveKnockoutCourtLogicalKey(
+  locationName: string,
+  courtName: string,
+): string {
+  return [
+    normalizeKnockoutCourtIdentity(locationName),
+    normalizeKnockoutCourtIdentity(courtName),
+  ].join("::");
 }
 
 export async function previewChampionshipBracketReconfiguration(
@@ -845,7 +869,8 @@ export async function updateBracketCourtPriorities(
 export async function getBracketLocationSportPriorities(
   bracketEditionId: string,
 ): Promise<{ data: BracketLocationSportPriorityGroup[]; error: Error | null }> {
-  const [daysResponse, prioritiesResponse] = await Promise.all([
+  const [daysResponse, prioritiesResponse, bracketMatchesResponse] =
+    await Promise.all([
     supabase
       .from("championship_bracket_days")
       .select(
@@ -862,8 +887,11 @@ export async function getBracketLocationSportPriorities(
             name,
             position,
             court_group_id,
+            preferred_sport_id,
             championship_bracket_court_sports (
               sport_id,
+              preferred_naipe,
+              preferred_division,
               sequence_mode
             )
           )
@@ -876,6 +904,19 @@ export async function getBracketLocationSportPriorities(
       .from("championship_bracket_location_sport_priorities")
       .select("location_group_id, sport_id, priority_mode")
       .eq("bracket_edition_id", bracketEditionId),
+    supabase
+      .from("championship_bracket_matches")
+      .select(
+        `
+        match_id,
+        matches!championship_bracket_matches_match_id_fkey (
+          scheduled_date,
+          sport_id
+        )
+      `,
+      )
+      .eq("bracket_edition_id", bracketEditionId)
+      .not("match_id", "is", null),
   ]);
 
   if (daysResponse.error) {
@@ -885,6 +926,35 @@ export async function getBracketLocationSportPriorities(
   if (prioritiesResponse.error) {
     return { data: [], error: prioritiesResponse.error };
   }
+
+  if (bracketMatchesResponse.error) {
+    return { data: [], error: bracketMatchesResponse.error };
+  }
+
+  const activeSportDateKeys = new Set(
+    (
+      bracketMatchesResponse.data as Array<{
+        match_id: string | null;
+        matches: {
+          scheduled_date: string | null;
+          sport_id: string | null;
+        } | null;
+      }> | null
+    )
+      ?.map((item) => item.matches)
+      .filter(
+        (
+          match,
+        ): match is {
+          scheduled_date: string;
+          sport_id: string;
+        } => match?.scheduled_date != null && match.sport_id != null,
+      )
+      .map(
+        (match) =>
+          `${resolveScheduleDateKey(match.scheduled_date)}:${match.sport_id}`,
+      ) ?? [],
+  );
 
   const priorityModeByKey = (
     (prioritiesResponse.data as Array<{
@@ -903,6 +973,8 @@ export async function getBracketLocationSportPriorities(
   const grouped = new Map<string, BracketLocationSportPriorityGroup>();
   const orderedDays =
     (daysResponse.data as Array<{
+      id: string;
+      event_date: string;
       championship_bracket_locations?: Array<{
         id: string;
         name: string;
@@ -913,8 +985,11 @@ export async function getBracketLocationSportPriorities(
           name: string;
           position: number;
           court_group_id: string;
+          preferred_sport_id: string | null;
           championship_bracket_court_sports?: Array<{
             sport_id: string;
+            preferred_naipe: MatchNaipe | null;
+            preferred_division: TeamDivision | null;
             sequence_mode: ChampionshipBracketCourtSequenceMode;
           }>;
         }>;
@@ -934,9 +1009,17 @@ export async function getBracketLocationSportPriorities(
       ];
 
       uniqueSportIds.forEach((sportId) => {
-        const key = `${location.location_group_id}:${sportId}`;
+        const activeSportDateKey = `${day.event_date}:${sportId}`;
+
+        if (!activeSportDateKeys.has(activeSportDateKey)) {
+          return;
+        }
+
+        const key = `${day.id}:${location.location_group_id}:${sportId}`;
+        const priorityKey = `${location.location_group_id}:${sportId}`;
         const matchingCourts = (location.championship_bracket_courts ?? [])
           .filter((court) =>
+            court.preferred_sport_id === sportId &&
             (court.championship_bracket_court_sports ?? []).some(
               (courtSport) => courtSport.sport_id === sportId,
             ),
@@ -945,16 +1028,18 @@ export async function getBracketLocationSportPriorities(
             (leftCourt, rightCourt) => leftCourt.position - rightCourt.position,
           );
 
-        if (matchingCourts.length < 2) {
+        if (matchingCourts.length === 0) {
           return;
         }
 
         if (!grouped.has(key)) {
           grouped.set(key, {
+            bracket_day_id: day.id,
+            event_date: day.event_date,
             location_group_id: location.location_group_id,
             location_name: location.name,
             sport_id: sportId,
-            priority_mode: priorityModeByKey[key] ?? "NONE",
+            priority_mode: priorityModeByKey[priorityKey] ?? "NONE",
             courts: [],
           });
         }
@@ -974,6 +1059,32 @@ export async function getBracketLocationSportPriorities(
             ),
           ];
 
+          const matchingCourtSports =
+            (court.championship_bracket_court_sports ?? [])
+              .filter(
+                (courtSport) =>
+                  courtSport.sport_id === sportId,
+              );
+
+          const matchingCourtSport =
+            matchingCourtSports[0] ?? null;
+
+          if (!matchingCourtSport) {
+            return;
+          }
+
+          const preferredNaipe =
+            matchingCourtSports.find(
+              (courtSport) =>
+                courtSport.preferred_naipe != null,
+            )?.preferred_naipe ?? null;
+
+          const preferredDivision =
+            matchingCourtSports.find(
+              (courtSport) =>
+                courtSport.preferred_division != null,
+            )?.preferred_division ?? null;
+
           const existingCourt = currentGroup.courts.find(
             (currentCourt) =>
               currentCourt.court_group_id === court.court_group_id,
@@ -986,21 +1097,31 @@ export async function getBracketLocationSportPriorities(
 
             existingCourt.sequence_modes = mergedSequenceModes;
 
-            existingCourt.is_sequence_locked = mergedSequenceModes.some(
-              (mode) => mode !== "FLEXIBLE",
-            );
+            existingCourt.is_sequence_locked = false;
+
+            existingCourt.preferred_naipe =
+              existingCourt.preferred_naipe ??
+              preferredNaipe;
+
+            existingCourt.preferred_division =
+              existingCourt.preferred_division ??
+              preferredDivision;
 
             return;
           }
 
           currentGroup.courts.push({
+            bracket_court_id: court.id,
             court_group_id: court.court_group_id,
             court_name: court.name,
             position: court.position,
+            preferred_sport_id: court.preferred_sport_id ?? null,
+            is_primary_sport: court.preferred_sport_id === sportId,
+            preferred_naipe: preferredNaipe,
+            preferred_division: preferredDivision,
+            sequence_mode: matchingCourtSport.sequence_mode,
             sequence_modes: sequenceModes,
-            is_sequence_locked: sequenceModes.some(
-              (mode) => mode !== "FLEXIBLE",
-            ),
+            is_sequence_locked: false,
           });
         });
       });
@@ -1048,7 +1169,12 @@ export async function updateBracketLocationSportPriorities(
 export async function getBracketKnockoutCourtPriorities(
   bracketEditionId: string,
 ): Promise<{ data: BracketKnockoutCourtPriorityGroup[]; error: Error | null }> {
-  const [daysResponse, competitionsResponse, prioritiesResponse] =
+  const [
+    daysResponse,
+    competitionsResponse,
+    prioritiesResponse,
+    finalProgramResponse,
+  ] =
     await Promise.all([
       supabase
         .from("championship_bracket_days")
@@ -1082,6 +1208,9 @@ export async function getBracketKnockoutCourtPriorities(
           "sport_id, phase, division_scope, location_group_id, court_group_id",
         )
         .eq("bracket_edition_id", bracketEditionId),
+      supabase.rpc("get_admin_championship_knockout_final_program_schedule", {
+        _bracket_edition_id: bracketEditionId,
+      }),
     ]);
 
   if (daysResponse.error) {
@@ -1094,6 +1223,10 @@ export async function getBracketKnockoutCourtPriorities(
 
   if (prioritiesResponse.error) {
     return { data: [], error: prioritiesResponse.error };
+  }
+
+  if (finalProgramResponse.error) {
+    return { data: [], error: finalProgramResponse.error };
   }
 
   const courtOptionsBySportId = new Map<
@@ -1130,22 +1263,56 @@ export async function getBracketKnockoutCourtPriorities(
 
         sportIds.forEach((sportId) => {
           const currentOptions = courtOptionsBySportId.get(sportId) ?? [];
+          const logicalKey = resolveKnockoutCourtLogicalKey(
+            location.name,
+            court.name,
+          );
+          const existingOptionIndex = currentOptions.findIndex(
+            (option) => option.logical_key === logicalKey,
+          );
 
-          if (
-            currentOptions.some(
-              (option) => option.court_group_id === court.court_group_id,
-            )
-          ) {
+          if (existingOptionIndex >= 0) {
+            const existingOption = currentOptions[existingOptionIndex];
+            const nextOptions = [...currentOptions];
+
+            nextOptions[existingOptionIndex] = {
+              ...existingOption,
+              location_group_ids: [
+                ...new Set([
+                  ...existingOption.location_group_ids,
+                  location.location_group_id,
+                ]),
+              ],
+              court_group_ids: [
+                ...new Set([
+                  ...existingOption.court_group_ids,
+                  court.court_group_id,
+                ]),
+              ],
+              location_position: Math.min(
+                existingOption.location_position,
+                location.position,
+              ),
+              court_position: Math.min(
+                existingOption.court_position,
+                court.position,
+              ),
+            };
+
+            courtOptionsBySportId.set(sportId, nextOptions);
             return;
           }
 
           courtOptionsBySportId.set(sportId, [
             ...currentOptions,
             {
+              logical_key: logicalKey,
               location_group_id: location.location_group_id,
+              location_group_ids: [location.location_group_id],
               location_name: location.name,
               location_position: location.position,
               court_group_id: court.court_group_id,
+              court_group_ids: [court.court_group_id],
               court_name: court.name,
               court_position: court.position,
             },
@@ -1211,6 +1378,45 @@ export async function getBracketKnockoutCourtPriorities(
     return carry;
   }, {});
 
+  const programmedFinalsBySportId = (
+    (finalProgramResponse.data as Array<{
+      sport_id: string;
+      scheduled_date: string;
+      location_name: string;
+      court_name: string;
+      location_group_id: string;
+      court_group_id: string;
+    }> | null) ?? []
+  ).reduce<Record<string, BracketKnockoutProgrammedFinal[]>>(
+    (carry, finalProgram) => {
+      const currentFinals = carry[finalProgram.sport_id] ?? [];
+      const alreadyExists = currentFinals.some(
+        (existingFinal) =>
+          existingFinal.scheduled_date === finalProgram.scheduled_date &&
+          existingFinal.location_group_id === finalProgram.location_group_id &&
+          existingFinal.court_group_id === finalProgram.court_group_id,
+      );
+
+      if (alreadyExists) {
+        return carry;
+      }
+
+      carry[finalProgram.sport_id] = [
+        ...currentFinals,
+        {
+          scheduled_date: finalProgram.scheduled_date,
+          location_name: finalProgram.location_name,
+          court_name: finalProgram.court_name,
+          location_group_id: finalProgram.location_group_id,
+          court_group_id: finalProgram.court_group_id,
+        },
+      ];
+
+      return carry;
+    },
+    {},
+  );
+
   const data = orderedSportIds.flatMap<BracketKnockoutCourtPriorityGroup>(
     (sportId) => {
       const courts = [...(courtOptionsBySportId.get(sportId) ?? [])].sort(
@@ -1230,6 +1436,24 @@ export async function getBracketKnockoutCourtPriorities(
           );
         },
       );
+      const resolveAutomaticCourt = (
+        phase: BracketKnockoutCourtPriorityGroup["phase"],
+        divisionScope: BracketKnockoutCourtPriorityGroup["division_scope"],
+      ) => {
+        if (courts.length === 0) {
+          return null;
+        }
+
+        if (
+          phase === "SEMIFINAL" &&
+          divisionScope === "DIVISAO_ACESSO" &&
+          courts.length > 1
+        ) {
+          return courts[1];
+        }
+
+        return courts[0];
+      };
       const sportDivisions = divisionsBySportId[sportId] ?? [];
       const semifinalScopes: BracketKnockoutCourtPriorityGroup["division_scope"][] =
         sportDivisions.length > 0 ? sportDivisions : ["ALL"];
@@ -1243,6 +1467,8 @@ export async function getBracketKnockoutCourtPriorities(
           division_scope: divisionScope,
           location_group_id: priority?.location_group_id ?? null,
           court_group_id: priority?.court_group_id ?? null,
+          automatic_court: resolveAutomaticCourt("SEMIFINAL", divisionScope),
+          programmed_finals: programmedFinalsBySportId[sportId] ?? [],
           courts,
         };
       });
@@ -1257,6 +1483,8 @@ export async function getBracketKnockoutCourtPriorities(
           division_scope: "ALL" as const,
           location_group_id: finalPriority?.location_group_id ?? null,
           court_group_id: finalPriority?.court_group_id ?? null,
+          automatic_court: resolveAutomaticCourt("FINAL", "ALL"),
+          programmed_finals: programmedFinalsBySportId[sportId] ?? [],
           courts,
         },
       ];

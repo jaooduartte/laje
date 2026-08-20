@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Loader2 } from "lucide-react";
+import { PageContentSkeleton } from "@/components/skeletons/PageContentSkeleton";
 import { Header } from "@/components/Header";
 import { useAuth } from "@/hooks/useAuth";
 import { usePublicAccessSettings } from "@/hooks/usePublicAccessSettings";
@@ -15,23 +15,40 @@ export function PublicRouteGuard({ children, routePath }: Props) {
   const { publicAccessSettings, loading } = usePublicAccessSettings();
   const { user, loading: authLoading } = useAuth();
 
-  if (loading || authLoading) {
+  if (loading) {
     return (
       <div className="app-page">
         <Header />
-        <main className="container py-10">
-          <div className="glass-panel flex min-h-[420px] items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
+
+        <main className="container py-8">
+          <PageContentSkeleton filterCount={3} contentCount={3} />
         </main>
       </div>
     );
   }
 
-  const isRouteBlocked = resolveIsPublicRouteBlocked(publicAccessSettings, routePath);
-  const isAuthenticated = user != null;
+  const isRouteBlocked = resolveIsPublicRouteBlocked(
+    publicAccessSettings,
+    routePath,
+  );
 
-  if (!isRouteBlocked || isAuthenticated) {
+  if (!isRouteBlocked) {
+    return <>{children}</>;
+  }
+
+  if (authLoading) {
+    return (
+      <div className="app-page">
+        <Header />
+
+        <main className="container py-8">
+          <PageContentSkeleton filterCount={3} contentCount={3} />
+        </main>
+      </div>
+    );
+  }
+
+  if (user != null) {
     return <>{children}</>;
   }
 
@@ -48,8 +65,12 @@ export function PublicRouteGuard({ children, routePath }: Props) {
           />
 
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Em manutenção</p>
-            <h1 className="text-2xl font-display font-bold text-primary">Essa página foi temporariamente bloqueada</h1>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Em manutenção
+            </p>
+            <h1 className="text-2xl font-display font-bold text-primary">
+              Essa página foi temporariamente bloqueada
+            </h1>
             <p className="text-sm text-muted-foreground">
               {publicAccessSettings.blocked_message ??
                 "Tente novamente em instantes."}

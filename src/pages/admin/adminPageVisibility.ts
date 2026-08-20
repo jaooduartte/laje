@@ -16,19 +16,8 @@ interface ResolveCanViewOperationalAdminTabsParams {
 
 export function resolveCanViewReviewAdminTabs({
   championshipStatus,
-  hasFinishedLoadingOperationalState,
-  matchesCount,
-  bracketEditionStatus,
 }: ResolveCanViewOperationalAdminTabsParams): boolean {
-  if (championshipStatus !== ChampionshipStatus.REVIEW) {
-    return false;
-  }
-
-  if (!hasFinishedLoadingOperationalState || matchesCount <= 0) {
-    return false;
-  }
-
-  return bracketEditionStatus != null && bracketEditionStatus !== BracketEditionStatus.DRAFT;
+  return championshipStatus === ChampionshipStatus.REVIEW;
 }
 
 export function resolveCanViewBracketSetupTab({
@@ -54,24 +43,9 @@ export function resolveCanViewBracketSetupTab({
 
 export function resolveCanViewOperationalAdminTabs({
   championshipStatus,
-  hasFinishedLoadingOperationalState,
-  matchesCount,
-  bracketEditionStatus,
 }: ResolveCanViewOperationalAdminTabsParams): boolean {
-  if (
-    championshipStatus != ChampionshipStatus.IN_PROGRESS &&
-    championshipStatus != ChampionshipStatus.FINISHED
-  ) {
-    return false;
-  }
-
-  if (!hasFinishedLoadingOperationalState) {
-    return false;
-  }
-
-  if (matchesCount <= 0) {
-    return false;
-  }
-
-  return bracketEditionStatus != null && bracketEditionStatus != BracketEditionStatus.DRAFT;
+  return (
+    championshipStatus == ChampionshipStatus.IN_PROGRESS ||
+    championshipStatus == ChampionshipStatus.FINISHED
+  );
 }

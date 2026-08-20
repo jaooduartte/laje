@@ -1,7 +1,17 @@
 import type { CheckedState } from "@radix-ui/react-checkbox";
+import { AdminListSkeleton } from "@/components/skeletons/AdminListSkeleton";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
-import { Loader2, MoreVertical, PencilLine, Plus, RotateCcw, Save, Shield, Trash2 } from "lucide-react";
+import {
+  Loader2,
+  MoreVertical,
+  PencilLine,
+  Plus,
+  RotateCcw,
+  Save,
+  Shield,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useOnlineVisitorsProviderContext } from "@/components/online-visitors/OnlineVisitorsProvider";
@@ -23,7 +33,11 @@ import {
   AdminUserPasswordStatus,
   AdminUserSortOption,
 } from "@/lib/enums";
-import type { AdminProfile, AdminTabPermissionByTab, AdminUser } from "@/lib/types";
+import type {
+  AdminProfile,
+  AdminTabPermissionByTab,
+  AdminUser,
+} from "@/lib/types";
 import {
   resolveAdminUserPasswordStatusBadgeTone,
   resolveAdminUserPasswordStatusLabel,
@@ -49,15 +63,32 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Tabs, TabsContent, TabsNavigationList, TabsNavigationTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Tabs,
+  TabsContent,
+  TabsNavigationList,
+  TabsNavigationTrigger,
+} from "@/components/ui/tabs";
 
 const ALL_PROFILES_FILTER = "ALL_PROFILES";
 const DEFAULT_PROFILE_NAME = "Novo perfil";
 const ADMIN_SYSTEM_PROFILE_NAME = "admin";
 
 const ADMIN_TAB_LABELS: Record<AdminPanelTab, string> = {
+  [AdminPanelTab.BRACKET_SETUP]: "Configurar Campeonato",
   [AdminPanelTab.MATCHES]: "Jogos",
   [AdminPanelTab.CONTROL]: "Controle ao Vivo",
   [AdminPanelTab.INDIVIDUAL_EVENTS]: "Provas Individuais",
@@ -76,13 +107,15 @@ const ADMIN_TAB_LABELS: Record<AdminPanelTab, string> = {
   [AdminPanelTab.CHAMPIONSHIP_SCHEDULE]: "Agenda",
 };
 
-const ADMIN_PERMISSION_LEVEL_LABELS: Record<AdminPanelPermissionLevel, string> = {
-  [AdminPanelPermissionLevel.NONE]: "Sem acesso",
-  [AdminPanelPermissionLevel.VIEW]: "Visualização",
-  [AdminPanelPermissionLevel.EDIT]: "Visualização e edição",
-};
+const ADMIN_PERMISSION_LEVEL_LABELS: Record<AdminPanelPermissionLevel, string> =
+  {
+    [AdminPanelPermissionLevel.NONE]: "Sem acesso",
+    [AdminPanelPermissionLevel.VIEW]: "Visualização",
+    [AdminPanelPermissionLevel.EDIT]: "Visualização e edição",
+  };
 
 const ADMIN_PANEL_TAB_ORDER: AdminPanelTab[] = [
+  AdminPanelTab.BRACKET_SETUP,
   AdminPanelTab.MATCHES,
   AdminPanelTab.SCORE_SHEET_REVIEW,
   AdminPanelTab.TIE_BREAKS,
@@ -101,7 +134,10 @@ const ADMIN_PANEL_TAB_ORDER: AdminPanelTab[] = [
   AdminPanelTab.SETTINGS,
 ];
 
-const ADMIN_PANEL_PERMISSION_LEVEL_SORT_WEIGHTS: Record<AdminPanelPermissionLevel, number> = {
+const ADMIN_PANEL_PERMISSION_LEVEL_SORT_WEIGHTS: Record<
+  AdminPanelPermissionLevel,
+  number
+> = {
   [AdminPanelPermissionLevel.NONE]: 0,
   [AdminPanelPermissionLevel.VIEW]: 1,
   [AdminPanelPermissionLevel.EDIT]: 2,
@@ -157,7 +193,9 @@ interface PendingUsersActionConfirmation {
   targetUserIds: string[];
 }
 
-function isAdminPanelPermissionLevel(value: string | null): value is AdminPanelPermissionLevel {
+function isAdminPanelPermissionLevel(
+  value: string | null,
+): value is AdminPanelPermissionLevel {
   return (
     value == AdminPanelPermissionLevel.NONE ||
     value == AdminPanelPermissionLevel.VIEW ||
@@ -177,6 +215,7 @@ function isAdminUserSortOption(value: string): value is AdminUserSortOption {
 
 function resolveDefaultPermissions(): AdminTabPermissionByTab {
   return {
+    [AdminPanelTab.BRACKET_SETUP]: AdminPanelPermissionLevel.NONE,
     [AdminPanelTab.MATCHES]: AdminPanelPermissionLevel.NONE,
     [AdminPanelTab.CONTROL]: AdminPanelPermissionLevel.NONE,
     [AdminPanelTab.INDIVIDUAL_EVENTS]: AdminPanelPermissionLevel.NONE,
@@ -196,22 +235,31 @@ function resolveDefaultPermissions(): AdminTabPermissionByTab {
   };
 }
 
-function resolveNormalizedPermissions(rawPermissions: Record<string, unknown> | null): AdminTabPermissionByTab {
+function resolveNormalizedPermissions(
+  rawPermissions: Record<string, unknown> | null,
+): AdminTabPermissionByTab {
   const nextPermissions = resolveDefaultPermissions();
   const rawMatchesPermission =
-    typeof rawPermissions?.[AdminPanelTab.MATCHES] == "string" && isAdminPanelPermissionLevel(rawPermissions[AdminPanelTab.MATCHES] as string)
+    typeof rawPermissions?.[AdminPanelTab.MATCHES] == "string" &&
+    isAdminPanelPermissionLevel(rawPermissions[AdminPanelTab.MATCHES] as string)
       ? (rawPermissions[AdminPanelTab.MATCHES] as AdminPanelPermissionLevel)
       : AdminPanelPermissionLevel.NONE;
 
   ADMIN_PANEL_TAB_ORDER.forEach((adminPanelTab) => {
     const permissionValue = rawPermissions?.[adminPanelTab];
 
-    if (typeof permissionValue == "string" && isAdminPanelPermissionLevel(permissionValue)) {
+    if (
+      typeof permissionValue == "string" &&
+      isAdminPanelPermissionLevel(permissionValue)
+    ) {
       nextPermissions[adminPanelTab] = permissionValue;
       return;
     }
 
-    if (adminPanelTab == AdminPanelTab.STANDINGS || adminPanelTab == AdminPanelTab.CHAMPIONSHIP_SCHEDULE) {
+    if (
+      adminPanelTab == AdminPanelTab.STANDINGS ||
+      adminPanelTab == AdminPanelTab.CHAMPIONSHIP_SCHEDULE
+    ) {
       nextPermissions[adminPanelTab] = rawMatchesPermission;
     }
   });
@@ -231,7 +279,9 @@ function resolveUserAccessValue(user: AdminUser): string {
   return "";
 }
 
-function resolveUserAccessSelection(accessValue: string): UserAccessSelection | null {
+function resolveUserAccessSelection(
+  accessValue: string,
+): UserAccessSelection | null {
   const profileId = accessValue.trim();
 
   if (profileId.length > 0) {
@@ -267,7 +317,10 @@ function resolveUnselectedProfileDraft(): ProfileDraft {
   };
 }
 
-function resolveIsSameProfileDraft(firstProfileDraft: ProfileDraft | null, secondProfileDraft: ProfileDraft): boolean {
+function resolveIsSameProfileDraft(
+  firstProfileDraft: ProfileDraft | null,
+  secondProfileDraft: ProfileDraft,
+): boolean {
   if (!firstProfileDraft) {
     return false;
   }
@@ -276,12 +329,18 @@ function resolveIsSameProfileDraft(firstProfileDraft: ProfileDraft | null, secon
     return false;
   }
 
-  if (firstProfileDraft.profileName.trim() != secondProfileDraft.profileName.trim()) {
+  if (
+    firstProfileDraft.profileName.trim() !=
+    secondProfileDraft.profileName.trim()
+  ) {
     return false;
   }
 
   return ADMIN_PANEL_TAB_ORDER.every((adminPanelTab) => {
-    return firstProfileDraft.permissions[adminPanelTab] == secondProfileDraft.permissions[adminPanelTab];
+    return (
+      firstProfileDraft.permissions[adminPanelTab] ==
+      secondProfileDraft.permissions[adminPanelTab]
+    );
   });
 }
 
@@ -290,16 +349,24 @@ function resolveIsProtectedAdminProfile(profile: AdminProfile | null): boolean {
     return false;
   }
 
-  return profile.is_system && profile.profile_name.trim().toLowerCase() == ADMIN_SYSTEM_PROFILE_NAME;
+  return (
+    profile.is_system &&
+    profile.profile_name.trim().toLowerCase() == ADMIN_SYSTEM_PROFILE_NAME
+  );
 }
 
 function resolveIsCheckboxChecked(checked: CheckedState): boolean {
   return checked == true;
 }
 
-function resolveAdminProfilePermissionsSortScore(permissions: AdminTabPermissionByTab): number {
+function resolveAdminProfilePermissionsSortScore(
+  permissions: AdminTabPermissionByTab,
+): number {
   return ADMIN_PANEL_TAB_ORDER.reduce((permissionsSortScore, adminPanelTab) => {
-    return permissionsSortScore + ADMIN_PANEL_PERMISSION_LEVEL_SORT_WEIGHTS[permissions[adminPanelTab]];
+    return (
+      permissionsSortScore +
+      ADMIN_PANEL_PERMISSION_LEVEL_SORT_WEIGHTS[permissions[adminPanelTab]]
+    );
   }, 0);
 }
 
@@ -307,7 +374,11 @@ function resolveAdminUserNameSortValue(user: AdminUser): string {
   return user.name.trim().toLowerCase();
 }
 
-function resolveAdminUserLastAccessSortValue(user: AdminUser, isUserOnline: boolean, currentTimestamp: number): number {
+function resolveAdminUserLastAccessSortValue(
+  user: AdminUser,
+  isUserOnline: boolean,
+  currentTimestamp: number,
+): number {
   if (isUserOnline) {
     return currentTimestamp;
   }
@@ -319,7 +390,10 @@ function resolveAdminUserLastAccessSortValue(user: AdminUser, isUserOnline: bool
   return new Date(user.last_sign_in_at).getTime();
 }
 
-function resolveAdminUserLastAccessDate(user: AdminUser, isUserOnline: boolean): Date | null {
+function resolveAdminUserLastAccessDate(
+  user: AdminUser,
+  isUserOnline: boolean,
+): Date | null {
   if (isUserOnline) {
     return new Date();
   }
@@ -335,11 +409,15 @@ function resolveAdminUserOnlineSortValue(isUserOnline: boolean): number {
   return isUserOnline ? 1 : 0;
 }
 
-function resolveAdminUserActiveStatusSortValue(status: AdminUserPasswordStatus): number {
+function resolveAdminUserActiveStatusSortValue(
+  status: AdminUserPasswordStatus,
+): number {
   return status == AdminUserPasswordStatus.ACTIVE ? 1 : 0;
 }
 
-function resolveNormalizedAdminUserProfileLabel(profileLabel: string | null): string {
+function resolveNormalizedAdminUserProfileLabel(
+  profileLabel: string | null,
+): string {
   return (profileLabel ?? "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -350,7 +428,9 @@ function resolveNormalizedAdminUserProfileLabel(profileLabel: string | null): st
 }
 
 function resolveAdminUserProfileSortWeight(user: AdminUser): number {
-  const normalizedProfileLabel = resolveNormalizedAdminUserProfileLabel(user.profile_name);
+  const normalizedProfileLabel = resolveNormalizedAdminUserProfileLabel(
+    user.profile_name,
+  );
 
   if (normalizedProfileLabel in ADMIN_USER_PROFILE_SORT_WEIGHTS) {
     return ADMIN_USER_PROFILE_SORT_WEIGHTS[normalizedProfileLabel];
@@ -370,28 +450,45 @@ export function AdminUsers({ canManageUsers = true }: Props) {
   const [profiles, setProfiles] = useState<AdminProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [accessFilter, setAccessFilter] = useState(ALL_PROFILES_FILTER);
-  const [sortOption, setSortOption] = useState<AdminUserSortOption | null>(null);
+  const [sortOption, setSortOption] = useState<AdminUserSortOption | null>(
+    null,
+  );
   const [userSearch, setUserSearch] = useState("");
   const [nameByUserId, setNameByUserId] = useState<Record<string, string>>({});
-  const [accessValueByUserId, setAccessValueByUserId] = useState<Record<string, string>>({});
-  const [loginIdentifierByUserId, setLoginIdentifierByUserId] = useState<Record<string, string>>({});
+  const [accessValueByUserId, setAccessValueByUserId] = useState<
+    Record<string, string>
+  >({});
+  const [loginIdentifierByUserId, setLoginIdentifierByUserId] = useState<
+    Record<string, string>
+  >({});
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
-  const [savingEditedUserId, setSavingEditedUserId] = useState<string | null>(null);
+  const [savingEditedUserId, setSavingEditedUserId] = useState<string | null>(
+    null,
+  );
   const [resettingUserId, setResettingUserId] = useState<string | null>(null);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
-  const [bulkProcessingAction, setBulkProcessingAction] = useState<"RESET" | "DELETE" | null>(null);
+  const [bulkProcessingAction, setBulkProcessingAction] = useState<
+    "RESET" | "DELETE" | null
+  >(null);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [activeUsersTab, setActiveUsersTab] = useState<"USERS" | "PROFILES">("USERS");
+  const [activeUsersTab, setActiveUsersTab] = useState<"USERS" | "PROFILES">(
+    "USERS",
+  );
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
-  const [profileDraft, setProfileDraft] = useState<ProfileDraft>(resolveUnselectedProfileDraft());
-  const [savedProfileDraft, setSavedProfileDraft] = useState<ProfileDraft | null>(null);
+  const [profileDraft, setProfileDraft] = useState<ProfileDraft>(
+    resolveUnselectedProfileDraft(),
+  );
+  const [savedProfileDraft, setSavedProfileDraft] =
+    useState<ProfileDraft | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
   const [creatingUser, setCreatingUser] = useState(false);
   const [newUserName, setNewUserName] = useState("");
   const [newUserLoginIdentifier, setNewUserLoginIdentifier] = useState("");
   const [newUserAccessValue, setNewUserAccessValue] = useState("");
-  const [newPasswordByUserId, setNewPasswordByUserId] = useState<Record<string, string>>({});
+  const [newPasswordByUserId, setNewPasswordByUserId] = useState<
+    Record<string, string>
+  >({});
   const [pendingUsersActionConfirmation, setPendingUsersActionConfirmation] =
     useState<PendingUsersActionConfirmation | null>(null);
 
@@ -406,7 +503,9 @@ export function AdminUsers({ canManageUsers = true }: Props) {
     return [...profileAccessOptions];
   }, [profileAccessOptions]);
 
-  const fetchAdminData = useCallback(async (): Promise<AdminProfile[] | null> => {
+  const fetchAdminData = useCallback(async (): Promise<
+    AdminProfile[] | null
+  > => {
     setLoading(true);
 
     const [usersResponse, profilesResponse] = await Promise.all([
@@ -458,7 +557,9 @@ export function AdminUsers({ canManageUsers = true }: Props) {
           return permissionsSortScoreDifference;
         }
 
-        return firstProfile.profile_name.localeCompare(secondProfile.profile_name);
+        return firstProfile.profile_name.localeCompare(
+          secondProfile.profile_name,
+        );
       });
 
     setUsers(normalizedUsers);
@@ -472,32 +573,46 @@ export function AdminUsers({ canManageUsers = true }: Props) {
   }, [fetchAdminData]);
 
   useEffect(() => {
-    const nextNameByUserId = users.reduce<Record<string, string>>((nameMap, user) => {
-      nameMap[user.user_id] = user.name;
-      return nameMap;
-    }, {});
+    const nextNameByUserId = users.reduce<Record<string, string>>(
+      (nameMap, user) => {
+        nameMap[user.user_id] = user.name;
+        return nameMap;
+      },
+      {},
+    );
 
-    const nextAccessValueByUserId = users.reduce<Record<string, string>>((accessByUserId, user) => {
-      accessByUserId[user.user_id] = resolveUserAccessValue(user);
-      return accessByUserId;
-    }, {});
+    const nextAccessValueByUserId = users.reduce<Record<string, string>>(
+      (accessByUserId, user) => {
+        accessByUserId[user.user_id] = resolveUserAccessValue(user);
+        return accessByUserId;
+      },
+      {},
+    );
 
-    const nextLoginIdentifierByUserId = users.reduce<Record<string, string>>((loginIdentifierMap, user) => {
-      loginIdentifierMap[user.user_id] = user.login_identifier;
-      return loginIdentifierMap;
-    }, {});
+    const nextLoginIdentifierByUserId = users.reduce<Record<string, string>>(
+      (loginIdentifierMap, user) => {
+        loginIdentifierMap[user.user_id] = user.login_identifier;
+        return loginIdentifierMap;
+      },
+      {},
+    );
 
-    const nextNewPasswordByUserId = users.reduce<Record<string, string>>((passwordByUserId, user) => {
-      passwordByUserId[user.user_id] = "";
-      return passwordByUserId;
-    }, {});
+    const nextNewPasswordByUserId = users.reduce<Record<string, string>>(
+      (passwordByUserId, user) => {
+        passwordByUserId[user.user_id] = "";
+        return passwordByUserId;
+      },
+      {},
+    );
 
     setNameByUserId(nextNameByUserId);
     setAccessValueByUserId(nextAccessValueByUserId);
     setLoginIdentifierByUserId(nextLoginIdentifierByUserId);
     setNewPasswordByUserId(nextNewPasswordByUserId);
     setSelectedUserIds((currentSelectedUserIds) =>
-      currentSelectedUserIds.filter((selectedUserId) => users.some((user) => user.user_id == selectedUserId)),
+      currentSelectedUserIds.filter((selectedUserId) =>
+        users.some((user) => user.user_id == selectedUserId),
+      ),
     );
   }, [users]);
 
@@ -531,7 +646,10 @@ export function AdminUsers({ canManageUsers = true }: Props) {
     const normalizedUserSearch = userSearch.trim().toLowerCase();
 
     return users.filter((user) => {
-      if (accessFilter != ALL_PROFILES_FILTER && user.profile_id != accessFilter) {
+      if (
+        accessFilter != ALL_PROFILES_FILTER &&
+        user.profile_id != accessFilter
+      ) {
         return false;
       }
 
@@ -539,7 +657,13 @@ export function AdminUsers({ canManageUsers = true }: Props) {
         return true;
       }
 
-      const resolvedSearchBase = [user.name, user.login_identifier, user.email ?? ""].join(" ").toLowerCase();
+      const resolvedSearchBase = [
+        user.name,
+        user.login_identifier,
+        user.email ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
 
       return resolvedSearchBase.includes(normalizedUserSearch);
     });
@@ -550,7 +674,9 @@ export function AdminUsers({ canManageUsers = true }: Props) {
     const currentTimestamp = Date.now();
 
     const sortedUsers = [...filteredUsers].sort((firstUser, secondUser) => {
-      const nameComparison = resolveAdminUserNameSortValue(firstUser).localeCompare(resolveAdminUserNameSortValue(secondUser));
+      const nameComparison = resolveAdminUserNameSortValue(
+        firstUser,
+      ).localeCompare(resolveAdminUserNameSortValue(secondUser));
 
       if (resolvedSortOption == AdminUserSortOption.NAME_ASC) {
         return nameComparison;
@@ -577,8 +703,12 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       }
 
       if (resolvedSortOption == AdminUserSortOption.ONLINE_DESC) {
-        const firstUserOnlineValue = resolveAdminUserOnlineSortValue(onlineUserIdsSet.has(firstUser.user_id));
-        const secondUserOnlineValue = resolveAdminUserOnlineSortValue(onlineUserIdsSet.has(secondUser.user_id));
+        const firstUserOnlineValue = resolveAdminUserOnlineSortValue(
+          onlineUserIdsSet.has(firstUser.user_id),
+        );
+        const secondUserOnlineValue = resolveAdminUserOnlineSortValue(
+          onlineUserIdsSet.has(secondUser.user_id),
+        );
         const difference = secondUserOnlineValue - firstUserOnlineValue;
 
         if (difference != 0) {
@@ -589,9 +719,12 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       }
 
       if (resolvedSortOption == AdminUserSortOption.ACTIVE_STATUS_DESC) {
-        const firstUserActiveStatusValue = resolveAdminUserActiveStatusSortValue(firstUser.password_status);
-        const secondUserActiveStatusValue = resolveAdminUserActiveStatusSortValue(secondUser.password_status);
-        const difference = secondUserActiveStatusValue - firstUserActiveStatusValue;
+        const firstUserActiveStatusValue =
+          resolveAdminUserActiveStatusSortValue(firstUser.password_status);
+        const secondUserActiveStatusValue =
+          resolveAdminUserActiveStatusSortValue(secondUser.password_status);
+        const difference =
+          secondUserActiveStatusValue - firstUserActiveStatusValue;
 
         if (difference != 0) {
           return difference;
@@ -600,17 +733,20 @@ export function AdminUsers({ canManageUsers = true }: Props) {
         return nameComparison;
       }
 
-      const firstUserProfileWeight = resolveAdminUserProfileSortWeight(firstUser);
-      const secondUserProfileWeight = resolveAdminUserProfileSortWeight(secondUser);
-      const profileWeightDifference = firstUserProfileWeight - secondUserProfileWeight;
+      const firstUserProfileWeight =
+        resolveAdminUserProfileSortWeight(firstUser);
+      const secondUserProfileWeight =
+        resolveAdminUserProfileSortWeight(secondUser);
+      const profileWeightDifference =
+        firstUserProfileWeight - secondUserProfileWeight;
 
       if (profileWeightDifference != 0) {
         return profileWeightDifference;
       }
 
-      const profileComparison = resolveAdminUserProfileSortLabel(firstUser).localeCompare(
-        resolveAdminUserProfileSortLabel(secondUser),
-      );
+      const profileComparison = resolveAdminUserProfileSortLabel(
+        firstUser,
+      ).localeCompare(resolveAdminUserProfileSortLabel(secondUser));
 
       if (profileComparison != 0) {
         return profileComparison;
@@ -623,7 +759,9 @@ export function AdminUsers({ canManageUsers = true }: Props) {
   }, [filteredUsers, onlineUserIdsSet, sortOption]);
 
   const selectableFilteredUsers = useMemo(() => {
-    return orderedFilteredUsers.filter((user) => user.user_id != currentUser?.id);
+    return orderedFilteredUsers.filter(
+      (user) => user.user_id != currentUser?.id,
+    );
   }, [currentUser?.id, orderedFilteredUsers]);
 
   const selectAllFilteredUsersChecked = useMemo(() => {
@@ -631,7 +769,9 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       return false;
     }
 
-    return selectableFilteredUsers.every((user) => selectedUserIds.includes(user.user_id));
+    return selectableFilteredUsers.every((user) =>
+      selectedUserIds.includes(user.user_id),
+    );
   }, [selectableFilteredUsers, selectedUserIds]);
 
   const selectedProfile = useMemo(() => {
@@ -639,7 +779,11 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       return null;
     }
 
-    return profiles.find((profile) => profile.profile_id == profileDraft.profileId) ?? null;
+    return (
+      profiles.find(
+        (profile) => profile.profile_id == profileDraft.profileId,
+      ) ?? null
+    );
   }, [profileDraft.profileId, profiles]);
 
   const isProtectedAdminProfile = useMemo(() => {
@@ -665,22 +809,33 @@ export function AdminUsers({ canManageUsers = true }: Props) {
 
     return users.find((user) => user.user_id == editingUserId) ?? null;
   }, [editingUserId, users]);
-  const editedUserName = editingUser ? (nameByUserId[editingUser.user_id] ?? editingUser.name) : "";
+  const editedUserName = editingUser
+    ? (nameByUserId[editingUser.user_id] ?? editingUser.name)
+    : "";
   const editedUserLoginIdentifier = editingUser
-    ? (loginIdentifierByUserId[editingUser.user_id] ?? editingUser.login_identifier)
+    ? (loginIdentifierByUserId[editingUser.user_id] ??
+      editingUser.login_identifier)
     : "";
   const editedUserAccessValue = editingUser
-    ? (accessValueByUserId[editingUser.user_id] ?? resolveUserAccessValue(editingUser))
+    ? (accessValueByUserId[editingUser.user_id] ??
+      resolveUserAccessValue(editingUser))
     : "";
-  const editedUserPassword = editingUser ? (newPasswordByUserId[editingUser.user_id] ?? "") : "";
+  const editedUserPassword = editingUser
+    ? (newPasswordByUserId[editingUser.user_id] ?? "")
+    : "";
   const hasEditedUserPendingChanges = editingUser
     ? editedUserName.trim() != editingUser.name ||
-      editedUserLoginIdentifier.trim().toLowerCase() != editingUser.login_identifier.trim().toLowerCase() ||
+      editedUserLoginIdentifier.trim().toLowerCase() !=
+        editingUser.login_identifier.trim().toLowerCase() ||
       editedUserAccessValue != resolveUserAccessValue(editingUser) ||
       editedUserPassword.trim().length > 0
     : false;
-  const isEditingUserOnline = editingUser ? onlineUserIdsSet.has(editingUser.user_id) : false;
-  const editingUserLastAccessDate = editingUser ? resolveAdminUserLastAccessDate(editingUser, isEditingUserOnline) : null;
+  const isEditingUserOnline = editingUser
+    ? onlineUserIdsSet.has(editingUser.user_id)
+    : false;
+  const editingUserLastAccessDate = editingUser
+    ? resolveAdminUserLastAccessDate(editingUser, isEditingUserOnline)
+    : null;
 
   const handleToggleSelectAllFilteredUsers = (checked: CheckedState) => {
     if (!canManageUsers) {
@@ -691,12 +846,20 @@ export function AdminUsers({ canManageUsers = true }: Props) {
 
     setSelectedUserIds((currentSelectedUserIds) => {
       if (!shouldSelectAll) {
-        return currentSelectedUserIds.filter((selectedUserId) =>
-          !selectableFilteredUsers.some((user) => user.user_id == selectedUserId),
+        return currentSelectedUserIds.filter(
+          (selectedUserId) =>
+            !selectableFilteredUsers.some(
+              (user) => user.user_id == selectedUserId,
+            ),
         );
       }
 
-      return [...new Set([...currentSelectedUserIds, ...selectableFilteredUsers.map((user) => user.user_id)])];
+      return [
+        ...new Set([
+          ...currentSelectedUserIds,
+          ...selectableFilteredUsers.map((user) => user.user_id),
+        ]),
+      ];
     });
   };
 
@@ -712,7 +875,9 @@ export function AdminUsers({ canManageUsers = true }: Props) {
         return [...new Set([...currentSelectedUserIds, userId])];
       }
 
-      return currentSelectedUserIds.filter((selectedUserId) => selectedUserId != userId);
+      return currentSelectedUserIds.filter(
+        (selectedUserId) => selectedUserId != userId,
+      );
     });
   };
 
@@ -727,15 +892,24 @@ export function AdminUsers({ canManageUsers = true }: Props) {
 
     try {
       const nextName = nameByUserId[user.user_id] ?? user.name;
-      const nextLoginIdentifier = loginIdentifierByUserId[user.user_id] ?? user.login_identifier;
-      const nextAccessValue = accessValueByUserId[user.user_id] ?? resolveUserAccessValue(user);
+      const nextLoginIdentifier =
+        loginIdentifierByUserId[user.user_id] ?? user.login_identifier;
+      const nextAccessValue =
+        accessValueByUserId[user.user_id] ?? resolveUserAccessValue(user);
       const nextPassword = newPasswordByUserId[user.user_id] ?? "";
       const hasNameChanged = nextName.trim() != user.name;
-      const hasLoginIdentifierChanged = nextLoginIdentifier.trim().toLowerCase() != user.login_identifier.trim().toLowerCase();
+      const hasLoginIdentifierChanged =
+        nextLoginIdentifier.trim().toLowerCase() !=
+        user.login_identifier.trim().toLowerCase();
       const hasAccessChanged = nextAccessValue != resolveUserAccessValue(user);
       const hasNewPassword = nextPassword.trim().length > 0;
 
-      if (!hasNameChanged && !hasLoginIdentifierChanged && !hasAccessChanged && !hasNewPassword) {
+      if (
+        !hasNameChanged &&
+        !hasLoginIdentifierChanged &&
+        !hasAccessChanged &&
+        !hasNewPassword
+      ) {
         return;
       }
 
@@ -751,7 +925,9 @@ export function AdminUsers({ canManageUsers = true }: Props) {
             login_identifier: nextLoginIdentifier,
           }).bindToSave()
         : null;
-      const userAccessSelection = hasAccessChanged ? resolveUserAccessSelection(nextAccessValue) : null;
+      const userAccessSelection = hasAccessChanged
+        ? resolveUserAccessSelection(nextAccessValue)
+        : null;
       const passwordPayload = hasNewPassword
         ? AdminUserPasswordSaveDTO.fromFormValues({
             target_user_id: user.user_id,
@@ -766,7 +942,10 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       setSavingEditedUserId(user.user_id);
 
       if (namePayload) {
-        const { error } = await supabase.rpc("admin_update_user_name", namePayload);
+        const { error } = await supabase.rpc(
+          "admin_update_user_name",
+          namePayload,
+        );
 
         if (error) {
           setSavingEditedUserId(null);
@@ -777,7 +956,10 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       }
 
       if (loginIdentifierPayload) {
-        const { error } = await supabase.rpc("admin_update_user_login_identifier", loginIdentifierPayload);
+        const { error } = await supabase.rpc(
+          "admin_update_user_login_identifier",
+          loginIdentifierPayload,
+        );
 
         if (error) {
           setSavingEditedUserId(null);
@@ -803,7 +985,10 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       }
 
       if (passwordPayload) {
-        const { error } = await supabase.rpc("admin_update_user_password", passwordPayload);
+        const { error } = await supabase.rpc(
+          "admin_update_user_password",
+          passwordPayload,
+        );
 
         if (error) {
           setSavingEditedUserId(null);
@@ -818,7 +1003,11 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       fetchAdminData();
     } catch (error) {
       setSavingEditedUserId(null);
-      toast.error(error instanceof Error ? error.message : "Não foi possível salvar as alterações do usuário.");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível salvar as alterações do usuário.",
+      );
     }
   };
 
@@ -830,9 +1019,12 @@ export function AdminUsers({ canManageUsers = true }: Props) {
     setBulkProcessingAction(targetUserIds.length > 1 ? "RESET" : null);
     setResettingUserId(targetUserIds.length == 1 ? targetUserIds[0] : null);
 
-    const { data, error } = await supabase.rpc("admin_reset_users_password_setup", {
-      _target_user_ids: targetUserIds,
-    });
+    const { data, error } = await supabase.rpc(
+      "admin_reset_users_password_setup",
+      {
+        _target_user_ids: targetUserIds,
+      },
+    );
 
     setBulkProcessingAction(null);
     setResettingUserId(null);
@@ -849,7 +1041,9 @@ export function AdminUsers({ canManageUsers = true }: Props) {
     );
 
     setSelectedUserIds((currentSelectedUserIds) =>
-      currentSelectedUserIds.filter((selectedUserId) => !targetUserIds.includes(selectedUserId)),
+      currentSelectedUserIds.filter(
+        (selectedUserId) => !targetUserIds.includes(selectedUserId),
+      ),
     );
 
     fetchAdminData();
@@ -875,16 +1069,24 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       return;
     }
 
-    toast.success(data == 1 ? "Usuário removido com sucesso." : `${data ?? 0} usuário(s) removido(s) com sucesso.`);
+    toast.success(
+      data == 1
+        ? "Usuário removido com sucesso."
+        : `${data ?? 0} usuário(s) removido(s) com sucesso.`,
+    );
 
     setSelectedUserIds((currentSelectedUserIds) =>
-      currentSelectedUserIds.filter((selectedUserId) => !targetUserIds.includes(selectedUserId)),
+      currentSelectedUserIds.filter(
+        (selectedUserId) => !targetUserIds.includes(selectedUserId),
+      ),
     );
 
     fetchAdminData();
   };
 
-  const handleOpenResetUsersPasswordSetupConfirmation = (targetUserIds: string[]) => {
+  const handleOpenResetUsersPasswordSetupConfirmation = (
+    targetUserIds: string[],
+  ) => {
     if (!canManageUsers || targetUserIds.length == 0) {
       return;
     }
@@ -907,7 +1109,8 @@ export function AdminUsers({ canManageUsers = true }: Props) {
   };
 
   const handleConfirmPendingUsersAction = async () => {
-    const currentPendingUsersActionConfirmation = pendingUsersActionConfirmation;
+    const currentPendingUsersActionConfirmation =
+      pendingUsersActionConfirmation;
 
     if (!currentPendingUsersActionConfirmation) {
       return;
@@ -916,11 +1119,15 @@ export function AdminUsers({ canManageUsers = true }: Props) {
     setPendingUsersActionConfirmation(null);
 
     if (currentPendingUsersActionConfirmation.action == "RESET") {
-      await executeResetUsersPasswordSetup(currentPendingUsersActionConfirmation.targetUserIds);
+      await executeResetUsersPasswordSetup(
+        currentPendingUsersActionConfirmation.targetUserIds,
+      );
       return;
     }
 
-    await executeDeleteUsers(currentPendingUsersActionConfirmation.targetUserIds);
+    await executeDeleteUsers(
+      currentPendingUsersActionConfirmation.targetUserIds,
+    );
   };
 
   const pendingUsersActionConfirmationTitle = useMemo(() => {
@@ -960,7 +1167,9 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       return "";
     }
 
-    return pendingUsersActionConfirmation.action == "RESET" ? "Confirmar reset" : "Confirmar exclusão";
+    return pendingUsersActionConfirmation.action == "RESET"
+      ? "Confirmar reset"
+      : "Confirmar exclusão";
   }, [pendingUsersActionConfirmation]);
 
   const handleCreateUser = async () => {
@@ -977,7 +1186,10 @@ export function AdminUsers({ canManageUsers = true }: Props) {
 
       setCreatingUser(true);
 
-      const { error } = await supabase.rpc("create_admin_user_with_access", createUserPayload);
+      const { error } = await supabase.rpc(
+        "create_admin_user_with_access",
+        createUserPayload,
+      );
 
       setCreatingUser(false);
 
@@ -986,7 +1198,9 @@ export function AdminUsers({ canManageUsers = true }: Props) {
         return;
       }
 
-      toast.success("Usuário administrativo criado com sucesso. A senha será definida no primeiro acesso.");
+      toast.success(
+        "Usuário administrativo criado com sucesso. A senha será definida no primeiro acesso.",
+      );
       setShowCreateUserModal(false);
       setNewUserName("");
       setNewUserLoginIdentifier("");
@@ -994,7 +1208,11 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       fetchAdminData();
     } catch (error) {
       setCreatingUser(false);
-      toast.error(error instanceof Error ? error.message : "Não foi possível criar o usuário.");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível criar o usuário.",
+      );
     }
   };
 
@@ -1049,7 +1267,9 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       return;
     }
 
-    const permissionsPayload = ADMIN_PANEL_TAB_ORDER.reduce<Record<string, string>>((permissionsByTab, adminPanelTab) => {
+    const permissionsPayload = ADMIN_PANEL_TAB_ORDER.reduce<
+      Record<string, string>
+    >((permissionsByTab, adminPanelTab) => {
       permissionsByTab[adminPanelTab] = profileDraft.permissions[adminPanelTab];
       return permissionsByTab;
     }, {});
@@ -1071,14 +1291,23 @@ export function AdminUsers({ canManageUsers = true }: Props) {
 
     toast.success("Perfil salvo com sucesso.");
     const refreshedProfiles = await fetchAdminData();
-    const normalizedProfileNameForMatch = profileDraft.profileName.trim().toLowerCase();
+    const normalizedProfileNameForMatch = profileDraft.profileName
+      .trim()
+      .toLowerCase();
     const matchedProfile =
-      refreshedProfiles?.find((profile) => profile.profile_id == profileDraft.profileId) ??
-      refreshedProfiles?.find((profile) => profile.profile_name.trim().toLowerCase() == normalizedProfileNameForMatch) ??
+      refreshedProfiles?.find(
+        (profile) => profile.profile_id == profileDraft.profileId,
+      ) ??
+      refreshedProfiles?.find(
+        (profile) =>
+          profile.profile_name.trim().toLowerCase() ==
+          normalizedProfileNameForMatch,
+      ) ??
       null;
 
     if (matchedProfile) {
-      const matchedProfileDraft = resolveProfileDraftFromProfile(matchedProfile);
+      const matchedProfileDraft =
+        resolveProfileDraftFromProfile(matchedProfile);
       setProfileDraft(matchedProfileDraft);
       setSavedProfileDraft(matchedProfileDraft);
       return;
@@ -1102,7 +1331,9 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       >
         {canManageUsers ? (
           <TabsNavigationList className="grid w-full grid-cols-2">
-            <TabsNavigationTrigger value="USERS">Usuários</TabsNavigationTrigger>
+            <TabsNavigationTrigger value="USERS">
+              Usuários
+            </TabsNavigationTrigger>
             <TabsNavigationTrigger value="PROFILES">
               Perfis
             </TabsNavigationTrigger>
@@ -1110,172 +1341,322 @@ export function AdminUsers({ canManageUsers = true }: Props) {
         ) : null}
 
         <TabsContent value="USERS" className="space-y-4">
-        <div className="glass-card enter-section grid gap-2 p-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_220px_260px_auto]">
-        <Input
-          type="search"
-          name="admin_user_filter_search"
-          value={userSearch}
-          onChange={(event) => setUserSearch(event.target.value)}
-          placeholder="Buscar usuário por nome, login ou e-mail"
-          className="app-input-field"
-          autoComplete="off"
-          autoCorrect="off"
-          autoCapitalize="none"
-          spellCheck={false}
-        />
+          <div className="glass-card enter-section grid gap-2 p-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_220px_260px_auto]">
+            <Input
+              type="search"
+              name="admin_user_filter_search"
+              value={userSearch}
+              onChange={(event) => setUserSearch(event.target.value)}
+              placeholder="Buscar usuário por nome, login ou e-mail"
+              className="app-input-field"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
+            />
 
-        <Select value={accessFilter} onValueChange={setAccessFilter}>
-          <SelectTrigger className="app-input-field">
-            <SelectValue placeholder="Filtrar por perfil" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_PROFILES_FILTER}>Todos os perfis</SelectItem>
-            {profiles.map((profile) => (
-              <SelectItem key={profile.profile_id} value={profile.profile_id}>
-                {profile.profile_name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+            <Select value={accessFilter} onValueChange={setAccessFilter}>
+              <SelectTrigger className="app-input-field">
+                <SelectValue placeholder="Filtrar por perfil" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_PROFILES_FILTER}>
+                  Todos os perfis
+                </SelectItem>
+                {profiles.map((profile) => (
+                  <SelectItem
+                    key={profile.profile_id}
+                    value={profile.profile_id}
+                  >
+                    {profile.profile_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-        <Select
-          value={sortOption ?? undefined}
-          onValueChange={(value) => {
-            if (isAdminUserSortOption(value)) {
-              setSortOption(value);
-            }
-          }}
-        >
-          <SelectTrigger className="app-input-field">
-            <SelectValue placeholder="Ordenar listagem" />
-          </SelectTrigger>
-          <SelectContent>
-            {ADMIN_USER_SORT_OPTION_ORDER.map((adminUserSortOption) => (
-              <SelectItem key={adminUserSortOption} value={adminUserSortOption}>
-                {ADMIN_USER_SORT_OPTION_LABELS[adminUserSortOption]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+            <Select
+              value={sortOption ?? undefined}
+              onValueChange={(value) => {
+                if (isAdminUserSortOption(value)) {
+                  setSortOption(value);
+                }
+              }}
+            >
+              <SelectTrigger className="app-input-field">
+                <SelectValue placeholder="Ordenar listagem" />
+              </SelectTrigger>
+              <SelectContent>
+                {ADMIN_USER_SORT_OPTION_ORDER.map((adminUserSortOption) => (
+                  <SelectItem
+                    key={adminUserSortOption}
+                    value={adminUserSortOption}
+                  >
+                    {ADMIN_USER_SORT_OPTION_LABELS[adminUserSortOption]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-        {canManageUsers ? (
-          <Button
-            type="button"
-            onClick={handleOpenCreateUserModal}
-            disabled={profiles.length == 0}
-            className="w-full md:w-auto"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Criar usuário
-          </Button>
-        ) : null}
-      </div>
-
-      {canManageUsers ? (
-        orderedFilteredUsers.length > 0 ? (
-          <div className="glass-card enter-section flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="flex items-center gap-2 text-sm text-foreground">
-                <Checkbox checked={selectAllFilteredUsersChecked} onCheckedChange={handleToggleSelectAllFilteredUsers} />
-                <span>Selecionar todos os usuários filtrados</span>
-              </label>
-
-              {selectedUserIds.length > 0 ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="bg-background/70"
-                  onClick={() => handleOpenResetUsersPasswordSetupConfirmation(selectedUserIds)}
-                  disabled={bulkProcessingAction != null}
-                >
-                  {bulkProcessingAction == "RESET" ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <RotateCcw className="mr-2 h-4 w-4" />
-                  )}
-                  Resetar senhas ({selectedUserIds.length})
-                </Button>
-              ) : null}
-
-              {selectedUserIds.length > 0 ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="bg-background/70"
-                  onClick={() => handleOpenDeleteUsersConfirmation(selectedUserIds)}
-                  disabled={bulkProcessingAction != null}
-                >
-                  {bulkProcessingAction == "DELETE" ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="mr-2 h-4 w-4" />
-                  )}
-                  Excluir selecionados ({selectedUserIds.length})
-                </Button>
-              ) : null}
-            </div>
-
-            <p className="text-sm text-muted-foreground">{orderedFilteredUsers.length} usuário(s) encontrado(s)</p>
-          </div>
-        ) : null
-      ) : (
-        <p className="text-sm text-muted-foreground">Perfil em visualização: sem permissão para criar ou editar usuários.</p>
-      )}
-
-      {loading ? (
-        <div className="glass-card enter-section flex min-h-28 items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-primary" />
-        </div>
-      ) : orderedFilteredUsers.length == 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhum usuário administrativo encontrado.</p>
-      ) : (
-        <div className="space-y-2">
-          {orderedFilteredUsers.map((user) => {
-            const isCurrentUser = user.user_id == currentUser?.id;
-            const isUserOnline = onlineUserIdsSet.has(user.user_id);
-            const resolvedUserLastAccessDate = resolveAdminUserLastAccessDate(user, isUserOnline);
-            const shouldDisplayUserEmail = resolveShouldDisplayInternalAdminUserEmail(user.email, user.login_identifier);
-
-            return (
-              <div
-                key={user.user_id}
-                className="list-item-card list-item-card-hover grid gap-3 p-3 lg:grid-cols-[minmax(0,320px)_minmax(0,170px)_minmax(0,220px)_minmax(0,220px)_auto] lg:items-start"
+            {canManageUsers ? (
+              <Button
+                type="button"
+                onClick={handleOpenCreateUserModal}
+                disabled={profiles.length == 0}
+                className="w-full md:w-auto"
               >
-                <div className="flex min-w-0 items-start gap-3">
-                  {canManageUsers ? (
+                <Plus className="mr-2 h-4 w-4" />
+                Criar usuário
+              </Button>
+            ) : null}
+          </div>
+
+          {canManageUsers ? (
+            orderedFilteredUsers.length > 0 ? (
+              <div className="glass-card enter-section flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="flex items-center gap-2 text-sm text-foreground">
                     <Checkbox
-                      checked={selectedUserIds.includes(user.user_id)}
-                      onCheckedChange={(checked) => handleToggleSelectedUser(user.user_id, checked)}
-                      disabled={isCurrentUser}
+                      checked={selectAllFilteredUsersChecked}
+                      onCheckedChange={handleToggleSelectAllFilteredUsers}
                     />
+                    <span>Selecionar todos os usuários filtrados</span>
+                  </label>
+
+                  {selectedUserIds.length > 0 ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="bg-background/70"
+                      onClick={() =>
+                        handleOpenResetUsersPasswordSetupConfirmation(
+                          selectedUserIds,
+                        )
+                      }
+                      disabled={bulkProcessingAction != null}
+                    >
+                      {bulkProcessingAction == "RESET" ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <RotateCcw className="mr-2 h-4 w-4" />
+                      )}
+                      Resetar senhas ({selectedUserIds.length})
+                    </Button>
                   ) : null}
 
-                  <div className="flex min-w-0 flex-1 items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          className={`h-2.5 w-2.5 shrink-0 rounded-full ${isUserOnline ? "bg-emerald-500" : "bg-red-500"}`}
-                          title={isUserOnline ? "Usuário online na plataforma" : "Usuário offline na plataforma"}
-                          aria-label={isUserOnline ? "Usuário online na plataforma" : "Usuário offline na plataforma"}
-                        />
-                        <p className="truncate text-sm font-medium">{user.name}</p>
-                        <AppBadge tone={resolveAdminUserPasswordStatusBadgeTone(user.password_status)}>
-                          {resolveAdminUserPasswordStatusLabel(user.password_status)}
-                        </AppBadge>
-                        {isCurrentUser ? <AppBadge tone={AppBadgeTone.PRIMARY}>você</AppBadge> : null}
-                      </div>
+                  {selectedUserIds.length > 0 ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="bg-background/70"
+                      onClick={() =>
+                        handleOpenDeleteUsersConfirmation(selectedUserIds)
+                      }
+                      disabled={bulkProcessingAction != null}
+                    >
+                      {bulkProcessingAction == "DELETE" ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="mr-2 h-4 w-4" />
+                      )}
+                      Excluir selecionados ({selectedUserIds.length})
+                    </Button>
+                  ) : null}
+                </div>
 
-                      <div className="space-y-1 text-xs text-muted-foreground">
-                        <p className="truncate">Login: {user.login_identifier}</p>
-                        {shouldDisplayUserEmail ? (
-                          <p className="truncate">E-mail: {user.email}</p>
+                <p className="text-sm text-muted-foreground">
+                  {orderedFilteredUsers.length} usuário(s) encontrado(s)
+                </p>
+              </div>
+            ) : null
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Perfil em visualização: sem permissão para criar ou editar
+              usuários.
+            </p>
+          )}
+
+          {loading ? (
+            <AdminListSkeleton count={6} showActions />
+          ) : orderedFilteredUsers.length == 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Nenhum usuário administrativo encontrado.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {orderedFilteredUsers.map((user) => {
+                const isCurrentUser = user.user_id == currentUser?.id;
+                const isUserOnline = onlineUserIdsSet.has(user.user_id);
+                const resolvedUserLastAccessDate =
+                  resolveAdminUserLastAccessDate(user, isUserOnline);
+                const shouldDisplayUserEmail =
+                  resolveShouldDisplayInternalAdminUserEmail(
+                    user.email,
+                    user.login_identifier,
+                  );
+
+                return (
+                  <div
+                    key={user.user_id}
+                    className="list-item-card list-item-card-hover grid gap-3 p-3 lg:grid-cols-[minmax(0,320px)_minmax(0,170px)_minmax(0,220px)_minmax(0,220px)_auto] lg:items-start"
+                  >
+                    <div className="flex min-w-0 items-start gap-3">
+                      {canManageUsers ? (
+                        <Checkbox
+                          checked={selectedUserIds.includes(user.user_id)}
+                          onCheckedChange={(checked) =>
+                            handleToggleSelectedUser(user.user_id, checked)
+                          }
+                          disabled={isCurrentUser}
+                        />
+                      ) : null}
+
+                      <div className="flex min-w-0 flex-1 items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1 space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span
+                              className={`h-2.5 w-2.5 shrink-0 rounded-full ${isUserOnline ? "bg-emerald-500" : "bg-red-500"}`}
+                              title={
+                                isUserOnline
+                                  ? "Usuário online na plataforma"
+                                  : "Usuário offline na plataforma"
+                              }
+                              aria-label={
+                                isUserOnline
+                                  ? "Usuário online na plataforma"
+                                  : "Usuário offline na plataforma"
+                              }
+                            />
+                            <p className="truncate text-sm font-medium">
+                              {user.name}
+                            </p>
+                            <AppBadge
+                              tone={resolveAdminUserPasswordStatusBadgeTone(
+                                user.password_status,
+                              )}
+                            >
+                              {resolveAdminUserPasswordStatusLabel(
+                                user.password_status,
+                              )}
+                            </AppBadge>
+                            {isCurrentUser ? (
+                              <AppBadge tone={AppBadgeTone.PRIMARY}>
+                                você
+                              </AppBadge>
+                            ) : null}
+                          </div>
+
+                          <div className="space-y-1 text-xs text-muted-foreground">
+                            <p className="truncate">
+                              Login: {user.login_identifier}
+                            </p>
+                            {shouldDisplayUserEmail ? (
+                              <p className="truncate">E-mail: {user.email}</p>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        {/* Menu de ações — mobile only (lg:hidden) */}
+                        {canManageUsers ? (
+                          <div className="shrink-0 lg:hidden">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  aria-label={`Ações do usuário ${user.name}`}
+                                  disabled={bulkProcessingAction != null}
+                                >
+                                  {resettingUserId == user.user_id ||
+                                  deletingUserId == user.user_id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                                  )}
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-52">
+                                <DropdownMenuItem
+                                  onSelect={() =>
+                                    handleOpenEditUserModal(user.user_id)
+                                  }
+                                >
+                                  <PencilLine className="mr-2 h-4 w-4" />
+                                  Editar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onSelect={() =>
+                                    handleOpenResetUsersPasswordSetupConfirmation(
+                                      [user.user_id],
+                                    )
+                                  }
+                                  disabled={
+                                    isCurrentUser ||
+                                    resettingUserId == user.user_id ||
+                                    bulkProcessingAction != null
+                                  }
+                                >
+                                  <RotateCcw className="mr-2 h-4 w-4" />
+                                  Resetar senha
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onSelect={() =>
+                                    handleOpenDeleteUsersConfirmation([
+                                      user.user_id,
+                                    ])
+                                  }
+                                  disabled={
+                                    isCurrentUser ||
+                                    deletingUserId == user.user_id ||
+                                    bulkProcessingAction != null
+                                  }
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Excluir usuário
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
                         ) : null}
                       </div>
                     </div>
 
-                    {/* Menu de ações — mobile only (lg:hidden) */}
+                    <div className="space-y-1 text-xs text-muted-foreground">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                        Perfil
+                      </p>
+                      <p className="truncate text-sm text-foreground">
+                        {user.profile_name}
+                      </p>
+                    </div>
+
+                    <div className="space-y-1 text-xs text-muted-foreground">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                        Criado em
+                      </p>
+                      <p className="text-sm text-foreground">
+                        {format(new Date(user.created_at), "dd/MM/yyyy HH:mm")}
+                      </p>
+                    </div>
+
+                    <div className="space-y-1 text-xs text-muted-foreground">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                        Último acesso
+                      </p>
+                      <p className="text-sm text-foreground">
+                        {resolvedUserLastAccessDate
+                          ? format(
+                              resolvedUserLastAccessDate,
+                              "dd/MM/yyyy HH:mm",
+                            )
+                          : "Sem acesso"}
+                      </p>
+                    </div>
+
+                    {/* Menu de ações — desktop only (hidden lg:flex) */}
                     {canManageUsers ? (
-                      <div className="shrink-0 lg:hidden">
+                      <div className="hidden shrink-0 justify-end lg:flex lg:self-center">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
@@ -1285,7 +1666,8 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                               aria-label={`Ações do usuário ${user.name}`}
                               disabled={bulkProcessingAction != null}
                             >
-                              {resettingUserId == user.user_id || deletingUserId == user.user_id ? (
+                              {resettingUserId == user.user_id ||
+                              deletingUserId == user.user_id ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (
                                 <MoreVertical className="h-4 w-4 text-muted-foreground" />
@@ -1293,21 +1675,41 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-52">
-                            <DropdownMenuItem onSelect={() => handleOpenEditUserModal(user.user_id)}>
+                            <DropdownMenuItem
+                              onSelect={() =>
+                                handleOpenEditUserModal(user.user_id)
+                              }
+                            >
                               <PencilLine className="mr-2 h-4 w-4" />
                               Editar
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onSelect={() => handleOpenResetUsersPasswordSetupConfirmation([user.user_id])}
-                              disabled={isCurrentUser || resettingUserId == user.user_id || bulkProcessingAction != null}
+                              onSelect={() =>
+                                handleOpenResetUsersPasswordSetupConfirmation([
+                                  user.user_id,
+                                ])
+                              }
+                              disabled={
+                                isCurrentUser ||
+                                resettingUserId == user.user_id ||
+                                bulkProcessingAction != null
+                              }
                             >
                               <RotateCcw className="mr-2 h-4 w-4" />
                               Resetar senha
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               className="text-destructive focus:text-destructive"
-                              onSelect={() => handleOpenDeleteUsersConfirmation([user.user_id])}
-                              disabled={isCurrentUser || deletingUserId == user.user_id || bulkProcessingAction != null}
+                              onSelect={() =>
+                                handleOpenDeleteUsersConfirmation([
+                                  user.user_id,
+                                ])
+                              }
+                              disabled={
+                                isCurrentUser ||
+                                deletingUserId == user.user_id ||
+                                bulkProcessingAction != null
+                              }
                             >
                               <Trash2 className="mr-2 h-4 w-4" />
                               Excluir usuário
@@ -1317,87 +1719,33 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                       </div>
                     ) : null}
                   </div>
-                </div>
-
-                <div className="space-y-1 text-xs text-muted-foreground">
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">Perfil</p>
-                  <p className="truncate text-sm text-foreground">{user.profile_name}</p>
-                </div>
-
-                <div className="space-y-1 text-xs text-muted-foreground">
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">Criado em</p>
-                  <p className="text-sm text-foreground">{format(new Date(user.created_at), "dd/MM/yyyy HH:mm")}</p>
-                </div>
-
-                <div className="space-y-1 text-xs text-muted-foreground">
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">Último acesso</p>
-                  <p className="text-sm text-foreground">
-                    {resolvedUserLastAccessDate ? format(resolvedUserLastAccessDate, "dd/MM/yyyy HH:mm") : "Sem acesso"}
-                  </p>
-                </div>
-
-                {/* Menu de ações — desktop only (hidden lg:flex) */}
-                {canManageUsers ? (
-                  <div className="hidden shrink-0 justify-end lg:flex lg:self-center">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Ações do usuário ${user.name}`}
-                          disabled={bulkProcessingAction != null}
-                        >
-                          {resettingUserId == user.user_id || deletingUserId == user.user_id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <MoreVertical className="h-4 w-4 text-muted-foreground" />
-                          )}
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-52">
-                        <DropdownMenuItem onSelect={() => handleOpenEditUserModal(user.user_id)}>
-                          <PencilLine className="mr-2 h-4 w-4" />
-                          Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onSelect={() => handleOpenResetUsersPasswordSetupConfirmation([user.user_id])}
-                          disabled={isCurrentUser || resettingUserId == user.user_id || bulkProcessingAction != null}
-                        >
-                          <RotateCcw className="mr-2 h-4 w-4" />
-                          Resetar senha
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onSelect={() => handleOpenDeleteUsersConfirmation([user.user_id])}
-                          disabled={isCurrentUser || deletingUserId == user.user_id || bulkProcessingAction != null}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Excluir usuário
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      )}
+                );
+              })}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="PROFILES" className="space-y-4">
           <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
             {/* Lista de perfis */}
             <div className="glass-card space-y-2 p-3">
-              <Button type="button" variant="outline" className="w-full bg-background/70" onClick={handleOpenCreateProfile}>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full bg-background/70"
+                onClick={handleOpenCreateProfile}
+              >
                 <Plus className="mr-2 h-4 w-4" />
                 Novo perfil
               </Button>
 
               <div className="space-y-1">
-                {profiles.length == 0 ? (
-                  <p className="text-xs text-muted-foreground">Nenhum perfil personalizado cadastrado.</p>
+                {loading ? (
+                  <AdminListSkeleton count={4} showActions={false} />
+                ) : profiles.length == 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Nenhum perfil personalizado cadastrado.
+                  </p>
                 ) : (
                   profiles.map((profile) => (
                     <button
@@ -1410,9 +1758,15 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                       }`}
                       onClick={() => handleEditProfile(profile)}
                     >
-                      <p className="truncate text-sm font-medium">{profile.profile_name}</p>
+                      <p className="truncate text-sm font-medium">
+                        {profile.profile_name}
+                      </p>
                       <p className="text-xs text-muted-foreground">
-                        Atualizado em {format(new Date(profile.updated_at), "dd/MM/yyyy HH:mm")}
+                        Atualizado em{" "}
+                        {format(
+                          new Date(profile.updated_at),
+                          "dd/MM/yyyy HH:mm",
+                        )}
                       </p>
                     </button>
                   ))
@@ -1443,7 +1797,8 @@ export function AdminUsers({ canManageUsers = true }: Props) {
 
                   {isProtectedAdminProfile ? (
                     <p className="text-xs text-muted-foreground">
-                      O perfil Admin é protegido. É possível visualizar, mas não editar este perfil.
+                      O perfil Admin é protegido. É possível visualizar, mas não
+                      editar este perfil.
                     </p>
                   ) : null}
 
@@ -1455,7 +1810,9 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                           key={adminPanelTab}
                           className="grid gap-2 rounded-xl app-card-muted p-2 sm:grid-cols-[170px_minmax(0,1fr)] sm:items-center"
                         >
-                          <p className="text-sm font-medium">{ADMIN_TAB_LABELS[adminPanelTab]}</p>
+                          <p className="text-sm font-medium">
+                            {ADMIN_TAB_LABELS[adminPanelTab]}
+                          </p>
                           <Select
                             value={profileDraft.permissions[adminPanelTab]}
                             disabled={isProtectedAdminProfile}
@@ -1476,14 +1833,32 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value={AdminPanelPermissionLevel.NONE}>
-                                {ADMIN_PERMISSION_LEVEL_LABELS[AdminPanelPermissionLevel.NONE]}
+                              <SelectItem
+                                value={AdminPanelPermissionLevel.NONE}
+                              >
+                                {
+                                  ADMIN_PERMISSION_LEVEL_LABELS[
+                                    AdminPanelPermissionLevel.NONE
+                                  ]
+                                }
                               </SelectItem>
-                              <SelectItem value={AdminPanelPermissionLevel.VIEW}>
-                                {ADMIN_PERMISSION_LEVEL_LABELS[AdminPanelPermissionLevel.VIEW]}
+                              <SelectItem
+                                value={AdminPanelPermissionLevel.VIEW}
+                              >
+                                {
+                                  ADMIN_PERMISSION_LEVEL_LABELS[
+                                    AdminPanelPermissionLevel.VIEW
+                                  ]
+                                }
                               </SelectItem>
-                              <SelectItem value={AdminPanelPermissionLevel.EDIT}>
-                                {ADMIN_PERMISSION_LEVEL_LABELS[AdminPanelPermissionLevel.EDIT]}
+                              <SelectItem
+                                value={AdminPanelPermissionLevel.EDIT}
+                              >
+                                {
+                                  ADMIN_PERMISSION_LEVEL_LABELS[
+                                    AdminPanelPermissionLevel.EDIT
+                                  ]
+                                }
                               </SelectItem>
                             </SelectContent>
                           </Select>
@@ -1496,16 +1871,27 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                     <Button
                       type="button"
                       onClick={handleSaveProfile}
-                      disabled={savingProfile || !canManageUsers || isProtectedAdminProfile || !hasProfilePendingChanges}
+                      disabled={
+                        savingProfile ||
+                        !canManageUsers ||
+                        isProtectedAdminProfile ||
+                        !hasProfilePendingChanges
+                      }
                     >
-                      {savingProfile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                      {savingProfile ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="mr-2 h-4 w-4" />
+                      )}
                       Salvar perfil
                     </Button>
                   </div>
                 </>
               ) : (
                 <div className="flex min-h-[280px] items-center justify-center">
-                  <p className="text-sm text-muted-foreground">Selecione um perfil ou crie um novo.</p>
+                  <p className="text-sm text-muted-foreground">
+                    Selecione um perfil ou crie um novo.
+                  </p>
                 </div>
               )}
             </div>
@@ -1526,7 +1912,10 @@ export function AdminUsers({ canManageUsers = true }: Props) {
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Criar usuário</DialogTitle>
-            <DialogDescription>Defina o nome, o login e o perfil de acesso do usuário administrativo.</DialogDescription>
+            <DialogDescription>
+              Defina o nome, o login e o perfil de acesso do usuário
+              administrativo.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-3">
@@ -1544,7 +1933,9 @@ export function AdminUsers({ canManageUsers = true }: Props) {
               type="text"
               name="admin_new_user_login_identifier_input"
               value={newUserLoginIdentifier}
-              onChange={(event) => setNewUserLoginIdentifier(event.target.value)}
+              onChange={(event) =>
+                setNewUserLoginIdentifier(event.target.value)
+              }
               placeholder="Login do novo usuário"
               className="app-input-field"
               autoComplete="off"
@@ -1553,13 +1944,19 @@ export function AdminUsers({ canManageUsers = true }: Props) {
               spellCheck={false}
             />
 
-            <Select value={newUserAccessValue} onValueChange={setNewUserAccessValue}>
+            <Select
+              value={newUserAccessValue}
+              onValueChange={setNewUserAccessValue}
+            >
               <SelectTrigger className="app-input-field">
                 <SelectValue placeholder="Perfil de acesso" />
               </SelectTrigger>
               <SelectContent>
                 {profileAccessOptions.map((profileAccessOption) => (
-                  <SelectItem key={profileAccessOption.value} value={profileAccessOption.value}>
+                  <SelectItem
+                    key={profileAccessOption.value}
+                    value={profileAccessOption.value}
+                  >
                     {profileAccessOption.label}
                   </SelectItem>
                 ))}
@@ -1568,11 +1965,23 @@ export function AdminUsers({ canManageUsers = true }: Props) {
           </div>
 
           <DialogFooter className="gap-3 pt-2 sm:gap-2 sm:pt-0">
-            <Button type="button" variant="outline" onClick={() => setShowCreateUserModal(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowCreateUserModal(false)}
+            >
               Cancelar
             </Button>
-            <Button type="button" onClick={handleCreateUser} disabled={creatingUser || profiles.length == 0}>
-              {creatingUser ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+            <Button
+              type="button"
+              onClick={handleCreateUser}
+              disabled={creatingUser || profiles.length == 0}
+            >
+              {creatingUser ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="mr-2 h-4 w-4" />
+              )}
               Criar usuário
             </Button>
           </DialogFooter>
@@ -1591,7 +2000,10 @@ export function AdminUsers({ canManageUsers = true }: Props) {
           <DialogContent className="flex max-h-[calc(100dvh-1.5rem)] flex-col overflow-hidden sm:max-w-3xl">
             <DialogHeader className="shrink-0">
               <DialogTitle>Editar usuário</DialogTitle>
-              <DialogDescription>Atualize nome, login, perfil, senha e ações do usuário administrativo.</DialogDescription>
+              <DialogDescription>
+                Atualize nome, login, perfil, senha e ações do usuário
+                administrativo.
+              </DialogDescription>
             </DialogHeader>
 
             <div className="overflow-y-auto pr-1">
@@ -1601,29 +2013,56 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                     <span
                       className={`h-2.5 w-2.5 shrink-0 rounded-full ${isEditingUserOnline ? "bg-emerald-500" : "bg-red-500"}`}
                       title={
-                        isEditingUserOnline ? "Usuário online na plataforma" : "Usuário offline na plataforma"
+                        isEditingUserOnline
+                          ? "Usuário online na plataforma"
+                          : "Usuário offline na plataforma"
                       }
                       aria-label={
-                        isEditingUserOnline ? "Usuário online na plataforma" : "Usuário offline na plataforma"
+                        isEditingUserOnline
+                          ? "Usuário online na plataforma"
+                          : "Usuário offline na plataforma"
                       }
                     />
                     <p className="text-sm font-semibold">{editingUser.name}</p>
-                    <AppBadge tone={resolveAdminUserPasswordStatusBadgeTone(editingUser.password_status)}>
-                      {resolveAdminUserPasswordStatusLabel(editingUser.password_status)}
+                    <AppBadge
+                      tone={resolveAdminUserPasswordStatusBadgeTone(
+                        editingUser.password_status,
+                      )}
+                    >
+                      {resolveAdminUserPasswordStatusLabel(
+                        editingUser.password_status,
+                      )}
                     </AppBadge>
-                    {editingUser.user_id == currentUser?.id ? <AppBadge tone={AppBadgeTone.PRIMARY}>você</AppBadge> : null}
+                    {editingUser.user_id == currentUser?.id ? (
+                      <AppBadge tone={AppBadgeTone.PRIMARY}>você</AppBadge>
+                    ) : null}
                   </div>
 
                   <div className="mt-3 grid gap-x-4 gap-y-1 text-xs text-muted-foreground md:grid-cols-2">
-                    <p className="truncate">Login atual: {editingUser.login_identifier}</p>
-                    <p className="truncate">Perfil atual: {editingUser.profile_name}</p>
-                    {resolveShouldDisplayInternalAdminUserEmail(editingUser.email, editingUser.login_identifier) ? (
+                    <p className="truncate">
+                      Login atual: {editingUser.login_identifier}
+                    </p>
+                    <p className="truncate">
+                      Perfil atual: {editingUser.profile_name}
+                    </p>
+                    {resolveShouldDisplayInternalAdminUserEmail(
+                      editingUser.email,
+                      editingUser.login_identifier,
+                    ) ? (
                       <p className="truncate">E-mail: {editingUser.email}</p>
                     ) : null}
-                    <p>Criado em {format(new Date(editingUser.created_at), "dd/MM/yyyy HH:mm")}</p>
+                    <p>
+                      Criado em{" "}
+                      {format(
+                        new Date(editingUser.created_at),
+                        "dd/MM/yyyy HH:mm",
+                      )}
+                    </p>
                     <p>
                       Último acesso:{" "}
-                      {editingUserLastAccessDate ? format(editingUserLastAccessDate, "dd/MM/yyyy HH:mm") : "Sem acesso"}
+                      {editingUserLastAccessDate
+                        ? format(editingUserLastAccessDate, "dd/MM/yyyy HH:mm")
+                        : "Sem acesso"}
                     </p>
                   </div>
                 </div>
@@ -1631,7 +2070,11 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                 {canManageUsers ? (
                   <div className="grid gap-4 lg:grid-cols-2">
                     <div className="space-y-2 rounded-2xl app-card-muted p-4">
-                      <Label htmlFor={`admin-user-name-modal-${editingUser.user_id}`}>Nome</Label>
+                      <Label
+                        htmlFor={`admin-user-name-modal-${editingUser.user_id}`}
+                      >
+                        Nome
+                      </Label>
                       <Input
                         id={`admin-user-name-modal-${editingUser.user_id}`}
                         type="text"
@@ -1648,16 +2091,22 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                     </div>
 
                     <div className="space-y-2 rounded-2xl app-card-muted p-4">
-                      <Label htmlFor={`admin-user-login-modal-${editingUser.user_id}`}>Login</Label>
+                      <Label
+                        htmlFor={`admin-user-login-modal-${editingUser.user_id}`}
+                      >
+                        Login
+                      </Label>
                       <Input
                         id={`admin-user-login-modal-${editingUser.user_id}`}
                         type="text"
                         value={editedUserLoginIdentifier}
                         onChange={(event) =>
-                          setLoginIdentifierByUserId((currentLoginIdentifierByUserId) => ({
-                            ...currentLoginIdentifierByUserId,
-                            [editingUser.user_id]: event.target.value,
-                          }))
+                          setLoginIdentifierByUserId(
+                            (currentLoginIdentifierByUserId) => ({
+                              ...currentLoginIdentifierByUserId,
+                              [editingUser.user_id]: event.target.value,
+                            }),
+                          )
                         }
                         className="app-input-field"
                         autoComplete="off"
@@ -1668,7 +2117,11 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                     </div>
 
                     <div className="space-y-2 rounded-2xl app-card-muted p-4">
-                      <Label htmlFor={`admin-user-access-modal-${editingUser.user_id}`}>Perfil de acesso</Label>
+                      <Label
+                        htmlFor={`admin-user-access-modal-${editingUser.user_id}`}
+                      >
+                        Perfil de acesso
+                      </Label>
                       <Select
                         value={editedUserAccessValue}
                         onValueChange={(value) =>
@@ -1678,12 +2131,18 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                           }))
                         }
                       >
-                        <SelectTrigger id={`admin-user-access-modal-${editingUser.user_id}`} className="app-input-field">
+                        <SelectTrigger
+                          id={`admin-user-access-modal-${editingUser.user_id}`}
+                          className="app-input-field"
+                        >
                           <SelectValue placeholder="Perfil de acesso" />
                         </SelectTrigger>
                         <SelectContent>
                           {accessOptions.map((accessOption) => (
-                            <SelectItem key={accessOption.value} value={accessOption.value}>
+                            <SelectItem
+                              key={accessOption.value}
+                              value={accessOption.value}
+                            >
                               {accessOption.label}
                             </SelectItem>
                           ))}
@@ -1692,16 +2151,22 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                     </div>
 
                     <div className="space-y-2 rounded-2xl app-card-muted p-4">
-                      <Label htmlFor={`admin-user-password-modal-${editingUser.user_id}`}>Nova senha</Label>
+                      <Label
+                        htmlFor={`admin-user-password-modal-${editingUser.user_id}`}
+                      >
+                        Nova senha
+                      </Label>
                       <Input
                         id={`admin-user-password-modal-${editingUser.user_id}`}
                         type="password"
                         value={editedUserPassword}
                         onChange={(event) =>
-                          setNewPasswordByUserId((currentNewPasswordByUserId) => ({
-                            ...currentNewPasswordByUserId,
-                            [editingUser.user_id]: event.target.value,
-                          }))
+                          setNewPasswordByUserId(
+                            (currentNewPasswordByUserId) => ({
+                              ...currentNewPasswordByUserId,
+                              [editingUser.user_id]: event.target.value,
+                            }),
+                          )
                         }
                         className="app-input-field"
                         autoComplete="new-password"
@@ -1718,7 +2183,10 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                     <Button
                       type="button"
                       className="w-full sm:w-auto"
-                      disabled={!hasEditedUserPendingChanges || savingEditedUserId == editingUser.user_id}
+                      disabled={
+                        !hasEditedUserPendingChanges ||
+                        savingEditedUserId == editingUser.user_id
+                      }
                       onClick={() => handleSaveEditedUser(editingUser)}
                     >
                       {savingEditedUserId == editingUser.user_id ? (
@@ -1730,7 +2198,6 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                     </Button>
                   </div>
                 ) : null}
-
               </div>
             </div>
           </DialogContent>
@@ -1747,8 +2214,12 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{pendingUsersActionConfirmationTitle}</AlertDialogTitle>
-            <AlertDialogDescription>{pendingUsersActionConfirmationDescription}</AlertDialogDescription>
+            <AlertDialogTitle>
+              {pendingUsersActionConfirmationTitle}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingUsersActionConfirmationDescription}
+            </AlertDialogDescription>
           </AlertDialogHeader>
 
           <AlertDialogFooter>
@@ -1759,7 +2230,6 @@ export function AdminUsers({ canManageUsers = true }: Props) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
     </div>
   );
 }

@@ -1,16 +1,25 @@
-import { useCallback, useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import type { Team } from '@/lib/types';
+import { useCallback, useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import type { Team } from "@/lib/types";
 
 interface UseTeamsOptions {
   includeInactive?: boolean;
+  enabled?: boolean;
 }
 
-export function useTeams({ includeInactive = false }: UseTeamsOptions = {}) {
+export function useTeams({
+  includeInactive = false,
+  enabled = true,
+}: UseTeamsOptions = {}) {
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchTeams = useCallback(async () => {
+    if (!enabled) {
+      setLoading(true);
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -37,11 +46,16 @@ export function useTeams({ includeInactive = false }: UseTeamsOptions = {}) {
     } finally {
       setLoading(false);
     }
-  }, [includeInactive]);
+  }, [enabled, includeInactive]);
 
   useEffect(() => {
-    fetchTeams();
-  }, [fetchTeams]);
+    if (!enabled) {
+      setLoading(true);
+      return;
+    }
+
+    void fetchTeams();
+  }, [enabled, fetchTeams]);
 
   return { teams, loading, refetch: fetchTeams };
 }

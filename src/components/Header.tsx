@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { usePublicAccessSettings } from "@/hooks/usePublicAccessSettings";
@@ -21,20 +28,33 @@ export function Header() {
   const announcementViewportRef = useRef<HTMLDivElement | null>(null);
   const announcementMeasureRef = useRef<HTMLSpanElement | null>(null);
   const linkByPathRef = useRef<Record<string, HTMLAnchorElement | null>>({});
-  const [activeIndicatorLeft, setActiveIndicatorLeft] = useState(previousHeaderIndicatorState?.left ?? 0);
-  const [activeIndicatorWidth, setActiveIndicatorWidth] = useState(previousHeaderIndicatorState?.width ?? 0);
-  const [showActiveIndicator, setShowActiveIndicator] = useState(previousHeaderIndicatorState != null);
-  const [isAnnouncementOverflowing, setIsAnnouncementOverflowing] = useState(false);
+  const [activeIndicatorLeft, setActiveIndicatorLeft] = useState(
+    previousHeaderIndicatorState?.left ?? 0,
+  );
+  const [activeIndicatorWidth, setActiveIndicatorWidth] = useState(
+    previousHeaderIndicatorState?.width ?? 0,
+  );
+  const [showActiveIndicator, setShowActiveIndicator] = useState(
+    previousHeaderIndicatorState != null,
+  );
+  const [isAnnouncementOverflowing, setIsAnnouncementOverflowing] =
+    useState(false);
 
   const announcementMessage = useMemo(() => {
-    const normalizedAnnouncementMessage = publicAccessSettings.announcement_message?.trim();
-    return normalizedAnnouncementMessage && normalizedAnnouncementMessage.length > 0
+    const normalizedAnnouncementMessage =
+      publicAccessSettings.announcement_message?.trim();
+    return normalizedAnnouncementMessage &&
+      normalizedAnnouncementMessage.length > 0
       ? normalizedAnnouncementMessage
       : null;
   }, [publicAccessSettings.announcement_message]);
 
   const activeRoutePath = useMemo(() => {
-    return HEADER_APP_NAVIGATION_ITEMS.find((headerLinkItem) => headerLinkItem.routePath == location.pathname)?.routePath ?? null;
+    return (
+      HEADER_APP_NAVIGATION_ITEMS.find(
+        (headerLinkItem) => headerLinkItem.routePath == location.pathname,
+      )?.routePath ?? null
+    );
   }, [location.pathname]);
 
   const updateActiveIndicator = useCallback(() => {
@@ -62,13 +82,18 @@ export function Header() {
   }, [activeRoutePath]);
 
   const updateAnnouncementOverflow = useCallback(() => {
-    if (!announcementMessage || !announcementViewportRef.current || !announcementMeasureRef.current) {
+    if (
+      !announcementMessage ||
+      !announcementViewportRef.current ||
+      !announcementMeasureRef.current
+    ) {
       setIsAnnouncementOverflowing(false);
       return;
     }
 
     setIsAnnouncementOverflowing(
-      announcementMeasureRef.current.scrollWidth > announcementViewportRef.current.clientWidth + 1,
+      announcementMeasureRef.current.scrollWidth >
+        announcementViewportRef.current.clientWidth + 1,
     );
   }, [announcementMessage]);
 
@@ -93,20 +118,28 @@ export function Header() {
     }
 
     window.addEventListener("resize", updateAnnouncementOverflow);
-    return () => window.removeEventListener("resize", updateAnnouncementOverflow);
+    return () =>
+      window.removeEventListener("resize", updateAnnouncementOverflow);
   }, [announcementMessage, updateAnnouncementOverflow]);
 
   return (
-    <header className="sticky top-0 z-50">
+    <header className="sticky top-2 z-50">
       <div className="container space-y-2 py-2">
         <div className="app-header-surface flex h-14 items-center gap-2 px-2 sm:h-16 sm:px-3">
-          <Link to={AppRoutePath.HOME} className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg sm:h-14 sm:w-14">
-            <img src="/logo.png" alt="Logo LAJE" className="h-10 w-10 object-contain shadow-none sm:h-12 sm:w-12" />
+          <Link
+            to={AppRoutePath.HOME}
+            className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg sm:h-14 sm:w-14"
+          >
+            <img
+              src="/logo.png"
+              alt="Logo LAJE"
+              className="h-10 w-10 object-contain shadow-none sm:h-12 sm:w-12"
+            />
           </Link>
 
           <nav
             ref={navRef}
-            className="app-pill-container app-header-nav-container relative ml-auto flex max-w-[calc(100%-3.5rem)] min-w-0 items-center gap-0 overflow-x-auto rounded-xl"
+            className="app-pill-container app-header-nav-container app-scrollbar-hidden relative ml-auto flex max-w-[calc(100%-3.5rem)] min-w-0 items-center gap-0 overflow-x-auto rounded-xl"
           >
             <span
               className="app-pill-active-indicator pointer-events-none absolute inset-y-0 left-0 rounded-xl transition-[transform,width,opacity] duration-500"
@@ -118,61 +151,78 @@ export function Header() {
               }}
             />
 
-            {HEADER_APP_NAVIGATION_ITEMS.map(({ routePath, label, icon: Icon }) => (
-              (() => {
-                const isDisabledByMaintenance = resolveIsPublicRouteBlocked(publicAccessSettings, routePath);
-                const shouldBlockLinkByMaintenance = !authLoading && !user && isDisabledByMaintenance;
+            {HEADER_APP_NAVIGATION_ITEMS.map(
+              ({ routePath, label, icon: Icon }) =>
+                (() => {
+                  const isDisabledByMaintenance = resolveIsPublicRouteBlocked(
+                    publicAccessSettings,
+                    routePath,
+                  );
+                  const shouldBlockLinkByMaintenance =
+                    !authLoading && !user && isDisabledByMaintenance;
 
-                if (shouldBlockLinkByMaintenance) {
-                  linkByPathRef.current[routePath] = null;
+                  if (shouldBlockLinkByMaintenance) {
+                    linkByPathRef.current[routePath] = null;
+
+                    return (
+                      <button
+                        key={routePath}
+                        type="button"
+                        disabled
+                        title="Tela temporariamente indisponível por manutenção"
+                        className="app-pill-option relative z-10 flex min-h-11 shrink-0 cursor-not-allowed items-center gap-1.5 rounded-none px-3 py-2.5 text-sm font-medium text-muted-foreground/70 dark:text-muted-foreground/30 first:rounded-l-xl last:rounded-r-xl sm:min-h-10 sm:py-2"
+                      >
+                        <Icon className="h-5 w-5 sm:h-4 sm:w-4" />
+                        <span className="hidden sm:inline">{label}</span>
+                      </button>
+                    );
+                  }
 
                   return (
-                    <button
+                    <Link
                       key={routePath}
-                      type="button"
-                      disabled
-                      title="Tela temporariamente indisponível por manutenção"
-                      className="app-pill-option relative z-10 flex min-h-11 shrink-0 cursor-not-allowed items-center gap-1.5 rounded-none px-3 py-2.5 text-sm font-medium text-muted-foreground/70 dark:text-muted-foreground/30 first:rounded-l-xl last:rounded-r-xl sm:min-h-10 sm:py-2"
+                      to={routePath}
+                      aria-current={
+                        location.pathname == routePath ? "page" : undefined
+                      }
+                      ref={(linkElement) => {
+                        linkByPathRef.current[routePath] = linkElement;
+                      }}
+                      className={`app-pill-option relative z-10 flex min-h-11 shrink-0 items-center gap-1.5 rounded-none px-3 py-2.5 text-sm font-medium first:rounded-l-xl last:rounded-r-xl sm:min-h-10 sm:py-2 ${
+                        location.pathname == routePath
+                          ? "text-primary-foreground font-bold"
+                          : "text-muted-foreground"
+                      }`}
                     >
                       <Icon className="h-5 w-5 sm:h-4 sm:w-4" />
                       <span className="hidden sm:inline">{label}</span>
-                    </button>
+                    </Link>
                   );
-                }
-
-                return (
-                    <Link
-                    key={routePath}
-                    to={routePath}
-                    aria-current={location.pathname == routePath ? "page" : undefined}
-                    ref={(linkElement) => {
-                      linkByPathRef.current[routePath] = linkElement;
-                    }}
-                    className={`app-pill-option relative z-10 flex min-h-11 shrink-0 items-center gap-1.5 rounded-none px-3 py-2.5 text-sm font-medium first:rounded-l-xl last:rounded-r-xl sm:min-h-10 sm:py-2 ${
-                      location.pathname == routePath
-                        ? "text-primary-foreground font-bold"
-                        : "text-muted-foreground"
-                    }`}
-                  >
-                    <Icon className="h-5 w-5 sm:h-4 sm:w-4" />
-                    <span className="hidden sm:inline">{label}</span>
-                  </Link>
-                );
-              })()
-            ))}
+                })(),
+            )}
           </nav>
         </div>
 
         {announcementMessage ? (
-          <div className="app-announcement-banner app-card-warning enter-item rounded-2xl px-3 py-2" role="status" aria-live="polite">
+          <div
+            className="app-announcement-banner app-card-warning enter-item rounded-2xl px-3 py-2"
+            role="status"
+            aria-live="polite"
+          >
             <div
               ref={announcementViewportRef}
               className="app-announcement-viewport"
               data-overflowing={isAnnouncementOverflowing ? "true" : "false"}
             >
-              <span ref={announcementMeasureRef} className="app-announcement-measure" aria-hidden="true">
+              <span
+                ref={announcementMeasureRef}
+                className="app-announcement-measure"
+                aria-hidden="true"
+              >
                 <span className="app-announcement-prefix">Aviso:</span>
-                <span className="app-announcement-text">{announcementMessage}</span>
+                <span className="app-announcement-text">
+                  {announcementMessage}
+                </span>
               </span>
 
               {isAnnouncementOverflowing ? (
@@ -181,7 +231,9 @@ export function Header() {
                   <span className="app-announcement-text">
                     {announcementMessage}
                   </span>
-                  <span className="app-announcement-prefix" aria-hidden="true">Aviso:</span>
+                  <span className="app-announcement-prefix" aria-hidden="true">
+                    Aviso:
+                  </span>
                   <span className="app-announcement-text" aria-hidden="true">
                     {announcementMessage}
                   </span>
@@ -189,7 +241,9 @@ export function Header() {
               ) : (
                 <span className="app-announcement-inline">
                   <span className="app-announcement-prefix">Aviso:</span>
-                  <span className="app-announcement-text">{announcementMessage}</span>
+                  <span className="app-announcement-text">
+                    {announcementMessage}
+                  </span>
                 </span>
               )}
             </div>

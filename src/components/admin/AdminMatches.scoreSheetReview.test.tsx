@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { AdminMatches } from "@/components/admin/AdminMatches";
 import { AdminMatchesViewMode } from "@/components/admin/adminMatches.types";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import {
   ChampionshipBracketTieBreakContextType,
   BracketEditionStatus,
@@ -416,23 +417,25 @@ function renderAdminMatches(params: {
   const onRefetchChampionshipBracket = vi.fn();
 
   render(
-    <AdminMatches
-      matches={params.matches}
-      teams={params.matches.flatMap((match) => [match.home_team!, match.away_team!])}
-      championshipSports={params.championshipSports ?? [buildChampionshipSport({ id: "championship-sport-1", sport_id: "sport-1" })]}
-      selectedChampionship={params.selectedChampionship ?? buildChampionship()}
-      championshipBracketView={params.bracketView ?? buildBracketView()}
-      loadingChampionshipBracket={false}
-      matchBracketContextByMatchId={params.matchBracketContextByMatchId ?? {}}
-      matchRepresentationByMatchId={{}}
-      visualQueuePositionByMatchId={params.visualQueuePositionByMatchId ?? {}}
-      estimatedStartTimeByMatchId={params.estimatedStartTimeByMatchId ?? {}}
-      isFetchingMatches={false}
-      canManageMatches
-      viewMode={params.viewMode ?? AdminMatchesViewMode.DEFAULT}
-      onRefetch={onRefetch}
-      onRefetchChampionshipBracket={onRefetchChampionshipBracket}
-    />,
+    <TooltipProvider>
+      <AdminMatches
+        matches={params.matches}
+        teams={params.matches.flatMap((match) => [match.home_team!, match.away_team!])}
+        championshipSports={params.championshipSports ?? [buildChampionshipSport({ id: "championship-sport-1", sport_id: "sport-1" })]}
+        selectedChampionship={params.selectedChampionship ?? buildChampionship()}
+        championshipBracketView={params.bracketView ?? buildBracketView()}
+        loadingChampionshipBracket={false}
+        matchBracketContextByMatchId={params.matchBracketContextByMatchId ?? {}}
+        matchRepresentationByMatchId={{}}
+        visualQueuePositionByMatchId={params.visualQueuePositionByMatchId ?? {}}
+        estimatedStartTimeByMatchId={params.estimatedStartTimeByMatchId ?? {}}
+        isFetchingMatches={false}
+        canManageMatches
+        viewMode={params.viewMode ?? AdminMatchesViewMode.DEFAULT}
+        onRefetch={onRefetch}
+        onRefetchChampionshipBracket={onRefetchChampionshipBracket}
+      />
+    </TooltipProvider>,
   );
 
   return {

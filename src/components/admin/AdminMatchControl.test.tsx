@@ -374,6 +374,14 @@ async function selectWalkoverOption(matchCardElement: HTMLElement, optionLabel: 
   });
 }
 
+async function completeInitialControlLoad(): Promise<void> {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
 async function selectControlFilterOption(filterLabel: string, optionLabel: string): Promise<void> {
   const filterTrigger = screen.getByRole("combobox", { name: filterLabel });
 
@@ -507,15 +515,13 @@ describe("AdminMatchControl", () => {
       championshipStatus: ChampionshipStatus.REVIEW,
     });
 
+    await completeInitialControlLoad();
+
     expect(screen.getByText(/^Atletismo •/)).toBeInTheDocument();
     expect(screen.getByText("Feminino")).toBeInTheDocument();
     expect(screen.getByText(/^Atletismo •/).closest(".glass-card")).not.toBeNull();
     expect(screen.getByText(/11\/04\/2026/)).toBeInTheDocument();
     expect(screen.getByText("Pendente de agendamento")).toBeInTheDocument();
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-    });
     const participantsGrid = screen
       .getByText("Atléticas participantes (3)")
       .nextElementSibling;
@@ -557,7 +563,7 @@ describe("AdminMatchControl", () => {
     expect(screen.queryByRole("option", { name: "Misto" })).toBeNull();
   });
 
-  it("desabilita o registro de resultados de Natação em revisão", () => {
+  it("desabilita o registro de resultados de Natação em revisão", async () => {
     const swimmingSport = buildChampionshipSport({
       id: "championship-sport-swimming",
       sport_id: "sport-swimming",
@@ -580,6 +586,8 @@ describe("AdminMatchControl", () => {
       championshipSports: [swimmingSport],
       championshipStatus: ChampionshipStatus.REVIEW,
     });
+
+    await completeInitialControlLoad();
 
     expect(screen.getByText(/^Natação •/)).toBeInTheDocument();
     expect(
@@ -612,6 +620,8 @@ describe("AdminMatchControl", () => {
       matches: [],
       championshipSports: [athleticsSport],
     });
+
+    await completeInitialControlLoad();
 
     const sessionCard = screen.getByText(/^Atletismo •/).closest(".glass-card");
     expect(sessionCard).not.toBeNull();
@@ -656,6 +666,8 @@ describe("AdminMatchControl", () => {
       matches: [],
       championshipSports: [swimmingSport],
     });
+
+    await completeInitialControlLoad();
 
     await act(async () => {
       fireEvent.click(screen.getAllByRole("button", { name: "Voltar para agendada" }).at(-1)!);
@@ -716,6 +728,8 @@ describe("AdminMatchControl", () => {
       championshipSports: [athleticsSport],
     });
 
+    await completeInitialControlLoad();
+
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Registrar resultados" }));
       await Promise.resolve();
@@ -728,7 +742,7 @@ describe("AdminMatchControl", () => {
     expect(individualSessionRepositoryMocks.walkover).toHaveBeenCalledWith("event-100m", "team-1");
   });
 
-  it("mantém as sessões individuais após os jogos coletivos no filtro Todas", () => {
+  it("mantém as sessões individuais após os jogos coletivos no filtro Todas", async () => {
     const match = buildMatch({
       id: "collective-match",
       sport_id: "sport-futsal",
@@ -757,6 +771,8 @@ describe("AdminMatchControl", () => {
       championshipSports: [athleticsSport],
     });
 
+    await completeInitialControlLoad();
+
     const collectiveMatchCard = resolveMatchCardElement("Casa");
     const individualSessionCard = screen.getByText(/^Atletismo •/).closest(".glass-card");
 
@@ -764,7 +780,7 @@ describe("AdminMatchControl", () => {
     expect(individualSessionCard).toHaveClass("order-3");
   });
 
-  it("exibe sessões individuais somente depois da última página de jogos coletivos", () => {
+  it("exibe sessões individuais somente depois da última página de jogos coletivos", async () => {
     const athleticsSport = buildChampionshipSport({
       id: "championship-sport-athletics",
       sport_id: "sport-athletics",
@@ -793,6 +809,8 @@ describe("AdminMatchControl", () => {
       matches: collectiveMatches,
       championshipSports: [athleticsSport],
     });
+
+    await completeInitialControlLoad();
 
     expect(screen.queryByText(/^Atletismo •/)).toBeNull();
 

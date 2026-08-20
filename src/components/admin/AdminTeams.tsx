@@ -1,5 +1,13 @@
 import { useMemo, useState } from "react";
-import { Loader2, MoreVertical, Pencil, Plus, Power, Trash2 } from "lucide-react";
+import { AdminListSkeleton } from "@/components/skeletons/AdminListSkeleton";
+import {
+  Loader2,
+  MoreVertical,
+  Pencil,
+  Plus,
+  Power,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Team } from "@/lib/types";
@@ -21,7 +29,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   TEAM_DIVISION_BADGE_TONES,
   TEAM_DIVISION_LABELS,
@@ -31,6 +45,7 @@ import {
 
 interface Props {
   teams: Team[];
+  isLoading?: boolean;
   onRefetch: () => void;
   canManageTeams?: boolean;
 }
@@ -43,13 +58,17 @@ const INACTIVE_TEAMS_STATUS_FILTER = "INACTIVE_TEAMS_STATUS_FILTER";
 
 function resolveTeamDivisionLabel(division: TeamDivision | null): string {
   if (!division) {
-    return TEAM_DIVISION_SELECTION_LABELS[TeamDivisionSelection.WITHOUT_DIVISION];
+    return TEAM_DIVISION_SELECTION_LABELS[
+      TeamDivisionSelection.WITHOUT_DIVISION
+    ];
   }
 
   return TEAM_DIVISION_LABELS[division];
 }
 
-function resolveTeamDivisionBadgeTone(division: TeamDivision | null): AppBadgeTone {
+function resolveTeamDivisionBadgeTone(
+  division: TeamDivision | null,
+): AppBadgeTone {
   if (!division) {
     return AppBadgeTone.AMBER;
   }
@@ -57,7 +76,9 @@ function resolveTeamDivisionBadgeTone(division: TeamDivision | null): AppBadgeTo
   return TEAM_DIVISION_BADGE_TONES[division];
 }
 
-function resolveTeamDivisionSelection(division: TeamDivision | null): TeamDivisionSelection {
+function resolveTeamDivisionSelection(
+  division: TeamDivision | null,
+): TeamDivisionSelection {
   if (!division) {
     return TeamDivisionSelection.WITHOUT_DIVISION;
   }
@@ -67,27 +88,45 @@ function resolveTeamDivisionSelection(division: TeamDivision | null): TeamDivisi
     : TeamDivisionSelection.DIVISAO_ACESSO;
 }
 
-function resolveTeamDivisionBySelection(selection: TeamDivisionSelection): TeamDivision | null {
+function resolveTeamDivisionBySelection(
+  selection: TeamDivisionSelection,
+): TeamDivision | null {
   if (selection == TeamDivisionSelection.WITHOUT_DIVISION) {
     return null;
   }
 
-  return selection;
+  if (selection == TeamDivisionSelection.DIVISAO_PRINCIPAL) {
+    return TeamDivision.DIVISAO_PRINCIPAL;
+  }
+
+  return TeamDivision.DIVISAO_ACESSO;
 }
 
-export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
+export function AdminTeams({
+  teams,
+  isLoading = false,
+  onRefetch,
+  canManageTeams = true,
+}: Props) {
   const [name, setName] = useState("");
   const [city, setCity] = useState("Joinville");
-  const [division, setDivision] = useState<TeamDivision | null>(TeamDivision.DIVISAO_ACESSO);
+  const [division, setDivision] = useState<TeamDivision | null>(
+    TeamDivision.DIVISAO_ACESSO,
+  );
   const [teamSearch, setTeamSearch] = useState("");
-  const [divisionFilter, setDivisionFilter] = useState<string>(ALL_TEAMS_DIVISION_FILTER);
-  const [statusFilter, setStatusFilter] = useState<string>(ACTIVE_TEAMS_STATUS_FILTER);
+  const [divisionFilter, setDivisionFilter] = useState<string>(
+    ALL_TEAMS_DIVISION_FILTER,
+  );
+  const [statusFilter, setStatusFilter] = useState<string>(
+    ACTIVE_TEAMS_STATUS_FILTER,
+  );
   const [showCreateTeamModal, setShowCreateTeamModal] = useState(false);
   const [showEditTeamModal, setShowEditTeamModal] = useState(false);
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [editingTeamName, setEditingTeamName] = useState("");
   const [editingTeamCity, setEditingTeamCity] = useState("Joinville");
-  const [editingTeamDivision, setEditingTeamDivision] = useState<TeamDivision | null>(TeamDivision.DIVISAO_ACESSO);
+  const [editingTeamDivision, setEditingTeamDivision] =
+    useState<TeamDivision | null>(TeamDivision.DIVISAO_ACESSO);
   const [creatingTeam, setCreatingTeam] = useState(false);
   const [savingTeam, setSavingTeam] = useState(false);
   const [deletingTeamId, setDeletingTeamId] = useState<string | null>(null);
@@ -104,11 +143,17 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
         return false;
       }
 
-      if (statusFilter == ACTIVE_TEAMS_STATUS_FILTER && team.is_active == false) {
+      if (
+        statusFilter == ACTIVE_TEAMS_STATUS_FILTER &&
+        team.is_active == false
+      ) {
         return false;
       }
 
-      if (statusFilter == INACTIVE_TEAMS_STATUS_FILTER && team.is_active != false) {
+      if (
+        statusFilter == INACTIVE_TEAMS_STATUS_FILTER &&
+        team.is_active != false
+      ) {
         return false;
       }
 
@@ -116,7 +161,9 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
         return true;
       }
 
-      return `${team.name} ${team.city}`.toLowerCase().includes(normalizedTeamSearch);
+      return `${team.name} ${team.city}`
+        .toLowerCase()
+        .includes(normalizedTeamSearch);
     });
   }, [divisionFilter, statusFilter, teamSearch, teams]);
 
@@ -228,7 +275,9 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
       return;
     }
 
-    toast.success(team.is_active ? "Atlética inativada." : "Atlética reativada.");
+    toast.success(
+      team.is_active ? "Atlética inativada." : "Atlética reativada.",
+    );
     onRefetch();
   };
 
@@ -273,7 +322,7 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="glass-card enter-section flex flex-col gap-3 p-4 xl:flex-row xl:items-center xl:justify-between">
+      <div className="glass-card flex flex-col gap-3 p-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-3">
           <Input
             type="search"
@@ -289,15 +338,29 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
               <SelectValue placeholder="Filtrar por divisão" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ALL_TEAMS_DIVISION_FILTER}>Todas as divisões</SelectItem>
+              <SelectItem value={ALL_TEAMS_DIVISION_FILTER}>
+                Todas as divisões
+              </SelectItem>
               <SelectItem value={TeamDivisionSelection.DIVISAO_PRINCIPAL}>
-                {TEAM_DIVISION_SELECTION_LABELS[TeamDivisionSelection.DIVISAO_PRINCIPAL]}
+                {
+                  TEAM_DIVISION_SELECTION_LABELS[
+                    TeamDivisionSelection.DIVISAO_PRINCIPAL
+                  ]
+                }
               </SelectItem>
               <SelectItem value={TeamDivisionSelection.DIVISAO_ACESSO}>
-                {TEAM_DIVISION_SELECTION_LABELS[TeamDivisionSelection.DIVISAO_ACESSO]}
+                {
+                  TEAM_DIVISION_SELECTION_LABELS[
+                    TeamDivisionSelection.DIVISAO_ACESSO
+                  ]
+                }
               </SelectItem>
               <SelectItem value={TeamDivisionSelection.WITHOUT_DIVISION}>
-                {TEAM_DIVISION_SELECTION_LABELS[TeamDivisionSelection.WITHOUT_DIVISION]}
+                {
+                  TEAM_DIVISION_SELECTION_LABELS[
+                    TeamDivisionSelection.WITHOUT_DIVISION
+                  ]
+                }
               </SelectItem>
             </SelectContent>
           </Select>
@@ -307,15 +370,25 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
               <SelectValue placeholder="Filtrar por status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ALL_TEAMS_STATUS_FILTER}>Ativas e inativas</SelectItem>
-              <SelectItem value={ACTIVE_TEAMS_STATUS_FILTER}>Somente ativas</SelectItem>
-              <SelectItem value={INACTIVE_TEAMS_STATUS_FILTER}>Somente inativas</SelectItem>
+              <SelectItem value={ALL_TEAMS_STATUS_FILTER}>
+                Ativas e inativas
+              </SelectItem>
+              <SelectItem value={ACTIVE_TEAMS_STATUS_FILTER}>
+                Somente ativas
+              </SelectItem>
+              <SelectItem value={INACTIVE_TEAMS_STATUS_FILTER}>
+                Somente inativas
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         {canManageTeams ? (
-          <Button type="button" onClick={handleOpenCreateTeamModal} className="w-full xl:w-auto">
+          <Button
+            type="button"
+            onClick={handleOpenCreateTeamModal}
+            className="w-full xl:w-auto"
+          >
             <Plus className="mr-2 h-4 w-4" />
             Criar atlética
           </Button>
@@ -323,78 +396,105 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
       </div>
 
       {!canManageTeams ? (
-        <p className="text-sm text-muted-foreground">Perfil em visualização: sem permissão para editar atléticas.</p>
+        <p className="text-sm text-muted-foreground">
+          Perfil em visualização: sem permissão para editar atléticas.
+        </p>
       ) : null}
 
-      {filteredTeams.length == 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhuma atlética encontrada para os filtros selecionados.</p>
+      {isLoading ? (
+        <AdminListSkeleton
+          count={6}
+          className="grid gap-2 space-y-0 sm:grid-cols-2 xl:grid-cols-3"
+        />
+      ) : filteredTeams.length == 0 ? (
+        <p className="text-sm text-muted-foreground">
+          Nenhuma atlética encontrada para os filtros selecionados.
+        </p>
       ) : (
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {filteredTeams.map((team) => {
             const shouldDimInactiveTeam =
-              statusFilter == ALL_TEAMS_STATUS_FILTER && team.is_active == false;
+              statusFilter == ALL_TEAMS_STATUS_FILTER &&
+              team.is_active == false;
 
             return (
-            <div
-              key={team.id}
-              className={`list-item-card list-item-card-hover space-y-3 p-3 transition-opacity ${
-                shouldDimInactiveTeam ? "opacity-70" : ""
-              }`}
-            >
-              <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-start gap-2">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-display font-semibold leading-tight">{team.name}</p>
-                    <AppBadge tone={resolveTeamDivisionBadgeTone(team.division)}>
-                      {resolveTeamDivisionLabel(team.division)}
-                    </AppBadge>
-                    <AppBadge tone={team.is_active != false ? AppBadgeTone.EMERALD : AppBadgeTone.RED}>
-                      {team.is_active != false ? "Ativa" : "Inativa"}
-                    </AppBadge>
+              <div
+                key={team.id}
+                className={`list-item-card list-item-card-hover space-y-3 p-3 transition-opacity ${
+                  shouldDimInactiveTeam ? "opacity-70" : ""
+                }`}
+              >
+                <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-start gap-2">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-display font-semibold leading-tight">
+                        {team.name}
+                      </p>
+                      <AppBadge
+                        tone={resolveTeamDivisionBadgeTone(team.division)}
+                      >
+                        {resolveTeamDivisionLabel(team.division)}
+                      </AppBadge>
+                      <AppBadge
+                        tone={
+                          team.is_active != false
+                            ? AppBadgeTone.EMERALD
+                            : AppBadgeTone.RED
+                        }
+                      >
+                        {team.is_active != false ? "Ativa" : "Inativa"}
+                      </AppBadge>
+                    </div>
                   </div>
+
+                  {canManageTeams ? (
+                    <div className="justify-self-end">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Ações da atlética ${team.name}`}
+                            disabled={
+                              deletingTeamId != null || togglingTeamId != null
+                            }
+                          >
+                            {deletingTeamId == team.id ||
+                            togglingTeamId == team.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuItem
+                            onSelect={() => handleOpenEditTeamModal(team)}
+                          >
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() => handleToggleTeamActive(team)}
+                          >
+                            <Power className="mr-2 h-4 w-4" />
+                            {team.is_active != false ? "Inativar" : "Ativar"}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onSelect={() => handleDelete(team.id)}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Apagar
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  ) : null}
                 </div>
 
-                {canManageTeams ? (
-                  <div className="justify-self-end">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Ações da atlética ${team.name}`}
-                          disabled={deletingTeamId != null || togglingTeamId != null}
-                        >
-                          {deletingTeamId == team.id || togglingTeamId == team.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <MoreVertical className="h-4 w-4 text-muted-foreground" />
-                          )}
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuItem onSelect={() => handleOpenEditTeamModal(team)}>
-                          <Pencil className="mr-2 h-4 w-4" />
-                          Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => handleToggleTeamActive(team)}>
-                          <Power className="mr-2 h-4 w-4" />
-                          {team.is_active != false ? "Inativar" : "Ativar"}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onSelect={() => handleDelete(team.id)}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Apagar
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                ) : null}
+                <p className="text-xs text-muted-foreground">{team.city}</p>
               </div>
-
-              <p className="text-xs text-muted-foreground">{team.city}</p>
-            </div>
             );
           })}
         </div>
@@ -413,7 +513,9 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Criar atlética</DialogTitle>
-            <DialogDescription>Cadastre a atlética e defina a cidade e a divisão dela.</DialogDescription>
+            <DialogDescription>
+              Cadastre a atlética e defina a cidade e a divisão dela.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-3">
@@ -451,24 +553,45 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={TeamDivisionSelection.DIVISAO_PRINCIPAL}>
-                  {TEAM_DIVISION_SELECTION_LABELS[TeamDivisionSelection.DIVISAO_PRINCIPAL]}
+                  {
+                    TEAM_DIVISION_SELECTION_LABELS[
+                      TeamDivisionSelection.DIVISAO_PRINCIPAL
+                    ]
+                  }
                 </SelectItem>
                 <SelectItem value={TeamDivisionSelection.DIVISAO_ACESSO}>
-                  {TEAM_DIVISION_SELECTION_LABELS[TeamDivisionSelection.DIVISAO_ACESSO]}
+                  {
+                    TEAM_DIVISION_SELECTION_LABELS[
+                      TeamDivisionSelection.DIVISAO_ACESSO
+                    ]
+                  }
                 </SelectItem>
                 <SelectItem value={TeamDivisionSelection.WITHOUT_DIVISION}>
-                  {TEAM_DIVISION_SELECTION_LABELS[TeamDivisionSelection.WITHOUT_DIVISION]}
+                  {
+                    TEAM_DIVISION_SELECTION_LABELS[
+                      TeamDivisionSelection.WITHOUT_DIVISION
+                    ]
+                  }
                 </SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setShowCreateTeamModal(false)} disabled={creatingTeam}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowCreateTeamModal(false)}
+              disabled={creatingTeam}
+            >
               Cancelar
             </Button>
             <Button type="button" onClick={handleAdd} disabled={creatingTeam}>
-              {creatingTeam ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+              {creatingTeam ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="mr-2 h-4 w-4" />
+              )}
               Criar atlética
             </Button>
           </DialogFooter>
@@ -488,7 +611,9 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Editar atlética</DialogTitle>
-            <DialogDescription>Atualize as informações da atlética selecionada.</DialogDescription>
+            <DialogDescription>
+              Atualize as informações da atlética selecionada.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-3">
@@ -526,24 +651,47 @@ export function AdminTeams({ teams, onRefetch, canManageTeams = true }: Props) {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={TeamDivisionSelection.DIVISAO_PRINCIPAL}>
-                  {TEAM_DIVISION_SELECTION_LABELS[TeamDivisionSelection.DIVISAO_PRINCIPAL]}
+                  {
+                    TEAM_DIVISION_SELECTION_LABELS[
+                      TeamDivisionSelection.DIVISAO_PRINCIPAL
+                    ]
+                  }
                 </SelectItem>
                 <SelectItem value={TeamDivisionSelection.DIVISAO_ACESSO}>
-                  {TEAM_DIVISION_SELECTION_LABELS[TeamDivisionSelection.DIVISAO_ACESSO]}
+                  {
+                    TEAM_DIVISION_SELECTION_LABELS[
+                      TeamDivisionSelection.DIVISAO_ACESSO
+                    ]
+                  }
                 </SelectItem>
                 <SelectItem value={TeamDivisionSelection.WITHOUT_DIVISION}>
-                  {TEAM_DIVISION_SELECTION_LABELS[TeamDivisionSelection.WITHOUT_DIVISION]}
+                  {
+                    TEAM_DIVISION_SELECTION_LABELS[
+                      TeamDivisionSelection.WITHOUT_DIVISION
+                    ]
+                  }
                 </SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <DialogFooter className="gap-3 pt-2 sm:gap-2 sm:pt-0">
-            <Button type="button" variant="outline" onClick={handleCloseEditTeamModal} disabled={savingTeam}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCloseEditTeamModal}
+              disabled={savingTeam}
+            >
               Cancelar
             </Button>
-            <Button type="button" onClick={handleSaveTeam} disabled={savingTeam}>
-              {savingTeam ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            <Button
+              type="button"
+              onClick={handleSaveTeam}
+              disabled={savingTeam}
+            >
+              {savingTeam ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
               Salvar alterações
             </Button>
           </DialogFooter>

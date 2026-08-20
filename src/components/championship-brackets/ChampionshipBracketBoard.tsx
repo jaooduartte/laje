@@ -1,3 +1,4 @@
+import { Skeleton } from "@/components/ui/skeleton";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -1024,10 +1025,49 @@ export function ChampionshipBracketBoard({
   }, [divisionFilter, naipeFilter, visibleCompetitions]);
 
   if (loading) {
-    return (
-      <p className="text-sm text-muted-foreground">Carregando grupos...</p>
-    );
-  }
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <Skeleton className="h-10 w-full rounded-xl" />
+        <Skeleton className="h-10 w-full rounded-xl" />
+      </div>
+
+      <div className="space-y-4">
+        {Array.from({ length: 2 }).map((_, competitionIndex) => (
+          <div
+            key={`championship-bracket-skeleton-${competitionIndex}`}
+            className="space-y-4 rounded-2xl app-card-muted p-4"
+          >
+            <div className="flex flex-col items-center space-y-2">
+              <Skeleton className="h-5 w-52 max-w-full" />
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-3 w-32" />
+              <Skeleton className="h-3 w-44 max-w-full" />
+            </div>
+
+            <div className="hidden gap-4 md:grid md:grid-cols-3">
+              {Array.from({ length: 3 }).map((_, matchIndex) => (
+                <Skeleton
+                  key={`championship-bracket-match-skeleton-${competitionIndex}-${matchIndex}`}
+                  className="h-56 w-full rounded-2xl"
+                />
+              ))}
+            </div>
+
+            <div className="space-y-3 md:hidden">
+              {Array.from({ length: 3 }).map((_, matchIndex) => (
+                <Skeleton
+                  key={`championship-bracket-mobile-skeleton-${competitionIndex}-${matchIndex}`}
+                  className="h-52 w-full rounded-2xl"
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
   if (visibleCompetitions.length == 0) {
     return <p className="text-sm text-muted-foreground">{emptyMessage}</p>;
@@ -1068,17 +1108,6 @@ export function ChampionshipBracketBoard({
           </SelectContent>
         </Select>
       </div>
-
-      {championshipBracketView.edition ? (
-        <p className="text-xs text-muted-foreground">
-          Edição atual:{" "}
-          {
-            BRACKET_EDITION_STATUS_LABELS[
-              championshipBracketView.edition.status
-            ]
-          }
-        </p>
-      ) : null}
 
       {filteredCompetitions.length == 0 ? (
         <p className="text-sm text-muted-foreground">
@@ -1132,7 +1161,7 @@ export function ChampionshipBracketBoard({
             key={competition.id}
             className="space-y-4 rounded-2xl app-card-muted p-4"
           >
-            <div className="space-y-1">
+            <div className="space-y-1 text-center">
               <h3 className="font-display text-lg font-bold">
                 {competition.sport_name} •{" "}
                 {MATCH_NAIPE_LABELS[competition.naipe]}
@@ -1141,9 +1170,10 @@ export function ChampionshipBracketBoard({
                   : ""}
               </h3>
               <p className="text-xs text-muted-foreground">
-                Grupos: {competition.groups_count} • Classificados/grupo:{" "}
-                {competition.qualifiers_per_group} • 3º lugar:{" "}
-                {BRACKET_THIRD_PLACE_MODE_LABELS[competition.third_place_mode]}
+                Grupos: {competition.groups_count}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Classificados/grupo: {competition.qualifiers_per_group}
               </p>
               <p className="text-xs text-muted-foreground">
                 {qualificationSummary} • {projectedKnockoutSummary}

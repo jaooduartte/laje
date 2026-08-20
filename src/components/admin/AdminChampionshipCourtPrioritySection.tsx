@@ -1,29 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Info, Loader2, LockKeyhole } from "lucide-react";
-import { toast } from "sonner";
+import { AdminListSkeleton } from "@/components/skeletons/AdminListSkeleton";
+import { AppBadge } from "@/components/ui/app-badge";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { AppBadge } from "@/components/ui/app-badge";
+import { getBracketLocationSportPriorities } from "@/domain/championship-brackets/championshipBracket.repository";
+import type { BracketCourtSequenceUpdate, BracketLocationSportPriorityGroup, ChampionshipBracketCourtSequenceMode, ChampionshipBracketReconfigurationRequest } from "@/domain/championship-brackets/championshipBracket.types";
+import { MATCH_NAIPE_LABELS, TEAM_DIVISION_LABELS } from "@/lib/championship";
 import { AppBadgeTone, MatchNaipe, TeamDivision } from "@/lib/enums";
-import {
-  MATCH_NAIPE_BADGE_TONES,
-  MATCH_NAIPE_LABELS,
-  TEAM_DIVISION_BADGE_TONES,
-  TEAM_DIVISION_LABELS,
-} from "@/lib/championship";
-import {
-  buildCourtPriorityPreferencesForMode,
-  type CourtPriorityMode,
-} from "@/components/admin/adminCourtPriority.utils";
-import {
-  getBracketLocationSportPriorities,
-} from "@/domain/championship-brackets/championshipBracket.repository";
-import type {
-  BracketLocationSportPriorityGroup,
-  BracketLocationSportPriorityUpdate,
-  ChampionshipBracketCourtSequenceMode,
-  ChampionshipBracketReconfigurationRequest,
-} from "@/domain/championship-brackets/championshipBracket.types";
+import { ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 interface Props {
   bracketEditionId: string;
@@ -35,521 +20,267 @@ interface Props {
   onRequestReconfiguration: (request: ChampionshipBracketReconfigurationRequest) => Promise<boolean>;
 }
 
-interface PriorityModeOption {
-  value: CourtPriorityMode;
-  label: string;
-  helper: string;
-}
-
-interface PreviewEntry {
-  court_group_id: string;
-  court_name: string;
+interface CourtSequenceDraft {
+  sequence_mode: ChampionshipBracketCourtSequenceMode;
   preferred_naipe: MatchNaipe | null;
   preferred_division: TeamDivision | null;
-  sequence_modes: ChampionshipBracketCourtSequenceMode[];
-  is_sequence_locked: boolean;
 }
 
-function resolveSequenceModeLabel(
-  sequenceModes: ChampionshipBracketCourtSequenceMode[],
-): string {
-  const groupsByNaipe = sequenceModes.includes("GROUP_NAIPE");
-
-  const groupsByDivision = sequenceModes.includes("GROUP_DIVISION");
-
-  if (groupsByNaipe && groupsByDivision) {
-    return "Sequenciamento protegido";
-  }
-
-  if (groupsByNaipe) {
-    return "Agrupado por naipe";
-  }
-
-  if (groupsByDivision) {
-    return "Agrupado por divisão";
-  }
-
-  return "Sequenciamento flexível";
+interface ConsolidatedPriorityGroup {
+  key: string;
+  location_name: string;
+  sport_id: string;
+  occurrences: BracketLocationSportPriorityGroup[];
+  availableNaipeOptions: MatchNaipe[];
+  availableDivisionOptions: TeamDivision[];
 }
 
-function resolvePriorityBadgeTone(mode: CourtPriorityMode): AppBadgeTone {
-  if (mode === "NAIPE") {
-    return AppBadgeTone.SKY;
-  }
+function normalizeLocationName(value: string): string {
+  return value.trim().toLocaleLowerCase("pt-BR").replace(/\s+/g, " ");
+}
 
-  if (mode === "DIVISION") {
-    return AppBadgeTone.AMBER;
-  }
+function formatPriorityEventDate(value: string): string {
+  const [, month, day] = value.split("-");
+  return month && day ? `${day}/${month}` : value;
+}
 
+function formatDateCount(count: number): string {
+  return `${count} ${count === 1 ? "data" : "datas"}`;
+}
+
+function resolveCourtSequenceModeLabel(mode: ChampionshipBracketCourtSequenceMode): string {
+  if (mode === "GROUP_NAIPE") return "Agrupar por naipe";
+  if (mode === "ALTERNATE_NAIPE") return "Alternar naipes";
+  if (mode === "GROUP_DIVISION") return "Agrupar por divisão";
+  return "Flexível";
+}
+
+function resolveCourtSequenceModeTone(mode: ChampionshipBracketCourtSequenceMode): AppBadgeTone {
+  if (mode === "GROUP_NAIPE") return AppBadgeTone.PRIMARY;
+  if (mode === "ALTERNATE_NAIPE") return AppBadgeTone.SKY;
+  if (mode === "GROUP_DIVISION") return AppBadgeTone.AMBER;
   return AppBadgeTone.NEUTRAL;
 }
 
-function resolvePreferenceBadgeTone(entry: PreviewEntry): AppBadgeTone {
-  if (entry.is_sequence_locked) {
-    return AppBadgeTone.PRIMARY;
-  }
-
-  if (entry.preferred_naipe != null) {
-    return MATCH_NAIPE_BADGE_TONES[entry.preferred_naipe];
-  }
-
-  if (entry.preferred_division != null) {
-    return TEAM_DIVISION_BADGE_TONES[entry.preferred_division];
-  }
-
-  return AppBadgeTone.NEUTRAL;
-}
-
-function resolvePreferencePreviewLabel(entry: PreviewEntry): string {
-  if (entry.is_sequence_locked) {
-    return resolveSequenceModeLabel(entry.sequence_modes);
-  }
-
-  if (entry.preferred_naipe != null) {
-    return MATCH_NAIPE_LABELS[entry.preferred_naipe];
-  }
-
-  if (entry.preferred_division != null) {
-    return TEAM_DIVISION_LABELS[entry.preferred_division];
-  }
-
-  return "Sem prioridade";
-}
-
-function resolveModeOptions(params: {
-  availableDivisionOptions: TeamDivision[];
-  availableNaipeOptions: MatchNaipe[];
-  usesDivisions: boolean;
-}): PriorityModeOption[] {
-  const options: PriorityModeOption[] = [
-    {
-      value: "NONE",
-      label: "Sem prioridade fixa",
-      helper:
-        "As quadras ficam livres e a fila usa qualquer combinação disponível.",
-    },
-  ];
-
-  if (params.availableNaipeOptions.length > 1) {
-    options.push({
-      value: "NAIPE",
-      label: "Revezar por naipe",
-      helper: `As quadras alternam entre ${params.availableNaipeOptions
-        .map((naipeOption) => MATCH_NAIPE_LABELS[naipeOption])
-        .join(" e ")}.`,
-    });
-  }
-
-  if (params.usesDivisions && params.availableDivisionOptions.length > 1) {
-    options.push({
-      value: "DIVISION",
-      label: "Revezar por divisão",
-      helper: `As quadras alternam entre ${params.availableDivisionOptions
-        .map((divisionOption) => TEAM_DIVISION_LABELS[divisionOption])
-        .join(" e ")}.`,
-    });
-  }
-
-  return options;
-}
-
-function resolvePreferencePreviewDescription(params: {
-  entry: PreviewEntry;
-  mode: CourtPriorityMode;
-  availableDivisionOptions: TeamDivision[];
-  availableNaipeOptions: MatchNaipe[];
-  usesDivisions: boolean;
-}): string {
-  const {
-    entry,
-    mode,
-    availableDivisionOptions,
-    availableNaipeOptions,
-    usesDivisions,
-  } = params;
-
-  if (entry.is_sequence_locked) {
-    return [
-      "Esta quadra mantém o sequenciamento",
-      "estrito definido na etapa 11 e não",
-      "será alterada pela prioridade global",
-      "da agenda.",
-    ].join(" ");
-  }
-
-  if (mode === "NAIPE" && entry.preferred_naipe != null) {
-    const alternatingDivisions =
-      usesDivisions && availableDivisionOptions.length > 1
-        ? ` e alterna ${availableDivisionOptions.map((divisionOption) => TEAM_DIVISION_LABELS[divisionOption]).join("/")} quando possível.`
-        : ".";
-
-    return `Essa quadra prioriza jogos do naipe ${MATCH_NAIPE_LABELS[entry.preferred_naipe]}${alternatingDivisions}`;
-  }
-
-  if (mode === "DIVISION" && entry.preferred_division != null) {
-    const alternatingNaipes =
-      availableNaipeOptions.length > 1
-        ? ` e alterna ${availableNaipeOptions.map((naipeOption) => MATCH_NAIPE_LABELS[naipeOption]).join("/")} quando possível.`
-        : ".";
-
-    return `Essa quadra prioriza jogos da ${TEAM_DIVISION_LABELS[entry.preferred_division]}${alternatingNaipes}`;
-  }
-
-  return "Essa quadra continua livre para receber qualquer combinação disponível.";
+function resolveCourtSequenceKey(params: { bracketDayId: string; bracketCourtId: string; sportId: string }): string {
+  return [params.bracketDayId, params.bracketCourtId, params.sportId].join(":");
 }
 
 export function AdminChampionshipCourtPrioritySection({
-  bracketEditionId,
-  isEditable,
-  usesDivisions,
-  sportNameBySportId,
-  naipeOptionsBySportId,
-  divisionOptionsBySportId,
-  onRequestReconfiguration,
+  bracketEditionId, isEditable, usesDivisions, sportNameBySportId, naipeOptionsBySportId, divisionOptionsBySportId, onRequestReconfiguration,
 }: Props) {
   const [loading, setLoading] = useState(true);
   const [savingGroupKey, setSavingGroupKey] = useState<string | null>(null);
-  const [priorityGroups, setPriorityGroups] = useState<
-    BracketLocationSportPriorityGroup[]
-  >([]);
-  const [selectedModeByGroupKey, setSelectedModeByGroupKey] = useState<
-    Record<string, CourtPriorityMode>
-  >({});
+  const [priorityGroups, setPriorityGroups] = useState<BracketLocationSportPriorityGroup[]>([]);
+  const [sequenceDraftByKey, setSequenceDraftByKey] = useState<Record<string, CourtSequenceDraft>>({});
+  const [expandedGroupKeys, setExpandedGroupKeys] = useState<Set<string>>(new Set());
 
-  const loadPriorityGroups = useCallback(
-    async (options?: { preserveDrafts?: boolean }) => {
-      setLoading(true);
-
-      const { data, error } =
-        await getBracketLocationSportPriorities(bracketEditionId);
-
-      if (error) {
-        toast.error(error.message);
-        setLoading(false);
-        return;
-      }
-
-      setPriorityGroups(data);
-
-      if (!options?.preserveDrafts) {
-        setSelectedModeByGroupKey({});
-      }
-
+  const loadPriorityGroups = useCallback(async (options?: { preserveDrafts?: boolean }) => {
+    setLoading(true);
+    const { data, error } = await getBracketLocationSportPriorities(bracketEditionId);
+    if (error) {
+      toast.error(error.message);
       setLoading(false);
-    },
-    [bracketEditionId],
-  );
+      return;
+    }
+    setPriorityGroups(data);
+    if (!options?.preserveDrafts) setSequenceDraftByKey({});
+    setLoading(false);
+  }, [bracketEditionId]);
 
-  useEffect(() => {
-    void loadPriorityGroups();
-  }, [loadPriorityGroups]);
+  useEffect(() => { void loadPriorityGroups(); }, [loadPriorityGroups]);
 
-  const groupedCards = useMemo(() => {
-    return priorityGroups.map((group) => {
-      const key = `${group.location_group_id}:${group.sport_id}`;
-      const availableNaipeOptions = naipeOptionsBySportId[group.sport_id] ?? [];
-      const availableDivisionOptions =
-        divisionOptionsBySportId[group.sport_id] ?? [];
-      const modeOptions = resolveModeOptions({
-        availableDivisionOptions,
-        availableNaipeOptions,
-        usesDivisions,
-      });
-
-      const flexibleCourts = group.courts.filter(
-        (court) => !court.is_sequence_locked,
-      );
-
-      const lockedCourts = group.courts.filter(
-        (court) => court.is_sequence_locked,
-      );
-
-      return {
-        ...group,
-        key,
-        availableNaipeOptions,
-        availableDivisionOptions,
-        modeOptions,
-        flexibleCourts,
-        lockedCourts,
-        hasFlexibleCourts: flexibleCourts.length > 0,
-        hasLockedCourts: lockedCourts.length > 0,
-      };
+  const groupedCards = useMemo<ConsolidatedPriorityGroup[]>(() => {
+    const groups = new Map<string, Omit<ConsolidatedPriorityGroup, "availableNaipeOptions" | "availableDivisionOptions">>();
+    priorityGroups.forEach((occurrence) => {
+      const key = `${normalizeLocationName(occurrence.location_name)}:${occurrence.sport_id}`;
+      const existing = groups.get(key);
+      if (existing) existing.occurrences.push(occurrence);
+      else groups.set(key, { key, location_name: occurrence.location_name, sport_id: occurrence.sport_id, occurrences: [occurrence] });
     });
-  }, [
-    divisionOptionsBySportId,
-    naipeOptionsBySportId,
-    priorityGroups,
-    usesDivisions,
-  ]);
-
-  function resolveSelectedMode(
-    group: (typeof groupedCards)[number],
-  ): CourtPriorityMode {
-    return selectedModeByGroupKey[group.key] ?? group.priority_mode;
-  }
-
-  function hasPendingChanges(group: (typeof groupedCards)[number]): boolean {
-    return resolveSelectedMode(group) !== group.priority_mode;
-  }
-
-  function resolvePreviewEntries(
-    group: (typeof groupedCards)[number],
-  ): PreviewEntry[] {
-    const nextPreferences = buildCourtPriorityPreferencesForMode({
-      entries: group.flexibleCourts.map(() => ({
-        preferred_naipe: null,
-        preferred_division: null,
-      })),
-      mode: resolveSelectedMode(group),
-      naipeOptions: group.availableNaipeOptions,
-      divisionOptions: group.availableDivisionOptions,
+    return [...groups.values()].map((group) => ({
+      ...group,
+      occurrences: [...group.occurrences].sort((left, right) => left.event_date.localeCompare(right.event_date)),
+      availableNaipeOptions: naipeOptionsBySportId[group.sport_id] ?? [],
+      availableDivisionOptions: divisionOptionsBySportId[group.sport_id] ?? [],
+    })).sort((left, right) => {
+      const byLocation = left.location_name.localeCompare(right.location_name, "pt-BR", { sensitivity: "base" });
+      if (byLocation !== 0) return byLocation;
+      return (sportNameBySportId[left.sport_id] ?? "").localeCompare(sportNameBySportId[right.sport_id] ?? "", "pt-BR", { sensitivity: "base" });
     });
+  }, [divisionOptionsBySportId, naipeOptionsBySportId, priorityGroups, sportNameBySportId]);
 
-    const preferenceByCourtGroupId = group.flexibleCourts.reduce<
-      Map<
-        string,
-        {
-          preferred_naipe: MatchNaipe | null;
-          preferred_division: TeamDivision | null;
+  function resolveOccurrenceCourt(occurrence: BracketLocationSportPriorityGroup) {
+    return occurrence.courts.find((court) => court.is_primary_sport) ?? occurrence.courts[0] ?? null;
+  }
+  function resolveOccurrenceSequenceKey(occurrence: BracketLocationSportPriorityGroup): string | null {
+    const court = resolveOccurrenceCourt(occurrence);
+    if (!court) return null;
+    return resolveCourtSequenceKey({ bracketDayId: occurrence.bracket_day_id, bracketCourtId: court.bracket_court_id, sportId: occurrence.sport_id });
+  }
+  function resolveOccurrenceSequenceDraft(occurrence: BracketLocationSportPriorityGroup): CourtSequenceDraft | null {
+    const court = resolveOccurrenceCourt(occurrence);
+    const key = resolveOccurrenceSequenceKey(occurrence);
+    if (!court || !key) return null;
+    return sequenceDraftByKey[key] ?? { sequence_mode: court.sequence_mode, preferred_naipe: court.preferred_naipe, preferred_division: court.preferred_division };
+  }
+  function updateOccurrenceSequenceMode(group: ConsolidatedPriorityGroup, occurrence: BracketLocationSportPriorityGroup, sequenceMode: ChampionshipBracketCourtSequenceMode) {
+    const key = resolveOccurrenceSequenceKey(occurrence);
+    const currentDraft = resolveOccurrenceSequenceDraft(occurrence);
+    if (!key || !currentDraft) return;
+    let preferredNaipe = currentDraft.preferred_naipe;
+    let preferredDivision = currentDraft.preferred_division;
+    if (sequenceMode === "FLEXIBLE") { preferredNaipe = null; preferredDivision = null; }
+    if (sequenceMode === "GROUP_NAIPE" || sequenceMode === "ALTERNATE_NAIPE") {
+      if (preferredNaipe == null || !group.availableNaipeOptions.includes(preferredNaipe)) preferredNaipe = group.availableNaipeOptions[0] ?? null;
+      preferredDivision = null;
+    }
+    if (sequenceMode === "GROUP_DIVISION") {
+      if (preferredDivision == null || !group.availableDivisionOptions.includes(preferredDivision)) preferredDivision = group.availableDivisionOptions[0] ?? null;
+      preferredNaipe = null;
+    }
+    setSequenceDraftByKey((previous) => ({ ...previous, [key]: { sequence_mode: sequenceMode, preferred_naipe: preferredNaipe, preferred_division: preferredDivision } }));
+  }
+  function updateOccurrencePreferredNaipe(occurrence: BracketLocationSportPriorityGroup, naipe: MatchNaipe) {
+    const key = resolveOccurrenceSequenceKey(occurrence);
+    const currentDraft = resolveOccurrenceSequenceDraft(occurrence);
+    if (!key || !currentDraft) return;
+    setSequenceDraftByKey((previous) => ({ ...previous, [key]: { ...currentDraft, preferred_naipe: naipe, preferred_division: null } }));
+  }
+  function updateOccurrencePreferredDivision(occurrence: BracketLocationSportPriorityGroup, division: TeamDivision) {
+    const key = resolveOccurrenceSequenceKey(occurrence);
+    const currentDraft = resolveOccurrenceSequenceDraft(occurrence);
+    if (!key || !currentDraft) return;
+    setSequenceDraftByKey((previous) => ({ ...previous, [key]: { ...currentDraft, preferred_naipe: null, preferred_division: division } }));
+  }
+  function hasOccurrenceSequenceChanges(occurrence: BracketLocationSportPriorityGroup): boolean {
+    const court = resolveOccurrenceCourt(occurrence);
+    const draft = resolveOccurrenceSequenceDraft(occurrence);
+    return Boolean(court && draft && (draft.sequence_mode !== court.sequence_mode || draft.preferred_naipe !== court.preferred_naipe || draft.preferred_division !== court.preferred_division));
+  }
+  function hasPendingChanges(group: ConsolidatedPriorityGroup): boolean {
+    return group.occurrences.some(hasOccurrenceSequenceChanges);
+  }
+  async function saveGroup(group: ConsolidatedPriorityGroup) {
+    const sequenceUpdates: BracketCourtSequenceUpdate[] = [];
+    const sequenceChanges: Array<{
+      bracket_day_id: string;
+      bracket_court_id: string;
+      event_date: string;
+      event_date_label: string;
+      court_name: string;
+      current_sequence_mode: ChampionshipBracketCourtSequenceMode;
+      current_sequence_label: string;
+      target_sequence_mode: ChampionshipBracketCourtSequenceMode;
+      target_sequence_label: string;
+    }> = [];
+    const changedOccurrences: BracketLocationSportPriorityGroup[] = [];
+    group.occurrences.forEach((occurrence) => {
+      if (!hasOccurrenceSequenceChanges(occurrence)) return;
+      const court = resolveOccurrenceCourt(occurrence);
+      const draft = resolveOccurrenceSequenceDraft(occurrence);
+      if (!court || !draft) return;
+      sequenceUpdates.push({ bracket_court_id: court.bracket_court_id, sport_id: occurrence.sport_id, sequence_mode: draft.sequence_mode, preferred_naipe: draft.preferred_naipe, preferred_division: draft.preferred_division });
+      const resolveSequenceDescription = (
+        sequenceMode: ChampionshipBracketCourtSequenceMode,
+        preferredNaipe: MatchNaipe | null,
+        preferredDivision: TeamDivision | null,
+      ): string => {
+        const baseLabel = resolveCourtSequenceModeLabel(sequenceMode);
+
+        if (sequenceMode === "GROUP_NAIPE" || sequenceMode === "ALTERNATE_NAIPE") {
+          const naipeLabel = preferredNaipe != null
+            ? MATCH_NAIPE_LABELS[preferredNaipe]
+            : null;
+
+          return naipeLabel
+            ? `${baseLabel} • inicia em ${naipeLabel}`
+            : baseLabel;
         }
-      >
-    >((carry, court, index) => {
-      carry.set(court.court_group_id, {
-        preferred_naipe: nextPreferences[index]?.preferred_naipe ?? null,
 
-        preferred_division: nextPreferences[index]?.preferred_division ?? null,
-      });
+        if (sequenceMode === "GROUP_DIVISION") {
+          const divisionLabel = preferredDivision != null
+            ? TEAM_DIVISION_LABELS[preferredDivision]
+            : null;
 
-      return carry;
-    }, new Map());
+          return divisionLabel
+            ? `${baseLabel} • inicia em ${divisionLabel}`
+            : baseLabel;
+        }
 
-    return group.courts.map((court) => {
-      const nextPreference = preferenceByCourtGroupId.get(court.court_group_id);
-
-      return {
-        court_group_id: court.court_group_id,
-        court_name: court.court_name,
-
-        preferred_naipe: nextPreference?.preferred_naipe ?? null,
-
-        preferred_division: nextPreference?.preferred_division ?? null,
-
-        sequence_modes: court.sequence_modes,
-
-        is_sequence_locked: court.is_sequence_locked,
+        return baseLabel;
       };
+
+      sequenceChanges.push({
+        bracket_day_id: occurrence.bracket_day_id,
+        bracket_court_id: court.bracket_court_id,
+        event_date: occurrence.event_date,
+        event_date_label: formatPriorityEventDate(occurrence.event_date),
+        court_name: court.court_name,
+        current_sequence_mode: court.sequence_mode,
+        current_sequence_label: resolveSequenceDescription(
+          court.sequence_mode,
+          court.preferred_naipe,
+          court.preferred_division,
+        ),
+        target_sequence_mode: draft.sequence_mode,
+        target_sequence_label: resolveSequenceDescription(
+          draft.sequence_mode,
+          draft.preferred_naipe,
+          draft.preferred_division,
+        ),
+      });
+      changedOccurrences.push(occurrence);
     });
-  }
-
-  async function saveGroup(group: (typeof groupedCards)[number]) {
-    if (!group.hasFlexibleCourts) {
-      return;
-    }
-    const updates: BracketLocationSportPriorityUpdate[] = [
-      {
-        location_group_id: group.location_group_id,
-        sport_id: group.sport_id,
-        priority_mode: resolveSelectedMode(group),
-      },
-    ];
-
+    if (sequenceUpdates.length === 0) return;
+    const sportName = sportNameBySportId[group.sport_id] ?? "Modalidade";
+    const eventDates = changedOccurrences.map((occurrence) => occurrence.event_date).sort();
     setSavingGroupKey(group.key);
-
-    const previewCreated = await onRequestReconfiguration({
-      action: "LOCATION_SPORT_PRIORITIES",
-      label: `Prioridade de quadras em ${group.location_name}`,
-      payload: { priority_updates: updates },
-    });
-
+    const previewCreated = await onRequestReconfiguration({ action: "COURT_SPORT_SEQUENCE", label: `Sequenciamento em ${group.location_name} • ${sportName}`, payload: { sequence_updates: sequenceUpdates, sequence_changes: sequenceChanges, location_name: group.location_name, sport_id: group.sport_id, sport_name: sportName, event_dates: eventDates, event_date_labels: eventDates.map(formatPriorityEventDate), occurrence_count: sequenceUpdates.length } });
     setSavingGroupKey(null);
-
-    if (!previewCreated) {
-      return;
-    }
-
+    if (!previewCreated) return;
   }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-6">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-      </div>
-    );
+  function toggleGroupExpanded(groupKey: string) {
+    setExpandedGroupKeys((current) => {
+      const next = new Set(current);
+      if (next.has(groupKey)) next.delete(groupKey); else next.add(groupKey);
+      return next;
+    });
   }
+  if (loading) return <AdminListSkeleton count={3} showActions />;
+  if (groupedCards.length === 0) return <p className="py-2 text-sm text-muted-foreground">Nenhuma modalidade coletiva possui jogos agendados para configurar.</p>;
 
-  if (groupedCards.length === 0) {
-    return (
-      <p className="py-2 text-sm text-muted-foreground">
-        Nenhum local possui duas ou mais quadras para a mesma modalidade.
-      </p>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="space-y-1">
-        <p className="text-xs text-muted-foreground">
-          Escolha uma lógica única por local e modalidade para toda a edição. Ao
-          salvar, a fila é reorganizada automaticamente com base nesse
-          revezamento.
-        </p>
-        <div className="flex items-start gap-2 rounded-xl border border-primary/15 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
-          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-          <p>
-            A prioridade global continua flexível. Quadras com agrupamento
-            estrito definido na etapa 11 permanecem protegidas e não são
-            alteradas por esta configuração.
-          </p>
-        </div>
-      </div>
-
-      {groupedCards.map((group) => {
-        const selectedMode = resolveSelectedMode(group);
-        const previewEntries = resolvePreviewEntries(group);
-        const isSaving = savingGroupKey === group.key;
-
-        return (
-          <div key={group.key} className="glass-card space-y-4 p-4">
-            <div className="flex flex-col gap-1">
-              <h4 className="text-sm font-medium">
-                {group.location_name} •{" "}
-                {sportNameBySportId[group.sport_id] ?? "Modalidade"}
-              </h4>
-              <p className="text-xs text-muted-foreground">
-                Essa regra vale para todas as quadras desse local ao longo de
-                todos os dias da edição.
-              </p>
-            </div>
-
-            {group.hasLockedCourts ? (
-              <div className="flex items-start gap-2 rounded-xl border border-primary/15 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
-                <LockKeyhole className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-
-                <p>
-                  {group.lockedCourts.length === 1
-                    ? "Uma quadra mantém"
-                    : `${group.lockedCourts.length} quadras mantêm`}{" "}
-                  o sequenciamento definido na etapa 11. A prioridade global
-                  será aplicada somente às quadras flexíveis.
-                </p>
-              </div>
-            ) : null}
-
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.95fr)]">
-              <div className="space-y-3">
-                <RadioGroup
-                  value={selectedMode}
-                  disabled={
-                    !isEditable ||
-                    !group.hasFlexibleCourts ||
-                    savingGroupKey != null
-                  }
-                  onValueChange={(value) =>
-                    setSelectedModeByGroupKey((previousState) => ({
-                      ...previousState,
-                      [group.key]: value as CourtPriorityMode,
-                    }))
-                  }
-                  className="space-y-2"
-                >
-                  {group.modeOptions.map((modeOption) => (
-                    <label
-                      key={modeOption.value}
-                      className="app-card-muted flex cursor-pointer items-start gap-3 p-3 has-[[data-state=checked]]:border-primary/50 has-[[data-state=checked]]:bg-primary/5"
-                    >
-                      <RadioGroupItem
-                        value={modeOption.value}
-                        className="mt-0.5"
-                      />
-                      <span className="space-y-0.5">
-                        <span className="block text-sm font-medium">
-                          {modeOption.label}
-                        </span>
-                        <span className="block text-xs text-muted-foreground">
-                          {modeOption.helper}
-                        </span>
-                      </span>
-                    </label>
-                  ))}
-                </RadioGroup>
-              </div>
-
-              <div className="app-card-muted space-y-3 p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-medium">
-                      Preview da distribuição
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Veja como cada quadra ficará após salvar.
-                    </p>
-                  </div>
-                  <AppBadge tone={resolvePriorityBadgeTone(selectedMode)}>
-                    {group.modeOptions.find(
-                      (modeOption) => modeOption.value === selectedMode,
-                    )?.label ?? "Sem prioridade fixa"}
-                  </AppBadge>
-                </div>
-
-                <div className="space-y-2">
-                  {previewEntries.map((entry) => (
-                    <div
-                      key={`${group.key}:${entry.court_group_id}`}
-                      className="rounded-xl border border-border/60 bg-background/40 px-3 py-2"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex min-w-0 items-center gap-1.5">
-                          {entry.is_sequence_locked ? (
-                            <LockKeyhole className="h-3.5 w-3.5 shrink-0 text-primary" />
-                          ) : null}
-
-                          <p className="truncate text-sm font-medium">
-                            {entry.court_name}
-                          </p>
-                        </div>
-                        <AppBadge tone={resolvePreferenceBadgeTone(entry)}>
-                          {resolvePreferencePreviewLabel(entry)}
-                        </AppBadge>
-                      </div>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {resolvePreferencePreviewDescription({
-                          entry,
-                          mode: selectedMode,
-                          availableDivisionOptions:
-                            group.availableDivisionOptions,
-                          availableNaipeOptions: group.availableNaipeOptions,
-                          usesDivisions,
-                        })}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-
-                {isEditable ? (
-                  <div className="flex justify-end pt-1">
-                    <Button
-                      type="button"
-                      size="sm"
-                      disabled={
-                        !group.hasFlexibleCourts ||
-                        !hasPendingChanges(group) ||
-                        savingGroupKey != null
-                      }
-                      onClick={() => void saveGroup(group)}
-                    >
-                      {isSaving ? (
-                        <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                      ) : null}
-                      Salvar prioridades
-                    </Button>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
+  return <div className="space-y-4">{groupedCards.map((group) => {
+    const isSaving = savingGroupKey === group.key;
+    const isExpanded = expandedGroupKeys.has(group.key);
+    const pendingChangesCount = group.occurrences.filter(hasOccurrenceSequenceChanges).length;
+    return <div key={group.key} className="glass-card overflow-hidden">
+      <button type="button" className="flex w-full items-center justify-between gap-4 p-4 text-left transition-colors hover:bg-muted/20" aria-expanded={isExpanded} onClick={() => toggleGroupExpanded(group.key)}>
+        <div className="min-w-0 space-y-1"><div className="flex flex-wrap items-center gap-2"><h4 className="text-sm font-semibold">{group.location_name} • {sportNameBySportId[group.sport_id] ?? "Modalidade"}</h4>{pendingChangesCount > 0 ? <AppBadge tone={AppBadgeTone.AMBER}>{pendingChangesCount === 1 ? "1 alteração pendente" : `${pendingChangesCount} alterações pendentes`}</AppBadge> : null}</div><p className="text-xs text-muted-foreground">{formatDateCount(group.occurrences.length)} {" • "} Configuração por quadra</p></div>
+        {isExpanded ? <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />}
+      </button>
+      {isExpanded ? <div className="space-y-4 border-t border-border/40 p-4">
+        <p className="text-xs text-muted-foreground">Configure o sequenciamento da modalidade na quadra definida para cada data.</p>
+        <div className="grid gap-3">{group.occurrences.map((occurrence) => {
+          const court = resolveOccurrenceCourt(occurrence);
+          const draft = resolveOccurrenceSequenceDraft(occurrence);
+          if (!court || !draft) return null;
+          const occurrenceChanged = hasOccurrenceSequenceChanges(occurrence);
+          const sequenceOptions: Array<{ value: ChampionshipBracketCourtSequenceMode; label: string; helper: string }> = [
+            ...(group.availableNaipeOptions.length > 0 ? [{ value: "GROUP_NAIPE" as const, label: "Agrupar por naipe", helper: "Mantém os jogos do mesmo naipe agrupados antes de avançar para o próximo." }] : []),
+            ...(group.availableNaipeOptions.length > 1 ? [{ value: "ALTERNATE_NAIPE" as const, label: "Alternar naipes", helper: "Alterna entre os naipes nesta mesma quadra sempre que houver um jogo elegível." }] : []),
+            ...(usesDivisions && group.availableDivisionOptions.length > 0 ? [{ value: "GROUP_DIVISION" as const, label: "Agrupar por divisão", helper: "Mantém os jogos da mesma divisão agrupados antes de avançar para a próxima." }] : []),
+            { value: "FLEXIBLE" as const, label: "Flexível", helper: "Não força agrupamento nem alternância; a agenda usa a melhor combinação disponível." },
+          ];
+          return <div key={occurrence.bracket_day_id} className="app-card-muted space-y-4 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3"><div className="space-y-0.5"><p className="text-sm font-semibold">{formatPriorityEventDate(occurrence.event_date)}</p><p className="text-xs text-muted-foreground">{court.court_name}</p></div><div className="flex flex-wrap items-center gap-2">{occurrenceChanged ? <AppBadge tone={AppBadgeTone.AMBER}>Alteração pendente</AppBadge> : null}<AppBadge tone={resolveCourtSequenceModeTone(draft.sequence_mode)}>{resolveCourtSequenceModeLabel(draft.sequence_mode)}</AppBadge></div></div>
+            <RadioGroup value={draft.sequence_mode} disabled={!isEditable || savingGroupKey != null} onValueChange={(value) => updateOccurrenceSequenceMode(group, occurrence, value as ChampionshipBracketCourtSequenceMode)} className={`grid gap-2 ${sequenceOptions.length >= 4 ? "md:grid-cols-2 xl:grid-cols-4" : sequenceOptions.length === 3 ? "md:grid-cols-3" : "md:grid-cols-2"}`}>{sequenceOptions.map((option) => <label key={option.value} className={`rounded-xl border border-border/60 p-3 transition-colors has-[[data-state=checked]]:border-primary/50 has-[[data-state=checked]]:bg-primary/5 ${isEditable && savingGroupKey == null ? "cursor-pointer" : "cursor-default opacity-50"}`}><div className="flex items-start gap-3"><RadioGroupItem value={option.value} className="mt-0.5 disabled:cursor-default" /><span className="space-y-1"><span className="block text-sm font-medium">{option.label}</span><span className="block text-xs text-muted-foreground">{option.helper}</span></span></div></label>)}</RadioGroup>
+            {(draft.sequence_mode === "GROUP_NAIPE" || draft.sequence_mode === "ALTERNATE_NAIPE") && group.availableNaipeOptions.length > 0 ? <div className="space-y-2"><p className="text-xs font-medium">Naipe inicial</p><RadioGroup value={draft.preferred_naipe ?? undefined} disabled={!isEditable || savingGroupKey != null} onValueChange={(value) => updateOccurrencePreferredNaipe(occurrence, value as MatchNaipe)} className="flex flex-wrap gap-2">{group.availableNaipeOptions.map((naipe) => <label key={naipe} className="flex cursor-pointer items-center gap-2 rounded-lg border border-border/60 px-3 py-2 text-sm has-[[data-state=checked]]:border-primary/50 has-[[data-state=checked]]:bg-primary/5"><RadioGroupItem value={naipe} />{MATCH_NAIPE_LABELS[naipe]}</label>)}</RadioGroup></div> : null}
+            {draft.sequence_mode === "GROUP_DIVISION" && group.availableDivisionOptions.length > 0 ? <div className="space-y-2"><p className="text-xs font-medium">Divisão inicial</p><RadioGroup value={draft.preferred_division ?? undefined} disabled={!isEditable || savingGroupKey != null} onValueChange={(value) => updateOccurrencePreferredDivision(occurrence, value as TeamDivision)} className="flex flex-wrap gap-2">{group.availableDivisionOptions.map((division) => <label key={division} className="flex cursor-pointer items-center gap-2 rounded-lg border border-border/60 px-3 py-2 text-sm has-[[data-state=checked]]:border-primary/50 has-[[data-state=checked]]:bg-primary/5"><RadioGroupItem value={division} />{TEAM_DIVISION_LABELS[division]}</label>)}</RadioGroup></div> : null}
+          </div>;
+        })}</div>
+        {isEditable ? <div className="flex justify-end"><Button type="button" size="sm" disabled={!hasPendingChanges(group) || savingGroupKey != null} onClick={() => void saveGroup(group)}>{isSaving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}Salvar sequenciamento</Button></div> : null}
+      </div> : null}
+    </div>;
+  })}</div>;
 }

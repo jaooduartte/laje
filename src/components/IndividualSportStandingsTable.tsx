@@ -1,4 +1,5 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TableSkeleton } from "@/components/skeletons/TableSkeleton";
 import type { ChampionshipIndividualTeamStanding, Standing } from "@/lib/types";
 
 type IndividualStandingRow = ChampionshipIndividualTeamStanding | Standing;
@@ -41,8 +42,13 @@ function resolveRelayPoints(standing: IndividualStandingRow) {
 
 export function IndividualSportStandingsTable({ standings, isLoading = false }: Props) {
   if (isLoading) {
-    return <div className="glass-panel h-56 animate-pulse rounded-3xl bg-secondary/30" />;
-  }
+  return (
+    <TableSkeleton
+      rows={10}
+      columns={10}
+    />
+  );
+}
 
   if (standings.length == 0) {
     return <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma classificação disponível.</p>;
