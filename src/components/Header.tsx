@@ -123,7 +123,7 @@ export function Header() {
   }, [announcementMessage, updateAnnouncementOverflow]);
 
   return (
-    <header className="sticky top-2 z-50">
+    <header className="app-header-composition sticky top-0 z-50 pt-4">
       <div className="container space-y-2 py-2">
         <div className="app-header-surface flex h-14 items-center gap-2 px-2 sm:h-16 sm:px-3">
           <Link

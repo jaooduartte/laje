@@ -60,6 +60,12 @@ describe("Header", () => {
     vi.unstubAllGlobals();
   });
 
+  it("reserva o afastamento visual sem deslocar o header sticky", () => {
+    const { container } = renderHeader();
+
+    expect(container.querySelector("header")).toHaveClass("top-0", "pt-4");
+  });
+
   it.each([null, "", "   "])("não renderiza banner quando announcement_message é %p", (announcementMessage) => {
     mockUsePublicAccessSettings.mockReturnValue({
       publicAccessSettings: {

@@ -580,6 +580,8 @@ export function ChampionshipsPage() {
   const {
     events: individualEvents,
     entriesByEventId: individualEntriesByEventId,
+    standings: individualStandings,
+    loading: individualStandingsLoading,
   } = useChampionshipIndividualEvents({
     championshipId: selectedChampionshipId,
     seasonYear: standingsIndividualSeasonYearFilter,
@@ -600,10 +602,8 @@ export function ChampionshipsPage() {
       return [];
     }
 
-    return standingsWithFilters.filter(
-      (standing) => standing.is_individual_sport == true,
-    );
-  }, [isIndividualStandingsView, standingsWithFilters]);
+    return individualStandings;
+  }, [individualStandings, isIndividualStandingsView]);
 
   const standingsDisqualifiedTeamKeys = useMemo(() => {
     if (
@@ -663,11 +663,13 @@ export function ChampionshipsPage() {
       isLoading={isLoading}
       isChampionshipContentLoading={isChampionshipContentLoading}
       isStandingsLoading={
-        standingsLoading ||
-        correctedGroupStandingsLoading ||
-        standingsHeadToHeadMatchesLoading ||
-        resolvedTieBreakOrdersLoading ||
-        interlajeOverallStandingsLoading
+        isIndividualStandingsView
+          ? individualStandingsLoading
+          : standingsLoading ||
+            correctedGroupStandingsLoading ||
+            standingsHeadToHeadMatchesLoading ||
+            resolvedTieBreakOrdersLoading ||
+            interlajeOverallStandingsLoading
       }
       championships={championships}
       selectedChampionship={selectedChampionship}

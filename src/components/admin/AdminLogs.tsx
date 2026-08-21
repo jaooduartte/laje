@@ -55,6 +55,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { scrollToTopOfPage } from "@/lib/scroll";
+import { shouldRenderMatchScheduleChange } from "@/components/admin/adminLogsMatchSlot.utils";
 
 const ALL_USERS_FILTER = "ALL_USERS";
 const ALL_ACTIONS_FILTER = "ALL_ACTIONS";
@@ -168,7 +169,6 @@ const ADMIN_LOG_DEFAULT_FIELD_LABELS: Record<string, string> = {
   points_win: "Pontos por vitória",
   points_draw: "Pontos por empate",
   points_loss: "Pontos por derrota",
-  queue_position: "Jogo",
   scheduled_slot: "Jogo",
   sort_order: "Ordem",
   is_active: "Ativo",
@@ -696,12 +696,6 @@ function resolveChangedFields(
   const fieldNames = [
     ...new Set([...Object.keys(previousValues), ...Object.keys(nextValues)]),
   ];
-  const isQueueAndScheduledSlotMirrored =
-    resolveQueueSlotNumber(previousValues.queue_position) ==
-      resolveQueueSlotNumber(previousValues.scheduled_slot) &&
-    resolveQueueSlotNumber(nextValues.queue_position) ==
-      resolveQueueSlotNumber(nextValues.scheduled_slot);
-
   return fieldNames
     .filter((fieldName) => !ADMIN_LOG_IGNORED_FIELDS.has(fieldName))
     .filter(
@@ -717,19 +711,12 @@ function resolveChangedFields(
         resolveComparableValue(nextValues[fieldName]),
     )
     .filter((fieldName) => {
-      if (
-        log.resource_table != AdminLogResourceTable.MATCHES ||
-        !MATCH_QUEUE_SLOT_FIELDS.has(fieldName)
-      ) {
-        return true;
-      }
+      if (log.resource_table != AdminLogResourceTable.MATCHES) return true;
 
-      if (fieldName == "scheduled_slot" && isQueueAndScheduledSlotMirrored) {
-        return false;
-      }
-
-      const nextValue = nextValues[fieldName];
-      return !isTemporaryQueueSlotValue(nextValue);
+      return shouldRenderMatchScheduleChange(
+        fieldName,
+        nextValues[fieldName],
+      );
     })
     .map((fieldName) => {
       const fieldLabel = resolveFieldLabel(log.resource_table, fieldName);

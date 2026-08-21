@@ -252,6 +252,10 @@ describe("AdminPageView tabs", () => {
     const conferenciaTabIndex = tabLabels.findIndex((label) => label == "Conferência de Súmula");
     const sorteiosTabIndex = tabLabels.findIndex((label) => label == "Sorteios");
 
+    expect(
+      screen.getByRole("heading", { name: "Painel Admin" }).closest(".glass-panel"),
+    ).not.toHaveClass("enter-section");
+
     expect(jogosTabIndex).toBeGreaterThanOrEqual(0);
     expect(conferenciaTabIndex).toBeGreaterThan(jogosTabIndex);
     expect(sorteiosTabIndex).toBeGreaterThan(conferenciaTabIndex);
