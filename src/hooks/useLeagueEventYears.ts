@@ -61,10 +61,12 @@ export function useLeagueEventYears() {
           | undefined,
       ).forEach((year) => nextYears.add(year));
 
+      nextYears.add(new Date().getFullYear());
+
       setYears([...nextYears].sort((firstYear, secondYear) => secondYear - firstYear));
     } catch (error) {
       console.error("Erro ao carregar anos disponíveis dos eventos:", error);
-      setYears([]);
+      setYears([new Date().getFullYear()]);
     } finally {
       setLoading(false);
     }

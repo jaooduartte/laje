@@ -1,3 +1,5 @@
+const TEMPORARY_SLOT_THRESHOLD = 1000;
+
 function isTemporaryScheduledSlot(value: unknown): boolean {
   const parsedValue =
     typeof value == "number"
@@ -6,7 +8,11 @@ function isTemporaryScheduledSlot(value: unknown): boolean {
         ? Number(value)
         : null;
 
-  return parsedValue != null && Number.isFinite(parsedValue) && parsedValue >= 1000;
+  return (
+    parsedValue != null &&
+    Number.isFinite(parsedValue) &&
+    parsedValue >= TEMPORARY_SLOT_THRESHOLD
+  );
 }
 
 export function shouldRenderMatchScheduleChange(

@@ -946,7 +946,13 @@ export function AdminLeagueEvents({
           <SelectTrigger
             className={`${monthControlClassName} w-full sm:min-w-24 sm:w-auto`}
           >
-            <SelectValue placeholder="Nenhum ano com dados" />
+              <SelectValue
+                placeholder={
+                  areEventYearsLoading
+                    ? "Carregando..."
+                    : "Nenhum ano com dados"
+                }
+              />
           </SelectTrigger>
           <SelectContent>
             {availableEventYears.map((year) => (

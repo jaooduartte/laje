@@ -38,7 +38,7 @@ describe("useLeagueEventYears", () => {
     vi.clearAllMocks();
   });
 
-  it("lista somente anos com eventos ou solicitações de reserva pendentes", async () => {
+  it("lista anos com eventos, solicitações de reserva pendentes e o ano atual", async () => {
     eventsSelectMock.mockResolvedValue({
       data: [{ event_date: "2026-08-12" }],
       error: null,
@@ -71,7 +71,7 @@ describe("useLeagueEventYears", () => {
     expect(screen.getByTestId("event-years")).not.toHaveTextContent("2025");
   });
 
-  it("não cria um ano artificial quando não existem dados", async () => {
+  it("inclui o ano atual quando não existem dados", async () => {
     eventsSelectMock.mockResolvedValue({ data: [], error: null });
     reservationRequestsSelectMock.mockResolvedValue({ data: [], error: null });
 
@@ -81,6 +81,27 @@ describe("useLeagueEventYears", () => {
       expect(screen.getByTestId("loading-state")).toHaveTextContent("loaded");
     });
 
-    expect(screen.getByTestId("event-years")).toBeEmptyDOMElement();
+    expect(screen.getByTestId("event-years")).toHaveTextContent(
+      String(new Date().getFullYear()),
+    );
+  });
+
+  it("mantém o ano atual disponível quando o carregamento falha", async () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    eventsSelectMock.mockRejectedValue(new Error("Falha ao carregar eventos"));
+    reservationRequestsSelectMock.mockResolvedValue({ data: [], error: null });
+
+    render(<HookProbe />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-state")).toHaveTextContent("loaded");
+    });
+
+    expect(screen.getByTestId("event-years")).toHaveTextContent(
+      String(new Date().getFullYear()),
+    );
+    consoleErrorSpy.mockRestore();
   });
 });
