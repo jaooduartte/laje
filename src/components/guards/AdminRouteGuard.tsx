@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Navigate } from "react-router-dom";
-import { AdminShellSkeleton } from "@/components/skeletons/AdminShellSkeleton";
 import { Header } from "@/components/Header";
+import { AdminShellSkeleton } from "@/components/skeletons/AdminShellSkeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { AppRoutePath } from "@/lib/enums";
 import { supabase } from "@/integrations/supabase/client";
@@ -51,16 +51,16 @@ export function AdminRouteGuard({ children }: Props) {
   const shouldShowLoading = loading || roleLoading || (userId && canAccessAdminPanel && hasBackendAccess === null);
 
   if (shouldShowLoading) {
-  return (
-    <div className="app-page">
-      <Header />
+    return (
+      <div className="app-page">
+        <Header />
 
-      <main className="container py-8">
-        <AdminShellSkeleton />
-      </main>
-    </div>
-  );
-}
+        <main className="container py-8">
+          <AdminShellSkeleton />
+        </main>
+      </div>
+    );
+  }
 
   if (!userId || !canAccessAdminPanel || hasBackendAccess != true) {
     return <Navigate to={AppRoutePath.LOGIN} replace />;

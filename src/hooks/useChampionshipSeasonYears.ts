@@ -45,7 +45,14 @@ export function useChampionshipSeasonYears({
     setLoading(true);
 
     try {
-      const [matchesResponse, standingsResponse, bracketEditionsResponse] =
+      const [
+        matchesResponse,
+        standingsResponse,
+        bracketEditionsResponse,
+        individualEventsResponse,
+        individualSessionsResponse,
+        individualTeamStandingsResponse,
+      ] =
         await Promise.all([
           supabase
             .from("matches")
@@ -57,6 +64,18 @@ export function useChampionshipSeasonYears({
             .eq("championship_id", championshipId),
           supabase
             .from("championship_bracket_editions")
+            .select("season_year")
+            .eq("championship_id", championshipId),
+          supabase
+            .from("championship_individual_events")
+            .select("season_year")
+            .eq("championship_id", championshipId),
+          supabase
+            .from("championship_individual_sessions")
+            .select("season_year")
+            .eq("championship_id", championshipId),
+          supabase
+            .from("championship_individual_team_standings")
             .select("season_year")
             .eq("championship_id", championshipId),
         ]);
@@ -77,6 +96,24 @@ export function useChampionshipSeasonYears({
       ).forEach((seasonYear) => nextSeasonYears.add(seasonYear));
       resolveSeasonYearsFromRows(
         bracketEditionsResponse.data as
+          | Array<{ season_year: number | null }>
+          | null
+          | undefined,
+      ).forEach((seasonYear) => nextSeasonYears.add(seasonYear));
+      resolveSeasonYearsFromRows(
+        individualEventsResponse.data as
+          | Array<{ season_year: number | null }>
+          | null
+          | undefined,
+      ).forEach((seasonYear) => nextSeasonYears.add(seasonYear));
+      resolveSeasonYearsFromRows(
+        individualSessionsResponse.data as
+          | Array<{ season_year: number | null }>
+          | null
+          | undefined,
+      ).forEach((seasonYear) => nextSeasonYears.add(seasonYear));
+      resolveSeasonYearsFromRows(
+        individualTeamStandingsResponse.data as
           | Array<{ season_year: number | null }>
           | null
           | undefined,

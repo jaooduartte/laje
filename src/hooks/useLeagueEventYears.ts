@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { LeagueEventReservationRequestStatus } from "@/lib/enums";
 
 function resolveEventYears(rows: Array<{ event_date: string | null }> | null | undefined): number[] {
   return (rows ?? [])
@@ -14,6 +15,23 @@ function resolveEventYears(rows: Array<{ event_date: string | null }> | null | u
     .filter((year): year is number => year != null);
 }
 
+function resolvePendingReservationRequestYears(
+  rows:
+    | Array<{
+        event_date: string | null;
+        status: LeagueEventReservationRequestStatus;
+      }>
+    | null
+    | undefined,
+): number[] {
+  return resolveEventYears(
+    (rows ?? []).filter(
+      (reservationRequest) =>
+        reservationRequest.status == LeagueEventReservationRequestStatus.PENDING,
+    ),
+  );
+}
+
 export function useLeagueEventYears() {
   const [years, setYears] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,26 +42,29 @@ export function useLeagueEventYears() {
     try {
       const [eventsResponse, reservationRequestsResponse] = await Promise.all([
         supabase.from("league_events").select("event_date"),
-        supabase.from("league_event_reservation_requests").select("event_date"),
+        supabase
+          .from("league_event_reservation_requests")
+          .select("event_date, status"),
       ]);
 
       const nextYears = new Set<number>();
       resolveEventYears(eventsResponse.data as Array<{ event_date: string | null }> | null | undefined).forEach(
         (year) => nextYears.add(year),
       );
-      resolveEventYears(
-        reservationRequestsResponse.data as Array<{ event_date: string | null }> | null | undefined,
+      resolvePendingReservationRequestYears(
+        reservationRequestsResponse.data as
+          | Array<{
+              event_date: string | null;
+              status: LeagueEventReservationRequestStatus;
+            }>
+          | null
+          | undefined,
       ).forEach((year) => nextYears.add(year));
-
-      const currentYear = new Date().getFullYear();
-      if (Number.isFinite(currentYear)) {
-        nextYears.add(currentYear);
-      }
 
       setYears([...nextYears].sort((firstYear, secondYear) => secondYear - firstYear));
     } catch (error) {
       console.error("Erro ao carregar anos disponíveis dos eventos:", error);
-      setYears([new Date().getFullYear()]);
+      setYears([]);
     } finally {
       setLoading(false);
     }

@@ -33,6 +33,10 @@ import {
   AdminUserPasswordStatus,
   AdminUserSortOption,
 } from "@/lib/enums";
+import {
+  resolveDefaultPermissions,
+  resolveNormalizedPermissions,
+} from "@/components/admin/adminUsersPermissions.utils";
 import type {
   AdminProfile,
   AdminTabPermissionByTab,
@@ -211,60 +215,6 @@ function isAdminUserSortOption(value: string): value is AdminUserSortOption {
     value == AdminUserSortOption.ACTIVE_STATUS_DESC ||
     value == AdminUserSortOption.PROFILE_ASC
   );
-}
-
-function resolveDefaultPermissions(): AdminTabPermissionByTab {
-  return {
-    [AdminPanelTab.BRACKET_SETUP]: AdminPanelPermissionLevel.NONE,
-    [AdminPanelTab.MATCHES]: AdminPanelPermissionLevel.NONE,
-    [AdminPanelTab.CONTROL]: AdminPanelPermissionLevel.NONE,
-    [AdminPanelTab.INDIVIDUAL_EVENTS]: AdminPanelPermissionLevel.NONE,
-    [AdminPanelTab.TEAMS]: AdminPanelPermissionLevel.NONE,
-    [AdminPanelTab.SPORTS]: AdminPanelPermissionLevel.NONE,
-    [AdminPanelTab.EVENTS]: AdminPanelPermissionLevel.NONE,
-    [AdminPanelTab.LINKS]: AdminPanelPermissionLevel.NONE,
-    [AdminPanelTab.LOGS]: AdminPanelPermissionLevel.NONE,
-    [AdminPanelTab.USERS]: AdminPanelPermissionLevel.NONE,
-    [AdminPanelTab.ACCOUNT]: AdminPanelPermissionLevel.NONE,
-    [AdminPanelTab.STANDINGS]: AdminPanelPermissionLevel.NONE,
-    [AdminPanelTab.CHAMPIONSHIP_STATUS]: AdminPanelPermissionLevel.NONE,
-    [AdminPanelTab.SETTINGS]: AdminPanelPermissionLevel.NONE,
-    [AdminPanelTab.SCORE_SHEET_REVIEW]: AdminPanelPermissionLevel.NONE,
-    [AdminPanelTab.TIE_BREAKS]: AdminPanelPermissionLevel.NONE,
-    [AdminPanelTab.CHAMPIONSHIP_SCHEDULE]: AdminPanelPermissionLevel.NONE,
-  };
-}
-
-function resolveNormalizedPermissions(
-  rawPermissions: Record<string, unknown> | null,
-): AdminTabPermissionByTab {
-  const nextPermissions = resolveDefaultPermissions();
-  const rawMatchesPermission =
-    typeof rawPermissions?.[AdminPanelTab.MATCHES] == "string" &&
-    isAdminPanelPermissionLevel(rawPermissions[AdminPanelTab.MATCHES] as string)
-      ? (rawPermissions[AdminPanelTab.MATCHES] as AdminPanelPermissionLevel)
-      : AdminPanelPermissionLevel.NONE;
-
-  ADMIN_PANEL_TAB_ORDER.forEach((adminPanelTab) => {
-    const permissionValue = rawPermissions?.[adminPanelTab];
-
-    if (
-      typeof permissionValue == "string" &&
-      isAdminPanelPermissionLevel(permissionValue)
-    ) {
-      nextPermissions[adminPanelTab] = permissionValue;
-      return;
-    }
-
-    if (
-      adminPanelTab == AdminPanelTab.STANDINGS ||
-      adminPanelTab == AdminPanelTab.CHAMPIONSHIP_SCHEDULE
-    ) {
-      nextPermissions[adminPanelTab] = rawMatchesPermission;
-    }
-  });
-
-  return nextPermissions;
 }
 
 function resolveProfileAccessValue(profileId: string): string {

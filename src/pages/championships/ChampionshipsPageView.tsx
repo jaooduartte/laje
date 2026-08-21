@@ -32,6 +32,7 @@ import type {
   Championship,
   ChampionshipIndividualEvent,
   ChampionshipIndividualEventEntry,
+  ChampionshipIndividualTeamStanding,
   CompetitionTeamDisqualification,
   Match,
   Sport,
@@ -52,6 +53,10 @@ import { MATCH_NAIPE_LABELS, TEAM_DIVISION_LABELS } from "@/lib/championship";
 import { resolveChampionshipSportSupportsAwards } from "@/lib/championshipAwards";
 import type { ModalidadeConfig } from "@/lib/modalidadeConfig";
 import { INDIVIDUAL_ENTRY_STATUS_LABELS } from "@/lib/individualEvents";
+import {
+  hasIndividualEventEntryResult,
+  resolveIndividualEventsWithResults,
+} from "@/pages/championships/championshipIndividualResults.utils";
 
 interface ChampionshipsPageViewProps {
   isLoading: boolean;
@@ -75,7 +80,7 @@ interface ChampionshipsPageViewProps {
   selectedChampionshipHasDivisions: boolean;
   filteredStandings: TeamStandingAggregate[];
   isIndividualStandingsView?: boolean;
-  individualStandingsRows?: Standing[];
+  individualStandingsRows?: Array<ChampionshipIndividualTeamStanding | Standing>;
   individualEvents?: ChampionshipIndividualEvent[];
   individualEntriesByEventId?: Record<
     string,
@@ -181,6 +186,10 @@ export function ChampionshipsPageView({
   > | null>(null);
   const isStandingsHelpTooltipOpen =
     isStandingsHelpTooltipHoverOpen || isStandingsHelpTooltipClickOpen;
+  const individualEventsWithResults = resolveIndividualEventsWithResults(
+    individualEvents,
+    individualEntriesByEventId,
+  );
 
   useEffect(() => {
     return () => {
@@ -449,10 +458,9 @@ export function ChampionshipsPageView({
                       disqualifiedTeamKeys={disqualifiedTeamKeys}
                     />
                   )}
-                </section>
-
-                {isIndividualStandingsView && individualEvents.length > 0 ? (
-                  <section className="glass-panel enter-section space-y-3 p-5">
+                {isIndividualStandingsView &&
+                individualEventsWithResults.length > 0 ? (
+                  <div className="space-y-3 border-t border-border/60 pt-5">
                     <div>
                       <h3 className="text-lg font-display font-bold">
                         Resultados por prova
@@ -464,7 +472,7 @@ export function ChampionshipsPageView({
                     </div>
 
                     <div className="space-y-2">
-                      {individualEvents.map((event) => (
+                      {individualEventsWithResults.map((event) => (
                         <details
                           key={event.id}
                           className="rounded-2xl border border-border/60 bg-background/40 p-4"
@@ -481,12 +489,8 @@ export function ChampionshipsPageView({
                           </summary>
                           <div className="mt-4 space-y-2">
                             {(individualEntriesByEventId[event.id] ?? [])
-                              .length == 0 ? (
-                              <p className="text-xs text-muted-foreground">
-                                Nenhum resultado lançado até o momento.
-                              </p>
-                            ) : (
-                              (individualEntriesByEventId[event.id] ?? []).map(
+                              .filter(hasIndividualEventEntryResult)
+                              .map(
                                 (entry) => (
                                   <div
                                     key={entry.id}
@@ -523,14 +527,14 @@ export function ChampionshipsPageView({
                                     </div>
                                   </div>
                                 ),
-                              )
-                            )}
+                              )}
                           </div>
                         </details>
                       ))}
                     </div>
-                  </section>
+                  </div>
                 ) : null}
+                </section>
               </TabsContent>
 
               <TabsContent

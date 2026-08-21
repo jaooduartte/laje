@@ -236,7 +236,8 @@ export function AdminLeagueEvents({
   const [selectedMonthDate, setSelectedMonthDate] = useState(new Date());
   const { leagueEvents, loading, upsertLeagueEvent, removeLeagueEvent } =
     useLeagueEvents({ monthDate: selectedMonthDate });
-  const { years: availableEventYears } = useLeagueEventYears();
+  const { years: availableEventYears, loading: areEventYearsLoading } =
+    useLeagueEventYears();
 
   const [createFormValues, setCreateFormValues] =
     useState<LeagueEventFormValues>(resolveDefaultFormValues());
@@ -292,6 +293,27 @@ export function AdminLeagueEvents({
   }, [teams]);
 
   const selectedYear = Number(format(selectedMonthDate, "yyyy"));
+
+  useEffect(() => {
+    if (
+      availableEventYears.length == 0 ||
+      availableEventYears.includes(selectedYear)
+    ) {
+      return;
+    }
+
+    setSelectedMonthDate((currentSelectedMonthDate) =>
+      new Date(
+        availableEventYears[0],
+        currentSelectedMonthDate.getMonth(),
+        1,
+        12,
+        0,
+        0,
+        0,
+      ),
+    );
+  }, [availableEventYears, selectedYear]);
 
   useEffect(() => {
     const loadReservationRequests = async () => {
@@ -649,6 +671,19 @@ export function AdminLeagueEvents({
     });
   };
 
+  const handleMonthChange = (direction: -1 | 1) => {
+    setSelectedMonthDate((currentSelectedMonthDate) => {
+      const nextSelectedMonthDate =
+        direction < 0
+          ? subMonths(currentSelectedMonthDate, 1)
+          : addMonths(currentSelectedMonthDate, 1);
+
+      return availableEventYears.includes(nextSelectedMonthDate.getFullYear())
+        ? nextSelectedMonthDate
+        : currentSelectedMonthDate;
+    });
+  };
+
   const performReviewReservationRequest = async (
     reservationRequestId: string,
     decision:
@@ -903,11 +938,15 @@ export function AdminLeagueEvents({
       </div>
 
       <div className="enter-section flex w-full flex-col gap-2 glass-card px-4 py-3 sm:flex-row sm:items-center sm:justify-end">
-        <Select value={String(selectedYear)} onValueChange={handleYearChange}>
+        <Select
+          value={availableEventYears.length > 0 ? String(selectedYear) : undefined}
+          onValueChange={handleYearChange}
+          disabled={areEventYearsLoading || availableEventYears.length == 0}
+        >
           <SelectTrigger
             className={`${monthControlClassName} w-full sm:min-w-24 sm:w-auto`}
           >
-            <SelectValue placeholder="Ano" />
+            <SelectValue placeholder="Nenhum ano com dados" />
           </SelectTrigger>
           <SelectContent>
             {availableEventYears.map((year) => (
@@ -923,7 +962,8 @@ export function AdminLeagueEvents({
             size="icon"
             className={`${monthControlClassName} w-9 shrink-0`}
             aria-label="Mês anterior"
-            onClick={() => setSelectedMonthDate((date) => subMonths(date, 1))}
+            onClick={() => handleMonthChange(-1)}
+            disabled={availableEventYears.length == 0}
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -938,7 +978,8 @@ export function AdminLeagueEvents({
             size="icon"
             className={`${monthControlClassName} w-9 shrink-0`}
             aria-label="Próximo mês"
-            onClick={() => setSelectedMonthDate((date) => addMonths(date, 1))}
+            onClick={() => handleMonthChange(1)}
+            disabled={availableEventYears.length == 0}
           >
             <ChevronRight className="h-4 w-4" />
           </Button>

@@ -159,6 +159,12 @@
     box-shadow: 0 10px 28px hsl(222 22% 16% / 0.06);
   }
 
+  .app-header-composition {
+    isolation: isolate;
+    transform: translateZ(0);
+    will-change: transform;
+  }
+
   .glass-card-hover:hover {
     transform: translateY(-2px);
     box-shadow: 0 14px 34px hsl(222 22% 16% / 0.12);
@@ -430,8 +436,6 @@
 
   .app-pill-active-indicator {
     background: hsl(var(--primary));
-    -webkit-backdrop-filter: blur(16px);
-    backdrop-filter: blur(16px);
   }
 
   .app-card-live-active {

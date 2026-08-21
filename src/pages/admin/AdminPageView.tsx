@@ -493,7 +493,7 @@ export function AdminPageView({
     <div className="app-page">
       <Header />
       <main className="container py-8 space-y-5">
-        <div className="glass-panel enter-section flex flex-col gap-4 p-5">
+        <div className="glass-panel flex flex-col gap-4 p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="w-full lg:w-auto">
               <div className="mb-2 flex justify-center sm:hidden">

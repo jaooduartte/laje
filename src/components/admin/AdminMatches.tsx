@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { shouldRenderIndividualSessions } from "@/components/admin/adminMatchesPagination.utils";
 import {
   fetchChampionshipBracketLocationTemplates,
   fetchChampionshipBracketPendingTieBreaks,
@@ -6648,7 +6649,12 @@ export function AdminMatches({
           </p>
         )}
 
-        {visibleIndividualSessions.length > 0 ? (
+        {visibleIndividualSessions.length > 0 &&
+        shouldRenderIndividualSessions({
+          collectiveMatchesCount: filteredAndSortedMatches.length,
+          currentPage: matchesCurrentPage,
+          totalPages: matchesTotalPages,
+        }) ? (
           <section className="space-y-3">
             <div>
               <p className="text-sm font-semibold text-foreground">

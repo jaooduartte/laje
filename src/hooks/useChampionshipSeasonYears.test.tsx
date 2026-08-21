@@ -5,6 +5,9 @@ import { useChampionshipSeasonYears } from "@/hooks/useChampionshipSeasonYears";
 const matchesEqMock = vi.fn();
 const standingsEqMock = vi.fn();
 const bracketEditionsEqMock = vi.fn();
+const individualEventsEqMock = vi.fn();
+const individualSessionsEqMock = vi.fn();
+const individualTeamStandingsEqMock = vi.fn();
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
@@ -33,6 +36,18 @@ vi.mock("@/integrations/supabase/client", () => ({
         };
       }
 
+      if (table == "championship_individual_events") {
+        return { select: () => ({ eq: individualEventsEqMock }) };
+      }
+
+      if (table == "championship_individual_sessions") {
+        return { select: () => ({ eq: individualSessionsEqMock }) };
+      }
+
+      if (table == "championship_individual_team_standings") {
+        return { select: () => ({ eq: individualTeamStandingsEqMock }) };
+      }
+
       throw new Error(`Tabela não mockada: ${table}`);
     },
   },
@@ -57,7 +72,7 @@ describe("useChampionshipSeasonYears", () => {
     vi.clearAllMocks();
   });
 
-  it("combina anos reais de jogos, classificação e chave, sem duplicar e em ordem decrescente", async () => {
+  it("combina anos reais de jogos, classificação, chave e provas individuais, sem duplicar e em ordem decrescente", async () => {
     matchesEqMock.mockResolvedValue({
       data: [{ season_year: 2025 }, { season_year: 2026 }, { season_year: null }],
       error: null,
@@ -70,6 +85,18 @@ describe("useChampionshipSeasonYears", () => {
       data: [{ season_year: 2023 }, { season_year: 2026 }],
       error: null,
     });
+    individualEventsEqMock.mockResolvedValue({
+      data: [{ season_year: 2022 }],
+      error: null,
+    });
+    individualSessionsEqMock.mockResolvedValue({
+      data: [{ season_year: 2021 }],
+      error: null,
+    });
+    individualTeamStandingsEqMock.mockResolvedValue({
+      data: [{ season_year: 2020 }, { season_year: 2025 }],
+      error: null,
+    });
 
     render(<HookProbe />);
 
@@ -77,6 +104,6 @@ describe("useChampionshipSeasonYears", () => {
       expect(screen.getByTestId("loading-state")).toHaveTextContent("loaded");
     });
 
-    expect(screen.getByTestId("season-years")).toHaveTextContent("2026,2025,2024,2023");
+    expect(screen.getByTestId("season-years")).toHaveTextContent("2026,2025,2024,2023,2022,2021,2020");
   });
 });
