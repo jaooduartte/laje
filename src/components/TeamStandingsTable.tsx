@@ -18,6 +18,7 @@ interface Props {
   drawWinners?: Set<string>;
   groupLabelByTeamId?: Map<string, string>;
   disqualifiedTeamKeys?: ReadonlySet<string>;
+  pendingTieBreakTeamIds?: ReadonlySet<string>;
 }
 
 function resolveTopPlacementRowClass(position: number): string {
@@ -64,6 +65,7 @@ export function TeamStandingsTable({
   drawWinners,
   groupLabelByTeamId,
   disqualifiedTeamKeys,
+  pendingTieBreakTeamIds,
 }: Props) {
   if (isLoading) {
   const columnsCount =
@@ -113,6 +115,7 @@ export function TeamStandingsTable({
             const standingPosition = standingIndex + 1;
             const isDrawWinner = !isPublic && drawWinners?.has(standing.team_id);
             const isDisqualified = disqualifiedTeamKeys?.has(resolveTeamStandingAggregateKey(standing)) ?? false;
+            const hasPendingTieBreak = pendingTieBreakTeamIds?.has(standing.team_id) ?? false;
             const groupLabel = groupLabelByTeamId?.get(standing.team_id);
 
             return (
@@ -135,6 +138,11 @@ export function TeamStandingsTable({
                       <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
                         <Shuffle className="h-3 w-3" />
                         Desempate por sorteio
+                      </span>
+                    )}
+                    {hasPendingTieBreak && (
+                      <span className="inline-flex items-center rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+                        Desempate geral pendente
                       </span>
                     )}
                     {isDisqualified && (

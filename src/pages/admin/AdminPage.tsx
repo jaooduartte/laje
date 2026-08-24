@@ -38,6 +38,7 @@ import {
 import {
   AdminPanelTab,
   AppRoutePath,
+  ChampionshipCode,
   ChampionshipStatus,
   MatchStatus,
 } from "@/lib/enums";
@@ -93,6 +94,8 @@ export function AdminPage() {
   const [matchesSeasonYear, setMatchesSeasonYear] = useState<number | null>(
     null,
   );
+  const [interlajeOverallStandingsRefreshKey, setInterlajeOverallStandingsRefreshKey] =
+    useState(0);
   const [championshipStatusFlowDialog, setChampionshipStatusFlowDialog] =
     useState<ChampionshipStatusFlowDialog>(ChampionshipStatusFlowDialog.NONE);
   const hasAppliedInitialAdminChampionshipSelectionRef = useRef(false);
@@ -190,7 +193,12 @@ export function AdminPage() {
   const canViewAccountTab = canViewAdminTab(AdminPanelTab.ACCOUNT);
 
   const canViewStandingsTab =
-    canViewOperationalAdminTabs && canViewAdminTab(AdminPanelTab.STANDINGS);
+    (canViewOperationalAdminTabs || canViewReviewAdminTabs) &&
+    canViewAdminTab(AdminPanelTab.STANDINGS);
+
+  const canViewOpeningCeremonyBonusTab =
+    selectedChampionship?.code == ChampionshipCode.INTERLAJE &&
+    canViewAdminTab(AdminPanelTab.OPENING_CEREMONY_BONUS);
 
   const canViewSettingsTab = canViewAdminTab(AdminPanelTab.SETTINGS);
 
@@ -199,11 +207,12 @@ export function AdminPage() {
   );
 
   const canViewScoreSheetReviewTab =
-    canViewOperationalAdminTabs &&
+    (canViewOperationalAdminTabs || canViewReviewAdminTabs) &&
     canViewAdminTab(AdminPanelTab.SCORE_SHEET_REVIEW);
 
   const canViewTieBreaksTab =
-    canViewOperationalAdminTabs && canViewAdminTab(AdminPanelTab.TIE_BREAKS);
+    selectedChampionship?.status === ChampionshipStatus.IN_PROGRESS &&
+    canViewAdminTab(AdminPanelTab.TIE_BREAKS);
 
   const canViewScheduleTab =
     (canViewReviewAdminTabs || canViewOperationalAdminTabs) &&
@@ -217,6 +226,7 @@ export function AdminPage() {
       canViewScoreSheetReviewTab ? AdminPanelTab.SCORE_SHEET_REVIEW : null,
       canViewTieBreaksTab ? AdminPanelTab.TIE_BREAKS : null,
       canViewStandingsTab ? AdminPanelTab.STANDINGS : null,
+      canViewOpeningCeremonyBonusTab ? AdminPanelTab.OPENING_CEREMONY_BONUS : null,
       canViewIndividualEventsTab ? AdminPanelTab.INDIVIDUAL_EVENTS : null,
       canViewTeamsTab ? AdminPanelTab.TEAMS : null,
       canViewSportsTab ? AdminPanelTab.SPORTS : null,
@@ -248,7 +258,8 @@ export function AdminPage() {
 
   const shouldLoadAllTeams =
     lazyActiveTab == AdminPanelTab.TEAMS ||
-    lazyActiveTab == AdminPanelTab.INDIVIDUAL_EVENTS;
+    lazyActiveTab == AdminPanelTab.INDIVIDUAL_EVENTS ||
+    lazyActiveTab == AdminPanelTab.OPENING_CEREMONY_BONUS;
 
   const shouldLoadGlobalSports =
     lazyActiveTab == AdminPanelTab.SPORTS ||
@@ -729,6 +740,12 @@ export function AdminPage() {
   const canManageUsers = canEditAdminTab(AdminPanelTab.USERS);
   const canManageAccount = canEditAdminTab(AdminPanelTab.ACCOUNT);
   const canManageSettings = canEditAdminTab(AdminPanelTab.SETTINGS);
+  const canManageStandings =
+    canEditAdminTab(AdminPanelTab.STANDINGS) &&
+    selectedChampionship.status != ChampionshipStatus.REVIEW;
+  const canManageOpeningCeremonyBonus = canEditAdminTab(
+    AdminPanelTab.OPENING_CEREMONY_BONUS,
+  );
 
   return (
     <>
@@ -787,6 +804,7 @@ export function AdminPage() {
         canViewUsersTab={canViewUsersTab}
         canViewAccountTab={canViewAccountTab}
         canViewStandingsTab={canViewStandingsTab}
+        canViewOpeningCeremonyBonusTab={canViewOpeningCeremonyBonusTab}
         canViewSettingsTab={canViewSettingsTab}
         canViewScoreSheetReviewTab={canViewScoreSheetReviewTab}
         canViewTieBreaksTab={canViewTieBreaksTab}
@@ -806,6 +824,8 @@ export function AdminPage() {
         canManageUsers={canManageUsers}
         canManageAccount={canManageAccount}
         canManageSettings={canManageSettings}
+        canManageStandings={canManageStandings}
+        canManageOpeningCeremonyBonus={canManageOpeningCeremonyBonus}
         activeTab={activeTab}
         onActiveTabChange={setActiveTab}
         updatingChampionshipStatus={
@@ -826,6 +846,10 @@ export function AdminPage() {
         onRefetchTeams={async () => {
           await Promise.all([refetchTeams(), refetchAllTeams()]);
         }}
+        onInterlajeOpeningCeremonyBonusSaved={() =>
+          setInterlajeOverallStandingsRefreshKey((currentKey) => currentKey + 1)
+        }
+        interlajeOverallStandingsRefreshKey={interlajeOverallStandingsRefreshKey}
         onBracketGenerated={handleBracketGenerated}
         liveMatchesCount={liveMatches.length}
         pendingLeagueEventReservationsCount={

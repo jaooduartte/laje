@@ -76,4 +76,36 @@ describe("TeamStandingsTable draw winner icon", () => {
     expect(rows[2]).toHaveTextContent("TIME 1");
     expect(screen.getByText("Desclassificada")).toBeInTheDocument();
   });
+
+  it("sinaliza desempates gerais pendentes sem alterar a ordem recebida", () => {
+    render(
+      <TooltipProvider>
+        <TeamStandingsTable
+          variant="public"
+          standings={[
+            { ...standings[0], team_id: "team-2", team_name: "TIME 2", points: 12 },
+            { ...standings[0], team_id: "team-1", team_name: "TIME 1", points: 12 },
+            { ...standings[0], team_id: "team-3", team_name: "TIME 3", points: 8 },
+          ]}
+          pendingTieBreakTeamIds={new Set(["team-2", "team-1"])}
+        />
+      </TooltipProvider>,
+    );
+
+    const rows = screen.getAllByRole("row");
+    expect(rows[1]).toHaveTextContent("TIME 2");
+    expect(rows[2]).toHaveTextContent("TIME 1");
+    expect(rows[3]).toHaveTextContent("TIME 3");
+    expect(screen.getAllByText("Desempate geral pendente")).toHaveLength(2);
+  });
+
+  it("não sinaliza desempate quando não há pendência", () => {
+    render(
+      <TooltipProvider>
+        <TeamStandingsTable standings={standings} variant="public" />
+      </TooltipProvider>,
+    );
+
+    expect(screen.queryByText("Desempate geral pendente")).not.toBeInTheDocument();
+  });
 });

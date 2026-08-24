@@ -218,6 +218,7 @@ export enum AdminPanelTab {
   SCORE_SHEET_REVIEW = "score_sheet_review",
   TIE_BREAKS = "tie_breaks",
   CHAMPIONSHIP_SCHEDULE = "championship_schedule",
+  OPENING_CEREMONY_BONUS = "opening_ceremony_bonus",
 }
 
 export enum AdminPanelRole {

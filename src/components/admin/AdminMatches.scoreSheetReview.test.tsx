@@ -412,6 +412,8 @@ function renderAdminMatches(params: {
   matchBracketContextByMatchId?: Record<string, { badgeLabel: string; phase: BracketPhase; stageLabel: string; groupFilterValue?: string; groupLabel?: string }>;
   selectedChampionship?: Championship;
   championshipSports?: ChampionshipSport[];
+  canManageMatches?: boolean;
+  hasMatchesEditPermission?: boolean;
 }) {
   const onRefetch = vi.fn();
   const onRefetchChampionshipBracket = vi.fn();
@@ -430,7 +432,8 @@ function renderAdminMatches(params: {
         visualQueuePositionByMatchId={params.visualQueuePositionByMatchId ?? {}}
         estimatedStartTimeByMatchId={params.estimatedStartTimeByMatchId ?? {}}
         isFetchingMatches={false}
-        canManageMatches
+        canManageMatches={params.canManageMatches ?? true}
+        hasMatchesEditPermission={params.hasMatchesEditPermission}
         viewMode={params.viewMode ?? AdminMatchesViewMode.DEFAULT}
         onRefetch={onRefetch}
         onRefetchChampionshipBracket={onRefetchChampionshipBracket}
@@ -524,6 +527,23 @@ describe("AdminMatches score sheet review", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("sport-filter-mock")).toBeInTheDocument();
+    });
+  });
+
+  it("não informa falta de permissão quando a edição está bloqueada apenas pelo status", async () => {
+    renderAdminMatches({
+      matches: [],
+      viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
+      canManageMatches: false,
+      hasMatchesEditPermission: true,
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText(
+          "Perfil em visualização: sem permissão para criar, editar ou remover jogos.",
+        ),
+      ).not.toBeInTheDocument();
     });
   });
 

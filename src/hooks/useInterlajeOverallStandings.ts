@@ -8,10 +8,12 @@ export function useInterlajeOverallStandings({
   championshipId,
   seasonYear,
   enabled = true,
+  refreshKey,
 }: {
   championshipId?: string | null;
   seasonYear?: number | null;
   enabled?: boolean;
+  refreshKey?: number;
 }) {
   const [standings, setStandings] = useState<InterlajeOverallStanding[]>([]);
   const [loading, setLoading] = useState(false);
@@ -30,7 +32,7 @@ export function useInterlajeOverallStandings({
 
   useEffect(() => {
     void refetch();
-  }, [refetch]);
+  }, [refetch, refreshKey]);
 
   return { standings, loading, refetch };
 }

@@ -15,6 +15,10 @@ import { useCompetitionTeamDisqualifications } from "@/hooks/useCompetitionTeamD
 import { useChampionshipSeasonYears } from "@/hooks/useChampionshipSeasonYears";
 import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividualEvents";
 import { useInterlajeOverallStandings } from "@/hooks/useInterlajeOverallStandings";
+import {
+  resolveInterlajeOverallPendingTieBreakTeamIds,
+  resolveInterlajeOverallStandingAggregates,
+} from "@/domain/interlaje/interlajeOverallStandings.utils";
 import type { ChampionshipBracketResolvedTieBreakOrderContext } from "@/domain/championship-brackets/championshipBracket.types";
 import type { MatchBracketContext } from "@/lib/championship";
 import {
@@ -54,7 +58,6 @@ import {
   resolveManualTieBreakWinnerTeamIdByPairKey,
   resolveTeamStandingAggregateKey,
 } from "@/lib/standings";
-import type { TeamStandingAggregate } from "@/lib/standings";
 import { ChampionshipsPageView } from "@/pages/championships/ChampionshipsPageView";
 
 const CHAMPIONSHIP_CARD_IMAGE_BY_CODE: Record<ChampionshipCode, string> = {
@@ -137,6 +140,10 @@ export function ChampionshipsPage() {
   const { sports, championshipSports } = useSports({
     championshipId: selectedChampionshipId,
   });
+  const selectedInterlajeOverallSeasonYear =
+    standingsYearFilter == ALL_YEAR_FILTER
+      ? selectedChampionshipSeasonYear
+      : Number(standingsYearFilter);
   const {
     standings: interlajeOverallStandings,
     loading: interlajeOverallStandingsLoading,
@@ -147,7 +154,7 @@ export function ChampionshipsPage() {
         : null,
     seasonYear:
       selectedChampionship?.code == ChampionshipCode.INTERLAJE
-        ? selectedChampionshipSeasonYear
+        ? selectedInterlajeOverallSeasonYear
         : null,
   });
   const individualSportIds = useMemo(
@@ -282,24 +289,9 @@ export function ChampionshipsPage() {
 
   const overallPodiumStandings = useMemo(() => {
     if (selectedChampionship?.code == ChampionshipCode.INTERLAJE) {
-      return interlajeOverallStandings
-        .slice(0, 3)
-        .map<TeamStandingAggregate>((standing) => ({
-          team_id: standing.team_id,
-          team_name: standing.team_name,
-          team_city: "",
-          division: null,
-          played: 0,
-          wins: 0,
-          draws: 0,
-          losses: 0,
-          goals_for: 0,
-          goals_against: 0,
-          goal_diff: 0,
-          points: standing.overall_points,
-          yellow_cards: 0,
-          red_cards: 0,
-        }));
+      return resolveInterlajeOverallStandingAggregates(
+        interlajeOverallStandings,
+      ).slice(0, 3);
     }
 
     return aggregateStandingsByTeam(standingsWithCorrectedPoints).slice(0, 3);
@@ -308,6 +300,18 @@ export function ChampionshipsPage() {
     selectedChampionship?.code,
     standingsWithCorrectedPoints,
   ]);
+
+  const isInterlajeOverallStandingsView =
+    selectedChampionship?.code == ChampionshipCode.INTERLAJE &&
+    standingsSportFilter == ALL_STANDINGS_SPORT_FILTER;
+  const interlajeOverallStandingAggregates = useMemo(
+    () => resolveInterlajeOverallStandingAggregates(interlajeOverallStandings),
+    [interlajeOverallStandings],
+  );
+  const interlajeOverallPendingTieBreakTeamIds = useMemo(
+    () => resolveInterlajeOverallPendingTieBreakTeamIds(interlajeOverallStandings),
+    [interlajeOverallStandings],
+  );
 
   const standingsTieBreakerRule = useMemo(() => {
     if (standingsSportFilter == ALL_STANDINGS_SPORT_FILTER) {
@@ -687,7 +691,16 @@ export function ChampionshipsPage() {
       standingsYearFilter={standingsYearFilter}
       allStandingsSportFilter={ALL_STANDINGS_SPORT_FILTER}
       allStandingsNaipeFilter={ALL_STANDINGS_NAIPE_FILTER}
-      filteredStandings={standingsWithOfficialThirdPlacement.adjustedStandings}
+      filteredStandings={
+        isInterlajeOverallStandingsView
+          ? interlajeOverallStandingAggregates
+          : standingsWithOfficialThirdPlacement.adjustedStandings
+      }
+      pendingTieBreakTeamIds={
+        isInterlajeOverallStandingsView
+          ? interlajeOverallPendingTieBreakTeamIds
+          : undefined
+      }
       isIndividualStandingsView={isIndividualStandingsView}
       individualStandingsRows={individualStandingsRows}
       individualEvents={individualEvents}
