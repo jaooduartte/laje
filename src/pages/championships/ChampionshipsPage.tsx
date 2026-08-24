@@ -15,7 +15,10 @@ import { useCompetitionTeamDisqualifications } from "@/hooks/useCompetitionTeamD
 import { useChampionshipSeasonYears } from "@/hooks/useChampionshipSeasonYears";
 import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividualEvents";
 import { useInterlajeOverallStandings } from "@/hooks/useInterlajeOverallStandings";
-import { resolveInterlajeOverallStandingAggregates } from "@/domain/interlaje/interlajeOverallStandings.utils";
+import {
+  resolveInterlajeOverallPendingTieBreakTeamIds,
+  resolveInterlajeOverallStandingAggregates,
+} from "@/domain/interlaje/interlajeOverallStandings.utils";
 import type { ChampionshipBracketResolvedTieBreakOrderContext } from "@/domain/championship-brackets/championshipBracket.types";
 import type { MatchBracketContext } from "@/lib/championship";
 import {
@@ -303,6 +306,10 @@ export function ChampionshipsPage() {
     standingsSportFilter == ALL_STANDINGS_SPORT_FILTER;
   const interlajeOverallStandingAggregates = useMemo(
     () => resolveInterlajeOverallStandingAggregates(interlajeOverallStandings),
+    [interlajeOverallStandings],
+  );
+  const interlajeOverallPendingTieBreakTeamIds = useMemo(
+    () => resolveInterlajeOverallPendingTieBreakTeamIds(interlajeOverallStandings),
     [interlajeOverallStandings],
   );
 
@@ -688,6 +695,11 @@ export function ChampionshipsPage() {
         isInterlajeOverallStandingsView
           ? interlajeOverallStandingAggregates
           : standingsWithOfficialThirdPlacement.adjustedStandings
+      }
+      pendingTieBreakTeamIds={
+        isInterlajeOverallStandingsView
+          ? interlajeOverallPendingTieBreakTeamIds
+          : undefined
       }
       isIndividualStandingsView={isIndividualStandingsView}
       individualStandingsRows={individualStandingsRows}

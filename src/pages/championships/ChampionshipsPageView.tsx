@@ -79,6 +79,7 @@ interface ChampionshipsPageViewProps {
   allStandingsDivisionFilter: string;
   selectedChampionshipHasDivisions: boolean;
   filteredStandings: TeamStandingAggregate[];
+  pendingTieBreakTeamIds?: ReadonlySet<string>;
   isIndividualStandingsView?: boolean;
   individualStandingsRows?: Array<ChampionshipIndividualTeamStanding | Standing>;
   individualEvents?: ChampionshipIndividualEvent[];
@@ -139,6 +140,7 @@ export function ChampionshipsPageView({
   allStandingsDivisionFilter,
   selectedChampionshipHasDivisions,
   filteredStandings,
+  pendingTieBreakTeamIds,
   isIndividualStandingsView = false,
   individualStandingsRows = [],
   individualEvents = [],
@@ -456,6 +458,7 @@ export function ChampionshipsPageView({
                       isLoading={isStandingsLoading}
                       variant="public"
                       disqualifiedTeamKeys={disqualifiedTeamKeys}
+                      pendingTieBreakTeamIds={pendingTieBreakTeamIds}
                     />
                   )}
                 {isIndividualStandingsView &&

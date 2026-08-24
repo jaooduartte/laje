@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AdminInterlajeOpeningCeremonyBonus } from "@/components/admin/AdminInterlajeOpeningCeremonyBonus";
 import { ChampionshipCode, ChampionshipStatus } from "@/lib/enums";
 import type { Championship, Team } from "@/lib/types";
@@ -10,6 +10,7 @@ const { saveEligibilityMock, savePointsMock, refetchMock } = vi.hoisted(() => ({
   refetchMock: vi.fn().mockResolvedValue({ error: null }),
 }));
 const eligibleTeamIds: string[] = [];
+const registeredTeamIds: string[] = [];
 
 vi.mock("sonner", () => ({
   toast: {
@@ -22,6 +23,7 @@ vi.mock("@/hooks/useInterlajeOpeningCeremonyBonus", () => ({
   useInterlajeOpeningCeremonyBonus: () => ({
     settings: { points: 8 },
     eligibleTeamIds,
+    registeredTeamIds,
     loading: false,
     refetch: refetchMock,
   }),
@@ -40,6 +42,21 @@ const teams: Team[] = [
     division: null,
     created_at: "2026-08-23T00:00:00.000Z",
   },
+  {
+    id: "team-2",
+    name: "Atlética não inscrita",
+    city: "Joinville",
+    division: null,
+    created_at: "2026-08-23T00:00:00.000Z",
+  },
+  {
+    id: "team-3",
+    name: "Atlética inativa",
+    city: "Joinville",
+    division: null,
+    created_at: "2026-08-23T00:00:00.000Z",
+    is_active: false,
+  },
 ];
 
 function buildChampionship(status: ChampionshipStatus): Championship {
@@ -56,6 +73,14 @@ function buildChampionship(status: ChampionshipStatus): Championship {
 }
 
 describe("AdminInterlajeOpeningCeremonyBonus", () => {
+  beforeEach(() => {
+    eligibleTeamIds.splice(0, eligibleTeamIds.length);
+    registeredTeamIds.splice(0, registeredTeamIds.length, "team-1", "team-3");
+    saveEligibilityMock.mockClear();
+    savePointsMock.mockClear();
+    refetchMock.mockClear();
+  });
+
   it("permite atualizar o valor e marcar atléticas em revisão", async () => {
     const onSaved = vi.fn();
 
@@ -120,7 +145,25 @@ describe("AdminInterlajeOpeningCeremonyBonus", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar todas" }));
 
     expect(screen.getByRole("checkbox", { name: "Atlética A" })).toBeChecked();
+    expect(screen.queryByRole("checkbox", { name: "Atlética não inscrita" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "Atlética inativa" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Salvar atléticas" })).toBeEnabled();
+  });
+
+  it("lista somente atléticas ativas inscritas na edição da temporada", () => {
+    render(
+      <AdminInterlajeOpeningCeremonyBonus
+        selectedChampionship={buildChampionship(ChampionshipStatus.REVIEW)}
+        teams={teams}
+        loadingTeams={false}
+        canManageOpeningCeremonyBonus
+        onSaved={() => undefined}
+      />,
+    );
+
+    expect(screen.getByRole("checkbox", { name: "Atlética A" })).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "Atlética não inscrita" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "Atlética inativa" })).not.toBeInTheDocument();
   });
 
   it("mantém todos os controles bloqueados quando o campeonato está encerrado", () => {

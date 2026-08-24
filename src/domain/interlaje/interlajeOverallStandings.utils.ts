@@ -21,3 +21,13 @@ export function resolveInterlajeOverallStandingAggregates(
     red_cards: 0,
   }));
 }
+
+export function resolveInterlajeOverallPendingTieBreakTeamIds(
+  standings: InterlajeOverallStanding[],
+): Set<string> {
+  return new Set(
+    standings
+      .filter((standing) => standing.has_pending_tie_break)
+      .map((standing) => standing.team_id),
+  );
+}

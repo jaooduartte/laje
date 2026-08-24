@@ -30,7 +30,7 @@ export function AdminInterlajeOpeningCeremonyBonus({
   onSaved,
 }: Props) {
   const seasonYear = selectedChampionship.current_season_year;
-  const { settings, eligibleTeamIds, loading, refetch } =
+  const { settings, eligibleTeamIds, registeredTeamIds, loading, refetch } =
     useInterlajeOpeningCeremonyBonus({
       championshipId: selectedChampionship.id,
       seasonYear,
@@ -56,11 +56,18 @@ export function AdminInterlajeOpeningCeremonyBonus({
     });
   }, [eligibleTeamIds]);
 
-  const activeTeams = useMemo(() => {
+  const registeredTeamIdsSet = useMemo(
+    () => new Set(registeredTeamIds),
+    [registeredTeamIds],
+  );
+  const registeredActiveTeams = useMemo(() => {
     return teams
-      .filter((team) => team.is_active !== false)
+      .filter(
+        (team) =>
+          team.is_active !== false && registeredTeamIdsSet.has(team.id),
+      )
       .sort((firstTeam, secondTeam) => firstTeam.name.localeCompare(secondTeam.name));
-  }, [teams]);
+  }, [registeredTeamIdsSet, teams]);
   const isFinished = selectedChampionship.status === ChampionshipStatus.FINISHED;
   const canConfigurePoints = canManageOpeningCeremonyBonus && !isFinished;
   const canManageEligibility =
@@ -72,12 +79,15 @@ export function AdminInterlajeOpeningCeremonyBonus({
     [eligibleTeamIdsDraft],
   );
   const eligibleTeamIdsSet = useMemo(() => new Set(eligibleTeamIds), [eligibleTeamIds]);
-  const hasEligibilityChanges = activeTeams.some(
+  const hasEligibilityChanges = registeredActiveTeams.some(
     (team) => eligibleTeamIdsDraftSet.has(team.id) !== eligibleTeamIdsSet.has(team.id),
   );
-  const allActiveTeamsEligible =
-    activeTeams.length > 0 && activeTeams.every((team) => eligibleTeamIdsDraftSet.has(team.id));
-  const hasEligibleActiveTeam = activeTeams.some((team) => eligibleTeamIdsDraftSet.has(team.id));
+  const allRegisteredActiveTeamsEligible =
+    registeredActiveTeams.length > 0 &&
+    registeredActiveTeams.every((team) => eligibleTeamIdsDraftSet.has(team.id));
+  const hasEligibleRegisteredActiveTeam = registeredActiveTeams.some((team) =>
+    eligibleTeamIdsDraftSet.has(team.id),
+  );
 
   async function handleSavePoints() {
     const normalizedPoints = pointsDraft.trim();
@@ -115,11 +125,13 @@ export function AdminInterlajeOpeningCeremonyBonus({
   }
 
   function handleSelectAllEligibleTeams(eligible: boolean) {
-    setEligibleTeamIdsDraft(eligible ? activeTeams.map((team) => team.id) : []);
+    setEligibleTeamIdsDraft(
+      eligible ? registeredActiveTeams.map((team) => team.id) : [],
+    );
   }
 
   async function handleSaveEligibility() {
-    const changes = activeTeams.filter(
+    const changes = registeredActiveTeams.filter(
       (team) => eligibleTeamIdsDraftSet.has(team.id) !== eligibleTeamIdsSet.has(team.id),
     );
     setSavingEligibility(true);
@@ -219,9 +231,9 @@ export function AdminInterlajeOpeningCeremonyBonus({
               <Label className="flex items-center gap-2 text-sm font-medium">
                 <Checkbox
                   checked={
-                    allActiveTeamsEligible
+                    allRegisteredActiveTeamsEligible
                       ? true
-                      : hasEligibleActiveTeam
+                      : hasEligibleRegisteredActiveTeam
                         ? "indeterminate"
                         : false
                   }
@@ -250,13 +262,13 @@ export function AdminInterlajeOpeningCeremonyBonus({
               <Skeleton key={index} className="h-12" />
             ))}
           </div>
-        ) : activeTeams.length === 0 ? (
+        ) : registeredActiveTeams.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Nenhuma atlética ativa disponível.
+            Nenhuma atlética ativa inscrita nesta temporada.
           </p>
         ) : (
           <div className="columns-1 gap-2 sm:columns-2 lg:columns-3">
-            {activeTeams.map((team) => {
+            {registeredActiveTeams.map((team) => {
               const isEligible = eligibleTeamIdsDraftSet.has(team.id);
 
               return (

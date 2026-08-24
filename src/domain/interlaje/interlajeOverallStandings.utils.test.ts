@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { resolveInterlajeOverallStandingAggregates } from "@/domain/interlaje/interlajeOverallStandings.utils";
+import {
+  resolveInterlajeOverallPendingTieBreakTeamIds,
+  resolveInterlajeOverallStandingAggregates,
+} from "@/domain/interlaje/interlajeOverallStandings.utils";
 
 describe("resolveInterlajeOverallStandingAggregates", () => {
   it("preserva a pontuação geral e mantém uma atlética sem pontos na classificação", () => {
@@ -36,5 +39,43 @@ describe("resolveInterlajeOverallStandingAggregates", () => {
         played: 0,
       }),
     ]);
+  });
+});
+
+describe("resolveInterlajeOverallPendingTieBreakTeamIds", () => {
+  it("retorna somente as atléticas com desempate geral pendente", () => {
+    const pendingTeamIds = resolveInterlajeOverallPendingTieBreakTeamIds([
+      {
+        team_id: "team-pending-1",
+        team_name: "Atlética A",
+        placement_points: 10,
+        opening_bonus_points: 0,
+        overall_points: 10,
+        confirmed_competitions_count: 1,
+        has_pending_tie_break: true,
+      },
+      {
+        team_id: "team-resolved",
+        team_name: "Atlética B",
+        placement_points: 10,
+        opening_bonus_points: 0,
+        overall_points: 10,
+        confirmed_competitions_count: 1,
+        has_pending_tie_break: false,
+      },
+      {
+        team_id: "team-pending-2",
+        team_name: "Atlética C",
+        placement_points: 10,
+        opening_bonus_points: 0,
+        overall_points: 10,
+        confirmed_competitions_count: 1,
+        has_pending_tie_break: true,
+      },
+    ]);
+
+    expect(pendingTeamIds).toEqual(
+      new Set(["team-pending-1", "team-pending-2"]),
+    );
   });
 });

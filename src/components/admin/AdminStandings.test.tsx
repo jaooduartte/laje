@@ -354,7 +354,7 @@ describe("AdminStandings", () => {
           opening_bonus_points: 0,
           overall_points: 0,
           confirmed_competitions_count: 0,
-          has_pending_tie_break: false,
+          has_pending_tie_break: true,
         },
       ],
     };
@@ -378,6 +378,7 @@ describe("AdminStandings", () => {
       variant: "public",
       standings: [expect.objectContaining({ team_id: "team-1", points: 0 })],
     });
+    expect(lastCall?.[0].pendingTieBreakTeamIds).toEqual(new Set(["team-1"]));
     expect(screen.queryByText("Classificação geral do INTERLAJE")).not.toBeInTheDocument();
   });
 

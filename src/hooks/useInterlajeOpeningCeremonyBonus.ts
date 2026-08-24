@@ -14,6 +14,7 @@ export function useInterlajeOpeningCeremonyBonus({
   const [settings, setSettings] =
     useState<InterlajeOpeningCeremonyBonusSettings | null>(null);
   const [eligibleTeamIds, setEligibleTeamIds] = useState<string[]>([]);
+  const [registeredTeamIds, setRegisteredTeamIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
   const refetch = useCallback(async () => {
@@ -24,6 +25,7 @@ export function useInterlajeOpeningCeremonyBonus({
     });
     setSettings(response.settings);
     setEligibleTeamIds(response.eligibleTeamIds);
+    setRegisteredTeamIds(response.registeredTeamIds);
     setLoading(false);
     return response;
   }, [championshipId, seasonYear]);
@@ -35,6 +37,7 @@ export function useInterlajeOpeningCeremonyBonus({
   return {
     settings,
     eligibleTeamIds,
+    registeredTeamIds,
     loading,
     refetch,
   };

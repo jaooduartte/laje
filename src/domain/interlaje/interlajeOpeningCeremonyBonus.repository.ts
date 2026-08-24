@@ -41,13 +41,19 @@ export async function fetchInterlajeOpeningCeremonyBonus({
 }): Promise<{
   settings: InterlajeOpeningCeremonyBonusSettings | null;
   eligibleTeamIds: string[];
+  registeredTeamIds: string[];
   error: Error | null;
 }> {
   if (!championshipId || seasonYear == null) {
-    return { settings: null, eligibleTeamIds: [], error: null };
+    return {
+      settings: null,
+      eligibleTeamIds: [],
+      registeredTeamIds: [],
+      error: null,
+    };
   }
 
-  const [settingsResponse, adjustmentsResponse] = await Promise.all([
+  const [settingsResponse, adjustmentsResponse, registrationsResponse] = await Promise.all([
     supabaseLoose
       .from("championship_opening_ceremony_bonus_settings")
       .select("points")
@@ -60,6 +66,11 @@ export async function fetchInterlajeOpeningCeremonyBonus({
       .eq("championship_id", championshipId)
       .eq("season_year", seasonYear)
       .eq("adjustment_type", "OPENING_CEREMONY"),
+    supabase
+      .from("championship_bracket_team_registrations")
+      .select("team_id, championship_bracket_editions!inner(championship_id, season_year)")
+      .eq("championship_bracket_editions.championship_id", championshipId)
+      .eq("championship_bracket_editions.season_year", seasonYear),
   ]);
 
   return {
@@ -69,7 +80,13 @@ export async function fetchInterlajeOpeningCeremonyBonus({
     eligibleTeamIds: (adjustmentsResponse.data ?? []).map(
       (adjustment) => adjustment.team_id,
     ),
-    error: settingsResponse.error ?? adjustmentsResponse.error,
+    registeredTeamIds: Array.from(
+      new Set((registrationsResponse.data ?? []).map((registration) => registration.team_id)),
+    ),
+    error:
+      settingsResponse.error ??
+      adjustmentsResponse.error ??
+      registrationsResponse.error,
   };
 }
 

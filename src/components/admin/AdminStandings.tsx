@@ -34,7 +34,10 @@ import { useChampionshipBracketHistory } from "@/hooks/useChampionshipBracketHis
 import { useCompetitionTeamDisqualifications } from "@/hooks/useCompetitionTeamDisqualifications";
 import { useChampionshipSeasonRuntime } from "@/hooks/useChampionshipSeasonRuntime";
 import { useInterlajeOverallStandings } from "@/hooks/useInterlajeOverallStandings";
-import { resolveInterlajeOverallStandingAggregates } from "@/domain/interlaje/interlajeOverallStandings.utils";
+import {
+  resolveInterlajeOverallPendingTieBreakTeamIds,
+  resolveInterlajeOverallStandingAggregates,
+} from "@/domain/interlaje/interlajeOverallStandings.utils";
 import { supabase } from "@/integrations/supabase/client";
 import {
   compareAwardsRankingGoalScorers,
@@ -716,6 +719,10 @@ export function AdminStandings({
     sportFilter == ALL_SPORTS_FILTER;
   const interlajeOverallStandingAggregates = useMemo(
     () => resolveInterlajeOverallStandingAggregates(interlajeOverallStandings),
+    [interlajeOverallStandings],
+  );
+  const interlajeOverallPendingTieBreakTeamIds = useMemo(
+    () => resolveInterlajeOverallPendingTieBreakTeamIds(interlajeOverallStandings),
     [interlajeOverallStandings],
   );
 
@@ -1517,6 +1524,11 @@ export function AdminStandings({
             drawWinners={drawWinners}
             groupLabelByTeamId={groupLabelByTeamId}
             disqualifiedTeamKeys={visibleCompetitionDisqualifiedTeamKeys}
+            pendingTieBreakTeamIds={
+              isInterlajeOverallStandingsView
+                ? interlajeOverallPendingTieBreakTeamIds
+                : undefined
+            }
           />
         )}
       </div>
