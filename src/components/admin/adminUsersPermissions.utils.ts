@@ -20,6 +20,7 @@ function resolveDefaultPermissions(): AdminTabPermissionByTab {
     [AdminPanelTab.SCORE_SHEET_REVIEW]: AdminPanelPermissionLevel.NONE,
     [AdminPanelTab.TIE_BREAKS]: AdminPanelPermissionLevel.NONE,
     [AdminPanelTab.CHAMPIONSHIP_SCHEDULE]: AdminPanelPermissionLevel.NONE,
+    [AdminPanelTab.OPENING_CEREMONY_BONUS]: AdminPanelPermissionLevel.NONE,
   };
 }
 

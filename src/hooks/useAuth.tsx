@@ -23,6 +23,7 @@ const DEFAULT_ADMIN_TAB_PERMISSIONS: AdminTabPermissionByTab = {
   [AdminPanelTab.SCORE_SHEET_REVIEW]: AdminPanelPermissionLevel.NONE,
   [AdminPanelTab.TIE_BREAKS]: AdminPanelPermissionLevel.NONE,
   [AdminPanelTab.CHAMPIONSHIP_SCHEDULE]: AdminPanelPermissionLevel.NONE,
+  [AdminPanelTab.OPENING_CEREMONY_BONUS]: AdminPanelPermissionLevel.NONE,
 };
 
 function isAdminPanelRole(value: string | null): value is AdminPanelRole {
@@ -96,6 +97,9 @@ function resolveAdminTabPermissionsFromContext(context: CurrentUserAdminContext 
     [AdminPanelTab.CHAMPIONSHIP_SCHEDULE]: isAdminPanelPermissionLevel(context.championship_schedule_permission ?? null)
       ? context.championship_schedule_permission!
       : fallbackMatchesPermission,
+    [AdminPanelTab.OPENING_CEREMONY_BONUS]: isAdminPanelPermissionLevel(context.opening_ceremony_bonus_permission ?? null)
+      ? context.opening_ceremony_bonus_permission!
+      : AdminPanelPermissionLevel.NONE,
   };
 }
 

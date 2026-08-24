@@ -20,6 +20,7 @@ const {
   rankingsMock,
   disqualificationsState,
   teamStandingsTableMock,
+  interlajeOverallStandingsState,
 } = vi.hoisted(() => ({
   rpcMock: vi.fn(),
   rankingsMock: {
@@ -62,6 +63,25 @@ const {
     }>;
   },
   teamStandingsTableMock: vi.fn(() => <div>Standings table</div>),
+  interlajeOverallStandingsState: {
+    current: {
+      standings: [],
+      loading: false,
+    },
+  } as {
+    current: {
+      standings: Array<{
+        team_id: string;
+        team_name: string;
+        placement_points: number;
+        opening_bonus_points: number;
+        overall_points: number;
+        confirmed_competitions_count: number;
+        has_pending_tie_break: boolean;
+      }>;
+      loading: boolean;
+    };
+  },
 }));
 
 vi.mock("sonner", () => ({
@@ -96,6 +116,10 @@ vi.mock("@/hooks/useAuth", () => ({
 
 vi.mock("@/hooks/useStandings", () => ({
   useStandings: () => ({ standings: [], loading: false, refetch: vi.fn() }),
+}));
+
+vi.mock("@/hooks/useInterlajeOverallStandings", () => ({
+  useInterlajeOverallStandings: () => interlajeOverallStandingsState.current,
 }));
 
 vi.mock("@/hooks/useMatches", () => ({
@@ -273,6 +297,10 @@ describe("AdminStandings", () => {
     rpcMock.mockReset();
     teamStandingsTableMock.mockClear();
     disqualificationsState.current = [];
+    interlajeOverallStandingsState.current = {
+      standings: [],
+      loading: false,
+    };
     rankingsMock.top_scorers = [
       {
         player_id: "player-1",
@@ -313,6 +341,44 @@ describe("AdminStandings", () => {
     expect(screen.getByText("Melhores defesas")).toBeInTheDocument();
     expect(screen.getByText("Atlética Defesa")).toBeInTheDocument();
     expect(screen.getByText(/1,00 de média/)).toBeInTheDocument();
+  });
+
+  it("exibe a classificação geral do INTERLAJE no filtro Todas", () => {
+    interlajeOverallStandingsState.current = {
+      loading: false,
+      standings: [
+        {
+          team_id: "team-1",
+          team_name: "Atlética sem pontos",
+          placement_points: 0,
+          opening_bonus_points: 0,
+          overall_points: 0,
+          confirmed_competitions_count: 0,
+          has_pending_tie_break: false,
+        },
+      ],
+    };
+
+    render(
+      <AdminStandings
+        selectedChampionship={{
+          ...selectedChampionship,
+          code: ChampionshipCode.INTERLAJE,
+          name: "INTERLAJE",
+        }}
+        championshipSports={championshipSports}
+        sports={sports}
+        championshipBracketView={championshipBracketView}
+        availableSeasonYears={[2026]}
+      />,
+    );
+
+    const lastCall = teamStandingsTableMock.mock.calls.at(-1);
+    expect(lastCall?.[0]).toMatchObject({
+      variant: "public",
+      standings: [expect.objectContaining({ team_id: "team-1", points: 0 })],
+    });
+    expect(screen.queryByText("Classificação geral do INTERLAJE")).not.toBeInTheDocument();
   });
 
   it("prioriza o artilheiro da equipe que avançou mais longe antes do sorteio", () => {
@@ -367,6 +433,24 @@ describe("AdminStandings", () => {
     );
 
     expect(screen.getByRole("button", { name: "Desclassificar atlética" })).toBeInTheDocument();
+  });
+
+  it("oculta as ações da competição sem permissão para desclassificar", () => {
+    render(
+      <AdminStandings
+        selectedChampionship={selectedChampionship}
+        championshipSports={championshipSports}
+        sports={sports}
+        championshipBracketView={championshipBracketView}
+        availableSeasonYears={[2026]}
+        canManageStandings={false}
+      />,
+    );
+
+    expect(screen.queryByText("Ações da competição")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Desclassificar atlética" }),
+    ).not.toBeInTheDocument();
   });
 
   it("abre o formulário de desclassificação com os seletores da competição", () => {

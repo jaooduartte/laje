@@ -26,6 +26,7 @@ import { AdminUsers } from "@/components/admin/AdminUsers";
 import { AdminStandings } from "@/components/admin/AdminStandings";
 import { AdminChampionshipBracketPage } from "@/components/admin/AdminChampionshipBracketPage";
 import { AdminChampionshipSchedule } from "@/components/admin/AdminChampionshipSchedule";
+import { AdminInterlajeOpeningCeremonyBonus } from "@/components/admin/AdminInterlajeOpeningCeremonyBonus";
 import { useChampionshipSeasonRuntime } from "@/hooks/useChampionshipSeasonRuntime";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -98,6 +99,7 @@ interface AdminPageViewProps {
   canViewUsersTab: boolean;
   canViewAccountTab: boolean;
   canViewStandingsTab: boolean;
+  canViewOpeningCeremonyBonusTab?: boolean;
   canViewSettingsTab: boolean;
   canViewScoreSheetReviewTab: boolean;
   canViewTieBreaksTab: boolean;
@@ -117,6 +119,8 @@ interface AdminPageViewProps {
   canManageUsers: boolean;
   canManageAccount: boolean;
   canManageSettings: boolean;
+  canManageStandings?: boolean;
+  canManageOpeningCeremonyBonus?: boolean;
   activeTab: string;
   onActiveTabChange: (tab: string) => void;
   onBracketGenerated: () => Promise<void>;
@@ -139,6 +143,8 @@ interface AdminPageViewProps {
   pendingAwardDrawContexts: AwardDrawPendingContext[];
   loadingPendingAwardDraws: boolean;
   refetchPendingAwardDraws: () => void | Promise<void>;
+  onInterlajeOpeningCeremonyBonusSaved?: () => void;
+  interlajeOverallStandingsRefreshKey?: number;
 }
 
 const SCORE_SHEET_REVIEW_TAB_VALUE = "score_sheet_review";
@@ -197,6 +203,7 @@ export function AdminPageView({
   canViewUsersTab,
   canViewAccountTab,
   canViewStandingsTab,
+  canViewOpeningCeremonyBonusTab = false,
   canViewSettingsTab,
   canViewScoreSheetReviewTab,
   canViewTieBreaksTab,
@@ -216,6 +223,8 @@ export function AdminPageView({
   canManageUsers,
   canManageAccount,
   canManageSettings,
+  canManageStandings = false,
+  canManageOpeningCeremonyBonus = false,
   activeTab,
   onActiveTabChange,
   onBracketGenerated,
@@ -235,6 +244,8 @@ export function AdminPageView({
   pendingAwardDrawContexts = [],
   loadingPendingAwardDraws = false,
   refetchPendingAwardDraws = () => {},
+  onInterlajeOpeningCeremonyBonusSaved = () => {},
+  interlajeOverallStandingsRefreshKey = 0,
 }: AdminPageViewProps) {
   const { usesDivisions: selectedChampionshipHasSeasonDivisions } =
     useChampionshipSeasonRuntime({
@@ -287,6 +298,13 @@ export function AdminPageView({
       nextAdminTabItems.push({
         value: AdminPanelTab.STANDINGS,
         label: "Classificação",
+      });
+    }
+
+    if (canViewOpeningCeremonyBonusTab) {
+      nextAdminTabItems.push({
+        value: AdminPanelTab.OPENING_CEREMONY_BONUS,
+        label: "Bônus da abertura",
       });
     }
 
@@ -373,6 +391,7 @@ export function AdminPageView({
     canViewTieBreaksTab,
     canViewAccountTab,
     canViewStandingsTab,
+    canViewOpeningCeremonyBonusTab,
     canViewSettingsTab,
     canViewSportsTab,
     canViewTeamsTab,
@@ -726,6 +745,7 @@ export function AdminPageView({
                 }
                 isFetchingMatches={matchesTabFetching}
                 canManageMatches={canManageMatches}
+                hasMatchesEditPermission={canManageMatches}
                 availableSeasonYears={availableMatchSeasonYears}
                 selectedSeasonYear={selectedMatchesSeasonYear}
                 onSeasonYearChange={onSelectedMatchesSeasonYearChange}
@@ -756,7 +776,10 @@ export function AdminPageView({
                 estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
                 isInitialLoading={initialOperationalLoading}
                 isFetchingMatches={matchesFetching}
-                canManageMatches={canManageMatches}
+                canManageMatches={
+                  canManageMatches && selectedChampionship.status !== ChampionshipStatus.REVIEW
+                }
+                hasMatchesEditPermission={canManageMatches}
                 viewMode={AdminMatchesViewMode.SCORE_SHEET_REVIEW}
                 onRefetch={onRefetchMatches}
                 onRefetchChampionshipBracket={onRefetchChampionshipBracket}
@@ -779,7 +802,10 @@ export function AdminPageView({
                 estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
                 isInitialLoading={initialOperationalLoading}
                 isFetchingMatches={matchesFetching}
-                canManageMatches={canManageMatches}
+                canManageMatches={
+                  canManageMatches && selectedChampionship.status !== ChampionshipStatus.REVIEW
+                }
+                hasMatchesEditPermission={canManageMatches}
                 viewMode={AdminMatchesViewMode.TIE_BREAKS}
                 onRefetch={onRefetchMatches}
                 onRefetchChampionshipBracket={onRefetchChampionshipBracket}
@@ -807,7 +833,9 @@ export function AdminPageView({
                 isFetchingMatches={matchesFetching}
                 onRefetch={onRefetchMatches}
                 onRefetchChampionshipBracket={onRefetchChampionshipBracket}
-                canManageScoreboard={canManageScoreboard}
+                canManageScoreboard={
+                  canManageScoreboard && selectedChampionship.status !== ChampionshipStatus.REVIEW
+                }
               />
             </TabsContent>
           ) : null}
@@ -821,6 +849,20 @@ export function AdminPageView({
                 championshipBracketView={championshipBracketView}
                 availableSeasonYears={availableMatchSeasonYears}
                 onRefetchTeams={onRefetchTeams}
+                canManageStandings={canManageStandings}
+                overallStandingsRefreshKey={interlajeOverallStandingsRefreshKey}
+              />
+            </TabsContent>
+          ) : null}
+
+          {canViewOpeningCeremonyBonusTab ? (
+            <TabsContent value={AdminPanelTab.OPENING_CEREMONY_BONUS}>
+              <AdminInterlajeOpeningCeremonyBonus
+                selectedChampionship={selectedChampionship}
+                teams={allTeams}
+                loadingTeams={allTeamsLoading}
+                canManageOpeningCeremonyBonus={canManageOpeningCeremonyBonus}
+                onSaved={onInterlajeOpeningCeremonyBonusSaved}
               />
             </TabsContent>
           ) : null}

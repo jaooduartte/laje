@@ -3119,6 +3119,7 @@ export type Database = {
           links_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
           logs_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
           matches_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
+          opening_ceremony_bonus_permission: Database["public"]["Enums"]["admin_panel_permission_level"]
           profile_id: string
           profile_name: string
           role: Database["public"]["Enums"]["app_role"]
@@ -3666,6 +3667,20 @@ export type Database = {
         }
         Returns: string
       }
+      save_interlaje_opening_ceremony_bonus: {
+        Args: {
+          _championship_id: string
+          _eligible: boolean
+          _justification?: string
+          _season_year: number
+          _team_id: string
+        }
+        Returns: undefined
+      }
+      save_interlaje_opening_ceremony_bonus_points: {
+        Args: { _championship_id: string; _points: number; _season_year: number }
+        Returns: undefined
+      }
       save_match_score_sheet_awards: {
         Args: {
           _away_goal_scorers?: Json
@@ -3877,6 +3892,7 @@ export type Database = {
         | "standings"
         | "championship_schedule"
         | "individual_events"
+        | "opening_ceremony_bonus"
       admin_user_password_status: "PENDING" | "ACTIVE"
       app_role: "admin" | "mesa" | "eventos"
       bracket_court_priority_mode: "NONE" | "NAIPE" | "DIVISION"
@@ -4098,6 +4114,7 @@ export const Constants = {
         "standings",
         "championship_schedule",
         "individual_events",
+        "opening_ceremony_bonus",
       ],
       admin_user_password_status: ["PENDING", "ACTIVE"],
       app_role: ["admin", "mesa", "eventos"],

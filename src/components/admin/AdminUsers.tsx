@@ -109,6 +109,7 @@ const ADMIN_TAB_LABELS: Record<AdminPanelTab, string> = {
   [AdminPanelTab.SCORE_SHEET_REVIEW]: "Conferência de Súmula",
   [AdminPanelTab.TIE_BREAKS]: "Sorteios",
   [AdminPanelTab.CHAMPIONSHIP_SCHEDULE]: "Agenda",
+  [AdminPanelTab.OPENING_CEREMONY_BONUS]: "Bônus da abertura",
 };
 
 const ADMIN_PERMISSION_LEVEL_LABELS: Record<AdminPanelPermissionLevel, string> =
@@ -135,6 +136,7 @@ const ADMIN_PANEL_TAB_ORDER: AdminPanelTab[] = [
   AdminPanelTab.ACCOUNT,
   AdminPanelTab.CHAMPIONSHIP_STATUS,
   AdminPanelTab.CHAMPIONSHIP_SCHEDULE,
+  AdminPanelTab.OPENING_CEREMONY_BONUS,
   AdminPanelTab.SETTINGS,
 ];
 

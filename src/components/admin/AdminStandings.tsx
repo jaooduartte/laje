@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Award,
   Loader2,
@@ -35,6 +34,7 @@ import { useChampionshipBracketHistory } from "@/hooks/useChampionshipBracketHis
 import { useCompetitionTeamDisqualifications } from "@/hooks/useCompetitionTeamDisqualifications";
 import { useChampionshipSeasonRuntime } from "@/hooks/useChampionshipSeasonRuntime";
 import { useInterlajeOverallStandings } from "@/hooks/useInterlajeOverallStandings";
+import { resolveInterlajeOverallStandingAggregates } from "@/domain/interlaje/interlajeOverallStandings.utils";
 import { supabase } from "@/integrations/supabase/client";
 import {
   compareAwardsRankingGoalScorers,
@@ -96,6 +96,8 @@ interface Props {
   championshipBracketView: ChampionshipBracketView;
   availableSeasonYears?: number[];
   onRefetchTeams?: () => void | Promise<void>;
+  canManageStandings?: boolean;
+  overallStandingsRefreshKey?: number;
 }
 
 const ALL_SPORTS_FILTER = "all";
@@ -135,6 +137,8 @@ export function AdminStandings({
   championshipBracketView,
   availableSeasonYears = [],
   onRefetchTeams = () => {},
+  canManageStandings = true,
+  overallStandingsRefreshKey = 0,
 }: Props) {
   const { user } = useAuth();
   const [sportFilter, setSportFilter] = useState<string>(ALL_SPORTS_FILTER);
@@ -169,6 +173,14 @@ export function AdminStandings({
 
   const selectedChampionshipSeasonYear =
     selectedChampionship?.current_season_year ?? null;
+  const [yearFilter, setYearFilter] = useState<string>(
+    selectedChampionshipSeasonYear != null
+      ? String(selectedChampionshipSeasonYear)
+      : "all",
+  );
+  const correctedYearFilter = yearFilter === "all" ? null : Number(yearFilter);
+  const displayedSeasonYear =
+    correctedYearFilter ?? selectedChampionshipSeasonYear;
   const {
     standings: interlajeOverallStandings,
     loading: interlajeOverallStandingsLoading,
@@ -179,17 +191,10 @@ export function AdminStandings({
         : null,
     seasonYear:
       selectedChampionship.code == ChampionshipCode.INTERLAJE
-        ? selectedChampionshipSeasonYear
+        ? displayedSeasonYear
         : null,
+    refreshKey: overallStandingsRefreshKey,
   });
-  const [yearFilter, setYearFilter] = useState<string>(
-    selectedChampionshipSeasonYear != null
-      ? String(selectedChampionshipSeasonYear)
-      : "all",
-  );
-  const correctedYearFilter = yearFilter === "all" ? null : Number(yearFilter);
-  const displayedSeasonYear =
-    correctedYearFilter ?? selectedChampionshipSeasonYear;
   const selectedDisqualificationSeasonYear = useMemo(() => {
     const parsedYear = Number(disqualificationYearFilter);
     return Number.isFinite(parsedYear) ? parsedYear : null;
@@ -706,6 +711,14 @@ export function AdminStandings({
     sportFilter,
   ]);
 
+  const isInterlajeOverallStandingsView =
+    selectedChampionship.code == ChampionshipCode.INTERLAJE &&
+    sportFilter == ALL_SPORTS_FILTER;
+  const interlajeOverallStandingAggregates = useMemo(
+    () => resolveInterlajeOverallStandingAggregates(interlajeOverallStandings),
+    [interlajeOverallStandings],
+  );
+
   const disqualificationBracketView = useMemo(() => {
     if (selectedDisqualificationSeasonYear == null) {
       return championshipBracketView;
@@ -1058,6 +1071,12 @@ export function AdminStandings({
     correctedStandingsLoading ||
     tieBreaksLoading ||
     finishedMatchesLoading;
+  const displayedTeamStandings = isInterlajeOverallStandingsView
+    ? interlajeOverallStandingAggregates
+    : standingsWithOfficialThirdPlacement.adjustedStandings;
+  const displayedTeamStandingsLoading = isInterlajeOverallStandingsView
+    ? interlajeOverallStandingsLoading
+    : isLoading;
 
   const awardsSeasonYear =
     correctedYearFilter ?? selectedChampionshipSeasonYear;
@@ -1133,6 +1152,9 @@ export function AdminStandings({
   }, [naipeFilter, sportFilter, sports]);
 
   function handleOpenDisqualificationDialog() {
+    if (!canManageStandings) {
+      return;
+    }
     const fallbackYear =
       correctedYearFilter ??
       selectedChampionshipSeasonYear ??
@@ -1150,6 +1172,7 @@ export function AdminStandings({
 
   async function handleOpenDivisionMovementDialog() {
     if (
+      !canManageStandings ||
       selectedChampionshipSeasonYear == null ||
       isPreparingDivisionMovementPreview ||
       isApplyingDivisionMovements
@@ -1197,6 +1220,7 @@ export function AdminStandings({
 
   async function handleConfirmDisqualification() {
     if (
+      !canManageStandings ||
       !selectedDisqualificationCompetition ||
       selectedDisqualificationSeasonYear == null ||
       !selectedDisqualificationTeamId ||
@@ -1251,6 +1275,7 @@ export function AdminStandings({
 
   async function handleApplyDivisionMovements() {
     if (
+      !canManageStandings ||
       selectedChampionshipSeasonYear == null ||
       seasonDivisionMovementPreview.length == 0 ||
       isApplyingDivisionMovements
@@ -1313,79 +1338,17 @@ export function AdminStandings({
 
   return (
     <div className="space-y-6">
-      {selectedChampionship.code == ChampionshipCode.INTERLAJE ? (
-        <section className="glass-card enter-section space-y-3 p-4">
+      {canManageStandings ? (
+        <div className="glass-card enter-section flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-foreground">
-              Classificação geral do INTERLAJE
+              Ações da competição
             </p>
             <p className="text-xs text-muted-foreground">
-              Atualizada apenas com colocações oficiais confirmadas e o bônus de
-              abertura. Pontos de partidas não entram neste total.
+              Desclassifique atléticas e confirme a movimentação sazonal usando a
+              classificação oficial final da temporada.
             </p>
           </div>
-          {interlajeOverallStandingsLoading ? (
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {Array.from({ length: 6 }).map((_, index) => (
-                <div
-                  key={`interlaje-overall-standings-skeleton-${index}`}
-                  className="rounded-lg border border-border/60 bg-background/40 p-3"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <Skeleton className="h-4 w-36" />
-                    <Skeleton className="h-6 w-10" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : interlajeOverallStandings.length == 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Nenhuma colocação oficial confirmada ainda.
-            </p>
-          ) : (
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {interlajeOverallStandings.map((standing, index) => (
-                <div
-                  key={standing.team_id}
-                  className="rounded-lg border border-border/60 bg-background/40 p-3"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="font-semibold">
-                      {index + 1}º {standing.team_name}
-                    </span>
-                    <span className="font-display text-lg font-bold text-primary">
-                      {standing.overall_points}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {standing.confirmed_competitions_count} competição(ões)
-                    confirmada(s)
-                    {standing.opening_bonus_points > 0
-                      ? ` • +${standing.opening_bonus_points} abertura`
-                      : ""}
-                  </p>
-                  {standing.has_pending_tie_break ? (
-                    <p className="mt-1 text-xs font-medium text-amber-500">
-                      Empate geral pendente de decisão da organização.
-                    </p>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      ) : null}
-
-      <div className="glass-card enter-section flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-foreground">
-            Ações da competição
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Desclassifique atléticas e confirme a movimentação sazonal usando a
-            classificação oficial final da temporada.
-          </p>
-        </div>
 
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
           {canPreviewDivisionMovements ? (
@@ -1419,7 +1382,8 @@ export function AdminStandings({
             Desclassificar atlética
           </Button>
         </div>
-      </div>
+        </div>
+      ) : null}
 
       <div className="space-y-3">
         <SportFilter
@@ -1431,7 +1395,7 @@ export function AdminStandings({
         />
       </div>
 
-      <div className="glass-panel enter-section grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="glass-panel enter-section grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 lg:grid-cols-5">
         <div>
           <Select value={yearFilter} onValueChange={setYearFilter}>
             <SelectTrigger className="app-input-field">
@@ -1535,18 +1499,6 @@ export function AdminStandings({
       </div>
 
       <div className="space-y-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-foreground">
-              Classificação por competição
-            </p>
-            <p className="text-xs text-muted-foreground">
-              A tabela abaixo continua respeitando os filtros aplicados para
-              leitura da classificação.
-            </p>
-          </div>
-        </div>
-
         {isIndividualStandingsView ? (
           <IndividualSportStandingsTable
             standings={filteredIndividualStandingsRows}
@@ -1554,10 +1506,14 @@ export function AdminStandings({
           />
         ) : (
           <TeamStandingsTable
-            standings={standingsWithOfficialThirdPlacement.adjustedStandings}
-            modalidadeConfig={activeModalidadeConfig}
-            isLoading={isLoading}
-            variant="full"
+            standings={displayedTeamStandings}
+            modalidadeConfig={
+              isInterlajeOverallStandingsView
+                ? undefined
+                : activeModalidadeConfig
+            }
+            isLoading={displayedTeamStandingsLoading}
+            variant={isInterlajeOverallStandingsView ? "public" : "full"}
             drawWinners={drawWinners}
             groupLabelByTeamId={groupLabelByTeamId}
             disqualifiedTeamKeys={visibleCompetitionDisqualifiedTeamKeys}

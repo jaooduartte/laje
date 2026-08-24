@@ -26,8 +26,19 @@ vi.mock("@/hooks/useChampionshipSeasonRuntime", () => ({
 }));
 
 vi.mock("@/components/admin/AdminMatches", () => ({
-  AdminMatches: ({ viewMode }: { viewMode?: string }) => (
-    <div data-testid={`admin-matches-${viewMode ?? "DEFAULT"}`}>{viewMode ?? "DEFAULT"}</div>
+  AdminMatches: ({
+    viewMode,
+    canManageMatches,
+  }: {
+    viewMode?: string;
+    canManageMatches?: boolean;
+  }) => (
+    <div
+      data-testid={`admin-matches-${viewMode ?? "DEFAULT"}`}
+      data-can-manage-matches={canManageMatches}
+    >
+      {viewMode ?? "DEFAULT"}
+    </div>
   ),
 }));
 
@@ -171,7 +182,7 @@ function buildBracketView(): ChampionshipBracketView {
 
 describe("AdminPageView tabs", () => {
   it("mantém ordem de abas Jogos > Conferência de Súmula > Sorteios", () => {
-    const championship = buildChampionship();
+    const championship = buildChampionship({ status: ChampionshipStatus.REVIEW });
     const match = buildMatch();
 
     render(
@@ -259,6 +270,10 @@ describe("AdminPageView tabs", () => {
     expect(jogosTabIndex).toBeGreaterThanOrEqual(0);
     expect(conferenciaTabIndex).toBeGreaterThan(jogosTabIndex);
     expect(sorteiosTabIndex).toBeGreaterThan(conferenciaTabIndex);
+    expect(screen.getByTestId("admin-matches-DEFAULT")).toHaveAttribute(
+      "data-can-manage-matches",
+      "true",
+    );
   });
 
   it("exibe na aba de conferência o total de jogos encerrados ainda não revisados", () => {

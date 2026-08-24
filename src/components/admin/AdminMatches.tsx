@@ -429,6 +429,7 @@ interface Props {
   isInitialLoading?: boolean;
   isFetchingMatches?: boolean;
   canManageMatches?: boolean;
+  hasMatchesEditPermission?: boolean;
   availableSeasonYears?: number[];
   selectedSeasonYear?: number | null;
   onSeasonYearChange?: (seasonYear: number) => void;
@@ -968,6 +969,7 @@ export function AdminMatches({
   isInitialLoading = false,
   isFetchingMatches = false,
   canManageMatches: canManageMatchesProp = true,
+  hasMatchesEditPermission = canManageMatchesProp,
   availableSeasonYears = [],
   selectedSeasonYear = null,
   onSeasonYearChange,
@@ -5760,7 +5762,13 @@ export function AdminMatches({
 
         <div className="glass-card enter-section p-4">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-stretch xl:justify-between">
-            <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div
+              className={
+                isScoreSheetReviewMode
+                  ? "flex-1 space-y-3"
+                  : "grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
+              }
+            >
               {!isScoreSheetReviewMode && !isTieBreaksMode ? (
                 <div className="xl:min-w-0">
                   <Select
@@ -5822,6 +5830,14 @@ export function AdminMatches({
                   </Select>
                 </div>
               ) : null}
+
+              <div
+                className={
+                  isScoreSheetReviewMode
+                    ? "grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
+                    : "contents"
+                }
+              >
 
               <div className="xl:min-w-0">
                 <Select
@@ -5920,6 +5936,16 @@ export function AdminMatches({
                 </Select>
               </div>
 
+              </div>
+
+              <div
+                className={
+                  isScoreSheetReviewMode
+                    ? "grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[repeat(3,minmax(0,1fr))_2.5rem]"
+                    : "contents"
+                }
+              >
+
               <div className="xl:min-w-0">
                 <Select
                   value={matchesLocationFilter}
@@ -5982,28 +6008,30 @@ export function AdminMatches({
                       ))}
                     </SelectContent>
                   </Select>
-                  {isScoreSheetReviewMode ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() =>
-                        setHideReviewedMatches(
-                          (currentHideReviewedMatches) =>
-                            !currentHideReviewedMatches,
-                        )
-                      }
-                      className={`h-10 w-10 shrink-0 ${hideReviewedMatches ? "app-button-secondary-active hover:!bg-red-600" : ""}`}
-                      aria-label={
-                        hideReviewedMatches
-                          ? "Mostrar jogos revisados também"
-                          : "Ocultar jogos já revisados"
-                      }
-                    >
-                      <EyeOff className="h-4 w-4" />
-                    </Button>
-                  ) : null}
                 </div>
+              </div>
+
+              {isScoreSheetReviewMode ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() =>
+                    setHideReviewedMatches(
+                      (currentHideReviewedMatches) => !currentHideReviewedMatches,
+                    )
+                  }
+                  className={`h-10 w-10 shrink-0 ${hideReviewedMatches ? "app-button-secondary-active hover:!bg-red-600" : ""}`}
+                  aria-label={
+                    hideReviewedMatches
+                      ? "Mostrar jogos revisados também"
+                      : "Ocultar jogos já revisados"
+                  }
+                >
+                  <EyeOff className="h-4 w-4" />
+                </Button>
+              ) : null}
+
               </div>
             </div>
 
@@ -6022,7 +6050,7 @@ export function AdminMatches({
           </div>
         </div>
 
-        {!canManageMatches ? (
+        {!canManageMatches && !hasMatchesEditPermission ? (
           <p className="text-sm text-muted-foreground">
             Perfil em visualização: sem permissão para criar, editar ou remover
             jogos.
@@ -6644,7 +6672,7 @@ export function AdminMatches({
             />
           </>
         ) : (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-center text-muted-foreground">
             Nenhum jogo encontrado para os filtros selecionados.
           </p>
         )}

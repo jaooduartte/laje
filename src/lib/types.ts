@@ -469,6 +469,7 @@ export interface CurrentUserAdminContext {
   standings_permission?: AdminPanelPermissionLevel;
   championship_schedule_permission?: AdminPanelPermissionLevel;
   individual_events_permission?: AdminPanelPermissionLevel;
+  opening_ceremony_bonus_permission?: AdminPanelPermissionLevel;
 }
 
 export interface PublicAccessSettings {
