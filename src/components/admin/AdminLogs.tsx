@@ -56,6 +56,7 @@ import {
 } from "@/components/ui/select";
 import { scrollToTopOfPage } from "@/lib/scroll";
 import { shouldRenderMatchScheduleChange } from "@/components/admin/adminLogsMatchSlot.utils";
+import { resolveAdminProfileLogChanges } from "@/components/admin/adminLogsAdminProfile.utils";
 
 const ALL_USERS_FILTER = "ALL_USERS";
 const ALL_ACTIONS_FILTER = "ALL_ACTIONS";
@@ -88,6 +89,7 @@ const ADMIN_ACTION_TYPE_BADGE_TONES: Record<AdminActionType, AppBadgeTone> = {
 };
 
 const ADMIN_LOG_RESOURCE_LABELS: Record<AdminLogResourceTable, string> = {
+  [AdminLogResourceTable.ADMIN_PROFILES]: "Perfis administrativos",
   [AdminLogResourceTable.CHAMPIONSHIPS]: "Campeonatos",
   [AdminLogResourceTable.SPORTS]: "Modalidades",
   [AdminLogResourceTable.TEAMS]: "Atléticas",
@@ -107,6 +109,7 @@ const ADMIN_LOG_RESOURCE_LABELS: Record<AdminLogResourceTable, string> = {
 
 const ADMIN_LOG_RESOURCE_ENTITY_LABELS: Record<AdminLogResourceTable, string> =
   {
+    [AdminLogResourceTable.ADMIN_PROFILES]: "perfil administrativo",
     [AdminLogResourceTable.CHAMPIONSHIPS]: "campeonato",
     [AdminLogResourceTable.SPORTS]: "modalidade",
     [AdminLogResourceTable.TEAMS]: "atlética",
@@ -669,6 +672,10 @@ function resolveChangedFields(
   log: AdminActionLog,
   teamNameById: TeamNameById,
 ): string[] {
+  if (log.resource_table == AdminLogResourceTable.ADMIN_PROFILES) {
+    return resolveAdminProfileLogChanges(log.old_data, log.new_data);
+  }
+
   if (
     log.resource_table == AdminLogResourceTable.CHAMPIONSHIP_BRACKET_WORKFLOW
   ) {
@@ -842,6 +849,14 @@ function resolvePrimaryName(log: AdminActionLog): string | null {
     return nextValues.event_name;
   }
 
+  if (
+    log.resource_table == AdminLogResourceTable.ADMIN_PROFILES &&
+    nextValues?.profile_name &&
+    typeof nextValues.profile_name == "string"
+  ) {
+    return nextValues.profile_name;
+  }
+
   if (previousValues?.name && typeof previousValues.name == "string") {
     return previousValues.name;
   }
@@ -851,6 +866,14 @@ function resolvePrimaryName(log: AdminActionLog): string | null {
     typeof previousValues.event_name == "string"
   ) {
     return previousValues.event_name;
+  }
+
+  if (
+    log.resource_table == AdminLogResourceTable.ADMIN_PROFILES &&
+    previousValues?.profile_name &&
+    typeof previousValues.profile_name == "string"
+  ) {
+    return previousValues.profile_name;
   }
 
   if (

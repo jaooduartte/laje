@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { format, isSameDay, isSameMonth } from "date-fns";
 import { CalendarGridSkeleton } from "@/components/skeletons/CalendarGridSkeleton";
 import { CardListSkeleton } from "@/components/skeletons/CardListSkeleton";
@@ -61,6 +61,10 @@ import {
   resolveLeagueEventOrganizerName,
   resolveUniqueLeagueEventTypes,
 } from "@/domain/league-events/leagueEvent.helpers";
+import {
+  resolvePastLeagueEvents,
+  resolveVisibleLeagueEvents,
+} from "@/domain/league-events/leagueEventVisibility.utils";
 import {
   LEAGUE_CALENDAR_HOLIDAY_DAY_KIND_DOT_CLASS_NAMES,
   LEAGUE_CALENDAR_HOLIDAY_DAY_KIND_LABELS,
@@ -256,6 +260,8 @@ export function LeagueCalendarPageView({
     selectedDateLabel: string;
     leagueEvents: LeagueEvent[];
   } | null>(null);
+  const [showPastMonthLeagueEvents, setShowPastMonthLeagueEvents] =
+    useState(false);
   const monthControlClassName =
     "h-9 rounded-xl border border-transparent app-input-field text-secondary-foreground";
   const glassPanelClassName = "glass-panel p-4";
@@ -279,9 +285,20 @@ export function LeagueCalendarPageView({
   const monthLeagueHolidays = leagueHolidays.filter((leagueHoliday) =>
     leagueHoliday.holiday_date.startsWith(monthDatePrefix),
   );
+  const today = new Date();
+  const todayKey = format(today, "yyyy-MM-dd");
+  const pastMonthLeagueEvents = resolvePastLeagueEvents(
+    monthLeagueEvents,
+    todayKey,
+  );
+  const visibleMonthLeagueEvents = resolveVisibleLeagueEvents(
+    monthLeagueEvents,
+    todayKey,
+    showPastMonthLeagueEvents,
+  );
   const mobileVisibleEvents = selectedDateHasItems
     ? selectedDateEvents
-    : monthLeagueEvents;
+    : visibleMonthLeagueEvents;
   const mobileVisibleHolidays = selectedDateHasItems
     ? selectedDateHolidays
     : monthLeagueHolidays;
@@ -290,8 +307,10 @@ export function LeagueCalendarPageView({
   const eventsSummaryLabel = hasActiveFilters
     ? `${totalFilteredItems} evento(s) no ano`
     : `${leagueEvents.length + leagueHolidays.length} evento(s) no ano`;
-  const today = new Date();
-  const todayKey = format(today, "yyyy-MM-dd");
+  useEffect(() => {
+    setShowPastMonthLeagueEvents(false);
+  }, [monthDate]);
+
   const handleOpenLeagueEvent = (leagueEvent: LeagueEvent) => {
     if (
       typeof window != "undefined" &&
@@ -825,6 +844,21 @@ export function LeagueCalendarPageView({
                         </button>
                       ) : null}
                     </div>
+                    {!selectedDateHasItems && pastMonthLeagueEvents.length > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setShowPastMonthLeagueEvents(
+                            (currentValue) => !currentValue,
+                          )
+                        }
+                        className="text-left text-[11px] font-medium text-primary hover:underline"
+                      >
+                        {showPastMonthLeagueEvents
+                          ? "Ocultar eventos passados"
+                          : `Exibir ${pastMonthLeagueEvents.length} evento(s) passado(s)`}
+                      </button>
+                    ) : null}
                     {mobileVisibleEvents.length == 0 &&
                     mobileVisibleHolidays.length == 0 ? (
                       <div className="flex min-h-20 items-center justify-center">

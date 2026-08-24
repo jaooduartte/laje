@@ -82,6 +82,10 @@ import {
   resolveLeagueEventOrganizerName,
   resolveLeagueEventOrganizerTeamIds,
 } from "@/domain/league-events/leagueEvent.helpers";
+import {
+  resolvePastLeagueEvents,
+  resolveVisibleLeagueEvents,
+} from "@/domain/league-events/leagueEventVisibility.utils";
 import type { LeagueEventFormValues } from "@/domain/league-events/leagueEvent.types";
 import { LEAGUE_EVENT_RESERVATION_REQUEST_STATUS_LABELS } from "@/domain/league-events/leagueEventReservation.types";
 import { LeagueEventSaveDTO } from "@/domain/league-events/LeagueEventSaveDTO";
@@ -249,6 +253,7 @@ export function AdminLeagueEvents({
   const [editingFormValues, setEditingFormValues] =
     useState<LeagueEventFormValues>(resolveDefaultFormValues());
   const [leagueEventSearch, setLeagueEventSearch] = useState("");
+  const [showPastLeagueEvents, setShowPastLeagueEvents] = useState(false);
   const [leagueEventTypeFilter, setLeagueEventTypeFilter] = useState<string>(
     ALL_LEAGUE_EVENT_TYPES_FILTER,
   );
@@ -398,6 +403,24 @@ export function AdminLeagueEvents({
   ]);
 
   const todayDateKey = format(new Date(), "yyyy-MM-dd");
+
+  useEffect(() => {
+    setShowPastLeagueEvents(false);
+  }, [selectedMonthDate]);
+
+  const pastFilteredLeagueEvents = useMemo(
+    () => resolvePastLeagueEvents(filteredLeagueEvents, todayDateKey),
+    [filteredLeagueEvents, todayDateKey],
+  );
+  const visibleFilteredLeagueEvents = useMemo(
+    () =>
+      resolveVisibleLeagueEvents(
+        filteredLeagueEvents,
+        todayDateKey,
+        showPastLeagueEvents,
+      ),
+    [filteredLeagueEvents, showPastLeagueEvents, todayDateKey],
+  );
 
   const monthControlClassName =
     "h-9 rounded-xl border border-transparent app-input-field text-secondary-foreground";
@@ -1170,12 +1193,23 @@ export function AdminLeagueEvents({
 
       <div className="flex items-center gap-3">
         <p className="whitespace-nowrap text-sm font-medium">Eventos do mês</p>
+        {pastFilteredLeagueEvents.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => setShowPastLeagueEvents((currentValue) => !currentValue)}
+            className="whitespace-nowrap text-xs font-medium text-primary hover:underline"
+          >
+            {showPastLeagueEvents
+              ? "Ocultar eventos passados"
+              : `Exibir ${pastFilteredLeagueEvents.length} evento(s) passado(s)`}
+          </button>
+        ) : null}
         <div className="h-px flex-1 bg-border/50" />
       </div>
 
       {!loading ? (
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-          {filteredLeagueEvents.map((leagueEvent) => {
+          {visibleFilteredLeagueEvents.map((leagueEvent) => {
             const organizerName = resolveLeagueEventOrganizerName(leagueEvent);
             const isPastLeagueEvent = leagueEvent.event_date < todayDateKey;
 
@@ -1262,9 +1296,11 @@ export function AdminLeagueEvents({
         </div>
       ) : null}
 
-      {!loading && filteredLeagueEvents.length == 0 ? (
+      {!loading && visibleFilteredLeagueEvents.length == 0 ? (
         <p className="text-sm text-muted-foreground">
-          Nenhum evento cadastrado para os filtros selecionados.
+          {pastFilteredLeagueEvents.length > 0
+            ? "Nenhum evento a partir de hoje para os filtros selecionados."
+            : "Nenhum evento cadastrado para os filtros selecionados."}
         </p>
       ) : null}
 

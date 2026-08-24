@@ -261,6 +261,7 @@ export enum AdminActionType {
 }
 
 export enum AdminLogResourceTable {
+  ADMIN_PROFILES = "public.admin_profiles",
   CHAMPIONSHIPS = "public.championships",
   SPORTS = "public.sports",
   TEAMS = "public.teams",

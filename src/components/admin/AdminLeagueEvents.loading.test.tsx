@@ -162,13 +162,17 @@ function buildTeam(overrides: Partial<Team> & Pick<Team, "id" | "name">): Team {
 function buildLeagueEvent(
   overrides: Partial<LeagueEvent> & Pick<LeagueEvent, "id" | "name">,
 ): LeagueEvent {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const defaultEventDate = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
+
   return {
     id: overrides.id,
     name: overrides.name,
     event_type: overrides.event_type ?? LeagueEventType.LAJE_EVENT,
     organizer_type: overrides.organizer_type ?? LeagueEventOrganizerType.LAJE,
     organizer_team_id: overrides.organizer_team_id ?? null,
-    event_date: overrides.event_date ?? "2026-08-12",
+    event_date: overrides.event_date ?? defaultEventDate,
     created_at: overrides.created_at ?? "2026-08-12T00:00:00.000Z",
     updated_at: overrides.updated_at ?? "2026-08-12T00:00:00.000Z",
     organizer_team: overrides.organizer_team ?? null,
@@ -394,7 +398,7 @@ describe("AdminLeagueEvents loading states", () => {
     });
   });
 
-  it("deixa os cards de eventos passados mais apagados sem afetar os futuros", () => {
+  it("oculta eventos passados até que sejam solicitados", () => {
     const formatLocalDate = (date: Date) => {
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -426,6 +430,13 @@ describe("AdminLeagueEvents loading states", () => {
 
     renderAdminLeagueEvents();
 
+    expect(screen.queryByText("Evento passado")).not.toBeInTheDocument();
+    expect(screen.getByText("Evento futuro")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Exibir 1 evento(s) passado(s)" }),
+    );
+
     const pastEventCard = screen
       .getByText("Evento passado")
       .closest(".list-item-card");
@@ -435,5 +446,8 @@ describe("AdminLeagueEvents loading states", () => {
 
     expect(pastEventCard).toHaveClass("opacity-70");
     expect(futureEventCard).not.toHaveClass("opacity-70");
+    expect(
+      screen.getByRole("button", { name: "Ocultar eventos passados" }),
+    ).toBeInTheDocument();
   });
 });
