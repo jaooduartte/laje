@@ -82,6 +82,9 @@ interface AdminPageViewProps {
   estimatedStartTimeByMatchId: Record<string, string>;
   matchesTabEstimatedStartTimeByMatchId: Record<string, string>;
   matchesFetching: boolean;
+  isControlFullQueueVisible?: boolean;
+  operationalIndividualSessionIds?: string[];
+  onControlFullQueueVisibleChange?: (isVisible: boolean) => void;
   matchesTabLoading?: boolean;
   matchesTabFetching: boolean;
   availableMatchSeasonYears: number[];
@@ -185,6 +188,9 @@ export function AdminPageView({
   estimatedStartTimeByMatchId,
   matchesTabEstimatedStartTimeByMatchId,
   matchesFetching,
+  isControlFullQueueVisible = false,
+  operationalIndividualSessionIds = [],
+  onControlFullQueueVisibleChange,
   matchesTabLoading = false,
   matchesTabFetching,
   availableMatchSeasonYears,
@@ -817,6 +823,9 @@ export function AdminPageView({
                 visualQueuePositionByMatchId={visualQueuePositionByMatchId}
                 estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
                 isFetchingMatches={matchesFetching}
+                isFullQueueVisible={isControlFullQueueVisible}
+                operationalIndividualSessionIds={operationalIndividualSessionIds}
+                onFullQueueVisibleChange={onControlFullQueueVisibleChange}
                 onRefetch={onRefetchMatches}
                 onRefetchChampionshipBracket={onRefetchChampionshipBracket}
                 canManageScoreboard={

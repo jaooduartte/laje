@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Award,
   Loader2,
@@ -182,6 +182,9 @@ export function AdminStandings({
     useState(false);
   const [individualDisqualificationOptions, setIndividualDisqualificationOptions] =
     useState<DisqualificationCompetitionOption[]>([]);
+  const individualDisqualificationOptionsCacheRef = useRef(
+    new Map<string, DisqualificationCompetitionOption[]>(),
+  );
   const [isDivisionMovementDialogOpen, setIsDivisionMovementDialogOpen] =
     useState(false);
   const [
@@ -227,6 +230,17 @@ export function AdminStandings({
     }
 
     let isMounted = true;
+    const cacheKey = `${selectedChampionship.id}:${selectedDisqualificationSeasonYear}`;
+    const cachedOptions = individualDisqualificationOptionsCacheRef.current.get(
+      cacheKey,
+    );
+
+    if (cachedOptions) {
+      setIndividualDisqualificationOptions(cachedOptions);
+      return () => {
+        isMounted = false;
+      };
+    }
 
     void fetchChampionshipIndividualSessions({
       championshipId: selectedChampionship.id,
@@ -241,17 +255,21 @@ export function AdminStandings({
           const response = await fetchChampionshipIndividualSessionParticipants(
             session.id,
           );
-          return [session, response.data] as const;
+          return [session, response] as const;
         }),
       );
 
-      if (!isMounted) {
+      if (
+        !isMounted ||
+        participantResponses.some(([, response]) => response.error != null)
+      ) {
         return;
       }
 
       const optionsByKey = new Map<string, DisqualificationCompetitionOption>();
 
-      participantResponses.forEach(([session, teams]) => {
+      participantResponses.forEach(([session, response]) => {
+        const teams = response.data;
         const key = [
           session.sport_id,
           session.naipe,
@@ -275,7 +293,9 @@ export function AdminStandings({
         optionsByKey.set(key, option);
       });
 
-      setIndividualDisqualificationOptions([...optionsByKey.values()]);
+      const options = [...optionsByKey.values()];
+      individualDisqualificationOptionsCacheRef.current.set(cacheKey, options);
+      setIndividualDisqualificationOptions(options);
     });
 
     return () => {
@@ -354,14 +374,6 @@ export function AdminStandings({
     championship: selectedChampionship,
     seasonYear: displayedSeasonYear,
   });
-  const {
-    usesDivisions: disqualificationUsesDivisions,
-    loading: disqualificationSeasonSettingsLoading,
-  } = useChampionshipSeasonRuntime({
-    championship: selectedChampionship,
-    seasonYear: selectedDisqualificationSeasonYear,
-  });
-
   const disqualificationSeasonYears = useMemo(() => {
     return [...new Set([selectedChampionshipSeasonYear, ...historyYears])]
       .filter((year): year is number => year != null)
@@ -922,7 +934,6 @@ export function AdminStandings({
 
   const disqualificationHasDivisions = useMemo(() => {
     if (
-      !disqualificationUsesDivisions ||
       disqualificationSportFilter == EMPTY_DISQUALIFICATION_FILTER ||
       disqualificationNaipeFilter == EMPTY_DISQUALIFICATION_FILTER
     ) {
@@ -941,7 +952,6 @@ export function AdminStandings({
     disqualificationCompetitionOptions,
     disqualificationNaipeFilter,
     disqualificationSportFilter,
-    disqualificationUsesDivisions,
   ]);
 
   const selectedDisqualificationCompetition = useMemo(() => {
@@ -2021,6 +2031,7 @@ export function AdminStandings({
                 <Select
                   value={disqualificationNaipeFilter}
                   onValueChange={setDisqualificationNaipeFilter}
+                  disabled={disqualificationNaipeOptions.length == 0}
                 >
                   <SelectTrigger
                     id="competition-disqualification-naipe"
@@ -2038,8 +2049,7 @@ export function AdminStandings({
                 </Select>
               </div>
 
-              {disqualificationHasDivisions &&
-              !disqualificationSeasonSettingsLoading ? (
+              {disqualificationHasDivisions ? (
                 <div className="space-y-2">
                   <label
                     className="text-sm font-medium text-foreground"
@@ -2069,7 +2079,7 @@ export function AdminStandings({
               ) : null}
 
               <div
-                className={`space-y-2 ${disqualificationHasDivisions && !disqualificationSeasonSettingsLoading ? "sm:col-span-2" : ""}`}
+                className={`space-y-2 ${disqualificationHasDivisions ? "sm:col-span-2" : ""}`}
               >
               <label
                 className="text-sm font-medium text-foreground"
@@ -2080,6 +2090,7 @@ export function AdminStandings({
               <Select
                 value={selectedDisqualificationTeamId}
                 onValueChange={setSelectedDisqualificationTeamId}
+                disabled={availableDisqualificationTeams.length == 0}
               >
                 <SelectTrigger
                   id="competition-disqualification-team"

@@ -22,6 +22,7 @@ interface UseChampionshipIndividualEventsOptions {
   sportId?: string | null;
   naipe?: MatchNaipe | null;
   division?: TeamDivision | null | undefined;
+  sessionIds?: string[];
   includeEntries?: boolean;
   includeAthletes?: boolean;
   includeEvents?: boolean;
@@ -36,12 +37,16 @@ export function useChampionshipIndividualEvents({
   sportId,
   naipe,
   division,
+  sessionIds,
   includeEntries = true,
   includeAthletes = false,
   includeEvents = true,
   includeStandings = true,
   enabled = true,
 }: UseChampionshipIndividualEventsOptions = {}) {
+  const normalizedSessionIdsKey =
+    sessionIds == null ? null : [...new Set(sessionIds)].sort().join(",");
+  const hasExplicitSessionIds = sessionIds != null;
   const [events, setEvents] = useState<ChampionshipIndividualEvent[]>([]);
   const [sessions, setSessions] = useState<ChampionshipIndividualSession[]>([]);
   const [athletes, setAthletes] = useState<ChampionshipAthlete[]>([]);
@@ -70,6 +75,11 @@ export function useChampionshipIndividualEvents({
     }
 
     setLoading(true);
+    const normalizedSessionIds = hasExplicitSessionIds
+      ? normalizedSessionIdsKey
+        ? normalizedSessionIdsKey.split(",")
+        : []
+      : undefined;
 
     const [eventsResponse, sessionsResponse, athletesResponse, standingsResponse] =
       await Promise.all([
@@ -84,6 +94,7 @@ export function useChampionshipIndividualEvents({
         championshipId,
         seasonYear,
         sportId: sportId ?? null,
+        sessionIds: normalizedSessionIds,
       }),
       includeAthletes
         ? fetchChampionshipAthletes({
@@ -160,6 +171,8 @@ export function useChampionshipIndividualEvents({
     includeStandings,
     naipe,
     seasonYear,
+    hasExplicitSessionIds,
+    normalizedSessionIdsKey,
     sportId,
     sportIds,
   ]);

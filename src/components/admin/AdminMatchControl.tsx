@@ -120,6 +120,9 @@ interface Props {
   visualQueuePositionByMatchId?: Record<string, number>;
   estimatedStartTimeByMatchId?: Record<string, string>;
   isFetchingMatches?: boolean;
+  isFullQueueVisible?: boolean;
+  operationalIndividualSessionIds?: string[];
+  onFullQueueVisibleChange?: (isVisible: boolean) => void;
   onRefetch: (options?: {
     showLoading?: boolean;
     showFetching?: boolean;
@@ -584,6 +587,9 @@ export function AdminMatchControl({
   visualQueuePositionByMatchId = {},
   estimatedStartTimeByMatchId = {},
   isFetchingMatches = false,
+  isFullQueueVisible: isFullQueueVisibleProp = false,
+  operationalIndividualSessionIds = [],
+  onFullQueueVisibleChange,
   onRefetch,
   onRefetchChampionshipBracket,
   canManageScoreboard,
@@ -646,7 +652,7 @@ export function AdminMatchControl({
   const [itemsPerPage, setItemsPerPage] = useState(
     DEFAULT_PAGINATION_ITEMS_PER_PAGE,
   );
-  const [isFullQueueVisible, setIsFullQueueVisible] = useState(false);
+  const [localIsFullQueueVisible, setLocalIsFullQueueVisible] = useState(false);
   const [sessionActionLoadingById, setSessionActionLoadingById] = useState<
     Record<string, boolean>
   >({});
@@ -654,6 +660,9 @@ export function AdminMatchControl({
     useState<Record<string, Team[]>>({});
   const [sessionParticipantsLoading, setSessionParticipantsLoading] =
     useState(false);
+  const isFullQueueVisible = onFullQueueVisibleChange
+    ? isFullQueueVisibleProp
+    : localIsFullQueueVisible;
 
   const hasCompletedInitialControlLoadRef = useRef(false);
   const [resultsDialogSessionId, setResultsDialogSessionId] = useState<
@@ -673,6 +682,7 @@ export function AdminMatchControl({
     Record<string, PersistedMatchControlDraftEntry>
   >(readPersistedMatchControlDraftByMatchId());
   const matchByIdRef = useRef<Record<string, Match>>({});
+  const onRefetchRef = useRef(onRefetch);
   const matchDraftByIdRef = useRef<Record<string, MatchControlDraft>>({});
   const canManageScoreboardRef = useRef(canManageScoreboard);
   const isSetRuleMatchRef = useRef<(match: Match) => boolean>(() => false);
@@ -699,6 +709,10 @@ export function AdminMatchControl({
   useEffect(() => {
     canManageScoreboardRef.current = canManageScoreboard;
   }, [canManageScoreboard]);
+
+  useEffect(() => {
+    onRefetchRef.current = onRefetch;
+  }, [onRefetch]);
 
   const persistMatchDraftInStorage = useCallback(
     (matchId: string, draft: MatchControlDraft) => {
@@ -973,6 +987,7 @@ export function AdminMatchControl({
     championshipId,
     seasonYear,
     sportIds: individualSportIds,
+    sessionIds: isFullQueueVisible ? undefined : operationalIndividualSessionIds,
     includeAthletes: resultsDialogSessionId != null,
     includeEntries: resultsDialogSessionId != null,
     includeEvents: resultsDialogSessionId != null,
@@ -1415,16 +1430,16 @@ export function AdminMatchControl({
       return;
     }
 
-    void onRefetch({ showFetching: true });
+    void onRefetchRef.current({ showFetching: true });
 
     const refetchConfirmationTimeout = setTimeout(() => {
-      void onRefetch({ showFetching: true });
+      void onRefetchRef.current({ showFetching: true });
     }, 400);
 
     return () => {
       clearTimeout(refetchConfirmationTimeout);
     };
-  }, [currentPage, itemsPerPage, onRefetch]);
+  }, [currentPage, itemsPerPage]);
 
   const getMatchDraft = useCallback(
     (match: Match) => {
@@ -2923,7 +2938,7 @@ export function AdminMatchControl({
     locationFilter,
   ]);
 
-  const operationalMatches = useMemo(() => {
+  const localOperationalMatches = useMemo(() => {
     const scheduledMatchesCountByCourtKey = new Map<string, number>();
 
     return sortedMatches.filter((match) => {
@@ -2951,7 +2966,7 @@ export function AdminMatchControl({
     });
   }, [sortedMatches]);
 
-  const operationalIndividualSessions = useMemo(() => {
+  const localOperationalIndividualSessions = useMemo(() => {
     const scheduledSessionsCountByCourtKey = new Map<string, number>();
 
     return visibleIndividualSessions.filter((session) => {
@@ -2959,10 +2974,7 @@ export function AdminMatchControl({
         return true;
       }
 
-      if (
-        session.status != "SCHEDULED" &&
-        session.status != "DRAFT"
-      ) {
+      if (session.status != "SCHEDULED" && session.status != "DRAFT") {
         return false;
       }
 
@@ -3018,10 +3030,14 @@ export function AdminMatchControl({
 
   const displayedMatches = isFullQueueVisible
     ? paginatedMatches
-    : operationalMatches;
+    : onFullQueueVisibleChange
+      ? sortedMatches
+      : localOperationalMatches;
   const displayedIndividualSessions = isFullQueueVisible
     ? paginatedIndividualSessions
-    : operationalIndividualSessions;
+    : onFullQueueVisibleChange
+      ? visibleIndividualSessions
+      : localOperationalIndividualSessions;
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -3402,7 +3418,11 @@ export function AdminMatchControl({
         <button
           type="button"
           onClick={() => {
-            setIsFullQueueVisible((currentValue) => !currentValue);
+            if (onFullQueueVisibleChange) {
+              onFullQueueVisibleChange(!isFullQueueVisible);
+            } else {
+              setLocalIsFullQueueVisible((currentValue) => !currentValue);
+            }
             setCurrentPage(1);
           }}
           className="text-[11px] font-medium text-primary hover:underline"

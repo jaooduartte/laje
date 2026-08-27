@@ -165,12 +165,18 @@ export async function fetchChampionshipIndividualSessions({
   seasonYear,
   sportId,
   status,
+  sessionIds,
 }: {
   championshipId?: string | null;
   seasonYear?: number | null;
   sportId?: string | null;
   status?: ChampionshipIndividualSessionStatus | null;
+  sessionIds?: string[];
 }): Promise<{ data: ChampionshipIndividualSession[]; error: Error | null }> {
+  if (sessionIds != null && sessionIds.length == 0) {
+    return { data: [], error: null };
+  }
+
   let query = supabaseLoose
     .from("championship_individual_sessions")
     .select("*, sports(*)")
@@ -187,6 +193,10 @@ export async function fetchChampionshipIndividualSessions({
 
   if (sportId) {
     query = query.eq("sport_id", sportId);
+  }
+
+  if (sessionIds != null) {
+    query = query.in("id", sessionIds);
   }
 
   if (status) {
