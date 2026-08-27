@@ -46,10 +46,6 @@ vi.mock("@/components/admin/AdminMatchControl", () => ({
   AdminMatchControl: () => <div data-testid="admin-control-mock" />,
 }));
 
-vi.mock("@/components/admin/AdminIndividualEvents", () => ({
-  AdminIndividualEvents: () => <div data-testid="admin-individual-events-mock" />,
-}));
-
 vi.mock("@/components/admin/AdminTeams", () => ({
   AdminTeams: () => <div data-testid="admin-teams-mock" />,
 }));
@@ -169,6 +165,9 @@ function buildChampionshipSport(): ChampionshipSport {
     points_win: 3,
     points_draw: 1,
     points_loss: 0,
+    walkover_winner_points: null,
+    awards_include_knockout_phase: false,
+    supports_individual_awards: false,
     created_at: "2026-03-01T00:00:00.000Z",
   };
 }
@@ -533,7 +532,7 @@ describe("AdminPageView tabs", () => {
     expect(screen.queryByRole("tab", { name: "Classificação" })).not.toBeInTheDocument();
   });
 
-  it("mantém Agenda e Provas Individuais visíveis sem abas operacionais em upcoming", () => {
+  it("mantém Agenda e remove Provas Individuais sem abas operacionais em upcoming", () => {
     const championship = buildChampionship({
       status: ChampionshipStatus.UPCOMING,
     });
@@ -570,7 +569,6 @@ describe("AdminPageView tabs", () => {
         canViewTeamsTab={false}
         canViewSportsTab={false}
         canViewEventsTab={false}
-        canViewIndividualEventsTab
         canViewLinksTab={false}
         canViewLogsTab={false}
         canViewUsersTab={false}
@@ -590,12 +588,11 @@ describe("AdminPageView tabs", () => {
         canManageTeams={false}
         canManageSports={false}
         canManageLeagueEvents={false}
-        canManageIndividualEvents={false}
         canManageLinks={false}
         canManageUsers={false}
         canManageAccount={false}
         canManageSettings={false}
-        activeTab={AdminPanelTab.INDIVIDUAL_EVENTS}
+        activeTab={AdminPanelTab.CHAMPIONSHIP_SCHEDULE}
         onActiveTabChange={() => undefined}
         onBracketGenerated={async () => undefined}
         updatingChampionshipStatus={false}
@@ -619,7 +616,7 @@ describe("AdminPageView tabs", () => {
     expect(screen.queryByRole("tab", { name: "Sorteios" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Classificação" })).not.toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Reprogramar agenda" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Provas Individuais" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Provas Individuais" })).not.toBeInTheDocument();
   });
 
   it("limpa a aba ativa quando uma aba operacional deixa de existir", () => {
@@ -660,7 +657,6 @@ describe("AdminPageView tabs", () => {
         canViewTeamsTab
         canViewSportsTab={false}
         canViewEventsTab={false}
-        canViewIndividualEventsTab={false}
         canViewLinksTab={false}
         canViewLogsTab={false}
         canViewUsersTab={false}
@@ -680,7 +676,6 @@ describe("AdminPageView tabs", () => {
         canManageTeams={false}
         canManageSports={false}
         canManageLeagueEvents={false}
-        canManageIndividualEvents={false}
         canManageLinks={false}
         canManageUsers={false}
         canManageAccount={false}

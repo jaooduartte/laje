@@ -70,6 +70,19 @@ export interface SaveChampionshipIndividualEventResultInput {
   result_mark_centimeters: number | null;
 }
 
+export interface SaveChampionshipIndividualLiveEntryInput {
+  entry_id?: string | null;
+  team_id: string;
+  athlete_id?: string | null;
+  starter_athlete_ids?: string[];
+  lane_number: number;
+  status: ChampionshipIndividualEntryStatus;
+  result_time_milliseconds: number | null;
+  attempt_one_centimeters: number | null;
+  attempt_two_centimeters: number | null;
+  attempt_three_centimeters: number | null;
+}
+
 export interface SaveChampionshipIndividualSessionInput {
   sessionId: string;
   scheduledDate: string | null;
@@ -152,12 +165,18 @@ export async function fetchChampionshipIndividualSessions({
   seasonYear,
   sportId,
   status,
+  sessionIds,
 }: {
   championshipId?: string | null;
   seasonYear?: number | null;
   sportId?: string | null;
   status?: ChampionshipIndividualSessionStatus | null;
+  sessionIds?: string[];
 }): Promise<{ data: ChampionshipIndividualSession[]; error: Error | null }> {
+  if (sessionIds != null && sessionIds.length == 0) {
+    return { data: [], error: null };
+  }
+
   let query = supabaseLoose
     .from("championship_individual_sessions")
     .select("*, sports(*)")
@@ -174,6 +193,10 @@ export async function fetchChampionshipIndividualSessions({
 
   if (sportId) {
     query = query.eq("sport_id", sportId);
+  }
+
+  if (sessionIds != null) {
+    query = query.in("id", sessionIds);
   }
 
   if (status) {
@@ -415,6 +438,16 @@ export async function saveChampionshipIndividualEventResults(
   return supabaseLoose.rpc("save_championship_individual_event_results", {
     _event_id: eventId,
     _results: results,
+  });
+}
+
+export async function saveChampionshipIndividualEventLiveResults(
+  eventId: string,
+  entries: SaveChampionshipIndividualLiveEntryInput[],
+) {
+  return supabaseLoose.rpc("save_championship_individual_event_live_results", {
+    _event_id: eventId,
+    _entries: entries,
   });
 }
 

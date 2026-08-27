@@ -22,6 +22,11 @@ interface UseChampionshipIndividualEventsOptions {
   sportId?: string | null;
   naipe?: MatchNaipe | null;
   division?: TeamDivision | null | undefined;
+  sessionIds?: string[];
+  includeEntries?: boolean;
+  includeAthletes?: boolean;
+  includeEvents?: boolean;
+  includeStandings?: boolean;
   enabled?: boolean;
 }
 
@@ -32,8 +37,16 @@ export function useChampionshipIndividualEvents({
   sportId,
   naipe,
   division,
+  sessionIds,
+  includeEntries = true,
+  includeAthletes = false,
+  includeEvents = true,
+  includeStandings = true,
   enabled = true,
 }: UseChampionshipIndividualEventsOptions = {}) {
+  const normalizedSessionIdsKey =
+    sessionIds == null ? null : [...new Set(sessionIds)].sort().join(",");
+  const hasExplicitSessionIds = sessionIds != null;
   const [events, setEvents] = useState<ChampionshipIndividualEvent[]>([]);
   const [sessions, setSessions] = useState<ChampionshipIndividualSession[]>([]);
   const [athletes, setAthletes] = useState<ChampionshipAthlete[]>([]);
@@ -62,35 +75,43 @@ export function useChampionshipIndividualEvents({
     }
 
     setLoading(true);
+    const normalizedSessionIds = hasExplicitSessionIds
+      ? normalizedSessionIdsKey
+        ? normalizedSessionIdsKey.split(",")
+        : []
+      : undefined;
 
-    const [
-      eventsResponse,
-      sessionsResponse,
-      athletesResponse,
-      standingsResponse,
-    ] = await Promise.all([
-      fetchChampionshipIndividualEvents({
-        championshipId,
-        seasonYear,
-        sportId: sportId ?? null,
-      }),
+    const [eventsResponse, sessionsResponse, athletesResponse, standingsResponse] =
+      await Promise.all([
+      includeEvents
+        ? fetchChampionshipIndividualEvents({
+            championshipId,
+            seasonYear,
+            sportId: sportId ?? null,
+          })
+        : Promise.resolve({ data: [], error: null }),
       fetchChampionshipIndividualSessions({
         championshipId,
         seasonYear,
         sportId: sportId ?? null,
+        sessionIds: normalizedSessionIds,
       }),
-      fetchChampionshipAthletes({
-        championshipId,
-        seasonYear,
-        sportIds,
-      }),
-      fetchChampionshipIndividualTeamStandings({
-        championshipId,
-        seasonYear,
-        sportId: sportId ?? null,
-        naipe,
-        division,
-      }),
+      includeAthletes
+        ? fetchChampionshipAthletes({
+            championshipId,
+            seasonYear,
+            sportIds,
+          })
+        : Promise.resolve({ data: [], error: null }),
+      includeStandings
+        ? fetchChampionshipIndividualTeamStandings({
+            championshipId,
+            seasonYear,
+            sportId: sportId ?? null,
+            naipe,
+            division,
+          })
+        : Promise.resolve({ data: [], error: null }),
     ]);
 
     if (
@@ -116,9 +137,9 @@ export function useChampionshipIndividualEvents({
     }
 
     const eventIds = eventsResponse.data.map((event) => event.id);
-    const entriesResponse = await fetchChampionshipIndividualEventEntries({
-      eventIds,
-    });
+    const entriesResponse = includeEntries
+      ? await fetchChampionshipIndividualEventEntries({ eventIds })
+      : { data: [], error: null };
 
     if (entriesResponse.error) {
       console.error(
@@ -140,7 +161,21 @@ export function useChampionshipIndividualEvents({
     setEntries(entriesResponse.data);
     setStandings(standingsResponse.data);
     setLoading(false);
-  }, [championshipId, division, naipe, enabled, seasonYear, sportId, sportIds]);
+  }, [
+    championshipId,
+    division,
+    enabled,
+    includeAthletes,
+    includeEntries,
+    includeEvents,
+    includeStandings,
+    naipe,
+    seasonYear,
+    hasExplicitSessionIds,
+    normalizedSessionIdsKey,
+    sportId,
+    sportIds,
+  ]);
 
   useEffect(() => {
     if (!enabled) {

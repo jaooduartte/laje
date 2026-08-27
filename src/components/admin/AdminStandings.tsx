@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Award,
   Loader2,
@@ -34,6 +34,10 @@ import { useChampionshipBracketHistory } from "@/hooks/useChampionshipBracketHis
 import { useCompetitionTeamDisqualifications } from "@/hooks/useCompetitionTeamDisqualifications";
 import { useChampionshipSeasonRuntime } from "@/hooks/useChampionshipSeasonRuntime";
 import { useInterlajeOverallStandings } from "@/hooks/useInterlajeOverallStandings";
+import {
+  fetchChampionshipIndividualSessionParticipants,
+  fetchChampionshipIndividualSessions,
+} from "@/domain/individual-events/championshipIndividualEvents.repository";
 import {
   resolveInterlajeOverallPendingTieBreakTeamIds,
   resolveInterlajeOverallStandingAggregates,
@@ -89,6 +93,7 @@ import type {
   ChampionshipSport,
   CompetitionTeamDisqualification,
   Sport,
+  Team,
 } from "@/lib/types";
 import { SportFilter } from "@/components/SportFilter";
 
@@ -100,7 +105,16 @@ interface Props {
   availableSeasonYears?: number[];
   onRefetchTeams?: () => void | Promise<void>;
   canManageStandings?: boolean;
+  canManageDisqualifications?: boolean;
   overallStandingsRefreshKey?: number;
+}
+
+interface DisqualificationCompetitionOption {
+  sport_id: string;
+  sport_name: string;
+  naipe: MatchNaipe;
+  division: TeamDivision | null;
+  teams: Array<{ team_id: string; team_name: string }>;
 }
 
 const ALL_SPORTS_FILTER = "all";
@@ -141,6 +155,7 @@ export function AdminStandings({
   availableSeasonYears = [],
   onRefetchTeams = () => {},
   canManageStandings = true,
+  canManageDisqualifications = canManageStandings,
   overallStandingsRefreshKey = 0,
 }: Props) {
   const { user } = useAuth();
@@ -165,6 +180,11 @@ export function AdminStandings({
     useState<string>("");
   const [isSavingDisqualification, setIsSavingDisqualification] =
     useState(false);
+  const [individualDisqualificationOptions, setIndividualDisqualificationOptions] =
+    useState<DisqualificationCompetitionOption[]>([]);
+  const individualDisqualificationOptionsCacheRef = useRef(
+    new Map<string, DisqualificationCompetitionOption[]>(),
+  );
   const [isDivisionMovementDialogOpen, setIsDivisionMovementDialogOpen] =
     useState(false);
   const [
@@ -202,6 +222,90 @@ export function AdminStandings({
     const parsedYear = Number(disqualificationYearFilter);
     return Number.isFinite(parsedYear) ? parsedYear : null;
   }, [disqualificationYearFilter]);
+
+  useEffect(() => {
+    if (!isDisqualificationDialogOpen || selectedDisqualificationSeasonYear == null) {
+      setIndividualDisqualificationOptions([]);
+      return;
+    }
+
+    let isMounted = true;
+    const cacheKey = `${selectedChampionship.id}:${selectedDisqualificationSeasonYear}`;
+    const cachedOptions = individualDisqualificationOptionsCacheRef.current.get(
+      cacheKey,
+    );
+
+    if (cachedOptions) {
+      setIndividualDisqualificationOptions(cachedOptions);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    void fetchChampionshipIndividualSessions({
+      championshipId: selectedChampionship.id,
+      seasonYear: selectedDisqualificationSeasonYear,
+    }).then(async (sessionsResponse) => {
+      if (sessionsResponse.error || !isMounted) {
+        return;
+      }
+
+      const participantResponses = await Promise.all(
+        sessionsResponse.data.map(async (session) => {
+          const response = await fetchChampionshipIndividualSessionParticipants(
+            session.id,
+          );
+          return [session, response] as const;
+        }),
+      );
+
+      if (
+        !isMounted ||
+        participantResponses.some(([, response]) => response.error != null)
+      ) {
+        return;
+      }
+
+      const optionsByKey = new Map<string, DisqualificationCompetitionOption>();
+
+      participantResponses.forEach(([session, response]) => {
+        const teams = response.data;
+        const key = [
+          session.sport_id,
+          session.naipe,
+          session.division ?? "WITHOUT_DIVISION",
+        ].join(":");
+        const option = optionsByKey.get(key) ?? {
+          sport_id: session.sport_id,
+          sport_name: session.sports?.name ?? "Modalidade",
+          naipe: session.naipe,
+          division: session.division,
+          teams: [],
+        };
+        const existingTeamIds = new Set(option.teams.map((team) => team.team_id));
+
+        teams.forEach((team: Team) => {
+          if (!existingTeamIds.has(team.id)) {
+            option.teams.push({ team_id: team.id, team_name: team.name });
+          }
+        });
+
+        optionsByKey.set(key, option);
+      });
+
+      const options = [...optionsByKey.values()];
+      individualDisqualificationOptionsCacheRef.current.set(cacheKey, options);
+      setIndividualDisqualificationOptions(options);
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    isDisqualificationDialogOpen,
+    selectedChampionship.id,
+    selectedDisqualificationSeasonYear,
+  ]);
 
   const seasonYearsForBracketHistory = useMemo(() => {
     return [
@@ -270,7 +374,6 @@ export function AdminStandings({
     championship: selectedChampionship,
     seasonYear: displayedSeasonYear,
   });
-
   const disqualificationSeasonYears = useMemo(() => {
     return [...new Set([selectedChampionshipSeasonYear, ...historyYears])]
       .filter((year): year is number => year != null)
@@ -754,8 +857,20 @@ export function AdminStandings({
   ]);
 
   const disqualificationCompetitionOptions = useMemo(() => {
-    return disqualificationBracketView.competitions;
-  }, [disqualificationBracketView.competitions]);
+    const collectiveOptions: DisqualificationCompetitionOption[] =
+      disqualificationBracketView.competitions.map((competition) => ({
+        sport_id: competition.sport_id,
+        sport_name: competition.sport_name,
+        naipe: competition.naipe,
+        division: competition.division,
+        teams: competition.groups.flatMap((group) => group.teams),
+      }));
+
+    return [...collectiveOptions, ...individualDisqualificationOptions];
+  }, [
+    disqualificationBracketView.competitions,
+    individualDisqualificationOptions,
+  ]);
 
   const disqualificationSportOptions = useMemo(() => {
     const uniqueSports = new Map<string, string>();
@@ -817,6 +932,28 @@ export function AdminStandings({
     disqualificationSportFilter,
   ]);
 
+  const disqualificationHasDivisions = useMemo(() => {
+    if (
+      disqualificationSportFilter == EMPTY_DISQUALIFICATION_FILTER ||
+      disqualificationNaipeFilter == EMPTY_DISQUALIFICATION_FILTER
+    ) {
+      return false;
+    }
+
+    return (
+      disqualificationCompetitionOptions.some(
+        (competition) =>
+          competition.sport_id == disqualificationSportFilter &&
+          competition.naipe == disqualificationNaipeFilter &&
+          competition.division != null,
+      )
+    );
+  }, [
+    disqualificationCompetitionOptions,
+    disqualificationNaipeFilter,
+    disqualificationSportFilter,
+  ]);
+
   const selectedDisqualificationCompetition = useMemo(() => {
     if (
       disqualificationSportFilter == EMPTY_DISQUALIFICATION_FILTER ||
@@ -834,7 +971,7 @@ export function AdminStandings({
           return false;
         }
 
-        if (!championshipUsesDivisions) {
+        if (!disqualificationHasDivisions) {
           return true;
         }
 
@@ -846,7 +983,7 @@ export function AdminStandings({
     disqualificationDivisionFilter,
     disqualificationNaipeFilter,
     disqualificationSportFilter,
-    championshipUsesDivisions,
+    disqualificationHasDivisions,
   ]);
 
   const selectedCompetitionDisqualifications = useMemo(() => {
@@ -876,8 +1013,7 @@ export function AdminStandings({
       ),
     );
 
-    return selectedDisqualificationCompetition.groups
-      .flatMap((group) => group.teams)
+    return selectedDisqualificationCompetition.teams
       .filter((team, teamIndex, teams) => {
         if (disqualifiedTeamIds.has(team.team_id)) {
           return false;
@@ -1029,7 +1165,7 @@ export function AdminStandings({
   }, [disqualificationNaipeFilter, disqualificationNaipeOptions]);
 
   useEffect(() => {
-    if (!championshipUsesDivisions) {
+    if (!disqualificationHasDivisions) {
       if (disqualificationDivisionFilter != EMPTY_DISQUALIFICATION_FILTER) {
         setDisqualificationDivisionFilter(EMPTY_DISQUALIFICATION_FILTER);
       }
@@ -1053,7 +1189,7 @@ export function AdminStandings({
   }, [
     disqualificationDivisionFilter,
     disqualificationDivisionOptions,
-    championshipUsesDivisions,
+    disqualificationHasDivisions,
   ]);
 
   useEffect(() => {
@@ -1159,7 +1295,7 @@ export function AdminStandings({
   }, [naipeFilter, sportFilter, sports]);
 
   function handleOpenDisqualificationDialog() {
-    if (!canManageStandings) {
+    if (!canManageDisqualifications) {
       return;
     }
     const fallbackYear =
@@ -1227,7 +1363,7 @@ export function AdminStandings({
 
   async function handleConfirmDisqualification() {
     if (
-      !canManageStandings ||
+      !canManageDisqualifications ||
       !selectedDisqualificationCompetition ||
       selectedDisqualificationSeasonYear == null ||
       !selectedDisqualificationTeamId ||
@@ -1345,7 +1481,7 @@ export function AdminStandings({
 
   return (
     <div className="space-y-6">
-      {canManageStandings ? (
+      {canManageStandings || canManageDisqualifications ? (
         <div className="glass-card enter-section flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-foreground">
@@ -1358,7 +1494,7 @@ export function AdminStandings({
           </div>
 
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-          {canPreviewDivisionMovements ? (
+          {canManageStandings && canPreviewDivisionMovements ? (
             <Button
               type="button"
               variant="outline"
@@ -1380,14 +1516,16 @@ export function AdminStandings({
             </Button>
           ) : null}
 
-          <Button
-            type="button"
-            className="w-full sm:w-auto"
-            onClick={handleOpenDisqualificationDialog}
-          >
-            <ShieldAlert className="h-4 w-4" />
-            Desclassificar atlética
-          </Button>
+          {canManageDisqualifications ? (
+            <Button
+              type="button"
+              className="w-full sm:w-auto"
+              onClick={handleOpenDisqualificationDialog}
+            >
+              <ShieldAlert className="h-4 w-4" />
+              Desclassificar atlética
+            </Button>
+          ) : null}
         </div>
         </div>
       ) : null}
@@ -1510,6 +1648,7 @@ export function AdminStandings({
           <IndividualSportStandingsTable
             standings={filteredIndividualStandingsRows}
             isLoading={isLoading}
+            disqualifiedTeamKeys={visibleCompetitionDisqualifiedTeamKeys}
           />
         ) : (
           <TeamStandingsTable
@@ -1812,16 +1951,16 @@ export function AdminStandings({
           <DialogHeader>
             <DialogTitle>Desclassificar atlética da competição</DialogTitle>
             <DialogDescription>
-              Todos os jogos já agendados, ao vivo ou encerrados dessa
-              competição passam a valer W.O. para o adversário.
+              Jogos coletivos passam a valer W.O. para o adversário. Em provas
+              individuais, os registros da atlética são desclassificados e não
+              pontuam.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
             <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 text-sm text-muted-foreground">
               A atlética continua visível na classificação, sempre em último,
-              com badge de desclassificada. A ação não tem reversão nesta
-              versão.
+              com badge de desclassificada. A ação não tem reversão nesta versão.
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -1892,6 +2031,7 @@ export function AdminStandings({
                 <Select
                   value={disqualificationNaipeFilter}
                   onValueChange={setDisqualificationNaipeFilter}
+                  disabled={disqualificationNaipeOptions.length == 0}
                 >
                   <SelectTrigger
                     id="competition-disqualification-naipe"
@@ -1909,7 +2049,7 @@ export function AdminStandings({
                 </Select>
               </div>
 
-              {championshipUsesDivisions ? (
+              {disqualificationHasDivisions ? (
                 <div className="space-y-2">
                   <label
                     className="text-sm font-medium text-foreground"
@@ -1937,9 +2077,10 @@ export function AdminStandings({
                   </Select>
                 </div>
               ) : null}
-            </div>
 
-            <div className="space-y-2">
+              <div
+                className={`space-y-2 ${disqualificationHasDivisions ? "sm:col-span-2" : ""}`}
+              >
               <label
                 className="text-sm font-medium text-foreground"
                 htmlFor="competition-disqualification-team"
@@ -1949,6 +2090,7 @@ export function AdminStandings({
               <Select
                 value={selectedDisqualificationTeamId}
                 onValueChange={setSelectedDisqualificationTeamId}
+                disabled={availableDisqualificationTeams.length == 0}
               >
                 <SelectTrigger
                   id="competition-disqualification-team"
@@ -1964,17 +2106,7 @@ export function AdminStandings({
                   ))}
                 </SelectContent>
               </Select>
-              {selectedDisqualificationCompetition == null ? (
-                <p className="text-xs text-muted-foreground">
-                  Selecione o recorte da competição para carregar as atléticas
-                  participantes.
-                </p>
-              ) : availableDisqualificationTeams.length == 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  Todas as atléticas dessa competição já foram desclassificadas
-                  ou não há participantes disponíveis.
-                </p>
-              ) : null}
+            </div>
             </div>
           </div>
 

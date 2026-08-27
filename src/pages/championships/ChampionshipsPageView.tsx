@@ -450,6 +450,7 @@ export function ChampionshipsPageView({
                     <IndividualSportStandingsTable
                       standings={individualStandingsRows}
                       isLoading={isStandingsLoading}
+                      disqualifiedTeamKeys={disqualifiedTeamKeys}
                     />
                   ) : (
                     <TeamStandingsTable
@@ -504,16 +505,20 @@ export function ChampionshipsPageView({
                                         {entry.teams?.name ?? "-"}
                                       </p>
                                       <p className="text-xs text-muted-foreground">
-                                        {entry.athlete_name ??
-                                          entry.members
-                                            ?.filter(
-                                              (member) => member.is_starter,
-                                            )
-                                            .map(
-                                              (member) => member.athlete_name,
-                                            )
-                                            .join(", ") ??
-                                          "-"}
+                                        {[
+                                          entry.athlete_name ??
+                                            entry.members
+                                              ?.filter(
+                                                (member) => member.is_starter,
+                                              )
+                                              .map(
+                                                (member) => member.athlete_name,
+                                              )
+                                              .join(", "),
+                                          entry.lane_number
+                                            ? `Raia ${entry.lane_number}`
+                                            : null,
+                                        ].filter(Boolean).join(" • ") || "-"}
                                       </p>
                                     </div>
                                     <div className="text-right">

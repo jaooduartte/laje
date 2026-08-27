@@ -59,6 +59,21 @@ describe("championshipSeason", () => {
     expect(resolvedSettings.division_settlement_mode).toBe(ChampionshipSeasonDivisionSettlementMode.NONE);
   });
 
+  it("mantém o padrão de divisão do Interlaje sem configuração sazonal", () => {
+    const resolvedSettings = resolveEffectiveChampionshipSeasonSettings({
+      championship: {
+        code: ChampionshipCode.INTERLAJE,
+        uses_divisions: true,
+      },
+      seasonSettings: null,
+    });
+
+    expect(resolvedSettings.division_format).toBe(ChampionshipSeasonDivisionFormat.SEPARATED);
+    expect(resolvedSettings.division_settlement_mode).toBe(
+      ChampionshipSeasonDivisionSettlementMode.PROMOTION_RELEGATION,
+    );
+  });
+
   it("aplica correção de pontos no ranking geral oficial", () => {
     const standings = [
       buildStanding({

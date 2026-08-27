@@ -103,9 +103,16 @@ export function resolveChampionshipUsesSeasonDivisions({
     return false;
   }
 
+  if (seasonSettings) {
+    return (
+      seasonSettings.division_format ==
+      ChampionshipSeasonDivisionFormat.SEPARATED
+    );
+  }
+
   return resolveEffectiveChampionshipSeasonSettings({
     championship: championship ?? null,
-    seasonSettings: seasonSettings ?? null,
+    seasonSettings: null,
   }).division_format == ChampionshipSeasonDivisionFormat.SEPARATED;
 }
 

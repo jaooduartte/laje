@@ -14,7 +14,6 @@ import { useOnlineVisitorsProviderContext } from "@/components/online-visitors/O
 import { AdminTeams } from "@/components/admin/AdminTeams";
 import { AdminSports } from "@/components/admin/AdminSports";
 import { AdminMatches } from "@/components/admin/AdminMatches";
-import { AdminIndividualEvents } from "@/components/admin/AdminIndividualEvents";
 import { AdminMatchesViewMode } from "@/components/admin/adminMatches.types";
 import { AdminMatchControl } from "@/components/admin/AdminMatchControl";
 import { AdminLeagueEvents } from "@/components/admin/AdminLeagueEvents";
@@ -62,13 +61,13 @@ interface AdminPageViewProps {
   selectedChampionshipCode: ChampionshipCode;
   matches: Match[];
   matchesTabMatches: Match[];
-  initialOperationalLoading: boolean;
+  initialOperationalLoading?: boolean;
   teams: Team[];
   allTeams: Team[];
-  allTeamsLoading: boolean;
+  allTeamsLoading?: boolean;
   sports: Sport[];
   championshipSports: ChampionshipSport[];
-  sportsLoading: boolean;
+  sportsLoading?: boolean;
   liveAndScheduledMatches: Match[];
   championshipBracketView: ChampionshipBracketView;
   matchesTabChampionshipBracketView: ChampionshipBracketView;
@@ -83,7 +82,10 @@ interface AdminPageViewProps {
   estimatedStartTimeByMatchId: Record<string, string>;
   matchesTabEstimatedStartTimeByMatchId: Record<string, string>;
   matchesFetching: boolean;
-  matchesTabLoading: boolean;
+  isControlFullQueueVisible?: boolean;
+  operationalIndividualSessionIds?: string[];
+  onControlFullQueueVisibleChange?: (isVisible: boolean) => void;
+  matchesTabLoading?: boolean;
   matchesTabFetching: boolean;
   availableMatchSeasonYears: number[];
   selectedMatchesSeasonYear: number | null;
@@ -93,7 +95,6 @@ interface AdminPageViewProps {
   canViewTeamsTab: boolean;
   canViewSportsTab: boolean;
   canViewEventsTab: boolean;
-  canViewIndividualEventsTab?: boolean;
   canViewLinksTab: boolean;
   canViewLogsTab: boolean;
   canViewUsersTab: boolean;
@@ -114,12 +115,12 @@ interface AdminPageViewProps {
   canManageTeams: boolean;
   canManageSports: boolean;
   canManageLeagueEvents: boolean;
-  canManageIndividualEvents?: boolean;
   canManageLinks: boolean;
   canManageUsers: boolean;
   canManageAccount: boolean;
   canManageSettings: boolean;
   canManageStandings?: boolean;
+  canManageDisqualifications?: boolean;
   canManageOpeningCeremonyBonus?: boolean;
   activeTab: string;
   onActiveTabChange: (tab: string) => void;
@@ -140,9 +141,9 @@ interface AdminPageViewProps {
   liveMatchesCount: number;
   pendingLeagueEventReservationsCount: number;
   pendingTieBreaksCount: number;
-  pendingAwardDrawContexts: AwardDrawPendingContext[];
-  loadingPendingAwardDraws: boolean;
-  refetchPendingAwardDraws: () => void | Promise<void>;
+  pendingAwardDrawContexts?: AwardDrawPendingContext[];
+  loadingPendingAwardDraws?: boolean;
+  refetchPendingAwardDraws?: () => void | Promise<void>;
   onInterlajeOpeningCeremonyBonusSaved?: () => void;
   interlajeOverallStandingsRefreshKey?: number;
 }
@@ -166,13 +167,13 @@ export function AdminPageView({
   selectedChampionshipCode,
   matches,
   matchesTabMatches,
-  initialOperationalLoading,
+  initialOperationalLoading = false,
   teams,
   allTeams,
-  allTeamsLoading,
+  allTeamsLoading = false,
   sports,
   championshipSports,
-  sportsLoading,
+  sportsLoading = false,
   liveAndScheduledMatches,
   championshipBracketView,
   matchesTabChampionshipBracketView,
@@ -187,7 +188,10 @@ export function AdminPageView({
   estimatedStartTimeByMatchId,
   matchesTabEstimatedStartTimeByMatchId,
   matchesFetching,
-  matchesTabLoading,
+  isControlFullQueueVisible = false,
+  operationalIndividualSessionIds = [],
+  onControlFullQueueVisibleChange,
+  matchesTabLoading = false,
   matchesTabFetching,
   availableMatchSeasonYears,
   selectedMatchesSeasonYear,
@@ -197,7 +201,6 @@ export function AdminPageView({
   canViewTeamsTab,
   canViewSportsTab,
   canViewEventsTab,
-  canViewIndividualEventsTab = false,
   canViewLinksTab,
   canViewLogsTab,
   canViewUsersTab,
@@ -218,12 +221,12 @@ export function AdminPageView({
   canManageTeams,
   canManageSports,
   canManageLeagueEvents,
-  canManageIndividualEvents = false,
   canManageLinks,
   canManageUsers,
   canManageAccount,
   canManageSettings,
   canManageStandings = false,
+  canManageDisqualifications = false,
   canManageOpeningCeremonyBonus = false,
   activeTab,
   onActiveTabChange,
@@ -308,13 +311,6 @@ export function AdminPageView({
       });
     }
 
-    if (canViewIndividualEventsTab) {
-      nextAdminTabItems.push({
-        value: AdminPanelTab.INDIVIDUAL_EVENTS,
-        label: "Provas Individuais",
-      });
-    }
-
     if (canViewTeamsTab) {
       nextAdminTabItems.push({
         value: AdminPanelTab.TEAMS,
@@ -383,7 +379,6 @@ export function AdminPageView({
     canViewScheduleTab,
     canViewControlTab,
     canViewEventsTab,
-    canViewIndividualEventsTab,
     canViewLinksTab,
     canViewLogsTab,
     canViewMatchesTab,
@@ -754,9 +749,6 @@ export function AdminPageView({
                 onOpenTieBreaksTab={() =>
                   onActiveTabChange(TIE_BREAKS_TAB_VALUE)
                 }
-                onOpenIndividualEventsTab={() =>
-                  onActiveTabChange(AdminPanelTab.INDIVIDUAL_EVENTS)
-                }
               />
             </TabsContent>
           ) : null}
@@ -831,6 +823,9 @@ export function AdminPageView({
                 visualQueuePositionByMatchId={visualQueuePositionByMatchId}
                 estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
                 isFetchingMatches={matchesFetching}
+                isFullQueueVisible={isControlFullQueueVisible}
+                operationalIndividualSessionIds={operationalIndividualSessionIds}
+                onFullQueueVisibleChange={onControlFullQueueVisibleChange}
                 onRefetch={onRefetchMatches}
                 onRefetchChampionshipBracket={onRefetchChampionshipBracket}
                 canManageScoreboard={
@@ -850,6 +845,7 @@ export function AdminPageView({
                 availableSeasonYears={availableMatchSeasonYears}
                 onRefetchTeams={onRefetchTeams}
                 canManageStandings={canManageStandings}
+                canManageDisqualifications={canManageDisqualifications}
                 overallStandingsRefreshKey={interlajeOverallStandingsRefreshKey}
               />
             </TabsContent>
@@ -863,18 +859,6 @@ export function AdminPageView({
                 loadingTeams={allTeamsLoading}
                 canManageOpeningCeremonyBonus={canManageOpeningCeremonyBonus}
                 onSaved={onInterlajeOpeningCeremonyBonusSaved}
-              />
-            </TabsContent>
-          ) : null}
-
-          {canViewIndividualEventsTab ? (
-            <TabsContent value={AdminPanelTab.INDIVIDUAL_EVENTS}>
-              <AdminIndividualEvents
-                selectedChampionship={selectedChampionship}
-                sports={sports}
-                teams={allTeams}
-                canManageIndividualEvents={canManageIndividualEvents}
-                usesDivisions={selectedChampionshipHasSeasonDivisions}
               />
             </TabsContent>
           ) : null}
