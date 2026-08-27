@@ -62,7 +62,9 @@ const {
       division: string | null;
     }>;
   },
-  teamStandingsTableMock: vi.fn(() => <div>Standings table</div>),
+  teamStandingsTableMock: vi.fn((_props: Record<string, unknown>) => (
+    <div>Standings table</div>
+  )),
   interlajeOverallStandingsState: {
     current: {
       standings: [],
@@ -147,15 +149,18 @@ vi.mock("@/hooks/useCompetitionTeamDisqualifications", () => ({
 }));
 
 vi.mock("@/hooks/useChampionshipSeasonRuntime", () => ({
-  useChampionshipSeasonRuntime: () => ({
+  useChampionshipSeasonRuntime: ({ championship }: { championship?: Championship }) => ({
     resolvedSeasonSettings: {
-      division_format: "SEPARATED",
+      division_format:
+        championship?.code == ChampionshipCode.INTERLAJE
+          ? "UNIFIED"
+          : "SEPARATED",
       division_settlement_mode: "NONE",
       principal_slots_count: null,
       principal_relegation_count: null,
       access_promotion_count: null,
     },
-    usesDivisions: true,
+    usesDivisions: championship?.code != ChampionshipCode.INTERLAJE,
     loading: false,
   }),
 }));
@@ -173,6 +178,17 @@ vi.mock("@/hooks/useChampionshipAwardsRankings", async () => {
     }),
   };
 });
+
+vi.mock("@/domain/individual-events/championshipIndividualEvents.repository", () => ({
+  fetchChampionshipIndividualSessions: vi.fn().mockResolvedValue({
+    data: [],
+    error: null,
+  }),
+  fetchChampionshipIndividualSessionParticipants: vi.fn().mockResolvedValue({
+    data: [],
+    error: null,
+  }),
+}));
 
 vi.mock("@/components/TeamStandingsTable", () => ({
   TeamStandingsTable: teamStandingsTableMock,
@@ -454,6 +470,26 @@ describe("AdminStandings", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("permite desclassificar em revisão sem liberar movimentação de divisões", () => {
+    render(
+      <AdminStandings
+        selectedChampionship={{
+          ...selectedChampionship,
+          status: ChampionshipStatus.REVIEW,
+        }}
+        championshipSports={championshipSports}
+        sports={sports}
+        championshipBracketView={championshipBracketView}
+        availableSeasonYears={[2026]}
+        canManageStandings={false}
+        canManageDisqualifications
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Desclassificar atlética" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Prévia de divisões" })).not.toBeInTheDocument();
+  });
+
   it("abre o formulário de desclassificação com os seletores da competição", () => {
     render(
       <AdminStandings
@@ -470,8 +506,33 @@ describe("AdminStandings", () => {
     expect(screen.getByText("Ano")).toBeInTheDocument();
     expect(screen.getByText("Modalidade")).toBeInTheDocument();
     expect(screen.getByText("Naipe")).toBeInTheDocument();
-    expect(screen.getByText("Divisão")).toBeInTheDocument();
+    expect(screen.queryByText("Divisão")).toBeNull();
     expect(screen.getByText("Atlética participante")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Futebol Society" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Masculino" }).at(-1)!);
+
+    expect(screen.getByText("Divisão")).toBeInTheDocument();
+  });
+
+  it("oculta a divisão no formulário de desclassificação da temporada unificada", () => {
+    render(
+      <AdminStandings
+        selectedChampionship={{
+          ...selectedChampionship,
+          code: ChampionshipCode.INTERLAJE,
+          uses_divisions: false,
+        }}
+        championshipSports={championshipSports}
+        sports={sports}
+        championshipBracketView={championshipBracketView}
+        availableSeasonYears={[2026]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Desclassificar atlética" }));
+
+    expect(screen.queryByText("Divisão")).toBeNull();
   });
 
   it("não confirma desclassificação sem seleção manual dos campos da competição", async () => {

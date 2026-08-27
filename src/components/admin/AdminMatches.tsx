@@ -29,6 +29,7 @@ import {
   fetchChampionshipBracketLocationTemplates,
   fetchChampionshipBracketPendingTieBreaks,
   generateChampionshipKnockout,
+  applyChampionshipBracketReconfiguration,
   getBracketCourtSports,
   getBracketDaySchedules,
   listEditableMatchScheduleSlots,
@@ -37,9 +38,11 @@ import {
   swapChampionshipKnockoutBracketTeams,
   updateScheduledMatchLogistics,
   updateBracketDaySchedule,
+  previewChampionshipBracketReconfiguration,
 } from "@/domain/championship-brackets/championshipBracket.repository";
 import type {
   BracketDayCourtSports,
+  BracketDaySchedule,
   ChampionshipCorrectedGroupStanding,
   ChampionshipBracketLocationTemplate,
   ChampionshipBracketScheduleDayInput,
@@ -56,6 +59,7 @@ import type {
   Championship,
   ChampionshipBracketCompetition,
   ChampionshipBracketView,
+  ChampionshipIndividualSession,
   ChampionshipSport,
   Match,
   Sport,
@@ -197,6 +201,15 @@ type BracketMatchRowLite = {
   id: string;
   slot_number: number | null;
 };
+
+interface IndividualSessionEditDraft {
+  scheduledDate: string;
+  startTime: string;
+  endTime: string;
+  locationGroupId: string;
+  courtGroupId: string;
+  exclusiveLockEnabled: boolean;
+}
 
 type SupabaseLooseQueryError = {
   message: string;
@@ -435,7 +448,6 @@ interface Props {
   onSeasonYearChange?: (seasonYear: number) => void;
   viewMode?: AdminMatchesViewMode;
   onOpenTieBreaksTab?: () => void;
-  onOpenIndividualEventsTab?: () => void;
   onRefetch: (options?: {
     showLoading?: boolean;
     showFetching?: boolean;
@@ -975,7 +987,6 @@ export function AdminMatches({
   onSeasonYearChange,
   viewMode = AdminMatchesViewMode.DEFAULT,
   onOpenTieBreaksTab,
-  onOpenIndividualEventsTab,
   onRefetch,
   onRefetchChampionshipBracket,
   externalPendingAwardDrawContexts,
@@ -1043,6 +1054,13 @@ export function AdminMatches({
   const [deletingMatches, setDeletingMatches] = useState(false);
   const [applyingBulkAction, setApplyingBulkAction] = useState(false);
   const [savingEditingMatch, setSavingEditingMatch] = useState(false);
+  const [editingIndividualSession, setEditingIndividualSession] =
+    useState<ChampionshipIndividualSession | null>(null);
+  const [individualSessionEditDraft, setIndividualSessionEditDraft] =
+    useState<IndividualSessionEditDraft | null>(null);
+  const [individualSessionScheduleDays, setIndividualSessionScheduleDays] =
+    useState<BracketDaySchedule[]>([]);
+  const [savingIndividualSession, setSavingIndividualSession] = useState(false);
   const [showCreateMatchModal, setShowCreateMatchModal] = useState(false);
   const [showDeleteMatchDialog, setShowDeleteMatchDialog] = useState(false);
   const [pendingDeleteMatchId, setPendingDeleteMatchId] = useState<
@@ -3366,6 +3384,159 @@ export function AdminMatches({
     }
 
     return true;
+  };
+
+  const closeIndividualSessionEditor = () => {
+    if (savingIndividualSession) return;
+    setEditingIndividualSession(null);
+    setIndividualSessionEditDraft(null);
+  };
+
+  const openIndividualSessionEditor = async (
+    session: ChampionshipIndividualSession,
+  ) => {
+    const bracketEditionId = championshipBracketView.edition?.id;
+
+    if (!bracketEditionId) {
+      toast.error("A edição do chaveamento não está disponível.");
+      return;
+    }
+
+    const { data, error } = await getBracketDaySchedules(bracketEditionId);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    const sessionDay =
+      data.find((day) => day.event_date == session.scheduled_date) ?? null;
+    const sessionLocation =
+      sessionDay?.locations.find(
+        (location) =>
+          location.location_group_id == session.location_key ||
+          location.name == session.location_name,
+      ) ?? null;
+    const sessionCourt =
+      sessionLocation?.courts.find(
+        (court) =>
+          court.court_group_id == session.court_key ||
+          court.name == session.court_name,
+      ) ?? null;
+
+    setIndividualSessionScheduleDays(data);
+    setEditingIndividualSession(session);
+    setIndividualSessionEditDraft({
+      scheduledDate: session.scheduled_date ?? "",
+      startTime: (session.start_time ?? "").slice(0, 5),
+      endTime: (session.end_time ?? "").slice(0, 5),
+      locationGroupId: sessionLocation?.location_group_id ?? "",
+      courtGroupId: sessionCourt?.court_group_id ?? "",
+      exclusiveLockEnabled: session.exclusive_lock_enabled,
+    });
+  };
+
+  const saveIndividualSession = async () => {
+    const bracketEditionId = championshipBracketView.edition?.id;
+
+    if (
+      !editingIndividualSession ||
+      !individualSessionEditDraft ||
+      !bracketEditionId
+    ) {
+      return;
+    }
+
+    const {
+      scheduledDate,
+      startTime,
+      endTime,
+      locationGroupId,
+      courtGroupId,
+      exclusiveLockEnabled,
+    } = individualSessionEditDraft;
+
+    if (!scheduledDate || !startTime || !endTime || !locationGroupId || !courtGroupId) {
+      toast.error("Preencha data, horário, local e quadra da sessão.");
+      return;
+    }
+
+    if (endTime <= startTime) {
+      toast.error("O horário final deve ser maior que o horário inicial.");
+      return;
+    }
+
+    const location = individualSessionScheduleDays
+      .find((day) => day.event_date == scheduledDate)
+      ?.locations.find((item) => item.location_group_id == locationGroupId);
+    const court = location?.courts.find(
+      (item) => item.court_group_id == courtGroupId,
+    );
+
+    if (!location || !court) {
+      toast.error("Selecione um local e uma quadra válidos para esta data.");
+      return;
+    }
+
+    const payload = {
+      session_id: editingIndividualSession.id,
+      scheduled_date: scheduledDate,
+      start_time: startTime,
+      end_time: endTime,
+      location_group_id: locationGroupId,
+      court_group_id: courtGroupId,
+      exclusive_lock_enabled: exclusiveLockEnabled,
+      session_sport_name:
+        editingIndividualSession.sports?.name ?? "Modalidade individual",
+      session_naipe: editingIndividualSession.naipe,
+      current_scheduled_date: editingIndividualSession.scheduled_date,
+      current_start_time: editingIndividualSession.start_time,
+      current_end_time: editingIndividualSession.end_time,
+      current_location_name: editingIndividualSession.location_name,
+      current_court_name: editingIndividualSession.court_name,
+      current_exclusive_lock_enabled:
+        editingIndividualSession.exclusive_lock_enabled,
+      target_location_name: location.name,
+      target_court_name: court.name,
+    };
+
+    setSavingIndividualSession(true);
+    const preview = await previewChampionshipBracketReconfiguration(
+      bracketEditionId,
+      "INDIVIDUAL_SESSION",
+      payload,
+    );
+
+    if (preview.error || !preview.data) {
+      setSavingIndividualSession(false);
+      toast.error(
+        preview.error?.message ?? "Não foi possível validar a reprogramação.",
+      );
+      return;
+    }
+
+    if (preview.data.blockers.length > 0) {
+      setSavingIndividualSession(false);
+      toast.error(preview.data.blockers[0]);
+      return;
+    }
+
+    const result = await applyChampionshipBracketReconfiguration(
+      bracketEditionId,
+      "INDIVIDUAL_SESSION",
+      payload,
+      preview.data.revision,
+    );
+    setSavingIndividualSession(false);
+
+    if (result.error) {
+      toast.error(result.error.message);
+      return;
+    }
+
+    toast.success("Sessão individual reprogramada.");
+    closeIndividualSessionEditor();
+    await Promise.all([onRefetch(), onRefetchChampionshipBracket()]);
   };
 
   const handleMoveSelectedMatchesToNextChampionshipDay = async () => {
@@ -6671,11 +6842,11 @@ export function AdminMatches({
               onItemsPerPageChange={setMatchesItemsPerPage}
             />
           </>
-        ) : (
+        ) : visibleIndividualSessions.length == 0 ? (
           <p className="text-sm text-center text-muted-foreground">
             Nenhum jogo encontrado para os filtros selecionados.
           </p>
-        )}
+        ) : null}
 
         {visibleIndividualSessions.length > 0 &&
         shouldRenderIndividualSessions({
@@ -6706,7 +6877,8 @@ export function AdminMatches({
                         {session.sports?.name}
                       </span>
 
-                      {onOpenIndividualEventsTab ? (
+                      {canManageMatches &&
+                      session.status == ChampionshipIndividualSessionStatus.SCHEDULED ? (
                         <div className="ml-auto sm:hidden">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -6720,9 +6892,11 @@ export function AdminMatches({
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-48">
                               <DropdownMenuItem
-                                onSelect={onOpenIndividualEventsTab}
+                                onSelect={() =>
+                                  void openIndividualSessionEditor(session)
+                                }
                               >
-                                Registrar resultados
+                                Editar sessão
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -6805,7 +6979,8 @@ export function AdminMatches({
                     </div>
                   </div>
 
-                  {onOpenIndividualEventsTab ? (
+                  {canManageMatches &&
+                  session.status == ChampionshipIndividualSessionStatus.SCHEDULED ? (
                     <div className="hidden sm:flex sm:shrink-0 sm:items-center">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -6819,9 +6994,11 @@ export function AdminMatches({
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-48">
                           <DropdownMenuItem
-                            onSelect={onOpenIndividualEventsTab}
+                            onSelect={() =>
+                              void openIndividualSessionEditor(session)
+                            }
                           >
-                            Registrar resultados
+                            Editar sessão
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -6833,6 +7010,211 @@ export function AdminMatches({
           </section>
         ) : null}
       </div>
+
+      <Dialog
+        open={editingIndividualSession != null}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeIndividualSessionEditor();
+          }
+        }}
+      >
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Editar sessão individual</DialogTitle>
+            <DialogDescription>
+              Altere a logística sem mudar modalidade, naipe ou divisão.
+            </DialogDescription>
+          </DialogHeader>
+
+          {editingIndividualSession && individualSessionEditDraft ? (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-border/40 p-3">
+                <p className="font-medium">
+                  {editingIndividualSession.sports?.name}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {MATCH_NAIPE_LABELS[editingIndividualSession.naipe]}
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Data</Label>
+                <Select
+                  value={individualSessionEditDraft.scheduledDate}
+                  onValueChange={(scheduledDate) =>
+                    setIndividualSessionEditDraft((current) =>
+                      current
+                        ? {
+                            ...current,
+                            scheduledDate,
+                            locationGroupId: "",
+                            courtGroupId: "",
+                          }
+                        : current,
+                    )
+                  }
+                >
+                  <SelectTrigger className="app-input-field">
+                    <SelectValue placeholder="Selecione a data" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {individualSessionScheduleDays.map((day) => (
+                      <SelectItem key={day.id} value={day.event_date}>
+                        {resolveBrazilianDateLabel(day.event_date)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label>Horário inicial</Label>
+                  <Input
+                    type="time"
+                    value={individualSessionEditDraft.startTime}
+                    onChange={(event) =>
+                      setIndividualSessionEditDraft((current) =>
+                        current
+                          ? { ...current, startTime: event.target.value }
+                          : current,
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Horário final</Label>
+                  <Input
+                    type="time"
+                    value={individualSessionEditDraft.endTime}
+                    onChange={(event) =>
+                      setIndividualSessionEditDraft((current) =>
+                        current
+                          ? { ...current, endTime: event.target.value }
+                          : current,
+                      )
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Local</Label>
+                <Select
+                  value={individualSessionEditDraft.locationGroupId}
+                  onValueChange={(locationGroupId) =>
+                    setIndividualSessionEditDraft((current) =>
+                      current
+                        ? { ...current, locationGroupId, courtGroupId: "" }
+                        : current,
+                    )
+                  }
+                  disabled={!individualSessionEditDraft.scheduledDate}
+                >
+                  <SelectTrigger className="app-input-field">
+                    <SelectValue placeholder="Selecione o local" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(individualSessionScheduleDays.find(
+                      (day) =>
+                        day.event_date == individualSessionEditDraft.scheduledDate,
+                    )?.locations ?? []).map((location) => (
+                      <SelectItem
+                        key={location.location_group_id}
+                        value={location.location_group_id}
+                      >
+                        {location.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Quadra / recurso</Label>
+                <Select
+                  value={individualSessionEditDraft.courtGroupId}
+                  onValueChange={(courtGroupId) =>
+                    setIndividualSessionEditDraft((current) =>
+                      current ? { ...current, courtGroupId } : current,
+                    )
+                  }
+                  disabled={!individualSessionEditDraft.locationGroupId}
+                >
+                  <SelectTrigger className="app-input-field">
+                    <SelectValue placeholder="Selecione a quadra ou recurso" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(individualSessionScheduleDays
+                      .find(
+                        (day) =>
+                          day.event_date ==
+                          individualSessionEditDraft.scheduledDate,
+                      )
+                      ?.locations.find(
+                        (location) =>
+                          location.location_group_id ==
+                          individualSessionEditDraft.locationGroupId,
+                      )?.courts ?? []).map((court) => (
+                      <SelectItem
+                        key={court.court_group_id}
+                        value={court.court_group_id}
+                      >
+                        {court.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <label className="flex items-start gap-3 rounded-xl border border-border/40 p-3">
+                <Checkbox
+                  checked={individualSessionEditDraft.exclusiveLockEnabled}
+                  onCheckedChange={(checked) =>
+                    setIndividualSessionEditDraft((current) =>
+                      current
+                        ? {
+                            ...current,
+                            exclusiveLockEnabled: checked === true,
+                          }
+                        : current,
+                    )
+                  }
+                />
+                <span>
+                  <span className="block text-sm font-medium">
+                    Reserva exclusiva do recurso
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    Bloqueia jogos e outras sessões neste recurso durante o horário.
+                  </span>
+                </span>
+              </label>
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={closeIndividualSessionEditor}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="button"
+                  disabled={savingIndividualSession}
+                  onClick={() => void saveIndividualSession()}
+                >
+                  {savingIndividualSession ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : null}
+                  Salvar sessão
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={showSwapMatchDialog}

@@ -125,7 +125,6 @@ const ADMIN_PANEL_TAB_ORDER: AdminPanelTab[] = [
   AdminPanelTab.SCORE_SHEET_REVIEW,
   AdminPanelTab.TIE_BREAKS,
   AdminPanelTab.CONTROL,
-  AdminPanelTab.INDIVIDUAL_EVENTS,
   AdminPanelTab.STANDINGS,
   AdminPanelTab.TEAMS,
   AdminPanelTab.SPORTS,
@@ -1757,7 +1756,10 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                   <div className="space-y-2">
                     <p className="text-sm font-medium">Permissões por aba</p>
                     <div className="space-y-2">
-                      {ADMIN_PANEL_TAB_ORDER.map((adminPanelTab) => (
+                      {ADMIN_PANEL_TAB_ORDER.filter(
+                        (adminPanelTab) =>
+                          adminPanelTab != AdminPanelTab.INDIVIDUAL_EVENTS,
+                      ).map((adminPanelTab) => (
                         <div
                           key={adminPanelTab}
                           className="grid gap-2 rounded-xl app-card-muted p-2 sm:grid-cols-[170px_minmax(0,1fr)] sm:items-center"

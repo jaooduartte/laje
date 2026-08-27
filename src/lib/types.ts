@@ -199,6 +199,10 @@ export interface ChampionshipIndividualEventEntry {
   final_position: number | null;
   result_time_milliseconds: number | null;
   result_mark_centimeters: number | null;
+  lane_number?: number | null;
+  attempt_one_centimeters?: number | null;
+  attempt_two_centimeters?: number | null;
+  attempt_three_centimeters?: number | null;
   status: ChampionshipIndividualEntryStatus;
   points_awarded: number;
   created_at: string;

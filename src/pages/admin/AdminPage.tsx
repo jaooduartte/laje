@@ -183,10 +183,6 @@ export function AdminPage() {
   const canViewSportsTab = canViewAdminTab(AdminPanelTab.SPORTS);
   const canViewEventsTab = canViewAdminTab(AdminPanelTab.EVENTS);
 
-  const canViewIndividualEventsTab = canViewAdminTab(
-    AdminPanelTab.INDIVIDUAL_EVENTS,
-  );
-
   const canViewLinksTab = canViewAdminTab(AdminPanelTab.LINKS);
   const canViewLogsTab = canViewAdminTab(AdminPanelTab.LOGS);
   const canViewUsersTab = canViewAdminTab(AdminPanelTab.USERS);
@@ -227,7 +223,6 @@ export function AdminPage() {
       canViewTieBreaksTab ? AdminPanelTab.TIE_BREAKS : null,
       canViewStandingsTab ? AdminPanelTab.STANDINGS : null,
       canViewOpeningCeremonyBonusTab ? AdminPanelTab.OPENING_CEREMONY_BONUS : null,
-      canViewIndividualEventsTab ? AdminPanelTab.INDIVIDUAL_EVENTS : null,
       canViewTeamsTab ? AdminPanelTab.TEAMS : null,
       canViewSportsTab ? AdminPanelTab.SPORTS : null,
       canViewEventsTab ? AdminPanelTab.EVENTS : null,
@@ -258,13 +253,11 @@ export function AdminPage() {
 
   const shouldLoadAllTeams =
     lazyActiveTab == AdminPanelTab.TEAMS ||
-    lazyActiveTab == AdminPanelTab.INDIVIDUAL_EVENTS ||
     lazyActiveTab == AdminPanelTab.OPENING_CEREMONY_BONUS;
 
   const shouldLoadGlobalSports =
     lazyActiveTab == AdminPanelTab.SPORTS ||
     lazyActiveTab == AdminPanelTab.STANDINGS ||
-    lazyActiveTab == AdminPanelTab.INDIVIDUAL_EVENTS ||
     lazyActiveTab == AdminPanelTab.CHAMPIONSHIP_SCHEDULE;
   const {
     matches: matchesTabMatches,
@@ -733,9 +726,6 @@ export function AdminPage() {
   const canManageTeams = canEditAdminTab(AdminPanelTab.TEAMS);
   const canManageSports = canEditAdminTab(AdminPanelTab.SPORTS);
   const canManageLeagueEvents = canEditAdminTab(AdminPanelTab.EVENTS);
-  const canManageIndividualEvents = canEditAdminTab(
-    AdminPanelTab.INDIVIDUAL_EVENTS,
-  );
   const canManageLinks = canEditAdminTab(AdminPanelTab.LINKS);
   const canManageUsers = canEditAdminTab(AdminPanelTab.USERS);
   const canManageAccount = canEditAdminTab(AdminPanelTab.ACCOUNT);
@@ -743,6 +733,13 @@ export function AdminPage() {
   const canManageStandings =
     canEditAdminTab(AdminPanelTab.STANDINGS) &&
     selectedChampionship.status != ChampionshipStatus.REVIEW;
+  const canManageDisqualifications =
+    canEditAdminTab(AdminPanelTab.STANDINGS) &&
+    [
+      ChampionshipStatus.REVIEW,
+      ChampionshipStatus.IN_PROGRESS,
+      ChampionshipStatus.FINISHED,
+    ].includes(selectedChampionship.status);
   const canManageOpeningCeremonyBonus = canEditAdminTab(
     AdminPanelTab.OPENING_CEREMONY_BONUS,
   );
@@ -798,7 +795,6 @@ export function AdminPage() {
         canViewTeamsTab={canViewTeamsTab}
         canViewSportsTab={canViewSportsTab}
         canViewEventsTab={canViewEventsTab}
-        canViewIndividualEventsTab={canViewIndividualEventsTab}
         canViewLinksTab={canViewLinksTab}
         canViewLogsTab={canViewLogsTab}
         canViewUsersTab={canViewUsersTab}
@@ -819,12 +815,12 @@ export function AdminPage() {
         canManageTeams={canManageTeams}
         canManageSports={canManageSports}
         canManageLeagueEvents={canManageLeagueEvents}
-        canManageIndividualEvents={canManageIndividualEvents}
         canManageLinks={canManageLinks}
         canManageUsers={canManageUsers}
         canManageAccount={canManageAccount}
         canManageSettings={canManageSettings}
         canManageStandings={canManageStandings}
+        canManageDisqualifications={canManageDisqualifications}
         canManageOpeningCeremonyBonus={canManageOpeningCeremonyBonus}
         activeTab={activeTab}
         onActiveTabChange={setActiveTab}

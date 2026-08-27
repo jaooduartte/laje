@@ -24,10 +24,8 @@ import {
 import {
   finishChampionshipIndividualSession,
   fetchChampionshipIndividualSessionParticipants,
-  markChampionshipIndividualEventTeamWalkover,
   reopenChampionshipIndividualSession,
   returnChampionshipIndividualSessionToScheduled,
-  saveChampionshipIndividualEventResults,
   startChampionshipIndividualSession,
 } from "@/domain/individual-events/championshipIndividualEvents.repository";
 import type {
@@ -36,7 +34,9 @@ import type {
   MatchSetInput,
 } from "@/domain/championship-brackets/championshipBracket.types";
 import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividualEvents";
+import { useCompetitionTeamDisqualifications } from "@/hooks/useCompetitionTeamDisqualifications";
 import type {
+  ChampionshipAthlete,
   ChampionshipBracketView,
   ChampionshipSport,
   Match,
@@ -49,7 +49,6 @@ import {
   ChampionshipSportResultRule,
   ChampionshipSportTieBreakerRule,
   ChampionshipStatus,
-  ChampionshipIndividualEntryStatus,
   MatchNaipe,
   MatchStatus,
   TeamDivision,
@@ -77,6 +76,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { AppBadge } from "@/components/ui/app-badge";
+import { AdminIndividualSessionResultsDialog } from "@/components/admin/AdminIndividualSessionResultsDialog";
 import { resolveCourtPriorityRank } from "@/components/admin/adminCourtPriority.utils";
 import {
   AppPaginationControls,
@@ -104,7 +104,6 @@ import {
 import { resolveSportCode } from "@/lib/modalidadeConfig";
 import { scrollToTopOfPage } from "@/lib/scroll";
 import {
-  INDIVIDUAL_ENTRY_STATUS_LABELS,
   INDIVIDUAL_SESSION_STATUS_LABELS,
 } from "@/lib/individualEvents";
 
@@ -153,12 +152,6 @@ interface MatchPenaltyShootoutDraft {
   awayPenaltyScore: string;
 }
 
-interface IndividualResultDraft {
-  status: ChampionshipIndividualEntryStatus;
-  resultTimeMilliseconds: string;
-  resultMarkCentimeters: string;
-}
-
 function formatDateOnlyInBrazilianFormat(value: string | null) {
   if (!value) {
     return "Sem data";
@@ -166,12 +159,6 @@ function formatDateOnlyInBrazilianFormat(value: string | null) {
 
   const [year, month, day] = value.split("-");
   return year && month && day ? `${day}/${month}/${year}` : value;
-}
-
-function isIndividualMeasurementEvent(eventCode: string) {
-  return (
-    eventCode == "ATHLETICS_SHOT_PUT" || eventCode == "ATHLETICS_LONG_JUMP"
-  );
 }
 
 type SaveStatus = "saving" | "saved" | "error";
@@ -197,6 +184,7 @@ const ALL_CONTROL_GROUP_FILTER = "ALL_CONTROL_GROUPS";
 const ALL_CONTROL_LOCATION_FILTER = "ALL_CONTROL_LOCATIONS";
 const ALL_CONTROL_COURT_FILTER = "ALL_CONTROL_COURTS";
 const EMPTY_INDIVIDUAL_ENTRIES: readonly [] = [];
+const EMPTY_CHAMPIONSHIP_ATHLETES: ChampionshipAthlete[] = [];
 const NAIPE_OPTIONS: MatchNaipe[] = [
   MatchNaipe.MASCULINO,
   MatchNaipe.FEMININO,
@@ -213,6 +201,13 @@ const WALKOVER_MODE_AWAY_LOST: WalkoverMode = "AWAY_LOST";
 const WALKOVER_MODE_DOUBLE: WalkoverMode = "DOUBLE";
 const SCORE_INPUT_CLASS_NAME =
   "score-text h-12 w-16 min-w-16 app-input-field px-1 text-center font-display text-2xl font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
+
+function resolveControlQueueCourtKey(
+  location?: string | null,
+  courtName?: string | null,
+) {
+  return `${location ?? "SEM_LOCAL"}:${courtName ?? "SEM_QUADRA"}`;
+}
 
 interface PersistedMatchControlDraftEntry {
   draft: MatchControlDraft;
@@ -651,26 +646,19 @@ export function AdminMatchControl({
   const [itemsPerPage, setItemsPerPage] = useState(
     DEFAULT_PAGINATION_ITEMS_PER_PAGE,
   );
+  const [isFullQueueVisible, setIsFullQueueVisible] = useState(false);
   const [sessionActionLoadingById, setSessionActionLoadingById] = useState<
     Record<string, boolean>
   >({});
   const [sessionParticipantsBySessionId, setSessionParticipantsBySessionId] =
     useState<Record<string, Team[]>>({});
   const [sessionParticipantsLoading, setSessionParticipantsLoading] =
-    useState(true);
+    useState(false);
 
   const hasCompletedInitialControlLoadRef = useRef(false);
-  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(
-    null,
-  );
-  const [selectedEventIdBySessionId, setSelectedEventIdBySessionId] = useState<
-    Record<string, string>
-  >({});
-  const [individualResultDraftByEntryId, setIndividualResultDraftByEntryId] =
-    useState<Record<string, IndividualResultDraft>>({});
-  const [resultSavingByEventId, setResultSavingByEventId] = useState<
-    Record<string, boolean>
-  >({});
+  const [resultsDialogSessionId, setResultsDialogSessionId] = useState<
+    string | null
+  >(null);
   const [
     showReturnIndividualSessionDialog,
     setShowReturnIndividualSessionDialog,
@@ -795,9 +783,12 @@ export function AdminMatchControl({
         ...persistedDraftByMatchIdRef.current,
       };
       let hasPersistedDraftByMatchIdChanges = false;
-      const currentMatchIds = new Set(matches.map((match) => match.id));
+      const liveMatches = matches.filter(
+        (match) => match.status == MatchStatus.LIVE,
+      );
+      const currentMatchIds = new Set(liveMatches.map((match) => match.id));
 
-      matches.forEach((match) => {
+      liveMatches.forEach((match) => {
         const shouldPreserveDirtyDraft =
           currentDirtyByMatchId[match.id] == true;
         const previousMatchDraft = previousMatchDraftById[match.id] ?? null;
@@ -974,6 +965,7 @@ export function AdminMatchControl({
   const {
     sessions: individualSessions,
     events: individualEvents,
+    athletes: individualAthletes = EMPTY_CHAMPIONSHIP_ATHLETES,
     entries: individualEntries = EMPTY_INDIVIDUAL_ENTRIES,
     loading: individualEventsLoading,
     refetch: refetchIndividualEvents,
@@ -981,7 +973,49 @@ export function AdminMatchControl({
     championshipId,
     seasonYear,
     sportIds: individualSportIds,
+    includeAthletes: resultsDialogSessionId != null,
+    includeEntries: resultsDialogSessionId != null,
+    includeEvents: resultsDialogSessionId != null,
+    includeStandings: false,
   });
+  const { disqualifications: competitionTeamDisqualifications } =
+    useCompetitionTeamDisqualifications({
+      championshipId,
+      seasonYear,
+    });
+
+  const individualDisqualifiedTeamIdsBySessionId = useMemo(() => {
+    return Object.fromEntries(
+      individualSessions.map((session) => [
+        session.id,
+        new Set(
+          competitionTeamDisqualifications
+            .filter(
+              (disqualification) =>
+                disqualification.sport_id == session.sport_id &&
+                disqualification.naipe == session.naipe &&
+                disqualification.division == session.division,
+            )
+            .map((disqualification) => disqualification.team_id),
+        ),
+      ]),
+    ) as Record<string, Set<string>>;
+  }, [competitionTeamDisqualifications, individualSessions]);
+
+  const individualDisqualifiedTeamIdsByEventId = useMemo(() => {
+    return Object.fromEntries(
+      individualEvents.map((event) => [
+        event.id,
+        event.session_id
+          ? (individualDisqualifiedTeamIdsBySessionId[event.session_id] ??
+            new Set<string>())
+          : new Set<string>(),
+      ]),
+    ) as Record<string, Set<string>>;
+  }, [
+    individualDisqualifiedTeamIdsBySessionId,
+    individualEvents,
+  ]);
 
   useEffect(() => {
     if (!sportFilter) {
@@ -998,12 +1032,7 @@ export function AdminMatchControl({
   }, [controlSports, sportFilter]);
 
   useEffect(() => {
-    if (individualEventsLoading) {
-      return;
-    }
-
-    if (individualSessions.length == 0) {
-      setSessionParticipantsBySessionId({});
+    if (!resultsDialogSessionId || individualEventsLoading) {
       setSessionParticipantsLoading(false);
       return;
     }
@@ -1012,21 +1041,16 @@ export function AdminMatchControl({
 
     setSessionParticipantsLoading(true);
 
-    void Promise.all(
-      individualSessions.map(async (session) => {
-        const response = await fetchChampionshipIndividualSessionParticipants(
-          session.id,
-        );
-
-        return [session.id, response.data] as const;
-      }),
-    )
-      .then((rows) => {
+    void fetchChampionshipIndividualSessionParticipants(resultsDialogSessionId)
+      .then((response) => {
         if (!isMounted) {
           return;
         }
 
-        setSessionParticipantsBySessionId(Object.fromEntries(rows));
+        setSessionParticipantsBySessionId((current) => ({
+          ...current,
+          [resultsDialogSessionId]: response.data,
+        }));
       })
       .finally(() => {
         if (!isMounted) {
@@ -1039,11 +1063,11 @@ export function AdminMatchControl({
     return () => {
       isMounted = false;
     };
-  }, [individualEventsLoading, individualSessions]);
+  }, [individualEventsLoading, resultsDialogSessionId]);
 
   const isInitialControlLoading =
     !hasCompletedInitialControlLoadRef.current &&
-    (isInitialLoading || individualEventsLoading || sessionParticipantsLoading);
+    (isInitialLoading || individualEventsLoading);
 
   useEffect(() => {
     if (
@@ -1054,28 +1078,6 @@ export function AdminMatchControl({
       hasCompletedInitialControlLoadRef.current = true;
     }
   }, [isInitialLoading, individualEventsLoading, sessionParticipantsLoading]);
-
-  useEffect(() => {
-    setIndividualResultDraftByEntryId((current) => {
-      const next = { ...current };
-
-      individualEntries.forEach((entry) => {
-        if (next[entry.id]) {
-          return;
-        }
-
-        next[entry.id] = {
-          status: entry.status,
-          resultTimeMilliseconds:
-            entry.result_time_milliseconds?.toString() ?? "",
-          resultMarkCentimeters:
-            entry.result_mark_centimeters?.toString() ?? "",
-        };
-      });
-
-      return next;
-    });
-  }, [individualEntries]);
 
   const runSessionAction = useCallback(
     async (
@@ -1131,69 +1133,6 @@ export function AdminMatchControl({
       onRefetchChampionshipBracket,
       refetchIndividualEvents,
     ],
-  );
-
-  const saveIndividualEventResults = useCallback(
-    async (eventId: string) => {
-      const eventEntries = individualEntries.filter(
-        (entry) => entry.event_id == eventId,
-      );
-
-      setResultSavingByEventId((current) => ({ ...current, [eventId]: true }));
-      const response = await saveChampionshipIndividualEventResults(
-        eventId,
-        eventEntries.map((entry) => {
-          const draft = individualResultDraftByEntryId[entry.id] ?? {
-            status: ChampionshipIndividualEntryStatus.PENDING,
-            resultTimeMilliseconds: "",
-            resultMarkCentimeters: "",
-          };
-
-          return {
-            entry_id: entry.id,
-            status: draft.status,
-            result_time_milliseconds: draft.resultTimeMilliseconds
-              ? Number(draft.resultTimeMilliseconds)
-              : null,
-            result_mark_centimeters: draft.resultMarkCentimeters
-              ? Number(draft.resultMarkCentimeters)
-              : null,
-          };
-        }),
-      );
-      setResultSavingByEventId((current) => ({ ...current, [eventId]: false }));
-
-      if (response.error) {
-        toast.error(response.error.message);
-        return;
-      }
-
-      toast.success("Resultados registrados e classificação recalculada.");
-      await refetchIndividualEvents();
-    },
-    [
-      individualEntries,
-      individualResultDraftByEntryId,
-      refetchIndividualEvents,
-    ],
-  );
-
-  const markIndividualEventTeamWalkover = useCallback(
-    async (eventId: string, teamId: string) => {
-      const response = await markChampionshipIndividualEventTeamWalkover(
-        eventId,
-        teamId,
-      );
-
-      if (response.error) {
-        toast.error(response.error.message);
-        return;
-      }
-
-      toast.success("W.O. registrado para esta atlética nesta prova.");
-      await refetchIndividualEvents();
-    },
-    [refetchIndividualEvents],
   );
 
   const championshipBracketScheduleDays = useMemo(() => {
@@ -2984,6 +2923,65 @@ export function AdminMatchControl({
     locationFilter,
   ]);
 
+  const operationalMatches = useMemo(() => {
+    const scheduledMatchesCountByCourtKey = new Map<string, number>();
+
+    return sortedMatches.filter((match) => {
+      if (match.status == MatchStatus.LIVE) {
+        return true;
+      }
+
+      if (match.status != MatchStatus.SCHEDULED) {
+        return false;
+      }
+
+      const courtKey = resolveControlQueueCourtKey(
+        match.location,
+        match.court_name,
+      );
+      const scheduledMatchesCount =
+        scheduledMatchesCountByCourtKey.get(courtKey) ?? 0;
+
+      if (scheduledMatchesCount >= 2) {
+        return false;
+      }
+
+      scheduledMatchesCountByCourtKey.set(courtKey, scheduledMatchesCount + 1);
+      return true;
+    });
+  }, [sortedMatches]);
+
+  const operationalIndividualSessions = useMemo(() => {
+    const scheduledSessionsCountByCourtKey = new Map<string, number>();
+
+    return visibleIndividualSessions.filter((session) => {
+      if (session.status == "LIVE") {
+        return true;
+      }
+
+      if (
+        session.status != "SCHEDULED" &&
+        session.status != "DRAFT"
+      ) {
+        return false;
+      }
+
+      const courtKey = resolveControlQueueCourtKey(
+        session.location_name,
+        session.court_name,
+      );
+      const scheduledSessionsCount =
+        scheduledSessionsCountByCourtKey.get(courtKey) ?? 0;
+
+      if (scheduledSessionsCount >= 1) {
+        return false;
+      }
+
+      scheduledSessionsCountByCourtKey.set(courtKey, scheduledSessionsCount + 1);
+      return true;
+    });
+  }, [visibleIndividualSessions]);
+
   const controlItemsCount =
     sortedMatches.length + visibleIndividualSessions.length;
   const totalPages = Math.max(1, Math.ceil(controlItemsCount / itemsPerPage));
@@ -3017,6 +3015,13 @@ export function AdminMatchControl({
     sortedMatches.length,
     visibleIndividualSessions,
   ]);
+
+  const displayedMatches = isFullQueueVisible
+    ? paginatedMatches
+    : operationalMatches;
+  const displayedIndividualSessions = isFullQueueVisible
+    ? paginatedIndividualSessions
+    : operationalIndividualSessions;
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -3059,22 +3064,9 @@ export function AdminMatchControl({
 
   return (
     <div className="enter-section flex flex-col gap-4">
-      {paginatedIndividualSessions.length > 0 ? (
+      {displayedIndividualSessions.length > 0 ? (
         <div className="contents">
-          {paginatedIndividualSessions.map((session) => {
-            const linkedEvents = individualEvents.filter(
-              (event) => event.session_id == session.id,
-            );
-            const configuredParticipants =
-              sessionParticipantsBySessionId[session.id] ?? [];
-            const sortedConfiguredParticipants = [
-              ...configuredParticipants,
-            ].sort((firstParticipant, secondParticipant) =>
-              firstParticipant.name.localeCompare(
-                secondParticipant.name,
-                "pt-BR",
-              ),
-            );
+          {displayedIndividualSessions.map((session) => {
             const isSessionActionLoading =
               sessionActionLoadingById[session.id] == true;
             const isOperational =
@@ -3082,28 +3074,14 @@ export function AdminMatchControl({
               championshipStatus == ChampionshipStatus.IN_PROGRESS;
             const isScheduled = session.status == "SCHEDULED";
             const isLive = session.status == "LIVE";
-            const isExpanded = expandedSessionId == session.id;
-            const selectedEvent =
-              linkedEvents.find(
-                (event) => event.id == selectedEventIdBySessionId[session.id],
-              ) ?? linkedEvents[0];
-            const selectedEventEntries = selectedEvent
-              ? individualEntries.filter(
-                  (entry) => entry.event_id == selectedEvent.id,
-                )
-              : [];
-            const isMeasurementEvent = selectedEvent
-              ? isIndividualMeasurementEvent(selectedEvent.event_code)
-              : false;
-
             return (
               <div
                 key={session.id}
                 className="order-3 space-y-4 glass-card p-5"
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="order-2 space-y-1 sm:order-1">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <div className="order-2 space-y-1 text-center sm:order-1 sm:text-left">
+                    <div className="flex flex-col items-center gap-y-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-2">
                       <span className="shrink-0 text-xs uppercase text-muted-foreground">
                         {session.sports?.name}
                         {session.location_name
@@ -3111,7 +3089,7 @@ export function AdminMatchControl({
                           : ""}
                         {session.court_name ? ` • ${session.court_name}` : ""}
                       </span>
-                      <div className="flex flex-wrap items-center gap-1">
+                      <div className="flex flex-wrap justify-center gap-1 sm:justify-start">
                         <AppBadge
                           tone={resolveMatchNaipeBadgeTone(
                             String(session.naipe),
@@ -3134,8 +3112,14 @@ export function AdminMatchControl({
                         ? ` • ${session.period == "MATUTINO" ? "Matutino" : "Vespertino"}`
                         : ""}
                     </p>
+                    {championshipStatus != ChampionshipStatus.IN_PROGRESS ? (
+                      <p className="text-xs font-medium text-amber-500">
+                        O campeonato precisa estar Em andamento para iniciar
+                        jogos ao vivo.
+                      </p>
+                    ) : null}
                   </div>
-                  <div className="order-1 flex w-full flex-wrap items-center gap-2 sm:order-2 sm:w-auto sm:justify-end">
+                  <div className="order-3 flex w-full flex-wrap justify-end gap-2 sm:order-2 sm:w-auto">
                     <Button
                       type="button"
                       variant="outline"
@@ -3144,21 +3128,7 @@ export function AdminMatchControl({
                       aria-label="Registrar resultados"
                       title="Registrar resultados"
                       disabled={!isOperational || !isLive}
-                      onClick={() => {
-                        setExpandedSessionId((current) =>
-                          current == session.id ? null : session.id,
-                        );
-
-                        if (
-                          !selectedEventIdBySessionId[session.id] &&
-                          linkedEvents[0]
-                        ) {
-                          setSelectedEventIdBySessionId((current) => ({
-                            ...current,
-                            [session.id]: linkedEvents[0].id,
-                          }));
-                        }
-                      }}
+                      onClick={() => setResultsDialogSessionId(session.id)}
                     >
                       <Pencil className="h-4 w-4 sm:mr-1" />
                       <span className="hidden sm:inline">
@@ -3168,9 +3138,9 @@ export function AdminMatchControl({
                     {isScheduled ? (
                       <Button
                         type="button"
-                        variant="outline"
+                        variant="default"
                         size="sm"
-                        className="h-9 w-9 p-0 sm:w-auto sm:px-3"
+                        className="h-9 w-9 bg-live p-0 text-primary-foreground hover:bg-live-glow sm:w-auto sm:px-3"
                         aria-label="Iniciar sessão"
                         title="Iniciar sessão"
                         disabled={isSessionActionLoading || !isOperational}
@@ -3255,224 +3225,6 @@ export function AdminMatchControl({
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-border/50 px-3 py-3">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Atléticas participantes (
-                    {sortedConfiguredParticipants.length})
-                  </p>
-                  {sortedConfiguredParticipants.length > 0 ? (
-                    <div className="mt-3 columns-1 gap-4 md:columns-2 xl:columns-4">
-                      {sortedConfiguredParticipants.map((participant) => (
-                        <div
-                          key={participant.id}
-                          className="mb-2 flex break-inside-avoid flex-wrap items-center gap-2 text-sm"
-                        >
-                          <span className="font-medium">
-                            {participant.name}
-                          </span>
-                          <AppBadge
-                            tone={
-                              TEAM_DIVISION_BADGE_TONES[participant.division]
-                            }
-                          >
-                            {TEAM_DIVISION_LABELS[participant.division]}
-                          </AppBadge>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      Nenhuma atlética configurada para esta sessão.
-                    </p>
-                  )}
-                </div>
-
-                {isExpanded && selectedEvent ? (
-                  <div className="space-y-3 rounded-xl border border-border/50 p-4">
-                    <div className="flex flex-wrap items-end gap-3">
-                      <div className="min-w-64 flex-1">
-                        <p className="mb-1 text-xs font-medium">Prova</p>
-                        <Select
-                          value={selectedEvent.id}
-                          onValueChange={(eventId) =>
-                            setSelectedEventIdBySessionId((current) => ({
-                              ...current,
-                              [session.id]: eventId,
-                            }))
-                          }
-                        >
-                          <SelectTrigger className="app-input-field">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {linkedEvents.map((event) => (
-                              <SelectItem key={event.id} value={event.id}>
-                                {event.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <Button
-                        type="button"
-                        disabled={
-                          resultSavingByEventId[selectedEvent.id] ||
-                          !isOperational ||
-                          !isLive
-                        }
-                        onClick={() =>
-                          void saveIndividualEventResults(selectedEvent.id)
-                        }
-                      >
-                        Confirmar resultados
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {isMeasurementEvent
-                        ? "Informe a marca em centímetros. A maior marca vence."
-                        : "Informe o tempo em milissegundos. O menor tempo vence."}
-                    </p>
-                    {selectedEventEntries.map((entry, entryIndex) => {
-                      const draft = individualResultDraftByEntryId[
-                        entry.id
-                      ] ?? {
-                        status: entry.status,
-                        resultTimeMilliseconds: "",
-                        resultMarkCentimeters: "",
-                      };
-                      const entryDescription =
-                        entry.athlete_name ??
-                        entry.members
-                          ?.filter((member) => member.is_starter)
-                          .map((member) => member.athlete_name)
-                          .join(", ") ??
-                        "-";
-                      const isFirstEntryForTeam =
-                        selectedEventEntries.findIndex(
-                          (candidate) => candidate.team_id == entry.team_id,
-                        ) == entryIndex;
-                      return (
-                        <div
-                          key={entry.id}
-                          className="grid gap-3 rounded-xl border border-border/50 p-3 lg:grid-cols-[2fr_1fr_1fr_auto]"
-                        >
-                          <div>
-                            <p className="font-medium">
-                              {entry.teams?.name ?? "Atlética"}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {entryDescription}
-                            </p>
-                          </div>
-                          <Select
-                            value={draft.status}
-                            disabled={!isOperational || !isLive}
-                            onValueChange={(status) =>
-                              setIndividualResultDraftByEntryId((current) => ({
-                                ...current,
-                                [entry.id]: {
-                                  ...draft,
-                                  status:
-                                    status as ChampionshipIndividualEntryStatus,
-                                },
-                              }))
-                            }
-                          >
-                            <SelectTrigger className="app-input-field">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {draft.status ==
-                              ChampionshipIndividualEntryStatus.WALKOVER ? (
-                                <SelectItem
-                                  value={
-                                    ChampionshipIndividualEntryStatus.WALKOVER
-                                  }
-                                  disabled
-                                >
-                                  {
-                                    INDIVIDUAL_ENTRY_STATUS_LABELS[
-                                      ChampionshipIndividualEntryStatus.WALKOVER
-                                    ]
-                                  }
-                                </SelectItem>
-                              ) : null}
-                              {[
-                                ChampionshipIndividualEntryStatus.PENDING,
-                                ChampionshipIndividualEntryStatus.CONFIRMED,
-                                ChampionshipIndividualEntryStatus.DSQ,
-                              ].map((status) => (
-                                <SelectItem key={status} value={status}>
-                                  {INDIVIDUAL_ENTRY_STATUS_LABELS[status]}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Input
-                            type="number"
-                            min={0}
-                            disabled={
-                              !isOperational ||
-                              !isLive ||
-                              draft.status !=
-                                ChampionshipIndividualEntryStatus.CONFIRMED
-                            }
-                            value={
-                              isMeasurementEvent
-                                ? draft.resultMarkCentimeters
-                                : draft.resultTimeMilliseconds
-                            }
-                            placeholder={
-                              isMeasurementEvent ? "Marca (cm)" : "Tempo (ms)"
-                            }
-                            onChange={(input) =>
-                              setIndividualResultDraftByEntryId((current) => ({
-                                ...current,
-                                [entry.id]: {
-                                  ...draft,
-                                  resultTimeMilliseconds: isMeasurementEvent
-                                    ? ""
-                                    : input.target.value,
-                                  resultMarkCentimeters: isMeasurementEvent
-                                    ? input.target.value
-                                    : "",
-                                },
-                              }))
-                            }
-                          />
-                          <div className="flex flex-wrap items-center gap-2 text-sm">
-                            <span>
-                              {entry.final_position
-                                ? `${entry.final_position}º • ${entry.points_awarded} pts`
-                                : "Sem classificação"}
-                            </span>
-                            {isFirstEntryForTeam ? (
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                disabled={
-                                  !isOperational ||
-                                  !isLive ||
-                                  draft.status ==
-                                    ChampionshipIndividualEntryStatus.WALKOVER
-                                }
-                                onClick={() =>
-                                  void markIndividualEventTeamWalkover(
-                                    selectedEvent.id,
-                                    entry.team_id,
-                                  )
-                                }
-                              >
-                                Aplicar W.O.
-                              </Button>
-                            ) : null}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : null}
               </div>
             );
           })}
@@ -3481,10 +3233,17 @@ export function AdminMatchControl({
 
       <div className="order-1 glass-card enter-section space-y-4 p-4">
         <p className="text-sm text-muted-foreground">
-          {controlItemsCount}{" "}
-          {controlItemsCount == 1
+          {isFullQueueVisible
+            ? controlItemsCount
+            : displayedMatches.length + displayedIndividualSessions.length}{" "}
+          {(isFullQueueVisible
+            ? controlItemsCount
+            : displayedMatches.length + displayedIndividualSessions.length) == 1
             ? "item de controle encontrado"
             : "itens de controle encontrados"}
+          {!isFullQueueVisible && controlItemsCount > 0
+            ? ` de ${controlItemsCount} na fila completa`
+            : ""}
         </p>
 
         <div className="min-w-0">
@@ -3499,9 +3258,9 @@ export function AdminMatchControl({
           )}
         </div>
 
-        <div className="flex flex-wrap items-stretch gap-3">
+        <div className="grid grid-cols-12 gap-3 sm:flex sm:flex-wrap sm:items-stretch">
           {divisionOptions.length > 0 ? (
-            <div className="min-w-40 flex-1">
+            <div className="col-span-6 min-w-0 sm:min-w-40 sm:flex-1">
               <Select value={divisionFilter} onValueChange={setDivisionFilter}>
                 <SelectTrigger
                   aria-label="Filtrar por divisão no controle ao vivo"
@@ -3523,7 +3282,7 @@ export function AdminMatchControl({
             </div>
           ) : null}
 
-          <div className="min-w-40 flex-1">
+          <div className="col-span-6 min-w-0 sm:min-w-40 sm:flex-1">
             <Select value={naipeFilter} onValueChange={setNaipeFilter}>
               <SelectTrigger
                 aria-label="Filtrar por naipe no controle ao vivo"
@@ -3545,7 +3304,7 @@ export function AdminMatchControl({
           </div>
 
           {groupOptions.length > 0 ? (
-            <div className="min-w-40 flex-1">
+            <div className="col-span-6 min-w-0 sm:min-w-40 sm:flex-1">
               <Select value={groupFilter} onValueChange={setGroupFilter}>
                 <SelectTrigger
                   aria-label="Filtrar por grupo no controle ao vivo"
@@ -3570,8 +3329,9 @@ export function AdminMatchControl({
             </div>
           ) : null}
 
+          <div className="col-span-12 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2.5rem] gap-3 sm:contents">
           {locationOptions.length > 0 ? (
-            <div className="min-w-40 flex-1">
+            <div className="min-w-0 sm:min-w-40 sm:flex-1">
               <Select value={locationFilter} onValueChange={setLocationFilter}>
                 <SelectTrigger
                   aria-label="Filtrar por local no controle ao vivo"
@@ -3594,7 +3354,7 @@ export function AdminMatchControl({
           ) : null}
 
           {courtOptions.length > 0 ? (
-            <div className="min-w-40 flex-1">
+            <div className="min-w-0 sm:min-w-40 sm:flex-1">
               <Select value={courtFilter} onValueChange={setCourtFilter}>
                 <SelectTrigger
                   aria-label="Filtrar por quadra no controle ao vivo"
@@ -3625,7 +3385,7 @@ export function AdminMatchControl({
                 (currentShowOnlyLiveMatches) => !currentShowOnlyLiveMatches,
               )
             }
-            className={`h-10 w-10 shrink-0 self-stretch ${showOnlyLiveMatches ? "app-button-secondary-active" : ""}`}
+            className={`h-10 w-10 ${showOnlyLiveMatches ? "app-button-secondary-active" : ""}`}
             aria-label={
               showOnlyLiveMatches
                 ? "Mostrar jogos agendados também"
@@ -3634,7 +3394,23 @@ export function AdminMatchControl({
           >
             <EyeOff className="h-4 w-4" />
           </Button>
+          </div>
         </div>
+      </div>
+
+      <div className="order-2 flex justify-center sm:justify-start">
+        <button
+          type="button"
+          onClick={() => {
+            setIsFullQueueVisible((currentValue) => !currentValue);
+            setCurrentPage(1);
+          }}
+          className="text-[11px] font-medium text-primary hover:underline"
+        >
+          {isFullQueueVisible
+            ? "Voltar à visão operacional"
+            : "Ver fila completa"}
+        </button>
       </div>
 
       <div className="contents">
@@ -3658,25 +3434,183 @@ export function AdminMatchControl({
           </p>
         ) : (
           <>
-            {paginatedMatches.map((match) => {
+            {displayedMatches.map((match) => {
+              if (match.status == MatchStatus.SCHEDULED) {
+                const scheduledDateValue = resolveMatchScheduledDateValue(match);
+                const sportAndDateKey = scheduledDateValue
+                  ? `${scheduledDateValue}:${match.sport_id}`
+                  : null;
+                const availableCourtsCount = sportAndDateKey
+                  ? (availableCourtsCountBySportAndDateKey[sportAndDateKey] ?? 0)
+                  : 0;
+                const liveMatchesCount = sportAndDateKey
+                  ? (liveMatchesCountBySportAndDateKey[sportAndDateKey] ?? 0)
+                  : 0;
+                const isMatchStartBlocked =
+                  availableCourtsCount > 0 &&
+                  liveMatchesCount >= availableCourtsCount;
+                const queueLabel = resolveDisplayedMatchQueueLabel(
+                  match,
+                  visualQueuePositionByMatchId[match.id],
+                );
+                const queueSummary = scheduledDateValue
+                  ? `${format(new Date(`${scheduledDateValue}T12:00:00`), "dd/MM", { locale: ptBR })} • ${queueLabel}`
+                  : queueLabel;
+                const selectedWalkoverMode = resolveSelectedWalkoverMode(match);
+                const hasWalkoverSelection =
+                  selectedWalkoverMode != WALKOVER_MODE_NONE;
+                const isKnockoutMatch =
+                  matchBracketContextByMatchId[match.id]?.phase ==
+                  BracketPhase.KNOCKOUT;
+                const isChampionshipStartBlocked =
+                  championshipStatus != ChampionshipStatus.IN_PROGRESS;
+                const matchLocationLabel = match.court_name
+                  ? `${match.location} • ${match.court_name}`
+                  : match.location;
+
+                return (
+                  <div
+                    key={match.id}
+                    className="order-2 glass-card p-4"
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0 space-y-1 text-center sm:text-left">
+                        <div className="flex flex-col items-center gap-y-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-2">
+                          <span className="text-xs uppercase text-muted-foreground">
+                            {match.sports?.name} • {matchLocationLabel}
+                          </span>
+                          <div className="flex flex-wrap justify-center gap-1 sm:justify-start">
+                            <AppBadge
+                              tone={resolveMatchNaipeBadgeTone(
+                                String(match.naipe),
+                              )}
+                            >
+                              {resolveMatchNaipeLabel(String(match.naipe))}
+                            </AppBadge>
+                            {matchBracketContextByMatchId[match.id] ? (
+                              <AppBadge tone={AppBadgeTone.NEUTRAL}>
+                                {matchBracketContextByMatchId[match.id]?.badgeLabel}
+                              </AppBadge>
+                            ) : null}
+                          </div>
+                        </div>
+                        <p className="text-sm font-semibold text-foreground">
+                          <span>{match.home_team?.name ?? "Mandante"}</span>{" "}
+                          <span className="text-muted-foreground">×</span>{" "}
+                          <span>{match.away_team?.name ?? "Visitante"}</span>
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {queueSummary}
+                          {estimatedStartTimeByMatchId[match.id]
+                            ? ` • Estimado: ${estimatedStartTimeByMatchId[match.id]}`
+                            : ""}
+                        </p>
+                        {isMatchStartBlocked ? (
+                          <p className="text-xs font-medium text-amber-500">
+                            Capacidade ao vivo esgotada: {liveMatchesCount}/
+                            {availableCourtsCount} quadra(s) em uso.
+                          </p>
+                        ) : null}
+                        {isChampionshipStartBlocked ? (
+                          <p className="text-xs font-medium text-amber-500">
+                            O campeonato precisa estar Em andamento para iniciar
+                            jogos ao vivo.
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
+                        <span className="shrink-0 text-xs font-semibold text-muted-foreground">
+                          W.O.?
+                        </span>
+                        <div className="min-w-0 flex-1 sm:w-36 sm:flex-none">
+                          <Select
+                            value={selectedWalkoverMode}
+                            onValueChange={(value) =>
+                              handleUpdateWalkoverMode(
+                                match,
+                                value as WalkoverMode,
+                              )
+                            }
+                            disabled={!canManageScoreboard}
+                          >
+                            <SelectTrigger
+                              aria-label="W.O.?"
+                              className="h-9 w-full app-input-field px-2 text-xs"
+                            >
+                              <SelectValue placeholder="W.O.?" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={WALKOVER_MODE_NONE}>Não</SelectItem>
+                              <SelectItem value={WALKOVER_MODE_HOME_LOST}>
+                                {match.home_team?.name ?? "Mandante"}
+                              </SelectItem>
+                              <SelectItem value={WALKOVER_MODE_AWAY_LOST}>
+                                {match.away_team?.name ?? "Visitante"}
+                              </SelectItem>
+                              <SelectItem
+                                value={WALKOVER_MODE_DOUBLE}
+                                disabled={isKnockoutMatch}
+                              >
+                                Ambas as atléticas tomaram W.O.
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <Button
+                          size="sm"
+                          variant={hasWalkoverSelection ? "destructive" : "default"}
+                          onClick={() => {
+                            if (hasWalkoverSelection) {
+                              setPendingFinishMatch(match);
+                              setShowFinishConfirmDialog(true);
+                              return;
+                            }
+
+                            handleSetLive(match.id);
+                          }}
+                          disabled={
+                            !canManageScoreboard ||
+                            isChampionshipStartBlocked ||
+                            (!hasWalkoverSelection && isMatchStartBlocked)
+                          }
+                          className={
+                            hasWalkoverSelection
+                              ? "h-9 w-9 shrink-0 p-0 sm:w-auto sm:px-3"
+                              : "h-9 w-9 shrink-0 bg-live p-0 text-primary-foreground hover:bg-live-glow sm:w-auto sm:px-3"
+                          }
+                          aria-label={
+                            hasWalkoverSelection
+                              ? "Encerrar W.O."
+                              : "Iniciar"
+                          }
+                          title={
+                            hasWalkoverSelection
+                              ? "Encerrar W.O."
+                              : "Iniciar"
+                          }
+                        >
+                          {hasWalkoverSelection ? (
+                            <Square className="h-3 w-3 sm:mr-1" />
+                          ) : (
+                            <Play className="h-3 w-3 sm:mr-1" />
+                          )}
+                          <span className="hidden sm:inline">
+                            {hasWalkoverSelection ? "Encerrar W.O." : "Iniciar"}
+                          </span>
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
               const matchDraft = getMatchDraft(match);
               const matchSaveStatus = saveStatusByMatchId[match.id];
               const matchBracketContext =
                 matchBracketContextByMatchId[match.id];
               const scheduledDateValue = resolveMatchScheduledDateValue(match);
-              const sportAndDateKey = scheduledDateValue
-                ? `${scheduledDateValue}:${match.sport_id}`
-                : null;
-              const availableCourtsCount = sportAndDateKey
-                ? (availableCourtsCountBySportAndDateKey[sportAndDateKey] ?? 0)
-                : 0;
-              const liveMatchesCount = sportAndDateKey
-                ? (liveMatchesCountBySportAndDateKey[sportAndDateKey] ?? 0)
-                : 0;
-              const isMatchStartBlocked =
-                match.status == MatchStatus.SCHEDULED &&
-                availableCourtsCount > 0 &&
-                liveMatchesCount >= availableCourtsCount;
               const queueLabel = resolveDisplayedMatchQueueLabel(
                 match,
                 visualQueuePositionByMatchId[match.id],
@@ -3769,7 +3703,6 @@ export function AdminMatchControl({
               );
               const matchRepresentation =
                 matchRepresentationByMatchId[match.id];
-              const estimatedStartTime = estimatedStartTimeByMatchId[match.id];
               const matchLocationLabel = match.court_name
                 ? `${match.location} • ${match.court_name}`
                 : match.location;
@@ -3784,34 +3717,13 @@ export function AdminMatchControl({
               const hasCurrentSetScore =
                 Number(matchDraft.homeScore) > 0 ||
                 Number(matchDraft.awayScore) > 0;
-              const isChampionshipStartBlocked =
-                championshipStatus != ChampionshipStatus.IN_PROGRESS;
               const selectedWalkoverMode = resolveSelectedWalkoverMode(match);
               const hasWalkoverSelection =
                 selectedWalkoverMode != WALKOVER_MODE_NONE;
               const shouldShowWalkoverSelector =
-                match.status == MatchStatus.SCHEDULED ||
                 match.status == MatchStatus.LIVE;
               const isKnockoutMatch =
                 matchBracketContext?.phase == BracketPhase.KNOCKOUT;
-
-              const bracketMatch = bracketMatchByMatchId[match.id];
-              const isKnockoutFirstRound =
-                matchBracketContext?.phase == BracketPhase.KNOCKOUT &&
-                bracketMatch != null &&
-                bracketMatch.round_number ==
-                  maxRoundByCompetitionId[bracketMatch.competition_id];
-              const firstRoundTeams = bracketMatch
-                ? (firstRoundTeamsByCompetitionId[
-                    bracketMatch.competition_id
-                  ] ?? [])
-                : [];
-              const shouldShowKnockoutTeamSwap =
-                isKnockoutFirstRound &&
-                match.status == MatchStatus.SCHEDULED &&
-                !!match.home_team_id &&
-                !!match.away_team_id &&
-                firstRoundTeams.length > 1;
 
               return (
                 <div
@@ -3865,43 +3777,6 @@ export function AdminMatchControl({
                             </SelectContent>
                           </Select>
                         </div>
-                      ) : null}
-
-                      {match.status == MatchStatus.SCHEDULED &&
-                      !hasWalkoverSelection ? (
-                        <Button
-                          size="sm"
-                          onClick={() => handleSetLive(match.id)}
-                          className="bg-live text-primary-foreground hover:bg-live-glow"
-                          disabled={
-                            !canManageScoreboard ||
-                            isMatchStartBlocked ||
-                            isChampionshipStartBlocked
-                          }
-                        >
-                          <Play className="h-3 w-3 sm:mr-1" />
-                          <span className="hidden sm:inline">Iniciar</span>
-                        </Button>
-                      ) : null}
-
-                      {match.status == MatchStatus.SCHEDULED &&
-                      hasWalkoverSelection ? (
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => {
-                            setPendingFinishMatch(match);
-                            setShowFinishConfirmDialog(true);
-                          }}
-                          disabled={
-                            !canManageScoreboard || isChampionshipStartBlocked
-                          }
-                        >
-                          <Square className="h-3 w-3 sm:mr-1" />
-                          <span className="hidden sm:inline">
-                            Encerrar W.O.
-                          </span>
-                        </Button>
                       ) : null}
 
                       {match.status == MatchStatus.LIVE ? (
@@ -4022,22 +3897,6 @@ export function AdminMatchControl({
                           </p>
                         ) : null}
 
-                        {match.status == MatchStatus.SCHEDULED &&
-                        estimatedStartTime ? (
-                          <p className="text-xs text-muted-foreground">
-                            Horário estimado: {estimatedStartTime}
-                          </p>
-                        ) : null}
-
-                        {match.status == MatchStatus.SCHEDULED &&
-                        !match.court_name &&
-                        suggestedCourtByMatchId[match.id] ? (
-                          <p className="text-xs text-muted-foreground">
-                            Sugestão de quadra:{" "}
-                            {suggestedCourtByMatchId[match.id]}
-                          </p>
-                        ) : null}
-
                         {matchRepresentation ? (
                           <p className="break-words text-xs text-muted-foreground">
                             Representação: {matchRepresentation}
@@ -4055,22 +3914,6 @@ export function AdminMatchControl({
                           <p className="text-xs font-medium text-muted-foreground">
                             Pênaltis: ({penaltyShootoutSummary.homePenaltyScore}{" "}
                             × {penaltyShootoutSummary.awayPenaltyScore})
-                          </p>
-                        ) : null}
-
-                        {match.status != MatchStatus.LIVE &&
-                        isMatchStartBlocked ? (
-                          <p className="text-xs font-medium text-amber-500">
-                            Capacidade ao vivo esgotada: {liveMatchesCount}/
-                            {availableCourtsCount} quadra(s) em uso.
-                          </p>
-                        ) : null}
-
-                        {match.status == MatchStatus.SCHEDULED &&
-                        isChampionshipStartBlocked ? (
-                          <p className="text-xs font-medium text-amber-500">
-                            O campeonato precisa estar Em andamento para iniciar
-                            jogos ao vivo.
                           </p>
                         ) : null}
 
@@ -5012,15 +4855,17 @@ export function AdminMatchControl({
               );
             })}
 
-            <div className="order-4">
-              <AppPaginationControls
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={setCurrentPage}
-                itemsPerPage={itemsPerPage}
-                onItemsPerPageChange={setItemsPerPage}
-              />
-            </div>
+            {isFullQueueVisible ? (
+              <div className="order-4">
+                <AppPaginationControls
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={setCurrentPage}
+                  itemsPerPage={itemsPerPage}
+                  onItemsPerPageChange={setItemsPerPage}
+                />
+              </div>
+            ) : null}
           </>
         )}
       </div>
@@ -5202,6 +5047,53 @@ export function AdminMatchControl({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AdminIndividualSessionResultsDialog
+        open={resultsDialogSessionId != null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setResultsDialogSessionId(null);
+          }
+        }}
+        session={
+          individualSessions.find(
+            (session) => session.id == resultsDialogSessionId,
+          ) ?? null
+        }
+        events={individualEvents.filter(
+          (event) => event.session_id == resultsDialogSessionId,
+        )}
+        entries={individualEntries.filter(
+          (entry) =>
+            !(
+              individualDisqualifiedTeamIdsByEventId[entry.event_id]?.has(
+                entry.team_id,
+              ) ?? false
+            ),
+        )}
+        athletes={individualAthletes}
+        teams={
+          resultsDialogSessionId
+            ? (sessionParticipantsBySessionId[resultsDialogSessionId] ?? []).filter(
+                (team) =>
+                  !(
+                    individualDisqualifiedTeamIdsBySessionId[
+                      resultsDialogSessionId
+                    ]?.has(team.id) ?? false
+                  ),
+              )
+            : []
+        }
+        canManage={
+          canManageScoreboard &&
+          championshipStatus == ChampionshipStatus.IN_PROGRESS &&
+          individualSessions.some(
+            (session) =>
+              session.id == resultsDialogSessionId && session.status == "LIVE",
+          )
+        }
+        onSaved={refetchIndividualEvents}
+      />
     </div>
   );
 }

@@ -59,6 +59,18 @@ describe("championshipSeason", () => {
     expect(resolvedSettings.division_settlement_mode).toBe(ChampionshipSeasonDivisionSettlementMode.NONE);
   });
 
+  it("respeita a divisão unificada configurada no Interlaje sem configuração sazonal", () => {
+    const resolvedSettings = resolveEffectiveChampionshipSeasonSettings({
+      championship: {
+        code: ChampionshipCode.INTERLAJE,
+        uses_divisions: false,
+      },
+      seasonSettings: null,
+    });
+
+    expect(resolvedSettings.division_format).toBe(ChampionshipSeasonDivisionFormat.UNIFIED);
+  });
+
   it("aplica correção de pontos no ranking geral oficial", () => {
     const standings = [
       buildStanding({

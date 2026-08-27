@@ -70,6 +70,19 @@ export interface SaveChampionshipIndividualEventResultInput {
   result_mark_centimeters: number | null;
 }
 
+export interface SaveChampionshipIndividualLiveEntryInput {
+  entry_id?: string | null;
+  team_id: string;
+  athlete_id?: string | null;
+  starter_athlete_ids?: string[];
+  lane_number: number;
+  status: ChampionshipIndividualEntryStatus;
+  result_time_milliseconds: number | null;
+  attempt_one_centimeters: number | null;
+  attempt_two_centimeters: number | null;
+  attempt_three_centimeters: number | null;
+}
+
 export interface SaveChampionshipIndividualSessionInput {
   sessionId: string;
   scheduledDate: string | null;
@@ -415,6 +428,16 @@ export async function saveChampionshipIndividualEventResults(
   return supabaseLoose.rpc("save_championship_individual_event_results", {
     _event_id: eventId,
     _results: results,
+  });
+}
+
+export async function saveChampionshipIndividualEventLiveResults(
+  eventId: string,
+  entries: SaveChampionshipIndividualLiveEntryInput[],
+) {
+  return supabaseLoose.rpc("save_championship_individual_event_live_results", {
+    _event_id: eventId,
+    _entries: entries,
   });
 }
 

@@ -45,6 +45,7 @@ const {
   saveMatchSetsMock,
   getBracketCourtSportsMock,
   individualEventsState,
+  individualDisqualificationsState,
   individualSessionRepositoryMocks,
 } = vi.hoisted(() => ({
   supabaseUpdateCalls: [] as SupabaseUpdateCall[],
@@ -52,15 +53,20 @@ const {
   toastSuccessMock: vi.fn(),
   toastErrorMock: vi.fn(),
   saveMatchSetsMock: vi.fn(),
-  getBracketCourtSportsMock: vi.fn(() => new Promise(() => {})),
+  getBracketCourtSportsMock: vi.fn((..._args: unknown[]) =>
+    new Promise<never>(() => {}),
+  ),
   individualEventsState: {
     current: {
-      events: [],
-      sessions: [],
-      entries: [],
+      events: [] as Array<Record<string, unknown>>,
+      sessions: [] as ChampionshipIndividualSession[],
+      entries: [] as Array<Record<string, unknown>>,
       refetch: vi.fn(),
     },
   },
+  individualDisqualificationsState: {
+    current: [],
+  } as { current: Array<Record<string, unknown>> },
   individualSessionRepositoryMocks: {
     finish: vi.fn(),
     reopen: vi.fn(),
@@ -86,6 +92,12 @@ vi.mock("@/domain/championship-brackets/championshipBracket.repository", () => (
 
 vi.mock("@/hooks/useChampionshipIndividualEvents", () => ({
   useChampionshipIndividualEvents: () => individualEventsState.current,
+}));
+
+vi.mock("@/hooks/useCompetitionTeamDisqualifications", () => ({
+  useCompetitionTeamDisqualifications: () => ({
+    disqualifications: individualDisqualificationsState.current,
+  }),
 }));
 
 vi.mock("@/domain/individual-events/championshipIndividualEvents.repository", () => ({
@@ -187,6 +199,9 @@ function buildChampionshipSport(
     points_draw: overrides.points_draw ?? 1,
     points_loss: overrides.points_loss ?? 0,
     walkover_winner_points: overrides.walkover_winner_points ?? null,
+    awards_include_knockout_phase:
+      overrides.awards_include_knockout_phase ?? false,
+    supports_individual_awards: overrides.supports_individual_awards ?? false,
     created_at: overrides.created_at ?? "2026-03-01T00:00:00.000Z",
     championships: overrides.championships,
     sports: overrides.sports,
@@ -273,6 +288,8 @@ function buildIndividualSession(
     division: overrides.division ?? TeamDivision.DIVISAO_PRINCIPAL,
     scheduled_date: overrides.scheduled_date ?? "2026-04-11",
     period: overrides.period ?? ChampionshipSchedulePeriod.MATUTINO,
+    start_time: overrides.start_time ?? null,
+    end_time: overrides.end_time ?? null,
     location_key: overrides.location_key ?? "athletics-track",
     court_key: overrides.court_key ?? "lane-1",
     location_name: overrides.location_name ?? "Pista de Atletismo",
@@ -446,6 +463,7 @@ describe("AdminMatchControl", () => {
       entries: [],
       refetch: vi.fn(),
     };
+    individualDisqualificationsState.current = [];
     individualSessionRepositoryMocks.finish.mockReset();
     individualSessionRepositoryMocks.reopen.mockReset();
     individualSessionRepositoryMocks.returnToScheduled.mockReset();
@@ -486,6 +504,7 @@ describe("AdminMatchControl", () => {
           court_name: "Raia 1",
         }),
       ],
+      entries: [],
       refetch: vi.fn(),
     };
     individualSessionRepositoryMocks.participants.mockResolvedValue({
@@ -522,16 +541,7 @@ describe("AdminMatchControl", () => {
     expect(screen.getByText(/^Atletismo •/).closest(".glass-card")).not.toBeNull();
     expect(screen.getByText(/11\/04\/2026/)).toBeInTheDocument();
     expect(screen.getByText("Pendente de agendamento")).toBeInTheDocument();
-    const participantsGrid = screen
-      .getByText("Atléticas participantes (3)")
-      .nextElementSibling;
-    expect(participantsGrid).toHaveClass("md:columns-2", "xl:columns-4");
-    expect(
-      within(participantsGrid as HTMLElement)
-        .getAllByText(/^(Alfa|Bravo|Zulu)$/)
-        .map((participant) => participant.textContent),
-    ).toEqual(["Alfa", "Bravo", "Zulu"]);
-    expect(screen.getAllByText("Divisão de Acesso")).toHaveLength(2);
+    expect(screen.queryByText("Atléticas participantes (3)")).toBeNull();
     expect(screen.queryByText("Provas")).toBeNull();
     expect(screen.queryByText("Prévia parcial da sessão")).toBeNull();
     expect(screen.queryByRole("button", { name: "Iniciar sessão" })).toBeNull();
@@ -578,6 +588,7 @@ describe("AdminMatchControl", () => {
           sports: swimmingSport.sports,
         }),
       ],
+      entries: [],
       refetch: vi.fn(),
     };
 
@@ -683,7 +694,7 @@ describe("AdminMatchControl", () => {
     expect(individualSessionRepositoryMocks.returnToScheduled).toHaveBeenCalledWith("live-individual-session");
   });
 
-  it("aplica W.O. somente para a atlética e a prova selecionada", async () => {
+  it("abre a modal de resultados para a sessão individual ao vivo", async () => {
     const athleticsSport = buildChampionshipSport({
       id: "championship-sport-athletics",
       sport_id: "sport-athletics",
@@ -721,8 +732,6 @@ describe("AdminMatchControl", () => {
       ],
       refetch: vi.fn(),
     };
-    individualSessionRepositoryMocks.walkover.mockResolvedValue({ error: null });
-
     renderAdminMatchControl({
       matches: [],
       championshipSports: [athleticsSport],
@@ -730,22 +739,27 @@ describe("AdminMatchControl", () => {
 
     await completeInitialControlLoad();
 
+    expect(individualSessionRepositoryMocks.participants).not.toHaveBeenCalled();
+
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Registrar resultados" }));
       await Promise.resolve();
     });
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Aplicar W.O." }));
-      await Promise.resolve();
-    });
-
-    expect(individualSessionRepositoryMocks.walkover).toHaveBeenCalledWith("event-100m", "team-1");
+    expect(individualSessionRepositoryMocks.participants).toHaveBeenCalledWith(
+      "live-individual-session",
+    );
+    expect(
+      screen.getByRole("heading", { name: "Registrar provas - Atletismo" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("100 metros rasos")).toBeInTheDocument();
+    expect(screen.getByText("Atleta")).toBeInTheDocument();
   });
 
   it("mantém as sessões individuais após os jogos coletivos no filtro Todas", async () => {
     const match = buildMatch({
       id: "collective-match",
       sport_id: "sport-futsal",
+      status: MatchStatus.SCHEDULED,
       sports: buildSport({ id: "sport-futsal", name: "Futsal" }),
       home_team: buildTeam({ id: "team-home", name: "Casa" }),
       away_team: buildTeam({ id: "team-away", name: "Visitante" }),
@@ -763,6 +777,7 @@ describe("AdminMatchControl", () => {
           sport_id: athleticsSport.sport_id,
         }),
       ],
+      entries: [],
       refetch: vi.fn(),
     };
 
@@ -794,6 +809,7 @@ describe("AdminMatchControl", () => {
           sport_id: athleticsSport.sport_id,
         }),
       ],
+      entries: [],
       refetch: vi.fn(),
     };
 
@@ -801,6 +817,7 @@ describe("AdminMatchControl", () => {
       buildMatch({
         id: `collective-match-${index}`,
         sport_id: "sport-futsal",
+        status: MatchStatus.SCHEDULED,
         sports: buildSport({ id: "sport-futsal", name: "Futsal" }),
       }),
     );
@@ -811,6 +828,10 @@ describe("AdminMatchControl", () => {
     });
 
     await completeInitialControlLoad();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ver fila completa" }),
+    );
 
     expect(screen.queryByText(/^Atletismo •/)).toBeNull();
 
@@ -1133,7 +1154,9 @@ describe("AdminMatchControl", () => {
 
     expect(within(resolveMatchCardElement("Atlética WO Visibilidade Agendado")).getByRole("combobox", { name: "W.O.?" })).toBeInTheDocument();
     expect(within(resolveMatchCardElement("Atlética WO Visibilidade Ao Vivo")).getByRole("combobox", { name: "W.O.?" })).toBeInTheDocument();
-    expect(within(resolveMatchCardElement("Atlética WO Visibilidade Encerrado")).queryByRole("combobox", { name: "W.O.?" })).toBeNull();
+    expect(
+      screen.queryByText("Atlética WO Visibilidade Encerrado"),
+    ).toBeNull();
   });
 
   it("bloqueia aplicação de W.O. quando campeonato não está em andamento", async () => {
@@ -1623,6 +1646,9 @@ describe("AdminMatchControl", () => {
 
     expect(onRefetch).not.toHaveBeenCalled();
 
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ver fila completa" }),
+    );
     fireEvent.click(screen.getByTestId("pagination-controls-page-mock"));
 
     expect(onRefetch).toHaveBeenCalledTimes(1);
@@ -1632,6 +1658,72 @@ describe("AdminMatchControl", () => {
     });
 
     expect(onRefetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("mantém na visão operacional somente os dois próximos jogos por quadra", async () => {
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-filter",
+      sport_id: "sport-filter",
+      result_rule: ChampionshipSportResultRule.POINTS,
+      supports_cards: false,
+    });
+    const matches = [
+      ...Array.from({ length: 3 }, (_, index) =>
+        buildMatch({
+          id: `court-a-${index + 1}`,
+          sport_id: "sport-filter",
+          status: MatchStatus.SCHEDULED,
+          court_name: "Quadra A",
+          queue_position: index + 1,
+          home_team: buildTeam({
+            id: `court-a-home-${index + 1}`,
+            name: `Casa A ${index + 1}`,
+          }),
+          away_team: buildTeam({
+            id: `court-a-away-${index + 1}`,
+            name: `Visitante A ${index + 1}`,
+          }),
+        }),
+      ),
+      ...Array.from({ length: 3 }, (_, index) =>
+        buildMatch({
+          id: `court-b-${index + 1}`,
+          sport_id: "sport-filter",
+          status: MatchStatus.SCHEDULED,
+          court_name: "Quadra B",
+          queue_position: index + 1,
+          home_team: buildTeam({
+            id: `court-b-home-${index + 1}`,
+            name: `Casa B ${index + 1}`,
+          }),
+          away_team: buildTeam({
+            id: `court-b-away-${index + 1}`,
+            name: `Visitante B ${index + 1}`,
+          }),
+        }),
+      ),
+    ];
+
+    renderAdminMatchControl({
+      matches,
+      championshipSports: [championshipSport],
+    });
+
+    await completeInitialControlLoad();
+
+    expect(screen.getByText("Casa A 1")).toBeInTheDocument();
+    expect(screen.getByText("Casa A 2")).toBeInTheDocument();
+    expect(screen.queryByText("Casa A 3")).toBeNull();
+    expect(screen.getByText("Casa B 1")).toBeInTheDocument();
+    expect(screen.getByText("Casa B 2")).toBeInTheDocument();
+    expect(screen.queryByText("Casa B 3")).toBeNull();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ver fila completa" }),
+    );
+
+    expect(screen.getByText("Casa A 3")).toBeInTheDocument();
+    expect(screen.getByText("Casa B 3")).toBeInTheDocument();
   });
 
   it("bloqueia o início do jogo quando o campeonato não está em andamento", async () => {
@@ -1654,6 +1746,12 @@ describe("AdminMatchControl", () => {
     const startButton = screen.getByRole("button", { name: /iniciar/i });
 
     expect(startButton).toBeDisabled();
+    expect(screen.getByText("W.O.?")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "O campeonato precisa estar Em andamento para iniciar jogos ao vivo.",
+      ),
+    ).toBeInTheDocument();
     expect(supabaseUpdateCalls).toHaveLength(0);
     expect(toastErrorMock).not.toHaveBeenCalled();
   });

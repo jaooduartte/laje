@@ -64,10 +64,6 @@ export function resolveEffectiveChampionshipSeasonSettings({
   > | null;
 }): ChampionshipSeasonSettingsShape {
   if (!seasonSettings) {
-    if (championship?.code == ChampionshipCode.INTERLAJE) {
-      return resolveDefaultChampionshipSeasonSettings(championship.code);
-    }
-
     if (championship?.uses_divisions != null) {
       return {
         division_format: championship.uses_divisions
@@ -78,6 +74,10 @@ export function resolveEffectiveChampionshipSeasonSettings({
         principal_relegation_count: null,
         access_promotion_count: null,
       };
+    }
+
+    if (championship?.code == ChampionshipCode.INTERLAJE) {
+      return resolveDefaultChampionshipSeasonSettings(championship.code);
     }
 
     return resolveDefaultChampionshipSeasonSettings(championship?.code);
@@ -103,9 +103,16 @@ export function resolveChampionshipUsesSeasonDivisions({
     return false;
   }
 
+  if (seasonSettings) {
+    return (
+      seasonSettings.division_format ==
+      ChampionshipSeasonDivisionFormat.SEPARATED
+    );
+  }
+
   return resolveEffectiveChampionshipSeasonSettings({
     championship: championship ?? null,
-    seasonSettings: seasonSettings ?? null,
+    seasonSettings: null,
   }).division_format == ChampionshipSeasonDivisionFormat.SEPARATED;
 }
 
