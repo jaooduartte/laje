@@ -460,7 +460,7 @@ describe("ChampionshipsPageView", () => {
           allStandingsSportFilter="ALL"
           allStandingsNaipeFilter="ALL"
           allStandingsDivisionFilter="ALL"
-          selectedChampionshipHasDivisions
+          selectedChampionshipHasDivisions={false}
           filteredStandings={[]}
           isIndividualStandingsView
           individualStandingsRows={[]}
@@ -525,5 +525,6 @@ describe("ChampionshipsPageView", () => {
     expect(screen.getByText("Atlética A")).toBeInTheDocument();
     expect(screen.getByText("João")).toBeInTheDocument();
     expect(screen.getByText("24 pts")).toBeInTheDocument();
+    expect(screen.queryByText("Todas as divisões")).not.toBeInTheDocument();
   });
 });

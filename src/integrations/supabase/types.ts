@@ -1842,6 +1842,7 @@ export type Database = {
           supports_individual_awards: boolean
           tie_breaker_rule: Database["public"]["Enums"]["championship_sport_tie_breaker_rule"]
           walkover_winner_points: number | null
+          walkover_winner_set_count: number
         }
         Insert: {
           awards_include_knockout_phase?: boolean
@@ -1860,6 +1861,7 @@ export type Database = {
           supports_individual_awards?: boolean
           tie_breaker_rule?: Database["public"]["Enums"]["championship_sport_tie_breaker_rule"]
           walkover_winner_points?: number | null
+          walkover_winner_set_count?: number
         }
         Update: {
           awards_include_knockout_phase?: boolean
@@ -1878,6 +1880,7 @@ export type Database = {
           supports_individual_awards?: boolean
           tie_breaker_rule?: Database["public"]["Enums"]["championship_sport_tie_breaker_rule"]
           walkover_winner_points?: number | null
+          walkover_winner_set_count?: number
         }
         Relationships: [
           {

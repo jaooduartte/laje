@@ -199,6 +199,7 @@ function buildChampionshipSport(
     points_draw: overrides.points_draw ?? 1,
     points_loss: overrides.points_loss ?? 0,
     walkover_winner_points: overrides.walkover_winner_points ?? null,
+    walkover_winner_set_count: overrides.walkover_winner_set_count ?? 1,
     awards_include_knockout_phase:
       overrides.awards_include_knockout_phase ?? false,
     supports_individual_awards: overrides.supports_individual_awards ?? false,
@@ -311,6 +312,9 @@ function renderAdminMatchControl(params: {
   visualQueuePositionByMatchId?: Record<string, number>;
   estimatedStartTimeByMatchId?: Record<string, string>;
   matchBracketContextByMatchId?: Record<string, MatchBracketContext>;
+  isFullQueueVisible?: boolean;
+  fullQueueItemsCount?: number | null;
+  onFullQueueVisibleChange?: (isVisible: boolean) => void;
 }) {
   const onRefetch = vi.fn();
   const onRefetchChampionshipBracket = vi.fn();
@@ -327,6 +331,9 @@ function renderAdminMatchControl(params: {
       matchBracketContextByMatchId={params.matchBracketContextByMatchId ?? {}}
       visualQueuePositionByMatchId={params.visualQueuePositionByMatchId}
       estimatedStartTimeByMatchId={params.estimatedStartTimeByMatchId}
+      isFullQueueVisible={params.isFullQueueVisible}
+      fullQueueItemsCount={params.fullQueueItemsCount}
+      onFullQueueVisibleChange={params.onFullQueueVisibleChange}
       onRefetch={onRefetch}
       onRefetchChampionshipBracket={onRefetchChampionshipBracket}
       canManageScoreboard
@@ -342,6 +349,9 @@ function renderAdminMatchControl(params: {
     visualQueuePositionByMatchId?: Record<string, number>;
     estimatedStartTimeByMatchId?: Record<string, string>;
     matchBracketContextByMatchId?: Record<string, MatchBracketContext>;
+    isFullQueueVisible?: boolean;
+    fullQueueItemsCount?: number | null;
+    onFullQueueVisibleChange?: (isVisible: boolean) => void;
   }) => {
     renderResult.rerender(
       <AdminMatchControl
@@ -356,6 +366,9 @@ function renderAdminMatchControl(params: {
         matchBracketContextByMatchId={nextParams.matchBracketContextByMatchId ?? {}}
         visualQueuePositionByMatchId={nextParams.visualQueuePositionByMatchId}
         estimatedStartTimeByMatchId={nextParams.estimatedStartTimeByMatchId}
+        isFullQueueVisible={nextParams.isFullQueueVisible}
+        fullQueueItemsCount={nextParams.fullQueueItemsCount}
+        onFullQueueVisibleChange={nextParams.onFullQueueVisibleChange}
         onRefetch={onRefetch}
         onRefetchChampionshipBracket={onRefetchChampionshipBracket}
         canManageScoreboard
@@ -1157,6 +1170,53 @@ describe("AdminMatchControl", () => {
     });
   });
 
+  it("encerra jogo agendado por W.O. em modalidade por sets com a quantidade configurada", async () => {
+    const homeTeam = buildTeam({ id: "wo-best-of-three-home-team", name: "Atlética Melhor de Três Casa" });
+    const awayTeam = buildTeam({ id: "wo-best-of-three-away-team", name: "Atlética Melhor de Três Visitante" });
+    const match = buildMatch({
+      id: "scheduled-walkover-best-of-three-match",
+      sport_id: "sport-volleyball-best-of-three-wo",
+      status: MatchStatus.SCHEDULED,
+      sports: buildSport({ id: "sport-volleyball-best-of-three-wo", name: "Voleibol" }),
+      home_team_id: homeTeam.id,
+      away_team_id: awayTeam.id,
+      home_team: homeTeam,
+      away_team: awayTeam,
+    });
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-volleyball-best-of-three-wo",
+      sport_id: "sport-volleyball-best-of-three-wo",
+      result_rule: ChampionshipSportResultRule.SETS,
+      walkover_winner_points: 21,
+      walkover_winner_set_count: 2,
+    });
+
+    renderAdminMatchControl({
+      matches: [match],
+      championshipSports: [championshipSport],
+    });
+
+    const matchCardElement = resolveMatchCardElement("Atlética Melhor de Três Casa");
+    await selectWalkoverOption(matchCardElement, awayTeam.name);
+
+    await act(async () => {
+      fireEvent.click(within(matchCardElement).getByRole("button", { name: /encerrar w\.o\./i }));
+    });
+    await confirmFinishDialog();
+
+    expect(saveMatchSetsMock).toHaveBeenCalledWith(
+      "scheduled-walkover-best-of-three-match",
+      [
+        { set_number: 1, home_points: 21, away_points: 0 },
+        { set_number: 2, home_points: 21, away_points: 0 },
+      ],
+    );
+    expect(supabaseUpdateCalls[0]?.payload).toMatchObject({
+      home_score: 2,
+      away_score: 0,
+    });
+  });
+
   it("encerra jogo agendado por W.O. duplo com placar zerado e sem perdedor definido", async () => {
     const homeTeam = buildTeam({ id: "double-wo-home-team", name: "Atlética WO Duplo Casa" });
     const awayTeam = buildTeam({ id: "double-wo-away-team", name: "Atlética WO Duplo Visitante" });
@@ -1788,7 +1848,7 @@ describe("AdminMatchControl", () => {
     expect(onRefetch).toHaveBeenCalledTimes(2);
   });
 
-  it("mantém na visão operacional somente os dois próximos jogos por quadra", async () => {
+  it("mantém na visão operacional somente o próximo jogo por quadra", async () => {
     const championshipSport = buildChampionshipSport({
       id: "championship-sport-filter",
       sport_id: "sport-filter",
@@ -1796,6 +1856,20 @@ describe("AdminMatchControl", () => {
       supports_cards: false,
     });
     const matches = [
+      buildMatch({
+        id: "court-a-live",
+        sport_id: "sport-filter",
+        status: MatchStatus.LIVE,
+        court_name: "Quadra A",
+        home_team: buildTeam({
+          id: "court-a-live-home",
+          name: "Casa A ao vivo",
+        }),
+        away_team: buildTeam({
+          id: "court-a-live-away",
+          name: "Visitante A ao vivo",
+        }),
+      }),
       ...Array.from({ length: 3 }, (_, index) =>
         buildMatch({
           id: `court-a-${index + 1}`,
@@ -1839,19 +1913,51 @@ describe("AdminMatchControl", () => {
 
     await completeInitialControlLoad();
 
+    expect(screen.getAllByText("Casa A ao vivo")).not.toHaveLength(0);
     expect(screen.getByText("Casa A 1")).toBeInTheDocument();
-    expect(screen.getByText("Casa A 2")).toBeInTheDocument();
+    expect(screen.queryByText("Casa A 2")).toBeNull();
     expect(screen.queryByText("Casa A 3")).toBeNull();
     expect(screen.getByText("Casa B 1")).toBeInTheDocument();
-    expect(screen.getByText("Casa B 2")).toBeInTheDocument();
+    expect(screen.queryByText("Casa B 2")).toBeNull();
     expect(screen.queryByText("Casa B 3")).toBeNull();
 
     fireEvent.click(
       screen.getByRole("button", { name: "Ver fila completa" }),
     );
 
+    expect(screen.getByText("Casa A 2")).toBeInTheDocument();
     expect(screen.getByText("Casa A 3")).toBeInTheDocument();
+    expect(screen.getByText("Casa B 2")).toBeInTheDocument();
     expect(screen.getByText("Casa B 3")).toBeInTheDocument();
+  });
+
+  it("informa o total da fila completa sem confundi-lo com o recorte operacional", async () => {
+    const matches = Array.from({ length: 2 }, (_, index) =>
+      buildMatch({
+        id: `operational-match-${index + 1}`,
+        sport_id: "sport-points",
+        status: MatchStatus.SCHEDULED,
+      }),
+    );
+
+    renderAdminMatchControl({
+      matches,
+      championshipSports: [
+        buildChampionshipSport({
+          id: "championship-sport-points",
+          sport_id: "sport-points",
+        }),
+      ],
+      isFullQueueVisible: false,
+      fullQueueItemsCount: 17,
+      onFullQueueVisibleChange: vi.fn(),
+    });
+
+    await completeInitialControlLoad();
+
+    expect(
+      screen.getByText("2 itens de controle encontrados de 17 na fila completa"),
+    ).toBeInTheDocument();
   });
 
   it("bloqueia o início do jogo quando o campeonato não está em andamento", async () => {
@@ -1929,6 +2035,10 @@ describe("AdminMatchControl", () => {
         "court-a-game-3": "10:00",
       },
     });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ver fila completa" }),
+    );
 
     const gameThreeCard = resolveMatchCardElement("CAMALEÃO B");
     const gameFourCard = resolveMatchCardElement("GARRUDOS");
@@ -2222,6 +2332,46 @@ describe("AdminMatchControl", () => {
         "Atlética Visitante Handebol",
       ),
     ).toHaveLength(1);
+  });
+
+  it("organiza os cartões em colunas por atlética no painel móvel", () => {
+    const match = buildMatch({
+      id: "live-mobile-cards-match",
+      sport_id: "sport-futsal",
+      status: MatchStatus.LIVE,
+      supports_cards: true,
+      sports: buildSport({ id: "sport-futsal", name: "Futsal" }),
+      home_team: buildTeam({ id: "home-mobile-cards-team", name: "Atlética Casa Futsal" }),
+      away_team: buildTeam({ id: "away-mobile-cards-team", name: "Atlética Visitante Futsal" }),
+    });
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-mobile-cards",
+      sport_id: "sport-futsal",
+      supports_cards: true,
+      sports: match.sports,
+    });
+
+    renderAdminMatchControl({
+      matches: [match],
+      championshipSports: [championshipSport],
+    });
+
+    const matchCardElement = resolveMatchCardElement("Atlética Casa Futsal");
+    const mobilePanel = within(matchCardElement)
+      .getAllByText("Amarelos")[0]
+      ?.closest(".glass-panel-muted");
+
+    expect(mobilePanel).not.toBeNull();
+    expect(mobilePanel).toHaveClass("sm:hidden");
+    expect(
+      mobilePanel?.querySelector(".grid.grid-cols-2.divide-x"),
+    ).not.toBeNull();
+    expect(
+      within(mobilePanel as HTMLElement).getByText("Atlética Casa Futsal"),
+    ).toBeInTheDocument();
+    expect(
+      within(mobilePanel as HTMLElement).getByText("Atlética Visitante Futsal"),
+    ).toBeInTheDocument();
   });
 
   it("mantém o botão Fim do set desabilitado com placar atual 0 x 0", () => {

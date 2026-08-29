@@ -127,6 +127,7 @@ export function AdminPage() {
   const {
     matchIds: operationalQueueMatchIds,
     individualSessionIds: operationalIndividualSessionIds,
+    fullQueueItemsCount: operationalFullQueueItemsCount,
     loading: operationalQueueLoading,
     isFetching: operationalQueueFetching,
     refetch: refetchOperationalQueue,
@@ -148,7 +149,7 @@ export function AdminPage() {
     championshipId: selectedChampionshipId,
     seasonYear: selectedChampionshipSeasonYear,
     matchIds: isControlFullQueueVisible ? undefined : operationalQueueMatchIds,
-    includeOperationalContext: isControlFullQueueVisible,
+    includeOperationalContext: true,
     enabled: isControlFullQueueVisible || !operationalQueueLoading,
   });
   const {
@@ -820,6 +821,7 @@ export function AdminPage() {
         matchesFetching={operationalMatchesFetching || operationalQueueFetching}
         isControlFullQueueVisible={isControlFullQueueVisible}
         operationalIndividualSessionIds={operationalIndividualSessionIds}
+        operationalFullQueueItemsCount={operationalFullQueueItemsCount}
         onControlFullQueueVisibleChange={setIsControlFullQueueVisible}
         matchesTabLoading={matchesTabLoading}
         matchesTabFetching={matchesTabFetching}

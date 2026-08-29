@@ -1049,7 +1049,7 @@ describe("resolveEstimatedStartTimeByMatchId", () => {
     expect(estimatedStartTimeByMatchId["match-3"]).toBe("10:15");
   });
 
-  it("does not generate estimated time for non-beach-soccer, disabled toggle, or non-scheduled status", () => {
+  it("does not generate estimated time for disabled modalities and retains it after the match starts", () => {
     const nonBeachSoccerMatch = buildMatch({
       id: "match-non-beach-soccer",
       sport_id: "sport-volei",
@@ -1089,7 +1089,9 @@ describe("resolveEstimatedStartTimeByMatchId", () => {
       championshipBracketEditions: [buildEstimatedStartTimeBracketEdition({})],
     });
 
-    expect(estimatedStartTimeByMatchId).toEqual({});
+    expect(estimatedStartTimeByMatchId).toEqual({
+      "match-live": "08:00",
+    });
   });
 
   it("uses the same estimated time for different cards in the same slot", () => {

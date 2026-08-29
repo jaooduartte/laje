@@ -282,6 +282,7 @@ export interface ChampionshipSport {
   points_loss: number;
   created_at: string;
   walkover_winner_points: number | null;
+  walkover_winner_set_count: number;
   awards_include_knockout_phase: boolean;
   supports_individual_awards: boolean;
   // Joined

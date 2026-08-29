@@ -12,6 +12,7 @@ import {
   EyeOff,
   Loader2,
   Medal,
+  Minus,
   MoreVertical,
   Pencil,
   Plus,
@@ -480,6 +481,7 @@ interface MatchEditDraft {
   scheduledDate: Date | null;
   startTime: Date | null;
   gameSlot: string;
+  isEstimatedStartTimeManuallySelected: boolean;
   manualRepresentationMode: MatchManualRepresentationMode;
   division: TeamDivision | null;
   naipe: MatchNaipe;
@@ -567,6 +569,50 @@ function resolveSafeScoreValue(value: number): number {
   }
 
   return Math.max(0, Math.trunc(value));
+}
+
+function MatchEditCounter({
+  value,
+  onChange,
+  label,
+}: {
+  value: number;
+  onChange: (value: number) => void;
+  label: string;
+}) {
+  const safeValue = resolveSafeScoreValue(value);
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <Button
+        type="button"
+        size="icon"
+        variant="outline"
+        className="h-10 w-10"
+        onClick={() => onChange(Math.max(0, safeValue - 1))}
+        disabled={safeValue == 0}
+        aria-label={`Diminuir ${label}`}
+      >
+        <Minus className="h-3 w-3" />
+      </Button>
+      <output
+        aria-label={label}
+        className="app-input-field flex h-10 min-w-14 items-center justify-center px-3 text-center font-semibold"
+      >
+        {safeValue}
+      </output>
+      <Button
+        type="button"
+        size="icon"
+        variant="outline"
+        className="h-10 w-10"
+        onClick={() => onChange(safeValue + 1)}
+        aria-label={`Aumentar ${label}`}
+      >
+        <Plus className="h-3 w-3" />
+      </Button>
+    </div>
+  );
 }
 
 function resolveParsedScoreInputValue(value: string): number {
@@ -703,6 +749,7 @@ function resolveInitialEditingMatchDraft(
     scheduledDate: resolveScheduledDateDraftValue(match),
     startTime: match.start_time ? new Date(match.start_time) : null,
     gameSlot: currentGameSlot == null ? "" : String(currentGameSlot),
+    isEstimatedStartTimeManuallySelected: false,
     manualRepresentationMode:
       match.manual_representation_mode ?? MatchManualRepresentationMode.AUTO,
     division: match.division,
@@ -1592,6 +1639,34 @@ export function AdminMatches({
       return null;
     }
 
+    if (
+      editingMatchDraft.isEstimatedStartTimeManuallySelected &&
+      editingMatchDraft.startTime
+    ) {
+      const manuallySelectedSlot = editingAvailableScheduleSlots.find(
+        (slot) =>
+          slot.start_time == editingMatchDraft.startTime?.toISOString(),
+      );
+
+      if (manuallySelectedSlot) {
+        return manuallySelectedSlot;
+      }
+    }
+
+    const estimatedStartTime = editingMatchId
+      ? estimatedStartTimeByMatchId[editingMatchId]
+      : null;
+
+    if (estimatedStartTime) {
+      const matchedByEstimatedTime = editingAvailableScheduleSlots.find(
+        (slot) => slot.start_time_label == estimatedStartTime,
+      );
+
+      if (matchedByEstimatedTime) {
+        return matchedByEstimatedTime;
+      }
+    }
+
     if (editingMatchDraft.gameSlot) {
       const matchedByGameNumber = editingAvailableScheduleSlots.find(
         (slot) => String(slot.slot_number) == editingMatchDraft.gameSlot,
@@ -1606,19 +1681,24 @@ export function AdminMatches({
       editingMatchDraft.startTime?.toISOString() ?? null;
 
     if (currentStartTimeValue) {
-      const matchedByTime = editingAvailableScheduleSlots.find(
+      const matchedByCurrentStartTime = editingAvailableScheduleSlots.find(
         (slot) => slot.start_time == currentStartTimeValue,
       );
 
-      if (matchedByTime) {
-        return matchedByTime;
+      if (matchedByCurrentStartTime) {
+        return matchedByCurrentStartTime;
       }
     }
 
     return (
       editingAvailableScheduleSlots.find((slot) => slot.is_current_slot) ?? null
     );
-  }, [editingAvailableScheduleSlots, editingMatchDraft]);
+  }, [
+    editingAvailableScheduleSlots,
+    editingMatchDraft,
+    editingMatchId,
+    estimatedStartTimeByMatchId,
+  ]);
 
   const teamsAllowedForMatches = useMemo(() => {
     if (!championshipUsesDivisions) {
@@ -2352,6 +2432,15 @@ export function AdminMatches({
 
     return matches.find((match) => match.id == editingMatchId) ?? null;
   }, [editingMatchId, matches]);
+
+  const editingHomeTeamName =
+    teams.find((team) => team.id == editingMatchDraft?.homeTeamId)?.name ??
+    editingMatch?.home_team?.name ??
+    "Casa";
+  const editingAwayTeamName =
+    teams.find((team) => team.id == editingMatchDraft?.awayTeamId)?.name ??
+    editingMatch?.away_team?.name ??
+    "Visitante";
 
   const editingMatchBracketBinding = useMemo(() => {
     if (!editingMatchId) {
@@ -8637,6 +8726,7 @@ export function AdminMatches({
                                   ...currentDraft,
                                   startTime: new Date(selectedSlot.start_time),
                                   gameSlot: String(selectedSlot.slot_number),
+                                  isEstimatedStartTimeManuallySelected: true,
                                 }
                               : currentDraft,
                           );
@@ -8815,53 +8905,41 @@ export function AdminMatches({
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                       <div className="space-y-2">
                         <p className="text-xs font-medium text-muted-foreground">
-                          Casa
+                          {editingHomeTeamName}
                         </p>
-                        <Input
-                          type="number"
-                          min={0}
-                          step={1}
+                        <MatchEditCounter
                           value={editingMatchDraft.homeScore}
-                          onChange={(event) =>
+                          label={`placar de ${editingHomeTeamName}`}
+                          onChange={(homeScore) =>
                             setEditingMatchDraft((currentDraft) =>
                               currentDraft
                                 ? {
                                     ...currentDraft,
-                                    homeScore: resolveParsedScoreInputValue(
-                                      event.target.value,
-                                    ),
+                                    homeScore,
                                   }
                                 : currentDraft,
                             )
                           }
-                          className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                          aria-label="Placar do mandante"
                         />
                       </div>
 
                       <div className="space-y-2">
                         <p className="text-xs font-medium text-muted-foreground">
-                          Visitante
+                          {editingAwayTeamName}
                         </p>
-                        <Input
-                          type="number"
-                          min={0}
-                          step={1}
+                        <MatchEditCounter
                           value={editingMatchDraft.awayScore}
-                          onChange={(event) =>
+                          label={`placar de ${editingAwayTeamName}`}
+                          onChange={(awayScore) =>
                             setEditingMatchDraft((currentDraft) =>
                               currentDraft
                                 ? {
                                     ...currentDraft,
-                                    awayScore: resolveParsedScoreInputValue(
-                                      event.target.value,
-                                    ),
+                                    awayScore,
                                   }
                                 : currentDraft,
                             )
                           }
-                          className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                          aria-label="Placar do visitante"
                         />
                       </div>
                     </div>
@@ -8880,7 +8958,7 @@ export function AdminMatches({
                         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                           <div className="space-y-2">
                             <p className="text-xs font-medium text-muted-foreground">
-                              Casa
+                              {editingHomeTeamName}
                             </p>
                             <Input
                               type="number"
@@ -8907,7 +8985,7 @@ export function AdminMatches({
 
                           <div className="space-y-2">
                             <p className="text-xs font-medium text-muted-foreground">
-                              Visitante
+                              {editingAwayTeamName}
                             </p>
                             <Input
                               type="number"
@@ -8946,33 +9024,26 @@ export function AdminMatches({
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                       <div className="space-y-2 app-card-muted rounded-xl p-3">
                         <p className="text-xs font-medium text-muted-foreground">
-                          Casa
+                          {editingHomeTeamName}
                         </p>
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                           <div className="space-y-2">
                             <p className="text-xs font-medium text-amber-700">
                               Amarelos
                             </p>
-                            <Input
-                              type="number"
-                              min={0}
-                              step={1}
+                            <MatchEditCounter
                               value={editingMatchDraft.homeYellowCards}
-                              onChange={(event) =>
+                              label={`cartões amarelos de ${editingHomeTeamName}`}
+                              onChange={(homeYellowCards) =>
                                 setEditingMatchDraft((currentDraft) =>
                                   currentDraft
                                     ? {
                                         ...currentDraft,
-                                        homeYellowCards:
-                                          resolveParsedScoreInputValue(
-                                            event.target.value,
-                                          ),
+                                        homeYellowCards,
                                       }
                                     : currentDraft,
                                 )
                               }
-                              className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                              aria-label="Cartões amarelos da casa"
                             />
                           </div>
 
@@ -8980,26 +9051,19 @@ export function AdminMatches({
                             <p className="text-xs font-medium app-text-status-danger">
                               Vermelhos
                             </p>
-                            <Input
-                              type="number"
-                              min={0}
-                              step={1}
+                            <MatchEditCounter
                               value={editingMatchDraft.homeRedCards}
-                              onChange={(event) =>
+                              label={`cartões vermelhos de ${editingHomeTeamName}`}
+                              onChange={(homeRedCards) =>
                                 setEditingMatchDraft((currentDraft) =>
                                   currentDraft
                                     ? {
                                         ...currentDraft,
-                                        homeRedCards:
-                                          resolveParsedScoreInputValue(
-                                            event.target.value,
-                                          ),
+                                        homeRedCards,
                                       }
                                     : currentDraft,
                                 )
                               }
-                              className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                              aria-label="Cartões vermelhos da casa"
                             />
                           </div>
                         </div>
@@ -9007,33 +9071,26 @@ export function AdminMatches({
 
                       <div className="space-y-2 app-card-muted rounded-xl p-3">
                         <p className="text-xs font-medium text-muted-foreground">
-                          Visitante
+                          {editingAwayTeamName}
                         </p>
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                           <div className="space-y-2">
                             <p className="text-xs font-medium text-amber-700">
                               Amarelos
                             </p>
-                            <Input
-                              type="number"
-                              min={0}
-                              step={1}
+                            <MatchEditCounter
                               value={editingMatchDraft.awayYellowCards}
-                              onChange={(event) =>
+                              label={`cartões amarelos de ${editingAwayTeamName}`}
+                              onChange={(awayYellowCards) =>
                                 setEditingMatchDraft((currentDraft) =>
                                   currentDraft
                                     ? {
                                         ...currentDraft,
-                                        awayYellowCards:
-                                          resolveParsedScoreInputValue(
-                                            event.target.value,
-                                          ),
+                                        awayYellowCards,
                                       }
                                     : currentDraft,
                                 )
                               }
-                              className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                              aria-label="Cartões amarelos do visitante"
                             />
                           </div>
 
@@ -9041,26 +9098,19 @@ export function AdminMatches({
                             <p className="text-xs font-medium app-text-status-danger">
                               Vermelhos
                             </p>
-                            <Input
-                              type="number"
-                              min={0}
-                              step={1}
+                            <MatchEditCounter
                               value={editingMatchDraft.awayRedCards}
-                              onChange={(event) =>
+                              label={`cartões vermelhos de ${editingAwayTeamName}`}
+                              onChange={(awayRedCards) =>
                                 setEditingMatchDraft((currentDraft) =>
                                   currentDraft
                                     ? {
                                         ...currentDraft,
-                                        awayRedCards:
-                                          resolveParsedScoreInputValue(
-                                            event.target.value,
-                                          ),
+                                        awayRedCards,
                                       }
                                     : currentDraft,
                                 )
                               }
-                              className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                              aria-label="Cartões vermelhos do visitante"
                             />
                           </div>
                         </div>
@@ -9078,33 +9128,26 @@ export function AdminMatches({
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                       <div className="space-y-2 app-card-muted rounded-xl p-3">
                         <p className="text-xs font-medium text-muted-foreground">
-                          Casa
+                          {editingHomeTeamName}
                         </p>
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                           <div className="space-y-2">
                             <p className="text-xs font-medium text-sky-700">
                               Cartões azuis
                             </p>
-                            <Input
-                              type="number"
-                              min={0}
-                              step={1}
+                            <MatchEditCounter
                               value={editingMatchDraft.homeBlueCards}
-                              onChange={(event) =>
+                              label={`cartões azuis de ${editingHomeTeamName}`}
+                              onChange={(homeBlueCards) =>
                                 setEditingMatchDraft((currentDraft) =>
                                   currentDraft
                                     ? {
                                         ...currentDraft,
-                                        homeBlueCards:
-                                          resolveParsedScoreInputValue(
-                                            event.target.value,
-                                          ),
+                                        homeBlueCards,
                                       }
                                     : currentDraft,
                                 )
                               }
-                              className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                              aria-label="Cartões azuis da casa"
                             />
                           </div>
                           <div className="space-y-2">
@@ -9137,33 +9180,26 @@ export function AdminMatches({
                       </div>
                       <div className="space-y-2 app-card-muted rounded-xl p-3">
                         <p className="text-xs font-medium text-muted-foreground">
-                          Visitante
+                          {editingAwayTeamName}
                         </p>
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                           <div className="space-y-2">
                             <p className="text-xs font-medium text-sky-700">
                               Cartões azuis
                             </p>
-                            <Input
-                              type="number"
-                              min={0}
-                              step={1}
+                            <MatchEditCounter
                               value={editingMatchDraft.awayBlueCards}
-                              onChange={(event) =>
+                              label={`cartões azuis de ${editingAwayTeamName}`}
+                              onChange={(awayBlueCards) =>
                                 setEditingMatchDraft((currentDraft) =>
                                   currentDraft
                                     ? {
                                         ...currentDraft,
-                                        awayBlueCards:
-                                          resolveParsedScoreInputValue(
-                                            event.target.value,
-                                          ),
+                                        awayBlueCards,
                                       }
                                     : currentDraft,
                                 )
                               }
-                              className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                              aria-label="Cartões azuis do visitante"
                             />
                           </div>
                           <div className="space-y-2">

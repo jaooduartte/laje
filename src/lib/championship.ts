@@ -1059,10 +1059,6 @@ export function resolveEstimatedStartTimeByMatchId(params: {
     }, {});
 
   return matches.reduce<Record<string, string>>((carry, match) => {
-    if (match.status != MatchStatus.SCHEDULED) {
-      return carry;
-    }
-
     const championshipSport =
       championshipSportByChampionshipAndSportKey[
         `${match.championship_id}:${match.sport_id}`
@@ -1075,7 +1071,7 @@ export function resolveEstimatedStartTimeByMatchId(params: {
       return carry;
     }
 
-    if (match.start_time) {
+    if (match.status == MatchStatus.SCHEDULED && match.start_time) {
       const directPlannedStartTime = resolveSaoPauloTimeLabel(match.start_time);
 
       if (

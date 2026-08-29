@@ -121,6 +121,7 @@ interface Props {
   isFetchingMatches?: boolean;
   isFullQueueVisible?: boolean;
   operationalIndividualSessionIds?: string[];
+  fullQueueItemsCount?: number | null;
   onFullQueueVisibleChange?: (isVisible: boolean) => void;
   onRefetch: (options?: {
     showLoading?: boolean;
@@ -466,6 +467,14 @@ function resolveWalkoverWinnerPoints(
   return cs?.walkover_winner_points ?? null;
 }
 
+function resolveWalkoverWinnerSetCount(
+  match: Pick<Match, "sport_id">,
+  championshipSports: ChampionshipSport[],
+): number {
+  const cs = championshipSports.find((s) => s.sport_id === match.sport_id);
+  return cs?.walkover_winner_set_count ?? 1;
+}
+
 function resolveMatchUpdatePayload(
   match: Match,
   draft: MatchControlDraft,
@@ -573,6 +582,7 @@ export function AdminMatchControl({
   isFetchingMatches = false,
   isFullQueueVisible: isFullQueueVisibleProp = false,
   operationalIndividualSessionIds = [],
+  fullQueueItemsCount = null,
   onFullQueueVisibleChange,
   onRefetch,
   onRefetchChampionshipBracket,
@@ -2261,6 +2271,9 @@ export function AdminMatchControl({
     }
 
     const isSetMatch = isSetRuleMatch(match);
+    const winnerSetCount = isSetMatch
+      ? resolveWalkoverWinnerSetCount(match, championshipSports)
+      : 0;
     const winnerSide: MatchSide =
       walkoverLoserTeamId == match.home_team_id ? "away" : "home";
     const now = new Date().toISOString();
@@ -2269,13 +2282,14 @@ export function AdminMatchControl({
     let nextMatchSets: MatchSetInput[] | null = null;
 
     if (isSetMatch) {
-      nextMatchSets = [
-        {
-          set_number: 1,
+      nextMatchSets = Array.from(
+        { length: winnerSetCount },
+        (_, index) => ({
+          set_number: index + 1,
           home_points: winnerSide == "home" ? winnerPoints : 0,
           away_points: winnerSide == "away" ? winnerPoints : 0,
-        },
-      ];
+        }),
+      );
       const resolvedSetWins = await persistMatchSets(match, nextMatchSets);
 
       if (!resolvedSetWins) {
@@ -2893,7 +2907,7 @@ export function AdminMatchControl({
       const scheduledMatchesCount =
         scheduledMatchesCountByCourtKey.get(courtKey) ?? 0;
 
-      if (scheduledMatchesCount >= 2) {
+      if (scheduledMatchesCount >= 1) {
         return false;
       }
 
@@ -2974,6 +2988,12 @@ export function AdminMatchControl({
     : onFullQueueVisibleChange
       ? visibleIndividualSessions
       : localOperationalIndividualSessions;
+  const displayedControlItemsCount = isFullQueueVisible
+    ? controlItemsCount
+    : displayedMatches.length + displayedIndividualSessions.length;
+  const resolvedFullQueueItemsCount = isFullQueueVisible
+    ? controlItemsCount
+    : fullQueueItemsCount ?? controlItemsCount;
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -3188,16 +3208,12 @@ export function AdminMatchControl({
 
       <div className="order-1 glass-card enter-section space-y-4 p-4">
         <p className="text-sm text-muted-foreground">
-          {isFullQueueVisible
-            ? controlItemsCount
-            : displayedMatches.length + displayedIndividualSessions.length}{" "}
-          {(isFullQueueVisible
-            ? controlItemsCount
-            : displayedMatches.length + displayedIndividualSessions.length) == 1
+          {displayedControlItemsCount}{" "}
+          {displayedControlItemsCount == 1
             ? "item de controle encontrado"
             : "itens de controle encontrados"}
-          {!isFullQueueVisible && controlItemsCount > 0
-            ? ` de ${controlItemsCount} na fila completa`
+          {!isFullQueueVisible && resolvedFullQueueItemsCount > 0
+            ? ` de ${resolvedFullQueueItemsCount} na fila completa`
             : ""}
         </p>
 
@@ -3572,7 +3588,7 @@ export function AdminMatchControl({
               const isSetMatch = isSetRuleMatch(match);
               const supportsCards = doesMatchSupportCards(match);
               const handballMatch = isHandballMatch(match);
-              const handballMobileTeamColumns = [
+              const mobileTeamCardColumns = [
                 {
                   side: "home" as MatchSide,
                   teamName: match.home_team?.name ?? "Mandante",
@@ -3589,18 +3605,22 @@ export function AdminMatchControl({
                       value: matchDraft.homeRedCards,
                       className: "app-text-status-danger",
                     },
-                    {
-                      color: "blue" as CardColor,
-                      label: "Azuis",
-                      value: matchDraft.homeBlueCards,
-                      className: "text-sky-700",
-                    },
-                    {
-                      color: "twoMinute" as CardColor,
-                      label: "Penal. 2 min",
-                      value: matchDraft.homeTwoMinutePenalties,
-                      className: "text-slate-700 dark:text-slate-300",
-                    },
+                    ...(handballMatch
+                      ? [
+                          {
+                            color: "blue" as CardColor,
+                            label: "Azuis",
+                            value: matchDraft.homeBlueCards,
+                            className: "text-sky-700",
+                          },
+                          {
+                            color: "twoMinute" as CardColor,
+                            label: "Penal. 2 min",
+                            value: matchDraft.homeTwoMinutePenalties,
+                            className: "text-slate-700 dark:text-slate-300",
+                          },
+                        ]
+                      : []),
                   ],
                 },
                 {
@@ -3619,18 +3639,22 @@ export function AdminMatchControl({
                       value: matchDraft.awayRedCards,
                       className: "app-text-status-danger",
                     },
-                    {
-                      color: "blue" as CardColor,
-                      label: "Azuis",
-                      value: matchDraft.awayBlueCards,
-                      className: "text-sky-700",
-                    },
-                    {
-                      color: "twoMinute" as CardColor,
-                      label: "Penal. 2 min",
-                      value: matchDraft.awayTwoMinutePenalties,
-                      className: "text-slate-700 dark:text-slate-300",
-                    },
+                    ...(handballMatch
+                      ? [
+                          {
+                            color: "blue" as CardColor,
+                            label: "Azuis",
+                            value: matchDraft.awayBlueCards,
+                            className: "text-sky-700",
+                          },
+                          {
+                            color: "twoMinute" as CardColor,
+                            label: "Penal. 2 min",
+                            value: matchDraft.awayTwoMinutePenalties,
+                            className: "text-slate-700 dark:text-slate-300",
+                          },
+                        ]
+                      : []),
                   ],
                 },
               ];
@@ -4244,12 +4268,12 @@ export function AdminMatchControl({
                     </div>
                   ) : null}
 
-                  {supportsCards && handballMatch ? (
+                  {supportsCards ? (
                     <div className="glass-panel-muted p-3 sm:hidden">
                       <div className="grid grid-cols-2 divide-x divide-border/60">
-                        {handballMobileTeamColumns.map((teamColumn) => (
+                        {mobileTeamCardColumns.map((teamColumn) => (
                           <div
-                            key={`${match.id}-${teamColumn.side}-handball-mobile`}
+                            key={`${match.id}-${teamColumn.side}-mobile`}
                             className="min-w-0 px-2 first:pl-0 last:pr-0"
                           >
                             <p className="mb-3 truncate text-center text-xs font-bold uppercase text-foreground">
@@ -4337,11 +4361,7 @@ export function AdminMatchControl({
                   ) : null}
 
                   {supportsCards ? (
-                    <div
-                      className={`relative glass-panel-muted p-3 after:pointer-events-none after:absolute after:inset-y-3 after:left-1/2 after:hidden after:border-l after:border-border sm:after:block ${
-                        handballMatch ? "hidden sm:block" : ""
-                      }`}
-                    >
+                    <div className="relative hidden glass-panel-muted p-3 after:pointer-events-none after:absolute after:inset-y-3 after:left-1/2 after:hidden after:border-l after:border-border sm:block sm:after:block">
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div className="space-y-2">
                           <p className="truncate text-xs font-semibold uppercase text-muted-foreground">

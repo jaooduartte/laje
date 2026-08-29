@@ -5,7 +5,10 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { updateBracketLocationSportPriorities } from "@/domain/championship-brackets/championshipBracket.repository";
 import type { Championship, ChampionshipSport, Sport } from "@/lib/types";
-import { ChampionshipCode } from "@/lib/enums";
+import {
+  ChampionshipCode,
+  ChampionshipSportResultRule,
+} from "@/lib/enums";
 import { resolveNormalizedSportName } from "@/lib/championship";
 import { resolveChampionshipSportSupportsAwards } from "@/lib/championshipAwards";
 import {
@@ -70,9 +73,15 @@ export function AdminSports({
     optimisticWalkoverWinnerPointsBySportId,
     setOptimisticWalkoverWinnerPointsBySportId,
   ] = useState<Record<string, number | null | undefined>>({});
+  const [
+    optimisticWalkoverWinnerSetCountBySportId,
+    setOptimisticWalkoverWinnerSetCountBySportId,
+  ] = useState<Record<string, number | undefined>>({});
   const [walkoverDraftBySportId, setWalkoverDraftBySportId] = useState<
     Record<string, string>
   >({});
+  const [walkoverSetCountDraftBySportId, setWalkoverSetCountDraftBySportId] =
+    useState<Record<string, string>>({});
   const [durationDraftBySportId, setDurationDraftBySportId] = useState<
     Record<string, string>
   >({});
@@ -142,6 +151,17 @@ export function AdminSports({
 
     setWalkoverDraftBySportId(nextWalkoverDraftBySportId);
 
+    const nextWalkoverSetCountDraftBySportId = championshipSports.reduce<
+      Record<string, string>
+    >((carry, championshipSport) => {
+      carry[championshipSport.sport_id] = String(
+        championshipSport.walkover_winner_set_count ?? 1,
+      );
+      return carry;
+    }, {});
+
+    setWalkoverSetCountDraftBySportId(nextWalkoverSetCountDraftBySportId);
+
     const nextOptimisticWalkoverWinnerPointsBySportId =
       championshipSports.reduce<Record<string, number | null | undefined>>(
         (carry, championshipSport) => {
@@ -154,6 +174,20 @@ export function AdminSports({
 
     setOptimisticWalkoverWinnerPointsBySportId(
       nextOptimisticWalkoverWinnerPointsBySportId,
+    );
+
+    const nextOptimisticWalkoverWinnerSetCountBySportId =
+      championshipSports.reduce<Record<string, number | undefined>>(
+        (carry, championshipSport) => {
+          carry[championshipSport.sport_id] =
+            championshipSport.walkover_winner_set_count ?? 1;
+          return carry;
+        },
+        {},
+      );
+
+    setOptimisticWalkoverWinnerSetCountBySportId(
+      nextOptimisticWalkoverWinnerSetCountBySportId,
     );
 
     const nextDurationDraftBySportId = sports.reduce<Record<string, string>>(
@@ -278,9 +312,10 @@ export function AdminSports({
     toast.success("Configuração de horário estimado atualizada.");
   };
 
-  const handleSaveWalkoverWinnerPoints = async (
+  const handleSaveWalkoverConfiguration = async (
     championshipSport: ChampionshipSport,
     sportId: string,
+    isSetRule: boolean,
   ) => {
     if (!canManageSports) {
       return;
@@ -297,6 +332,14 @@ export function AdminSports({
       return;
     }
 
+    const setCountDraftValue = walkoverSetCountDraftBySportId[sportId] ?? "";
+    const parsedSetCount = normalizePositiveIntegerDraftValue(setCountDraftValue);
+
+    if (isSetRule && parsedSetCount == null) {
+      toast.error("Informe uma quantidade positiva de sets para o W.O.");
+      return;
+    }
+
     setSavingSportIdById((current) => ({
       ...current,
       [championshipSport.id]: true,
@@ -304,7 +347,10 @@ export function AdminSports({
 
     const { error } = await supabase
       .from("championship_sports")
-      .update({ walkover_winner_points: parsedValue })
+      .update({
+        walkover_winner_points: parsedValue,
+        ...(isSetRule ? { walkover_winner_set_count: parsedSetCount } : {}),
+      })
       .eq("id", championshipSport.id);
 
     setSavingSportIdById((current) => ({
@@ -327,10 +373,20 @@ export function AdminSports({
       ...current,
       [sportId]: parsedValue != null ? String(parsedValue) : "",
     }));
+    if (isSetRule && parsedSetCount != null) {
+      setOptimisticWalkoverWinnerSetCountBySportId((current) => ({
+        ...current,
+        [sportId]: parsedSetCount,
+      }));
+      setWalkoverSetCountDraftBySportId((current) => ({
+        ...current,
+        [sportId]: String(parsedSetCount),
+      }));
+    }
 
     toast.success(
       parsedValue != null
-        ? "Pontuação de W.O. atualizada."
+        ? "Configuração de W.O. atualizada."
         : "W.O. desabilitado para esta modalidade.",
     );
   };
@@ -600,13 +656,25 @@ export function AdminSports({
               optimisticWalkoverWinnerPointsBySportId[sport?.id ?? ""] ??
               championshipSport?.walkover_winner_points ??
               null;
+            const draftWalkoverSetCountValue = sport
+              ? (walkoverSetCountDraftBySportId[sport.id] ?? "")
+              : "";
+            const normalizedDraftWalkoverSetCount =
+              normalizePositiveIntegerDraftValue(draftWalkoverSetCountValue);
+            const currentWalkoverWinnerSetCount =
+              optimisticWalkoverWinnerSetCountBySportId[sport?.id ?? ""] ??
+              championshipSport?.walkover_winner_set_count ??
+              1;
             const hasWalkoverChanges =
               !!sport &&
               !!championshipSport &&
-              (draftWalkoverValue.trim() == ""
+              ((draftWalkoverValue.trim() == ""
                 ? currentWalkoverWinnerPoints !== null
                 : normalizedDraftWalkoverValue != null &&
-                  normalizedDraftWalkoverValue !== currentWalkoverWinnerPoints);
+                  normalizedDraftWalkoverValue !== currentWalkoverWinnerPoints) ||
+                (resolvedResultRule == ChampionshipSportResultRule.SETS &&
+                  normalizedDraftWalkoverSetCount != null &&
+                  normalizedDraftWalkoverSetCount !== currentWalkoverWinnerSetCount));
             const awardsIncludeKnockout =
               optimisticAwardsIncludeKnockoutBySportId[sport?.id ?? ""] ??
               championshipSport?.awards_include_knockout_phase ??
@@ -820,30 +888,70 @@ export function AdminSports({
                 {!isIndividualSport ? (
                   <div className="app-card-muted space-y-2 px-3 py-2">
                     <p className="text-xs font-medium text-muted-foreground">
-                      Pontuação máxima (W.O.)
+                      Configuração de W.O.
                     </p>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        min={1}
-                        placeholder="Desabilitado"
-                        className="h-8 w-32 text-sm"
-                        disabled={
-                          !canManageSports ||
-                          !championshipSport ||
-                          isSavingSport
-                        }
-                        value={
-                          sport ? (walkoverDraftBySportId[sport.id] ?? "") : ""
-                        }
-                        onChange={(e) => {
-                          if (!sport) return;
-                          setWalkoverDraftBySportId((current) => ({
-                            ...current,
-                            [sport.id]: e.target.value,
-                          }));
-                        }}
-                      />
+                    <div className="flex flex-wrap items-end gap-2">
+                      <label className="space-y-1 text-xs text-muted-foreground">
+                        <span>
+                          {resolvedResultRule == ChampionshipSportResultRule.SETS
+                            ? "Pontos por set no W.O."
+                            : "Pontuação máxima (W.O.)"}
+                        </span>
+                        <Input
+                          type="number"
+                          min={1}
+                          aria-label={
+                            resolvedResultRule == ChampionshipSportResultRule.SETS
+                              ? "Pontos por set no W.O."
+                              : "Pontuação máxima (W.O.)"
+                          }
+                          placeholder="Desabilitado"
+                          className="h-8 w-32 text-sm"
+                          disabled={
+                            !canManageSports ||
+                            !championshipSport ||
+                            isSavingSport
+                          }
+                          value={
+                            sport ? (walkoverDraftBySportId[sport.id] ?? "") : ""
+                          }
+                          onChange={(e) => {
+                            if (!sport) return;
+                            setWalkoverDraftBySportId((current) => ({
+                              ...current,
+                              [sport.id]: e.target.value,
+                            }));
+                          }}
+                        />
+                      </label>
+                      {resolvedResultRule == ChampionshipSportResultRule.SETS ? (
+                        <label className="space-y-1 text-xs text-muted-foreground">
+                          <span>Sets concedidos ao vencedor</span>
+                          <Input
+                            type="number"
+                            min={1}
+                            aria-label="Sets concedidos ao vencedor no W.O."
+                            className="h-8 w-32 text-sm"
+                            disabled={
+                              !canManageSports ||
+                              !championshipSport ||
+                              isSavingSport
+                            }
+                            value={
+                              sport
+                                ? (walkoverSetCountDraftBySportId[sport.id] ?? "")
+                                : ""
+                            }
+                            onChange={(e) => {
+                              if (!sport) return;
+                              setWalkoverSetCountDraftBySportId((current) => ({
+                                ...current,
+                                [sport.id]: e.target.value,
+                              }));
+                            }}
+                          />
+                        </label>
+                      ) : null}
                       <Button
                         size="sm"
                         variant="destructive"
@@ -855,9 +963,10 @@ export function AdminSports({
                         }
                         onClick={() => {
                           if (!championshipSport || !sport) return;
-                          void handleSaveWalkoverWinnerPoints(
+                          void handleSaveWalkoverConfiguration(
                             championshipSport,
                             sport.id,
+                            resolvedResultRule == ChampionshipSportResultRule.SETS,
                           );
                         }}
                       >
@@ -866,7 +975,9 @@ export function AdminSports({
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {sport && walkoverDraftBySportId[sport.id]
-                        ? `Vencedor recebe ${walkoverDraftBySportId[sport.id]} ponto(s) em caso de W.O.`
+                        ? resolvedResultRule == ChampionshipSportResultRule.SETS
+                          ? `Vencedor recebe ${walkoverDraftBySportId[sport.id]} ponto(s) em cada um dos ${walkoverSetCountDraftBySportId[sport.id] ?? 1} set(s) do W.O.`
+                          : `Vencedor recebe ${walkoverDraftBySportId[sport.id]} ponto(s) em caso de W.O.`
                         : "W.O. desabilitado — deixe o campo vazio para desabilitar."}
                     </p>
                     {!championshipSport ? (

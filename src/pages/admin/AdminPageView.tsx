@@ -83,6 +83,7 @@ interface AdminPageViewProps {
   matchesFetching: boolean;
   isControlFullQueueVisible?: boolean;
   operationalIndividualSessionIds?: string[];
+  operationalFullQueueItemsCount?: number | null;
   onControlFullQueueVisibleChange?: (isVisible: boolean) => void;
   matchesTabLoading?: boolean;
   matchesTabFetching: boolean;
@@ -190,6 +191,7 @@ export function AdminPageView({
   matchesFetching,
   isControlFullQueueVisible = false,
   operationalIndividualSessionIds = [],
+  operationalFullQueueItemsCount = null,
   onControlFullQueueVisibleChange,
   matchesTabLoading = false,
   matchesTabFetching,
@@ -818,6 +820,7 @@ export function AdminPageView({
                 isFetchingMatches={matchesFetching}
                 isFullQueueVisible={isControlFullQueueVisible}
                 operationalIndividualSessionIds={operationalIndividualSessionIds}
+                fullQueueItemsCount={operationalFullQueueItemsCount}
                 onFullQueueVisibleChange={onControlFullQueueVisibleChange}
                 onRefetch={onRefetchMatches}
                 onRefetchChampionshipBracket={onRefetchChampionshipBracket}

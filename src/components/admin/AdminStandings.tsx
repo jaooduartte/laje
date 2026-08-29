@@ -596,6 +596,18 @@ export function AdminStandings({
       );
   }, [naipeFilter, selectedSeasonGroupOptions, sportFilter]);
 
+  const canFilterByGroup =
+    !isPlacementFilterDisabled && groupOptions.length > 0;
+  const canFilterByPlacement = canFilterByGroup;
+  const standingsFilterLargeColumnClassName =
+    canFilterByDivision && canFilterByGroup
+      ? "lg:grid-cols-5"
+      : canFilterByDivision
+        ? "lg:grid-cols-3"
+        : canFilterByGroup
+          ? "lg:grid-cols-4"
+          : "lg:grid-cols-2";
+
   useEffect(() => {
     if (groupFilter == ALL_GROUPS_FILTER) {
       return;
@@ -842,7 +854,9 @@ export function AdminStandings({
 
   const isInterlajeOverallStandingsView =
     selectedChampionship.code == ChampionshipCode.INTERLAJE &&
-    sportFilter == ALL_SPORTS_FILTER;
+    sportFilter == ALL_SPORTS_FILTER &&
+    naipeFilter == ALL_NAIPES_FILTER &&
+    (!canFilterByDivision || divisionFilter == ALL_DIVISIONS_FILTER);
   const interlajeOverallStandingAggregates = useMemo(
     () => resolveInterlajeOverallStandingAggregates(interlajeOverallStandings),
     [interlajeOverallStandings],
@@ -1532,9 +1546,7 @@ export function AdminStandings({
       </div>
 
       <div
-        className={`glass-panel enter-section grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 ${
-          canFilterByDivision ? "lg:grid-cols-5" : "lg:grid-cols-4"
-        }`}
+        className={`glass-panel enter-section grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 ${standingsFilterLargeColumnClassName}`}
       >
         <div>
           <Select value={yearFilter} onValueChange={setYearFilter}>
@@ -1569,21 +1581,23 @@ export function AdminStandings({
           </Select>
         </div>
 
-        <div>
-          <Select value={groupFilter} onValueChange={setGroupFilter}>
-            <SelectTrigger className="app-input-field">
-              <SelectValue placeholder="Todos os grupos" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_GROUPS_FILTER}>Todos os grupos</SelectItem>
-              {groupOptions.map((groupOption) => (
-                <SelectItem key={groupOption.value} value={groupOption.value}>
-                  {groupOption.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {canFilterByGroup ? (
+          <div>
+            <Select value={groupFilter} onValueChange={setGroupFilter}>
+              <SelectTrigger className="app-input-field">
+                <SelectValue placeholder="Todos os grupos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_GROUPS_FILTER}>Todos os grupos</SelectItem>
+                {groupOptions.map((groupOption) => (
+                  <SelectItem key={groupOption.value} value={groupOption.value}>
+                    {groupOption.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
 
         {canFilterByDivision ? (
           <div>
@@ -1608,20 +1622,10 @@ export function AdminStandings({
           </div>
         ) : null}
 
-        {groupOptions.length > 0 && (
+        {canFilterByPlacement ? (
           <div>
-            <Select
-              value={placementFilter}
-              onValueChange={setPlacementFilter}
-              disabled={isPlacementFilterDisabled}
-            >
-              <SelectTrigger
-                className={`app-input-field w-full ${
-                  isPlacementFilterDisabled
-                    ? "cursor-not-allowed opacity-60"
-                    : ""
-                }`}
-              >
+            <Select value={placementFilter} onValueChange={setPlacementFilter}>
+              <SelectTrigger className="app-input-field w-full">
                 <SelectValue placeholder="Posição na chave" />
               </SelectTrigger>
               <SelectContent>
@@ -1635,7 +1639,7 @@ export function AdminStandings({
               </SelectContent>
             </Select>
           </div>
-        )}
+        ) : null}
       </div>
 
       <div className="space-y-3">

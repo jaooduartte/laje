@@ -79,6 +79,7 @@ describe("AdminSports", () => {
       points_loss: 0,
       created_at: "2026-06-15T00:00:00.000Z",
       walkover_winner_points: 3,
+      walkover_winner_set_count: 1,
       awards_include_knockout_phase: true,
       supports_individual_awards: true,
     },
@@ -242,6 +243,12 @@ describe("AdminSports", () => {
       />,
     );
 
+    expect(
+      screen.queryByRole("spinbutton", {
+        name: "Sets concedidos ao vencedor no W.O.",
+      }),
+    ).not.toBeInTheDocument();
+
     const walkoverInput = screen.getByDisplayValue("3");
     fireEvent.change(walkoverInput, {
       target: { value: "4" },
@@ -262,6 +269,57 @@ describe("AdminSports", () => {
 
     await waitFor(() => {
       expect(walkoverSaveButton).toBeDisabled();
+    });
+  });
+
+  it("configura pontos e sets concedidos para W.O. em modalidades por sets", async () => {
+    const interlajeChampionship: Championship = {
+      ...championship,
+      code: ChampionshipCode.INTERLAJE,
+      name: "Interlaje",
+    };
+    const volleyballSport: Sport = {
+      id: "sport-volleyball",
+      name: "Voleibol",
+      default_match_duration_minutes: 35,
+      created_at: championship.created_at,
+    };
+    const volleyballChampionshipSport: ChampionshipSport = {
+      ...championshipSports[0],
+      id: "championship-sport-volleyball",
+      championship_id: interlajeChampionship.id,
+      sport_id: volleyballSport.id,
+      result_rule: ChampionshipSportResultRule.SETS,
+      walkover_winner_points: 21,
+      walkover_winner_set_count: 1,
+    };
+
+    render(
+      <AdminSports
+        sports={[volleyballSport]}
+        championshipSports={[volleyballChampionshipSport]}
+        selectedChampionship={interlajeChampionship}
+      />,
+    );
+
+    expect(screen.getByText("Pontos por set no W.O.")).toBeInTheDocument();
+    const setCountInput = screen.getByRole("spinbutton", {
+      name: "Sets concedidos ao vencedor no W.O.",
+    });
+    expect(setCountInput).toHaveValue(1);
+
+    fireEvent.change(setCountInput, { target: { value: "2" } });
+    const walkoverSaveButton = screen
+      .getAllByRole("button", { name: "Salvar" })
+      .find((button) => !button.hasAttribute("disabled"));
+    expect(walkoverSaveButton).toBeDefined();
+    fireEvent.click(walkoverSaveButton!);
+
+    await waitFor(() => {
+      expect(championshipSportsUpdateMock).toHaveBeenCalledWith({
+        walkover_winner_points: 21,
+        walkover_winner_set_count: 2,
+      });
     });
   });
 

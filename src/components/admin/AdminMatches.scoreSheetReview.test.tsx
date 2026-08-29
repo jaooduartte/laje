@@ -1625,8 +1625,10 @@ describe("AdminMatches score sheet review", () => {
 
     expect(await screen.findByText("Jogo 6")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Placar do mandante" }), {
-      target: { value: "5" },
+    Array.from({ length: 5 }).forEach(() => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Aumentar placar de AFA" }),
+      );
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
@@ -1805,9 +1807,11 @@ describe("AdminMatches score sheet review", () => {
 
     expect(screen.getByRole("spinbutton", { name: "Pênaltis da casa" })).toHaveValue(5);
 
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Placar do mandante" }), {
-      target: { value: "3" },
-    });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Aumentar placar de CLEAR PEN CASA",
+      }),
+    );
 
     await waitFor(() => {
       expect(screen.queryByRole("spinbutton", { name: "Pênaltis da casa" })).not.toBeInTheDocument();
@@ -1943,6 +1947,17 @@ describe("AdminMatches score sheet review", () => {
     fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo REABRIR CASA x REABRIR VISITANTE"));
     const matchCardContainer = getMatchCardContainerByTeamName("REABRIR CASA");
     clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
+
+    expect(
+      screen.getByRole("button", {
+        name: "Aumentar cartões amarelos de REABRIR CASA",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "Aumentar cartões vermelhos de REABRIR VISITANTE",
+      }),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("combobox", { name: "Status do jogo" }));
     fireEvent.click(await screen.findByRole("option", { name: "Ao vivo" }));
@@ -2535,9 +2550,9 @@ describe("AdminMatches score sheet review", () => {
           sport_id: "sport-1",
           status: MatchStatus.SCHEDULED,
           court_name: "Quadra 1",
-          start_time: "2026-04-11T10:40:00.000Z",
-          queue_position: 5,
-          scheduled_slot: 5,
+          start_time: "2026-04-11T14:10:00.000Z",
+          queue_position: 17,
+          scheduled_slot: 17,
           home_team: buildTeam({ id: "edit-slot-home", name: "CASA SLOT" }),
           away_team: buildTeam({ id: "edit-slot-away", name: "VISITANTE SLOT" }),
         }),
@@ -2545,13 +2560,19 @@ describe("AdminMatches score sheet review", () => {
       bracketView: buildBracketView({
         edition: buildBracketEdition(),
       }),
+      estimatedStartTimeByMatchId: {
+        "edit-game-slot-match": "10:40",
+      },
     });
 
     fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo CASA SLOT x VISITANTE SLOT"));
     const matchCardContainer = getMatchCardContainerByTeamName("CASA SLOT");
     clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
 
-    expect(await screen.findByText("Jogo 5")).toBeInTheDocument();
+    expect(await screen.findByText("Jogo 17")).toBeInTheDocument();
+    expect(
+      screen.getByRole("combobox", { name: "Horário estimado do jogo" }),
+    ).toHaveTextContent("10:40");
 
     fireEvent.click(screen.getByRole("combobox", { name: "Horário estimado do jogo" }));
     fireEvent.click(await screen.findByText("09:20"));

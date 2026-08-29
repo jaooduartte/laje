@@ -6,11 +6,25 @@ type OperationalQueueItem = {
   item_id: string;
 };
 
+type SupabaseCountQuery = PromiseLike<{
+  count: number | null;
+  error: Error | null;
+}> & {
+  eq: (column: string, value: unknown) => SupabaseCountQuery;
+  in: (column: string, values: readonly unknown[]) => SupabaseCountQuery;
+};
+
 type SupabaseLooseClient = {
   rpc: (
     functionName: string,
     argumentsValue: Record<string, unknown>,
   ) => Promise<{ data: unknown; error: Error | null }>;
+  from: (table: string) => {
+    select: (
+      columns: string,
+      options: { count: "exact"; head: true },
+    ) => SupabaseCountQuery;
+  };
 };
 
 const supabaseLoose = supabase as unknown as SupabaseLooseClient;
@@ -35,6 +49,9 @@ export function useChampionshipControlOperationalQueue({
   const [individualSessionIds, setIndividualSessionIds] = useState<string[]>(
     [],
   );
+  const [fullQueueItemsCount, setFullQueueItemsCount] = useState<
+    number | null
+  >(null);
   const [loading, setLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
 
@@ -43,6 +60,7 @@ export function useChampionshipControlOperationalQueue({
       if (!enabled || !championshipId || typeof seasonYear != "number") {
         setMatchIds([]);
         setIndividualSessionIds([]);
+        setFullQueueItemsCount(null);
         setLoading(false);
         setIsFetching(false);
         return;
@@ -54,13 +72,27 @@ export function useChampionshipControlOperationalQueue({
         setLoading(true);
       }
 
-      const { data, error } = await supabaseLoose.rpc(
-        "get_championship_control_operational_queue",
-        {
-          _championship_id: championshipId,
-          _season_year: seasonYear,
-        },
-      );
+      const [operationalQueueResponse, matchesCountResponse, sessionsCountResponse] =
+        await Promise.all([
+          supabaseLoose.rpc("get_championship_control_operational_queue", {
+            _championship_id: championshipId,
+            _season_year: seasonYear,
+          }),
+          supabaseLoose
+            .from("matches")
+            .select("id", { count: "exact", head: true })
+            .eq("championship_id", championshipId)
+            .eq("season_year", seasonYear)
+            .in("status", ["SCHEDULED", "LIVE"]),
+          supabaseLoose
+            .from("championship_individual_sessions")
+            .select("id", { count: "exact", head: true })
+            .eq("championship_id", championshipId)
+            .eq("season_year", seasonYear)
+            .in("status", ["DRAFT", "SCHEDULED", "LIVE", "FINISHED"]),
+        ]);
+
+      const { data, error } = operationalQueueResponse;
 
       if (error) {
         console.error("Erro ao carregar fila operacional do controle:", error.message);
@@ -82,6 +114,19 @@ export function useChampionshipControlOperationalQueue({
         );
       }
 
+      if (matchesCountResponse.error || sessionsCountResponse.error) {
+        console.error(
+          "Erro ao carregar total da fila completa do controle:",
+          matchesCountResponse.error?.message ?? sessionsCountResponse.error?.message,
+        );
+        setFullQueueItemsCount(null);
+      } else {
+        setFullQueueItemsCount(
+          (matchesCountResponse.count ?? 0) +
+            (sessionsCountResponse.count ?? 0),
+        );
+      }
+
       setLoading(false);
       setIsFetching(false);
     },
@@ -95,6 +140,7 @@ export function useChampionshipControlOperationalQueue({
   return {
     matchIds,
     individualSessionIds,
+    fullQueueItemsCount,
     loading,
     isFetching,
     refetch,

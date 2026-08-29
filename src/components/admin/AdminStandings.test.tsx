@@ -507,6 +507,70 @@ describe("AdminStandings", () => {
     expect(screen.queryByText("Classificação geral do INTERLAJE")).not.toBeInTheDocument();
   });
 
+  it("aplica o naipe à soma da classificação do INTERLAJE", () => {
+    useStandingsMock.mockReturnValue({
+      standings: [
+        {
+          team_id: "team-1",
+          team_name: "ENGENIOS",
+          team_city: "Joinville",
+          sport_id: "sport-1",
+          naipe: MatchNaipe.MASCULINO,
+          division: null,
+          played: 1,
+          wins: 1,
+          draws: 0,
+          losses: 0,
+          goals_for: 1,
+          goals_against: 0,
+          goal_diff: 1,
+          points: 4.5,
+          yellow_cards: 0,
+          red_cards: 0,
+        },
+      ],
+      loading: false,
+      refetch: vi.fn(),
+    });
+    interlajeOverallStandingsState.current = {
+      loading: false,
+      standings: [
+        {
+          team_id: "team-1",
+          team_name: "ENGENIOS",
+          placement_points: 3,
+          opening_bonus_points: 8,
+          overall_points: 11,
+          confirmed_competitions_count: 0,
+          has_pending_tie_break: true,
+        },
+      ],
+    };
+
+    render(
+      <AdminStandings
+        selectedChampionship={{
+          ...selectedChampionship,
+          code: ChampionshipCode.INTERLAJE,
+          name: "INTERLAJE",
+        }}
+        championshipSports={championshipSports}
+        sports={sports}
+        championshipBracketView={championshipBracketView}
+        availableSeasonYears={[2026]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Masculino" }));
+
+    const lastCall = teamStandingsTableMock.mock.calls.at(-1);
+    expect(lastCall?.[0]).toMatchObject({
+      variant: "full",
+      standings: [expect.objectContaining({ team_id: "team-1", points: 4.5 })],
+    });
+    expect(lastCall?.[0].pendingTieBreakTeamIds).toBeUndefined();
+  });
+
   it("consulta sem recorte e oculta o filtro de divisão na temporada unificada", () => {
     render(
       <AdminStandings
@@ -592,6 +656,29 @@ describe("AdminStandings", () => {
     expect(screen.getAllByText("Divisão Principal").length).toBeGreaterThan(0);
     expect(screen.getByText("Divisão de Acesso")).toBeInTheDocument();
     expect(screen.queryByText("Todas as divisões")).not.toBeInTheDocument();
+  });
+
+  it("oculta o filtro de posição na chave até haver modalidade e naipe selecionados", () => {
+    render(
+      <AdminStandings
+        selectedChampionship={selectedChampionship}
+        championshipSports={championshipSports}
+        sports={sports}
+        championshipBracketView={championshipBracketView}
+        availableSeasonYears={[2026]}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Todas as equipes" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sport filter" }));
+    fireEvent.click(screen.getByRole("button", { name: "Masculino" }));
+
+    expect(
+      screen.getByRole("button", { name: "Todas as equipes" }),
+    ).toBeInTheDocument();
   });
 
   it("prioriza o artilheiro da equipe que avançou mais longe antes do sorteio", () => {
