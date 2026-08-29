@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { MatchStatus } from "@/lib/enums";
 
@@ -13,33 +13,55 @@ export function usePendingScoreSheetReviewCount({
 }: UsePendingScoreSheetReviewCountOptions) {
   const [count, setCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const isFetchingCountRef = useRef(false);
+  const hasQueuedCountRefetchRef = useRef(false);
 
   const fetchCount = useCallback(async () => {
     if (!championshipId || seasonYear == null) {
       setCount(0);
       setLoading(false);
+      isFetchingCountRef.current = false;
+      hasQueuedCountRefetchRef.current = false;
       return;
     }
+
+    if (isFetchingCountRef.current) {
+      hasQueuedCountRefetchRef.current = true;
+      return;
+    }
+
+    isFetchingCountRef.current = true;
 
     setLoading(true);
 
-    const { count: nextCount, error } = await supabase
-      .from("matches")
-      .select("id", { count: "exact", head: true })
-      .eq("championship_id", championshipId)
-      .eq("season_year", seasonYear)
-      .eq("status", MatchStatus.FINISHED)
-      .or("is_score_sheet_reviewed.eq.false,is_score_sheet_reviewed.is.null");
+    try {
+      const { count: nextCount, error } = await supabase
+        .from("matches")
+        .select("id", { count: "exact", head: true })
+        .eq("championship_id", championshipId)
+        .eq("season_year", seasonYear)
+        .eq("status", MatchStatus.FINISHED)
+        .or("is_score_sheet_reviewed.eq.false,is_score_sheet_reviewed.is.null");
 
-    if (error) {
-      console.error("Erro ao carregar pendências da conferência de súmula:", error.message);
-      setCount(0);
+      if (error) {
+        console.error(
+          "Erro ao carregar pendências da conferência de súmula:",
+          error.message,
+        );
+        setCount(0);
+        return;
+      }
+
+      setCount(nextCount ?? 0);
+    } finally {
       setLoading(false);
-      return;
-    }
+      isFetchingCountRef.current = false;
 
-    setCount(nextCount ?? 0);
-    setLoading(false);
+      if (hasQueuedCountRefetchRef.current) {
+        hasQueuedCountRefetchRef.current = false;
+        void fetchCount();
+      }
+    }
   }, [championshipId, seasonYear]);
 
   useEffect(() => {

@@ -15,6 +15,48 @@ interface ChampionshipScopedRealtimeRow {
   season_year?: number | null;
 }
 
+type ChampionshipBracketFetchResult = Awaited<
+  ReturnType<typeof fetchChampionshipBracketView>
+>;
+
+const championshipBracketRequestByKey = new Map<
+  string,
+  Promise<ChampionshipBracketFetchResult>
+>();
+
+function resolveChampionshipBracketRequestKey(
+  championshipId: string,
+  seasonYear?: number | null,
+) {
+  return `${championshipId}-${seasonYear ?? "current"}`;
+}
+
+function fetchSharedChampionshipBracketView(
+  championshipId: string,
+  seasonYear?: number | null,
+) {
+  const requestKey = resolveChampionshipBracketRequestKey(
+    championshipId,
+    seasonYear,
+  );
+  const currentRequest = championshipBracketRequestByKey.get(requestKey);
+
+  if (currentRequest) {
+    return currentRequest;
+  }
+
+  const request = fetchChampionshipBracketView(championshipId, seasonYear).finally(
+    () => {
+      if (championshipBracketRequestByKey.get(requestKey) === request) {
+        championshipBracketRequestByKey.delete(requestKey);
+      }
+    },
+  );
+
+  championshipBracketRequestByKey.set(requestKey, request);
+  return request;
+}
+
 function isChampionshipScopedRealtimeRow(
   value: unknown,
 ): value is ChampionshipScopedRealtimeRow {
@@ -30,6 +72,8 @@ export function useChampionshipBracket({
     useState<ChampionshipBracketView>(EMPTY_CHAMPIONSHIP_BRACKET_VIEW);
   const [loading, setLoading] = useState(true);
   const hasLoadedBracketRef = useRef(false);
+  const isFetchingBracketRef = useRef(false);
+  const hasQueuedBracketRefetchRef = useRef(false);
   const scheduledRefetchTimeoutRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
@@ -39,6 +83,8 @@ export function useChampionshipBracket({
       if (!enabled) {
         setLoading(true);
         hasLoadedBracketRef.current = false;
+        isFetchingBracketRef.current = false;
+        hasQueuedBracketRefetchRef.current = false;
         return;
       }
 
@@ -46,28 +92,44 @@ export function useChampionshipBracket({
         setChampionshipBracketView(EMPTY_CHAMPIONSHIP_BRACKET_VIEW);
         setLoading(false);
         hasLoadedBracketRef.current = false;
+        isFetchingBracketRef.current = false;
+        hasQueuedBracketRefetchRef.current = false;
         return;
       }
+
+      if (isFetchingBracketRef.current) {
+        hasQueuedBracketRefetchRef.current = true;
+        return;
+      }
+
+      isFetchingBracketRef.current = true;
 
       if (shouldShowLoading || !hasLoadedBracketRef.current) {
         setLoading(true);
       }
 
-      const { data, error } = await fetchChampionshipBracketView(
-        championshipId,
-        seasonYear,
-      );
+      try {
+        const { data, error } = await fetchSharedChampionshipBracketView(
+          championshipId,
+          seasonYear,
+        );
 
-      if (error || !data) {
-        setChampionshipBracketView(EMPTY_CHAMPIONSHIP_BRACKET_VIEW);
+        if (error || !data) {
+          setChampionshipBracketView(EMPTY_CHAMPIONSHIP_BRACKET_VIEW);
+          return;
+        }
+
+        setChampionshipBracketView(data);
+      } finally {
         hasLoadedBracketRef.current = true;
         setLoading(false);
-        return;
-      }
+        isFetchingBracketRef.current = false;
 
-      setChampionshipBracketView(data);
-      hasLoadedBracketRef.current = true;
-      setLoading(false);
+        if (hasQueuedBracketRefetchRef.current) {
+          hasQueuedBracketRefetchRef.current = false;
+          void fetchBracket();
+        }
+      }
     },
     [championshipId, enabled, seasonYear],
   );

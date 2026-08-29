@@ -251,6 +251,9 @@ export function useMatches({
   const [loading, setLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
   const hasLoadedMatchesRef = useRef(false);
+  const isFetchingMatchesRef = useRef(false);
+  const hasQueuedMatchesRefetchRef = useRef(false);
+  const shouldRefreshOperationalContextOnQueuedFetchRef = useRef(false);
   const scheduledRefetchTimeoutRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
@@ -259,14 +262,19 @@ export function useMatches({
     async ({
       showLoading = false,
       showFetching = false,
+      refreshOperationalContext = true,
     }: {
       showLoading?: boolean;
       showFetching?: boolean;
+      refreshOperationalContext?: boolean;
     } = {}) => {
       if (!enabled) {
         setLoading(true);
         setIsFetching(false);
         hasLoadedMatchesRef.current = false;
+        isFetchingMatchesRef.current = false;
+        hasQueuedMatchesRefetchRef.current = false;
+        shouldRefreshOperationalContextOnQueuedFetchRef.current = false;
         return;
       }
       if (championshipId === null) {
@@ -278,8 +286,21 @@ export function useMatches({
         setLoading(false);
         setIsFetching(false);
         hasLoadedMatchesRef.current = false;
+        isFetchingMatchesRef.current = false;
+        hasQueuedMatchesRefetchRef.current = false;
+        shouldRefreshOperationalContextOnQueuedFetchRef.current = false;
         return;
       }
+
+      if (isFetchingMatchesRef.current) {
+        hasQueuedMatchesRefetchRef.current = true;
+        shouldRefreshOperationalContextOnQueuedFetchRef.current =
+          shouldRefreshOperationalContextOnQueuedFetchRef.current ||
+          refreshOperationalContext;
+        return;
+      }
+
+      isFetchingMatchesRef.current = true;
 
       if (showFetching) {
         setIsFetching(true);
@@ -693,7 +714,7 @@ export function useMatches({
           resolvedTotalCount = count ?? matchRows.length;
         }
 
-        if (includeOperationalContext) {
+        if (includeOperationalContext && refreshOperationalContext) {
           let operationalContextQuery = supabaseLoose
             .from("matches")
             .select(
@@ -978,8 +999,17 @@ export function useMatches({
       } finally {
         hasLoadedMatchesRef.current = true;
         setLoading(false);
+        isFetchingMatchesRef.current = false;
         if (showFetching) {
           setIsFetching(false);
+        }
+
+        if (hasQueuedMatchesRefetchRef.current) {
+          hasQueuedMatchesRefetchRef.current = false;
+          const shouldRefreshOperationalContext =
+            shouldRefreshOperationalContextOnQueuedFetchRef.current;
+          shouldRefreshOperationalContextOnQueuedFetchRef.current = false;
+          void fetchMatches({ refreshOperationalContext: shouldRefreshOperationalContext });
         }
       }
     },
@@ -1010,6 +1040,9 @@ export function useMatches({
       setLoading(true);
       setIsFetching(false);
       hasLoadedMatchesRef.current = false;
+      isFetchingMatchesRef.current = false;
+      hasQueuedMatchesRefetchRef.current = false;
+      shouldRefreshOperationalContextOnQueuedFetchRef.current = false;
       return;
     }
     if (championshipId === null) {
@@ -1021,6 +1054,9 @@ export function useMatches({
       setLoading(false);
       setIsFetching(false);
       hasLoadedMatchesRef.current = false;
+      isFetchingMatchesRef.current = false;
+      hasQueuedMatchesRefetchRef.current = false;
+      shouldRefreshOperationalContextOnQueuedFetchRef.current = false;
       return;
     }
 
@@ -1077,7 +1113,7 @@ export function useMatches({
           }
 
           scheduledRefetchTimeoutRef.current = setTimeout(() => {
-            fetchMatches();
+            void fetchMatches({ refreshOperationalContext: false });
           }, 120);
         },
       )
@@ -1097,7 +1133,7 @@ export function useMatches({
           }
 
           scheduledRefetchTimeoutRef.current = setTimeout(() => {
-            fetchMatches();
+            void fetchMatches();
           }, 120);
         },
       )
@@ -1141,7 +1177,7 @@ export function useMatches({
           }
 
           scheduledRefetchTimeoutRef.current = setTimeout(() => {
-            fetchMatches();
+            void fetchMatches();
           }, 120);
         },
       )

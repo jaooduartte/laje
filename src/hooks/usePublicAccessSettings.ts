@@ -1,50 +1,139 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { PublicAccessSettings } from "@/lib/types";
-import { DEFAULT_PUBLIC_ACCESS_SETTINGS, resolvePublicAccessSettings } from "@/lib/publicAccess";
+import {
+  DEFAULT_PUBLIC_ACCESS_SETTINGS,
+  resolvePublicAccessSettings,
+} from "@/lib/publicAccess";
 
-export function usePublicAccessSettings() {
-  const [publicAccessSettings, setPublicAccessSettings] = useState<PublicAccessSettings>(DEFAULT_PUBLIC_ACCESS_SETTINGS);
-  const [loading, setLoading] = useState(true);
+interface PublicAccessSettingsStoreState {
+  loading: boolean;
+  publicAccessSettings: PublicAccessSettings;
+}
 
-  const refetchPublicAccessSettings = useCallback(async () => {
+const PUBLIC_ACCESS_SETTINGS_REFRESH_INTERVAL_MS = 60000;
+
+let publicAccessSettingsStoreState: PublicAccessSettingsStoreState = {
+  loading: true,
+  publicAccessSettings: DEFAULT_PUBLIC_ACCESS_SETTINGS,
+};
+let publicAccessSettingsRequest: Promise<void> | null = null;
+let publicAccessSettingsPollingIntervalId: number | null = null;
+let publicAccessSettingsSubscriberCount = 0;
+let publicAccessSettingsLastFetchedAt: number | null = null;
+const publicAccessSettingsSubscribers = new Set<
+  (nextState: PublicAccessSettingsStoreState) => void
+>();
+
+function notifyPublicAccessSettingsSubscribers() {
+  publicAccessSettingsSubscribers.forEach((subscriber) => {
+    subscriber(publicAccessSettingsStoreState);
+  });
+}
+
+async function fetchPublicAccessSettings(force = false) {
+  if (publicAccessSettingsRequest != null) {
+    return publicAccessSettingsRequest;
+  }
+
+  if (
+    !force &&
+    publicAccessSettingsLastFetchedAt != null &&
+    Date.now() - publicAccessSettingsLastFetchedAt <
+      PUBLIC_ACCESS_SETTINGS_REFRESH_INTERVAL_MS
+  ) {
+    return;
+  }
+
+  publicAccessSettingsRequest = (async () => {
     const { data, error } = await supabase.rpc("get_public_access_settings");
 
     if (error) {
-      console.error("Erro ao carregar configurações de acesso público:", error.message);
-      setPublicAccessSettings(DEFAULT_PUBLIC_ACCESS_SETTINGS);
-      setLoading(false);
-      return;
+      console.error(
+        "Erro ao carregar configurações de acesso público:",
+        error.message,
+      );
+      publicAccessSettingsStoreState = {
+        loading: false,
+        publicAccessSettings: DEFAULT_PUBLIC_ACCESS_SETTINGS,
+      };
+    } else {
+      publicAccessSettingsStoreState = {
+        loading: false,
+        publicAccessSettings: resolvePublicAccessSettings(
+          data as PublicAccessSettings[] | PublicAccessSettings | null,
+        ),
+      };
     }
 
-    setPublicAccessSettings(resolvePublicAccessSettings(data as PublicAccessSettings[] | PublicAccessSettings | null));
-    setLoading(false);
+    publicAccessSettingsLastFetchedAt = Date.now();
+    notifyPublicAccessSettingsSubscribers();
+  })().finally(() => {
+    publicAccessSettingsRequest = null;
+  });
+
+  return publicAccessSettingsRequest;
+}
+
+function startPublicAccessSettingsPolling() {
+  publicAccessSettingsSubscriberCount += 1;
+
+  if (publicAccessSettingsSubscriberCount != 1) {
+    return;
+  }
+
+  void fetchPublicAccessSettings();
+  publicAccessSettingsPollingIntervalId = window.setInterval(() => {
+    void fetchPublicAccessSettings(true);
+  }, PUBLIC_ACCESS_SETTINGS_REFRESH_INTERVAL_MS);
+}
+
+function stopPublicAccessSettingsPolling() {
+  publicAccessSettingsSubscriberCount -= 1;
+
+  if (publicAccessSettingsSubscriberCount != 0) {
+    return;
+  }
+
+  if (publicAccessSettingsPollingIntervalId != null) {
+    window.clearInterval(publicAccessSettingsPollingIntervalId);
+    publicAccessSettingsPollingIntervalId = null;
+  }
+}
+
+export function usePublicAccessSettings() {
+  const [storeState, setStoreState] = useState(publicAccessSettingsStoreState);
+
+  const refetchPublicAccessSettings = useCallback(async () => {
+    await fetchPublicAccessSettings(true);
   }, []);
 
   useEffect(() => {
-    refetchPublicAccessSettings();
+    const subscriber = (nextState: PublicAccessSettingsStoreState) => {
+      setStoreState(nextState);
+    };
 
-    const intervalId = window.setInterval(() => {
-      refetchPublicAccessSettings();
-    }, 20000);
+    publicAccessSettingsSubscribers.add(subscriber);
+    startPublicAccessSettingsPolling();
 
     const handleVisibilityChange = () => {
       if (document.visibilityState == "visible") {
-        refetchPublicAccessSettings();
+        void fetchPublicAccessSettings();
       }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      window.clearInterval(intervalId);
+      publicAccessSettingsSubscribers.delete(subscriber);
+      stopPublicAccessSettingsPolling();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [refetchPublicAccessSettings]);
+  }, []);
 
   return {
-    publicAccessSettings,
-    loading,
+    publicAccessSettings: storeState.publicAccessSettings,
+    loading: storeState.loading,
     refetchPublicAccessSettings,
   };
 }
