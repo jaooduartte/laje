@@ -16,11 +16,18 @@ export function useCompetitionTeamDisqualifications({
   const [disqualifications, setDisqualifications] = useState<CompetitionTeamDisqualification[]>([]);
   const [loading, setLoading] = useState(false);
 
+  const seasonYearsKey = [...(seasonYears ?? [seasonYear ?? null])]
+    .filter((value): value is number => value != null && Number.isFinite(value))
+    .sort((firstYear, secondYear) => firstYear - secondYear)
+    .join("-");
+
   const resolvedSeasonYears = useMemo(() => {
-    return Array.from(new Set(
-      (seasonYears ?? [seasonYear ?? null]).filter((value): value is number => value != null && Number.isFinite(value)),
-    ));
-  }, [seasonYear, seasonYears]);
+    if (!seasonYearsKey) {
+      return [];
+    }
+
+    return Array.from(new Set(seasonYearsKey.split("-").map(Number)));
+  }, [seasonYearsKey]);
 
   const fetch = useCallback(async () => {
     if (!championshipId || resolvedSeasonYears.length == 0) {

@@ -26,6 +26,49 @@ export interface ChampionshipSeasonDivisionMovementPreview {
   rule_code: string;
 }
 
+export function resolveChampionshipSeasonSettingsFromBracketPayload(
+  payloadSnapshot?: Record<string, unknown> | null,
+): ChampionshipSeasonSettingsShape | null {
+  const seasonSettings = payloadSnapshot?.season_settings;
+
+  if (
+    !seasonSettings ||
+    typeof seasonSettings != "object" ||
+    Array.isArray(seasonSettings)
+  ) {
+    return null;
+  }
+
+  const values = seasonSettings as Record<string, unknown>;
+  const divisionFormat = values.division_format;
+  const divisionSettlementMode = values.division_settlement_mode;
+
+  if (
+    (divisionFormat != ChampionshipSeasonDivisionFormat.UNIFIED &&
+      divisionFormat != ChampionshipSeasonDivisionFormat.SEPARATED) ||
+    (divisionSettlementMode != ChampionshipSeasonDivisionSettlementMode.NONE &&
+      divisionSettlementMode !=
+        ChampionshipSeasonDivisionSettlementMode.TOP_N_TO_PRINCIPAL &&
+      divisionSettlementMode !=
+        ChampionshipSeasonDivisionSettlementMode.PROMOTION_RELEGATION)
+  ) {
+    return null;
+  }
+
+  const resolveOptionalCount = (value: unknown) =>
+    typeof value == "number" && Number.isInteger(value) ? value : null;
+
+  return {
+    division_format: divisionFormat,
+    division_settlement_mode: divisionSettlementMode,
+    principal_slots_count: resolveOptionalCount(values.principal_slots_count),
+    principal_relegation_count: resolveOptionalCount(
+      values.principal_relegation_count,
+    ),
+    access_promotion_count: resolveOptionalCount(values.access_promotion_count),
+  };
+}
+
 export function resolveDefaultChampionshipSeasonSettings(
   championshipCode?: ChampionshipCode,
 ): ChampionshipSeasonSettingsShape {

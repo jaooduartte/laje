@@ -750,12 +750,30 @@ describe("AdminMatches score sheet review", () => {
 
     renderAdminMatches({
       viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
+      selectedChampionship: buildChampionship({
+        code: ChampionshipCode.SOCIETY,
+        name: "Copa Laje Society",
+      }),
+      championshipSports: [
+        buildChampionshipSport({
+          id: "society-football",
+          sport_id: "sport-football-society",
+          sports: buildSport({
+            id: "sport-football-society",
+            name: "Futebol Society",
+          }),
+        }),
+      ],
       matches: [
         buildMatch({
           id: "match-1",
-          sport_id: "sport-1",
+          sport_id: "sport-football-society",
           status: MatchStatus.FINISHED,
           is_score_sheet_reviewed: false,
+          sports: buildSport({
+            id: "sport-football-society",
+            name: "Futebol Society",
+          }),
           home_team: buildTeam({ id: "team-1-home", name: "CASA 1" }),
           away_team: buildTeam({ id: "team-1-away", name: "VISITANTE 1" }),
         }),
@@ -903,6 +921,104 @@ describe("AdminMatches score sheet review", () => {
     expect(supabaseUpdateCalls[0].payload).toMatchObject({
       is_score_sheet_reviewed: true,
     });
+  });
+
+  it("permite marcar em lote jogos do Interlaje sem exigir autores dos gols", async () => {
+    renderAdminMatches({
+      viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
+      selectedChampionship: buildChampionship({
+        code: ChampionshipCode.INTERLAJE,
+        name: "Interlaje",
+      }),
+      championshipSports: [
+        buildChampionshipSport({
+          id: "interlaje-futsal",
+          sport_id: "sport-futsal",
+          supports_individual_awards: true,
+          sports: buildSport({ id: "sport-futsal", name: "Futsal" }),
+        }),
+      ],
+      matches: [
+        buildMatch({
+          id: "interlaje-futsal-match",
+          sport_id: "sport-futsal",
+          status: MatchStatus.FINISHED,
+          home_score: 7,
+          away_score: 0,
+          sports: buildSport({ id: "sport-futsal", name: "Futsal" }),
+          home_team: buildTeam({ id: "interlaje-home", name: "INTERLAJE CASA" }),
+          away_team: buildTeam({ id: "interlaje-away", name: "INTERLAJE VISITANTE" }),
+        }),
+      ],
+    });
+
+    const selectAllLabel = screen.getByText("Selecionar todos os jogos filtrados");
+    const selectAllCheckboxButton = selectAllLabel.parentElement?.querySelector<HTMLElement>(
+      '[role="checkbox"]',
+    );
+    expect(selectAllCheckboxButton).not.toBeNull();
+    fireEvent.click(selectAllCheckboxButton as HTMLElement);
+
+    fireEvent.click(screen.getByRole("button", { name: "Marcar selecionados como revisados" }));
+
+    await waitFor(() => {
+      expect(supabaseUpdateCalls).toHaveLength(1);
+    });
+
+    expect(supabaseUpdateCalls[0]).toMatchObject({
+      method: "eq",
+      ids: ["interlaje-futsal-match"],
+      payload: { is_score_sheet_reviewed: true },
+    });
+    expect(toastErrorMock).not.toHaveBeenCalled();
+  });
+
+  it("mantém a revisão individual obrigatória em lote para Futebol Society da Copa Laje Society", () => {
+    renderAdminMatches({
+      viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
+      selectedChampionship: buildChampionship({
+        code: ChampionshipCode.SOCIETY,
+        name: "Copa Laje Society",
+      }),
+      championshipSports: [
+        buildChampionshipSport({
+          id: "society-football",
+          sport_id: "sport-football-society",
+          supports_individual_awards: true,
+          sports: buildSport({
+            id: "sport-football-society",
+            name: "Futebol Society",
+          }),
+        }),
+      ],
+      matches: [
+        buildMatch({
+          id: "society-football-match",
+          sport_id: "sport-football-society",
+          status: MatchStatus.FINISHED,
+          home_score: 2,
+          away_score: 1,
+          sports: buildSport({
+            id: "sport-football-society",
+            name: "Futebol Society",
+          }),
+        }),
+      ],
+    });
+
+    const selectAllLabel = screen.getByText("Selecionar todos os jogos filtrados");
+    const selectAllCheckboxButton = selectAllLabel.parentElement?.querySelector<HTMLElement>(
+      '[role="checkbox"]',
+    );
+    expect(selectAllCheckboxButton).not.toBeNull();
+    fireEvent.click(selectAllCheckboxButton as HTMLElement);
+
+    fireEvent.click(screen.getByRole("button", { name: "Marcar selecionados como revisados" }));
+
+    expect(toastErrorMock).toHaveBeenCalledWith(
+      "Para marcar como revisado, use a revisão individual de súmula para registrar os autores dos gols.",
+    );
+    expect(supabaseUpdateCalls).toHaveLength(0);
   });
 
   it("dispara refetch com showFetching ao trocar filtros", async () => {
@@ -1879,12 +1995,30 @@ describe("AdminMatches score sheet review", () => {
 
     renderAdminMatches({
       viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
+      selectedChampionship: buildChampionship({
+        code: ChampionshipCode.SOCIETY,
+        name: "Copa Laje Society",
+      }),
+      championshipSports: [
+        buildChampionshipSport({
+          id: "society-football",
+          sport_id: "sport-football-society",
+          sports: buildSport({
+            id: "sport-football-society",
+            name: "Futebol Society",
+          }),
+        }),
+      ],
       matches: [
         buildMatch({
           id: "review-loader-match",
-          sport_id: "sport-1",
+          sport_id: "sport-football-society",
           status: MatchStatus.FINISHED,
           is_score_sheet_reviewed: false,
+          sports: buildSport({
+            id: "sport-football-society",
+            name: "Futebol Society",
+          }),
           home_team: buildTeam({ id: "team-review-loader-home", name: "LOADER CASA" }),
           away_team: buildTeam({ id: "team-review-loader-away", name: "LOADER VISITANTE" }),
         }),

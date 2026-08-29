@@ -40,7 +40,6 @@ import {
   AdminPanelTab,
   ChampionshipCode,
   ChampionshipStatus,
-  MatchStatus,
 } from "@/lib/enums";
 import type { MatchBracketContext } from "@/lib/championship";
 import type { AwardDrawPendingContext } from "@/hooks/usePendingAwardDraws";
@@ -140,6 +139,7 @@ interface AdminPageViewProps {
   onRefetchTeams: () => void;
   liveMatchesCount: number;
   pendingLeagueEventReservationsCount: number;
+  pendingScoreSheetReviewCount?: number;
   pendingTieBreaksCount: number;
   pendingAwardDrawContexts?: AwardDrawPendingContext[];
   loadingPendingAwardDraws?: boolean;
@@ -243,6 +243,7 @@ export function AdminPageView({
   onRefetchTeams,
   liveMatchesCount,
   pendingLeagueEventReservationsCount,
+  pendingScoreSheetReviewCount = 0,
   pendingTieBreaksCount,
   pendingAwardDrawContexts = [],
   loadingPendingAwardDraws = false,
@@ -258,14 +259,6 @@ export function AdminPageView({
 
   const totalSorteiosCount =
     pendingTieBreaksCount + pendingAwardDrawContexts.length;
-  const pendingScoreSheetReviewCount = useMemo(() => {
-    return matches.filter((match) => {
-      return (
-        match.status == MatchStatus.FINISHED && !match.is_score_sheet_reviewed
-      );
-    }).length;
-  }, [matches]);
-
   const adminTabItems = useMemo(() => {
     const nextAdminTabItems: AdminTabItem[] = [];
 
@@ -756,18 +749,18 @@ export function AdminPageView({
           {canViewScoreSheetReviewTab ? (
             <TabsContent value={SCORE_SHEET_REVIEW_TAB_VALUE}>
               <AdminMatches
-                matches={matches}
+                matches={matchesTabMatches}
                 teams={teams}
                 championshipSports={championshipSports}
                 selectedChampionship={selectedChampionship}
-                championshipBracketView={championshipBracketView}
-                loadingChampionshipBracket={loadingChampionshipBracket}
-                matchBracketContextByMatchId={matchBracketContextByMatchId}
-                matchRepresentationByMatchId={matchRepresentationByMatchId}
-                visualQueuePositionByMatchId={visualQueuePositionByMatchId}
-                estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
-                isInitialLoading={initialOperationalLoading}
-                isFetchingMatches={matchesFetching}
+                championshipBracketView={matchesTabChampionshipBracketView}
+                loadingChampionshipBracket={loadingMatchesTabChampionshipBracket}
+                matchBracketContextByMatchId={matchesTabMatchBracketContextByMatchId}
+                matchRepresentationByMatchId={matchesTabMatchRepresentationByMatchId}
+                visualQueuePositionByMatchId={matchesTabVisualQueuePositionByMatchId}
+                estimatedStartTimeByMatchId={matchesTabEstimatedStartTimeByMatchId}
+                isInitialLoading={matchesTabLoading}
+                isFetchingMatches={matchesTabFetching}
                 canManageMatches={
                   canManageMatches && selectedChampionship.status !== ChampionshipStatus.REVIEW
                 }

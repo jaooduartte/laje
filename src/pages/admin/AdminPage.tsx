@@ -17,6 +17,7 @@ import { useChampionshipSelection } from "@/hooks/useChampionshipSelection";
 import { usePendingLeagueEventReservationRequests } from "@/hooks/usePendingLeagueEventReservationRequests";
 import { usePendingTieBreaks } from "@/hooks/usePendingTieBreaks";
 import { usePendingAwardDraws } from "@/hooks/usePendingAwardDraws";
+import { usePendingScoreSheetReviewCount } from "@/hooks/usePendingScoreSheetReviewCount";
 import { Header } from "@/components/Header";
 import {
   AlertDialog,
@@ -268,7 +269,9 @@ export function AdminPage() {
 
   const lazyActiveTab = shouldDeferInitialLazyAdminTab ? "" : activeTab;
 
-  const shouldLoadMatchesTab = lazyActiveTab == AdminPanelTab.MATCHES;
+  const shouldLoadMatchesTab =
+    lazyActiveTab == AdminPanelTab.MATCHES ||
+    lazyActiveTab == AdminPanelTab.SCORE_SHEET_REVIEW;
 
   const shouldLoadAllTeams =
     lazyActiveTab == AdminPanelTab.TEAMS ||
@@ -333,6 +336,11 @@ export function AdminPage() {
   );
   const { count: pendingLeagueEventReservationRequestsCount } =
     usePendingLeagueEventReservationRequests();
+  const { count: pendingScoreSheetReviewCount } =
+    usePendingScoreSheetReviewCount({
+      championshipId: selectedChampionshipId,
+      seasonYear: resolvedMatchesSeasonYear,
+    });
   const { count: pendingTieBreaksCount, refetch: refetchPendingTieBreaks } =
     usePendingTieBreaks({
       championshipId: selectedChampionshipId,
@@ -879,6 +887,7 @@ export function AdminPage() {
         pendingLeagueEventReservationsCount={
           pendingLeagueEventReservationRequestsCount
         }
+        pendingScoreSheetReviewCount={pendingScoreSheetReviewCount}
         pendingTieBreaksCount={pendingTieBreaksCount}
         pendingAwardDrawContexts={pendingAwardDrawContexts}
         loadingPendingAwardDraws={loadingPendingAwardDraws}

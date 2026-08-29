@@ -1242,6 +1242,29 @@ export function AdminMatches({
     return map;
   }, [championshipSports]);
 
+  const requiresIndividualScoreSheetReview = useCallback(
+    (match: Match) => {
+      const sportName =
+        match.sports?.name ??
+        championshipSports.find(
+          (championshipSport) => championshipSport.sport_id == match.sport_id,
+        )?.sports?.name ??
+        "";
+
+      return (
+        selectedChampionship.code == ChampionshipCode.SOCIETY &&
+        !match.is_walkover &&
+        supportsIndividualAwardsBySportId.get(match.sport_id) === true &&
+        resolveSportCode(sportName) == "FUTEBOL_SOCIETY"
+      );
+    },
+    [
+      championshipSports,
+      selectedChampionship.code,
+      supportsIndividualAwardsBySportId,
+    ],
+  );
+
   const championshipSportSupportsCardsBySportId = useMemo(() => {
     const championshipSportSupportsCardsMap = new Map<string, boolean>();
 
@@ -4220,8 +4243,7 @@ export function AdminMatches({
 
     if (
       checked === true &&
-      !match.is_walkover &&
-      supportsIndividualAwardsBySportId.get(match.sport_id) === true
+      requiresIndividualScoreSheetReview(match)
     ) {
       await handleOpenScoreSheetReview(matchId);
       return;
@@ -4255,16 +4277,19 @@ export function AdminMatches({
     }
 
     if (reviewed) {
-      const hasNonWalkoverMatch = selectedFilteredMatchIds.some(
+      const hasMatchRequiringIndividualScoreSheetReview = selectedFilteredMatchIds.some(
         (selectedMatchId) => {
           const selectedMatch = matches.find(
             (match) => match.id == selectedMatchId,
           );
-          return selectedMatch != null && !selectedMatch.is_walkover;
+          return (
+            selectedMatch != null &&
+            requiresIndividualScoreSheetReview(selectedMatch)
+          );
         },
       );
 
-      if (hasNonWalkoverMatch) {
+      if (hasMatchRequiringIndividualScoreSheetReview) {
         toast.error(
           "Para marcar como revisado, use a revisão individual de súmula para registrar os autores dos gols.",
         );

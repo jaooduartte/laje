@@ -30,7 +30,6 @@ import {
 } from "@/domain/individual-events/championshipIndividualEvents.repository";
 import type {
   BracketDayCourtSports,
-  ChampionshipBracketScheduleDayInput,
   MatchSetInput,
 } from "@/domain/championship-brackets/championshipBracket.types";
 import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividualEvents";
@@ -210,6 +209,16 @@ function resolveControlQueueCourtKey(
   courtName?: string | null,
 ) {
   return `${location ?? "SEM_LOCAL"}:${courtName ?? "SEM_QUADRA"}`;
+}
+
+function resolveMatchCourtAndDateKey(match: Match): string | null {
+  const scheduledDateValue = resolveMatchScheduledDateValue(match);
+
+  if (!scheduledDateValue || !match.court_name) {
+    return null;
+  }
+
+  return `${scheduledDateValue}:${resolveControlQueueCourtKey(match.location, match.court_name)}`;
 }
 
 interface PersistedMatchControlDraftEntry {
@@ -549,31 +558,6 @@ function resolveAdminMatchControlErrorMessage(
   return fallbackMessage;
 }
 
-function resolveChampionshipBracketScheduleDays(
-  championshipBracketView: ChampionshipBracketView,
-): ChampionshipBracketScheduleDayInput[] {
-  const scheduleDays = (
-    championshipBracketView.edition?.payload_snapshot as {
-      schedule_days?: unknown;
-    } | null
-  )?.schedule_days;
-
-  if (!Array.isArray(scheduleDays)) {
-    return [];
-  }
-
-  return scheduleDays.filter(
-    (scheduleDay): scheduleDay is ChampionshipBracketScheduleDayInput => {
-      return (
-        typeof scheduleDay == "object" &&
-        scheduleDay != null &&
-        typeof scheduleDay.date == "string" &&
-        Array.isArray(scheduleDay.locations)
-      );
-    },
-  );
-}
-
 export function AdminMatchControl({
   championshipId,
   seasonYear,
@@ -664,7 +648,6 @@ export function AdminMatchControl({
     ? isFullQueueVisibleProp
     : localIsFullQueueVisible;
 
-  const hasCompletedInitialControlLoadRef = useRef(false);
   const [resultsDialogSessionId, setResultsDialogSessionId] = useState<
     string | null
   >(null);
@@ -1080,19 +1063,7 @@ export function AdminMatchControl({
     };
   }, [individualEventsLoading, resultsDialogSessionId]);
 
-  const isInitialControlLoading =
-    !hasCompletedInitialControlLoadRef.current &&
-    (isInitialLoading || individualEventsLoading);
-
-  useEffect(() => {
-    if (
-      !isInitialLoading &&
-      !individualEventsLoading &&
-      !sessionParticipantsLoading
-    ) {
-      hasCompletedInitialControlLoadRef.current = true;
-    }
-  }, [isInitialLoading, individualEventsLoading, sessionParticipantsLoading]);
+  const isInitialControlLoading = isInitialLoading || individualEventsLoading;
 
   const runSessionAction = useCallback(
     async (
@@ -1150,42 +1121,19 @@ export function AdminMatchControl({
     ],
   );
 
-  const championshipBracketScheduleDays = useMemo(() => {
-    return resolveChampionshipBracketScheduleDays(championshipBracketView);
-  }, [championshipBracketView]);
-
-  const availableCourtsCountBySportAndDateKey = useMemo(() => {
-    return championshipBracketScheduleDays.reduce<Record<string, number>>(
-      (carry, scheduleDay) => {
-        scheduleDay.locations.forEach((location) => {
-          location.courts.forEach((court) => {
-            court.sport_ids.forEach((sportId) => {
-              const sportAndDateKey = `${scheduleDay.date}:${sportId}`;
-              carry[sportAndDateKey] = (carry[sportAndDateKey] ?? 0) + 1;
-            });
-          });
-        });
-
-        return carry;
-      },
-      {},
-    );
-  }, [championshipBracketScheduleDays]);
-
-  const liveMatchesCountBySportAndDateKey = useMemo(() => {
+  const liveMatchesCountByCourtAndDateKey = useMemo(() => {
     return matches.reduce<Record<string, number>>((carry, match) => {
       if (match.status != MatchStatus.LIVE) {
         return carry;
       }
 
-      const scheduledDateValue = resolveMatchScheduledDateValue(match);
+      const courtAndDateKey = resolveMatchCourtAndDateKey(match);
 
-      if (!scheduledDateValue) {
+      if (!courtAndDateKey) {
         return carry;
       }
 
-      const sportAndDateKey = `${scheduledDateValue}:${match.sport_id}`;
-      carry[sportAndDateKey] = (carry[sportAndDateKey] ?? 0) + 1;
+      carry[courtAndDateKey] = (carry[courtAndDateKey] ?? 0) + 1;
       return carry;
     }, {});
   }, [matches]);
@@ -2165,26 +2113,14 @@ export function AdminMatchControl({
       return;
     }
 
-    const scheduledDateValue = resolveMatchScheduledDateValue(match);
-    const sportAndDateKey = scheduledDateValue
-      ? `${scheduledDateValue}:${match.sport_id}`
-      : null;
+    const courtAndDateKey = resolveMatchCourtAndDateKey(match);
+    const liveMatchesCount = courtAndDateKey
+      ? (liveMatchesCountByCourtAndDateKey[courtAndDateKey] ?? 0)
+      : 0;
 
-    if (sportAndDateKey) {
-      const availableCourtsCount =
-        availableCourtsCountBySportAndDateKey[sportAndDateKey] ?? 0;
-      const liveMatchesCount =
-        liveMatchesCountBySportAndDateKey[sportAndDateKey] ?? 0;
-
-      if (
-        availableCourtsCount > 0 &&
-        liveMatchesCount >= availableCourtsCount
-      ) {
-        toast.error(
-          "Todas as quadras compatíveis desta modalidade já estão ocupadas neste dia.",
-        );
-        return;
-      }
+    if (liveMatchesCount > 0) {
+      toast.error("Esta quadra já possui um jogo ao vivo.");
+      return;
     }
 
     const { error } = await supabase
@@ -3056,7 +2992,10 @@ export function AdminMatchControl({
 
   if (isInitialControlLoading) {
     return (
-      <div className="enter-section space-y-4">
+      <div
+        data-testid="admin-match-control-loading"
+        className="enter-section space-y-4"
+      >
         <div className="glass-card space-y-4 p-4">
           <Skeleton className="h-4 w-48" />
 
@@ -3457,18 +3396,11 @@ export function AdminMatchControl({
             {displayedMatches.map((match) => {
               if (match.status == MatchStatus.SCHEDULED) {
                 const scheduledDateValue = resolveMatchScheduledDateValue(match);
-                const sportAndDateKey = scheduledDateValue
-                  ? `${scheduledDateValue}:${match.sport_id}`
-                  : null;
-                const availableCourtsCount = sportAndDateKey
-                  ? (availableCourtsCountBySportAndDateKey[sportAndDateKey] ?? 0)
+                const courtAndDateKey = resolveMatchCourtAndDateKey(match);
+                const liveMatchesCount = courtAndDateKey
+                  ? (liveMatchesCountByCourtAndDateKey[courtAndDateKey] ?? 0)
                   : 0;
-                const liveMatchesCount = sportAndDateKey
-                  ? (liveMatchesCountBySportAndDateKey[sportAndDateKey] ?? 0)
-                  : 0;
-                const isMatchStartBlocked =
-                  availableCourtsCount > 0 &&
-                  liveMatchesCount >= availableCourtsCount;
+                const isMatchStartBlocked = liveMatchesCount > 0;
                 const queueLabel = resolveDisplayedMatchQueueLabel(
                   match,
                   visualQueuePositionByMatchId[match.id],
@@ -3527,8 +3459,7 @@ export function AdminMatchControl({
                         </p>
                         {isMatchStartBlocked ? (
                           <p className="text-xs font-medium text-amber-500">
-                            Capacidade ao vivo esgotada: {liveMatchesCount}/
-                            {availableCourtsCount} quadra(s) em uso.
+                            Quadra ocupada: {liveMatchesCount} jogo(s) ao vivo.
                           </p>
                         ) : null}
                         {isChampionshipStartBlocked ? (

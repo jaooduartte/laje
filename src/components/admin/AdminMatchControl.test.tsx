@@ -306,6 +306,8 @@ function renderAdminMatchControl(params: {
   matches: Match[];
   championshipSports: ChampionshipSport[];
   championshipStatus?: ChampionshipStatus;
+  isInitialLoading?: boolean;
+  isFetchingMatches?: boolean;
   visualQueuePositionByMatchId?: Record<string, number>;
   estimatedStartTimeByMatchId?: Record<string, string>;
   matchBracketContextByMatchId?: Record<string, MatchBracketContext>;
@@ -319,6 +321,8 @@ function renderAdminMatchControl(params: {
       matches={params.matches}
       championshipStatus={params.championshipStatus ?? ChampionshipStatus.IN_PROGRESS}
       championshipSports={params.championshipSports}
+      isInitialLoading={params.isInitialLoading}
+      isFetchingMatches={params.isFetchingMatches}
       championshipBracketView={buildChampionshipBracketView()}
       matchBracketContextByMatchId={params.matchBracketContextByMatchId ?? {}}
       visualQueuePositionByMatchId={params.visualQueuePositionByMatchId}
@@ -333,6 +337,8 @@ function renderAdminMatchControl(params: {
     matches: Match[];
     championshipSports: ChampionshipSport[];
     championshipStatus?: ChampionshipStatus;
+    isInitialLoading?: boolean;
+    isFetchingMatches?: boolean;
     visualQueuePositionByMatchId?: Record<string, number>;
     estimatedStartTimeByMatchId?: Record<string, string>;
     matchBracketContextByMatchId?: Record<string, MatchBracketContext>;
@@ -344,6 +350,8 @@ function renderAdminMatchControl(params: {
         matches={nextParams.matches}
         championshipStatus={nextParams.championshipStatus ?? ChampionshipStatus.IN_PROGRESS}
         championshipSports={nextParams.championshipSports}
+        isInitialLoading={nextParams.isInitialLoading}
+        isFetchingMatches={nextParams.isFetchingMatches}
         championshipBracketView={buildChampionshipBracketView()}
         matchBracketContextByMatchId={nextParams.matchBracketContextByMatchId ?? {}}
         visualQueuePositionByMatchId={nextParams.visualQueuePositionByMatchId}
@@ -485,6 +493,46 @@ describe("AdminMatchControl", () => {
   afterEach(() => {
     vi.runOnlyPendingTimers();
     vi.useRealTimers();
+  });
+
+  it("mantém o skeleton ao recarregar a fila antes dos filtros de modalidade estarem disponíveis", async () => {
+    const athleticsSport = buildChampionshipSport({
+      id: "championship-sport-athletics",
+      sport_id: "sport-athletics",
+      sports: buildSport({ id: "sport-athletics", name: "Atletismo" }),
+    });
+    const { rerenderAdminMatchControl } = renderAdminMatchControl({
+      matches: [],
+      championshipSports: [athleticsSport],
+    });
+
+    await completeInitialControlLoad();
+
+    await act(async () => {
+      rerenderAdminMatchControl({
+        matches: [],
+        championshipSports: [],
+        isInitialLoading: true,
+      });
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId("admin-match-control-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("sport-filter-mock")).not.toBeInTheDocument();
+    expect(screen.queryByText("Nenhum jogo ao vivo ou agendado.")).not.toBeInTheDocument();
+
+    await act(async () => {
+      rerenderAdminMatchControl({
+        matches: [],
+        championshipSports: [athleticsSport],
+        isInitialLoading: false,
+      });
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByTestId("admin-match-control-loading")).not.toBeInTheDocument();
+    expect(screen.getByTestId("sport-filter-mock")).toBeInTheDocument();
+    expect(screen.getByText("Nenhum jogo ao vivo ou agendado.")).toBeInTheDocument();
   });
 
   it("exibe sessão individual configurada em revisão e inclui seus dados nos filtros", async () => {
@@ -871,6 +919,86 @@ describe("AdminMatchControl", () => {
     expect(toastSuccessMock).toHaveBeenCalledWith("Jogo iniciado!");
     expect(onRefetch).toHaveBeenCalledTimes(1);
     expect(onRefetchChampionshipBracket).toHaveBeenCalledTimes(1);
+  });
+
+  it("bloqueia o início em uma quadra já ocupada por outra modalidade", () => {
+    const liveBasketballMatch = buildMatch({
+      id: "live-basketball-match",
+      sport_id: "sport-basketball",
+      status: MatchStatus.LIVE,
+      location: "Campus Park",
+      court_name: "Quadra",
+      scheduled_date: "2026-04-11",
+      home_team: buildTeam({
+        id: "live-basketball-home",
+        name: "Basquete ao vivo",
+      }),
+      away_team: buildTeam({
+        id: "live-basketball-away",
+        name: "Adversário ao vivo",
+      }),
+    });
+    const blockedFutsalMatch = buildMatch({
+      id: "blocked-futsal-match",
+      sport_id: "sport-futsal",
+      status: MatchStatus.SCHEDULED,
+      location: "Campus Park",
+      court_name: "Quadra",
+      scheduled_date: "2026-04-11",
+      home_team: buildTeam({
+        id: "blocked-futsal-home",
+        name: "Futsal bloqueado",
+      }),
+      away_team: buildTeam({
+        id: "blocked-futsal-away",
+        name: "Adversário bloqueado",
+      }),
+    });
+    const availableFutsalMatch = buildMatch({
+      id: "available-futsal-match",
+      sport_id: "sport-futsal",
+      status: MatchStatus.SCHEDULED,
+      location: "Campus Park",
+      court_name: "Ginásio",
+      scheduled_date: "2026-04-11",
+      home_team: buildTeam({
+        id: "available-futsal-home",
+        name: "Futsal disponível",
+      }),
+      away_team: buildTeam({
+        id: "available-futsal-away",
+        name: "Adversário disponível",
+      }),
+    });
+
+    renderAdminMatchControl({
+      matches: [liveBasketballMatch, blockedFutsalMatch, availableFutsalMatch],
+      championshipSports: [
+        buildChampionshipSport({
+          id: "championship-sport-basketball",
+          sport_id: "sport-basketball",
+        }),
+        buildChampionshipSport({
+          id: "championship-sport-futsal",
+          sport_id: "sport-futsal",
+        }),
+      ],
+    });
+
+    const blockedMatchCard = resolveMatchCardElement("Futsal bloqueado");
+    const availableMatchCard = resolveMatchCardElement("Futsal disponível");
+
+    expect(
+      within(blockedMatchCard).getByRole("button", { name: "Iniciar" }),
+    ).toBeDisabled();
+    expect(
+      within(blockedMatchCard).getByText(
+        "Quadra ocupada: 1 jogo(s) ao vivo.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(availableMatchCard).getByRole("button", { name: "Iniciar" }),
+    ).toBeEnabled();
   });
 
   it("volta jogo ao agendamento limpando apenas dados operacionais", async () => {

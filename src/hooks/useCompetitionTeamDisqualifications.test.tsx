@@ -80,4 +80,24 @@ describe("useCompetitionTeamDisqualifications", () => {
     expect(channelMock.on).toHaveBeenCalled();
     expect(channelMock.subscribe).toHaveBeenCalled();
   });
+
+  it("não refaz a consulta quando a lista de anos mantém o mesmo conteúdo", async () => {
+    const { rerender } = renderHook(
+      ({ seasonYears }: { seasonYears: number[] }) =>
+        useCompetitionTeamDisqualifications({
+          championshipId: "championship-1",
+          seasonYears,
+        }),
+      { initialProps: { seasonYears: [2026] } },
+    );
+
+    await waitFor(() => {
+      expect(rpcMock).toHaveBeenCalledTimes(1);
+    });
+
+    rerender({ seasonYears: [2026] });
+
+    expect(rpcMock).toHaveBeenCalledTimes(1);
+    expect(removeChannelMock).not.toHaveBeenCalled();
+  });
 });

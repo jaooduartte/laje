@@ -10,6 +10,7 @@ import type { Standing } from "@/lib/types";
 import {
   resolveChampionshipOverallSeasonStandings,
   resolveEffectiveChampionshipSeasonSettings,
+  resolveChampionshipSeasonSettingsFromBracketPayload,
   resolveSeasonDivisionMovementPreview,
 } from "@/lib/championshipSeason";
 
@@ -72,6 +73,28 @@ describe("championshipSeason", () => {
     expect(resolvedSettings.division_settlement_mode).toBe(
       ChampionshipSeasonDivisionSettlementMode.PROMOTION_RELEGATION,
     );
+  });
+
+  it("recupera o formato unificado no snapshot da edição", () => {
+    expect(
+      resolveChampionshipSeasonSettingsFromBracketPayload({
+        season_settings: {
+          division_format: ChampionshipSeasonDivisionFormat.UNIFIED,
+          division_settlement_mode:
+            ChampionshipSeasonDivisionSettlementMode.TOP_N_TO_PRINCIPAL,
+          principal_slots_count: 12,
+          principal_relegation_count: null,
+          access_promotion_count: null,
+        },
+      }),
+    ).toEqual({
+      division_format: ChampionshipSeasonDivisionFormat.UNIFIED,
+      division_settlement_mode:
+        ChampionshipSeasonDivisionSettlementMode.TOP_N_TO_PRINCIPAL,
+      principal_slots_count: 12,
+      principal_relegation_count: null,
+      access_promotion_count: null,
+    });
   });
 
   it("aplica correção de pontos no ranking geral oficial", () => {
