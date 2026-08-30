@@ -1,17 +1,12 @@
 @media (max-width: 639px) {
-  /* Mantém o badge de naipe no mesmo eixo vertical dos demais badges. */
-  .admin-match-control-live-card
-    > .flex.flex-col.gap-3
-    > .order-1.space-y-1
-    > .flex.flex-wrap.items-center
-    > .flex.flex-wrap.items-center
+  /* Equaliza a altura do badge de naipe com os demais badges da listagem. */
+  .list-item-card
+    [class~="gap-1.5"][class~="sm:flex-col"]
     > :first-child {
-    align-self: center;
-    margin-block: 0;
-    vertical-align: middle;
+    min-height: 0;
   }
 
-  /* Dá respiro entre os controles de cartões das duas atléticas no mobile. */
+  /* Dá um leve respiro entre os controles de cartões das duas atléticas. */
   .admin-match-control-live-card
     > .glass-panel-muted
     > .grid.grid-cols-2 {
