@@ -938,7 +938,7 @@ function resolveTimeFormatterParts(
   }
 }
 
-function resolveSaoPauloTimeLabel(dateTime: string): string | null {
+export function resolveSaoPauloTimeLabel(dateTime: string): string | null {
   const timeParts = resolveTimeFormatterParts(dateTime);
   const hour = timeParts?.get("hour");
   const minute = timeParts?.get("minute");

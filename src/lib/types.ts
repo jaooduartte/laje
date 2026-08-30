@@ -307,6 +307,7 @@ export interface Match {
   scheduled_date: string | null;
   queue_position: number | null;
   scheduled_slot?: number | null;
+  is_manual_schedule_override?: boolean;
   is_pending_manual_relocation?: boolean;
   pending_manual_relocation_reason?: string | null;
   pending_manual_relocation_notes?: string | null;

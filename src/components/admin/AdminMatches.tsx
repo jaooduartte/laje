@@ -170,6 +170,7 @@ import {
   resolveRecordedMatchSets,
   resolveMatchScheduledDateValue,
   resolveMatchSetSummary,
+  resolveSaoPauloTimeLabel,
   resolveVisualQueuePositionByMatchId,
   resolveMatchStartedAtLabel,
   resolveMatchDisplayStatusLabel,
@@ -1713,6 +1714,61 @@ export function AdminMatches({
     );
   }, [currentEditingCourtName, editingCourtOptions, editingMatchDraft]);
 
+  const editingScheduleSlotOptions = useMemo(() => {
+    if (!editingMatchDraft?.startTime || !editingMatchId) {
+      return editingAvailableScheduleSlots;
+    }
+
+    const persistedEditingMatch = matches.find(
+      (match) => match.id == editingMatchId,
+    );
+    const persistedStartTime = persistedEditingMatch?.start_time ?? null;
+    const currentStartTime = editingMatchDraft.startTime.toISOString();
+    const hasPersistedCurrentStartTime =
+      persistedStartTime != null &&
+      new Date(persistedStartTime).getTime() ==
+        editingMatchDraft.startTime.getTime();
+    const isCurrentManualSchedule =
+      persistedEditingMatch != null &&
+      persistedEditingMatch.is_manual_schedule_override == true &&
+      hasPersistedCurrentStartTime &&
+      resolveMatchScheduledDateValue(persistedEditingMatch) ==
+        resolveDateOnlyString(editingMatchDraft.scheduledDate) &&
+      normalizeBracketEntityName(persistedEditingMatch.location) ==
+        normalizeBracketEntityName(editingMatchDraft.location) &&
+      normalizeBracketEntityName(persistedEditingMatch.court_name) ==
+        normalizeBracketEntityName(editingMatchDraft.courtName);
+
+    if (
+      !isCurrentManualSchedule ||
+      editingAvailableScheduleSlots.some(
+        (slot) => slot.start_time == currentStartTime,
+      )
+    ) {
+      return editingAvailableScheduleSlots;
+    }
+
+    return [
+      {
+        slot_number:
+          resolveDisplayedMatchQueuePosition(persistedEditingMatch) ?? 0,
+        start_time: currentStartTime,
+        start_time_label:
+          estimatedStartTimeByMatchId[editingMatchId] ??
+          resolveSaoPauloTimeLabel(currentStartTime) ??
+          "Horário atual",
+        is_current_slot: true,
+      },
+      ...editingAvailableScheduleSlots,
+    ];
+  }, [
+    editingAvailableScheduleSlots,
+    editingMatchDraft,
+    editingMatchId,
+    estimatedStartTimeByMatchId,
+    matches,
+  ]);
+
   const selectedEditingScheduleSlot = useMemo(() => {
     if (!editingMatchDraft) {
       return null;
@@ -1722,7 +1778,7 @@ export function AdminMatches({
       editingMatchDraft.isEstimatedStartTimeManuallySelected &&
       editingMatchDraft.startTime
     ) {
-      const manuallySelectedSlot = editingAvailableScheduleSlots.find(
+      const manuallySelectedSlot = editingScheduleSlotOptions.find(
         (slot) =>
           slot.start_time == editingMatchDraft.startTime?.toISOString(),
       );
@@ -1737,7 +1793,7 @@ export function AdminMatches({
       : null;
 
     if (estimatedStartTime) {
-      const matchedByEstimatedTime = editingAvailableScheduleSlots.find(
+      const matchedByEstimatedTime = editingScheduleSlotOptions.find(
         (slot) => slot.start_time_label == estimatedStartTime,
       );
 
@@ -1747,7 +1803,7 @@ export function AdminMatches({
     }
 
     if (editingMatchDraft.gameSlot) {
-      const matchedByGameNumber = editingAvailableScheduleSlots.find(
+      const matchedByGameNumber = editingScheduleSlotOptions.find(
         (slot) => String(slot.slot_number) == editingMatchDraft.gameSlot,
       );
 
@@ -1760,7 +1816,7 @@ export function AdminMatches({
       editingMatchDraft.startTime?.toISOString() ?? null;
 
     if (currentStartTimeValue) {
-      const matchedByCurrentStartTime = editingAvailableScheduleSlots.find(
+      const matchedByCurrentStartTime = editingScheduleSlotOptions.find(
         (slot) => slot.start_time == currentStartTimeValue,
       );
 
@@ -1770,12 +1826,12 @@ export function AdminMatches({
     }
 
     return (
-      editingAvailableScheduleSlots.find((slot) => slot.is_current_slot) ?? null
+      editingScheduleSlotOptions.find((slot) => slot.is_current_slot) ?? null
     );
   }, [
-    editingAvailableScheduleSlots,
     editingMatchDraft,
     editingMatchId,
+    editingScheduleSlotOptions,
     estimatedStartTimeByMatchId,
   ]);
 
@@ -5118,13 +5174,14 @@ export function AdminMatches({
     const didChangeRepresentationMode =
       editingMatchDraft.manualRepresentationMode !=
       originalEditingDraft.manualRepresentationMode;
-    const didChangeLogisticsFields =
+    const didChangeScheduledMatchPlacement =
       didChangeLocation ||
       didChangeCourtName ||
       didChangeScheduledDate ||
       didChangeStartTime ||
-      didChangeGameSlot ||
-      didChangeRepresentationMode;
+      didChangeGameSlot;
+    const didChangeLogisticsFields =
+      didChangeScheduledMatchPlacement || didChangeRepresentationMode;
     const didChangeSport =
       (editingMatchDraft.sportId ?? "") != (originalEditingDraft.sportId ?? "");
     const didChangeNaipe =
@@ -5149,7 +5206,10 @@ export function AdminMatches({
     const didChangeStatus = editingMatchDraft.status != editingMatch.status;
     const requiresAvailableScheduleSlot =
       canEditScheduledMatchSetup &&
-      (didChangeLogisticsFields || didChangeStructuralFields);
+      (didChangeScheduledMatchPlacement ||
+        didChangeStructuralFields ||
+        (didChangeRepresentationMode &&
+          editingMatch.is_manual_schedule_override != true));
 
     if (!editingAllowedStatuses.includes(editingMatchDraft.status)) {
       toast.error(
@@ -5451,7 +5511,10 @@ export function AdminMatches({
       null;
     const shouldUpdateScheduledMatchSetup =
       canEditScheduledMatchSetup &&
-      (didChangeLogisticsFields || didChangeStructuralFields);
+      (didChangeScheduledMatchPlacement ||
+        didChangeStructuralFields ||
+        (didChangeRepresentationMode &&
+          editingMatch.is_manual_schedule_override != true));
     const shouldRedistributeScheduledMatch =
       shouldUpdateScheduledMatchSetup &&
       resolveShouldRedistributeBracketScheduleAfterMatchEdit({
@@ -5519,6 +5582,14 @@ export function AdminMatches({
 
       if (didChangeAwayTeam) {
         matchUpdatePayload.away_team_id = editingMatchDraft.awayTeamId;
+      }
+
+      if (
+        didChangeRepresentationMode &&
+        !shouldUpdateScheduledMatchSetup
+      ) {
+        matchUpdatePayload.manual_representation_mode =
+          editingMatchDraft.manualRepresentationMode;
       }
     }
 
@@ -10101,7 +10172,7 @@ export function AdminMatches({
                         }
                         onValueChange={(value) => {
                           const selectedSlot =
-                            editingAvailableScheduleSlots.find(
+                            editingScheduleSlotOptions.find(
                               (slot) => slot.start_time == value,
                             );
 
@@ -10123,7 +10194,7 @@ export function AdminMatches({
                         disabled={
                           !canEditScheduledMatchSetup ||
                           loadingEditingAvailableScheduleSlots ||
-                          editingAvailableScheduleSlots.length == 0
+                          editingScheduleSlotOptions.length == 0
                         }
                       >
                         <SelectTrigger
@@ -10132,7 +10203,7 @@ export function AdminMatches({
                           disabled={
                             !canEditScheduledMatchSetup ||
                             loadingEditingAvailableScheduleSlots ||
-                            editingAvailableScheduleSlots.length == 0
+                            editingScheduleSlotOptions.length == 0
                           }
                         >
                           <SelectValue
@@ -10149,7 +10220,7 @@ export function AdminMatches({
                               ? "Carregando horários"
                               : "Selecione o horário"}
                           </SelectItem>
-                          {editingAvailableScheduleSlots.length == 0 ? (
+                          {editingScheduleSlotOptions.length == 0 ? (
                             <SelectItem
                               value="NO_SCHEDULE_SLOTS_AVAILABLE"
                               disabled
@@ -10157,7 +10228,7 @@ export function AdminMatches({
                               Nenhum horário disponível
                             </SelectItem>
                           ) : (
-                            editingAvailableScheduleSlots.map(
+                            editingScheduleSlotOptions.map(
                               (scheduleSlot) => (
                                 <SelectItem
                                   key={scheduleSlot.start_time}

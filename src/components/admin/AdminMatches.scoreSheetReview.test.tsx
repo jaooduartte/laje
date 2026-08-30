@@ -290,6 +290,8 @@ function buildMatch(overrides: Partial<Match> & Pick<Match, "id" | "sport_id" | 
     scheduled_date: overrides.scheduled_date ?? "2026-04-11",
     queue_position: overrides.queue_position ?? 1,
     scheduled_slot: overrides.scheduled_slot ?? null,
+    is_manual_schedule_override:
+      overrides.is_manual_schedule_override ?? false,
     is_pending_manual_relocation:
       overrides.is_pending_manual_relocation ?? false,
     pending_manual_relocation_reason:
@@ -2562,6 +2564,50 @@ describe("AdminMatches score sheet review", () => {
     expect(within(secondContextCard).getByRole("button", { name: "Refazer sorteio" })).toBeInTheDocument();
   });
 
+  it("exibe o horário persistido de uma realocação manual fora da grade regular", async () => {
+    listEditableMatchScheduleSlotsMock.mockResolvedValue({
+      data: buildEditableScheduleSlots("2026-04-11", 1),
+      error: null,
+    });
+
+    renderAdminMatches({
+      matches: [
+        buildMatch({
+          id: "manual-relocation-edit-match",
+          sport_id: "sport-1",
+          status: MatchStatus.SCHEDULED,
+          court_name: "Quadra 1",
+          start_time: "2026-04-11T19:17:00+00:00",
+          queue_position: 24,
+          scheduled_slot: 24,
+          is_manual_schedule_override: true,
+          home_team: buildTeam({ id: "manual-home", name: "CASA MANUAL" }),
+          away_team: buildTeam({
+            id: "manual-away",
+            name: "VISITANTE MANUAL",
+          }),
+        }),
+      ],
+      estimatedStartTimeByMatchId: {
+        "manual-relocation-edit-match": "19:17",
+      },
+    });
+
+    fireEvent.pointerDown(
+      await screen.findByLabelText(
+        "Ações do jogo CASA MANUAL x VISITANTE MANUAL",
+      ),
+    );
+    const matchCardContainer = getMatchCardContainerByTeamName("CASA MANUAL");
+    clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
+
+    expect(
+      await screen.findByRole("combobox", {
+        name: "Horário estimado do jogo",
+      }),
+    ).toHaveTextContent("19:17");
+  });
+
   it("ao editar a logística de um jogo agendado usa o RPC autoritativo de slots", async () => {
     getBracketCourtSportsMock.mockResolvedValue({
       data: [
@@ -2711,6 +2757,66 @@ describe("AdminMatches score sheet review", () => {
 
     expect(updateBracketDayScheduleMock).not.toHaveBeenCalled();
     expect(supabaseUpdateCalls).toHaveLength(0);
+  });
+
+  it("permite forçar a CO sem reaplicar o horário de uma realocação manual", async () => {
+    listEditableMatchScheduleSlotsMock.mockResolvedValue({
+      data: buildEditableScheduleSlots("2026-04-11", 1),
+      error: null,
+    });
+
+    renderAdminMatches({
+      matches: [
+        buildMatch({
+          id: "manual-relocation-co-match",
+          sport_id: "sport-1",
+          status: MatchStatus.SCHEDULED,
+          court_name: "Quadra 1",
+          start_time: "2026-04-11T19:17:00+00:00",
+          queue_position: 24,
+          scheduled_slot: 24,
+          is_manual_schedule_override: true,
+          home_team: buildTeam({ id: "manual-co-home", name: "CASA MANUAL CO" }),
+          away_team: buildTeam({
+            id: "manual-co-away",
+            name: "VISITANTE MANUAL CO",
+          }),
+        }),
+      ],
+      estimatedStartTimeByMatchId: {
+        "manual-relocation-co-match": "19:17",
+      },
+    });
+
+    fireEvent.pointerDown(
+      await screen.findByLabelText(
+        "Ações do jogo CASA MANUAL CO x VISITANTE MANUAL CO",
+      ),
+    );
+    const matchCardContainer = getMatchCardContainerByTeamName(
+      "CASA MANUAL CO",
+    );
+    clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
+
+    fireEvent.click(
+      await screen.findByRole("switch", {
+        name: "Forçar representação da CO",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
+
+    await waitFor(() => {
+      expect(supabaseUpdateCalls).toContainEqual({
+        table: "matches",
+        payload: {
+          manual_representation_mode: MatchManualRepresentationMode.CO,
+        },
+        method: "eq",
+        ids: ["manual-relocation-co-match"],
+      });
+    });
+
+    expect(updateScheduledMatchLogisticsMock).not.toHaveBeenCalled();
   });
 
   it("mostra labels de origem da vaga ao editar jogo de mata-mata", async () => {
