@@ -11,7 +11,7 @@ interface PublicAccessSettingsStoreState {
   publicAccessSettings: PublicAccessSettings;
 }
 
-const PUBLIC_ACCESS_SETTINGS_REFRESH_INTERVAL_MS = 60000;
+const PUBLIC_ACCESS_SETTINGS_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
 let publicAccessSettingsStoreState: PublicAccessSettingsStoreState = {
   loading: true,
@@ -53,9 +53,12 @@ async function fetchPublicAccessSettings(force = false) {
         "Erro ao carregar configurações de acesso público:",
         error.message,
       );
+
+      // Keep the last known-good value during transient API/database failures.
+      // On the first load this is already the safe application default.
       publicAccessSettingsStoreState = {
+        ...publicAccessSettingsStoreState,
         loading: false,
-        publicAccessSettings: DEFAULT_PUBLIC_ACCESS_SETTINGS,
       };
     } else {
       publicAccessSettingsStoreState = {
@@ -66,6 +69,8 @@ async function fetchPublicAccessSettings(force = false) {
       };
     }
 
+    // Back off after both success and failure so a degraded Data API is not
+    // hammered by every mounted consumer or browser tab.
     publicAccessSettingsLastFetchedAt = Date.now();
     notifyPublicAccessSettingsSubscribers();
   })().finally(() => {
@@ -84,12 +89,17 @@ function startPublicAccessSettingsPolling() {
 
   void fetchPublicAccessSettings();
   publicAccessSettingsPollingIntervalId = window.setInterval(() => {
-    void fetchPublicAccessSettings(true);
+    if (document.visibilityState == "visible") {
+      void fetchPublicAccessSettings();
+    }
   }, PUBLIC_ACCESS_SETTINGS_REFRESH_INTERVAL_MS);
 }
 
 function stopPublicAccessSettingsPolling() {
-  publicAccessSettingsSubscriberCount -= 1;
+  publicAccessSettingsSubscriberCount = Math.max(
+    0,
+    publicAccessSettingsSubscriberCount - 1,
+  );
 
   if (publicAccessSettingsSubscriberCount != 0) {
     return;
