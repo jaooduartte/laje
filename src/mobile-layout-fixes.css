@@ -1,0 +1,20 @@
+@media (max-width: 639px) {
+  /* Mantém o badge de naipe no mesmo eixo vertical dos demais badges. */
+  .admin-match-control-live-card
+    > .flex.flex-col.gap-3
+    > .order-1.space-y-1
+    > .flex.flex-wrap.items-center
+    > .flex.flex-wrap.items-center
+    > :first-child {
+    align-self: center;
+    margin-block: 0;
+    vertical-align: middle;
+  }
+
+  /* Dá respiro entre os controles de cartões das duas atléticas no mobile. */
+  .admin-match-control-live-card
+    > .glass-panel-muted
+    > .grid.grid-cols-2 {
+    column-gap: 0.5rem;
+  }
+}
