@@ -1,0 +1,15 @@
+@media (max-width: 639px) {
+  /* Equaliza a altura do badge de naipe com os demais badges da listagem. */
+  .list-item-card
+    [class~="gap-1.5"][class~="sm:flex-col"]
+    > :first-child {
+    min-height: 0;
+  }
+
+  /* Dá um leve respiro entre os controles de cartões das duas atléticas. */
+  .admin-match-control-live-card
+    > .glass-panel-muted
+    > .grid.grid-cols-2 {
+    column-gap: 0.5rem;
+  }
+}
