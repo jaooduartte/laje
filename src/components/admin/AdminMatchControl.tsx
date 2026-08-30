@@ -51,6 +51,7 @@ import {
   MatchNaipe,
   MatchStatus,
   TeamDivision,
+  ThemeTimeZone,
 } from "@/lib/enums";
 import { SportFilter } from "@/components/SportFilter";
 import { Button } from "@/components/ui/button";
@@ -220,6 +221,25 @@ function resolveMatchCourtAndDateKey(match: Match): string | null {
   }
 
   return `${scheduledDateValue}:${resolveControlQueueCourtKey(match.location, match.court_name)}`;
+}
+
+function resolveControlCurrentDateKey(now = new Date()): string {
+  const dateParts = new Map(
+    new Intl.DateTimeFormat("pt-BR", {
+      timeZone: ThemeTimeZone.SAO_PAULO,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    })
+      .formatToParts(now)
+      .filter(
+        (part) =>
+          part.type == "year" || part.type == "month" || part.type == "day",
+      )
+      .map((part) => [part.type, part.value]),
+  );
+
+  return `${dateParts.get("year")}-${dateParts.get("month")}-${dateParts.get("day")}`;
 }
 
 interface PersistedMatchControlDraftEntry {
@@ -2888,10 +2908,16 @@ export function AdminMatchControl({
     locationFilter,
   ]);
 
+  const currentControlDateKey = resolveControlCurrentDateKey();
+
   const localOperationalMatches = useMemo(() => {
     const scheduledMatchesCountByCourtKey = new Map<string, number>();
 
     return sortedMatches.filter((match) => {
+      if (resolveMatchScheduledDateValue(match) != currentControlDateKey) {
+        return false;
+      }
+
       if (match.status == MatchStatus.LIVE) {
         return true;
       }
@@ -2914,12 +2940,16 @@ export function AdminMatchControl({
       scheduledMatchesCountByCourtKey.set(courtKey, scheduledMatchesCount + 1);
       return true;
     });
-  }, [sortedMatches]);
+  }, [currentControlDateKey, sortedMatches]);
 
   const localOperationalIndividualSessions = useMemo(() => {
     const scheduledSessionsCountByCourtKey = new Map<string, number>();
 
     return visibleIndividualSessions.filter((session) => {
+      if (session.scheduled_date != currentControlDateKey) {
+        return false;
+      }
+
       if (session.status == "LIVE") {
         return true;
       }
@@ -2942,7 +2972,19 @@ export function AdminMatchControl({
       scheduledSessionsCountByCourtKey.set(courtKey, scheduledSessionsCount + 1);
       return true;
     });
-  }, [visibleIndividualSessions]);
+  }, [currentControlDateKey, visibleIndividualSessions]);
+
+  const compactMatches = useMemo(() => {
+    return sortedMatches.filter(
+      (match) => resolveMatchScheduledDateValue(match) == currentControlDateKey,
+    );
+  }, [currentControlDateKey, sortedMatches]);
+
+  const compactIndividualSessions = useMemo(() => {
+    return visibleIndividualSessions.filter(
+      (session) => session.scheduled_date == currentControlDateKey,
+    );
+  }, [currentControlDateKey, visibleIndividualSessions]);
 
   const controlItemsCount =
     sortedMatches.length + visibleIndividualSessions.length;
@@ -2981,12 +3023,12 @@ export function AdminMatchControl({
   const displayedMatches = isFullQueueVisible
     ? paginatedMatches
     : onFullQueueVisibleChange
-      ? sortedMatches
+      ? compactMatches
       : localOperationalMatches;
   const displayedIndividualSessions = isFullQueueVisible
     ? paginatedIndividualSessions
     : onFullQueueVisibleChange
-      ? visibleIndividualSessions
+      ? compactIndividualSessions
       : localOperationalIndividualSessions;
   const displayedControlItemsCount = isFullQueueVisible
     ? controlItemsCount

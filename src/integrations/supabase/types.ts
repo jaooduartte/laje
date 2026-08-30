@@ -2217,12 +2217,19 @@ export type Database = {
           id: string
           is_double_walkover: boolean
           is_manual_schedule_override: boolean
+          is_pending_manual_relocation: boolean
           is_score_sheet_reviewed: boolean
           is_walkover: boolean
-          location: string
+          location: string | null
           manual_representation_mode: string
           manual_schedule_override_notes: string | null
           manual_schedule_override_reason: string | null
+          pending_manual_relocation_at: string | null
+          pending_manual_relocation_created_by: string | null
+          pending_manual_relocation_notes: string | null
+          pending_manual_relocation_previous_label: string | null
+          pending_manual_relocation_previous_schedule: Json | null
+          pending_manual_relocation_reason: string | null
           naipe: Database["public"]["Enums"]["match_naipe"]
           queue_position: number | null
           resolved_tie_break_winner_team_id: string | null
@@ -2265,12 +2272,19 @@ export type Database = {
           id?: string
           is_double_walkover?: boolean
           is_manual_schedule_override?: boolean
+          is_pending_manual_relocation?: boolean
           is_score_sheet_reviewed?: boolean
           is_walkover?: boolean
-          location: string
+          location?: string | null
           manual_representation_mode?: string
           manual_schedule_override_notes?: string | null
           manual_schedule_override_reason?: string | null
+          pending_manual_relocation_at?: string | null
+          pending_manual_relocation_created_by?: string | null
+          pending_manual_relocation_notes?: string | null
+          pending_manual_relocation_previous_label?: string | null
+          pending_manual_relocation_previous_schedule?: Json | null
+          pending_manual_relocation_reason?: string | null
           naipe?: Database["public"]["Enums"]["match_naipe"]
           queue_position?: number | null
           resolved_tie_break_winner_team_id?: string | null
@@ -2313,12 +2327,19 @@ export type Database = {
           id?: string
           is_double_walkover?: boolean
           is_manual_schedule_override?: boolean
+          is_pending_manual_relocation?: boolean
           is_score_sheet_reviewed?: boolean
           is_walkover?: boolean
-          location?: string
+          location?: string | null
           manual_representation_mode?: string
           manual_schedule_override_notes?: string | null
           manual_schedule_override_reason?: string | null
+          pending_manual_relocation_at?: string | null
+          pending_manual_relocation_created_by?: string | null
+          pending_manual_relocation_notes?: string | null
+          pending_manual_relocation_previous_label?: string | null
+          pending_manual_relocation_previous_schedule?: Json | null
+          pending_manual_relocation_reason?: string | null
           naipe?: Database["public"]["Enums"]["match_naipe"]
           queue_position?: number | null
           resolved_tie_break_winner_team_id?: string | null
@@ -2766,6 +2787,18 @@ export type Database = {
         }
         Returns: undefined
       }
+      apply_manual_match_relocation_slot: {
+        Args: {
+          _bracket_edition_id: string
+          _expected_revision: number
+          _payload: Json
+        }
+        Returns: undefined
+      }
+      hold_matches_for_manual_relocation: {
+        Args: { _bracket_edition_id: string; _payload: Json }
+        Returns: undefined
+      }
       assign_championship_knockout_match_planned_schedule: {
         Args: { _bracket_match_id: string; _championship_id: string }
         Returns: undefined
@@ -2801,6 +2834,10 @@ export type Database = {
         Returns: Json
       }
       preview_manual_match_relocation: {
+        Args: { _bracket_edition_id: string; _payload: Json }
+        Returns: Json
+      }
+      preview_manual_match_relocation_slot: {
         Args: { _bracket_edition_id: string; _payload: Json }
         Returns: Json
       }

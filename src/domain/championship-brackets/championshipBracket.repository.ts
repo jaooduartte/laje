@@ -28,6 +28,8 @@ import type {
   ScheduledMatchLogisticsUpdateInput,
   ManualMatchRelocationInput,
   ManualMatchRelocationPreview,
+  ManualMatchRelocationSlotPreview,
+  HoldMatchesForManualRelocationInput,
   ChampionshipBracketReconfigurationAction,
   ChampionshipBracketReconfigurationPreview,
 } from "@/domain/championship-brackets/championshipBracket.types";
@@ -134,6 +136,52 @@ export async function applyManualMatchRelocation(
     _bracket_edition_id: bracketEditionId,
     _payload: toSupabaseJson(input),
     _expected_revision: expectedRevision,
+  });
+
+  return { error: response.error };
+}
+
+export async function previewManualMatchRelocationSlot(
+  bracketEditionId: string,
+  input: ManualMatchRelocationInput,
+): Promise<{
+  data: ManualMatchRelocationSlotPreview | null;
+  error: Error | null;
+}> {
+  const response = await supabase.rpc("preview_manual_match_relocation_slot", {
+    _bracket_edition_id: bracketEditionId,
+    _payload: toSupabaseJson(input),
+  });
+
+  return {
+    data:
+      (response.data as unknown as ManualMatchRelocationSlotPreview | null) ??
+      null,
+    error: response.error,
+  };
+}
+
+export async function applyManualMatchRelocationSlot(
+  bracketEditionId: string,
+  input: ManualMatchRelocationInput,
+  expectedRevision: number,
+): Promise<{ error: Error | null }> {
+  const response = await supabase.rpc("apply_manual_match_relocation_slot", {
+    _bracket_edition_id: bracketEditionId,
+    _payload: toSupabaseJson(input),
+    _expected_revision: expectedRevision,
+  });
+
+  return { error: response.error };
+}
+
+export async function holdMatchesForManualRelocation(
+  bracketEditionId: string,
+  input: HoldMatchesForManualRelocationInput,
+): Promise<{ error: Error | null }> {
+  const response = await supabase.rpc("hold_matches_for_manual_relocation", {
+    _bracket_edition_id: bracketEditionId,
+    _payload: toSupabaseJson(input),
   });
 
   return { error: response.error };

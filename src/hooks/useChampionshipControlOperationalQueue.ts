@@ -81,6 +81,7 @@ async function fetchLegacyOperationalQueueState(
         .select("id", { count: "exact", head: true })
         .eq("championship_id", championshipId)
         .eq("season_year", seasonYear)
+        .eq("is_pending_manual_relocation", false)
         .in("status", ["SCHEDULED", "LIVE"]),
       supabaseLoose
         .from("championship_individual_sessions")

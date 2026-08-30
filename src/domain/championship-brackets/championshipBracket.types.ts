@@ -968,7 +968,7 @@ export interface ScheduledMatchLogisticsUpdateInput {
   away_team_id?: string | null;
 }
 
-export type ManualMatchRelocationPosition = "START" | "END";
+export type ManualMatchRelocationPosition = "START" | "END" | "SLOT";
 
 export type ManualMatchRelocationReason =
   | "WEATHER"
@@ -982,9 +982,34 @@ export interface ManualMatchRelocationInput {
   target_date: string;
   target_location: string;
   target_court_name: string;
+  target_start_time?: string | null;
+  target_slot_id?: string | null;
   insertion_position: ManualMatchRelocationPosition;
   reason: ManualMatchRelocationReason;
   notes?: string | null;
+}
+
+export interface ManualMatchRelocationSlot {
+  id: string;
+  start_time: string;
+  end_time: string;
+  next_match_id: string | null;
+  next_match_label: string | null;
+  displaced_matches_count: number;
+  is_free_gap: boolean;
+  is_projected_from_live_match: boolean;
+}
+
+export interface ManualMatchRelocationSlotPreview
+  extends ManualMatchRelocationPreview {
+  slots: ManualMatchRelocationSlot[];
+}
+
+export interface HoldMatchesForManualRelocationInput {
+  match_ids: string[];
+  reason: ManualMatchRelocationReason;
+  notes?: string | null;
+  previous_labels?: Record<string, string>;
 }
 
 export interface ManualMatchRelocationChange {
@@ -1024,6 +1049,9 @@ export interface ManualMatchRelocationPreview {
     is_relocated: boolean;
     is_displaced: boolean;
   }>;
+  previous_day_start: string;
+  next_day_start: string;
+  advances_day_start: boolean;
   previous_day_end: string;
   next_day_end: string;
   extends_day_end: boolean;

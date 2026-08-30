@@ -293,6 +293,7 @@ export function AdminPage() {
   } = useMatches({
     championshipId: selectedChampionshipId,
     seasonYear: resolvedMatchesSeasonYear,
+    includePendingManualRelocation: true,
     enabled: shouldLoadMatchesTab,
   });
   const {

@@ -1517,4 +1517,29 @@ describe("resolveInterleavedScheduledMatchesByCompetition", () => {
       "beach-soccer-game-4-female",
     ]);
   });
+
+  it("preserva jogos sem data agendada ao final da lista", () => {
+    const scheduledMatch = buildMatch({
+      id: "scheduled-match",
+      scheduled_date: "2026-03-20",
+      queue_position: 1,
+    });
+    const pendingManualRelocationMatch: Match = {
+      ...buildMatch({ id: "pending-manual-relocation-match" }),
+      scheduled_date: null,
+      start_time: null,
+      queue_position: null,
+      scheduled_slot: null,
+    };
+
+    const orderedMatches = resolveInterleavedScheduledMatchesByCompetition([
+      pendingManualRelocationMatch,
+      scheduledMatch,
+    ]);
+
+    expect(orderedMatches.map((match) => match.id)).toEqual([
+      "scheduled-match",
+      "pending-manual-relocation-match",
+    ]);
+  });
 });

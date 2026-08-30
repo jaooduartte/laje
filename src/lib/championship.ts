@@ -1572,12 +1572,14 @@ export function resolveInterleavedScheduledMatchesByCompetition<
     sports?: Match["sports"] | null;
   },
 >(scheduledMatches: MatchItem[]): MatchItem[] {
+  const matchesWithoutScheduledDate: MatchItem[] = [];
   const scheduledMatchesByDate = scheduledMatches.reduce<
     Record<string, MatchItem[]>
   >((carry, scheduledMatch) => {
     const scheduledDateValue = resolveMatchScheduledDateValue(scheduledMatch);
 
     if (!scheduledDateValue) {
+      matchesWithoutScheduledDate.push(scheduledMatch);
       return carry;
     }
 
@@ -1588,7 +1590,7 @@ export function resolveInterleavedScheduledMatchesByCompetition<
     return carry;
   }, {});
 
-  return Object.keys(scheduledMatchesByDate)
+  const interleavedScheduledMatches = Object.keys(scheduledMatchesByDate)
     .sort((firstDate, secondDate) => firstDate.localeCompare(secondDate))
     .flatMap((scheduledDateValue) => {
       const currentDateMatches = scheduledMatchesByDate[scheduledDateValue];
@@ -1637,6 +1639,8 @@ export function resolveInterleavedScheduledMatchesByCompetition<
 
       return interleavedMatches;
     });
+
+  return [...interleavedScheduledMatches, ...matchesWithoutScheduledDate];
 }
 
 export function resolveMatchStartedAtLabel(

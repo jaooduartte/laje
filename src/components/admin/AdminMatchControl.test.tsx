@@ -472,6 +472,7 @@ async function confirmReturnToScheduledDialog(): Promise<void> {
 describe("AdminMatchControl", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-11T12:00:00.000Z"));
     supabaseUpdateCalls.length = 0;
     supabaseUpdateResults.length = 0;
     toastSuccessMock.mockReset();
@@ -667,7 +668,7 @@ describe("AdminMatchControl", () => {
     ).toBeDisabled();
   });
 
-  it("inicia uma sessão individual agendada sem validar a data", async () => {
+  it("inicia uma sessão individual agendada da data atual", async () => {
     const athleticsSport = buildChampionshipSport({
       id: "championship-sport-athletics",
       sport_id: "sport-athletics",
@@ -679,7 +680,7 @@ describe("AdminMatchControl", () => {
         buildIndividualSession({
           id: "scheduled-individual-session",
           sport_id: athleticsSport.sport_id,
-          scheduled_date: "2027-12-31",
+          scheduled_date: "2026-04-11",
           status: ChampionshipIndividualSessionStatus.SCHEDULED,
         }),
       ],
@@ -969,6 +970,48 @@ describe("AdminMatchControl", () => {
     expect(toastSuccessMock).toHaveBeenCalledWith("Jogo iniciado!");
     expect(onRefetch).toHaveBeenCalledTimes(1);
     expect(onRefetchChampionshipBracket).toHaveBeenCalledTimes(1);
+  });
+
+  it("mostra somente itens da data atual na visão operacional compacta", async () => {
+    vi.setSystemTime(new Date("2026-08-30T12:00:00.000Z"));
+    const currentMatch = buildMatch({
+      id: "current-match",
+      sport_id: "sport-current",
+      status: MatchStatus.SCHEDULED,
+      scheduled_date: "2026-08-30",
+      home_team: buildTeam({ id: "current-home", name: "Atlética de hoje" }),
+      away_team: buildTeam({ id: "current-away", name: "Visitante de hoje" }),
+    });
+    const futureMatch = buildMatch({
+      id: "future-match",
+      sport_id: "sport-future",
+      status: MatchStatus.SCHEDULED,
+      scheduled_date: "2026-09-05",
+      home_team: buildTeam({ id: "future-home", name: "Atlética futura" }),
+      away_team: buildTeam({ id: "future-away", name: "Visitante futura" }),
+    });
+    const onFullQueueVisibleChange = vi.fn();
+
+    const { rerenderAdminMatchControl } = renderAdminMatchControl({
+      matches: [currentMatch, futureMatch],
+      championshipSports: [],
+      isFullQueueVisible: false,
+      onFullQueueVisibleChange,
+    });
+
+    await completeInitialControlLoad();
+
+    expect(screen.getByText("Atlética de hoje")).toBeInTheDocument();
+    expect(screen.queryByText("Atlética futura")).toBeNull();
+
+    rerenderAdminMatchControl({
+      matches: [currentMatch, futureMatch],
+      championshipSports: [],
+      isFullQueueVisible: true,
+      onFullQueueVisibleChange,
+    });
+
+    expect(screen.getByText("Atlética futura")).toBeInTheDocument();
   });
 
   it("bloqueia o início em uma quadra já ocupada por outra modalidade", () => {

@@ -41,7 +41,10 @@ import {
   updateBracketDaySchedule,
   previewChampionshipBracketReconfiguration,
   applyManualMatchRelocation,
+  applyManualMatchRelocationSlot,
+  holdMatchesForManualRelocation,
   previewManualMatchRelocation,
+  previewManualMatchRelocationSlot,
 } from "@/domain/championship-brackets/championshipBracket.repository";
 import type {
   BracketDayCourtSports,
@@ -55,6 +58,7 @@ import type {
   ManualMatchRelocationPosition,
   ManualMatchRelocationPreview,
   ManualMatchRelocationReason,
+  ManualMatchRelocationSlotPreview,
   MatchSetInput,
 } from "@/domain/championship-brackets/championshipBracket.types";
 import {
@@ -119,6 +123,11 @@ import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  Tabs,
+  TabsNavigationList,
+  TabsNavigationTrigger,
+} from "@/components/ui/tabs";
+import {
   Table,
   TableBody,
   TableCell,
@@ -165,6 +174,7 @@ import {
   resolveMatchStartedAtLabel,
   resolveMatchDisplayStatusLabel,
   resolveMatchStatusBadgeTone,
+  resolveMatchStatusLabel,
   resolveMatchTieBreakRuleLabel,
   resolveKnockoutRoundLabel,
   isSocietyKnockoutMatch,
@@ -1112,6 +1122,7 @@ export function AdminMatches({
   const [matchesDateFilter, setMatchesDateFilter] = useState<string>(
     ALL_MATCHES_DATE_FILTER,
   );
+  const [activeMatchesSection, setActiveMatchesSection] = useState("ACTIVE");
   const [selectedMatchIds, setSelectedMatchIds] = useState<string[]>([]);
   const [matchesCurrentPage, setMatchesCurrentPage] = useState(1);
   const [matchesItemsPerPage, setMatchesItemsPerPage] = useState(
@@ -1153,6 +1164,8 @@ export function AdminMatches({
     useState("");
   const [manualRelocationTargetCourt, setManualRelocationTargetCourt] =
     useState("");
+  const [manualRelocationTargetStartTime, setManualRelocationTargetStartTime] =
+    useState("");
   const [manualRelocationPosition, setManualRelocationPosition] =
     useState<ManualMatchRelocationPosition>("END");
   const [manualRelocationReason, setManualRelocationReason] =
@@ -1164,6 +1177,34 @@ export function AdminMatches({
     useState(false);
   const [applyingManualRelocation, setApplyingManualRelocation] =
     useState(false);
+  const [showManualRelocationSlotDialog, setShowManualRelocationSlotDialog] =
+    useState(false);
+  const [manualRelocationSlotMatch, setManualRelocationSlotMatch] =
+    useState<Match | null>(null);
+  const [manualRelocationSlotTargetDate, setManualRelocationSlotTargetDate] =
+    useState("");
+  const [manualRelocationSlotTargetLocation, setManualRelocationSlotTargetLocation] =
+    useState("");
+  const [manualRelocationSlotTargetCourt, setManualRelocationSlotTargetCourt] =
+    useState("");
+  const [manualRelocationSlotId, setManualRelocationSlotId] = useState("");
+  const [manualRelocationSlotReason, setManualRelocationSlotReason] =
+    useState<ManualMatchRelocationReason>("WEATHER");
+  const [manualRelocationSlotNotes, setManualRelocationSlotNotes] = useState("");
+  const [manualRelocationSlotPreview, setManualRelocationSlotPreview] =
+    useState<ManualMatchRelocationSlotPreview | null>(null);
+  const [loadingManualRelocationSlots, setLoadingManualRelocationSlots] =
+    useState(false);
+  const [applyingManualRelocationSlot, setApplyingManualRelocationSlot] =
+    useState(false);
+  const [selectedPendingManualRelocationMatchIds, setSelectedPendingManualRelocationMatchIds] =
+    useState<string[]>([]);
+  const [showHoldMatchesDialog, setShowHoldMatchesDialog] = useState(false);
+  const [holdingMatchesForRelocation, setHoldingMatchesForRelocation] =
+    useState(false);
+  const [holdMatchesReason, setHoldMatchesReason] =
+    useState<ManualMatchRelocationReason>("WEATHER");
+  const [holdMatchesNotes, setHoldMatchesNotes] = useState("");
   const [showDeleteSelectedMatchesDialog, setShowDeleteSelectedMatchesDialog] =
     useState(false);
   const [creatingMatch, setCreatingMatch] = useState(false);
@@ -1834,6 +1875,12 @@ export function AdminMatches({
     setMatchesLocationFilter(ALL_MATCHES_LOCATION_FILTER);
     setMatchesCourtFilter(ALL_MATCHES_COURT_FILTER);
     setMatchesDateFilter(ALL_MATCHES_DATE_FILTER);
+    setActiveMatchesSection("ACTIVE");
+    setSelectedPendingManualRelocationMatchIds([]);
+    setShowHoldMatchesDialog(false);
+    setHoldingMatchesForRelocation(false);
+    setHoldMatchesReason("WEATHER");
+    setHoldMatchesNotes("");
     setHideReviewedMatches(isScoreSheetReviewMode);
     setCreatingMatch(false);
     setBulkReviewAction(null);
@@ -2122,6 +2169,9 @@ export function AdminMatches({
 
   const matchesFilteredByBaseCriteria = useMemo(() => {
     return matches.filter((match) => {
+      if (match.is_pending_manual_relocation) {
+        return false;
+      }
       if (
         matchesSportFilter !== ALL_MATCHES_SPORT_FILTER &&
         match.sport_id != matchesSportFilter
@@ -2860,11 +2910,19 @@ export function AdminMatches({
 
   const operationalVisualQueuePositionByMatchId = useMemo(() => {
     return resolveVisualQueuePositionByMatchId(
-      matches,
-      matches,
+      matches.filter((match) => !match.is_pending_manual_relocation),
+      matches.filter((match) => !match.is_pending_manual_relocation),
       estimatedStartTimeByMatchId,
     );
   }, [estimatedStartTimeByMatchId, matches]);
+
+  const pendingManualRelocationMatches = useMemo(() => {
+    return matches
+      .filter((match) => match.is_pending_manual_relocation)
+      .sort((firstMatch, secondMatch) =>
+        firstMatch.created_at.localeCompare(secondMatch.created_at),
+      );
+  }, [matches]);
 
   const filteredAndSortedMatches = useMemo(() => {
     return [...matchesFilteredByBaseCriteria]
@@ -2985,7 +3043,10 @@ export function AdminMatches({
   }, [filteredAndSortedMatches]);
 
   const selectedMatchesForManualRelocation = useMemo(() => {
-    const selectedMatchIdSet = new Set(selectedMatchIds);
+    const selectedMatchIdSet = new Set([
+      ...selectedMatchIds,
+      ...selectedPendingManualRelocationMatchIds,
+    ]);
 
     return matches
       .filter((match) => selectedMatchIdSet.has(match.id))
@@ -3002,7 +3063,12 @@ export function AdminMatches({
           resolveMatchScheduleMoveSortValue(secondMatch, shouldUseScheduledSlotInMatchList)
         );
       });
-  }, [matches, selectedMatchIds, shouldUseScheduledSlotInMatchList]);
+  }, [
+    matches,
+    selectedMatchIds,
+    selectedPendingManualRelocationMatchIds,
+    shouldUseScheduledSlotInMatchList,
+  ]);
 
   const manualRelocationTargetDay = useMemo(() => {
     return (
@@ -3033,6 +3099,41 @@ export function AdminMatches({
     manualRelocationLocations,
     manualRelocationTargetLocation,
     selectedMatchesForManualRelocation,
+  ]);
+
+  const manualRelocationSlotTargetDay = useMemo(() => {
+    return (
+      bracketCourtSportsDays.find(
+        (scheduleDay) =>
+          scheduleDay.event_date == manualRelocationSlotTargetDate,
+      ) ?? null
+    );
+  }, [bracketCourtSportsDays, manualRelocationSlotTargetDate]);
+
+  const manualRelocationSlotLocations = useMemo(() => {
+    return manualRelocationSlotTargetDay?.locations ?? [];
+  }, [manualRelocationSlotTargetDay]);
+
+  const manualRelocationSlotCourts = useMemo(() => {
+    if (!manualRelocationSlotMatch) {
+      return [];
+    }
+
+    const targetLocation = manualRelocationSlotLocations.find(
+      (scheduleLocation) =>
+        scheduleLocation.name == manualRelocationSlotTargetLocation,
+    );
+
+    return (targetLocation?.courts ?? []).filter((court) =>
+      court.sports.some(
+        (courtSport) =>
+          courtSport.sport_id == manualRelocationSlotMatch.sport_id,
+      ),
+    );
+  }, [
+    manualRelocationSlotLocations,
+    manualRelocationSlotMatch,
+    manualRelocationSlotTargetLocation,
   ]);
 
   const matchesTotalPages = Math.max(
@@ -3190,6 +3291,18 @@ export function AdminMatches({
         matchIds.has(selectedMatchId),
       );
     });
+  }, [matches]);
+
+  useEffect(() => {
+    const pendingMatchIds = new Set(
+      matches
+        .filter((match) => match.is_pending_manual_relocation)
+        .map((match) => match.id),
+    );
+
+    setSelectedPendingManualRelocationMatchIds((currentMatchIds) =>
+      currentMatchIds.filter((matchId) => pendingMatchIds.has(matchId)),
+    );
   }, [matches]);
 
   useEffect(() => {
@@ -4006,6 +4119,7 @@ export function AdminMatches({
     setManualRelocationTargetDate(initialDate);
     setManualRelocationTargetLocation(initialLocation?.name ?? "");
     setManualRelocationTargetCourt(initialCourt?.name ?? "");
+    setManualRelocationTargetStartTime("");
     setManualRelocationPosition("END");
     setManualRelocationReason("WEATHER");
     setManualRelocationNotes("");
@@ -4028,6 +4142,7 @@ export function AdminMatches({
       target_date: manualRelocationTargetDate,
       target_location: manualRelocationTargetLocation,
       target_court_name: manualRelocationTargetCourt,
+      target_start_time: manualRelocationTargetStartTime || null,
       insertion_position: manualRelocationPosition,
       reason: manualRelocationReason,
       notes: manualRelocationNotes.trim() || null,
@@ -4083,10 +4198,169 @@ export function AdminMatches({
     }
 
     setSelectedMatchIds([]);
+    setSelectedPendingManualRelocationMatchIds([]);
     setManualRelocationPreview(null);
     setShowManualRelocationDialog(false);
     await Promise.all([onRefetch(), onRefetchChampionshipBracket()]);
     toast.success("Jogos realocados com sucesso.");
+  };
+
+  const handleCloseManualRelocationSlotDialog = () => {
+    if (loadingManualRelocationSlots || applyingManualRelocationSlot) {
+      return;
+    }
+
+    setShowManualRelocationSlotDialog(false);
+    setManualRelocationSlotPreview(null);
+    setManualRelocationSlotId("");
+    setManualRelocationSlotMatch(null);
+  };
+
+  const handleOpenManualRelocationSlotDialog = (match: Match) => {
+    if (!canManageMatches || match.status != MatchStatus.SCHEDULED) {
+      return;
+    }
+
+    if (!championshipBracketView.edition?.id) {
+      toast.error("Não foi possível localizar a agenda do campeonato.");
+      return;
+    }
+
+    const initialDate = resolveMatchScheduledDateValue(match) ?? "";
+    const initialDay = bracketCourtSportsDays.find(
+      (scheduleDay) => scheduleDay.event_date == initialDate,
+    );
+    const initialLocation = initialDay?.locations.find(
+      (scheduleLocation) => scheduleLocation.name == match.location,
+    );
+    const initialCourt = initialLocation?.courts.find(
+      (court) =>
+        court.name == match.court_name &&
+        court.sports.some((courtSport) => courtSport.sport_id == match.sport_id),
+    );
+
+    setManualRelocationSlotMatch(match);
+    setManualRelocationSlotTargetDate(initialDate);
+    setManualRelocationSlotTargetLocation(initialLocation?.name ?? "");
+    setManualRelocationSlotTargetCourt(initialCourt?.name ?? "");
+    setManualRelocationSlotId("");
+    setManualRelocationSlotReason("WEATHER");
+    setManualRelocationSlotNotes("");
+    setManualRelocationSlotPreview(null);
+    setShowManualRelocationSlotDialog(true);
+  };
+
+  const buildManualRelocationSlotInput = (
+    includeSlotId: boolean,
+  ): ManualMatchRelocationInput | null => {
+    if (
+      !manualRelocationSlotMatch ||
+      !manualRelocationSlotTargetDate ||
+      !manualRelocationSlotTargetLocation ||
+      !manualRelocationSlotTargetCourt
+    ) {
+      toast.error("Selecione o dia, local e quadra de destino.");
+      return null;
+    }
+
+    if (includeSlotId && !manualRelocationSlotId) {
+      toast.error("Selecione um horário disponível.");
+      return null;
+    }
+
+    return {
+      match_ids: [manualRelocationSlotMatch.id],
+      target_date: manualRelocationSlotTargetDate,
+      target_location: manualRelocationSlotTargetLocation,
+      target_court_name: manualRelocationSlotTargetCourt,
+      target_start_time: null,
+      target_slot_id: includeSlotId ? manualRelocationSlotId : null,
+      insertion_position: "SLOT",
+      reason: manualRelocationSlotReason,
+      notes: manualRelocationSlotNotes.trim() || null,
+    };
+  };
+
+  const handleLoadManualRelocationSlots = async () => {
+    const bracketEditionId = championshipBracketView.edition?.id;
+    const input = buildManualRelocationSlotInput(false);
+
+    if (!bracketEditionId || !input) {
+      return;
+    }
+
+    setLoadingManualRelocationSlots(true);
+    const { data, error } = await previewManualMatchRelocationSlot(
+      bracketEditionId,
+      input,
+    );
+    setLoadingManualRelocationSlots(false);
+
+    if (error || !data) {
+      toast.error(error?.message ?? "Não foi possível buscar horários livres.");
+      return;
+    }
+
+    setManualRelocationSlotId("");
+    setManualRelocationSlotPreview(data);
+  };
+
+  const handlePreviewManualRelocationSlot = async () => {
+    const bracketEditionId = championshipBracketView.edition?.id;
+    const input = buildManualRelocationSlotInput(true);
+
+    if (!bracketEditionId || !input) {
+      return;
+    }
+
+    setLoadingManualRelocationSlots(true);
+    const { data, error } = await previewManualMatchRelocationSlot(
+      bracketEditionId,
+      input,
+    );
+    setLoadingManualRelocationSlots(false);
+
+    if (error || !data) {
+      toast.error(error?.message ?? "Não foi possível calcular a prévia.");
+      return;
+    }
+
+    setManualRelocationSlotPreview(data);
+  };
+
+  const handleApplyManualRelocationSlot = async () => {
+    const bracketEditionId = championshipBracketView.edition?.id;
+    const input = buildManualRelocationSlotInput(true);
+
+    if (
+      !bracketEditionId ||
+      !input ||
+      !manualRelocationSlotPreview ||
+      manualRelocationSlotPreview.changes.length == 0 ||
+      manualRelocationSlotPreview.blockers.length > 0
+    ) {
+      return;
+    }
+
+    setApplyingManualRelocationSlot(true);
+    const { error } = await applyManualMatchRelocationSlot(
+      bracketEditionId,
+      input,
+      manualRelocationSlotPreview.revision,
+    );
+    setApplyingManualRelocationSlot(false);
+
+    if (error) {
+      toast.error(resolveAdminMatchesOperationalErrorMessage(error));
+      return;
+    }
+
+    setShowManualRelocationSlotDialog(false);
+    setManualRelocationSlotPreview(null);
+    setManualRelocationSlotId("");
+    setManualRelocationSlotMatch(null);
+    await Promise.all([onRefetch(), onRefetchChampionshipBracket()]);
+    toast.success("Jogo encaixado na programação com sucesso.");
   };
 
   const handleDeleteMatchFromDialog = async () => {
@@ -4128,6 +4402,77 @@ export function AdminMatches({
         (selectedMatchId) => selectedMatchId != matchId,
       );
     });
+  };
+
+  const handleToggleSelectedPendingManualRelocationMatch = (
+    matchId: string,
+    checked: CheckedState,
+  ) => {
+    setSelectedPendingManualRelocationMatchIds((currentMatchIds) => {
+      if (checked == true) {
+        return currentMatchIds.includes(matchId)
+          ? currentMatchIds
+          : [...currentMatchIds, matchId];
+      }
+
+      return currentMatchIds.filter((currentMatchId) => currentMatchId != matchId);
+    });
+  };
+
+  const handleOpenHoldMatchesDialog = () => {
+    if (!canManageMatches || selectedMatchIds.length == 0) {
+      toast.error("Selecione ao menos um jogo agendado.");
+      return;
+    }
+
+    const selectedMatches = matches.filter((match) => selectedMatchIds.includes(match.id));
+
+    if (selectedMatches.some((match) => match.status != MatchStatus.SCHEDULED)) {
+      toast.error("Somente jogos agendados podem ser guardados para realocação.");
+      return;
+    }
+
+    setHoldMatchesReason("WEATHER");
+    setHoldMatchesNotes("");
+    setShowHoldMatchesDialog(true);
+  };
+
+  const handleHoldMatchesForRelocation = async () => {
+    const bracketEditionId = championshipBracketView.edition?.id;
+
+    if (!bracketEditionId || selectedMatchIds.length == 0) {
+      return;
+    }
+
+    setHoldingMatchesForRelocation(true);
+    const { error } = await holdMatchesForManualRelocation(bracketEditionId, {
+      match_ids: selectedMatchIds,
+      reason: holdMatchesReason,
+      notes: holdMatchesNotes.trim() || null,
+      previous_labels: Object.fromEntries(
+        matches
+          .filter((match) => selectedMatchIds.includes(match.id))
+          .map((match) => [
+            match.id,
+            resolveDisplayedMatchQueueLabel(
+              match,
+              visualQueuePositionByMatchId[match.id],
+            ),
+          ]),
+      ),
+    });
+    setHoldingMatchesForRelocation(false);
+
+    if (error) {
+      toast.error(resolveAdminMatchesOperationalErrorMessage(error));
+      return;
+    }
+
+    setShowHoldMatchesDialog(false);
+    setSelectedMatchIds([]);
+    setActiveMatchesSection("PENDING");
+    await Promise.all([onRefetch(), onRefetchChampionshipBracket()]);
+    toast.success("Jogos guardados aguardando nova realocação.");
   };
 
   const handleOpenDeleteSelectedMatchesDialog = () => {
@@ -6255,7 +6600,154 @@ export function AdminMatches({
         </div>
       ) : null}
 
-      <div className="enter-section space-y-3">
+      {!isScoreSheetReviewMode && !isTieBreaksMode ? (
+        <Tabs
+          value={activeMatchesSection}
+          onValueChange={setActiveMatchesSection}
+        >
+          <TabsNavigationList className="h-auto w-full justify-start">
+            <TabsNavigationTrigger
+              value="ACTIVE"
+              className="px-3 py-2.5 sm:px-4"
+              onClick={() => setActiveMatchesSection("ACTIVE")}
+            >
+              Programação ativa
+            </TabsNavigationTrigger>
+            <TabsNavigationTrigger
+              value="PENDING"
+              className="gap-2 px-3 py-2.5 sm:px-4"
+              onClick={() => setActiveMatchesSection("PENDING")}
+            >
+              Aguardando realocação
+              <span className="rounded-full bg-secondary px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-muted-foreground">
+                {pendingManualRelocationMatches.length}
+              </span>
+            </TabsNavigationTrigger>
+          </TabsNavigationList>
+        </Tabs>
+      ) : null}
+
+      {!isScoreSheetReviewMode &&
+      !isTieBreaksMode &&
+      activeMatchesSection == "PENDING" ? (
+        <section className="glass-card enter-section space-y-4 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-foreground">
+                Jogos aguardando realocação
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Estes jogos permanecem criados, mas estão fora da programação até uma nova decisão da CO.
+              </p>
+            </div>
+            {canManageMatches ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleOpenManualRelocationDialog}
+                disabled={
+                  selectedPendingManualRelocationMatchIds.length == 0 ||
+                  loadingManualRelocationPreview ||
+                  applyingManualRelocation
+                }
+              >
+                Realocar selecionados
+              </Button>
+            ) : null}
+          </div>
+
+          {isInitialLoading || isFetchingMatches ? (
+            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {[0, 1, 2].map((index) => (
+                <Skeleton key={index} className="h-32 rounded-xl" />
+              ))}
+            </div>
+          ) : pendingManualRelocationMatches.length > 0 ? (
+            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {pendingManualRelocationMatches.map((match) => (
+                <div key={match.id} className="app-card-muted space-y-2 rounded-xl p-3">
+                  <div className="flex items-start gap-2">
+                    {canManageMatches ? (
+                      <Checkbox
+                        checked={selectedPendingManualRelocationMatchIds.includes(match.id)}
+                        onCheckedChange={(checked) =>
+                          handleToggleSelectedPendingManualRelocationMatch(match.id, checked)
+                        }
+                      />
+                    ) : null}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-foreground">
+                        {match.home_team?.name ?? "Casa"} x {match.away_team?.name ?? "Visitante"}
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {match.sports?.name ?? "Modalidade"} • {MATCH_NAIPE_LABELS[match.naipe]}
+                      </p>
+                    </div>
+                    {canManageMatches && match.status == MatchStatus.SCHEDULED ? (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Ações do jogo ${match.home_team?.name ?? "casa"} x ${match.away_team?.name ?? "visitante"}`}
+                          >
+                            <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56">
+                          <DropdownMenuItem
+                            onSelect={() => {
+                              handleOpenManualRelocationSlotDialog(match);
+                            }}
+                          >
+                            <Clock className="mr-2 h-4 w-4" />
+                            Encaixar em horário livre
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <AppBadge tone={AppBadgeTone.NEUTRAL}>
+                      {match.pending_manual_relocation_previous_label ?? "Jogo anterior"}
+                    </AppBadge>
+                    {match.pending_manual_relocation_reason ? (
+                      <AppBadge tone={AppBadgeTone.WARNING}>
+                        {MANUAL_MATCH_RELOCATION_REASON_LABELS[
+                          match.pending_manual_relocation_reason as ManualMatchRelocationReason
+                        ] ?? match.pending_manual_relocation_reason}
+                      </AppBadge>
+                    ) : null}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Guardado em {match.pending_manual_relocation_at
+                      ? format(new Date(match.pending_manual_relocation_at), "dd/MM/yyyy 'às' HH:mm")
+                      : "data não informada"}
+                    {match.pending_manual_relocation_notes
+                      ? ` • ${match.pending_manual_relocation_notes}`
+                      : ""}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="app-card-muted rounded-xl p-4 text-sm text-muted-foreground">
+              Nenhum jogo está aguardando realocação neste momento.
+            </div>
+          )}
+        </section>
+      ) : null}
+
+      <div
+        className={
+          !isScoreSheetReviewMode &&
+          !isTieBreaksMode &&
+          activeMatchesSection == "PENDING"
+            ? "hidden"
+            : "enter-section space-y-3"
+        }
+      >
         <SportFilter
           sports={sportsForMatchesFilter}
           selected={
@@ -6658,6 +7150,19 @@ export function AdminMatches({
                     <Button
                       type="button"
                       variant="outline"
+                      onClick={handleOpenHoldMatchesDialog}
+                      disabled={
+                        deletingMatches ||
+                        applyingBulkAction ||
+                        selectedMatchIds.length == 0
+                      }
+                    >
+                      Guardar para realocação
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="outline"
                       onClick={() =>
                         void handleMoveSelectedMatchesToNextChampionshipDay()
                       }
@@ -6814,6 +7319,18 @@ export function AdminMatches({
                                   >
                                     <RefreshCw className="mr-2 h-4 w-4" />
                                     Trocar jogo
+                                  </DropdownMenuItem>
+                                ) : null}
+
+                                {!isScoreSheetReviewMode &&
+                                match.status === MatchStatus.SCHEDULED ? (
+                                  <DropdownMenuItem
+                                    onSelect={() => {
+                                      handleOpenManualRelocationSlotDialog(match);
+                                    }}
+                                  >
+                                    <Clock className="mr-2 h-4 w-4" />
+                                    Encaixar em horário livre
                                   </DropdownMenuItem>
                                 ) : null}
 
@@ -7132,6 +7649,18 @@ export function AdminMatches({
                               >
                                 <RefreshCw className="mr-2 h-4 w-4" />
                                 Trocar jogo
+                              </DropdownMenuItem>
+                            ) : null}
+
+                            {!isScoreSheetReviewMode &&
+                            match.status === MatchStatus.SCHEDULED ? (
+                              <DropdownMenuItem
+                                onSelect={() => {
+                                  handleOpenManualRelocationSlotDialog(match);
+                                }}
+                              >
+                                <Clock className="mr-2 h-4 w-4" />
+                                Encaixar em horário livre
                               </DropdownMenuItem>
                             ) : null}
 
@@ -7684,6 +8213,293 @@ export function AdminMatches({
       </Dialog>
 
       <Dialog
+        open={showHoldMatchesDialog}
+        onOpenChange={(isOpen) => {
+          if (!holdingMatchesForRelocation) {
+            setShowHoldMatchesDialog(isOpen);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Guardar jogos para realocação</DialogTitle>
+            <DialogDescription>
+              Os jogos permanecem criados, mas deixam a programação ativa até que a CO defina novo dia, local e quadra.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="app-card-muted rounded-xl p-3 text-sm">
+              {selectedMatchIds.length} jogo(s) serão retirados da programação atual. A referência ao número anterior será preservada.
+            </div>
+
+            <div className="space-y-1.5">
+              {matches
+                .filter((match) => selectedMatchIds.includes(match.id))
+                .map((match) => (
+                  <div key={match.id} className="rounded-lg border border-border/60 px-3 py-2 text-sm">
+                    <p className="font-medium text-foreground">
+                      {match.home_team?.name ?? "Casa"} x {match.away_team?.name ?? "Visitante"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {match.sports?.name ?? "Modalidade"} • {resolveDisplayedMatchQueueLabel(
+                        match,
+                        visualQueuePositionByMatchId[match.id],
+                      )}
+                    </p>
+                  </div>
+                ))}
+            </div>
+
+            <div className="space-y-1">
+              <Label>Motivo</Label>
+              <Select
+                value={holdMatchesReason}
+                onValueChange={(value) => {
+                  if (value in MANUAL_MATCH_RELOCATION_REASON_LABELS) {
+                    setHoldMatchesReason(value as ManualMatchRelocationReason);
+                  }
+                }}
+              >
+                <SelectTrigger className="app-input-field" aria-label="Motivo da retenção">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(MANUAL_MATCH_RELOCATION_REASON_LABELS) as ManualMatchRelocationReason[]).map(
+                    (reason) => (
+                      <SelectItem key={reason} value={reason}>
+                        {MANUAL_MATCH_RELOCATION_REASON_LABELS[reason]}
+                      </SelectItem>
+                    ),
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="hold-matches-notes">Observação</Label>
+              <Input
+                id="hold-matches-notes"
+                value={holdMatchesNotes}
+                onChange={(event) => setHoldMatchesNotes(event.target.value)}
+                placeholder="Contexto adicional da decisão (opcional)"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowHoldMatchesDialog(false)}
+              disabled={holdingMatchesForRelocation}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void handleHoldMatchesForRelocation()}
+              disabled={holdingMatchesForRelocation}
+            >
+              {holdingMatchesForRelocation ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Confirmar retenção
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={showManualRelocationSlotDialog}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            handleCloseManualRelocationSlotDialog();
+          }
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Encaixar em horário livre</DialogTitle>
+            <DialogDescription>
+              Escolha a quadra de destino e um ponto da programação. Jogos
+              agendados posteriores podem ser deslocados, mas partidas ao vivo,
+              encerradas e reservas manuais permanecem fixas.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {manualRelocationSlotMatch ? (
+              <div className="app-card-muted rounded-xl p-3 text-sm">
+                <p className="font-medium">
+                  {manualRelocationSlotMatch.home_team?.name ?? "Casa"} x {manualRelocationSlotMatch.away_team?.name ?? "Visitante"}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {manualRelocationSlotMatch.sports?.name ?? "Modalidade"} • {MATCH_NAIPE_LABELS[manualRelocationSlotMatch.naipe]}
+                </p>
+              </div>
+            ) : null}
+
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="space-y-1">
+                <Label>Dia de destino</Label>
+                <Select
+                  value={manualRelocationSlotTargetDate || EMPTY_MANUAL_RELOCATION_OPTION_VALUE}
+                  onValueChange={(value) => {
+                    setManualRelocationSlotTargetDate(value == EMPTY_MANUAL_RELOCATION_OPTION_VALUE ? "" : value);
+                    setManualRelocationSlotTargetLocation("");
+                    setManualRelocationSlotTargetCourt("");
+                    setManualRelocationSlotId("");
+                    setManualRelocationSlotPreview(null);
+                  }}
+                >
+                  <SelectTrigger className="app-input-field" aria-label="Dia de destino do encaixe">
+                    <SelectValue placeholder="Selecione o dia" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={EMPTY_MANUAL_RELOCATION_OPTION_VALUE}>Selecione o dia</SelectItem>
+                    {bracketCourtSportsDays.map((scheduleDay) => (
+                      <SelectItem key={scheduleDay.bracket_day_id} value={scheduleDay.event_date}>
+                        {format(new Date(`${scheduleDay.event_date}T12:00:00`), "dd/MM/yyyy")}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Local</Label>
+                <Select
+                  value={manualRelocationSlotTargetLocation || EMPTY_MANUAL_RELOCATION_OPTION_VALUE}
+                  onValueChange={(value) => {
+                    setManualRelocationSlotTargetLocation(value == EMPTY_MANUAL_RELOCATION_OPTION_VALUE ? "" : value);
+                    setManualRelocationSlotTargetCourt("");
+                    setManualRelocationSlotId("");
+                    setManualRelocationSlotPreview(null);
+                  }}
+                  disabled={!manualRelocationSlotTargetDate}
+                >
+                  <SelectTrigger className="app-input-field" aria-label="Local de destino do encaixe"><SelectValue placeholder="Selecione o local" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={EMPTY_MANUAL_RELOCATION_OPTION_VALUE}>Selecione o local</SelectItem>
+                    {manualRelocationSlotLocations.map((scheduleLocation) => (
+                      <SelectItem key={scheduleLocation.id} value={scheduleLocation.name}>{scheduleLocation.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Quadra</Label>
+                <Select
+                  value={manualRelocationSlotTargetCourt || EMPTY_MANUAL_RELOCATION_OPTION_VALUE}
+                  onValueChange={(value) => {
+                    setManualRelocationSlotTargetCourt(value == EMPTY_MANUAL_RELOCATION_OPTION_VALUE ? "" : value);
+                    setManualRelocationSlotId("");
+                    setManualRelocationSlotPreview(null);
+                  }}
+                  disabled={!manualRelocationSlotTargetLocation}
+                >
+                  <SelectTrigger className="app-input-field" aria-label="Quadra de destino do encaixe"><SelectValue placeholder="Selecione a quadra" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={EMPTY_MANUAL_RELOCATION_OPTION_VALUE}>Selecione a quadra</SelectItem>
+                    {manualRelocationSlotCourts.map((court) => (
+                      <SelectItem key={court.id} value={court.name}>{court.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1">
+                <Label>Motivo</Label>
+                <Select value={manualRelocationSlotReason} onValueChange={(value) => {
+                  if (value in MANUAL_MATCH_RELOCATION_REASON_LABELS) {
+                    setManualRelocationSlotReason(value as ManualMatchRelocationReason);
+                    setManualRelocationSlotPreview(null);
+                  }
+                }}>
+                  <SelectTrigger className="app-input-field" aria-label="Motivo do encaixe"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(MANUAL_MATCH_RELOCATION_REASON_LABELS) as ManualMatchRelocationReason[]).map((reason) => (
+                      <SelectItem key={reason} value={reason}>{MANUAL_MATCH_RELOCATION_REASON_LABELS[reason]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="manual-relocation-slot-notes">Observação</Label>
+                <Input id="manual-relocation-slot-notes" value={manualRelocationSlotNotes} onChange={(event) => {
+                  setManualRelocationSlotNotes(event.target.value);
+                  setManualRelocationSlotPreview(null);
+                }} placeholder="Contexto adicional (opcional)" />
+              </div>
+            </div>
+
+            {manualRelocationSlotPreview?.slots.length ? (
+              <div className="space-y-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Horários disponíveis</p>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {manualRelocationSlotPreview.slots.map((slot) => {
+                    const isSelected = manualRelocationSlotId == slot.id;
+                    return (
+                      <Button key={slot.id} type="button" variant={isSelected ? "default" : "outline"} className="h-auto items-start justify-start whitespace-normal p-3 text-left" onClick={() => {
+                        setManualRelocationSlotId(slot.id);
+                        setManualRelocationSlotPreview((currentPreview) => currentPreview ? { ...currentPreview, changes: [], blockers: [] } : currentPreview);
+                      }}>
+                        <span className="space-y-1">
+                          <span className="block font-semibold">{format(new Date(slot.start_time), "HH:mm")}–{format(new Date(slot.end_time), "HH:mm")}</span>
+                          <span className="block text-xs font-normal opacity-85">
+                            {slot.is_free_gap || slot.displaced_matches_count == 0
+                              ? "Lacuna livre"
+                              : `Desloca ${slot.displaced_matches_count} jogo(s) agendado(s)`}
+                            {slot.next_match_label ? ` • antes de ${slot.next_match_label}` : " • fim da programação"}
+                          </span>
+                          {slot.is_projected_from_live_match ? <span className="block text-xs font-normal opacity-85">Projeção baseada em jogo ao vivo.</span> : null}
+                        </span>
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : manualRelocationSlotPreview ? (
+              <div className="app-card-muted rounded-xl p-3 text-sm text-muted-foreground">Não há horários elegíveis para esta combinação.</div>
+            ) : null}
+
+            {manualRelocationSlotPreview && manualRelocationSlotPreview.changes.length > 0 ? (
+              <div className="space-y-3 rounded-xl border border-border p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="font-medium">Prévia do encaixe</p>
+                    <p className="text-sm text-muted-foreground">Encerramento previsto: {manualRelocationSlotPreview.next_day_end}{manualRelocationSlotPreview.extends_day_end ? ` (antes: ${manualRelocationSlotPreview.previous_day_end})` : ""}</p>
+                  </div>
+                  {manualRelocationSlotPreview.extends_day_end ? <AppBadge tone={AppBadgeTone.WARNING}>Dia ampliado</AppBadge> : null}
+                </div>
+                {manualRelocationSlotPreview.blockers.length > 0 ? <div className="space-y-1 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{manualRelocationSlotPreview.blockers.map((blocker) => <p key={blocker}>{blocker}</p>)}</div> : null}
+                {manualRelocationSlotPreview.representation_warning ? <p className="rounded-lg bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200">{manualRelocationSlotPreview.representation_warning}</p> : null}
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  {manualRelocationSlotPreview.timeline.map((item) => {
+                    const status = item.status as MatchStatus;
+                    return <div key={item.match_id} className="app-card-muted space-y-2 rounded-lg p-2.5">
+                      <div className="flex items-center justify-between gap-2"><p className="text-sm font-semibold tabular-nums">{item.start_time ? format(new Date(item.start_time), "HH:mm") : "Sem horário"}</p><AppBadge tone={resolveMatchStatusBadgeTone(status)}>{resolveMatchStatusLabel(status)}</AppBadge></div>
+                      <p className="text-xs text-muted-foreground">{item.end_time ? `Término ${format(new Date(item.end_time), "HH:mm")}` : "Sem término previsto"}</p>
+                      {item.is_relocated ? <AppBadge tone={AppBadgeTone.WARNING}>Encaixado</AppBadge> : item.is_displaced ? <AppBadge tone={AppBadgeTone.NEUTRAL}>Reposicionado</AppBadge> : null}
+                    </div>;
+                  })}
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={handleCloseManualRelocationSlotDialog} disabled={loadingManualRelocationSlots || applyingManualRelocationSlot}>Cancelar</Button>
+            <Button type="button" variant="outline" onClick={() => void handleLoadManualRelocationSlots()} disabled={loadingManualRelocationSlots || applyingManualRelocationSlot}>{loadingManualRelocationSlots ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Buscar horários</Button>
+            <Button type="button" variant="outline" onClick={() => void handlePreviewManualRelocationSlot()} disabled={!manualRelocationSlotId || loadingManualRelocationSlots || applyingManualRelocationSlot}>Calcular prévia</Button>
+            <Button type="button" onClick={() => void handleApplyManualRelocationSlot()} disabled={!manualRelocationSlotPreview || manualRelocationSlotPreview.changes.length == 0 || manualRelocationSlotPreview.blockers.length > 0 || loadingManualRelocationSlots || applyingManualRelocationSlot}>{applyingManualRelocationSlot ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Confirmar encaixe</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
         open={showManualRelocationDialog}
         onOpenChange={(isOpen) => {
           if (!isOpen) {
@@ -7722,6 +8538,7 @@ export function AdminMatches({
                     setManualRelocationTargetDate(nextDate);
                     setManualRelocationTargetLocation("");
                     setManualRelocationTargetCourt("");
+                    setManualRelocationTargetStartTime("");
                     setManualRelocationPreview(null);
                   }}
                 >
@@ -7849,6 +8666,25 @@ export function AdminMatches({
             </div>
 
             <div className="space-y-1">
+              <Label htmlFor="manual-relocation-start-time">
+                Novo horário de início
+              </Label>
+              <Input
+                id="manual-relocation-start-time"
+                type="time"
+                value={manualRelocationTargetStartTime}
+                onChange={(event) => {
+                  setManualRelocationTargetStartTime(event.target.value);
+                  setManualRelocationPreview(null);
+                }}
+              />
+              <p className="text-xs text-muted-foreground">
+                Opcional. Quando informado, deve antecipar o início configurado
+                do dia e reorganiza a fila da quadra de destino.
+              </p>
+            </div>
+
+            <div className="space-y-1">
               <Label htmlFor="manual-relocation-notes">Observação</Label>
               <Input
                 id="manual-relocation-notes"
@@ -7867,6 +8703,12 @@ export function AdminMatches({
                   <div>
                     <p className="font-medium">Prévia da realocação</p>
                     <p className="text-sm text-muted-foreground">
+                      Início previsto: {manualRelocationPreview.next_day_start}
+                      {manualRelocationPreview.advances_day_start
+                        ? ` (antes: ${manualRelocationPreview.previous_day_start})`
+                        : ""}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
                       Encerramento previsto: {manualRelocationPreview.next_day_end}
                       {manualRelocationPreview.extends_day_end
                         ? ` (antes: ${manualRelocationPreview.previous_day_end})`
@@ -7875,6 +8717,9 @@ export function AdminMatches({
                   </div>
                   {manualRelocationPreview.extends_day_end ? (
                     <AppBadge tone={AppBadgeTone.WARNING}>Dia ampliado</AppBadge>
+                  ) : null}
+                  {manualRelocationPreview.advances_day_start ? (
+                    <AppBadge tone={AppBadgeTone.WARNING}>Dia antecipado</AppBadge>
                   ) : null}
                 </div>
 
@@ -7914,16 +8759,43 @@ export function AdminMatches({
                   })}
                 </div>
 
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     Timeline da quadra de destino
                   </p>
-                  {manualRelocationPreview.timeline.map((item) => (
-                    <p key={item.match_id} className="text-xs text-muted-foreground">
-                      {item.start_time ? format(new Date(item.start_time), "HH:mm") : "Sem horário"} • {item.status}
-                      {item.is_relocated ? " • Realocado" : item.is_displaced ? " • Reposicionado" : ""}
-                    </p>
-                  ))}
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                    {manualRelocationPreview.timeline.map((item) => {
+                      const status = item.status as MatchStatus;
+
+                      return (
+                        <div
+                          key={item.match_id}
+                          className="app-card-muted space-y-2 rounded-lg p-2.5"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-semibold tabular-nums">
+                              {item.start_time
+                                ? format(new Date(item.start_time), "HH:mm")
+                                : "Sem horário"}
+                            </p>
+                            <AppBadge tone={resolveMatchStatusBadgeTone(status)}>
+                              {resolveMatchStatusLabel(status)}
+                            </AppBadge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {item.end_time
+                              ? `Término ${format(new Date(item.end_time), "HH:mm")}`
+                              : "Sem término previsto"}
+                          </p>
+                          {item.is_relocated ? (
+                            <AppBadge tone={AppBadgeTone.WARNING}>Realocado</AppBadge>
+                          ) : item.is_displaced ? (
+                            <AppBadge tone={AppBadgeTone.NEUTRAL}>Reposicionado</AppBadge>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             ) : null}

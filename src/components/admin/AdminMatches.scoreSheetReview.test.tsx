@@ -290,6 +290,20 @@ function buildMatch(overrides: Partial<Match> & Pick<Match, "id" | "sport_id" | 
     scheduled_date: overrides.scheduled_date ?? "2026-04-11",
     queue_position: overrides.queue_position ?? 1,
     scheduled_slot: overrides.scheduled_slot ?? null,
+    is_pending_manual_relocation:
+      overrides.is_pending_manual_relocation ?? false,
+    pending_manual_relocation_reason:
+      overrides.pending_manual_relocation_reason ?? null,
+    pending_manual_relocation_notes:
+      overrides.pending_manual_relocation_notes ?? null,
+    pending_manual_relocation_previous_schedule:
+      overrides.pending_manual_relocation_previous_schedule ?? null,
+    pending_manual_relocation_previous_label:
+      overrides.pending_manual_relocation_previous_label ?? null,
+    pending_manual_relocation_created_by:
+      overrides.pending_manual_relocation_created_by ?? null,
+    pending_manual_relocation_at:
+      overrides.pending_manual_relocation_at ?? null,
     current_set_home_score: overrides.current_set_home_score ?? null,
     current_set_away_score: overrides.current_set_away_score ?? null,
     is_walkover: overrides.is_walkover ?? false,
@@ -545,6 +559,54 @@ describe("AdminMatches score sheet review", () => {
         ),
       ).not.toBeInTheDocument();
     });
+  });
+
+  it("separa jogos guardados em uma subaba para realocação", async () => {
+    renderAdminMatches({
+      matches: [
+        buildMatch({
+          id: "pending-relocation-match",
+          sport_id: "sport-1",
+          status: MatchStatus.SCHEDULED,
+          home_team: buildTeam({ id: "pending-home", name: "PENDENTE CASA" }),
+          away_team: buildTeam({ id: "pending-away", name: "PENDENTE VISITANTE" }),
+          is_pending_manual_relocation: true,
+          pending_manual_relocation_previous_label: "Jogo 27",
+          pending_manual_relocation_reason: "WEATHER",
+          pending_manual_relocation_at: "2026-08-30T16:00:00.000Z",
+          location: null,
+          scheduled_date: null,
+          court_name: null,
+          start_time: null,
+          end_time: null,
+          queue_position: null,
+          scheduled_slot: null,
+        }),
+        buildMatch({
+          id: "active-match",
+          sport_id: "sport-1",
+          status: MatchStatus.SCHEDULED,
+          home_team: buildTeam({ id: "active-home", name: "ATIVO CASA" }),
+          away_team: buildTeam({ id: "active-away", name: "ATIVO VISITANTE" }),
+        }),
+      ],
+    });
+
+    expect(
+      screen.getByRole("tab", { name: /Aguardando realocação 1/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/PENDENTE CASA/)).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("tab", { name: /Aguardando realocação 1/ }),
+    );
+
+    await screen.findByText("Jogos aguardando realocação");
+
+    expect(screen.getByText(/PENDENTE CASA/)).toBeInTheDocument();
+    expect(screen.getByText("Jogo 27")).toBeInTheDocument();
+    expect(screen.getByText("Condições climáticas")).toBeInTheDocument();
+    expect(screen.getByText("1 jogo(s) encontrado(s)")).toBeInTheDocument();
   });
 
   it("mostra sessões individuais configuradas na aba Jogos", async () => {

@@ -154,6 +154,7 @@ export function SchedulePage() {
         .from("matches")
         .select("location, court_name")
         .eq("championship_id", selectedChampionshipId)
+        .eq("is_pending_manual_relocation", false)
         .eq("status", statusFilter);
 
       if (correctedYearFilter != null) {

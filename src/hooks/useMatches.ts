@@ -38,6 +38,7 @@ interface UseMatchesOptions {
   sortMode?: "SCHEDULED" | "LIVE" | "FINISHED";
   scheduledMatchOrdering?: "INTERLEAVED_BY_COMPETITION" | "OPERATIONAL";
   includeOperationalContext?: boolean;
+  includePendingManualRelocation?: boolean;
   enabled?: boolean;
 }
 
@@ -225,6 +226,7 @@ export function useMatches({
   sortMode = "SCHEDULED",
   scheduledMatchOrdering = "INTERLEAVED_BY_COMPETITION",
   includeOperationalContext = true,
+  includePendingManualRelocation = false,
   enabled = true,
 }: UseMatchesOptions = {}) {
   const normalizedStatusesKey =
@@ -346,6 +348,13 @@ export function useMatches({
         ) => {
           let filteredQuery = currentQuery;
 
+          if (!includePendingManualRelocation) {
+            filteredQuery = filteredQuery.eq(
+              "is_pending_manual_relocation",
+              false,
+            );
+          }
+
           if (championshipId) {
             filteredQuery = filteredQuery.eq("championship_id", championshipId);
           }
@@ -436,6 +445,11 @@ export function useMatches({
         ) => {
           let filteredQuery = currentQuery;
 
+          filteredQuery = filteredQuery.eq(
+            "is_pending_manual_relocation",
+            false,
+          );
+
           if (championshipId) {
             filteredQuery = filteredQuery.eq("championship_id", championshipId);
           }
@@ -490,6 +504,13 @@ export function useMatches({
             })
             .order("created_at", { ascending: sortMode == "SCHEDULED" })
             .order("id", { ascending: true });
+
+          if (!includePendingManualRelocation) {
+            scheduledOrderQuery = scheduledOrderQuery.eq(
+              "is_pending_manual_relocation",
+              false,
+            );
+          }
 
           if (championshipId) {
             scheduledOrderQuery = scheduledOrderQuery.eq(
@@ -1020,6 +1041,7 @@ export function useMatches({
       enabled,
       groupFilterValue,
       includeOperationalContext,
+      includePendingManualRelocation,
       itemsPerPage,
       location,
       hasExplicitMatchIds,
