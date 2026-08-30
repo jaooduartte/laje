@@ -53,6 +53,7 @@ import {
   applyOfficialThirdPlacementToStandings,
   aggregateStandingsByTeam,
   applyCorrectedGroupPointsToStanding,
+  completeTeamStandingAggregates,
   filterAggregatesByBracketGroupPlacement,
   moveDisqualifiedStandingsToBottom,
   resolveCorrectedStandingKey,
@@ -65,6 +66,7 @@ import {
   ChampionshipCode,
   ChampionshipStatus,
   ChampionshipSeasonDivisionSettlementMode,
+  ChampionshipSportNaipeMode,
   ChampionshipSportTieBreakerRule,
   MatchNaipe,
   MatchStatus,
@@ -83,6 +85,8 @@ import {
   TEAM_DIVISION_BADGE_TONES,
   TEAM_DIVISION_LABELS,
   resolveChampionshipBracketGroupStageOptions,
+  resolveChampionshipStandingsGroups,
+  resolveChampionshipStandingsParticipants,
   resolveChampionshipGroupLabel,
   resolveMatchNaipeBadgeTone,
 } from "@/lib/championship";
@@ -496,6 +500,31 @@ export function AdminStandings({
     return sports.filter((sport) => selectedChampionshipSportIds.has(sport.id));
   }, [sports, championshipSports]);
 
+  const availableNaipeOptions = useMemo(() => {
+    const scopedChampionshipSports =
+      sportFilter == ALL_SPORTS_FILTER
+        ? championshipSports
+        : championshipSports.filter(
+            (championshipSport) => championshipSport.sport_id == sportFilter,
+          );
+
+    return [
+      ...(scopedChampionshipSports.some(
+        (championshipSport) =>
+          championshipSport.naipe_mode ==
+          ChampionshipSportNaipeMode.MASCULINO_FEMININO,
+      )
+        ? [MatchNaipe.MASCULINO, MatchNaipe.FEMININO]
+        : []),
+      ...(scopedChampionshipSports.some(
+        (championshipSport) =>
+          championshipSport.naipe_mode == ChampionshipSportNaipeMode.MISTO,
+      )
+        ? [MatchNaipe.MISTO]
+        : []),
+    ];
+  }, [championshipSports, sportFilter]);
+
   const standingsTieBreakerRule = useMemo(() => {
     if (sportFilter == ALL_SPORTS_FILTER) {
       return ChampionshipSportTieBreakerRule.STANDARD;
@@ -596,17 +625,18 @@ export function AdminStandings({
       );
   }, [naipeFilter, selectedSeasonGroupOptions, sportFilter]);
 
-  const canFilterByGroup =
+  const canFilterByPlacement =
     !isPlacementFilterDisabled && groupOptions.length > 0;
-  const canFilterByPlacement = canFilterByGroup;
+  const canFilterByGroup =
+    canFilterByPlacement && resolvedPlacementFilter == "all";
   const standingsFilterLargeColumnClassName =
     canFilterByDivision && canFilterByGroup
       ? "lg:grid-cols-5"
-      : canFilterByDivision
+      : canFilterByGroup
+        ? "lg:grid-cols-4"
+        : canFilterByDivision || canFilterByPlacement
         ? "lg:grid-cols-3"
-        : canFilterByGroup
-          ? "lg:grid-cols-4"
-          : "lg:grid-cols-2";
+        : "lg:grid-cols-2";
 
   useEffect(() => {
     if (groupFilter == ALL_GROUPS_FILTER) {
@@ -622,6 +652,24 @@ export function AdminStandings({
   }, [groupFilter, groupOptions]);
 
   useEffect(() => {
+    if (
+      resolvedPlacementFilter != "all" &&
+      groupFilter != ALL_GROUPS_FILTER
+    ) {
+      setGroupFilter(ALL_GROUPS_FILTER);
+    }
+  }, [groupFilter, resolvedPlacementFilter]);
+
+  useEffect(() => {
+    if (
+      naipeFilter != ALL_NAIPES_FILTER &&
+      !availableNaipeOptions.includes(naipeFilter as MatchNaipe)
+    ) {
+      setNaipeFilter(ALL_NAIPES_FILTER);
+    }
+  }, [availableNaipeOptions, naipeFilter]);
+
+  useEffect(() => {
     if (!isPlacementFilterDisabled) {
       return;
     }
@@ -632,6 +680,13 @@ export function AdminStandings({
   }, [isPlacementFilterDisabled, placementFilter]);
 
   const visibleCompetitionDisqualifications = useMemo(() => {
+    if (
+      sportFilter == ALL_SPORTS_FILTER ||
+      naipeFilter == ALL_NAIPES_FILTER
+    ) {
+      return [];
+    }
+
     return competitionDisqualifications.filter((disqualification) => {
       if (
         sportFilter != ALL_SPORTS_FILTER &&
@@ -1258,9 +1313,102 @@ export function AdminStandings({
   const displayedTeamStandings = isInterlajeOverallStandingsView
     ? interlajeOverallStandingAggregates
     : standingsWithOfficialThirdPlacement.adjustedStandings;
+  const displayedTeamStandingsWithParticipants = useMemo(() => {
+    if (
+      isInterlajeOverallStandingsView ||
+      sportFilter == ALL_SPORTS_FILTER ||
+      naipeFilter == ALL_NAIPES_FILTER ||
+      resolvedPlacementFilter != "all"
+    ) {
+      return displayedTeamStandings;
+    }
+
+    return completeTeamStandingAggregates(
+      displayedTeamStandings,
+      resolveChampionshipStandingsParticipants(
+        selectedSeasonBracketView,
+        sportFilter,
+        naipeFilter as MatchNaipe,
+        championshipUsesDivisions && divisionFilter != ALL_DIVISIONS_FILTER
+          ? divisionFilter
+          : undefined,
+      ),
+      {
+        tieBreakerRule: standingsTieBreakerRule,
+        headToHeadMatches: standingsHeadToHeadMatches,
+        manualTieBreakWinnerTeamIdByPairKey:
+          manualTieBreakWinnerTeamIdByPairKey,
+      },
+    );
+  }, [
+    championshipUsesDivisions,
+    displayedTeamStandings,
+    divisionFilter,
+    isInterlajeOverallStandingsView,
+    manualTieBreakWinnerTeamIdByPairKey,
+    naipeFilter,
+    resolvedPlacementFilter,
+    selectedSeasonBracketView,
+    sportFilter,
+    standingsHeadToHeadMatches,
+    standingsTieBreakerRule,
+  ]);
   const displayedTeamStandingsLoading = isInterlajeOverallStandingsView
     ? interlajeOverallStandingsLoading
     : isLoading;
+  const standingsGroups = useMemo(() => {
+    if (
+      isInterlajeOverallStandingsView ||
+      isIndividualStandingsView ||
+      sportFilter == ALL_SPORTS_FILTER ||
+      naipeFilter == ALL_NAIPES_FILTER ||
+      resolvedPlacementFilter != "all"
+    ) {
+      return [];
+    }
+
+    return resolveChampionshipStandingsGroups(
+      selectedSeasonBracketView,
+      sportFilter,
+      naipeFilter as MatchNaipe,
+      championshipUsesDivisions && divisionFilter != ALL_DIVISIONS_FILTER
+        ? divisionFilter
+        : undefined,
+    )
+      .filter(
+        (group) =>
+          groupFilter == ALL_GROUPS_FILTER || group.key == groupFilter,
+      )
+      .map((group) => ({
+        label: group.label,
+            standings: completeTeamStandingAggregates(
+          displayedTeamStandings.filter((standing) =>
+            group.team_ids.includes(standing.team_id),
+          ),
+          group.teams,
+          {
+            tieBreakerRule: standingsTieBreakerRule,
+            headToHeadMatches: standingsHeadToHeadMatches,
+            manualTieBreakWinnerTeamIdByPairKey:
+              manualTieBreakWinnerTeamIdByPairKey,
+          },
+        ),
+      }));
+  }, [
+    championshipUsesDivisions,
+    displayedTeamStandings,
+    groupFilter,
+    isIndividualStandingsView,
+    isInterlajeOverallStandingsView,
+    manualTieBreakWinnerTeamIdByPairKey,
+    naipeFilter,
+    selectedSeasonBracketView,
+    sportFilter,
+    resolvedPlacementFilter,
+    standingsHeadToHeadMatches,
+    standingsTieBreakerRule,
+    divisionFilter,
+  ]);
 
   const awardsSeasonYear =
     correctedYearFilter ?? selectedChampionshipSeasonYear;
@@ -1574,9 +1722,11 @@ export function AdminStandings({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL_NAIPES_FILTER}>Todos os naipes</SelectItem>
-              <SelectItem value={MatchNaipe.MASCULINO}>Masculino</SelectItem>
-              <SelectItem value={MatchNaipe.FEMININO}>Feminino</SelectItem>
-              <SelectItem value={MatchNaipe.MISTO}>Misto</SelectItem>
+              {availableNaipeOptions.map((naipe) => (
+                <SelectItem key={naipe} value={naipe}>
+                  {MATCH_NAIPE_LABELS[naipe]}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -1631,10 +1781,10 @@ export function AdminStandings({
               <SelectContent>
                 <SelectItem value="all">Todas as equipes</SelectItem>
                 <SelectItem value="first_per_group">
-                  1º de cada chave (grupo)
+                  Melhores 1º de cada chave
                 </SelectItem>
                 <SelectItem value="second_per_group">
-                  2º de cada chave (grupo)
+                  Melhores 2º de cada chave
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -1650,28 +1800,44 @@ export function AdminStandings({
             disqualifiedTeamKeys={visibleCompetitionDisqualifiedTeamKeys}
           />
         ) : (
-          <TeamStandingsTable
-            standings={displayedTeamStandings}
-            modalidadeConfig={
-              isInterlajeOverallStandingsView
-                ? undefined
-                : activeModalidadeConfig
-            }
-            isLoading={displayedTeamStandingsLoading}
-            variant={isInterlajeOverallStandingsView ? "public" : "full"}
-            drawWinners={drawWinners}
-            groupLabelByTeamId={groupLabelByTeamId}
-            disqualifiedTeamKeys={
-              isInterlajeOverallStandingsView
-                ? undefined
-                : visibleCompetitionDisqualifiedTeamKeys
-            }
-            pendingTieBreakTeamIds={
-              isInterlajeOverallStandingsView
-                ? interlajeOverallPendingTieBreakTeamIds
-                : undefined
-            }
-          />
+          <div className="space-y-5">
+            {(standingsGroups.length > 0
+              ? standingsGroups
+              : [{ label: null, standings: displayedTeamStandingsWithParticipants }]
+            ).map((standingsGroup) => (
+              <section key={standingsGroup.label ?? "overall"} className="space-y-2">
+                {standingsGroup.label ? (
+                  <h3 className="text-base font-display font-bold">
+                    {standingsGroup.label}
+                  </h3>
+                ) : null}
+                <TeamStandingsTable
+                  standings={standingsGroup.standings}
+                  modalidadeConfig={
+                    isInterlajeOverallStandingsView
+                      ? undefined
+                      : activeModalidadeConfig
+                  }
+                  isLoading={displayedTeamStandingsLoading}
+                  variant={isInterlajeOverallStandingsView ? "public" : "full"}
+                  drawWinners={drawWinners}
+                  groupLabelByTeamId={
+                    standingsGroup.label ? undefined : groupLabelByTeamId
+                  }
+                  disqualifiedTeamKeys={
+                    isInterlajeOverallStandingsView
+                      ? undefined
+                      : visibleCompetitionDisqualifiedTeamKeys
+                  }
+                  pendingTieBreakTeamIds={
+                    isInterlajeOverallStandingsView
+                      ? interlajeOverallPendingTieBreakTeamIds
+                      : undefined
+                  }
+                />
+              </section>
+            ))}
+          </div>
         )}
       </div>
 

@@ -72,6 +72,7 @@ interface ChampionshipsPageViewProps {
   isNextMatchesFetching: boolean;
   standingsSportFilter: string;
   standingsNaipeFilter: string;
+  availableStandingsNaipeOptions?: MatchNaipe[];
   standingsYearFilter: string;
   standingsDivisionFilter: string;
   allStandingsSportFilter: string;
@@ -79,6 +80,10 @@ interface ChampionshipsPageViewProps {
   allStandingsDivisionFilter: string;
   selectedChampionshipHasDivisions: boolean;
   filteredStandings: TeamStandingAggregate[];
+  standingsGroups?: Array<{
+    label: string;
+    standings: TeamStandingAggregate[];
+  }>;
   pendingTieBreakTeamIds?: ReadonlySet<string>;
   isIndividualStandingsView?: boolean;
   individualStandingsRows?: Array<ChampionshipIndividualTeamStanding | Standing>;
@@ -133,6 +138,11 @@ export function ChampionshipsPageView({
   isNextMatchesFetching,
   standingsSportFilter,
   standingsNaipeFilter,
+  availableStandingsNaipeOptions = [
+    MatchNaipe.MASCULINO,
+    MatchNaipe.FEMININO,
+    MatchNaipe.MISTO,
+  ],
   standingsYearFilter,
   standingsDivisionFilter,
   allStandingsSportFilter,
@@ -140,6 +150,7 @@ export function ChampionshipsPageView({
   allStandingsDivisionFilter,
   selectedChampionshipHasDivisions,
   filteredStandings,
+  standingsGroups = [],
   pendingTieBreakTeamIds,
   isIndividualStandingsView = false,
   individualStandingsRows = [],
@@ -407,15 +418,11 @@ export function ChampionshipsPageView({
                         <SelectItem value={allStandingsNaipeFilter}>
                           Todos os naipes
                         </SelectItem>
-                        <SelectItem value={MatchNaipe.MASCULINO}>
-                          {MATCH_NAIPE_LABELS[MatchNaipe.MASCULINO]}
-                        </SelectItem>
-                        <SelectItem value={MatchNaipe.FEMININO}>
-                          {MATCH_NAIPE_LABELS[MatchNaipe.FEMININO]}
-                        </SelectItem>
-                        <SelectItem value={MatchNaipe.MISTO}>
-                          {MATCH_NAIPE_LABELS[MatchNaipe.MISTO]}
-                        </SelectItem>
+                        {availableStandingsNaipeOptions.map((naipe) => (
+                          <SelectItem key={naipe} value={naipe}>
+                            {MATCH_NAIPE_LABELS[naipe]}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
 
@@ -453,14 +460,28 @@ export function ChampionshipsPageView({
                       disqualifiedTeamKeys={disqualifiedTeamKeys}
                     />
                   ) : (
-                    <TeamStandingsTable
-                      standings={filteredStandings}
-                      modalidadeConfig={standingsModalidadeConfig}
-                      isLoading={isStandingsLoading}
-                      variant="public"
-                      disqualifiedTeamKeys={disqualifiedTeamKeys}
-                      pendingTieBreakTeamIds={pendingTieBreakTeamIds}
-                    />
+                    <div className="space-y-5">
+                      {(standingsGroups.length > 0
+                        ? standingsGroups
+                        : [{ label: null, standings: filteredStandings }]
+                      ).map((standingsGroup) => (
+                        <section key={standingsGroup.label ?? "overall"} className="space-y-2">
+                          {standingsGroup.label ? (
+                            <h3 className="text-base font-display font-bold">
+                              {standingsGroup.label}
+                            </h3>
+                          ) : null}
+                          <TeamStandingsTable
+                            standings={standingsGroup.standings}
+                            modalidadeConfig={standingsModalidadeConfig}
+                            isLoading={isStandingsLoading}
+                            variant="public"
+                            disqualifiedTeamKeys={disqualifiedTeamKeys}
+                            pendingTieBreakTeamIds={pendingTieBreakTeamIds}
+                          />
+                        </section>
+                      ))}
+                    </div>
                   )}
                 {isIndividualStandingsView &&
                 individualEventsWithResults.length > 0 ? (

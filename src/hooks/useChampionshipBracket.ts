@@ -198,49 +198,6 @@ export function useChampionshipBracket({
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "championship_bracket_matches" },
-        () => {
-          if (scheduledRefetchTimeoutRef.current) {
-            clearTimeout(scheduledRefetchTimeoutRef.current);
-          }
-
-          scheduledRefetchTimeoutRef.current = setTimeout(() => {
-            fetchBracket();
-          }, 120);
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "championship_bracket_groups" },
-        () => {
-          if (scheduledRefetchTimeoutRef.current) {
-            clearTimeout(scheduledRefetchTimeoutRef.current);
-          }
-
-          scheduledRefetchTimeoutRef.current = setTimeout(() => {
-            fetchBracket();
-          }, 120);
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "championship_bracket_competitions",
-        },
-        () => {
-          if (scheduledRefetchTimeoutRef.current) {
-            clearTimeout(scheduledRefetchTimeoutRef.current);
-          }
-
-          scheduledRefetchTimeoutRef.current = setTimeout(() => {
-            fetchBracket();
-          }, 120);
-        },
-      )
-      .on(
-        "postgres_changes",
         {
           event: "*",
           schema: "public",

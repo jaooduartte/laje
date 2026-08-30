@@ -23,6 +23,13 @@ export interface TeamStandingAggregate {
   two_minute_penalties?: number;
 }
 
+export interface TeamStandingParticipant {
+  team_id: string;
+  team_name: string;
+  team_city: string;
+  division: TeamDivision | null;
+}
+
 export interface TeamStandingOfficialThirdPlacement {
   team_id: string;
   division: TeamDivision | null;
@@ -49,10 +56,11 @@ interface RankingMetrics {
   two_minute_penalties?: number;
 }
 
-interface SortStandingsOptions {
+export interface TeamStandingSortOptions {
   tieBreakerRule?: ChampionshipSportTieBreakerRule;
   headToHeadMatches?: Match[];
   manualTieBreakWinnerTeamIdByPairKey?: Record<string, string>;
+  participants?: readonly TeamStandingParticipant[];
 }
 
 const DEFAULT_TIE_BREAKER_RULE = ChampionshipSportTieBreakerRule.STANDARD;
@@ -145,7 +153,7 @@ function resolveTeamPairKey(firstTeamId: string, secondTeamId: string): string {
 function compareByManualTieBreakOrder(
   firstStanding: RankingMetrics,
   secondStanding: RankingMetrics,
-  options: SortStandingsOptions,
+  options: TeamStandingSortOptions,
 ): number {
   const manualTieBreakWinnerTeamIdByPairKey = options.manualTieBreakWinnerTeamIdByPairKey;
 
@@ -268,7 +276,7 @@ function partitionByValue<T>(sorted: T[], getValue: (item: T) => number): T[][] 
 export function rankByCascade<T extends RankingMetrics>(
   rows: T[],
   cascade: TieBreakCriterion[],
-  ctx: SortStandingsOptions,
+  ctx: TeamStandingSortOptions,
   resolveName: (row: T) => string,
 ): T[] {
   if (rows.length <= 1) return [...rows];
@@ -440,7 +448,7 @@ function compareByRule(
   firstStanding: RankingMetrics,
   secondStanding: RankingMetrics,
   tieBreakerRule: ChampionshipSportTieBreakerRule,
-  options: SortStandingsOptions,
+  options: TeamStandingSortOptions,
 ): number {
   const headToHeadMatches = options.headToHeadMatches ?? [];
   const compareDirectConfrontation = compareByDirectConfrontation(
@@ -611,7 +619,7 @@ function resolveStandingTeamCity(standing: Standing): string {
   return standing.teams?.city ?? "";
 }
 
-export function sortStandingsByRanking(standings: Standing[], options: SortStandingsOptions = {}): Standing[] {
+export function sortStandingsByRanking(standings: Standing[], options: TeamStandingSortOptions = {}): Standing[] {
   const tieBreakerRule = options.tieBreakerRule ?? DEFAULT_TIE_BREAKER_RULE;
   const cascade = resolveCascadeForLegacyRule(tieBreakerRule);
 
@@ -620,7 +628,7 @@ export function sortStandingsByRanking(standings: Standing[], options: SortStand
 
 export function aggregateStandingsByTeam(
   standings: Standing[],
-  options: SortStandingsOptions = {},
+  options: TeamStandingSortOptions = {},
 ): TeamStandingAggregate[] {
   const teamStandingMap = new Map<string, TeamStandingAggregate>();
 
@@ -664,7 +672,76 @@ export function aggregateStandingsByTeam(
     });
   });
 
+  options.participants?.forEach((participant) => {
+    const teamStandingKey = resolveTeamStandingAggregateKey(participant);
+
+    if (teamStandingMap.has(teamStandingKey)) {
+      return;
+    }
+
+    teamStandingMap.set(teamStandingKey, {
+      team_id: participant.team_id,
+      team_name: participant.team_name,
+      team_city: participant.team_city,
+      division: participant.division,
+      played: 0,
+      wins: 0,
+      draws: 0,
+      losses: 0,
+      goals_for: 0,
+      goals_against: 0,
+      goal_diff: 0,
+      points: 0,
+      yellow_cards: 0,
+      red_cards: 0,
+      blue_cards: 0,
+      two_minute_penalties: 0,
+    });
+  });
+
   return sortTeamStandingAggregatesByRanking([...teamStandingMap.values()], options);
+}
+
+export function completeTeamStandingAggregates(
+  standings: TeamStandingAggregate[],
+  participants: readonly TeamStandingParticipant[],
+  options: TeamStandingSortOptions = {},
+): TeamStandingAggregate[] {
+  const standingsByTeamKey = new Map(
+    standings.map((standing) => [resolveTeamStandingAggregateKey(standing), standing]),
+  );
+
+  participants.forEach((participant) => {
+    const teamStandingKey = resolveTeamStandingAggregateKey(participant);
+
+    if (standingsByTeamKey.has(teamStandingKey)) {
+      return;
+    }
+
+    standingsByTeamKey.set(teamStandingKey, {
+      team_id: participant.team_id,
+      team_name: participant.team_name,
+      team_city: participant.team_city,
+      division: participant.division,
+      played: 0,
+      wins: 0,
+      draws: 0,
+      losses: 0,
+      goals_for: 0,
+      goals_against: 0,
+      goal_diff: 0,
+      points: 0,
+      yellow_cards: 0,
+      red_cards: 0,
+      blue_cards: 0,
+      two_minute_penalties: 0,
+    });
+  });
+
+  return sortTeamStandingAggregatesByRanking(
+    [...standingsByTeamKey.values()],
+    options,
+  );
 }
 
 export function applyOfficialThirdPlacementToStandings(
@@ -725,7 +802,7 @@ export type BracketGroupPlacementFilter = "all" | "first_per_group" | "second_pe
 
 export function sortTeamStandingAggregatesByRanking(
   aggregates: TeamStandingAggregate[],
-  options: SortStandingsOptions = {},
+  options: TeamStandingSortOptions = {},
 ): TeamStandingAggregate[] {
   const tieBreakerRule = options.tieBreakerRule ?? DEFAULT_TIE_BREAKER_RULE;
   const cascade = resolveCascadeForLegacyRule(tieBreakerRule);
@@ -742,7 +819,7 @@ export interface BracketGroupPlacementFilterContext {
   allSportSelectValue: string;
   naipeSelectValue: string;
   allNaipeSelectValue: string;
-  sortOptions: SortStandingsOptions;
+  sortOptions: TeamStandingSortOptions;
   resolveTieBreakerRuleForSport: (sportId: string) => ChampionshipSportTieBreakerRule;
   finalTieBreakerRule: ChampionshipSportTieBreakerRule;
   pinnedBottomTeamKeys?: ReadonlySet<string>;
@@ -845,7 +922,7 @@ export function filterAggregatesByBracketGroupPlacement(
 export function aggregateStandingsByNaipe(
   standings: Standing[],
   naipe: MatchNaipe,
-  options: SortStandingsOptions = {},
+  options: TeamStandingSortOptions = {},
 ): TeamStandingAggregate[] {
   const standingsForNaipe = standings.filter((standing) => standing.naipe === naipe);
   return aggregateStandingsByTeam(standingsForNaipe, options);

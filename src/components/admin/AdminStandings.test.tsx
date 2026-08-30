@@ -455,6 +455,64 @@ describe("AdminStandings", () => {
     expect(screen.getByText(/1,00 de média/)).toBeInTheDocument();
   });
 
+  it("não oferece o naipe misto sem modalidade mista configurada", () => {
+    render(
+      <AdminStandings
+        selectedChampionship={selectedChampionship}
+        championshipSports={championshipSports}
+        sports={sports}
+        championshipBracketView={championshipBracketView}
+        availableSeasonYears={[2026]}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Misto" })).not.toBeInTheDocument();
+  });
+
+  it("reúne os melhores de cada grupo em uma tabela ao filtrar por posição", () => {
+    render(
+      <AdminStandings
+        selectedChampionship={selectedChampionship}
+        championshipSports={championshipSports}
+        sports={sports}
+        championshipBracketView={championshipBracketView}
+        availableSeasonYears={[2026]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Sport filter" }));
+    fireEvent.click(screen.getByRole("button", { name: "Masculino" }));
+
+    expect(screen.getByRole("heading", { name: "Grupo A" })).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Melhores 1º de cada chave" }),
+    );
+
+    expect(screen.queryByRole("heading", { name: "Grupo A" })).not.toBeInTheDocument();
+    expect(screen.getAllByText("Standings table")).toHaveLength(1);
+  });
+
+  it("não repete o badge de grupo quando a classificação já está separada por chave", () => {
+    render(
+      <AdminStandings
+        selectedChampionship={selectedChampionship}
+        championshipSports={championshipSports}
+        sports={sports}
+        championshipBracketView={championshipBracketView}
+        availableSeasonYears={[2026]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Sport filter" }));
+    fireEvent.click(screen.getByRole("button", { name: "Masculino" }));
+
+    expect(screen.getByRole("heading", { name: "Grupo A" })).toBeInTheDocument();
+    expect(teamStandingsTableMock.mock.calls.at(-1)?.[0]).toMatchObject({
+      groupLabelByTeamId: undefined,
+    });
+  });
+
   it("exibe a classificação geral do INTERLAJE no filtro Todas", () => {
     interlajeOverallStandingsState.current = {
       loading: false,
@@ -1040,7 +1098,7 @@ describe("AdminStandings", () => {
     expect(rpcMock).not.toHaveBeenCalled();
   });
 
-  it("mantém o badge de desclassificação mesmo com a modalidade em todas", () => {
+  it("não exibe o badge de desclassificação com a modalidade em todas", () => {
     disqualificationsState.current = [
       {
         team_id: "team-2",
@@ -1064,7 +1122,37 @@ describe("AdminStandings", () => {
     fireEvent.click(screen.getByRole("button", { name: "Divisão de Acesso" }));
 
     const lastCall = teamStandingsTableMock.mock.calls.at(-1);
-    expect(lastCall?.[0].disqualifiedTeamKeys).toEqual(new Set(["team-2:DIVISAO_ACESSO"]));
+    expect(lastCall?.[0].disqualifiedTeamKeys).toBeUndefined();
+  });
+
+  it("exibe o badge de desclassificação no recorte exato de modalidade e naipe", () => {
+    disqualificationsState.current = [
+      {
+        team_id: "team-2",
+        sport_id: "sport-1",
+        naipe: MatchNaipe.MASCULINO,
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+      },
+    ];
+
+    render(
+      <AdminStandings
+        selectedChampionship={selectedChampionship}
+        championshipSports={championshipSports}
+        sports={sports}
+        championshipBracketView={championshipBracketView}
+        availableSeasonYears={[2026]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Sport filter" }));
+    fireEvent.click(screen.getByRole("button", { name: "Masculino" }));
+    fireEvent.click(screen.getByRole("button", { name: "Divisão Principal" }));
+
+    const lastCall = teamStandingsTableMock.mock.calls.at(-1);
+    expect(lastCall?.[0].disqualifiedTeamKeys).toEqual(
+      new Set(["team-2:DIVISAO_PRINCIPAL"]),
+    );
   });
 
   it("chama o rpc de desclassificação com o recorte selecionado no formulário", async () => {

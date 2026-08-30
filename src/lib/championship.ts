@@ -51,6 +51,18 @@ export interface ChampionshipBracketGroupStageOption {
   team_ids: string[];
 }
 
+export interface ChampionshipStandingsGroup {
+  key: string;
+  label: string;
+  team_ids: string[];
+  teams: Array<{
+    team_id: string;
+    team_name: string;
+    team_city: string;
+    division: TeamDivision | null;
+  }>;
+}
+
 export interface GroupStageMatchBracketBinding {
   competition_id: string;
   group_id: string;
@@ -1905,6 +1917,105 @@ export function resolveChampionshipBracketGroupStageOptions(
     .sort((firstGroupOption, secondGroupOption) =>
       firstGroupOption.label.localeCompare(secondGroupOption.label),
     );
+}
+
+export function resolveChampionshipStandingsGroups(
+  championshipBracketView: ChampionshipBracketView,
+  sportId: string | null,
+  naipe: MatchNaipe | null,
+  division?: TeamDivision | null,
+): ChampionshipStandingsGroup[] {
+  if (!sportId || !naipe) {
+    return [];
+  }
+
+  const matchingCompetitions = championshipBracketView.competitions.filter(
+    (competition) =>
+      competition.sport_id == sportId &&
+      competition.naipe == naipe &&
+      (division === undefined || competition.division == division),
+  );
+  const includesMultipleDivisions = new Set(
+    matchingCompetitions.map((competition) => competition.division),
+  ).size > 1;
+
+  return matchingCompetitions
+    .flatMap((competition) =>
+      competition.groups.map((group) => ({
+        key: `${competition.id}:${group.id}`,
+        label: `${
+          includesMultipleDivisions && competition.division
+            ? `${TEAM_DIVISION_LABELS[competition.division]} — `
+            : ""
+        }${resolveChampionshipGroupLabel(group.group_number)}`,
+        team_ids: group.teams.map((team) => team.team_id),
+        teams: group.teams.map((team) => ({
+          team_id: team.team_id,
+          team_name: team.team_name,
+          team_city: team.team_city,
+          division: competition.division,
+        })),
+      })),
+    )
+    .sort((firstGroup, secondGroup) =>
+      firstGroup.label.localeCompare(secondGroup.label),
+    );
+}
+
+export function resolveChampionshipStandingsParticipants(
+  championshipBracketView: ChampionshipBracketView,
+  sportId: string | null,
+  naipe: MatchNaipe | null,
+  division?: TeamDivision | null,
+): ChampionshipStandingsGroup["teams"] {
+  if (!sportId || !naipe) {
+    return [];
+  }
+
+  const participantsByTeamId = new Map<
+    string,
+    ChampionshipStandingsGroup["teams"][number]
+  >();
+
+  championshipBracketView.competitions
+    .filter(
+      (competition) =>
+        competition.sport_id == sportId &&
+        competition.naipe == naipe &&
+        (division === undefined || competition.division == division),
+    )
+    .forEach((competition) => {
+      competition.groups.forEach((group) => {
+        group.teams.forEach((team) => {
+          participantsByTeamId.set(team.team_id, {
+            team_id: team.team_id,
+            team_name: team.team_name,
+            team_city: team.team_city,
+            division: competition.division,
+          });
+        });
+      });
+
+      competition.knockout_matches.forEach((match) => {
+        [
+          { team_id: match.home_team_id, team_name: match.home_team_name },
+          { team_id: match.away_team_id, team_name: match.away_team_name },
+        ].forEach((team) => {
+          if (!team.team_id || !team.team_name) {
+            return;
+          }
+
+          participantsByTeamId.set(team.team_id, {
+            team_id: team.team_id,
+            team_name: team.team_name,
+            team_city: "",
+            division: competition.division,
+          });
+        });
+      });
+    });
+
+  return [...participantsByTeamId.values()];
 }
 
 export function resolveGroupStageMatchBindingByMatchId(

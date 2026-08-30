@@ -489,13 +489,6 @@ export function AdminPageView({
     }
 
     void refetchMatchesByActiveTabRef.current();
-    const refetchConfirmationTimeout = setTimeout(() => {
-      void refetchMatchesByActiveTabRef.current();
-    }, 400);
-
-    return () => {
-      clearTimeout(refetchConfirmationTimeout);
-    };
   }, [activeTab]);
 
   return (

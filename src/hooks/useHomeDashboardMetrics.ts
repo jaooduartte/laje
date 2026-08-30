@@ -6,6 +6,7 @@ import type { HomeDashboardMetrics } from "@/lib/types";
 export function useHomeDashboardMetrics(
   seasonYear?: number | null,
   championshipCode?: ChampionshipCode | null,
+  enabled = true,
 ) {
   const [metrics, setMetrics] = useState<HomeDashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
@@ -30,12 +31,17 @@ export function useHomeDashboardMetrics(
   }, [championshipCode, seasonYear]);
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
+
     loadMetrics();
-  }, [loadMetrics]);
+  }, [enabled, loadMetrics]);
 
   return {
-    metrics,
-    loading,
+    metrics: enabled ? metrics : null,
+    loading: enabled ? loading : false,
     refetch: loadMetrics,
   };
 }

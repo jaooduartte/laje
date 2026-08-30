@@ -139,16 +139,23 @@ export function HomePageView({ items: _items, maintenanceItems, metrics }: HomeP
   const { metrics: topPerformanceMetrics } = useHomeDashboardMetrics(
     null,
     topPerformanceFilter == CHART_CHAMPIONSHIP_FILTER_ALL ? null : topPerformanceFilter,
+    topPerformanceFilter != CHART_CHAMPIONSHIP_FILTER_ALL,
   );
   const { metrics: mostMatchesMetrics } = useHomeDashboardMetrics(
     null,
     mostMatchesFilter == CHART_CHAMPIONSHIP_FILTER_ALL ? null : mostMatchesFilter,
+    mostMatchesFilter != CHART_CHAMPIONSHIP_FILTER_ALL,
   );
 
   const topPerformance = topPerformanceMetrics?.top_performance ?? metrics?.top_performance ?? [];
   const mostMatches = mostMatchesMetrics?.most_matches ?? metrics?.most_matches ?? [];
   const seasonInsights = useMemo(() => {
-    return (metrics?.season_insights ?? []).filter((insight) => insight.team_name && insight.value != null);
+    return (metrics?.season_insights ?? []).filter(
+      (insight) =>
+        insight.id != "MOST_MODALITIES" &&
+        insight.team_name &&
+        insight.value != null,
+    );
   }, [metrics?.season_insights]);
   const groupedNextEvents = useMemo(() => {
     const nextEvents = metrics?.next_events ?? [];
@@ -197,7 +204,7 @@ export function HomePageView({ items: _items, maintenanceItems, metrics }: HomeP
         <section>
           <HorizontalDashboardChart
             title="Melhores desempenhos"
-            metricLabel="Pontos acumulados no histórico, com filtro por campeonato."
+            metricLabel="Pontuação oficial acumulada no histórico, com filtro por campeonato."
             emptyLabel="Sem desempenho consolidado para exibir."
             data={topPerformance.map((item) => ({ team_name: item.team_name, value: item.value }))}
             selectedChampionshipFilter={topPerformanceFilter}
@@ -208,7 +215,7 @@ export function HomePageView({ items: _items, maintenanceItems, metrics }: HomeP
         <section>
           <HorizontalDashboardChart
             title="Atléticas com mais jogos"
-            metricLabel="Volume de partidas registradas, com filtro por campeonato."
+            metricLabel="Partidas cadastradas no histórico, incluindo agendadas, ao vivo e encerradas."
             emptyLabel="Sem jogos suficientes para exibir o ranking."
             data={mostMatches.map((item) => ({ team_name: item.team_name, value: item.value }))}
             selectedChampionshipFilter={mostMatchesFilter}
@@ -274,6 +281,7 @@ export function HomePageView({ items: _items, maintenanceItems, metrics }: HomeP
                     {insight.id == "BIGGEST_WIN_MARGIN" && insight.season_year && insight.championship_code ? (
                       <Badge variant="outline" className="mt-2 rounded-lg border-border/60 text-[11px]">
                         {insight.season_year} • {CHAMPIONSHIP_LABELS[insight.championship_code]}
+                        {insight.sport_name ? ` • ${insight.sport_name}` : ""}
                       </Badge>
                     ) : null}
                     <p className="mt-2 text-sm text-muted-foreground">

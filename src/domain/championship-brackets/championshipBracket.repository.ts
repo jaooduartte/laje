@@ -26,6 +26,8 @@ import type {
   EditableMatchScheduleSlot,
   EditableMatchScheduleSlotQueryInput,
   ScheduledMatchLogisticsUpdateInput,
+  ManualMatchRelocationInput,
+  ManualMatchRelocationPreview,
   ChampionshipBracketReconfigurationAction,
   ChampionshipBracketReconfigurationPreview,
 } from "@/domain/championship-brackets/championshipBracket.types";
@@ -104,6 +106,35 @@ export async function applyChampionshipBracketReconfiguration(
       _expected_revision: expectedRevision,
     },
   );
+
+  return { error: response.error };
+}
+
+export async function previewManualMatchRelocation(
+  bracketEditionId: string,
+  input: ManualMatchRelocationInput,
+): Promise<{ data: ManualMatchRelocationPreview | null; error: Error | null }> {
+  const response = await supabase.rpc("preview_manual_match_relocation", {
+    _bracket_edition_id: bracketEditionId,
+    _payload: toSupabaseJson(input),
+  });
+
+  return {
+    data: (response.data as unknown as ManualMatchRelocationPreview | null) ?? null,
+    error: response.error,
+  };
+}
+
+export async function applyManualMatchRelocation(
+  bracketEditionId: string,
+  input: ManualMatchRelocationInput,
+  expectedRevision: number,
+): Promise<{ error: Error | null }> {
+  const response = await supabase.rpc("apply_manual_match_relocation", {
+    _bracket_edition_id: bracketEditionId,
+    _payload: toSupabaseJson(input),
+    _expected_revision: expectedRevision,
+  });
 
   return { error: response.error };
 }

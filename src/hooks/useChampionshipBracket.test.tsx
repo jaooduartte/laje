@@ -3,8 +3,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { useChampionshipBracket } from "@/hooks/useChampionshipBracket";
 import { EMPTY_CHAMPIONSHIP_BRACKET_VIEW } from "@/lib/championship";
 
-const { fetchChampionshipBracketViewMock } = vi.hoisted(() => ({
+const {
+  fetchChampionshipBracketViewMock,
+  realtimeChannelOnMock,
+  realtimeChannelSubscribeMock,
+} = vi.hoisted(() => ({
   fetchChampionshipBracketViewMock: vi.fn(),
+  realtimeChannelOnMock: vi.fn(),
+  realtimeChannelSubscribeMock: vi.fn(),
 }));
 
 vi.mock("@/domain/championship-brackets/championshipBracket.repository", () => ({
@@ -13,12 +19,15 @@ vi.mock("@/domain/championship-brackets/championshipBracket.repository", () => (
 
 vi.mock("@/integrations/supabase/client", () => {
   const channel = {
-    on: vi.fn(),
-    subscribe: vi.fn(),
+    on: (...arguments_: unknown[]) => {
+      realtimeChannelOnMock(...arguments_);
+      return channel;
+    },
+    subscribe: (...arguments_: unknown[]) => {
+      realtimeChannelSubscribeMock(...arguments_);
+      return channel;
+    },
   };
-
-  channel.on.mockReturnValue(channel);
-  channel.subscribe.mockReturnValue(channel);
 
   return {
     supabase: {
@@ -31,6 +40,33 @@ vi.mock("@/integrations/supabase/client", () => {
 describe("useChampionshipBracket", () => {
   afterEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("assina apenas mudanças associadas ao campeonato atual", async () => {
+    fetchChampionshipBracketViewMock.mockResolvedValue({
+      data: EMPTY_CHAMPIONSHIP_BRACKET_VIEW,
+      error: null,
+    });
+
+    const { unmount } = renderHook(() =>
+      useChampionshipBracket({
+        championshipId: "championship-1",
+        seasonYear: 2026,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(fetchChampionshipBracketViewMock).toHaveBeenCalledTimes(1);
+    });
+
+    expect(
+      realtimeChannelOnMock.mock.calls.map(
+        ([, subscription]) =>
+          (subscription as { table: string }).table,
+      ),
+    ).toEqual(["matches", "championship_bracket_editions"]);
+
+    unmount();
   });
 
   it("coalesce atualizações enquanto a consulta do chaveamento está pendente", async () => {

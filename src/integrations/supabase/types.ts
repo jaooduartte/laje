@@ -2216,10 +2216,13 @@ export type Database = {
           home_yellow_cards: number
           id: string
           is_double_walkover: boolean
+          is_manual_schedule_override: boolean
           is_score_sheet_reviewed: boolean
           is_walkover: boolean
           location: string
           manual_representation_mode: string
+          manual_schedule_override_notes: string | null
+          manual_schedule_override_reason: string | null
           naipe: Database["public"]["Enums"]["match_naipe"]
           queue_position: number | null
           resolved_tie_break_winner_team_id: string | null
@@ -2261,10 +2264,13 @@ export type Database = {
           home_yellow_cards?: number
           id?: string
           is_double_walkover?: boolean
+          is_manual_schedule_override?: boolean
           is_score_sheet_reviewed?: boolean
           is_walkover?: boolean
           location: string
           manual_representation_mode?: string
+          manual_schedule_override_notes?: string | null
+          manual_schedule_override_reason?: string | null
           naipe?: Database["public"]["Enums"]["match_naipe"]
           queue_position?: number | null
           resolved_tie_break_winner_team_id?: string | null
@@ -2306,10 +2312,13 @@ export type Database = {
           home_yellow_cards?: number
           id?: string
           is_double_walkover?: boolean
+          is_manual_schedule_override?: boolean
           is_score_sheet_reviewed?: boolean
           is_walkover?: boolean
           location?: string
           manual_representation_mode?: string
+          manual_schedule_override_notes?: string | null
+          manual_schedule_override_reason?: string | null
           naipe?: Database["public"]["Enums"]["match_naipe"]
           queue_position?: number | null
           resolved_tie_break_winner_team_id?: string | null
@@ -2749,6 +2758,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      apply_manual_match_relocation: {
+        Args: {
+          _bracket_edition_id: string
+          _expected_revision: number
+          _payload: Json
+        }
+        Returns: undefined
+      }
       assign_championship_knockout_match_planned_schedule: {
         Args: { _bracket_match_id: string; _championship_id: string }
         Returns: undefined
@@ -2781,6 +2798,10 @@ export type Database = {
       }
       preview_championship_bracket_reconfiguration: {
         Args: { _action: string; _bracket_edition_id: string; _payload: Json }
+        Returns: Json
+      }
+      preview_manual_match_relocation: {
+        Args: { _bracket_edition_id: string; _payload: Json }
         Returns: Json
       }
       can_access_admin_panel: { Args: never; Returns: boolean }

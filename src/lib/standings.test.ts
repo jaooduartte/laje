@@ -6,6 +6,7 @@ import {
   applyOfficialThirdPlacementToStandings,
   aggregateStandingsByTeam,
   applyCorrectedGroupPointsToStanding,
+  completeTeamStandingAggregates,
   filterAggregatesByBracketGroupPlacement,
   formatPointsAverageForStandings,
   formatStandingsPoints,
@@ -46,6 +47,36 @@ function buildStanding(overrides: Partial<Standing> & Pick<Standing, "id" | "tea
     sports: overrides.sports,
   };
 }
+
+describe("completeTeamStandingAggregates", () => {
+  it("inclui participante sem partidas com zero pontos", () => {
+    const standings = aggregateStandingsByTeam([
+      buildStanding({ id: "standing-a", team_id: "team-a", points: 3 }),
+    ]);
+
+    const completedStandings = completeTeamStandingAggregates(standings, [
+      {
+        team_id: "team-a",
+        team_name: "Atlética team-a",
+        team_city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+      },
+      {
+        team_id: "team-b",
+        team_name: "Atlética team-b",
+        team_city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+      },
+    ]);
+
+    expect(completedStandings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ team_id: "team-a", points: 3 }),
+        expect.objectContaining({ team_id: "team-b", played: 0, points: 0 }),
+      ]),
+    );
+  });
+});
 
 describe("standings manual tie-break", () => {
   it("aplica ordem manual quando critérios automáticos empatam totalmente", () => {
@@ -600,5 +631,51 @@ describe("filterAggregatesByBracketGroupPlacement", () => {
     });
     expect(out).toHaveLength(1);
     expect(out[0]?.team_id).toBe("t1");
+  });
+
+  it("reúne e ordena os melhores primeiros e segundos de todos os grupos", () => {
+    const aggregates = [
+      { team_id: "t1", team_name: "A", team_city: "", division: null, played: 2, wins: 1, draws: 0, losses: 1, goals_for: 2, goals_against: 2, goal_diff: 0, points: 3, yellow_cards: 0, red_cards: 0 },
+      { team_id: "t2", team_name: "B", team_city: "", division: null, played: 2, wins: 0, draws: 1, losses: 1, goals_for: 1, goals_against: 2, goal_diff: -1, points: 1, yellow_cards: 0, red_cards: 0 },
+      { team_id: "t3", team_name: "C", team_city: "", division: null, played: 2, wins: 2, draws: 0, losses: 0, goals_for: 4, goals_against: 1, goal_diff: 3, points: 6, yellow_cards: 0, red_cards: 0 },
+      { team_id: "t4", team_name: "D", team_city: "", division: null, played: 2, wins: 1, draws: 0, losses: 1, goals_for: 3, goals_against: 3, goal_diff: 0, points: 3, yellow_cards: 0, red_cards: 0 },
+    ];
+    const groupOptions = [
+      mockGroup,
+      {
+        ...mockGroup,
+        value: "comp:g2",
+        group_id: "g2",
+        group_number: 2,
+        label: "Grupo B",
+        team_ids: ["t3", "t4"],
+      },
+    ];
+    const buildContext = (placement: "first_per_group" | "second_per_group") => ({
+      groupOptions,
+      placement,
+      groupSelectValue: "ALL",
+      allGroupSelectValue: "ALL",
+      sportSelectValue: "sport-1",
+      allSportSelectValue: "ALL",
+      naipeSelectValue: MatchNaipe.MASCULINO,
+      allNaipeSelectValue: "ALL",
+      sortOptions: baseSortOptions,
+      resolveTieBreakerRuleForSport: () => ChampionshipSportTieBreakerRule.STANDARD,
+      finalTieBreakerRule: ChampionshipSportTieBreakerRule.STANDARD,
+    });
+
+    expect(
+      filterAggregatesByBracketGroupPlacement(
+        aggregates,
+        buildContext("first_per_group"),
+      ).map((team) => team.team_id),
+    ).toEqual(["t3", "t1"]);
+    expect(
+      filterAggregatesByBracketGroupPlacement(
+        aggregates,
+        buildContext("second_per_group"),
+      ).map((team) => team.team_id),
+    ).toEqual(["t4", "t2"]);
   });
 });

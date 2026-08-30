@@ -184,6 +184,25 @@
     transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
   }
 
+  .admin-match-control-card {
+    box-shadow: 0 4px 10px hsl(222 22% 16% / 0.06);
+    transform: none;
+  }
+
+  .admin-match-control-scheduled-card {
+    contain-intrinsic-size: 168px;
+  }
+
+  .admin-match-control-individual-session-card {
+    contain-intrinsic-size: 360px;
+  }
+
+  .admin-match-control-live-card {
+    border-color: hsl(var(--live) / 0.42);
+    background: linear-gradient(180deg, hsl(var(--live) / 0.08), hsl(var(--background) / 0.9) 28%);
+    contain-intrinsic-size: 620px;
+  }
+
   .list-item-card-hover:hover {
     border-color: hsl(var(--primary) / 0.24);
     box-shadow: 0 10px 24px hsl(222 22% 16% / 0.09);
@@ -574,6 +593,15 @@
     box-shadow: none;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
+  }
+
+  .dark .admin-match-control-card {
+    box-shadow: 0 4px 10px hsl(0 0% 0% / 0.3);
+  }
+
+  .dark .admin-match-control-live-card {
+    border-color: hsl(var(--live) / 0.32);
+    background: linear-gradient(180deg, hsl(var(--live) / 0.08), hsl(0 0% 10%) 22%);
   }
 
   .dark .app-button-primary {

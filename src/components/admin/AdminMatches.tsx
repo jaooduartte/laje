@@ -40,6 +40,8 @@ import {
   updateScheduledMatchLogistics,
   updateBracketDaySchedule,
   previewChampionshipBracketReconfiguration,
+  applyManualMatchRelocation,
+  previewManualMatchRelocation,
 } from "@/domain/championship-brackets/championshipBracket.repository";
 import type {
   BracketDayCourtSports,
@@ -49,6 +51,10 @@ import type {
   ChampionshipBracketScheduleDayInput,
   ChampionshipBracketTieBreakPendingContext,
   EditableMatchScheduleSlot,
+  ManualMatchRelocationInput,
+  ManualMatchRelocationPosition,
+  ManualMatchRelocationPreview,
+  ManualMatchRelocationReason,
   MatchSetInput,
 } from "@/domain/championship-brackets/championshipBracket.types";
 import {
@@ -515,10 +521,23 @@ const EMPTY_TIE_BREAKER_RULE_OPTION_VALUE =
   "EMPTY_TIE_BREAKER_RULE_OPTION_VALUE";
 const EMPTY_TIE_BREAK_TEAM_OPTION_VALUE = "EMPTY_TIE_BREAK_TEAM_OPTION_VALUE";
 const EMPTY_SWAP_MATCH_OPTION_VALUE = "EMPTY_SWAP_MATCH_OPTION_VALUE";
+const EMPTY_MANUAL_RELOCATION_OPTION_VALUE =
+  "EMPTY_MANUAL_RELOCATION_OPTION_VALUE";
 const EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE =
   "EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE";
 const EMPTY_AWARD_DRAW_PLAYER_OPTION_VALUE =
   "EMPTY_AWARD_DRAW_PLAYER_OPTION_VALUE";
+
+const MANUAL_MATCH_RELOCATION_REASON_LABELS: Record<
+  ManualMatchRelocationReason,
+  string
+> = {
+  WEATHER: "Condições climáticas",
+  COURT_UNAVAILABLE: "Quadra indisponível",
+  OPERATIONAL_DELAY: "Atraso operacional",
+  SAFETY: "Segurança",
+  OTHER: "Outro motivo",
+};
 
 function resolveAwardDrawDisplayText(value: string): string {
   return value
@@ -1126,6 +1145,25 @@ export function AdminMatches({
   const [loadingSwapTargetMatchOptions, setLoadingSwapTargetMatchOptions] =
     useState(false);
   const [swappingMatches, setSwappingMatches] = useState(false);
+  const [showManualRelocationDialog, setShowManualRelocationDialog] =
+    useState(false);
+  const [manualRelocationTargetDate, setManualRelocationTargetDate] =
+    useState("");
+  const [manualRelocationTargetLocation, setManualRelocationTargetLocation] =
+    useState("");
+  const [manualRelocationTargetCourt, setManualRelocationTargetCourt] =
+    useState("");
+  const [manualRelocationPosition, setManualRelocationPosition] =
+    useState<ManualMatchRelocationPosition>("END");
+  const [manualRelocationReason, setManualRelocationReason] =
+    useState<ManualMatchRelocationReason>("WEATHER");
+  const [manualRelocationNotes, setManualRelocationNotes] = useState("");
+  const [manualRelocationPreview, setManualRelocationPreview] =
+    useState<ManualMatchRelocationPreview | null>(null);
+  const [loadingManualRelocationPreview, setLoadingManualRelocationPreview] =
+    useState(false);
+  const [applyingManualRelocation, setApplyingManualRelocation] =
+    useState(false);
   const [showDeleteSelectedMatchesDialog, setShowDeleteSelectedMatchesDialog] =
     useState(false);
   const [creatingMatch, setCreatingMatch] = useState(false);
@@ -2946,6 +2984,57 @@ export function AdminMatches({
     return filteredAndSortedMatches.map((match) => match.id);
   }, [filteredAndSortedMatches]);
 
+  const selectedMatchesForManualRelocation = useMemo(() => {
+    const selectedMatchIdSet = new Set(selectedMatchIds);
+
+    return matches
+      .filter((match) => selectedMatchIdSet.has(match.id))
+      .sort((firstMatch, secondMatch) => {
+        const firstDate = resolveMatchScheduledDateValue(firstMatch) ?? "9999-12-31";
+        const secondDate = resolveMatchScheduledDateValue(secondMatch) ?? "9999-12-31";
+
+        if (firstDate != secondDate) {
+          return firstDate.localeCompare(secondDate);
+        }
+
+        return (
+          resolveMatchScheduleMoveSortValue(firstMatch, shouldUseScheduledSlotInMatchList) -
+          resolveMatchScheduleMoveSortValue(secondMatch, shouldUseScheduledSlotInMatchList)
+        );
+      });
+  }, [matches, selectedMatchIds, shouldUseScheduledSlotInMatchList]);
+
+  const manualRelocationTargetDay = useMemo(() => {
+    return (
+      bracketCourtSportsDays.find(
+        (scheduleDay) => scheduleDay.event_date == manualRelocationTargetDate,
+      ) ?? null
+    );
+  }, [bracketCourtSportsDays, manualRelocationTargetDate]);
+
+  const manualRelocationLocations = useMemo(() => {
+    return manualRelocationTargetDay?.locations ?? [];
+  }, [manualRelocationTargetDay]);
+
+  const manualRelocationCourts = useMemo(() => {
+    const targetLocation = manualRelocationLocations.find(
+      (scheduleLocation) => scheduleLocation.name == manualRelocationTargetLocation,
+    );
+    const selectedSportIds = new Set(
+      selectedMatchesForManualRelocation.map((match) => match.sport_id),
+    );
+
+    return (targetLocation?.courts ?? []).filter((court) =>
+      [...selectedSportIds].every((sportId) =>
+        court.sports.some((courtSport) => courtSport.sport_id == sportId),
+      ),
+    );
+  }, [
+    manualRelocationLocations,
+    manualRelocationTargetLocation,
+    selectedMatchesForManualRelocation,
+  ]);
+
   const matchesTotalPages = Math.max(
     1,
     Math.ceil(filteredAndSortedMatches.length / matchesItemsPerPage),
@@ -3864,6 +3953,140 @@ export function AdminMatches({
     }
 
     toast.success("Jogos trocados na fila.");
+  };
+
+  const handleCloseManualRelocationDialog = () => {
+    if (loadingManualRelocationPreview || applyingManualRelocation) {
+      return;
+    }
+
+    setShowManualRelocationDialog(false);
+    setManualRelocationPreview(null);
+  };
+
+  const handleOpenManualRelocationDialog = () => {
+    if (!canManageMatches || selectedMatchesForManualRelocation.length == 0) {
+      toast.error("Selecione ao menos um jogo agendado.");
+      return;
+    }
+
+    if (
+      selectedMatchesForManualRelocation.some(
+        (match) => match.status != MatchStatus.SCHEDULED,
+      )
+    ) {
+      toast.error("A realocação emergencial aceita somente jogos agendados.");
+      return;
+    }
+
+    if (!championshipBracketView.edition?.id) {
+      toast.error("Não foi possível localizar a agenda do campeonato.");
+      return;
+    }
+
+    const firstMatch = selectedMatchesForManualRelocation[0];
+    const initialDate = resolveMatchScheduledDateValue(firstMatch) ?? "";
+    const initialDay = bracketCourtSportsDays.find(
+      (scheduleDay) => scheduleDay.event_date == initialDate,
+    );
+    const initialLocation = initialDay?.locations.find(
+      (scheduleLocation) => scheduleLocation.name == firstMatch.location,
+    );
+    const selectedSportIds = new Set(
+      selectedMatchesForManualRelocation.map((match) => match.sport_id),
+    );
+    const initialCourt = initialLocation?.courts.find(
+      (court) =>
+        court.name == firstMatch.court_name &&
+        [...selectedSportIds].every((sportId) =>
+          court.sports.some((courtSport) => courtSport.sport_id == sportId),
+        ),
+    );
+
+    setManualRelocationTargetDate(initialDate);
+    setManualRelocationTargetLocation(initialLocation?.name ?? "");
+    setManualRelocationTargetCourt(initialCourt?.name ?? "");
+    setManualRelocationPosition("END");
+    setManualRelocationReason("WEATHER");
+    setManualRelocationNotes("");
+    setManualRelocationPreview(null);
+    setShowManualRelocationDialog(true);
+  };
+
+  const buildManualRelocationInput = (): ManualMatchRelocationInput | null => {
+    if (
+      !manualRelocationTargetDate ||
+      !manualRelocationTargetLocation ||
+      !manualRelocationTargetCourt
+    ) {
+      toast.error("Selecione o dia, local e quadra de destino.");
+      return null;
+    }
+
+    return {
+      match_ids: selectedMatchesForManualRelocation.map((match) => match.id),
+      target_date: manualRelocationTargetDate,
+      target_location: manualRelocationTargetLocation,
+      target_court_name: manualRelocationTargetCourt,
+      insertion_position: manualRelocationPosition,
+      reason: manualRelocationReason,
+      notes: manualRelocationNotes.trim() || null,
+    };
+  };
+
+  const handlePreviewManualRelocation = async () => {
+    const bracketEditionId = championshipBracketView.edition?.id;
+    const input = buildManualRelocationInput();
+
+    if (!bracketEditionId || !input) {
+      return;
+    }
+
+    setLoadingManualRelocationPreview(true);
+    const { data, error } = await previewManualMatchRelocation(
+      bracketEditionId,
+      input,
+    );
+    setLoadingManualRelocationPreview(false);
+
+    if (error || !data) {
+      toast.error(error?.message ?? "Não foi possível calcular a prévia.");
+      return;
+    }
+
+    setManualRelocationPreview(data);
+  };
+
+  const handleApplyManualRelocation = async () => {
+    const bracketEditionId = championshipBracketView.edition?.id;
+    const input = buildManualRelocationInput();
+
+    if (!bracketEditionId || !input || !manualRelocationPreview) {
+      return;
+    }
+
+    if (manualRelocationPreview.blockers.length > 0) {
+      return;
+    }
+
+    setApplyingManualRelocation(true);
+    const { error } = await applyManualMatchRelocation(
+      bracketEditionId,
+      input,
+      manualRelocationPreview.revision,
+    );
+    setApplyingManualRelocation(false);
+
+    if (error) {
+      toast.error(resolveAdminMatchesOperationalErrorMessage(error));
+      return;
+    }
+
+    setSelectedMatchIds([]);
+    setManualRelocationPreview(null);
+    setShowManualRelocationDialog(false);
+    await Promise.all([onRefetch(), onRefetchChampionshipBracket()]);
+    toast.success("Jogos realocados com sucesso.");
   };
 
   const handleDeleteMatchFromDialog = async () => {
@@ -6422,6 +6645,19 @@ export function AdminMatches({
                     <Button
                       type="button"
                       variant="outline"
+                      onClick={handleOpenManualRelocationDialog}
+                      disabled={
+                        deletingMatches ||
+                        applyingBulkAction ||
+                        selectedMatchIds.length == 0
+                      }
+                    >
+                      Realocar jogos
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="outline"
                       onClick={() =>
                         void handleMoveSelectedMatchesToNextChampionshipDay()
                       }
@@ -7442,6 +7678,287 @@ export function AdminMatches({
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : null}
               Confirmar troca
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={showManualRelocationDialog}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            handleCloseManualRelocationDialog();
+          }
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Realocar jogos</DialogTitle>
+            <DialogDescription>
+              Move jogos agendados para o início ou fim da fila de uma quadra
+              configurada. A prévia mostra os horários, impactos e eventual
+              ampliação do dia antes da confirmação.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="app-card-muted rounded-xl p-3 text-sm">
+              <p className="font-medium">
+                {selectedMatchesForManualRelocation.length} jogo(s) selecionado(s)
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                A ordem cronológica atual da seleção será preservada.
+              </p>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="space-y-1">
+                <Label>Dia de destino</Label>
+                <Select
+                  value={manualRelocationTargetDate || EMPTY_MANUAL_RELOCATION_OPTION_VALUE}
+                  onValueChange={(value) => {
+                    const nextDate =
+                      value == EMPTY_MANUAL_RELOCATION_OPTION_VALUE ? "" : value;
+                    setManualRelocationTargetDate(nextDate);
+                    setManualRelocationTargetLocation("");
+                    setManualRelocationTargetCourt("");
+                    setManualRelocationPreview(null);
+                  }}
+                >
+                  <SelectTrigger className="app-input-field" aria-label="Dia de destino">
+                    <SelectValue placeholder="Selecione o dia" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={EMPTY_MANUAL_RELOCATION_OPTION_VALUE}>
+                      Selecione o dia
+                    </SelectItem>
+                    {bracketCourtSportsDays.map((scheduleDay) => (
+                      <SelectItem key={scheduleDay.bracket_day_id} value={scheduleDay.event_date}>
+                        {format(new Date(`${scheduleDay.event_date}T12:00:00`), "dd/MM/yyyy")}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Local</Label>
+                <Select
+                  value={manualRelocationTargetLocation || EMPTY_MANUAL_RELOCATION_OPTION_VALUE}
+                  onValueChange={(value) => {
+                    setManualRelocationTargetLocation(
+                      value == EMPTY_MANUAL_RELOCATION_OPTION_VALUE ? "" : value,
+                    );
+                    setManualRelocationTargetCourt("");
+                    setManualRelocationPreview(null);
+                  }}
+                  disabled={!manualRelocationTargetDate}
+                >
+                  <SelectTrigger className="app-input-field" aria-label="Local de destino">
+                    <SelectValue placeholder="Selecione o local" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={EMPTY_MANUAL_RELOCATION_OPTION_VALUE}>
+                      Selecione o local
+                    </SelectItem>
+                    {manualRelocationLocations.map((scheduleLocation) => (
+                      <SelectItem key={scheduleLocation.id} value={scheduleLocation.name}>
+                        {scheduleLocation.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Quadra</Label>
+                <Select
+                  value={manualRelocationTargetCourt || EMPTY_MANUAL_RELOCATION_OPTION_VALUE}
+                  onValueChange={(value) => {
+                    setManualRelocationTargetCourt(
+                      value == EMPTY_MANUAL_RELOCATION_OPTION_VALUE ? "" : value,
+                    );
+                    setManualRelocationPreview(null);
+                  }}
+                  disabled={!manualRelocationTargetLocation}
+                >
+                  <SelectTrigger className="app-input-field" aria-label="Quadra de destino">
+                    <SelectValue placeholder="Selecione a quadra" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={EMPTY_MANUAL_RELOCATION_OPTION_VALUE}>
+                      Selecione a quadra
+                    </SelectItem>
+                    {manualRelocationCourts.map((court) => (
+                      <SelectItem key={court.id} value={court.name}>
+                        {court.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1">
+                <Label>Posição na fila</Label>
+                <Select
+                  value={manualRelocationPosition}
+                  onValueChange={(value) => {
+                    if (value == "START" || value == "END") {
+                      setManualRelocationPosition(value);
+                      setManualRelocationPreview(null);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="app-input-field" aria-label="Posição na fila">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="END">Fim da fila</SelectItem>
+                    <SelectItem value="START">Início da fila</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Motivo</Label>
+                <Select
+                  value={manualRelocationReason}
+                  onValueChange={(value) => {
+                    if (value in MANUAL_MATCH_RELOCATION_REASON_LABELS) {
+                      setManualRelocationReason(value as ManualMatchRelocationReason);
+                      setManualRelocationPreview(null);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="app-input-field" aria-label="Motivo da realocação">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(MANUAL_MATCH_RELOCATION_REASON_LABELS) as ManualMatchRelocationReason[]).map(
+                      (reason) => (
+                        <SelectItem key={reason} value={reason}>
+                          {MANUAL_MATCH_RELOCATION_REASON_LABELS[reason]}
+                        </SelectItem>
+                      ),
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="manual-relocation-notes">Observação</Label>
+              <Input
+                id="manual-relocation-notes"
+                value={manualRelocationNotes}
+                onChange={(event) => {
+                  setManualRelocationNotes(event.target.value);
+                  setManualRelocationPreview(null);
+                }}
+                placeholder="Contexto adicional da decisão (opcional)"
+              />
+            </div>
+
+            {manualRelocationPreview ? (
+              <div className="space-y-3 rounded-xl border border-border p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="font-medium">Prévia da realocação</p>
+                    <p className="text-sm text-muted-foreground">
+                      Encerramento previsto: {manualRelocationPreview.next_day_end}
+                      {manualRelocationPreview.extends_day_end
+                        ? ` (antes: ${manualRelocationPreview.previous_day_end})`
+                        : ""}
+                    </p>
+                  </div>
+                  {manualRelocationPreview.extends_day_end ? (
+                    <AppBadge tone={AppBadgeTone.WARNING}>Dia ampliado</AppBadge>
+                  ) : null}
+                </div>
+
+                {manualRelocationPreview.blockers.length > 0 ? (
+                  <div className="space-y-1 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+                    {manualRelocationPreview.blockers.map((blocker) => (
+                      <p key={blocker}>{blocker}</p>
+                    ))}
+                  </div>
+                ) : null}
+
+                {manualRelocationPreview.representation_warning ? (
+                  <p className="rounded-lg bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200">
+                    {manualRelocationPreview.representation_warning}
+                  </p>
+                ) : null}
+
+                <div className="space-y-2">
+                  {manualRelocationPreview.changes.map((change) => {
+                    const match = matches.find((item) => item.id == change.match_id);
+                    const label = match
+                      ? `${match.home_team?.name ?? "Casa"} x ${match.away_team?.name ?? "Visitante"}`
+                      : "Jogo";
+
+                    return (
+                      <div key={change.match_id} className="app-card-muted rounded-lg p-3 text-sm">
+                        <p className="font-medium">
+                          {change.is_selected ? "Realocado" : "Fila deslocada"}: {label}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {change.before.court_name ?? "Sem quadra"} {change.before.start_time ? `• ${format(new Date(change.before.start_time), "HH:mm")}` : ""}
+                          {" → "}
+                          {change.after.court_name} • {format(new Date(change.after.start_time), "HH:mm")}–{format(new Date(change.after.end_time), "HH:mm")}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Timeline da quadra de destino
+                  </p>
+                  {manualRelocationPreview.timeline.map((item) => (
+                    <p key={item.match_id} className="text-xs text-muted-foreground">
+                      {item.start_time ? format(new Date(item.start_time), "HH:mm") : "Sem horário"} • {item.status}
+                      {item.is_relocated ? " • Realocado" : item.is_displaced ? " • Reposicionado" : ""}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCloseManualRelocationDialog}
+              disabled={loadingManualRelocationPreview || applyingManualRelocation}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void handlePreviewManualRelocation()}
+              disabled={loadingManualRelocationPreview || applyingManualRelocation}
+            >
+              {loadingManualRelocationPreview ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Calcular prévia
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void handleApplyManualRelocation()}
+              disabled={
+                !manualRelocationPreview ||
+                manualRelocationPreview.blockers.length > 0 ||
+                loadingManualRelocationPreview ||
+                applyingManualRelocation
+              }
+            >
+              {applyingManualRelocation ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Confirmar realocação
             </Button>
           </DialogFooter>
         </DialogContent>

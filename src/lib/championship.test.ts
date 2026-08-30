@@ -11,6 +11,8 @@ import {
   resolveOrderedScheduledMatches,
   resolveMatchRepresentationByMatchId,
   resolveMatchStartedAtLabel,
+  resolveChampionshipStandingsGroups,
+  resolveChampionshipStandingsParticipants,
   resolveVisualQueuePositionByMatchId,
   type MatchEstimatedStartTimeBracketEdition,
   type MatchEstimatedStartTimeChampionshipSport,
@@ -89,6 +91,72 @@ function buildEstimatedStartTimeBracketEdition(
     schedule_days: overrides.schedule_days,
   };
 }
+
+describe("resolveChampionshipStandingsGroups", () => {
+  const championshipBracketView = {
+    edition: null,
+    competitions: [
+      {
+        id: "competition-futsal-masculino",
+        sport_id: "sport-futsal",
+        sport_name: "Futsal",
+        naipe: MatchNaipe.MASCULINO,
+        division: null,
+        groups_count: 2,
+        qualifiers_per_group: 2,
+        third_place_mode: BracketThirdPlaceMode.NONE,
+        groups: [
+          {
+            id: "group-a",
+            group_number: 1,
+            teams: [
+              { team_id: "team-a", team_name: "Alpha", team_city: "Joinville", position: 1 },
+              { team_id: "team-b", team_name: "Beta", team_city: "Joinville", position: 2 },
+            ],
+            matches: [],
+          },
+          {
+            id: "group-b",
+            group_number: 2,
+            teams: [
+              { team_id: "team-c", team_name: "Gamma", team_city: "Joinville", position: 1 },
+            ],
+            matches: [],
+          },
+        ],
+        knockout_matches: [],
+      },
+    ],
+  } as ChampionshipBracketView;
+
+  it("separa os participantes por grupo no recorte de modalidade e naipe", () => {
+    expect(
+      resolveChampionshipStandingsGroups(
+        championshipBracketView,
+        "sport-futsal",
+        MatchNaipe.MASCULINO,
+      ),
+    ).toEqual([
+      expect.objectContaining({ label: "Grupo A", team_ids: ["team-a", "team-b"] }),
+      expect.objectContaining({ label: "Grupo B", team_ids: ["team-c"] }),
+    ]);
+  });
+
+  it("inclui participantes da chave sem partidas na lista de classificação", () => {
+    expect(
+      resolveChampionshipStandingsParticipants(
+        championshipBracketView,
+        "sport-futsal",
+        MatchNaipe.MASCULINO,
+      ),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ team_id: "team-a", team_name: "Alpha" }),
+        expect.objectContaining({ team_id: "team-c", team_name: "Gamma" }),
+      ]),
+    );
+  });
+});
 
 describe("resolveMatchRepresentationByMatchId", () => {
   it("usa o jogo anterior da mesma quadra mesmo com naipe e modalidade diferentes", () => {

@@ -968,6 +968,74 @@ export interface ScheduledMatchLogisticsUpdateInput {
   away_team_id?: string | null;
 }
 
+export type ManualMatchRelocationPosition = "START" | "END";
+
+export type ManualMatchRelocationReason =
+  | "WEATHER"
+  | "COURT_UNAVAILABLE"
+  | "OPERATIONAL_DELAY"
+  | "SAFETY"
+  | "OTHER";
+
+export interface ManualMatchRelocationInput {
+  match_ids: string[];
+  target_date: string;
+  target_location: string;
+  target_court_name: string;
+  insertion_position: ManualMatchRelocationPosition;
+  reason: ManualMatchRelocationReason;
+  notes?: string | null;
+}
+
+export interface ManualMatchRelocationChange {
+  match_id: string;
+  is_selected: boolean;
+  before: {
+    scheduled_date: string | null;
+    location: string | null;
+    court_name: string | null;
+    start_time: string | null;
+    end_time: string | null;
+    queue_position: number | null;
+    scheduled_slot: number | null;
+  };
+  after: {
+    scheduled_date: string;
+    location: string;
+    court_name: string;
+    start_time: string;
+    end_time: string;
+    queue_position: number;
+    scheduled_slot: number;
+  };
+}
+
+export interface ManualMatchRelocationPreview {
+  revision: number;
+  blockers: string[];
+  changes: ManualMatchRelocationChange[];
+  timeline: Array<{
+    match_id: string;
+    status: string;
+    start_time: string | null;
+    end_time: string | null;
+    location: string;
+    court_name: string;
+    is_relocated: boolean;
+    is_displaced: boolean;
+  }>;
+  previous_day_end: string;
+  next_day_end: string;
+  extends_day_end: boolean;
+  target_date: string;
+  target_location: string;
+  target_court_name: string;
+  insertion_position: ManualMatchRelocationPosition;
+  reason: ManualMatchRelocationReason;
+  notes: string | null;
+  representation_warning: string | null;
+}
+
 export interface BracketCourtPriorityUpdate {
   bracket_court_id: string;
   sport_id: string;

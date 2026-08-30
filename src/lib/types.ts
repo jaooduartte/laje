@@ -577,6 +577,7 @@ export interface HomeDashboardSeasonInsightItem {
   unit: string | null;
   season_year?: number | null;
   championship_code?: ChampionshipCode | null;
+  sport_name?: string | null;
 }
 
 export interface HomeDashboardNextEventDay {

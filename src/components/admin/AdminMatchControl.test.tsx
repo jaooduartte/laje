@@ -386,7 +386,7 @@ function renderAdminMatchControl(params: {
 
 function resolveMatchCardElement(teamName: string): HTMLElement {
   const teamLabel = screen.getAllByText(teamName)[0];
-  const matchCardElement = teamLabel.closest(".glass-card");
+  const matchCardElement = teamLabel.closest(".admin-match-control-card");
 
   if (!matchCardElement) {
     throw new Error(`Card do jogo não encontrado para ${teamName}.`);
@@ -599,7 +599,7 @@ describe("AdminMatchControl", () => {
 
     expect(screen.getByText(/^Atletismo •/)).toBeInTheDocument();
     expect(screen.getByText("Feminino")).toBeInTheDocument();
-    expect(screen.getByText(/^Atletismo •/).closest(".glass-card")).not.toBeNull();
+    expect(screen.getByText(/^Atletismo •/).closest(".admin-match-control-card")).not.toBeNull();
     expect(screen.getByText(/11\/04\/2026/)).toBeInTheDocument();
     expect(screen.getByText("Pendente de agendamento")).toBeInTheDocument();
     expect(screen.queryByText("Atléticas participantes (3)")).toBeNull();
@@ -695,7 +695,7 @@ describe("AdminMatchControl", () => {
 
     await completeInitialControlLoad();
 
-    const sessionCard = screen.getByText(/^Atletismo •/).closest(".glass-card");
+    const sessionCard = screen.getByText(/^Atletismo •/).closest(".admin-match-control-card");
     expect(sessionCard).not.toBeNull();
     expect(
       within(sessionCard as HTMLElement).getByRole("button", {
@@ -850,10 +850,47 @@ describe("AdminMatchControl", () => {
     await completeInitialControlLoad();
 
     const collectiveMatchCard = resolveMatchCardElement("Casa");
-    const individualSessionCard = screen.getByText(/^Atletismo •/).closest(".glass-card");
+    const individualSessionCard = screen
+      .getByText(/^Atletismo •/)
+      .closest(".admin-match-control-card");
 
     expect(collectiveMatchCard).toHaveClass("order-2");
+    expect(collectiveMatchCard).toHaveClass("list-item-card", "admin-match-control-scheduled-card");
+    expect(collectiveMatchCard).not.toHaveClass("glass-card");
     expect(individualSessionCard).toHaveClass("order-3");
+    expect(individualSessionCard).toHaveClass(
+      "list-item-card",
+      "admin-match-control-individual-session-card",
+    );
+    expect(individualSessionCard).not.toHaveClass("glass-card");
+  });
+
+  it("destaca jogo ao vivo sem aplicar glow ou blur na superfície operacional", async () => {
+    const match = buildMatch({
+      id: "live-match-surface",
+      sport_id: "sport-futsal",
+      status: MatchStatus.LIVE,
+      sports: buildSport({ id: "sport-futsal", name: "Futsal" }),
+      home_team: buildTeam({ id: "live-home", name: "Atlética Ao Vivo" }),
+      away_team: buildTeam({ id: "live-away", name: "Atlética Visitante Ao Vivo" }),
+    });
+
+    renderAdminMatchControl({
+      matches: [match],
+      championshipSports: [],
+    });
+
+    await completeInitialControlLoad();
+
+    const liveMatchCard = resolveMatchCardElement("Atlética Ao Vivo");
+
+    expect(liveMatchCard).toHaveClass(
+      "list-item-card",
+      "admin-match-control-card",
+      "list-item-card-live",
+      "admin-match-control-live-card",
+    );
+    expect(liveMatchCard).not.toHaveClass("glass-card", "live-glow");
   });
 
   it("exibe sessões individuais somente depois da última página de jogos coletivos", async () => {

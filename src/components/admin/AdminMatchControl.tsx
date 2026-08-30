@@ -3052,7 +3052,7 @@ export function AdminMatchControl({
             return (
               <div
                 key={session.id}
-                className="order-3 space-y-4 glass-card p-5"
+                className="order-3 space-y-4 list-item-card admin-match-control-card admin-match-control-individual-session-card p-5"
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="order-2 space-y-1 text-center sm:order-1 sm:text-left">
@@ -3439,7 +3439,7 @@ export function AdminMatchControl({
                 return (
                   <div
                     key={match.id}
-                    className="order-2 glass-card p-4"
+                    className="order-2 list-item-card admin-match-control-card admin-match-control-scheduled-card p-4"
                   >
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0 space-y-1 text-center sm:text-left">
@@ -3703,7 +3703,11 @@ export function AdminMatchControl({
               return (
                 <div
                   key={match.id}
-                  className={`order-2 space-y-4 glass-card p-5 ${match.status == MatchStatus.LIVE ? "list-item-card-live live-glow" : ""}`}
+                  className={`order-2 space-y-4 list-item-card admin-match-control-card p-5 ${
+                    match.status == MatchStatus.LIVE
+                      ? "list-item-card-live admin-match-control-live-card"
+                      : "admin-match-control-scheduled-card"
+                  }`}
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     {/* Linha 0 (mobile) / Direita (sm+): ações */}

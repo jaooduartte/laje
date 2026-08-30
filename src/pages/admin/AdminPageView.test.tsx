@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AdminPageView } from "@/pages/admin/AdminPageView";
 import { AdminPanelTab, ChampionshipCode, ChampionshipSportNaipeMode, ChampionshipSportResultRule, ChampionshipSportTieBreakerRule, ChampionshipStatus, MatchNaipe, MatchStatus } from "@/lib/enums";
@@ -183,6 +183,104 @@ function buildBracketView(): ChampionshipBracketView {
 }
 
 describe("AdminPageView tabs", () => {
+  it("dispara uma única atualização ao abrir Controle ao Vivo", async () => {
+    vi.useFakeTimers();
+    const championship = buildChampionship();
+    const match = buildMatch();
+    const onRefetchMatches = vi.fn();
+
+    try {
+      render(
+        <AdminPageView
+          championships={[championship]}
+          selectedChampionship={championship}
+          selectedChampionshipCode={championship.code}
+          matches={[match]}
+          matchesTabMatches={[match]}
+          teams={[match.home_team!, match.away_team!]}
+          allTeams={[match.home_team!, match.away_team!]}
+          sports={[match.sports!]}
+          championshipSports={[buildChampionshipSport()]}
+          liveAndScheduledMatches={[match]}
+          championshipBracketView={buildBracketView()}
+          matchesTabChampionshipBracketView={buildBracketView()}
+          loadingChampionshipBracket={false}
+          loadingMatchesTabChampionshipBracket={false}
+          matchBracketContextByMatchId={{}}
+          matchesTabMatchBracketContextByMatchId={{}}
+          matchRepresentationByMatchId={{}}
+          matchesTabMatchRepresentationByMatchId={{}}
+          estimatedStartTimeByMatchId={{}}
+          matchesTabEstimatedStartTimeByMatchId={{}}
+          matchesFetching={false}
+          matchesTabFetching={false}
+          availableMatchSeasonYears={[2026]}
+          selectedMatchesSeasonYear={2026}
+          profileName="Admin"
+          canViewMatchesTab
+          canViewControlTab
+          canViewTeamsTab={false}
+          canViewSportsTab={false}
+          canViewEventsTab={false}
+          canViewLinksTab={false}
+          canViewLogsTab={false}
+          canViewUsersTab={false}
+          canViewAccountTab={false}
+          canViewStandingsTab={false}
+          canViewSettingsTab={false}
+          canViewScoreSheetReviewTab
+          canViewTieBreaksTab
+          canViewChampionshipStatus={false}
+          canViewBracketSetupTab={false}
+          canViewScheduleTab={false}
+          canManageSchedule={false}
+          canManageMatches
+          canManageChampionshipStatus={false}
+          advancingChampionshipSeason={false}
+          canManageScoreboard
+          canManageTeams={false}
+          canManageSports={false}
+          canManageLeagueEvents={false}
+          canManageLinks={false}
+          canManageUsers={false}
+          canManageAccount={false}
+          canManageSettings={false}
+          activeTab={AdminPanelTab.CONTROL}
+          onActiveTabChange={() => undefined}
+          onBracketGenerated={async () => undefined}
+          updatingChampionshipStatus={false}
+          onChampionshipCodeChange={() => undefined}
+          onChampionshipStatusChange={() => undefined}
+          onAdvanceChampionshipSeason={() => undefined}
+          onSelectedMatchesSeasonYearChange={() => undefined}
+          onSignOut={() => undefined}
+          onRefetchMatches={onRefetchMatches}
+          onRefetchChampionshipBracket={() => undefined}
+          onRefetchTeams={() => undefined}
+          liveMatchesCount={0}
+          pendingLeagueEventReservationsCount={0}
+          pendingScoreSheetReviewCount={0}
+          pendingTieBreaksCount={0}
+        />,
+      );
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(onRefetchMatches).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        vi.advanceTimersByTime(400);
+        await Promise.resolve();
+      });
+
+      expect(onRefetchMatches).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("mantém ordem de abas Jogos > Conferência de Súmula > Sorteios", () => {
     const championship = buildChampionship({ status: ChampionshipStatus.REVIEW });
     const match = buildMatch();
