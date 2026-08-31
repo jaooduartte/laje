@@ -164,6 +164,7 @@ const ADMIN_LOG_DEFAULT_FIELD_LABELS: Record<string, string> = {
   away_two_minute_penalties: "Penalidades de 2 minutos do visitante",
   current_set_home_score: "Pontos do set atual da casa",
   current_set_away_score: "Pontos do set atual do visitante",
+  is_score_sheet_reviewed: "Súmula conferida",
   resolved_tie_breaker_rule: "Critério extra de desempate",
   resolved_tie_break_winner_team_id: "Vencedor do critério extra",
   supports_cards: "Permite cartões",
