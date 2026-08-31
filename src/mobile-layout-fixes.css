@@ -1,4 +1,15 @@
 @media (max-width: 639px) {
+  /* Padroniza todos os badges da linha de metadados em 20px no mobile. */
+  .list-item-card
+    [class~="gap-1.5"][class~="sm:flex-col"]
+    > div {
+    height: 1.25rem;
+    min-height: 1.25rem;
+    padding-top: 0;
+    padding-bottom: 0;
+    align-items: center;
+  }
+
   /*
    * O caractere Unicode de naipe usa métricas tipográficas diferentes no iOS/Safari,
    * o que fazia o símbolo ficar visualmente deslocado e, em alguns casos, recortado.
@@ -12,8 +23,8 @@
     display: inline-flex;
     width: 2.5rem;
     min-width: 2.5rem;
-    height: 1.5rem;
-    min-height: 1.5rem;
+    height: 1.25rem;
+    min-height: 1.25rem;
     padding: 0;
     align-items: center;
     justify-content: center;
