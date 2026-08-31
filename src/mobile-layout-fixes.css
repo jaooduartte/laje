@@ -1,29 +1,70 @@
 @media (max-width: 639px) {
-  /* Equaliza a altura do badge de naipe com os demais badges da listagem. */
+  /*
+   * O caractere Unicode de naipe usa métricas tipográficas diferentes no iOS/Safari,
+   * o que fazia o símbolo ficar visualmente deslocado e, em alguns casos, recortado.
+   * No mobile, o badge passa a desenhar o ícone como SVG vetorial (geometria Lucide),
+   * independente de baseline, line-height ou fonte do sistema.
+   */
   .list-item-card
     [class~="gap-1.5"][class~="sm:flex-col"]
     > :first-child {
-    min-height: 0;
-  }
-
-  /* No mobile, mantém apenas o ícone do naipe e o centraliza no badge. */
-  .list-item-card
-    [class~="gap-1.5"][class~="sm:flex-col"]
-    > :first-child
-    > span:first-child {
-    display: flex;
-    width: 100%;
-    height: 100%;
+    position: relative;
+    display: inline-flex;
+    width: 2.5rem;
+    min-width: 2.5rem;
+    height: 1.5rem;
+    min-height: 1.5rem;
+    padding: 0;
     align-items: center;
     justify-content: center;
-    line-height: 1;
   }
 
   .list-item-card
     [class~="gap-1.5"][class~="sm:flex-col"]
     > :first-child
-    > span:last-child {
+    > span {
     display: none !important;
+  }
+
+  .list-item-card
+    [class~="gap-1.5"][class~="sm:flex-col"]
+    > :first-child::before {
+    content: "";
+    display: block;
+    width: 0.875rem;
+    height: 0.875rem;
+    flex: 0 0 auto;
+    background-color: currentColor;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+  }
+
+  /* Masculino — Lucide Mars. */
+  .list-item-card
+    [class~="gap-1.5"][class~="sm:flex-col"]
+    > :first-child[class~="bg-sky-100"]::before {
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='black'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M16%203h5v5'/%3E%3Cpath%20d='m21%203-6.75%206.75'/%3E%3Ccircle%20cx='10'%20cy='14'%20r='6'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='black'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M16%203h5v5'/%3E%3Cpath%20d='m21%203-6.75%206.75'/%3E%3Ccircle%20cx='10'%20cy='14'%20r='6'/%3E%3C/svg%3E");
+  }
+
+  /* Feminino — Lucide Venus. */
+  .list-item-card
+    [class~="gap-1.5"][class~="sm:flex-col"]
+    > :first-child[class~="bg-rose-100"]::before {
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='black'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M12%2015v7'/%3E%3Cpath%20d='M9%2019h6'/%3E%3Ccircle%20cx='12'%20cy='9'%20r='6'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='black'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M12%2015v7'/%3E%3Cpath%20d='M9%2019h6'/%3E%3Ccircle%20cx='12'%20cy='9'%20r='6'/%3E%3C/svg%3E");
+  }
+
+  /* Misto — Lucide VenusAndMars. */
+  .list-item-card
+    [class~="gap-1.5"][class~="sm:flex-col"]
+    > :first-child[class~="bg-secondary"]::before {
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='black'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M10%2020h4'/%3E%3Cpath%20d='M12%2016v6'/%3E%3Cpath%20d='M17%202h4v4'/%3E%3Cpath%20d='m21%202-5.46%205.46'/%3E%3Ccircle%20cx='12'%20cy='11'%20r='5'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='black'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M10%2020h4'/%3E%3Cpath%20d='M12%2016v6'/%3E%3Cpath%20d='M17%202h4v4'/%3E%3Cpath%20d='m21%202-5.46%205.46'/%3E%3Ccircle%20cx='12'%20cy='11'%20r='5'/%3E%3C/svg%3E");
   }
 
   /* Dá um leve respiro entre os controles de cartões das duas atléticas. */
