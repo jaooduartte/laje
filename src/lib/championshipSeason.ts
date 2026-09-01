@@ -4,6 +4,7 @@ import {
   ChampionshipCode,
   ChampionshipSeasonDivisionFormat,
   ChampionshipSeasonDivisionSettlementMode,
+  YellowCardResetPhase,
   ChampionshipSportTieBreakerRule,
   TeamDivision,
 } from "@/lib/enums";
@@ -14,6 +15,7 @@ export interface ChampionshipSeasonSettingsShape {
   principal_slots_count: number | null;
   principal_relegation_count: number | null;
   access_promotion_count: number | null;
+  yellow_card_reset_phase: YellowCardResetPhase;
 }
 
 export interface ChampionshipSeasonDivisionMovementPreview {
@@ -42,6 +44,7 @@ export function resolveChampionshipSeasonSettingsFromBracketPayload(
   const values = seasonSettings as Record<string, unknown>;
   const divisionFormat = values.division_format;
   const divisionSettlementMode = values.division_settlement_mode;
+  const yellowCardResetPhase = values.yellow_card_reset_phase;
 
   if (
     (divisionFormat != ChampionshipSeasonDivisionFormat.UNIFIED &&
@@ -51,6 +54,11 @@ export function resolveChampionshipSeasonSettingsFromBracketPayload(
         ChampionshipSeasonDivisionSettlementMode.TOP_N_TO_PRINCIPAL &&
       divisionSettlementMode !=
         ChampionshipSeasonDivisionSettlementMode.PROMOTION_RELEGATION)
+    ||
+    (yellowCardResetPhase != null &&
+      yellowCardResetPhase != YellowCardResetPhase.NONE &&
+      yellowCardResetPhase != YellowCardResetPhase.QUARTERFINAL &&
+      yellowCardResetPhase != YellowCardResetPhase.SEMIFINAL)
   ) {
     return null;
   }
@@ -66,6 +74,9 @@ export function resolveChampionshipSeasonSettingsFromBracketPayload(
       values.principal_relegation_count,
     ),
     access_promotion_count: resolveOptionalCount(values.access_promotion_count),
+    yellow_card_reset_phase:
+      (yellowCardResetPhase as YellowCardResetPhase | undefined) ??
+      YellowCardResetPhase.NONE,
   };
 }
 
@@ -80,6 +91,7 @@ export function resolveDefaultChampionshipSeasonSettings(
       principal_slots_count: null,
       principal_relegation_count: 2,
       access_promotion_count: 2,
+      yellow_card_reset_phase: YellowCardResetPhase.NONE,
     };
   }
 
@@ -89,6 +101,7 @@ export function resolveDefaultChampionshipSeasonSettings(
     principal_slots_count: null,
     principal_relegation_count: null,
     access_promotion_count: null,
+    yellow_card_reset_phase: YellowCardResetPhase.NONE,
   };
 }
 
@@ -104,6 +117,7 @@ export function resolveEffectiveChampionshipSeasonSettings({
     | "principal_slots_count"
     | "principal_relegation_count"
     | "access_promotion_count"
+    | "yellow_card_reset_phase"
   > | null;
 }): ChampionshipSeasonSettingsShape {
   if (!seasonSettings) {
@@ -120,6 +134,7 @@ export function resolveEffectiveChampionshipSeasonSettings({
         principal_slots_count: null,
         principal_relegation_count: null,
         access_promotion_count: null,
+        yellow_card_reset_phase: YellowCardResetPhase.NONE,
       };
     }
 
@@ -132,6 +147,7 @@ export function resolveEffectiveChampionshipSeasonSettings({
     principal_slots_count: seasonSettings.principal_slots_count,
     principal_relegation_count: seasonSettings.principal_relegation_count,
     access_promotion_count: seasonSettings.access_promotion_count,
+    yellow_card_reset_phase: seasonSettings.yellow_card_reset_phase,
   };
 }
 

@@ -565,8 +565,8 @@ describe("AdminPageView tabs", () => {
     );
   });
 
-  it("mantém Configurações como última aba mesmo quando Agenda está visível", () => {
-    const championship = buildChampionship();
+  it("mantém Configurações como última aba quando Reprogramar agenda está visível em revisão", () => {
+    const championship = buildChampionship({ status: ChampionshipStatus.REVIEW });
     const match = buildMatch();
 
     render(
@@ -728,7 +728,7 @@ describe("AdminPageView tabs", () => {
     expect(screen.queryByRole("tab", { name: "Classificação" })).not.toBeInTheDocument();
   });
 
-  it("mantém Agenda e remove Provas Individuais sem abas operacionais em upcoming", () => {
+  it("remove Reprogramar agenda fora do status em revisão", () => {
     const championship = buildChampionship({
       status: ChampionshipStatus.UPCOMING,
     });
@@ -811,7 +811,7 @@ describe("AdminPageView tabs", () => {
     expect(screen.queryByRole("tab", { name: "Conferência de Súmula" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Sorteios" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Classificação" })).not.toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Reprogramar agenda" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Reprogramar agenda" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Provas Individuais" })).not.toBeInTheDocument();
   });
 

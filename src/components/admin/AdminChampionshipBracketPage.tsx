@@ -31,6 +31,7 @@ import {
   ChampionshipCode,
   ChampionshipSeasonDivisionFormat,
   ChampionshipSeasonDivisionSettlementMode,
+  YellowCardResetPhase,
   ChampionshipSportNaipeMode,
   MatchNaipe,
   TeamDivision,
@@ -718,6 +719,7 @@ function resolveDefaultSeasonSettings(
       principal_slots_count: null,
       principal_relegation_count: 2,
       access_promotion_count: 2,
+      yellow_card_reset_phase: YellowCardResetPhase.NONE,
     };
   }
 
@@ -727,6 +729,7 @@ function resolveDefaultSeasonSettings(
     principal_slots_count: null,
     principal_relegation_count: null,
     access_promotion_count: null,
+    yellow_card_reset_phase: YellowCardResetPhase.NONE,
   };
 }
 
@@ -2012,6 +2015,7 @@ export function AdminChampionshipBracketPage({
       principal_relegation_count:
         persistedSeasonSettings.principal_relegation_count,
       access_promotion_count: persistedSeasonSettings.access_promotion_count,
+      yellow_card_reset_phase: persistedSeasonSettings.yellow_card_reset_phase,
     } satisfies ChampionshipSeasonSettingsInput;
   }, [defaultSeasonSettings, persistedSeasonSettings]);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
@@ -7498,6 +7502,8 @@ export function AdminChampionshipBracketPage({
         principal_slots_count: seasonSettings.principal_slots_count,
         principal_relegation_count: seasonSettings.principal_relegation_count,
         access_promotion_count: seasonSettings.access_promotion_count,
+        yellow_card_reset_phase:
+          seasonSettings.yellow_card_reset_phase ?? YellowCardResetPhase.NONE,
       });
 
       if (seasonSettingsSaveResponse.error) {
@@ -9812,6 +9818,44 @@ export function AdminChampionshipBracketPage({
                           : `Prévia esperada: os ${seasonSettings.principal_slots_count ?? 0} primeiros da classificação geral oficial final formam a divisão principal da próxima temporada.`}
                       </div>
                     </div>
+                  </div>
+
+                  <div className="mt-6 space-y-3 rounded-xl border border-border/40 bg-background/30 p-4">
+                    <div className="space-y-1">
+                      <p className="text-sm font-bold">Cartões amarelos</p>
+                      <p className="text-xs text-muted-foreground">
+                        Dois cartões amarelos deixam o atleta suspenso apenas
+                        de forma informativa para a próxima partida. O histórico
+                        continua disponível mesmo após o reset.
+                      </p>
+                    </div>
+                    <Select
+                      value={
+                        seasonSettings.yellow_card_reset_phase ??
+                        YellowCardResetPhase.NONE
+                      }
+                      onValueChange={(value) =>
+                        setSeasonSettings((currentSeasonSettings) => ({
+                          ...currentSeasonSettings,
+                          yellow_card_reset_phase: value as YellowCardResetPhase,
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="app-input-field max-w-md">
+                        <SelectValue placeholder="Reset dos cartões" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={YellowCardResetPhase.NONE}>
+                          Sem reset
+                        </SelectItem>
+                        <SelectItem value={YellowCardResetPhase.QUARTERFINAL}>
+                          Reset nas quartas de final
+                        </SelectItem>
+                        <SelectItem value={YellowCardResetPhase.SEMIFINAL}>
+                          Reset na semifinal
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>

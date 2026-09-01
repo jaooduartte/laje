@@ -475,8 +475,10 @@ function buildEditableScheduleSlots(date: string, currentSlotNumber = 1) {
 }
 
 function getMatchCardContainerByTeamName(teamName: string): HTMLElement {
-  const cardTitle = screen.getByText(teamName);
-  const cardContainer = cardTitle.closest(".list-item-card");
+  const cardContainer = screen
+    .getAllByText(teamName)
+    .map((element) => element.closest(".list-item-card"))
+    .find((element): element is HTMLElement => element != null);
 
   if (!cardContainer) {
     throw new Error(`Card do jogo não encontrado para o time ${teamName}.`);
@@ -687,7 +689,7 @@ describe("AdminMatches score sheet review", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("CAMALEÃO")).toBeInTheDocument();
+      expect(screen.getAllByText("CAMALEÃO").length).toBeGreaterThan(0);
     });
 
     expect(screen.queryByText("TAUROS")).not.toBeInTheDocument();
@@ -707,7 +709,9 @@ describe("AdminMatches score sheet review", () => {
       ],
     });
 
-    await screen.findByText("CASA REVIEW");
+    await waitFor(() => {
+      expect(screen.getAllByText("CASA REVIEW").length).toBeGreaterThan(0);
+    });
 
     expect(screen.queryByText("Encerrados")).not.toBeInTheDocument();
   });
@@ -748,7 +752,9 @@ describe("AdminMatches score sheet review", () => {
       ],
     });
 
-    await screen.findByText("TIME JOGO 5");
+    await waitFor(() => {
+      expect(screen.getAllByText("TIME JOGO 5").length).toBeGreaterThan(0);
+    });
 
     const renderedMarkup = document.body.innerHTML;
     expect(renderedMarkup.indexOf("TIME JOGO 5")).toBeLessThan(renderedMarkup.indexOf("TIME JOGO 7"));
@@ -779,7 +785,7 @@ describe("AdminMatches score sheet review", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("PENDENTE CASA")).toBeInTheDocument();
+      expect(screen.getAllByText("PENDENTE CASA").length).toBeGreaterThan(0);
     });
 
     expect(screen.queryByText("REVISADO CASA")).not.toBeInTheDocument();
@@ -787,8 +793,8 @@ describe("AdminMatches score sheet review", () => {
 
     fireEvent.click(screen.getByLabelText("Mostrar jogos revisados também"));
 
-    expect(screen.getByText("REVISADO CASA")).toBeInTheDocument();
-    expect(screen.getByText("PENDENTE CASA")).toBeInTheDocument();
+    expect(screen.getAllByText("REVISADO CASA").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("PENDENTE CASA").length).toBeGreaterThan(0);
   });
 
   it("abre revisão de súmula e salva premiações antes de marcar como revisado", async () => {
@@ -871,6 +877,144 @@ describe("AdminMatches score sheet review", () => {
     });
 
     expect(supabaseUpdateCalls).toHaveLength(0);
+  });
+
+  it("permite vincular opcionalmente cartões amarelos a atletas da mesma equipe", async () => {
+    supabaseRpcResponses.push(
+      {
+        data: {
+          match_id: "yellow-card-match",
+          home_team_id: "yellow-home",
+          away_team_id: "yellow-away",
+          required_home_goals: 0,
+          required_away_goals: 0,
+          required_home_yellow_cards: 2,
+          required_away_yellow_cards: 1,
+          supports_cards: true,
+          is_walkover: false,
+          home_players: [{ id: "yellow-home-player", name: "Atleta Casa" }],
+          away_players: [{ id: "yellow-away-player", name: "Atleta Visitante" }],
+          home_goals: [],
+          away_goals: [],
+          home_yellow_cards: [],
+          away_yellow_cards: [],
+        },
+        error: null,
+      },
+      { data: null, error: null },
+    );
+
+    renderAdminMatches({
+      viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
+      matches: [
+        buildMatch({
+          id: "yellow-card-match",
+          sport_id: "sport-cards",
+          status: MatchStatus.FINISHED,
+          supports_cards: true,
+          sports: buildSport({ id: "sport-cards", name: "Futsal" }),
+          home_team: buildTeam({ id: "yellow-home", name: "AMARELO CASA" }),
+          away_team: buildTeam({ id: "yellow-away", name: "AMARELO VISITANTE" }),
+        }),
+      ],
+    });
+
+    fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo AMARELO CASA x AMARELO VISITANTE"));
+    clickFirstMenuItemInMatchCard(getMatchCardContainerByTeamName("AMARELO CASA"), "Revisar súmula e premiações");
+
+    expect((await screen.findAllByText("Cartões amarelos"))).toHaveLength(2);
+    fireEvent.click(screen.getByRole("combobox", { name: "AMARELO CASA cartão amarelo 1" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Atleta Casa" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "AMARELO CASA cartão amarelo 2" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Atleta Casa" }));
+    expect(await screen.findByText(/Isso gera vermelho por acúmulo/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Salvar revisão" }));
+
+    await waitFor(() => {
+      expect(
+        supabaseRpcCalls.find(
+          (rpcCall) =>
+            rpcCall.functionName == "save_match_score_sheet_awards" &&
+            rpcCall.payload._match_id == "yellow-card-match",
+        )?.payload,
+      ).toMatchObject({
+        _home_yellow_card_players: [
+          { player_id: "yellow-home-player" },
+          { player_id: "yellow-home-player" },
+        ],
+        _away_yellow_card_players: [],
+      });
+    });
+  });
+
+  it("exige atleta para cada cartão vermelho e envia os vínculos individuais", async () => {
+    supabaseRpcResponses.push(
+      {
+        data: {
+          match_id: "red-card-match",
+          home_team_id: "red-home",
+          away_team_id: "red-away",
+          required_home_goals: 0,
+          required_away_goals: 0,
+          required_home_yellow_cards: 0,
+          required_away_yellow_cards: 0,
+          required_home_red_cards: 1,
+          required_away_red_cards: 0,
+          supports_cards: true,
+          is_walkover: false,
+          home_players: [{ id: "red-home-player", name: "Atleta Casa" }],
+          away_players: [{ id: "red-away-player", name: "Atleta Visitante" }],
+          home_goals: [],
+          away_goals: [],
+          home_yellow_cards: [],
+          away_yellow_cards: [],
+          home_red_cards: [],
+          away_red_cards: [],
+        },
+        error: null,
+      },
+      { data: null, error: null },
+    );
+
+    renderAdminMatches({
+      viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
+      matches: [
+        buildMatch({
+          id: "red-card-match",
+          sport_id: "sport-cards",
+          status: MatchStatus.FINISHED,
+          supports_cards: true,
+          home_red_cards: 1,
+          sports: buildSport({ id: "sport-cards", name: "Futsal" }),
+          home_team: buildTeam({ id: "red-home", name: "VERMELHO CASA" }),
+          away_team: buildTeam({ id: "red-away", name: "VERMELHO VISITANTE" }),
+        }),
+      ],
+    });
+
+    fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo VERMELHO CASA x VERMELHO VISITANTE"));
+    clickFirstMenuItemInMatchCard(getMatchCardContainerByTeamName("VERMELHO CASA"), "Revisar súmula e premiações");
+
+    expect(await screen.findAllByText("Cartões vermelhos")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("combobox", { name: "VERMELHO CASA cartão vermelho 1" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Atleta Casa" }));
+    expect(screen.getByRole("button", { name: "Salvar revisão" })).not.toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Salvar revisão" }));
+
+    await waitFor(() => {
+      expect(
+        supabaseRpcCalls.find(
+          (rpcCall) =>
+            rpcCall.functionName == "save_match_score_sheet_awards" &&
+            rpcCall.payload._match_id == "red-card-match",
+        )?.payload,
+      ).toMatchObject({
+        _home_red_card_players: [{ player_id: "red-home-player" }],
+        _away_red_card_players: [],
+      });
+    });
   });
 
   it("mostra aviso de que pênaltis não entram na artilharia na revisão de súmula", async () => {
@@ -965,7 +1109,9 @@ describe("AdminMatches score sheet review", () => {
       ],
     });
 
-    await screen.findByText("FILTER A");
+    await waitFor(() => {
+      expect(screen.getAllByText("FILTER A").length).toBeGreaterThan(0);
+    });
 
     fireEvent.click(screen.getByTestId("sport-filter-mock"));
 
@@ -1037,7 +1183,7 @@ describe("AdminMatches score sheet review", () => {
     expect(toastErrorMock).not.toHaveBeenCalled();
   });
 
-  it("mantém a revisão individual obrigatória em lote para Futebol Society da Copa Laje Society", () => {
+  it("mantém a revisão individual obrigatória em lote para Futebol Society da Copa Laje Society", async () => {
     renderAdminMatches({
       viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
       selectedChampionship: buildChampionship({
@@ -1079,9 +1225,11 @@ describe("AdminMatches score sheet review", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Marcar selecionados como revisados" }));
 
-    expect(toastErrorMock).toHaveBeenCalledWith(
-      "Para marcar como revisado, use a revisão individual de súmula para registrar os autores dos gols.",
-    );
+    await waitFor(() => {
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        "Para marcar como revisado, use a revisão individual de súmula para registrar os vínculos obrigatórios.",
+      );
+    });
     expect(supabaseUpdateCalls).toHaveLength(0);
   });
 
@@ -1157,6 +1305,21 @@ describe("AdminMatches score sheet review", () => {
     await waitFor(() => {
       expect(screen.getByTitle("Conferido com súmula")).toBeInTheDocument();
     });
+  });
+
+  it("preenche a área de filtros e não oferece criação manual de jogo", () => {
+    renderAdminMatches({
+      viewMode: AdminMatchesViewMode.DEFAULT,
+      matches: [],
+    });
+
+    expect(screen.getByTestId("admin-matches-filters")).toHaveClass(
+      "flex",
+      "flex-wrap",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Criar jogo" }),
+    ).not.toBeInTheDocument();
   });
 
   it("centraliza o badge mobile de naipe e mantém altura padronizada", async () => {
@@ -1520,12 +1683,10 @@ describe("AdminMatches score sheet review", () => {
       error: null,
     });
 
-    const sourceCardTitle = await screen.findByText("ORIGEM CASA");
-    const sourceCardContainer = sourceCardTitle.closest(".list-item-card");
-    expect(sourceCardContainer).not.toBeNull();
+    const sourceCardContainer = getMatchCardContainerByTeamName("ORIGEM CASA");
 
     fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo ORIGEM CASA x ORIGEM VISITANTE"));
-    clickFirstMenuItemInMatchCard(sourceCardContainer as HTMLElement, "Trocar jogo");
+    clickFirstMenuItemInMatchCard(sourceCardContainer, "Trocar jogo");
 
     expect(await screen.findByText("Trocar jogo na fila")).toBeInTheDocument();
     expect(await screen.findByText("12/04 • 05:00 • Jogo 18 • ORIGEM CASA x ORIGEM VISITANTE")).toBeInTheDocument();
@@ -1600,15 +1761,17 @@ describe("AdminMatches score sheet review", () => {
       ],
     });
 
-    expect(await screen.findByText("DATA PRIMEIRO")).toBeInTheDocument();
-    expect(screen.getByText("DATA SEGUNDO")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getAllByText("DATA PRIMEIRO").length).toBeGreaterThan(0);
+    });
+    expect(screen.getAllByText("DATA SEGUNDO").length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByText("Todas as datas"));
     fireEvent.click(await screen.findByText("12/04/2026"));
 
     await waitFor(() => {
       expect(screen.queryByText("DATA PRIMEIRO")).not.toBeInTheDocument();
-      expect(screen.getByText("DATA SEGUNDO")).toBeInTheDocument();
+      expect(screen.getAllByText("DATA SEGUNDO").length).toBeGreaterThan(0);
     });
   });
 
@@ -2104,12 +2267,10 @@ describe("AdminMatches score sheet review", () => {
       ],
     });
 
-    const card = await screen.findByText("LOADER CASA");
-    const cardContainer = card.closest(".list-item-card");
-    expect(cardContainer).not.toBeNull();
+    const cardContainer = getMatchCardContainerByTeamName("LOADER CASA");
 
     fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo LOADER CASA x LOADER VISITANTE"));
-    clickFirstMenuItemInMatchCard(cardContainer as HTMLElement, "Revisar súmula e premiações");
+    clickFirstMenuItemInMatchCard(cardContainer, "Revisar súmula e premiações");
 
     expect(await screen.findByText("Revisão de súmula e premiações")).toBeInTheDocument();
     const saveButton = screen.getByRole("button", { name: "Salvar revisão" });

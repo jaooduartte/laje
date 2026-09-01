@@ -23,6 +23,7 @@ import { AdminPublicAccessSettings } from "@/components/admin/AdminPublicAccessS
 import { AdminAccount } from "@/components/admin/AdminAccount";
 import { AdminUsers } from "@/components/admin/AdminUsers";
 import { AdminStandings } from "@/components/admin/AdminStandings";
+import { AdminDiscipline } from "@/components/admin/AdminDiscipline";
 import { AdminChampionshipBracketPage } from "@/components/admin/AdminChampionshipBracketPage";
 import { AdminChampionshipSchedule } from "@/components/admin/AdminChampionshipSchedule";
 import { AdminInterlajeOpeningCeremonyBonus } from "@/components/admin/AdminInterlajeOpeningCeremonyBonus";
@@ -150,10 +151,12 @@ interface AdminPageViewProps {
 }
 
 const SCORE_SHEET_REVIEW_TAB_VALUE = "score_sheet_review";
+const DISCIPLINE_TAB_VALUE = "discipline";
 const TIE_BREAKS_TAB_VALUE = "tie_breaks";
 type AdminPageTabValue =
   | AdminPanelTab
   | typeof SCORE_SHEET_REVIEW_TAB_VALUE
+  | typeof DISCIPLINE_TAB_VALUE
   | typeof TIE_BREAKS_TAB_VALUE;
 
 interface AdminTabItem {
@@ -258,6 +261,9 @@ export function AdminPageView({
       championship: selectedChampionship,
       seasonYear: selectedChampionship.current_season_year ?? null,
     });
+  const canViewScheduleDuringReview =
+    canViewScheduleTab &&
+    selectedChampionship.status === ChampionshipStatus.REVIEW;
 
   const totalSorteiosCount =
     pendingTieBreaksCount + pendingAwardDrawContexts.length;
@@ -282,6 +288,10 @@ export function AdminPageView({
       nextAdminTabItems.push({
         value: SCORE_SHEET_REVIEW_TAB_VALUE,
         label: "Conferência de Súmula",
+      });
+      nextAdminTabItems.push({
+        value: DISCIPLINE_TAB_VALUE,
+        label: "Disciplina",
       });
     }
 
@@ -354,7 +364,7 @@ export function AdminPageView({
       });
     }
 
-    if (canViewScheduleTab) {
+    if (canViewScheduleDuringReview) {
       nextAdminTabItems.push({
         value: AdminPanelTab.CHAMPIONSHIP_SCHEDULE,
         label: "Reprogramar agenda",
@@ -371,7 +381,7 @@ export function AdminPageView({
     return nextAdminTabItems;
   }, [
     canViewBracketSetupTab,
-    canViewScheduleTab,
+    canViewScheduleDuringReview,
     canViewControlTab,
     canViewEventsTab,
     canViewLinksTab,
@@ -673,7 +683,7 @@ export function AdminPageView({
             </TabsContent>
           ) : null}
 
-          {canViewScheduleTab ? (
+          {canViewScheduleDuringReview ? (
             <TabsContent value={AdminPanelTab.CHAMPIONSHIP_SCHEDULE}>
               {loadingChampionshipBracket ? (
                 <PageContentSkeleton filterCount={3} contentCount={3} />
@@ -767,6 +777,17 @@ export function AdminPageView({
             </TabsContent>
           ) : null}
 
+          {canViewScoreSheetReviewTab ? (
+            <TabsContent value={DISCIPLINE_TAB_VALUE}>
+              <AdminDiscipline
+                championship={selectedChampionship}
+                sports={sports}
+                championshipSports={championshipSports}
+                availableSeasonYears={availableMatchSeasonYears}
+              />
+            </TabsContent>
+          ) : null}
+
           {canViewTieBreaksTab ? (
             <TabsContent value={TIE_BREAKS_TAB_VALUE}>
               <AdminMatches
@@ -805,6 +826,7 @@ export function AdminPageView({
                 isInitialLoading={initialOperationalLoading}
                 championshipStatus={selectedChampionship.status}
                 championshipSports={championshipSports}
+                usesDivisions={selectedChampionshipHasSeasonDivisions}
                 championshipBracketView={championshipBracketView}
                 matchBracketContextByMatchId={matchBracketContextByMatchId}
                 matchRepresentationByMatchId={matchRepresentationByMatchId}

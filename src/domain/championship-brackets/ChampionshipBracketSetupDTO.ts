@@ -13,6 +13,7 @@ import { resolveCompetitionKnockoutPairingModeValue } from "@/domain/championshi
 import {
   ChampionshipSeasonDivisionFormat,
   ChampionshipSeasonDivisionSettlementMode,
+  YellowCardResetPhase,
 } from "@/lib/enums";
 
 const COMPETITION_DIVISION_WITHOUT_DIVISION = "WITHOUT_DIVISION";
@@ -1624,6 +1625,9 @@ export class ChampionshipBracketSetupDTO {
           this.form_values.season_settings.principal_relegation_count,
         access_promotion_count:
           this.form_values.season_settings.access_promotion_count,
+        yellow_card_reset_phase:
+          this.form_values.season_settings.yellow_card_reset_phase ??
+          YellowCardResetPhase.NONE,
       },
       enabled_sport_ids: [...new Set(this.form_values.enabled_sport_ids)],
       participants: normalizedParticipants,

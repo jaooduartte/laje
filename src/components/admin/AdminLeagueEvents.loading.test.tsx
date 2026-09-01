@@ -253,6 +253,7 @@ describe("AdminLeagueEvents loading states", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     createDelay.value = false;
     updateDelay.value = false;
     deleteDelay.value = false;
@@ -399,6 +400,9 @@ describe("AdminLeagueEvents loading states", () => {
   });
 
   it("oculta eventos passados até que sejam solicitados", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 4, 15, 12));
+
     const formatLocalDate = (date: Date) => {
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, "0");

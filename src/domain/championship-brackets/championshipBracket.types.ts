@@ -3,6 +3,7 @@ import type {
   ChampionshipSchedulePeriod,
   ChampionshipSeasonDivisionFormat,
   ChampionshipSeasonDivisionSettlementMode,
+  YellowCardResetPhase,
   ChampionshipBracketTieBreakContextType,
   MatchManualRepresentationMode,
   MatchNaipe,
@@ -16,6 +17,7 @@ export interface ChampionshipSeasonSettingsInput {
   principal_slots_count: number | null;
   principal_relegation_count: number | null;
   access_promotion_count: number | null;
+  yellow_card_reset_phase?: YellowCardResetPhase;
 }
 
 export interface ChampionshipBracketParticipantModalityInput {

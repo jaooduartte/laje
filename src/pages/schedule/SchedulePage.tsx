@@ -9,7 +9,12 @@ import { useChampionshipSeasonYears } from "@/hooks/useChampionshipSeasonYears";
 import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividualEvents";
 import { useSelectedChampionship } from "@/hooks/useSelectedChampionship";
 import { useChampionshipSelection } from "@/hooks/useChampionshipSelection";
-import { MatchNaipe, MatchStatus, TeamDivision } from "@/lib/enums";
+import {
+  ChampionshipSportNaipeMode,
+  MatchNaipe,
+  MatchStatus,
+  TeamDivision,
+} from "@/lib/enums";
 import { resolveIndividualSportIds } from "@/lib/individualEvents";
 import {
   EMPTY_CHAMPIONSHIP_BRACKET_VIEW,
@@ -87,7 +92,9 @@ export function SchedulePage() {
     championshipId: selectedChampionshipId,
     seasonYear: correctedYearFilter,
   });
-  const { sports } = useSports({ championshipId: selectedChampionshipId });
+  const { sports, championshipSports } = useSports({
+    championshipId: selectedChampionshipId,
+  });
   const individualSportIds = useMemo(() => resolveIndividualSportIds(sports), [sports]);
   const { teams } = useTeams({ includeInactive: true });
   const visibleChampionshipBracketView = useMemo(() => {
@@ -106,6 +113,30 @@ export function SchedulePage() {
   const [matchesItemsPerPage, setMatchesItemsPerPage] = useState(DEFAULT_PAGINATION_ITEMS_PER_PAGE);
   const [filterOptionRows, setFilterOptionRows] = useState<Array<{ location: string | null; court_name: string | null }>>([]);
 
+  const availableNaipeOptions = useMemo(() => {
+    const scopedChampionshipSports = sportFilter
+      ? championshipSports.filter(
+          (championshipSport) => championshipSport.sport_id == sportFilter,
+        )
+      : championshipSports;
+
+    return [
+      ...(scopedChampionshipSports.some(
+        (championshipSport) =>
+          championshipSport.naipe_mode ==
+          ChampionshipSportNaipeMode.MASCULINO_FEMININO,
+      )
+        ? [MatchNaipe.MASCULINO, MatchNaipe.FEMININO]
+        : []),
+      ...(scopedChampionshipSports.some(
+        (championshipSport) =>
+          championshipSport.naipe_mode == ChampionshipSportNaipeMode.MISTO,
+      )
+        ? [MatchNaipe.MISTO]
+        : []),
+    ];
+  }, [championshipSports, sportFilter]);
+
   useEffect(() => {
     setSportFilter(null);
     setNaipeFilter(null);
@@ -119,6 +150,12 @@ export function SchedulePage() {
     setMatchesCurrentPage(1);
     setMatchesItemsPerPage(DEFAULT_PAGINATION_ITEMS_PER_PAGE);
   }, [selectedChampionshipCode, selectedChampionshipSeasonYear]);
+
+  useEffect(() => {
+    if (naipeFilter && !availableNaipeOptions.includes(naipeFilter)) {
+      setNaipeFilter(null);
+    }
+  }, [availableNaipeOptions, naipeFilter]);
 
   useEffect(() => {
     setMatchesCurrentPage(1);
@@ -627,7 +664,7 @@ export function SchedulePage() {
 
   return (
     <SchedulePageView
-      isLoading={matchesLoading || championshipsLoading || individualSessionsLoading}
+      isLoading={matchesLoading || championshipsLoading}
       selectedChampionship={selectedChampionship}
       championships={championships}
       selectedChampionshipCode={selectedChampionshipCode}
@@ -635,6 +672,7 @@ export function SchedulePage() {
       teams={teams}
       sports={sports}
       sportFilter={sportFilter}
+      availableNaipeOptions={availableNaipeOptions}
       naipeFilter={naipeFilter}
       teamFilter={teamFilter}
       groupFilter={groupFilter}
@@ -655,7 +693,7 @@ export function SchedulePage() {
       individualEvents={visibleIndividualEvents}
       individualSessions={displayIndividualSessions}
       matches={displayMatches}
-      isMatchesFetching={matchesFetching}
+      isMatchesFetching={matchesFetching || individualSessionsLoading}
       matchesCurrentPage={matchesCurrentPage}
       matchesItemsPerPage={matchesItemsPerPage}
       matchesTotalPages={matchesTotalPages}
