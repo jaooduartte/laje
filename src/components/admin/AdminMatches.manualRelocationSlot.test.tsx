@@ -20,4 +20,15 @@ describe("AdminMatches manual relocation slot flow", () => {
     expect(componentSource).toContain("Calcular prévia");
     expect(componentSource).toContain("Confirmar encaixe");
   });
+
+  it("identifies displaced planned slots in both relocation previews", () => {
+    expect(componentSource).toContain(
+      "slots planejados posteriores podem ser reposicionados",
+    );
+    expect(componentSource).toContain(
+      "A prévia também mostra os slots planejados que serão",
+    );
+    expect(componentSource).toContain("Slot planejado reposicionado");
+    expect(componentSource).toContain("displaced_placeholders_count");
+  });
 });

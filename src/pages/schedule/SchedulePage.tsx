@@ -28,6 +28,7 @@ import {
 import { DEFAULT_PAGINATION_ITEMS_PER_PAGE } from "@/components/ui/app-pagination-controls";
 import { SchedulePageView } from "@/pages/schedule/SchedulePageView";
 import { resolveKnockoutRoundLabel } from "@/lib/championship";
+import { resolveKnockoutDisplayMatchNumberById } from "@/domain/championship-brackets/championshipBracketDisplayMatchNumbers";
 import {
   type PublicScheduleTimelineItem,
   type ScheduledKnockoutPlaceholder,
@@ -301,6 +302,17 @@ export function SchedulePage() {
     sortMode: statusFilter === MatchStatus.SCHEDULED ? "SCHEDULED" : "FINISHED",
   });
   const {
+    matches: storedScheduledMatchesForMatchNumbering,
+  } = useMatches({
+    championshipId: selectedChampionshipId,
+    seasonYear: correctedYearFilter,
+    statuses: [MatchStatus.SCHEDULED],
+    includePendingManualRelocation: true,
+    sortMode: "SCHEDULED",
+    includeRealtime: false,
+    enabled: statusFilter == MatchStatus.SCHEDULED,
+  });
+  const {
     events: championshipIndividualEvents,
     sessions: championshipIndividualSessions,
     loading: individualSessionsLoading,
@@ -426,6 +438,12 @@ export function SchedulePage() {
       return [] as ScheduledKnockoutPlaceholder[];
     }
 
+    const knockoutDisplayMatchNumberById =
+      resolveKnockoutDisplayMatchNumberById(
+        visibleChampionshipBracketView,
+        storedScheduledMatchesForMatchNumbering,
+      );
+
     return visibleChampionshipBracketView.competitions.flatMap((competition) => {
       const totalRounds = competition.knockout_matches.reduce((currentMaxRound, knockoutMatch) => {
         if (knockoutMatch.is_third_place) {
@@ -482,6 +500,8 @@ export function SchedulePage() {
           round_number: knockoutMatch.round_number,
           slot_number: knockoutMatch.slot_number,
           is_third_place: knockoutMatch.is_third_place,
+          display_match_number:
+            knockoutDisplayMatchNumberById[knockoutMatch.id] ?? null,
           scheduled_date: knockoutMatch.scheduled_date!,
           queue_position: knockoutMatch.queue_position,
           scheduled_slot: knockoutMatch.scheduled_slot ?? null,
@@ -506,6 +526,7 @@ export function SchedulePage() {
     sportFilter,
     statusFilter,
     teamFilter,
+    storedScheduledMatchesForMatchNumbering,
     visibleChampionshipBracketView,
   ]);
 

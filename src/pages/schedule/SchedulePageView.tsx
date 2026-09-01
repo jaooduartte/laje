@@ -657,8 +657,10 @@ export function SchedulePageView({
                                       "dd/MM",
                                       { locale: ptBR },
                                     )}
-                                    {placeholder.scheduled_slot != null
-                                      ? ` • Jogo ${placeholder.scheduled_slot}`
+                                    {placeholder.display_match_number != null
+                                      ? ` • Jogo ${placeholder.display_match_number}`
+                                      : placeholder.scheduled_slot != null
+                                        ? ` • Jogo ${placeholder.scheduled_slot}`
                                       : placeholder.queue_position != null
                                         ? ` • Fila ${placeholder.queue_position}`
                                         : ""}

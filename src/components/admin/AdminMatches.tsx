@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MatchListSkeleton } from "@/components/skeletons/MatchListSkeleton";
+import {
+  type ScheduledKnockoutPlaceholder,
+  resolvePublicScheduleTimeLabel,
+} from "@/domain/public-schedule/publicScheduleTimeline";
 import type { CheckedState } from "@radix-ui/react-checkbox";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -201,6 +205,10 @@ import {
   resolveShouldRedistributeBracketScheduleAfterMatchEdit,
 } from "@/components/admin/adminMatchesSchedule.utils";
 import { AdminMatchesViewMode } from "@/components/admin/adminMatches.types";
+import {
+  resolveAdminMatchesKnockoutPlaceholders,
+  resolveAdminMatchesScheduleItems,
+} from "@/components/admin/adminMatchesScheduleItems.utils";
 import { useChampionshipCorrectedGroupStandings } from "@/hooks/useChampionshipCorrectedGroupStandings";
 import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividualEvents";
 import { useChampionshipSeasonRuntime } from "@/hooks/useChampionshipSeasonRuntime";
@@ -621,6 +629,82 @@ function resolveBrazilianDateLabel(dateValue: string | null): string {
   return format(new Date(`${dateValue}T12:00:00`), "dd/MM/yyyy", {
     locale: ptBR,
   });
+}
+
+function isManualRelocationPlaceholderItem(item: {
+  item_type?: "MATCH" | "KNOCKOUT_PLACEHOLDER";
+}) {
+  return item.item_type == "KNOCKOUT_PLACEHOLDER";
+}
+
+function resolveManualRelocationItemLabel(item: {
+  label?: string | null;
+  item_type?: "MATCH" | "KNOCKOUT_PLACEHOLDER";
+}) {
+  if (item.label) {
+    return item.label;
+  }
+
+  return isManualRelocationPlaceholderItem(item) ? "A definir" : "Jogo";
+}
+
+function AdminMatchesKnockoutPlaceholderCard({
+  placeholder,
+}: {
+  placeholder: ScheduledKnockoutPlaceholder;
+}) {
+  const scheduledTimeLabel = resolvePublicScheduleTimeLabel(
+    placeholder.start_time,
+  );
+  const slotLabel =
+    placeholder.display_match_number ??
+    placeholder.scheduled_slot ??
+    placeholder.queue_position ??
+    null;
+
+  return (
+    <div className="list-item-card px-4 py-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="flex flex-col gap-2 sm:w-44 sm:shrink-0">
+          <span className="shrink-0 text-xs font-medium uppercase text-muted-foreground">
+            {placeholder.sport_name}
+          </span>
+          <div className="flex flex-wrap items-center gap-1.5 sm:flex-col sm:items-start sm:gap-1">
+            <AppBadge tone={resolveMatchNaipeBadgeTone(placeholder.naipe)}>
+              {MATCH_NAIPE_LABELS[placeholder.naipe]}
+            </AppBadge>
+            <AppBadge tone={AppBadgeTone.WARNING}>A definir</AppBadge>
+            {placeholder.division ? (
+              <AppBadge tone={TEAM_DIVISION_BADGE_TONES[placeholder.division]}>
+                {TEAM_DIVISION_LABELS[placeholder.division]}
+              </AppBadge>
+            ) : null}
+            <AppBadge tone={AppBadgeTone.NEUTRAL}>
+              {placeholder.stage_label}
+            </AppBadge>
+          </div>
+        </div>
+
+        <div className="min-w-0 flex-1 text-center">
+          <p className="font-display text-sm font-semibold text-muted-foreground">
+            A definir <span className="mx-2">×</span> A definir
+          </p>
+          <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+            <p>Representação: {placeholder.stage_label}</p>
+            {scheduledTimeLabel ? (
+              <p>Horário planejado: {scheduledTimeLabel}</p>
+            ) : null}
+            <p>
+              Local: {placeholder.location ?? "A definir"}
+              {placeholder.court_name ? ` • ${placeholder.court_name}` : ""}
+              {slotLabel != null ? ` • Jogo ${slotLabel}` : ""}
+            </p>
+            <p>{resolveBrazilianDateLabel(placeholder.scheduled_date)}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function resolveSafeScoreValue(value: number): number {
@@ -3131,6 +3215,73 @@ export function AdminMatches({
     operationalVisualQueuePositionByMatchId,
   ]);
 
+  const knockoutPlaceholders = useMemo(() => {
+    return resolveAdminMatchesKnockoutPlaceholders({
+      championshipBracketView,
+      matchesForMatchNumbering: matches,
+      sportId:
+        matchesSportFilter == ALL_MATCHES_SPORT_FILTER
+          ? null
+          : matchesSportFilter,
+      scheduledDate:
+        matchesDateFilter == ALL_MATCHES_DATE_FILTER
+          ? null
+          : matchesDateFilter,
+      naipe:
+        matchesNaipeFilter == ALL_MATCHES_NAIPE_FILTER
+          ? null
+          : (matchesNaipeFilter as MatchNaipe),
+      division:
+        !championshipUsesDivisions ||
+        matchesDivisionFilter == ALL_MATCHES_DIVISION_FILTER
+          ? null
+          : (matchesDivisionFilter as TeamDivision),
+      location:
+        matchesLocationFilter == ALL_MATCHES_LOCATION_FILTER
+          ? null
+          : matchesLocationFilter,
+      courtName:
+        matchesCourtFilter == ALL_MATCHES_COURT_FILTER
+          ? null
+          : matchesCourtFilter,
+      shouldIncludeScheduledItems:
+        !isScoreSheetReviewMode &&
+        !isTieBreaksMode &&
+        matchesStatusFilter != MATCHES_STATUS_FILTER_LIVE &&
+        matchesStatusFilter != MATCHES_STATUS_FILTER_FINISHED,
+      shouldExcludePlaceholdersForTeamOrGroupFilter:
+        matchesTeamFilter != ALL_MATCHES_TEAM_FILTER ||
+        matchesGroupFilter != ALL_MATCHES_GROUP_FILTER,
+    });
+  }, [
+    championshipBracketView,
+    championshipUsesDivisions,
+    isScoreSheetReviewMode,
+    isTieBreaksMode,
+    matchesCourtFilter,
+    matchesDateFilter,
+    matchesDivisionFilter,
+    matchesGroupFilter,
+    matchesLocationFilter,
+    matchesNaipeFilter,
+    matchesSportFilter,
+    matchesStatusFilter,
+    matchesTeamFilter,
+    matches,
+  ]);
+
+  const scheduledListItems = useMemo(() => {
+    return resolveAdminMatchesScheduleItems({
+      matches: filteredAndSortedMatches,
+      placeholders: knockoutPlaceholders,
+      estimatedStartTimeByMatchId,
+    });
+  }, [
+    estimatedStartTimeByMatchId,
+    filteredAndSortedMatches,
+    knockoutPlaceholders,
+  ]);
+
   const visibleIndividualSessions = useMemo(() => {
     return individualSessionsFilteredByBaseCriteria.filter((session) => {
       if (
@@ -3312,15 +3463,15 @@ export function AdminMatches({
 
   const matchesTotalPages = Math.max(
     1,
-    Math.ceil(filteredAndSortedMatches.length / matchesItemsPerPage),
+    Math.ceil(scheduledListItems.length / matchesItemsPerPage),
   );
 
-  const paginatedMatches = useMemo(() => {
+  const paginatedScheduledListItems = useMemo(() => {
     const rangeStart = (matchesCurrentPage - 1) * matchesItemsPerPage;
     const rangeEnd = rangeStart + matchesItemsPerPage;
 
-    return filteredAndSortedMatches.slice(rangeStart, rangeEnd);
-  }, [filteredAndSortedMatches, matchesCurrentPage, matchesItemsPerPage]);
+    return scheduledListItems.slice(rangeStart, rangeEnd);
+  }, [matchesCurrentPage, matchesItemsPerPage, scheduledListItems]);
 
   const selectedFilteredMatchCount = useMemo(() => {
     const filteredMatchIdSet = new Set(filteredMatchIds);
@@ -7348,7 +7499,7 @@ export function AdminMatches({
               variant="list"
             />
           </div>
-        ) : filteredAndSortedMatches.length > 0 ? (
+        ) : scheduledListItems.length > 0 ? (
           <>
             <div className="glass-card enter-section flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-wrap items-center gap-3">
@@ -7494,12 +7645,22 @@ export function AdminMatches({
                 ) : null}
 
                 <p className="text-center text-sm text-muted-foreground lg:text-left">
-                  {filteredAndSortedMatches.length} jogo(s) encontrado(s)
+                  {scheduledListItems.length} item(ns) de programação encontrado(s)
                 </p>
               </div>
             </div>
 
-            {paginatedMatches.map((match) => {
+            {paginatedScheduledListItems.map((item) => {
+              if (item.type == "KNOCKOUT_PLACEHOLDER") {
+                return (
+                  <AdminMatchesKnockoutPlaceholderCard
+                    key={item.id}
+                    placeholder={item.placeholder}
+                  />
+                );
+              }
+
+              const match = item.match;
               const matchBracketContext =
                 matchBracketContextByMatchId[match.id];
               const startedAtLabel = resolveMatchStartedAtLabel(
@@ -8008,7 +8169,7 @@ export function AdminMatches({
 
         {visibleIndividualSessions.length > 0 &&
         shouldRenderIndividualSessions({
-          collectiveMatchesCount: filteredAndSortedMatches.length,
+          collectiveMatchesCount: scheduledListItems.length,
           currentPage: matchesCurrentPage,
           totalPages: matchesTotalPages,
         }) ? (
@@ -8600,8 +8761,9 @@ export function AdminMatches({
             <DialogTitle>Encaixar em horário livre</DialogTitle>
             <DialogDescription>
               Escolha a quadra de destino e um ponto da programação. Jogos
-              agendados posteriores podem ser deslocados, mas partidas ao vivo,
-              encerradas e reservas manuais permanecem fixas.
+              agendados e slots planejados posteriores podem ser reposicionados,
+              mas partidas ao vivo, encerradas e reservas manuais permanecem
+              fixas.
             </DialogDescription>
           </DialogHeader>
 
@@ -8728,9 +8890,12 @@ export function AdminMatches({
                         <span className="space-y-1">
                           <span className="block font-semibold">{format(new Date(slot.start_time), "HH:mm")}–{format(new Date(slot.end_time), "HH:mm")}</span>
                           <span className="block text-xs font-normal opacity-85">
-                            {slot.is_free_gap || slot.displaced_matches_count == 0
+                            {slot.is_free_gap ||
+                            slot.displaced_matches_count +
+                              (slot.displaced_placeholders_count ?? 0) ==
+                              0
                               ? "Lacuna livre"
-                              : `Desloca ${slot.displaced_matches_count} jogo(s) agendado(s)`}
+                              : `Desloca ${slot.displaced_matches_count + (slot.displaced_placeholders_count ?? 0)} item(ns) planejado(s)`}
                             {slot.next_match_label ? ` • antes de ${slot.next_match_label}` : " • fim da programação"}
                           </span>
                           {slot.is_projected_from_live_match ? <span className="block text-xs font-normal opacity-85">Projeção baseada em jogo ao vivo.</span> : null}
@@ -8758,8 +8923,10 @@ export function AdminMatches({
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
                   {manualRelocationSlotPreview.timeline.map((item) => {
                     const status = item.status as MatchStatus;
-                    return <div key={item.match_id} className="app-card-muted space-y-2 rounded-lg p-2.5">
-                      <div className="flex items-center justify-between gap-2"><p className="text-sm font-semibold tabular-nums">{item.start_time ? format(new Date(item.start_time), "HH:mm") : "Sem horário"}</p><AppBadge tone={resolveMatchStatusBadgeTone(status)}>{resolveMatchStatusLabel(status)}</AppBadge></div>
+                    const isPlaceholder = isManualRelocationPlaceholderItem(item);
+                    return <div key={item.item_id ?? item.match_id ?? item.placeholder_id} className="app-card-muted space-y-2 rounded-lg p-2.5">
+                      <div className="flex items-center justify-between gap-2"><p className="text-sm font-semibold tabular-nums">{item.start_time ? format(new Date(item.start_time), "HH:mm") : "Sem horário"}</p><AppBadge tone={isPlaceholder ? AppBadgeTone.WARNING : resolveMatchStatusBadgeTone(status)}>{isPlaceholder ? "A definir" : resolveMatchStatusLabel(status)}</AppBadge></div>
+                      <p className="text-xs font-medium text-foreground">{resolveManualRelocationItemLabel(item)}</p>
                       <p className="text-xs text-muted-foreground">{item.end_time ? `Término ${format(new Date(item.end_time), "HH:mm")}` : "Sem término previsto"}</p>
                       {item.is_relocated ? <AppBadge tone={AppBadgeTone.WARNING}>Encaixado</AppBadge> : item.is_displaced ? <AppBadge tone={AppBadgeTone.NEUTRAL}>Reposicionado</AppBadge> : null}
                     </div>;
@@ -8791,8 +8958,8 @@ export function AdminMatches({
             <DialogTitle>Realocar jogos</DialogTitle>
             <DialogDescription>
               Move jogos agendados para o início ou fim da fila de uma quadra
-              configurada. A prévia mostra os horários, impactos e eventual
-              ampliação do dia antes da confirmação.
+              configurada. A prévia também mostra os slots planejados que serão
+              reposicionados e eventual ampliação do dia antes da confirmação.
             </DialogDescription>
           </DialogHeader>
 
@@ -9018,15 +9185,22 @@ export function AdminMatches({
 
                 <div className="space-y-2">
                   {manualRelocationPreview.changes.map((change) => {
-                    const match = matches.find((item) => item.id == change.match_id);
+                    const match = change.match_id
+                      ? matches.find((item) => item.id == change.match_id)
+                      : null;
                     const label = match
                       ? `${match.home_team?.name ?? "Casa"} x ${match.away_team?.name ?? "Visitante"}`
-                      : "Jogo";
+                      : resolveManualRelocationItemLabel(change);
 
                     return (
-                      <div key={change.match_id} className="app-card-muted rounded-lg p-3 text-sm">
+                      <div key={change.item_id ?? change.match_id ?? change.placeholder_id} className="app-card-muted rounded-lg p-3 text-sm">
                         <p className="font-medium">
-                          {change.is_selected ? "Realocado" : "Fila deslocada"}: {label}
+                          {change.is_selected
+                            ? "Realocado"
+                            : isManualRelocationPlaceholderItem(change)
+                              ? "Slot planejado reposicionado"
+                              : "Fila deslocada"}
+                          : {label}
                         </p>
                         <p className="mt-1 text-xs text-muted-foreground">
                           {change.before.court_name ?? "Sem quadra"} {change.before.start_time ? `• ${format(new Date(change.before.start_time), "HH:mm")}` : ""}
@@ -9043,12 +9217,13 @@ export function AdminMatches({
                     Timeline da quadra de destino
                   </p>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                    {manualRelocationPreview.timeline.map((item) => {
-                      const status = item.status as MatchStatus;
+                  {manualRelocationPreview.timeline.map((item) => {
+                    const status = item.status as MatchStatus;
+                    const isPlaceholder = isManualRelocationPlaceholderItem(item);
 
-                      return (
-                        <div
-                          key={item.match_id}
+                    return (
+                      <div
+                          key={item.item_id ?? item.match_id ?? item.placeholder_id}
                           className="app-card-muted space-y-2 rounded-lg p-2.5"
                         >
                           <div className="flex items-center justify-between gap-2">
@@ -9057,10 +9232,21 @@ export function AdminMatches({
                                 ? format(new Date(item.start_time), "HH:mm")
                                 : "Sem horário"}
                             </p>
-                            <AppBadge tone={resolveMatchStatusBadgeTone(status)}>
-                              {resolveMatchStatusLabel(status)}
+                            <AppBadge
+                              tone={
+                                isPlaceholder
+                                  ? AppBadgeTone.WARNING
+                                  : resolveMatchStatusBadgeTone(status)
+                              }
+                            >
+                              {isPlaceholder
+                                ? "A definir"
+                                : resolveMatchStatusLabel(status)}
                             </AppBadge>
                           </div>
+                          <p className="text-xs font-medium text-foreground">
+                            {resolveManualRelocationItemLabel(item)}
+                          </p>
                           <p className="text-xs text-muted-foreground">
                             {item.end_time
                               ? `Término ${format(new Date(item.end_time), "HH:mm")}`

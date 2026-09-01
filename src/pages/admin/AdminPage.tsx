@@ -368,12 +368,12 @@ export function AdminPage() {
     );
   }, [visibleOperationalChampionshipBracketView]);
   const visibleMatchesTabChampionshipBracketView = useMemo(() => {
-    if (matchesTabMatches.length == 0) {
+    if (matchesTabChampionshipBracketView.competitions.length == 0) {
       return EMPTY_CHAMPIONSHIP_BRACKET_VIEW;
     }
 
     return matchesTabChampionshipBracketView;
-  }, [matchesTabChampionshipBracketView, matchesTabMatches.length]);
+  }, [matchesTabChampionshipBracketView]);
   const matchesTabMatchBracketContextByMatchId = useMemo(() => {
     return resolveMatchBracketContextByMatchId(
       visibleMatchesTabChampionshipBracketView,

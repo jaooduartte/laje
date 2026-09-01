@@ -19,6 +19,7 @@ export interface ScheduledKnockoutPlaceholder {
   round_number: number;
   slot_number: number;
   is_third_place: boolean;
+  display_match_number?: number | null;
   scheduled_date: string;
   queue_position: number | null;
   scheduled_slot: number | null;

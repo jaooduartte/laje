@@ -998,6 +998,7 @@ export interface ManualMatchRelocationSlot {
   next_match_id: string | null;
   next_match_label: string | null;
   displaced_matches_count: number;
+  displaced_placeholders_count?: number;
   is_free_gap: boolean;
   is_projected_from_live_match: boolean;
 }
@@ -1015,7 +1016,11 @@ export interface HoldMatchesForManualRelocationInput {
 }
 
 export interface ManualMatchRelocationChange {
-  match_id: string;
+  item_type?: "MATCH" | "KNOCKOUT_PLACEHOLDER";
+  item_id?: string;
+  match_id: string | null;
+  placeholder_id?: string | null;
+  label?: string | null;
   is_selected: boolean;
   before: {
     scheduled_date: string | null;
@@ -1042,7 +1047,11 @@ export interface ManualMatchRelocationPreview {
   blockers: string[];
   changes: ManualMatchRelocationChange[];
   timeline: Array<{
-    match_id: string;
+    item_type?: "MATCH" | "KNOCKOUT_PLACEHOLDER";
+    item_id?: string;
+    match_id: string | null;
+    placeholder_id?: string | null;
+    label?: string | null;
     status: string;
     start_time: string | null;
     end_time: string | null;

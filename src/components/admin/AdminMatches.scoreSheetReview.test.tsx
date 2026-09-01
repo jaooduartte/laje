@@ -548,6 +548,58 @@ describe("AdminMatches score sheet review", () => {
     });
   });
 
+  it("exibe slot planejado a definir sem ações de jogo", async () => {
+    renderAdminMatches({
+      matches: [],
+      bracketView: buildBracketView({
+        competitions: [
+          {
+            id: "competition-1",
+            sport_id: "sport-1",
+            sport_name: "Beach Soccer",
+            naipe: MatchNaipe.MASCULINO,
+            division: null,
+            groups_count: 2,
+            qualifiers_per_group: 2,
+            third_place_mode: BracketThirdPlaceMode.NONE,
+            groups: [],
+            knockout_matches: [
+              {
+                id: "placeholder-1",
+                round_number: 1,
+                slot_number: 1,
+                match_id: null,
+                status: null,
+                scheduled_date: "2026-04-11",
+                queue_position: 3,
+                scheduled_slot: 3,
+                start_time: "2026-04-11T10:00:00.000Z",
+                end_time: "2026-04-11T10:30:00.000Z",
+                location: "Praia de Piçarras",
+                court_name: "Quadra 1",
+                home_team_id: null,
+                away_team_id: null,
+                home_team_name: null,
+                away_team_name: null,
+                winner_team_id: null,
+                winner_team_name: null,
+                is_bye: false,
+                is_third_place: false,
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText("A definir").length).toBeGreaterThan(0);
+    });
+
+    expect(screen.getByText("Representação: Final")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Ações do jogo A definir/i)).not.toBeInTheDocument();
+  });
+
   it("não informa falta de permissão quando a edição está bloqueada apenas pelo status", async () => {
     renderAdminMatches({
       matches: [],
@@ -610,7 +662,9 @@ describe("AdminMatches score sheet review", () => {
     expect(screen.getByText(/PENDENTE CASA/)).toBeInTheDocument();
     expect(screen.getByText("Jogo 27")).toBeInTheDocument();
     expect(screen.getByText("Condições climáticas")).toBeInTheDocument();
-    expect(screen.getByText("1 jogo(s) encontrado(s)")).toBeInTheDocument();
+    expect(
+      screen.getByText("1 item(ns) de programação encontrado(s)"),
+    ).toBeInTheDocument();
   });
 
   it("mostra sessões individuais configuradas na aba Jogos", async () => {
