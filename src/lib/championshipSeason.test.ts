@@ -5,6 +5,7 @@ import {
   ChampionshipSeasonDivisionSettlementMode,
   MatchNaipe,
   TeamDivision,
+  YellowCardResetPhase,
 } from "@/lib/enums";
 import type { Standing } from "@/lib/types";
 import {
@@ -94,6 +95,7 @@ describe("championshipSeason", () => {
       principal_slots_count: 12,
       principal_relegation_count: null,
       access_promotion_count: null,
+      yellow_card_reset_phase: YellowCardResetPhase.NONE,
     });
   });
 

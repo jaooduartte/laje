@@ -53,6 +53,8 @@ import {
 } from "@/domain/public-schedule/publicScheduleTimeline";
 
 const ALL_SCHEDULE_DIVISIONS_FILTER = "ALL_SCHEDULE_DIVISIONS_FILTER";
+const SCHEDULE_FILTER_TRIGGER_CLASS_NAME =
+  "app-input-field min-w-56 flex-[1_1_14rem]";
 
 interface SchedulePageViewProps {
   isLoading: boolean;
@@ -63,6 +65,7 @@ interface SchedulePageViewProps {
   teams: Team[];
   sports: Sport[];
   sportFilter: string | null;
+  availableNaipeOptions?: MatchNaipe[];
   naipeFilter: MatchNaipe | null;
   teamFilter: string | null;
   groupFilter: string | null;
@@ -123,6 +126,11 @@ export function SchedulePageView({
   teams,
   sports,
   sportFilter,
+  availableNaipeOptions = [
+    MatchNaipe.MASCULINO,
+    MatchNaipe.FEMININO,
+    MatchNaipe.MISTO,
+  ],
   naipeFilter,
   teamFilter,
   groupFilter,
@@ -331,12 +339,15 @@ export function SchedulePageView({
           </TabsNavigationList>
         </Tabs>
 
-        <div className="glass-panel enter-section grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div
+          data-testid="schedule-filters"
+          className="glass-panel enter-section flex flex-wrap gap-3 p-4"
+        >
           <Select
             value={selectedChampionshipCode}
             onValueChange={onChampionshipCodeChange}
           >
-            <SelectTrigger className="app-input-field w-full">
+            <SelectTrigger className={SCHEDULE_FILTER_TRIGGER_CLASS_NAME}>
               <SelectValue placeholder="Campeonato" />
             </SelectTrigger>
             <SelectContent>
@@ -353,7 +364,7 @@ export function SchedulePageView({
               onTeamFilterChange(value == "all" ? null : value)
             }
           >
-            <SelectTrigger className="app-input-field w-full">
+            <SelectTrigger className={SCHEDULE_FILTER_TRIGGER_CLASS_NAME}>
               <SelectValue placeholder="Filtrar por atlética" />
             </SelectTrigger>
             <SelectContent>
@@ -372,20 +383,16 @@ export function SchedulePageView({
               onNaipeFilterChange(value == "all" ? null : (value as MatchNaipe))
             }
           >
-            <SelectTrigger className="app-input-field w-full">
+            <SelectTrigger className={SCHEDULE_FILTER_TRIGGER_CLASS_NAME}>
               <SelectValue placeholder="Filtrar por naipe" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos os naipes</SelectItem>
-              <SelectItem value={MatchNaipe.MASCULINO}>
-                {MATCH_NAIPE_LABELS[MatchNaipe.MASCULINO]}
-              </SelectItem>
-              <SelectItem value={MatchNaipe.FEMININO}>
-                {MATCH_NAIPE_LABELS[MatchNaipe.FEMININO]}
-              </SelectItem>
-              <SelectItem value={MatchNaipe.MISTO}>
-                {MATCH_NAIPE_LABELS[MatchNaipe.MISTO]}
-              </SelectItem>
+              {availableNaipeOptions.map((naipeOption) => (
+                <SelectItem key={naipeOption} value={naipeOption}>
+                  {MATCH_NAIPE_LABELS[naipeOption]}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
 
@@ -395,7 +402,7 @@ export function SchedulePageView({
               onGroupFilterChange(value == "all" ? null : value)
             }
           >
-            <SelectTrigger className="app-input-field w-full">
+            <SelectTrigger className={SCHEDULE_FILTER_TRIGGER_CLASS_NAME}>
               <SelectValue placeholder="Filtrar por grupo" />
             </SelectTrigger>
             <SelectContent>
@@ -414,7 +421,7 @@ export function SchedulePageView({
               onLocationFilterChange(value == "all" ? null : value)
             }
           >
-            <SelectTrigger className="app-input-field w-full">
+            <SelectTrigger className={SCHEDULE_FILTER_TRIGGER_CLASS_NAME}>
               <SelectValue placeholder="Filtrar por local" />
             </SelectTrigger>
             <SelectContent>
@@ -433,7 +440,7 @@ export function SchedulePageView({
               onCourtFilterChange(value == "all" ? null : value)
             }
           >
-            <SelectTrigger className="app-input-field w-full">
+            <SelectTrigger className={SCHEDULE_FILTER_TRIGGER_CLASS_NAME}>
               <SelectValue placeholder="Filtrar por quadra" />
             </SelectTrigger>
             <SelectContent>
@@ -448,7 +455,7 @@ export function SchedulePageView({
 
           {selectedChampionshipHasDivisions ? (
             <Select value={divisionFilter} onValueChange={onDivisionChange}>
-              <SelectTrigger className="app-input-field w-full">
+              <SelectTrigger className={SCHEDULE_FILTER_TRIGGER_CLASS_NAME}>
                 <SelectValue placeholder="Divisão" />
               </SelectTrigger>
               <SelectContent>
@@ -466,7 +473,7 @@ export function SchedulePageView({
           ) : null}
 
           <Select value={yearFilter} onValueChange={onYearFilterChange}>
-            <SelectTrigger className="app-input-field w-full">
+            <SelectTrigger className={SCHEDULE_FILTER_TRIGGER_CLASS_NAME}>
               <SelectValue placeholder="Ano" />
             </SelectTrigger>
             <SelectContent>

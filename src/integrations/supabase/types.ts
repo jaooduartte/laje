@@ -1789,6 +1789,7 @@ export type Database = {
           principal_slots_count: number | null
           season_year: number
           updated_at: string
+          yellow_card_reset_phase: string
         }
         Insert: {
           access_promotion_count?: number | null
@@ -1801,6 +1802,7 @@ export type Database = {
           principal_slots_count?: number | null
           season_year: number
           updated_at?: string
+          yellow_card_reset_phase?: string
         }
         Update: {
           access_promotion_count?: number | null
@@ -1813,6 +1815,7 @@ export type Database = {
           principal_slots_count?: number | null
           season_year?: number
           updated_at?: string
+          yellow_card_reset_phase?: string
         }
         Relationships: [
           {
@@ -2144,6 +2147,104 @@ export type Database = {
           },
           {
             foreignKeyName: "match_award_goal_scorers_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      match_yellow_card_players: {
+        Row: {
+          card_order: number
+          created_at: string
+          id: string
+          match_id: string
+          player_id: string
+          team_id: string
+        }
+        Insert: {
+          card_order: number
+          created_at?: string
+          id?: string
+          match_id: string
+          player_id: string
+          team_id: string
+        }
+        Update: {
+          card_order?: number
+          created_at?: string
+          id?: string
+          match_id?: string
+          player_id?: string
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "match_yellow_card_players_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "match_yellow_card_players_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "championship_award_players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "match_yellow_card_players_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      match_red_card_players: {
+        Row: {
+          card_order: number
+          created_at: string
+          id: string
+          match_id: string
+          player_id: string
+          team_id: string
+        }
+        Insert: {
+          card_order: number
+          created_at?: string
+          id?: string
+          match_id: string
+          player_id: string
+          team_id: string
+        }
+        Update: {
+          card_order?: number
+          created_at?: string
+          id?: string
+          match_id?: string
+          player_id?: string
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "match_red_card_players_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "match_red_card_players_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "championship_award_players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "match_red_card_players_team_id_fkey"
             columns: ["team_id"]
             isOneToOne: false
             referencedRelation: "teams"
@@ -3151,6 +3252,10 @@ export type Database = {
         Args: { _championship_id: string; _season_year?: number }
         Returns: Json
       }
+      get_championship_yellow_card_discipline: {
+        Args: { _championship_id: string; _season_year?: number }
+        Returns: Json
+      }
       get_championship_setup_payload_snapshot: {
         Args: { _championship_id: string; _season_year: number }
         Returns: Json
@@ -3746,8 +3851,12 @@ export type Database = {
         Args: {
           _away_goal_scorers?: Json
           _away_goalkeepers?: Json
+          _away_red_card_players?: Json
+          _away_yellow_card_players?: Json
           _home_goal_scorers?: Json
           _home_goalkeepers?: Json
+          _home_red_card_players?: Json
+          _home_yellow_card_players?: Json
           _match_id: string
         }
         Returns: Json

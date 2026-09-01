@@ -34,6 +34,7 @@ import type {
 } from "@/domain/championship-brackets/championshipBracket.types";
 import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividualEvents";
 import { useCompetitionTeamDisqualifications } from "@/hooks/useCompetitionTeamDisqualifications";
+import { useChampionshipYellowCardDiscipline } from "@/hooks/useChampionshipYellowCardDiscipline";
 import type {
   ChampionshipAthlete,
   ChampionshipBracketView,
@@ -114,6 +115,7 @@ interface Props {
   isInitialLoading?: boolean;
   championshipStatus: ChampionshipStatus;
   championshipSports: ChampionshipSport[];
+  usesDivisions?: boolean;
   championshipBracketView: ChampionshipBracketView;
   matchBracketContextByMatchId: Record<string, MatchBracketContext>;
   matchRepresentationByMatchId?: Record<string, string>;
@@ -587,6 +589,49 @@ function resolveAdminMatchControlErrorMessage(
   return fallbackMessage;
 }
 
+function SuspendedPlayersMatchAlert({
+  homeTeamName,
+  awayTeamName,
+  homePlayerNames,
+  awayPlayerNames,
+}: {
+  homeTeamName: string;
+  awayTeamName: string;
+  homePlayerNames: string[];
+  awayPlayerNames: string[];
+}) {
+  if (homePlayerNames.length == 0 && awayPlayerNames.length == 0) {
+    return null;
+  }
+
+  return (
+    <div
+      className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm"
+      role="status"
+      aria-label="Atletas suspensos para esta partida"
+    >
+      <p className="flex items-center gap-1.5 font-semibold text-destructive">
+        <AlertTriangle className="h-4 w-4" />
+        Atletas suspensos para esta partida
+      </p>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        {homePlayerNames.length > 0 ? (
+          <p className="text-xs text-foreground">
+            <span className="font-semibold">{homeTeamName}:</span>{" "}
+            {homePlayerNames.join(", ")}
+          </p>
+        ) : null}
+        {awayPlayerNames.length > 0 ? (
+          <p className="text-xs text-foreground">
+            <span className="font-semibold">{awayTeamName}:</span>{" "}
+            {awayPlayerNames.join(", ")}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export function AdminMatchControl({
   championshipId,
   seasonYear,
@@ -594,6 +639,7 @@ export function AdminMatchControl({
   isInitialLoading = false,
   championshipStatus,
   championshipSports,
+  usesDivisions = true,
   championshipBracketView,
   matchBracketContextByMatchId,
   matchRepresentationByMatchId = {},
@@ -968,26 +1014,22 @@ export function AdminMatchControl({
   const controlSports = useMemo(() => {
     const sportById = new Map<string, Sport>();
 
+    championshipSports.forEach((championshipSport) => {
+      if (championshipSport.sports && !sportById.has(championshipSport.sports.id)) {
+        sportById.set(championshipSport.sports.id, championshipSport.sports);
+      }
+    });
+
     matches.forEach((match) => {
       if (match.sports && !sportById.has(match.sports.id)) {
         sportById.set(match.sports.id, match.sports);
       }
     });
 
-    championshipSports.forEach((championshipSport) => {
-      if (
-        individualSportIds.includes(championshipSport.sport_id) &&
-        championshipSport.sports &&
-        !sportById.has(championshipSport.sports.id)
-      ) {
-        sportById.set(championshipSport.sports.id, championshipSport.sports);
-      }
-    });
-
     return [...sportById.values()].sort((leftSport, rightSport) =>
       leftSport.name.localeCompare(rightSport.name),
     );
-  }, [championshipSports, individualSportIds, matches]);
+  }, [championshipSports, matches]);
 
   const {
     sessions: individualSessions,
@@ -1011,6 +1053,35 @@ export function AdminMatchControl({
       championshipId,
       seasonYear,
     });
+  const { discipline: yellowCardDiscipline } =
+    useChampionshipYellowCardDiscipline({
+      championshipId,
+      seasonYear,
+    });
+
+  const suspendedPlayerNamesByMatchId = useMemo(() => {
+    const playerNamesByMatchId = new Map<string, Map<string, string[]>>();
+
+    yellowCardDiscipline?.athletes.forEach((athlete) => {
+      if (!athlete.is_suspended || !athlete.next_match?.match_id) {
+        return;
+      }
+
+      const playerNamesByTeamId =
+        playerNamesByMatchId.get(athlete.next_match.match_id) ??
+        new Map<string, string[]>();
+      const playerNames = playerNamesByTeamId.get(athlete.team_id) ?? [];
+
+      if (!playerNames.includes(athlete.player_name)) {
+        playerNames.push(athlete.player_name);
+      }
+
+      playerNamesByTeamId.set(athlete.team_id, playerNames);
+      playerNamesByMatchId.set(athlete.next_match.match_id, playerNamesByTeamId);
+    });
+
+    return playerNamesByMatchId;
+  }, [yellowCardDiscipline?.athletes]);
 
   const individualDisqualifiedTeamIdsBySessionId = useMemo(() => {
     return Object.fromEntries(
@@ -2588,6 +2659,10 @@ export function AdminMatchControl({
   );
 
   const divisionOptions = useMemo(() => {
+    if (!usesDivisions) {
+      return [];
+    }
+
     const uniqueDivisions = new Set<TeamDivision>();
 
     matches.forEach((match) => {
@@ -2629,7 +2704,7 @@ export function AdminMatchControl({
         TEAM_DIVISION_LABELS[secondDivision],
       ),
     );
-  }, [individualSessions, matches, naipeFilter, sportFilter]);
+  }, [individualSessions, matches, naipeFilter, sportFilter, usesDivisions]);
 
   const availableNaipeOptions = useMemo(() => {
     const availableNaipes = new Set<MatchNaipe>();
@@ -2669,6 +2744,7 @@ export function AdminMatchControl({
       }
 
       if (
+        usesDivisions &&
         divisionFilter !== ALL_CONTROL_DIVISION_FILTER &&
         match.division != divisionFilter
       ) {
@@ -2677,7 +2753,7 @@ export function AdminMatchControl({
 
       return true;
     });
-  }, [divisionFilter, matches, naipeFilter, showOnlyLiveMatches, sportFilter]);
+  }, [divisionFilter, matches, naipeFilter, showOnlyLiveMatches, sportFilter, usesDivisions]);
 
   const groupOptions = useMemo(() => {
     const eligibleMatchIds = new Set(
@@ -2723,6 +2799,7 @@ export function AdminMatchControl({
       }
 
       if (
+        usesDivisions &&
         divisionFilter != ALL_CONTROL_DIVISION_FILTER &&
         session.division != divisionFilter
       ) {
@@ -2731,7 +2808,7 @@ export function AdminMatchControl({
 
       return true;
     });
-  }, [divisionFilter, individualSessions, naipeFilter, sportFilter]);
+  }, [divisionFilter, individualSessions, naipeFilter, sportFilter, usesDivisions]);
 
   const locationOptions = useMemo(() => {
     return [
@@ -2803,13 +2880,20 @@ export function AdminMatchControl({
   }, [availableNaipeOptions, naipeFilter]);
 
   useEffect(() => {
+    if (!usesDivisions) {
+      if (divisionFilter != ALL_CONTROL_DIVISION_FILTER) {
+        setDivisionFilter(ALL_CONTROL_DIVISION_FILTER);
+      }
+      return;
+    }
+
     if (
       divisionFilter != ALL_CONTROL_DIVISION_FILTER &&
       !divisionOptions.includes(divisionFilter as TeamDivision)
     ) {
       setDivisionFilter(ALL_CONTROL_DIVISION_FILTER);
     }
-  }, [divisionFilter, divisionOptions]);
+  }, [divisionFilter, divisionOptions, usesDivisions]);
 
   useEffect(() => {
     if (
@@ -3272,7 +3356,7 @@ export function AdminMatchControl({
         </div>
 
         <div className="grid grid-cols-12 gap-3 sm:flex sm:flex-wrap sm:items-stretch">
-          {divisionOptions.length > 0 ? (
+          {usesDivisions && divisionOptions.length > 0 ? (
             <div className="col-span-6 min-w-0 sm:min-w-40 sm:flex-1">
               <Select value={divisionFilter} onValueChange={setDivisionFilter}>
                 <SelectTrigger
@@ -3316,34 +3400,31 @@ export function AdminMatchControl({
             </Select>
           </div>
 
-          {groupOptions.length > 0 ? (
-            <div className="col-span-6 min-w-0 sm:min-w-40 sm:flex-1">
-              <Select value={groupFilter} onValueChange={setGroupFilter}>
-                <SelectTrigger
-                  aria-label="Filtrar por grupo no controle ao vivo"
-                  className="app-input-field w-full"
-                >
-                  <SelectValue placeholder="Grupo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_CONTROL_GROUP_FILTER}>
-                    Todos os grupos
+          <div className="col-span-6 min-w-0 sm:min-w-40 sm:flex-1">
+            <Select value={groupFilter} onValueChange={setGroupFilter}>
+              <SelectTrigger
+                aria-label="Filtrar por grupo no controle ao vivo"
+                className="app-input-field w-full"
+              >
+                <SelectValue placeholder="Grupo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_CONTROL_GROUP_FILTER}>
+                  Todos os grupos
+                </SelectItem>
+                {groupOptions.map((groupOption) => (
+                  <SelectItem
+                    key={groupOption.value}
+                    value={groupOption.value}
+                  >
+                    {groupOption.label}
                   </SelectItem>
-                  {groupOptions.map((groupOption) => (
-                    <SelectItem
-                      key={groupOption.value}
-                      value={groupOption.value}
-                    >
-                      {groupOption.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ) : null}
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           <div className="col-span-12 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2.5rem] gap-3 sm:contents">
-          {locationOptions.length > 0 ? (
             <div className="min-w-0 sm:min-w-40 sm:flex-1">
               <Select value={locationFilter} onValueChange={setLocationFilter}>
                 <SelectTrigger
@@ -3364,9 +3445,7 @@ export function AdminMatchControl({
                 </SelectContent>
               </Select>
             </div>
-          ) : null}
 
-          {courtOptions.length > 0 ? (
             <div className="min-w-0 sm:min-w-40 sm:flex-1">
               <Select value={courtFilter} onValueChange={setCourtFilter}>
                 <SelectTrigger
@@ -3387,7 +3466,6 @@ export function AdminMatchControl({
                 </SelectContent>
               </Select>
             </div>
-          ) : null}
 
           <Button
             type="button"
@@ -3411,7 +3489,7 @@ export function AdminMatchControl({
         </div>
       </div>
 
-      <div className="order-2 flex justify-center sm:justify-start">
+      <div className="order-2 flex justify-center">
         <button
           type="button"
           onClick={() => {
@@ -3444,10 +3522,12 @@ export function AdminMatchControl({
           </div>
         ) : sortedMatches.length == 0 &&
           visibleIndividualSessions.length == 0 ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="order-3 flex min-h-48 w-full items-center justify-center px-4 text-center text-sm text-muted-foreground">
             {showOnlyLiveMatches
               ? "Nenhum jogo ao vivo para os filtros selecionados."
-              : "Nenhum jogo ao vivo ou agendado."}
+              : isFullQueueVisible
+                ? "Nenhum jogo agendado na fila completa."
+                : "Nenhum jogo agendado para hoje."}
           </p>
         ) : (
           <>
@@ -3477,6 +3557,16 @@ export function AdminMatchControl({
                 const matchLocationLabel = match.court_name
                   ? `${match.location} • ${match.court_name}`
                   : match.location;
+                const suspendedPlayerNamesByTeamId =
+                  suspendedPlayerNamesByMatchId.get(match.id);
+                const homeSuspendedPlayerNames =
+                  match.home_team && doesMatchSupportCards(match)
+                    ? (suspendedPlayerNamesByTeamId?.get(match.home_team.id) ?? [])
+                    : [];
+                const awaySuspendedPlayerNames =
+                  match.away_team && doesMatchSupportCards(match)
+                    ? (suspendedPlayerNamesByTeamId?.get(match.away_team.id) ?? [])
+                    : [];
 
                 return (
                   <div
@@ -3611,6 +3701,12 @@ export function AdminMatchControl({
                         </Button>
                       </div>
                     </div>
+                    <SuspendedPlayersMatchAlert
+                      homeTeamName={match.home_team?.name ?? "Mandante"}
+                      awayTeamName={match.away_team?.name ?? "Visitante"}
+                      homePlayerNames={homeSuspendedPlayerNames}
+                      awayPlayerNames={awaySuspendedPlayerNames}
+                    />
                   </div>
                 );
               }
@@ -3741,6 +3837,16 @@ export function AdminMatchControl({
                 match.status == MatchStatus.LIVE;
               const isKnockoutMatch =
                 matchBracketContext?.phase == BracketPhase.KNOCKOUT;
+              const suspendedPlayerNamesByTeamId =
+                suspendedPlayerNamesByMatchId.get(match.id);
+              const homeSuspendedPlayerNames =
+                match.home_team && supportsCards
+                  ? (suspendedPlayerNamesByTeamId?.get(match.home_team.id) ?? [])
+                  : [];
+              const awaySuspendedPlayerNames =
+                match.away_team && supportsCards
+                  ? (suspendedPlayerNamesByTeamId?.get(match.away_team.id) ?? [])
+                  : [];
 
               return (
                 <div
@@ -3948,6 +4054,12 @@ export function AdminMatchControl({
                       </div>
                     </div>
                   </div>
+                  <SuspendedPlayersMatchAlert
+                    homeTeamName={match.home_team?.name ?? "Mandante"}
+                    awayTeamName={match.away_team?.name ?? "Visitante"}
+                    homePlayerNames={homeSuspendedPlayerNames}
+                    awayPlayerNames={awaySuspendedPlayerNames}
+                  />
 
                   <div className="space-y-3 sm:hidden">
                     <div className="grid grid-cols-2 gap-2 text-center">

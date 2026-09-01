@@ -31,6 +31,7 @@ import {
   ChampionshipSchedulePeriod,
   ChampionshipSeasonDivisionFormat,
   ChampionshipSeasonDivisionSettlementMode,
+  YellowCardResetPhase,
   MatchNaipe,
   TeamDivision,
 } from "@/lib/enums";
@@ -766,6 +767,7 @@ function resolveSeasonSettings(
       principal_slots_count: null,
       principal_relegation_count: null,
       access_promotion_count: null,
+      yellow_card_reset_phase: YellowCardResetPhase.NONE,
     };
   }
 
@@ -797,6 +799,14 @@ function resolveSeasonSettings(
       typeof parsedSeasonSettings.access_promotion_count == "number"
         ? parsedSeasonSettings.access_promotion_count
         : null,
+    yellow_card_reset_phase:
+      parsedSeasonSettings.yellow_card_reset_phase ==
+      YellowCardResetPhase.QUARTERFINAL
+        ? YellowCardResetPhase.QUARTERFINAL
+        : parsedSeasonSettings.yellow_card_reset_phase ==
+            YellowCardResetPhase.SEMIFINAL
+          ? YellowCardResetPhase.SEMIFINAL
+          : YellowCardResetPhase.NONE,
   };
 }
 
@@ -1889,6 +1899,9 @@ export class ChampionshipBracketWizardDraftDTO {
           this.form_values.season_settings.principal_relegation_count,
         access_promotion_count:
           this.form_values.season_settings.access_promotion_count,
+        yellow_card_reset_phase:
+          this.form_values.season_settings.yellow_card_reset_phase ??
+          YellowCardResetPhase.NONE,
       },
       selected_team_ids: [...new Set(this.form_values.selected_team_ids)],
       enabled_sport_ids: [...new Set(this.form_values.enabled_sport_ids)],

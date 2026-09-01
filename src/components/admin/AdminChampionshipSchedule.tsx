@@ -47,12 +47,14 @@ import { AdminChampionshipQualificationSection } from "@/components/admin/AdminC
 import { AdminChampionshipCourtPrioritySection } from "@/components/admin/AdminChampionshipCourtPrioritySection";
 import { AdminChampionshipKnockoutPrioritySection } from "@/components/admin/AdminChampionshipKnockoutPrioritySection";
 import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividualEvents";
+import { useChampionshipSeasonSettings } from "@/hooks/useChampionshipSeasonSettings";
+import { saveChampionshipSeasonSettings } from "@/domain/championship-seasons/championshipSeason.repository";
 import {
   resolveDivisionOptionsBySportId,
   resolveNaipeOptionsBySportId,
 } from "@/components/admin/adminCourtPriority.utils";
 import { resolveIndividualSportIds } from "@/lib/individualEvents";
-import { ChampionshipStatus } from "@/lib/enums";
+import { ChampionshipStatus, YellowCardResetPhase } from "@/lib/enums";
 import {
   groupReverseMatchOrderChangesByCourt,
   resolveReverseMatchOrderCourtPosition,
@@ -360,6 +362,11 @@ export function AdminChampionshipSchedule({
   const [individualSessionEditDraft, setIndividualSessionEditDraft] =
     useState<IndividualSessionEditDraft | null>(null);
   const [activeSection, setActiveSection] = useState("schedule");
+  const [yellowCardResetPhase, setYellowCardResetPhase] = useState(
+    YellowCardResetPhase.NONE,
+  );
+  const [savingYellowCardResetPhase, setSavingYellowCardResetPhase] =
+    useState(false);
   const [pendingReconfiguration, setPendingReconfiguration] =
     useState<ChampionshipBracketReconfigurationRequest | null>(null);
   const [reconfigurationPreview, setReconfigurationPreview] =
@@ -394,6 +401,42 @@ export function AdminChampionshipSchedule({
 
   const isEditable =
     canManageSchedule && championshipStatus === ChampionshipStatus.REVIEW;
+  const { seasonSettings } = useChampionshipSeasonSettings({
+    championshipId,
+    seasonYear,
+  });
+
+  useEffect(() => {
+    setYellowCardResetPhase(
+      seasonSettings?.yellow_card_reset_phase ?? YellowCardResetPhase.NONE,
+    );
+  }, [seasonSettings?.yellow_card_reset_phase]);
+
+  const saveYellowCardResetPhase = async () => {
+    if (!seasonSettings || !isEditable) {
+      return;
+    }
+
+    setSavingYellowCardResetPhase(true);
+    const { error } = await saveChampionshipSeasonSettings({
+      championship_id: championshipId,
+      season_year: seasonYear,
+      division_format: seasonSettings.division_format,
+      division_settlement_mode: seasonSettings.division_settlement_mode,
+      principal_slots_count: seasonSettings.principal_slots_count,
+      principal_relegation_count: seasonSettings.principal_relegation_count,
+      access_promotion_count: seasonSettings.access_promotion_count,
+      yellow_card_reset_phase: yellowCardResetPhase,
+    });
+    setSavingYellowCardResetPhase(false);
+
+    if (error) {
+      toast.error(error.message || "Não foi possível salvar o reset dos cartões.");
+      return;
+    }
+
+    toast.success("Configuração de cartões amarelos atualizada.");
+  };
 
   function openIndividualSessionEditor(session: ChampionshipIndividualSession) {
     const sessionDay =
@@ -1112,7 +1155,47 @@ export function AdminChampionshipSchedule({
           >
             Prioridades do mata-mata
           </TabsNavigationTrigger>
+          <TabsNavigationTrigger value="discipline" className="px-3 py-2.5 sm:px-4">
+            Disciplina
+          </TabsNavigationTrigger>
         </TabsNavigationList>
+
+        <TabsContent value="discipline" className="mt-6">
+          <section className="glass-card max-w-2xl space-y-4 p-4 sm:p-6">
+            <div>
+              <h3 className="font-semibold">Reset de cartões amarelos</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                A regra vale para todas as modalidades com cartões nesta temporada.
+                Se a etapa escolhida não existir, o reset será aplicado na próxima
+                fase eliminatória disponível.
+              </p>
+            </div>
+            <Select
+              value={yellowCardResetPhase}
+              onValueChange={(value) =>
+                setYellowCardResetPhase(value as YellowCardResetPhase)
+              }
+              disabled={!isEditable || savingYellowCardResetPhase}
+            >
+              <SelectTrigger className="app-input-field">
+                <SelectValue placeholder="Reset dos cartões" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={YellowCardResetPhase.NONE}>Sem reset</SelectItem>
+                <SelectItem value={YellowCardResetPhase.QUARTERFINAL}>Reset nas quartas de final</SelectItem>
+                <SelectItem value={YellowCardResetPhase.SEMIFINAL}>Reset na semifinal</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              onClick={() => void saveYellowCardResetPhase()}
+              disabled={!isEditable || savingYellowCardResetPhase || !seasonSettings}
+            >
+              {savingYellowCardResetPhase ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Salvar configuração
+            </Button>
+          </section>
+        </TabsContent>
 
         <TabsContent value="schedule" className="mt-6">
           {loading ? (

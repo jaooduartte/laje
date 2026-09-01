@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Award, HelpCircle, Medal, Trophy } from "lucide-react";
 import { Header } from "@/components/Header";
 import { PageContentSkeleton } from "@/components/skeletons/PageContentSkeleton";
@@ -6,6 +6,8 @@ import { CardListSkeleton } from "@/components/skeletons/CardListSkeleton";
 import { MatchCard } from "@/components/MatchCard";
 import { TeamStandingsTable } from "@/components/TeamStandingsTable";
 import { IndividualSportStandingsTable } from "@/components/IndividualSportStandingsTable";
+import { YellowCardDisciplineTable } from "@/components/YellowCardDisciplineTable";
+import { Input } from "@/components/ui/input";
 import {
   Tabs,
   TabsContent,
@@ -19,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   Tooltip,
   TooltipContent,
@@ -48,6 +51,7 @@ import {
   compareAwardsRankingGoalScorers,
   type ChampionshipAwardsRankings,
 } from "@/hooks/useChampionshipAwardsRankings";
+import type { ChampionshipYellowCardDiscipline } from "@/hooks/useChampionshipYellowCardDiscipline";
 import { ChampionshipCode, MatchNaipe, TeamDivision } from "@/lib/enums";
 import { MATCH_NAIPE_LABELS, TEAM_DIVISION_LABELS } from "@/lib/championship";
 import { resolveChampionshipSportSupportsAwards } from "@/lib/championshipAwards";
@@ -57,6 +61,13 @@ import {
   hasIndividualEventEntryResult,
   resolveIndividualEventsWithResults,
 } from "@/pages/championships/championshipIndividualResults.utils";
+
+const DISCIPLINE_ALL_FILTER = "ALL";
+const DISCIPLINE_ALPHABETICAL_SORT = "ALPHABETICAL";
+const DISCIPLINE_TOTAL_CARDS_SORT = "TOTAL_CARDS";
+const DISCIPLINE_YELLOW_CARDS_SORT = "YELLOW_CARDS";
+const DISCIPLINE_DIRECT_RED_CARDS_SORT = "DIRECT_RED_CARDS";
+const DISCIPLINE_SUSPENDED_FIRST_SORT = "SUSPENDED_FIRST";
 
 interface ChampionshipsPageViewProps {
   isLoading: boolean;
@@ -109,6 +120,10 @@ interface ChampionshipsPageViewProps {
   championshipChampionHistory: ChampionshipChampionYearGroup[];
   overallPodiumStandings: TeamStandingAggregate[];
   awardsRankings: ChampionshipAwardsRankings | null;
+  yellowCardDiscipline: ChampionshipYellowCardDiscipline | null;
+  yellowCardDisciplineLoading?: boolean;
+  yellowCardDisciplineError?: string | null;
+  onRetryYellowCardDiscipline?: () => void;
   awardsSeasonYear: number | null;
   competitionDisqualifications?: CompetitionTeamDisqualification[];
   matchBracketContextByMatchId: Record<string, MatchBracketContext>;
@@ -173,6 +188,10 @@ export function ChampionshipsPageView({
   championshipChampionHistory,
   overallPodiumStandings,
   awardsRankings,
+  yellowCardDiscipline,
+  yellowCardDisciplineLoading = false,
+  yellowCardDisciplineError = null,
+  onRetryYellowCardDiscipline,
   awardsSeasonYear,
   competitionDisqualifications = [],
   matchBracketContextByMatchId,
@@ -199,10 +218,181 @@ export function ChampionshipsPageView({
   > | null>(null);
   const isStandingsHelpTooltipOpen =
     isStandingsHelpTooltipHoverOpen || isStandingsHelpTooltipClickOpen;
+  const [cardsSportFilter, setCardsSportFilter] = useState(
+    DISCIPLINE_ALL_FILTER,
+  );
+  const [cardsNaipeFilter, setCardsNaipeFilter] = useState(
+    DISCIPLINE_ALL_FILTER,
+  );
+  const [cardsDivisionFilter, setCardsDivisionFilter] = useState(
+    DISCIPLINE_ALL_FILTER,
+  );
+  const [cardsTeamFilter, setCardsTeamFilter] = useState(
+    DISCIPLINE_ALL_FILTER,
+  );
+  const [cardsSort, setCardsSort] = useState(DISCIPLINE_ALPHABETICAL_SORT);
+  const [cardsAthleteQuery, setCardsAthleteQuery] = useState("");
+  const [cardsOnlySuspended, setCardsOnlySuspended] = useState(false);
   const individualEventsWithResults = resolveIndividualEventsWithResults(
     individualEvents,
     individualEntriesByEventId,
   );
+  const cardsSeasonYearFilter =
+    standingsYearFilter == allYearFilter
+      ? String(awardsSeasonYear ?? availableStandingsYears[0] ?? "")
+      : standingsYearFilter;
+  const availableCardSports = useMemo(() => {
+    const sportsById = new Map<string, { id: string; name: string }>();
+
+    (yellowCardDiscipline?.athletes ?? []).forEach((athlete) => {
+      sportsById.set(athlete.sport_id, {
+        id: athlete.sport_id,
+        name: athlete.sport_name,
+      });
+    });
+
+    return [...sportsById.values()].sort((firstSport, secondSport) =>
+      firstSport.name.localeCompare(secondSport.name, "pt-BR"),
+    );
+  }, [yellowCardDiscipline?.athletes]);
+  const availableCardNaipeOptions = useMemo(
+    () =>
+      [MatchNaipe.MASCULINO, MatchNaipe.FEMININO, MatchNaipe.MISTO].filter(
+        (naipe) =>
+          (yellowCardDiscipline?.athletes ?? []).some(
+            (athlete) =>
+              athlete.naipe == naipe &&
+              (cardsSportFilter == DISCIPLINE_ALL_FILTER ||
+                athlete.sport_id == cardsSportFilter),
+          ),
+      ),
+    [cardsSportFilter, yellowCardDiscipline?.athletes],
+  );
+  const cardAthletesInSelectedContext = useMemo(
+    () =>
+      (yellowCardDiscipline?.athletes ?? []).filter(
+        (athlete) =>
+          (cardsSportFilter == DISCIPLINE_ALL_FILTER ||
+            athlete.sport_id == cardsSportFilter) &&
+          (cardsNaipeFilter == DISCIPLINE_ALL_FILTER ||
+            athlete.naipe == cardsNaipeFilter) &&
+          (cardsDivisionFilter == DISCIPLINE_ALL_FILTER ||
+            athlete.division == cardsDivisionFilter),
+      ),
+    [
+      cardsDivisionFilter,
+      cardsNaipeFilter,
+      cardsSportFilter,
+      yellowCardDiscipline?.athletes,
+    ],
+  );
+  const availableCardTeams = useMemo(() => {
+    const teamsById = new Map<string, string>();
+
+    cardAthletesInSelectedContext.forEach((athlete) => {
+      teamsById.set(athlete.team_id, athlete.team_name);
+    });
+
+    return [...teamsById.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((firstTeam, secondTeam) =>
+        firstTeam.name.localeCompare(secondTeam.name, "pt-BR"),
+      );
+  }, [cardAthletesInSelectedContext]);
+  const filteredYellowCardAthletes = useMemo(() => {
+    const normalizedQuery = cardsAthleteQuery.trim().toLocaleLowerCase("pt-BR");
+    const athletes = cardAthletesInSelectedContext.filter(
+      (athlete) =>
+        (cardsTeamFilter == DISCIPLINE_ALL_FILTER ||
+          athlete.team_id == cardsTeamFilter) &&
+        (!cardsOnlySuspended || athlete.is_suspended) &&
+        (!normalizedQuery ||
+          athlete.player_name
+            .toLocaleLowerCase("pt-BR")
+            .includes(normalizedQuery)),
+    );
+
+    return athletes.sort((firstAthlete, secondAthlete) => {
+      if (
+        cardsSort == DISCIPLINE_SUSPENDED_FIRST_SORT &&
+        firstAthlete.is_suspended != secondAthlete.is_suspended
+      ) {
+        return Number(secondAthlete.is_suspended) - Number(firstAthlete.is_suspended);
+      }
+
+      if (cardsSort == DISCIPLINE_TOTAL_CARDS_SORT) {
+        const difference =
+          secondAthlete.yellow_cards_total +
+          secondAthlete.red_cards_direct_total -
+          (firstAthlete.yellow_cards_total +
+            firstAthlete.red_cards_direct_total);
+
+        if (difference != 0) return difference;
+      }
+
+      if (cardsSort == DISCIPLINE_YELLOW_CARDS_SORT) {
+        const difference =
+          secondAthlete.yellow_cards_total - firstAthlete.yellow_cards_total;
+
+        if (difference != 0) return difference;
+      }
+
+      if (cardsSort == DISCIPLINE_DIRECT_RED_CARDS_SORT) {
+        const difference =
+          secondAthlete.red_cards_direct_total -
+          firstAthlete.red_cards_direct_total;
+
+        if (difference != 0) return difference;
+      }
+
+      return firstAthlete.player_name.localeCompare(
+        secondAthlete.player_name,
+        "pt-BR",
+      );
+    });
+  }, [
+    cardAthletesInSelectedContext,
+    cardsAthleteQuery,
+    cardsOnlySuspended,
+    cardsSort,
+    cardsTeamFilter,
+  ]);
+
+  useEffect(() => {
+    if (
+      cardsSportFilter != DISCIPLINE_ALL_FILTER &&
+      !availableCardSports.some((sport) => sport.id == cardsSportFilter)
+    ) {
+      setCardsSportFilter(DISCIPLINE_ALL_FILTER);
+    }
+  }, [availableCardSports, cardsSportFilter]);
+
+  useEffect(() => {
+    if (
+      cardsNaipeFilter != DISCIPLINE_ALL_FILTER &&
+      !availableCardNaipeOptions.includes(cardsNaipeFilter as MatchNaipe)
+    ) {
+      setCardsNaipeFilter(DISCIPLINE_ALL_FILTER);
+    }
+  }, [availableCardNaipeOptions, cardsNaipeFilter]);
+
+  useEffect(() => {
+    if (
+      !selectedChampionshipHasDivisions &&
+      cardsDivisionFilter != DISCIPLINE_ALL_FILTER
+    ) {
+      setCardsDivisionFilter(DISCIPLINE_ALL_FILTER);
+    }
+  }, [cardsDivisionFilter, selectedChampionshipHasDivisions]);
+
+  useEffect(() => {
+    if (
+      cardsTeamFilter != DISCIPLINE_ALL_FILTER &&
+      !availableCardTeams.some((team) => team.id == cardsTeamFilter)
+    ) {
+      setCardsTeamFilter(DISCIPLINE_ALL_FILTER);
+    }
+  }, [availableCardTeams, cardsTeamFilter]);
 
   useEffect(() => {
     return () => {
@@ -295,9 +485,13 @@ export function ChampionshipsPageView({
         </section>
 
         <Tabs defaultValue="standings" className="enter-section space-y-4">
-          <TabsNavigationList className="grid w-full grid-cols-2">
+          <TabsNavigationList className="grid w-full grid-cols-3">
             <TabsNavigationTrigger value="standings">
               Classificação
+            </TabsNavigationTrigger>
+
+            <TabsNavigationTrigger value="cards">
+              Cartões
             </TabsNavigationTrigger>
 
             <TabsNavigationTrigger value="champions">
@@ -308,6 +502,13 @@ export function ChampionshipsPageView({
           {isChampionshipContentLoading ? (
             <>
               <TabsContent value="standings" className="space-y-6">
+                <PageContentSkeleton
+                  filterCount={selectedChampionshipHasDivisions ? 4 : 3}
+                  contentCount={1}
+                />
+              </TabsContent>
+
+              <TabsContent value="cards" className="space-y-6">
                 <PageContentSkeleton
                   filterCount={selectedChampionshipHasDivisions ? 4 : 3}
                   contentCount={1}
@@ -563,6 +764,161 @@ export function ChampionshipsPageView({
                     </div>
                   </div>
                 ) : null}
+                </section>
+              </TabsContent>
+
+              <TabsContent value="cards" className="space-y-6">
+                <section className="glass-panel enter-section space-y-4 p-5">
+                  <div>
+                    <h2 className="text-center text-xl font-display font-bold">
+                      Cartões
+                    </h2>
+                    <p className="mt-1 text-center text-sm text-muted-foreground">
+                      Histórico individual de cartões e situação disciplinar.
+                    </p>
+                  </div>
+                  <div
+                    className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${
+                      selectedChampionshipHasDivisions
+                        ? "lg:grid-cols-6"
+                        : "lg:grid-cols-5"
+                    }`}
+                  >
+                    <Select
+                      value={cardsSeasonYearFilter}
+                      onValueChange={onStandingsYearFilterChange}
+                    >
+                      <SelectTrigger className="app-input-field w-full">
+                        <SelectValue placeholder="Filtrar ano" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableStandingsYears.map((year) => (
+                          <SelectItem key={year} value={year}>
+                            {year}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={cardsSportFilter}
+                      onValueChange={setCardsSportFilter}
+                    >
+                      <SelectTrigger className="app-input-field w-full">
+                        <SelectValue placeholder="Filtrar modalidade" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={DISCIPLINE_ALL_FILTER}>
+                          Todas as modalidades
+                        </SelectItem>
+                        {availableCardSports.map((sport) => (
+                          <SelectItem key={sport.id} value={sport.id}>
+                            {sport.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={cardsNaipeFilter}
+                      onValueChange={setCardsNaipeFilter}
+                    >
+                      <SelectTrigger className="app-input-field w-full">
+                        <SelectValue placeholder="Filtrar naipe" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={DISCIPLINE_ALL_FILTER}>
+                          Todos os naipes
+                        </SelectItem>
+                        {availableCardNaipeOptions.map((naipe) => (
+                          <SelectItem key={naipe} value={naipe}>
+                            {MATCH_NAIPE_LABELS[naipe]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedChampionshipHasDivisions ? (
+                      <Select
+                        value={cardsDivisionFilter}
+                        onValueChange={setCardsDivisionFilter}
+                      >
+                        <SelectTrigger className="app-input-field w-full">
+                          <SelectValue placeholder="Filtrar divisão" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={DISCIPLINE_ALL_FILTER}>
+                            Todas as divisões
+                          </SelectItem>
+                          {Object.entries(TEAM_DIVISION_LABELS).map(
+                            ([value, label]) => (
+                              <SelectItem key={value} value={value}>
+                                {label}
+                              </SelectItem>
+                            ),
+                          )}
+                        </SelectContent>
+                      </Select>
+                    ) : null}
+                    <Select
+                      value={cardsTeamFilter}
+                      onValueChange={setCardsTeamFilter}
+                    >
+                      <SelectTrigger className="app-input-field w-full">
+                        <SelectValue placeholder="Filtrar atlética" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={DISCIPLINE_ALL_FILTER}>
+                          Todas as atléticas
+                        </SelectItem>
+                        {availableCardTeams.map((team) => (
+                          <SelectItem key={team.id} value={team.id}>
+                            {team.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={cardsSort} onValueChange={setCardsSort}>
+                      <SelectTrigger className="app-input-field w-full">
+                        <SelectValue placeholder="Ordenar por" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={DISCIPLINE_ALPHABETICAL_SORT}>
+                          Ordem alfabética
+                        </SelectItem>
+                        <SelectItem value={DISCIPLINE_TOTAL_CARDS_SORT}>
+                          Mais cartões
+                        </SelectItem>
+                        <SelectItem value={DISCIPLINE_YELLOW_CARDS_SORT}>
+                          Mais amarelos
+                        </SelectItem>
+                        <SelectItem value={DISCIPLINE_DIRECT_RED_CARDS_SORT}>
+                          Mais vermelhos diretos
+                        </SelectItem>
+                        <SelectItem value={DISCIPLINE_SUSPENDED_FIRST_SORT}>
+                          Suspensos primeiro
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <Input
+                      value={cardsAthleteQuery}
+                      onChange={(event) => setCardsAthleteQuery(event.target.value)}
+                      placeholder="Buscar atleta"
+                      className="app-input-field sm:w-2/3"
+                    />
+                    <label className="flex shrink-0 items-center gap-2 text-sm font-medium">
+                      <Switch
+                        checked={cardsOnlySuspended}
+                        onCheckedChange={setCardsOnlySuspended}
+                      />
+                      Somente suspensos
+                    </label>
+                  </div>
+                  <YellowCardDisciplineTable
+                    athletes={filteredYellowCardAthletes}
+                    loading={yellowCardDisciplineLoading}
+                    error={yellowCardDisciplineError}
+                    onRetry={onRetryYellowCardDiscipline}
+                  />
                 </section>
               </TabsContent>
 

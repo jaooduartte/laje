@@ -1006,6 +1006,34 @@ export function ChampionshipBracketBoard({
     return [...divisionSet];
   }, [visibleCompetitions]);
 
+  const availableNaipeOptions = useMemo(() => {
+    const naipeSet = new Set(
+      visibleCompetitions.map((competition) => competition.naipe),
+    );
+
+    return [MatchNaipe.MASCULINO, MatchNaipe.FEMININO, MatchNaipe.MISTO].filter(
+      (naipeOption) => naipeSet.has(naipeOption),
+    );
+  }, [visibleCompetitions]);
+
+  useEffect(() => {
+    if (
+      naipeFilter != ALL_FILTER &&
+      !availableNaipeOptions.includes(naipeFilter as MatchNaipe)
+    ) {
+      setNaipeFilter(ALL_FILTER);
+    }
+  }, [availableNaipeOptions, naipeFilter]);
+
+  useEffect(() => {
+    if (
+      divisionFilter != ALL_FILTER &&
+      !availableDivisions.includes(divisionFilter as TeamDivision)
+    ) {
+      setDivisionFilter(ALL_FILTER);
+    }
+  }, [availableDivisions, divisionFilter]);
+
   const filteredCompetitions = useMemo(() => {
     return visibleCompetitions.filter((competition) => {
       if (naipeFilter != ALL_FILTER && competition.naipe != naipeFilter) {
@@ -1027,7 +1055,7 @@ export function ChampionshipBracketBoard({
   if (loading) {
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <div className={`grid grid-cols-1 gap-2 ${availableDivisions.length > 0 ? "sm:grid-cols-2" : ""}`}>
         <Skeleton className="h-10 w-full rounded-xl" />
         <Skeleton className="h-10 w-full rounded-xl" />
       </div>
@@ -1082,31 +1110,29 @@ export function ChampionshipBracketBoard({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL_FILTER}>Todos os naipes</SelectItem>
-            <SelectItem value={MatchNaipe.MASCULINO}>
-              {MATCH_NAIPE_LABELS[MatchNaipe.MASCULINO]}
-            </SelectItem>
-            <SelectItem value={MatchNaipe.FEMININO}>
-              {MATCH_NAIPE_LABELS[MatchNaipe.FEMININO]}
-            </SelectItem>
-            <SelectItem value={MatchNaipe.MISTO}>
-              {MATCH_NAIPE_LABELS[MatchNaipe.MISTO]}
-            </SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select value={divisionFilter} onValueChange={setDivisionFilter}>
-          <SelectTrigger className="app-input-field">
-            <SelectValue placeholder="Filtrar divisão" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_FILTER}>Todas as divisões</SelectItem>
-            {availableDivisions.map((division) => (
-              <SelectItem key={division} value={division}>
-                {TEAM_DIVISION_LABELS[division]}
+            {availableNaipeOptions.map((naipeOption) => (
+              <SelectItem key={naipeOption} value={naipeOption}>
+                {MATCH_NAIPE_LABELS[naipeOption]}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+
+        {availableDivisions.length > 0 ? (
+          <Select value={divisionFilter} onValueChange={setDivisionFilter}>
+            <SelectTrigger className="app-input-field">
+              <SelectValue placeholder="Filtrar divisão" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_FILTER}>Todas as divisões</SelectItem>
+              {availableDivisions.map((division) => (
+                <SelectItem key={division} value={division}>
+                  {TEAM_DIVISION_LABELS[division]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null}
       </div>
 
       {filteredCompetitions.length == 0 ? (

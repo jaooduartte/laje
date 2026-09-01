@@ -28,6 +28,7 @@ export async function saveChampionshipSeasonSettings(
     | "principal_slots_count"
     | "principal_relegation_count"
     | "access_promotion_count"
+    | "yellow_card_reset_phase"
   >,
 ): Promise<{ data: ChampionshipSeasonSettings | null; error: Error | null }> {
   const response = await supabase

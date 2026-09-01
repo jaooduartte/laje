@@ -46,6 +46,7 @@ const {
   getBracketCourtSportsMock,
   individualEventsState,
   individualDisqualificationsState,
+  yellowCardDisciplineState,
   individualSessionRepositoryMocks,
 } = vi.hoisted(() => ({
   supabaseUpdateCalls: [] as SupabaseUpdateCall[],
@@ -67,6 +68,17 @@ const {
   individualDisqualificationsState: {
     current: [],
   } as { current: Array<Record<string, unknown>> },
+  yellowCardDisciplineState: {
+    current: null as {
+      athletes: Array<{
+        player_id: string;
+        player_name: string;
+        team_id: string;
+        is_suspended: boolean;
+        next_match: { match_id: string } | null;
+      }>;
+    } | null,
+  },
   individualSessionRepositoryMocks: {
     finish: vi.fn(),
     reopen: vi.fn(),
@@ -97,6 +109,12 @@ vi.mock("@/hooks/useChampionshipIndividualEvents", () => ({
 vi.mock("@/hooks/useCompetitionTeamDisqualifications", () => ({
   useCompetitionTeamDisqualifications: () => ({
     disqualifications: individualDisqualificationsState.current,
+  }),
+}));
+
+vi.mock("@/hooks/useChampionshipYellowCardDiscipline", () => ({
+  useChampionshipYellowCardDiscipline: () => ({
+    discipline: yellowCardDisciplineState.current,
   }),
 }));
 
@@ -486,6 +504,7 @@ describe("AdminMatchControl", () => {
       refetch: vi.fn(),
     };
     individualDisqualificationsState.current = [];
+    yellowCardDisciplineState.current = null;
     individualSessionRepositoryMocks.finish.mockReset();
     individualSessionRepositoryMocks.reopen.mockReset();
     individualSessionRepositoryMocks.returnToScheduled.mockReset();
@@ -533,7 +552,7 @@ describe("AdminMatchControl", () => {
 
     expect(screen.getByTestId("admin-match-control-loading")).toBeInTheDocument();
     expect(screen.queryByTestId("sport-filter-mock")).not.toBeInTheDocument();
-    expect(screen.queryByText("Nenhum jogo ao vivo ou agendado.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Nenhum jogo agendado para hoje.")).not.toBeInTheDocument();
 
     await act(async () => {
       rerenderAdminMatchControl({
@@ -546,7 +565,13 @@ describe("AdminMatchControl", () => {
 
     expect(screen.queryByTestId("admin-match-control-loading")).not.toBeInTheDocument();
     expect(screen.getByTestId("sport-filter-mock")).toBeInTheDocument();
-    expect(screen.getByText("Nenhum jogo ao vivo ou agendado.")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Filtrar por grupo no controle ao vivo" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Filtrar por local no controle ao vivo" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Filtrar por quadra no controle ao vivo" })).toBeInTheDocument();
+    expect(screen.getByText("Nenhum jogo agendado para hoje.")).toHaveClass(
+      "justify-center",
+      "text-center",
+    );
   });
 
   it("exibe sessão individual configurada em revisão e inclui seus dados nos filtros", async () => {
@@ -1427,6 +1452,121 @@ describe("AdminMatchControl", () => {
     ).toBeNull();
   });
 
+  it("exibe somente atletas suspensos do confronto nos cards agendado e ao vivo", () => {
+    const scheduledMatch = buildMatch({
+      id: "suspended-scheduled-match",
+      sport_id: "sport-suspended",
+      status: MatchStatus.SCHEDULED,
+      supports_cards: true,
+      home_team: buildTeam({ id: "suspended-home", name: "Atlética Suspensa Casa" }),
+      away_team: buildTeam({ id: "suspended-away", name: "Atlética Suspensa Visitante" }),
+    });
+    const liveMatch = buildMatch({
+      id: "suspended-live-match",
+      sport_id: "sport-suspended",
+      status: MatchStatus.LIVE,
+      supports_cards: true,
+      home_team: buildTeam({ id: "suspended-live-home", name: "Atlética Ao Vivo Casa" }),
+      away_team: buildTeam({ id: "suspended-live-away", name: "Atlética Ao Vivo Visitante" }),
+    });
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-suspended",
+      sport_id: "sport-suspended",
+      supports_cards: true,
+    });
+    yellowCardDisciplineState.current = {
+      athletes: [
+        {
+          player_id: "suspended-home-player",
+          player_name: "Jogador Casa Suspenso",
+          team_id: "suspended-home",
+          is_suspended: true,
+          next_match: { match_id: "suspended-scheduled-match" },
+        },
+        {
+          player_id: "suspended-away-player",
+          player_name: "Jogador Visitante Suspenso",
+          team_id: "suspended-away",
+          is_suspended: true,
+          next_match: { match_id: "suspended-scheduled-match" },
+        },
+        {
+          player_id: "suspended-live-player",
+          player_name: "Jogador Ao Vivo Suspenso",
+          team_id: "suspended-live-away",
+          is_suspended: true,
+          next_match: { match_id: "suspended-live-match" },
+        },
+        {
+          player_id: "other-match-player",
+          player_name: "Jogador de Outro Jogo",
+          team_id: "suspended-home",
+          is_suspended: true,
+          next_match: { match_id: "other-match" },
+        },
+        {
+          player_id: "released-player",
+          player_name: "Jogador Liberado",
+          team_id: "suspended-home",
+          is_suspended: false,
+          next_match: { match_id: "suspended-scheduled-match" },
+        },
+      ],
+    };
+
+    renderAdminMatchControl({
+      matches: [scheduledMatch, liveMatch],
+      championshipSports: [championshipSport],
+    });
+
+    const scheduledCard = resolveMatchCardElement("Atlética Suspensa Casa");
+    expect(within(scheduledCard).getByText("Atletas suspensos para esta partida")).toBeInTheDocument();
+    expect(within(scheduledCard).getByText("Jogador Casa Suspenso").parentElement).toHaveTextContent("Atlética Suspensa Casa:");
+    expect(within(scheduledCard).getByText("Jogador Visitante Suspenso").parentElement).toHaveTextContent("Atlética Suspensa Visitante:");
+    expect(within(scheduledCard).queryByText("Jogador de Outro Jogo")).not.toBeInTheDocument();
+    expect(within(scheduledCard).queryByText("Jogador Liberado")).not.toBeInTheDocument();
+    expect(within(scheduledCard).getByRole("button", { name: "Iniciar" })).toBeEnabled();
+
+    const liveCard = resolveMatchCardElement("Atlética Ao Vivo Casa");
+    expect(within(liveCard).getByText("Atletas suspensos para esta partida")).toBeInTheDocument();
+    expect(within(liveCard).getByText("Jogador Ao Vivo Suspenso").parentElement).toHaveTextContent("Atlética Ao Vivo Visitante:");
+    expect(within(liveCard).getByRole("button", { name: /finalizar/i })).toBeEnabled();
+  });
+
+  it("não exibe alerta disciplinar em partida sem cartões ou sem próxima partida definida", () => {
+    const cardlessMatch = buildMatch({
+      id: "cardless-suspended-match",
+      sport_id: "sport-cardless-suspended",
+      status: MatchStatus.SCHEDULED,
+      supports_cards: false,
+      home_team: buildTeam({ id: "cardless-home", name: "Atlética Sem Cartões" }),
+      away_team: buildTeam({ id: "cardless-away", name: "Atlética Sem Cartões Visitante" }),
+    });
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-cardless-suspended",
+      sport_id: "sport-cardless-suspended",
+      supports_cards: false,
+    });
+    yellowCardDisciplineState.current = {
+      athletes: [
+        {
+          player_id: "undefined-next-match-player",
+          player_name: "Jogador Sem Próximo Jogo",
+          team_id: "cardless-home",
+          is_suspended: true,
+          next_match: null,
+        },
+      ],
+    };
+
+    renderAdminMatchControl({
+      matches: [cardlessMatch],
+      championshipSports: [championshipSport],
+    });
+
+    expect(screen.queryByText("Atletas suspensos para esta partida")).not.toBeInTheDocument();
+  });
+
   it("bloqueia aplicação de W.O. quando campeonato não está em andamento", async () => {
     const homeTeam = buildTeam({ id: "wo-blocked-home-team", name: "Atlética WO Bloqueio Casa" });
     const awayTeam = buildTeam({ id: "wo-blocked-away-team", name: "Atlética WO Bloqueio Visitante" });
@@ -1748,6 +1888,29 @@ describe("AdminMatchControl", () => {
     expect(screen.getByTestId("sport-filter-mock")).toHaveAttribute(
       "data-sports",
       expect.stringContaining("Atletismo"),
+    );
+  });
+
+  it("mantém todas as modalidades configuradas no filtro sem jogos no dia", () => {
+    const futsalSport = buildChampionshipSport({
+      id: "championship-futsal-sport",
+      sport_id: "futsal-sport",
+      sports: buildSport({ id: "futsal-sport", name: "Futsal" }),
+    });
+    const handballSport = buildChampionshipSport({
+      id: "championship-handball-sport",
+      sport_id: "handball-sport",
+      sports: buildSport({ id: "handball-sport", name: "Handebol" }),
+    });
+
+    renderAdminMatchControl({
+      matches: [],
+      championshipSports: [futsalSport, handballSport],
+    });
+
+    expect(screen.getByTestId("sport-filter-mock")).toHaveAttribute(
+      "data-sports",
+      "Futsal,Handebol",
     );
   });
 

@@ -11,6 +11,7 @@ import { useChampionshipCorrectedGroupStandings } from "@/hooks/useChampionshipC
 import { useSelectedChampionship } from "@/hooks/useSelectedChampionship";
 import { useChampionshipSelection } from "@/hooks/useChampionshipSelection";
 import { useChampionshipAwardsRankings } from "@/hooks/useChampionshipAwardsRankings";
+import { useChampionshipYellowCardDiscipline } from "@/hooks/useChampionshipYellowCardDiscipline";
 import { useCompetitionTeamDisqualifications } from "@/hooks/useCompetitionTeamDisqualifications";
 import { useChampionshipSeasonYears } from "@/hooks/useChampionshipSeasonYears";
 import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividualEvents";
@@ -173,6 +174,19 @@ export function ChampionshipsPage() {
     seasonYear: shouldLoadAwardsRankings
       ? selectedChampionshipSeasonYear
       : null,
+  });
+  const yellowCardDisciplineSeasonYear =
+    standingsYearFilter == ALL_YEAR_FILTER
+      ? selectedChampionshipSeasonYear
+      : Number(standingsYearFilter);
+  const {
+    discipline: yellowCardDiscipline,
+    loading: yellowCardDisciplineLoading,
+    error: yellowCardDisciplineError,
+    refetch: refetchYellowCardDiscipline,
+  } = useChampionshipYellowCardDiscipline({
+    championshipId: selectedChampionshipId,
+    seasonYear: yellowCardDisciplineSeasonYear,
   });
   const standingsDisqualificationSeasonYear =
     standingsYearFilter == ALL_YEAR_FILTER ? null : Number(standingsYearFilter);
@@ -872,6 +886,10 @@ export function ChampionshipsPage() {
       allStandingsDivisionFilter={ALL_STANDINGS_DIVISION_FILTER}
       selectedChampionshipHasDivisions={canFilterStandingsByDivision}
       awardsRankings={awardsRankings}
+      yellowCardDiscipline={yellowCardDiscipline}
+      yellowCardDisciplineLoading={yellowCardDisciplineLoading}
+      yellowCardDisciplineError={yellowCardDisciplineError}
+      onRetryYellowCardDiscipline={() => void refetchYellowCardDiscipline()}
       awardsSeasonYear={selectedChampionshipSeasonYear}
       disqualifiedTeamKeys={standingsDisqualifiedTeamKeys}
       competitionDisqualifications={competitionDisqualifications}

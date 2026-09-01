@@ -65,6 +65,12 @@ export enum ChampionshipSeasonDivisionSettlementMode {
   TOP_N_TO_PRINCIPAL = "TOP_N_TO_PRINCIPAL",
 }
 
+export enum YellowCardResetPhase {
+  NONE = "NONE",
+  QUARTERFINAL = "QUARTERFINAL",
+  SEMIFINAL = "SEMIFINAL",
+}
+
 export enum ChampionshipSchedulePeriod {
   MATUTINO = "MATUTINO",
   VESPERTINO = "VESPERTINO",

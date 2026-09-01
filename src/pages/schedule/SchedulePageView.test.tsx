@@ -17,6 +17,10 @@ vi.mock("@/components/SportFilter", () => ({
   SportFilter: () => <div>Filtro de modalidades</div>,
 }));
 
+vi.mock("@/components/skeletons/MatchListSkeleton", () => ({
+  MatchListSkeleton: () => <div data-testid="match-list-skeleton" />,
+}));
+
 vi.mock("@/components/ui/app-pagination-controls", () => ({
   AppPaginationControls: ({ currentPage, totalPages }: { currentPage: number; totalPages: number }) => (
     <div>{`Pagina ${currentPage} de ${totalPages}`}</div>
@@ -25,7 +29,13 @@ vi.mock("@/components/ui/app-pagination-controls", () => ({
 
 vi.mock("@/components/ui/select", () => ({
   Select: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  SelectTrigger: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  SelectTrigger: ({
+    children,
+    className,
+  }: {
+    children: ReactNode;
+    className?: string;
+  }) => <div className={className}>{children}</div>,
   SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
   SelectContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   SelectItem: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -114,6 +124,68 @@ function buildMatch(id: string): Match {
 }
 
 describe("SchedulePageView", () => {
+  it("mantém os filtros visíveis enquanto atualiza apenas os cards", () => {
+    const championship = buildChampionship();
+
+    render(
+      <SchedulePageView
+        isLoading={false}
+        selectedChampionship={championship}
+        championships={[championship]}
+        selectedChampionshipCode={championship.code}
+        selectedChampionshipHasDivisions
+        teams={[]}
+        sports={[]}
+        sportFilter={null}
+        naipeFilter={null}
+        teamFilter={null}
+        groupFilter={null}
+        locationFilter={null}
+        courtFilter={null}
+        locationOptions={[]}
+        courtOptions={[]}
+        groupOptions={[]}
+        divisionFilter="ALL_SCHEDULE_DIVISIONS_FILTER"
+        statusFilter={MatchStatus.SCHEDULED}
+        yearFilter="2026"
+        availableSeasonYears={[2026]}
+        orderedDates={[]}
+        groupedMatches={{}}
+        individualEvents={[]}
+        individualSessions={[]}
+        matches={[]}
+        isMatchesFetching
+        matchesCurrentPage={1}
+        matchesItemsPerPage={12}
+        matchesTotalPages={1}
+        matchBracketContextByMatchId={{}}
+        matchRepresentationByMatchId={{}}
+        visualQueuePositionByMatchId={{}}
+        estimatedStartTimeByMatchId={{}}
+        onChampionshipCodeChange={vi.fn()}
+        onSportFilterChange={vi.fn()}
+        onNaipeFilterChange={vi.fn()}
+        onTeamFilterChange={vi.fn()}
+        onGroupFilterChange={vi.fn()}
+        onLocationFilterChange={vi.fn()}
+        onCourtFilterChange={vi.fn()}
+        onDivisionChange={vi.fn()}
+        onStatusFilterChange={vi.fn()}
+        onYearFilterChange={vi.fn()}
+        onMatchesPageChange={vi.fn()}
+        onMatchesItemsPerPageChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Todas as atléticas")).toBeInTheDocument();
+    expect(screen.getByText("Filtro de modalidades")).toBeInTheDocument();
+    expect(screen.getByTestId("match-list-skeleton")).toBeInTheDocument();
+    expect(screen.getByTestId("schedule-filters")).toHaveClass(
+      "flex",
+      "flex-wrap",
+    );
+  });
+
   it("mostra anos históricos reais e mantém filtros completos de local e quadra", () => {
     const championship = buildChampionship();
 

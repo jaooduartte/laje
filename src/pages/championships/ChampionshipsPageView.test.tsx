@@ -172,6 +172,14 @@ describe("ChampionshipsPageView", () => {
     expect(screen.getByText(/1,00 de média/)).toBeInTheDocument();
     expect(screen.getByText("Artilheiro da Final")).toBeInTheDocument();
     expect(screen.queryByText("Artilheiro da Semi")).not.toBeInTheDocument();
+    expect(
+      screen
+        .getAllByRole("button")
+        .filter((button) => button.dataset.value)
+        .map((button) => button.dataset.value),
+    ).toEqual(["standings", "cards", "champions"]);
+    expect(screen.getByPlaceholderText("Buscar atleta")).toBeInTheDocument();
+    expect(screen.getByText("Somente suspensos")).toBeInTheDocument();
   });
 
   it("exibe premiações de uma divisão sem bloquear por pendência de outro recorte", async () => {

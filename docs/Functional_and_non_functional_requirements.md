@@ -21,7 +21,7 @@
 
 - **RF-PUB-05** – A página inicial deve exibir links de navegação para Ao Vivo, Campeonatos, Agenda, Calendário da Liga e Admin, com desabilitação conforme configuração de manutenção.
 - **RF-PUB-06** – A página Ao Vivo deve listar jogos ao vivo, jogos em breve e jogos finalizados, permitindo seleção de campeonato, exibição de tabelas de classificação e chave quando aplicável, e filtros por esporte e naipe.
-- **RF-PUB-07** – A página Campeonatos deve permitir selecionar campeonato e temporada, visualizar tabelas de classificação por esporte, naipe e divisão, e visualizar a chave com times, jogos e vencedores.
+- **RF-PUB-07** – A página Campeonatos deve permitir selecionar campeonato e temporada, visualizar tabelas de classificação por esporte, naipe e divisão, visualizar a chave com times, jogos e vencedores, e consultar cartões individuais e suspensões cumpridas por atleta.
 - **RF-PUB-08** – A página Agenda deve listar jogos por data, com filtros por campeonato, esporte e naipe, exibindo local, quadra, horário e placar.
 - **RF-PUB-09** – A página Calendário da Liga deve listar eventos da liga com tipo de evento, organizador, times organizadores (quando houver), data, local e nome.
 
