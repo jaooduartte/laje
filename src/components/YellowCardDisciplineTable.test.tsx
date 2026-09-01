@@ -28,6 +28,21 @@ describe("YellowCardDisciplineTable", () => {
                 yellow_accumulation: true,
               },
             ],
+            served_suspensions: [
+              {
+                suspension_match_id: "match-1",
+                direct_red: true,
+                yellow_accumulation: false,
+                served_match: {
+                  match_id: "match-2",
+                  match_number: 13,
+                  scheduled_date: "2026-08-31",
+                  start_time: "2026-08-31T19:30:00",
+                  phase: "QUARTERFINAL",
+                  opponent_name: "Atlética 3",
+                },
+              },
+            ],
             effective_reset_phase: "NONE",
             next_match: null,
             matches: [
@@ -48,13 +63,18 @@ describe("YellowCardDisciplineTable", () => {
     );
 
     expect(container).toHaveTextContent("Jogo 12 • 30/08/2026 • 17:30");
-    expect(container).toHaveTextContent("Atlética 1 × Atlética 2 • Fase de grupos");
+    expect(container).toHaveTextContent("Atlética 1 × Atlética 2");
+    expect(container).toHaveTextContent("Fase de grupos");
     expect(container).not.toHaveTextContent("Cartões em vigor");
     expect(container).not.toHaveTextContent("vermelho por acúmulo");
+    expect(container).toHaveTextContent("Suspensão cumprida");
+    expect(container).toHaveTextContent("Jogo 13 • 31/08/2026 • 19:30");
+    expect(container).toHaveTextContent("Atlética 1 × Atlética 3");
+    expect(container).toHaveTextContent("Quartas de final");
     expect(screen.getByLabelText("1 cartão vermelho direto")).toBeInTheDocument();
     expect(container.querySelector("summary svg")).toBeInTheDocument();
     expect(screen.getByText("Suspenso")).toHaveClass("bg-slate-200", "dark:bg-slate-800");
-    expect(container.querySelector("details > div")).toHaveClass("lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]");
+    expect(container.querySelector("details > div")).toHaveClass("lg:grid-cols-4");
   });
 
   it("exibe uma falha de consulta e permite tentar novamente", () => {

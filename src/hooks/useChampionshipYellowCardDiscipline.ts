@@ -20,6 +20,16 @@ export interface YellowCardDisciplineNextMatch {
   opponent_name: string | null;
 }
 
+export interface YellowCardDisciplineServedSuspension {
+  suspension_match_id: string;
+  direct_red: boolean;
+  yellow_accumulation: boolean;
+  served_match: YellowCardDisciplineNextMatch & {
+    match_number: number | null;
+    phase: string;
+  };
+}
+
 export interface YellowCardDisciplineAthlete {
   player_id: string;
   player_name: string;
@@ -38,6 +48,7 @@ export interface YellowCardDisciplineAthlete {
     direct_red: boolean;
     yellow_accumulation: boolean;
   }>;
+  served_suspensions?: YellowCardDisciplineServedSuspension[];
   effective_reset_phase: string;
   next_match: YellowCardDisciplineNextMatch | null;
   matches: YellowCardDisciplineMatch[];

@@ -113,51 +113,80 @@ export function YellowCardDisciplineTable({
               </div>
             </div>
           </summary>
-          <div className="mt-3 grid gap-6 border-t border-border/50 pt-3 text-sm lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-            <div className="space-y-1 text-xs text-muted-foreground">
-              <p className="font-medium text-foreground">Histórico por partida</p>
-              {athlete.matches.map((match, index) => (
-                <div key={`${match.match_id}-${index}`} className="space-y-1 border-t border-border/50 pt-2 first:border-t-0 first:pt-0">
-                  <p className="font-medium text-foreground">
+          <div className="mt-3 grid grid-cols-1 gap-3 border-t border-border/50 pt-3 text-xs text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
+            {athlete.matches.map((match, index) => (
+              <div
+                key={`${match.match_id}-${index}`}
+                className="space-y-2 rounded-lg border border-border/60 bg-background/70 p-3"
+              >
+                <p className="font-medium text-foreground">Cartões recebidos</p>
+                <div className="space-y-1">
+                  <p>
                     {match.match_number != null ? `Jogo ${match.match_number} • ` : ""}
                     {resolveDisciplineMatchDateTime(match.scheduled_date, match.start_time)}
                   </p>
                   <p>
-                    {athlete.team_name} × {match.opponent_name ?? "Adversário a definir"} • {resolveDisciplineMatchPhaseLabel(match.phase)}
+                    {athlete.team_name} × {match.opponent_name ?? "Adversário a definir"}
                   </p>
-                  <div className="flex items-center gap-3">
-                    {match.yellow_cards > 0 ? (
-                      <span className="inline-flex items-center gap-1" aria-label={`${match.yellow_cards} cartão amarelo${match.yellow_cards == 1 ? "" : "s"}`}>
-                        <Square className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
-                        {match.yellow_cards}
-                      </span>
-                    ) : null}
-                    {match.red_cards_direct > 0 ? (
-                      <span className="inline-flex items-center gap-1" aria-label={`${match.red_cards_direct} cartão vermelho direto${match.red_cards_direct == 1 ? "" : "s"}`}>
-                        <Square className="h-2.5 w-2.5 fill-rose-600 text-rose-600 dark:fill-rose-500 dark:text-rose-500" />
-                        {match.red_cards_direct}
-                      </span>
-                    ) : null}
-                  </div>
+                  <p>{resolveDisciplineMatchPhaseLabel(match.phase)}</p>
                 </div>
-              ))}
-            </div>
-            <div className="space-y-2">
-              {athlete.is_suspended ? (
-                <p className="text-destructive">
+                <div className="flex items-center gap-3">
+                  {match.yellow_cards > 0 ? (
+                    <span className="inline-flex items-center gap-1" aria-label={`${match.yellow_cards} cartão amarelo${match.yellow_cards == 1 ? "" : "s"}`}>
+                      <Square className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
+                      {match.yellow_cards}
+                    </span>
+                  ) : null}
+                  {match.red_cards_direct > 0 ? (
+                    <span className="inline-flex items-center gap-1" aria-label={`${match.red_cards_direct} cartão vermelho direto${match.red_cards_direct == 1 ? "" : "s"}`}>
+                      <Square className="h-2.5 w-2.5 fill-rose-600 text-rose-600 dark:fill-rose-500 dark:text-rose-500" />
+                      {match.red_cards_direct}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+            {athlete.served_suspensions?.map((servedSuspension) => (
+              <div
+                key={`${servedSuspension.suspension_match_id}:${servedSuspension.served_match.match_id}`}
+                className="space-y-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3"
+              >
+                <p className="font-medium text-emerald-700 dark:text-emerald-300">
+                  Suspensão cumprida
+                </p>
+                <div className="space-y-1">
+                  <p>
+                    {servedSuspension.served_match.match_number != null
+                      ? `Jogo ${servedSuspension.served_match.match_number} • `
+                      : ""}
+                    {resolveDisciplineMatchDateTime(
+                      servedSuspension.served_match.scheduled_date,
+                      servedSuspension.served_match.start_time,
+                    )}
+                  </p>
+                  <p>
+                    {athlete.team_name} × {servedSuspension.served_match.opponent_name ?? "Adversário a definir"}
+                  </p>
+                  <p>{resolveDisciplineMatchPhaseLabel(servedSuspension.served_match.phase)}</p>
+                </div>
+              </div>
+            ))}
+            {athlete.is_suspended ? (
+              <div className="space-y-1 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-destructive sm:col-span-2 lg:col-span-4">
+                <p className="font-medium">
                   {athlete.next_match
                     ? `Suspenso para a próxima partida contra ${athlete.next_match.opponent_name ?? "adversário a definir"}.`
                     : "Suspenso para a próxima partida da equipe."}
                 </p>
-              ) : null}
-              {athlete.is_suspended && athlete.suspension_causes.length > 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  Motivo: {athlete.suspension_causes.some((cause) => cause.direct_red) ? "vermelho direto" : ""}
-                  {athlete.suspension_causes.some((cause) => cause.direct_red) && athlete.suspension_causes.some((cause) => cause.yellow_accumulation) ? " e " : ""}
-                  {athlete.suspension_causes.some((cause) => cause.yellow_accumulation) ? "acúmulo de amarelos" : ""}.
-                </p>
-              ) : null}
-            </div>
+                {athlete.suspension_causes.length > 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Motivo: {athlete.suspension_causes.some((cause) => cause.direct_red) ? "vermelho direto" : ""}
+                    {athlete.suspension_causes.some((cause) => cause.direct_red) && athlete.suspension_causes.some((cause) => cause.yellow_accumulation) ? " e " : ""}
+                    {athlete.suspension_causes.some((cause) => cause.yellow_accumulation) ? "acúmulo de amarelos" : ""}.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         </details>
       ))}
