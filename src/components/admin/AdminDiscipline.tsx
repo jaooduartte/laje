@@ -35,7 +35,7 @@ export function AdminDiscipline({
   const [sort, setSort] = useState(ALPHABETICAL_SORT);
   const [athleteQuery, setAthleteQuery] = useState("");
   const [onlySuspended, setOnlySuspended] = useState(false);
-  const { discipline, loading } = useChampionshipYellowCardDiscipline({
+  const { discipline, loading, error, refetch } = useChampionshipYellowCardDiscipline({
     championshipId: championship.id,
     seasonYear: Number(seasonYear),
   });
@@ -227,7 +227,12 @@ export function AdminDiscipline({
           </label>
         </div>
       </section>
-      <YellowCardDisciplineTable athletes={athletes} loading={loading} />
+      <YellowCardDisciplineTable
+        athletes={athletes}
+        loading={loading}
+        error={error}
+        onRetry={() => void refetch()}
+      />
     </div>
   );
 }

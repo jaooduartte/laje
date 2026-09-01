@@ -179,11 +179,15 @@ export function ChampionshipsPage() {
     standingsYearFilter == ALL_YEAR_FILTER
       ? selectedChampionshipSeasonYear
       : Number(standingsYearFilter);
-  const { discipline: yellowCardDiscipline, loading: yellowCardDisciplineLoading } =
-    useChampionshipYellowCardDiscipline({
-      championshipId: selectedChampionshipId,
-      seasonYear: yellowCardDisciplineSeasonYear,
-    });
+  const {
+    discipline: yellowCardDiscipline,
+    loading: yellowCardDisciplineLoading,
+    error: yellowCardDisciplineError,
+    refetch: refetchYellowCardDiscipline,
+  } = useChampionshipYellowCardDiscipline({
+    championshipId: selectedChampionshipId,
+    seasonYear: yellowCardDisciplineSeasonYear,
+  });
   const standingsDisqualificationSeasonYear =
     standingsYearFilter == ALL_YEAR_FILTER ? null : Number(standingsYearFilter);
   const { disqualifications: competitionDisqualifications } =
@@ -884,6 +888,8 @@ export function ChampionshipsPage() {
       awardsRankings={awardsRankings}
       yellowCardDiscipline={yellowCardDiscipline}
       yellowCardDisciplineLoading={yellowCardDisciplineLoading}
+      yellowCardDisciplineError={yellowCardDisciplineError}
+      onRetryYellowCardDiscipline={() => void refetchYellowCardDiscipline()}
       awardsSeasonYear={selectedChampionshipSeasonYear}
       disqualifiedTeamKeys={standingsDisqualifiedTeamKeys}
       competitionDisqualifications={competitionDisqualifications}

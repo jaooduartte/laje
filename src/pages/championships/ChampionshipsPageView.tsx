@@ -122,6 +122,8 @@ interface ChampionshipsPageViewProps {
   awardsRankings: ChampionshipAwardsRankings | null;
   yellowCardDiscipline: ChampionshipYellowCardDiscipline | null;
   yellowCardDisciplineLoading?: boolean;
+  yellowCardDisciplineError?: string | null;
+  onRetryYellowCardDiscipline?: () => void;
   awardsSeasonYear: number | null;
   competitionDisqualifications?: CompetitionTeamDisqualification[];
   matchBracketContextByMatchId: Record<string, MatchBracketContext>;
@@ -188,6 +190,8 @@ export function ChampionshipsPageView({
   awardsRankings,
   yellowCardDiscipline,
   yellowCardDisciplineLoading = false,
+  yellowCardDisciplineError = null,
+  onRetryYellowCardDiscipline,
   awardsSeasonYear,
   competitionDisqualifications = [],
   matchBracketContextByMatchId,
@@ -912,6 +916,8 @@ export function ChampionshipsPageView({
                   <YellowCardDisciplineTable
                     athletes={filteredYellowCardAthletes}
                     loading={yellowCardDisciplineLoading}
+                    error={yellowCardDisciplineError}
+                    onRetry={onRetryYellowCardDiscipline}
                   />
                 </section>
               </TabsContent>

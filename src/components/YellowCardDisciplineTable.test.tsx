@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { YellowCardDisciplineTable } from "@/components/YellowCardDisciplineTable";
 import { MatchNaipe } from "@/lib/enums";
 
@@ -55,5 +55,25 @@ describe("YellowCardDisciplineTable", () => {
     expect(container.querySelector("summary svg")).toBeInTheDocument();
     expect(screen.getByText("Suspenso")).toHaveClass("bg-slate-200", "dark:bg-slate-800");
     expect(container.querySelector("details > div")).toHaveClass("lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]");
+  });
+
+  it("exibe uma falha de consulta e permite tentar novamente", () => {
+    const onRetry = vi.fn();
+
+    render(
+      <YellowCardDisciplineTable
+        athletes={[]}
+        error="Não foi possível carregar os cartões. Tente novamente."
+        onRetry={onRetry}
+      />,
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Não foi possível carregar os cartões. Tente novamente.",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
+
+    expect(onRetry).toHaveBeenCalledTimes(1);
   });
 });

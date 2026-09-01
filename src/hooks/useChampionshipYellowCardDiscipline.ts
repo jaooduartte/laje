@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { MatchNaipe, TeamDivision } from "@/lib/enums";
 
@@ -58,26 +58,35 @@ export function useChampionshipYellowCardDiscipline({
   const [discipline, setDiscipline] =
     useState<ChampionshipYellowCardDiscipline | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const scheduledRefetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetch = useCallback(async () => {
     if (!championshipId || !seasonYear) {
       setDiscipline(null);
+      setError(null);
+      setLoading(false);
       return;
     }
 
     setLoading(true);
     try {
-      const { data, error } = await (supabase as unknown as {
-        rpc: (functionName: string, payload: Record<string, unknown>) => Promise<{
-          data: unknown;
-          error: unknown;
-        }>;
-      }).rpc("get_championship_yellow_card_discipline", {
+      const { data, error: rpcError } = await supabase.rpc("get_championship_yellow_card_discipline", {
         _championship_id: championshipId,
         _season_year: seasonYear,
       });
 
-      setDiscipline(error ? null : ((data as ChampionshipYellowCardDiscipline) ?? null));
+      if (rpcError) {
+        setDiscipline(null);
+        setError("Não foi possível carregar os cartões. Tente novamente.");
+        return;
+      }
+
+      setDiscipline((data as unknown as ChampionshipYellowCardDiscipline) ?? null);
+      setError(null);
+    } catch {
+      setDiscipline(null);
+      setError("Não foi possível carregar os cartões. Tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -90,18 +99,34 @@ export function useChampionshipYellowCardDiscipline({
       return;
     }
 
+    const scheduleFetch = () => {
+      if (scheduledRefetchTimeoutRef.current) {
+        clearTimeout(scheduledRefetchTimeoutRef.current);
+      }
+
+      scheduledRefetchTimeoutRef.current = setTimeout(() => {
+        scheduledRefetchTimeoutRef.current = null;
+        void fetch();
+      }, 180);
+    };
+
     const channel = supabase
       .channel(`yellow-card-discipline-${championshipId}-${seasonYear}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "match_yellow_card_players" }, () => void fetch())
-      .on("postgres_changes", { event: "*", schema: "public", table: "match_red_card_players" }, () => void fetch())
-      .on("postgres_changes", { event: "*", schema: "public", table: "matches", filter: `championship_id=eq.${championshipId}` }, () => void fetch())
-      .on("postgres_changes", { event: "*", schema: "public", table: "championship_season_settings", filter: `championship_id=eq.${championshipId}` }, () => void fetch())
+      .on("postgres_changes", { event: "*", schema: "public", table: "match_yellow_card_players" }, scheduleFetch)
+      .on("postgres_changes", { event: "*", schema: "public", table: "match_red_card_players" }, scheduleFetch)
+      .on("postgres_changes", { event: "*", schema: "public", table: "matches", filter: `championship_id=eq.${championshipId}` }, scheduleFetch)
+      .on("postgres_changes", { event: "*", schema: "public", table: "championship_season_settings", filter: `championship_id=eq.${championshipId}` }, scheduleFetch)
       .subscribe();
 
     return () => {
+      if (scheduledRefetchTimeoutRef.current) {
+        clearTimeout(scheduledRefetchTimeoutRef.current);
+        scheduledRefetchTimeoutRef.current = null;
+      }
+
       supabase.removeChannel(channel);
     };
   }, [championshipId, seasonYear, fetch]);
 
-  return { discipline, loading, refetch: fetch };
+  return { discipline, loading, error, refetch: fetch };
 }

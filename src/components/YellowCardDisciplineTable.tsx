@@ -1,6 +1,7 @@
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ChevronDown, Square } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { YellowCardDisciplineAthlete } from "@/hooks/useChampionshipYellowCardDiscipline";
 import { MATCH_NAIPE_LABELS, TEAM_DIVISION_LABELS } from "@/lib/championship";
@@ -44,14 +45,34 @@ function resolveDisciplineMatchDateTime(
 export function YellowCardDisciplineTable({
   athletes,
   loading = false,
+  error = null,
+  onRetry,
   emptyMessage = "Nenhum cartão individual foi informado neste filtro.",
 }: {
   athletes: YellowCardDisciplineAthlete[];
   loading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
   emptyMessage?: string;
 }) {
   if (loading) {
     return <Skeleton className="h-48 w-full rounded-xl" />;
+  }
+
+  if (error) {
+    return (
+      <div
+        role="alert"
+        className="flex flex-col items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-8 text-center text-sm text-destructive"
+      >
+        <p>{error}</p>
+        {onRetry ? (
+          <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+            Tentar novamente
+          </Button>
+        ) : null}
+      </div>
+    );
   }
 
   if (athletes.length == 0) {
