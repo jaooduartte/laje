@@ -82,6 +82,7 @@ import {
   resolveChampionshipBracketKnockoutProjection,
   resolveChampionshipBracketSeedPlaceholderLabels,
 } from "@/domain/championship-brackets/championshipBracketKnockoutProjection";
+import { resolveKnockoutDisplayMatchNumberById } from "@/domain/championship-brackets/championshipBracketDisplayMatchNumbers";
 import type {
   Championship,
   ChampionshipBracketCompetition,
@@ -582,6 +583,8 @@ const EMPTY_TIE_BREAKER_RULE_OPTION_VALUE =
   "EMPTY_TIE_BREAKER_RULE_OPTION_VALUE";
 const EMPTY_TIE_BREAK_TEAM_OPTION_VALUE = "EMPTY_TIE_BREAK_TEAM_OPTION_VALUE";
 const EMPTY_SWAP_MATCH_OPTION_VALUE = "EMPTY_SWAP_MATCH_OPTION_VALUE";
+const EMPTY_KNOCKOUT_SWAP_OPTION_VALUE =
+  "EMPTY_KNOCKOUT_SWAP_OPTION_VALUE";
 const EMPTY_MANUAL_RELOCATION_OPTION_VALUE =
   "EMPTY_MANUAL_RELOCATION_OPTION_VALUE";
 const EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE =
@@ -627,6 +630,30 @@ type ListMatchQueueSwapCandidatesResponseItem = {
   home_team_name: string | null;
   away_team_name: string | null;
   uses_reduced_cross_sport_rest_gap: boolean;
+};
+
+type ListKnockoutScheduleSwapCandidatesResponseItem = {
+  bracket_match_id: string;
+  match_id: string | null;
+  is_placeholder: boolean;
+  sport_name: string;
+  naipe: MatchNaipe;
+  division: TeamDivision | null;
+  round_number: number;
+  is_third_place: boolean;
+  scheduled_date: string | null;
+  start_time: string | null;
+  queue_position: number | null;
+  scheduled_slot: number | null;
+  home_team_name: string | null;
+  away_team_name: string | null;
+};
+
+type SwapKnockoutScheduleSlotsResponse = {
+  source_bracket_match_id: string;
+  target_bracket_match_id: string;
+  source_previous_slot: number;
+  target_previous_slot: number;
 };
 
 type DayScheduleReorganizationTimelineItem =
@@ -735,10 +762,76 @@ function resolvePendingManualRelocationScheduleValue(
   return typeof value == "number" ? value : null;
 }
 
+function resolveKnockoutScheduleSwapOptionLabel(
+  item: ListKnockoutScheduleSwapCandidatesResponseItem,
+  displayMatchNumber: number | null,
+): string {
+  const dateLabel = resolveBrazilianDateLabel(item.scheduled_date);
+  const timeLabel = resolveSaoPauloTimeLabel(item.start_time);
+  const queuePosition = item.scheduled_slot ?? item.queue_position ?? null;
+  const queueLabel =
+    queuePosition != null ? `Posição ${queuePosition} na fila` : null;
+  const stageLabel = item.is_third_place
+    ? "Disputa de 3º lugar"
+    : `Mata-mata • Rodada ${item.round_number}`;
+  const participantLabel = item.is_placeholder
+    ? "A definir x A definir"
+    : `${item.home_team_name ?? "Casa"} x ${item.away_team_name ?? "Visitante"}`;
+
+  return [
+    item.sport_name,
+    MATCH_NAIPE_LABELS[item.naipe],
+    item.division ? TEAM_DIVISION_LABELS[item.division] : null,
+    stageLabel,
+    dateLabel,
+    timeLabel,
+    displayMatchNumber != null ? `Jogo ${displayMatchNumber}` : null,
+    queueLabel,
+    participantLabel,
+  ]
+    .filter(Boolean)
+    .join(" • ");
+}
+
+function resolveKnockoutScheduleSwapSourceLabel(
+  placeholder: ScheduledKnockoutPlaceholder,
+): string {
+  const queuePosition =
+    placeholder.scheduled_slot ?? placeholder.queue_position ?? null;
+
+  return [
+    placeholder.sport_name,
+    MATCH_NAIPE_LABELS[placeholder.naipe],
+    placeholder.division
+      ? TEAM_DIVISION_LABELS[placeholder.division]
+      : null,
+    placeholder.stage_label,
+    resolveBrazilianDateLabel(placeholder.scheduled_date),
+    resolveSaoPauloTimeLabel(placeholder.start_time),
+    placeholder.display_match_number != null
+      ? `Jogo ${placeholder.display_match_number}`
+      : null,
+    queuePosition != null
+      ? `Posição ${queuePosition} na fila`
+      : null,
+    "A definir x A definir",
+  ]
+    .filter(Boolean)
+    .join(" • ");
+}
+
 function AdminMatchesKnockoutPlaceholderCard({
   placeholder,
+  canManageMatches,
+  isScoreSheetReviewMode,
+  disabled,
+  onSwap,
 }: {
   placeholder: ScheduledKnockoutPlaceholder;
+  canManageMatches: boolean;
+  isScoreSheetReviewMode: boolean;
+  disabled: boolean;
+  onSwap: (placeholder: ScheduledKnockoutPlaceholder) => void;
 }) {
   const scheduledTimeLabel = resolvePublicScheduleTimeLabel(
     placeholder.start_time,
@@ -789,6 +882,28 @@ function AdminMatchesKnockoutPlaceholderCard({
             <p>{resolveBrazilianDateLabel(placeholder.scheduled_date)}</p>
           </div>
         </div>
+
+        {canManageMatches && !isScoreSheetReviewMode ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={`Ações do slot ${placeholder.stage_label} ${MATCH_NAIPE_LABELS[placeholder.naipe]}`}
+                disabled={disabled}
+              >
+                <MoreVertical className="h-4 w-4 text-muted-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onSelect={() => onSwap(placeholder)}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Trocar jogo
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
       </div>
     </div>
   );
@@ -1415,6 +1530,16 @@ export function AdminMatches({
   const [loadingSwapTargetMatchOptions, setLoadingSwapTargetMatchOptions] =
     useState(false);
   const [swappingMatches, setSwappingMatches] = useState(false);
+  const [showKnockoutScheduleSwapDialog, setShowKnockoutScheduleSwapDialog] =
+    useState(false);
+  const [pendingKnockoutScheduleSwapSource, setPendingKnockoutScheduleSwapSource] =
+    useState<ScheduledKnockoutPlaceholder | null>(null);
+  const [pendingKnockoutScheduleSwapTargetId, setPendingKnockoutScheduleSwapTargetId] =
+    useState("");
+  const [eligibleKnockoutScheduleSwapCandidates, setEligibleKnockoutScheduleSwapCandidates] =
+    useState<ListKnockoutScheduleSwapCandidatesResponseItem[]>([]);
+  const [loadingKnockoutScheduleSwapCandidates, setLoadingKnockoutScheduleSwapCandidates] =
+    useState(false);
   const [showManualRelocationDialog, setShowManualRelocationDialog] =
     useState(false);
   const [manualRelocationTargetDate, setManualRelocationTargetDate] =
@@ -3285,6 +3410,51 @@ export function AdminMatches({
     visualQueuePositionByMatchId,
   ]);
 
+  const knockoutDisplayMatchNumberById = useMemo(
+    () =>
+      resolveKnockoutDisplayMatchNumberById(
+        championshipBracketView,
+        matches,
+      ),
+    [championshipBracketView, matches],
+  );
+
+  const eligibleKnockoutScheduleSwapOptions = useMemo(() => {
+    return [...eligibleKnockoutScheduleSwapCandidates]
+      .sort((firstCandidate, secondCandidate) => {
+        const firstDate = firstCandidate.scheduled_date ?? "9999-12-31";
+        const secondDate = secondCandidate.scheduled_date ?? "9999-12-31";
+
+        if (firstDate != secondDate) {
+          return firstDate.localeCompare(secondDate);
+        }
+
+        const firstSlot =
+          firstCandidate.scheduled_slot ??
+          firstCandidate.queue_position ??
+          Number.MAX_SAFE_INTEGER;
+        const secondSlot =
+          secondCandidate.scheduled_slot ??
+          secondCandidate.queue_position ??
+          Number.MAX_SAFE_INTEGER;
+
+        if (firstSlot != secondSlot) {
+          return firstSlot - secondSlot;
+        }
+
+        return firstCandidate.bracket_match_id.localeCompare(
+          secondCandidate.bracket_match_id,
+        );
+      })
+      .map((candidate) => ({
+        id: candidate.bracket_match_id,
+        label: resolveKnockoutScheduleSwapOptionLabel(
+          candidate,
+          knockoutDisplayMatchNumberById[candidate.bracket_match_id] ?? null,
+        ),
+      }));
+  }, [eligibleKnockoutScheduleSwapCandidates, knockoutDisplayMatchNumberById]);
+
   const operationalVisualQueuePositionByMatchId = useMemo(() => {
     return resolveVisualQueuePositionByMatchId(
       matches.filter((match) => !match.is_pending_manual_relocation),
@@ -3510,6 +3680,55 @@ export function AdminMatches({
   }, [pendingSwapSourceMatch, showSwapMatchDialog]);
 
   useEffect(() => {
+    if (
+      !showKnockoutScheduleSwapDialog ||
+      !pendingKnockoutScheduleSwapSource
+    ) {
+      setEligibleKnockoutScheduleSwapCandidates([]);
+      setLoadingKnockoutScheduleSwapCandidates(false);
+      return;
+    }
+
+    let shouldIgnore = false;
+
+    setLoadingKnockoutScheduleSwapCandidates(true);
+
+    void (async () => {
+      const { data, error } = await supabaseLoose.rpc(
+        "list_knockout_schedule_swap_candidates",
+        {
+          _source_bracket_match_id: pendingKnockoutScheduleSwapSource.id,
+        },
+      );
+
+      if (shouldIgnore) {
+        return;
+      }
+
+      if (error) {
+        setEligibleKnockoutScheduleSwapCandidates([]);
+        setLoadingKnockoutScheduleSwapCandidates(false);
+        toast.error(resolveAdminMatchesOperationalErrorMessage(error));
+        return;
+      }
+
+      setEligibleKnockoutScheduleSwapCandidates(
+        Array.isArray(data)
+          ? (data as ListKnockoutScheduleSwapCandidatesResponseItem[])
+          : [],
+      );
+      setLoadingKnockoutScheduleSwapCandidates(false);
+    })();
+
+    return () => {
+      shouldIgnore = true;
+    };
+  }, [
+    pendingKnockoutScheduleSwapSource,
+    showKnockoutScheduleSwapDialog,
+  ]);
+
+  useEffect(() => {
     if (!pendingSwapTargetMatchId) {
       return;
     }
@@ -3522,6 +3741,23 @@ export function AdminMatches({
       setPendingSwapTargetMatchId("");
     }
   }, [eligibleSwapTargetMatchOptions, pendingSwapTargetMatchId]);
+
+  useEffect(() => {
+    if (!pendingKnockoutScheduleSwapTargetId) {
+      return;
+    }
+
+    if (
+      !eligibleKnockoutScheduleSwapOptions.some(
+        (option) => option.id == pendingKnockoutScheduleSwapTargetId,
+      )
+    ) {
+      setPendingKnockoutScheduleSwapTargetId("");
+    }
+  }, [
+    eligibleKnockoutScheduleSwapOptions,
+    pendingKnockoutScheduleSwapTargetId,
+  ]);
 
   const filteredMatchIds = useMemo(() => {
     return filteredAndSortedMatches.map((match) => match.id);
@@ -4105,6 +4341,18 @@ export function AdminMatches({
     setEligibleSwapTargetMatchCandidates([]);
     setLoadingSwapTargetMatchOptions(false);
   }, [isScoreSheetReviewMode, showSwapMatchDialog]);
+
+  useEffect(() => {
+    if (!isScoreSheetReviewMode || !showKnockoutScheduleSwapDialog) {
+      return;
+    }
+
+    setShowKnockoutScheduleSwapDialog(false);
+    setPendingKnockoutScheduleSwapSource(null);
+    setPendingKnockoutScheduleSwapTargetId("");
+    setEligibleKnockoutScheduleSwapCandidates([]);
+    setLoadingKnockoutScheduleSwapCandidates(false);
+  }, [isScoreSheetReviewMode, showKnockoutScheduleSwapDialog]);
 
   useEffect(() => {
     if (!shouldShowTieBreakBanner) {
@@ -4843,6 +5091,89 @@ export function AdminMatches({
     }
 
     toast.success("Jogos trocados na fila.");
+  };
+
+  const handleOpenKnockoutScheduleSwapDialog = (
+    placeholder: ScheduledKnockoutPlaceholder,
+  ) => {
+    if (!canManageMatches || isScoreSheetReviewMode) {
+      return;
+    }
+
+    setPendingKnockoutScheduleSwapSource(placeholder);
+    setPendingKnockoutScheduleSwapTargetId("");
+    setEligibleKnockoutScheduleSwapCandidates([]);
+    setShowKnockoutScheduleSwapDialog(true);
+  };
+
+  const handleCloseKnockoutScheduleSwapDialog = () => {
+    if (swappingMatches) {
+      return;
+    }
+
+    setShowKnockoutScheduleSwapDialog(false);
+    setPendingKnockoutScheduleSwapSource(null);
+    setPendingKnockoutScheduleSwapTargetId("");
+    setEligibleKnockoutScheduleSwapCandidates([]);
+    setLoadingKnockoutScheduleSwapCandidates(false);
+  };
+
+  const handleConfirmKnockoutScheduleSwap = async () => {
+    if (
+      !canManageMatches ||
+      isScoreSheetReviewMode ||
+      !pendingKnockoutScheduleSwapSource ||
+      !pendingKnockoutScheduleSwapTargetId
+    ) {
+      toast.error("Selecione um jogo eliminatório válido para a troca.");
+      return;
+    }
+
+    if (loadingKnockoutScheduleSwapCandidates) {
+      toast.error("Aguarde o carregamento das opções de troca.");
+      return;
+    }
+
+    if (eligibleKnockoutScheduleSwapOptions.length == 0) {
+      toast.error("Não há jogos eliminatórios elegíveis para troca.");
+      return;
+    }
+
+    setSwappingMatches(true);
+
+    const { data, error } = await supabaseLoose.rpc(
+      "swap_knockout_schedule_slots",
+      {
+        _source_bracket_match_id: pendingKnockoutScheduleSwapSource.id,
+        _target_bracket_match_id: pendingKnockoutScheduleSwapTargetId,
+      },
+    );
+
+    if (error) {
+      setSwappingMatches(false);
+      toast.error(resolveAdminMatchesOperationalErrorMessage(error));
+      return;
+    }
+
+    const swapResponse = data as SwapKnockoutScheduleSlotsResponse | null;
+
+    setSwappingMatches(false);
+    setShowKnockoutScheduleSwapDialog(false);
+    setPendingKnockoutScheduleSwapSource(null);
+    setPendingKnockoutScheduleSwapTargetId("");
+    setEligibleKnockoutScheduleSwapCandidates([]);
+    setLoadingKnockoutScheduleSwapCandidates(false);
+
+    await Promise.all([onRefetch(), onRefetchChampionshipBracket()]);
+
+    if (swapResponse) {
+      toast.success(
+        `Jogos eliminatórios trocados: jogo ${swapResponse.source_previous_slot} ↔ jogo ${swapResponse.target_previous_slot}.`,
+      );
+      return;
+    }
+
+    toast.success("Jogos eliminatórios trocados.");
   };
 
   const handleCloseManualRelocationDialog = () => {
@@ -8513,6 +8844,10 @@ export function AdminMatches({
                   <AdminMatchesKnockoutPlaceholderCard
                     key={item.id}
                     placeholder={item.placeholder}
+                    canManageMatches={canManageMatches}
+                    isScoreSheetReviewMode={isScoreSheetReviewMode}
+                    disabled={swappingMatches}
+                    onSwap={handleOpenKnockoutScheduleSwapDialog}
                   />
                 );
               }
@@ -9497,6 +9832,116 @@ export function AdminMatches({
                 !pendingSwapSourceMatch ||
                 !pendingSwapTargetMatchId ||
                 loadingSwapTargetMatchOptions ||
+                swappingMatches
+              }
+            >
+              {swappingMatches ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Confirmar troca
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={showKnockoutScheduleSwapDialog}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            handleCloseKnockoutScheduleSwapDialog();
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Trocar jogo eliminatório</DialogTitle>
+            <DialogDescription>
+              Troque este slot por outro slot ou confronto já definido do
+              mata-mata, na mesma modalidade e quadra. A troca pode envolver
+              naipes e divisões diferentes.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Slot selecionado
+              </p>
+              <div className="app-card-muted rounded-xl p-3 text-sm">
+                {pendingKnockoutScheduleSwapSource
+                  ? resolveKnockoutScheduleSwapSourceLabel(
+                      pendingKnockoutScheduleSwapSource,
+                    )
+                  : "Selecione um slot para iniciar a troca."}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Trocar com
+              </p>
+              <Select
+                value={
+                  pendingKnockoutScheduleSwapTargetId ||
+                  EMPTY_KNOCKOUT_SWAP_OPTION_VALUE
+                }
+                onValueChange={(value) => {
+                  setPendingKnockoutScheduleSwapTargetId(
+                    value == EMPTY_KNOCKOUT_SWAP_OPTION_VALUE ? "" : value,
+                  );
+                }}
+                disabled={
+                  loadingKnockoutScheduleSwapCandidates ||
+                  eligibleKnockoutScheduleSwapOptions.length == 0 ||
+                  swappingMatches
+                }
+              >
+                <SelectTrigger
+                  aria-label="Selecionar jogo eliminatório para troca"
+                  className="app-input-field"
+                >
+                  <SelectValue placeholder="Selecione o jogo eliminatório" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={EMPTY_KNOCKOUT_SWAP_OPTION_VALUE}>
+                    Selecione o jogo
+                  </SelectItem>
+                  {eligibleKnockoutScheduleSwapOptions.map((swapOption) => (
+                    <SelectItem key={swapOption.id} value={swapOption.id}>
+                      {swapOption.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {loadingKnockoutScheduleSwapCandidates ? (
+                <p className="text-xs text-muted-foreground">
+                  Carregando jogos eliminatórios elegíveis para troca...
+                </p>
+              ) : eligibleKnockoutScheduleSwapOptions.length == 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Não há slot ou jogo eliminatório elegível neste escopo.
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCloseKnockoutScheduleSwapDialog}
+              disabled={swappingMatches}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void handleConfirmKnockoutScheduleSwap()}
+              disabled={
+                !pendingKnockoutScheduleSwapSource ||
+                !pendingKnockoutScheduleSwapTargetId ||
+                loadingKnockoutScheduleSwapCandidates ||
                 swappingMatches
               }
             >

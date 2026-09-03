@@ -548,9 +548,10 @@ describe("AdminMatches score sheet review", () => {
     });
   });
 
-  it("exibe slot planejado a definir sem ações de jogo", async () => {
+  it("mantém slot planejado a definir sem ações sem permissão de edição", async () => {
     renderAdminMatches({
       matches: [],
+      canManageMatches: false,
       bracketView: buildBracketView({
         competitions: [
           {
@@ -597,7 +598,7 @@ describe("AdminMatches score sheet review", () => {
     });
 
     expect(screen.getByText("Representação: Final")).toBeInTheDocument();
-    expect(screen.queryByLabelText(/Ações do jogo A definir/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Ações do slot/i)).not.toBeInTheDocument();
   });
 
   it("não informa falta de permissão quando a edição está bloqueada apenas pelo status", async () => {
@@ -1665,6 +1666,171 @@ describe("AdminMatches score sheet review", () => {
     });
 
     expect(screen.queryByText("Carregando horários")).not.toBeInTheDocument();
+  });
+
+  it("troca um slot de mata-mata por confronto eliminatório agendado", async () => {
+    const { onRefetch, onRefetchChampionshipBracket } = renderAdminMatches({
+      matches: [],
+      bracketView: buildBracketView({
+        competitions: [
+          {
+            id: "competition-1",
+            sport_id: "sport-1",
+            sport_name: "Beach Soccer",
+            naipe: MatchNaipe.FEMININO,
+            division: null,
+            groups_count: 2,
+            qualifiers_per_group: 2,
+            third_place_mode: BracketThirdPlaceMode.NONE,
+            groups: [],
+            knockout_matches: [
+              {
+                id: "knockout-placeholder-source",
+                round_number: 1,
+                slot_number: 1,
+                match_id: null,
+                status: null,
+                scheduled_date: "2026-04-11",
+                queue_position: 3,
+                scheduled_slot: 3,
+                start_time: "2026-04-11T10:00:00.000Z",
+                end_time: "2026-04-11T10:30:00.000Z",
+                location: "Praia de Piçarras",
+                court_name: "Quadra 1",
+                home_team_id: null,
+                away_team_id: null,
+                home_team_name: null,
+                away_team_name: null,
+                winner_team_id: null,
+                winner_team_name: null,
+                is_bye: false,
+                is_third_place: false,
+              },
+            ],
+          },
+          {
+            id: "competition-2",
+            sport_id: "sport-1",
+            sport_name: "Beach Soccer",
+            naipe: MatchNaipe.MASCULINO,
+            division: TeamDivision.DIVISAO_PRINCIPAL,
+            groups_count: 2,
+            qualifiers_per_group: 2,
+            third_place_mode: BracketThirdPlaceMode.NONE,
+            groups: [],
+            knockout_matches: [
+              {
+                id: "knockout-match-target",
+                round_number: 1,
+                slot_number: 1,
+                match_id: "match-target",
+                status: MatchStatus.SCHEDULED,
+                scheduled_date: "2026-04-11",
+                queue_position: 4,
+                scheduled_slot: 4,
+                start_time: "2026-04-11T10:40:00.000Z",
+                end_time: "2026-04-11T11:10:00.000Z",
+                location: "Praia de Piçarras",
+                court_name: "Quadra 1",
+                home_team_id: "candidate-home",
+                away_team_id: "candidate-away",
+                home_team_name: "CANDIDATO CASA",
+                away_team_name: "CANDIDATO VISITANTE",
+                winner_team_id: null,
+                winner_team_name: null,
+                is_bye: false,
+                is_third_place: false,
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    supabaseRpcResponses.push({
+      data: [
+        {
+          bracket_match_id: "knockout-match-target",
+          match_id: "match-target",
+          is_placeholder: false,
+          sport_name: "Beach Soccer",
+          naipe: MatchNaipe.MASCULINO,
+          division: TeamDivision.DIVISAO_PRINCIPAL,
+          round_number: 1,
+          is_third_place: false,
+          scheduled_date: "2026-04-11",
+          start_time: "2026-04-11T10:40:00.000Z",
+          queue_position: 4,
+          scheduled_slot: 4,
+          home_team_name: "CANDIDATO CASA",
+          away_team_name: "CANDIDATO VISITANTE",
+        },
+      ],
+      error: null,
+    });
+    supabaseRpcResponses.push({
+      data: {
+        source_bracket_match_id: "knockout-placeholder-source",
+        target_bracket_match_id: "knockout-match-target",
+        source_previous_slot: 3,
+        target_previous_slot: 4,
+      },
+      error: null,
+    });
+
+    const slotCard = screen
+      .getByText("Representação: Final")
+      .closest(".list-item-card");
+
+    if (!slotCard) {
+      throw new Error("Card do slot de mata-mata não encontrado.");
+    }
+
+    fireEvent.click(
+      within(slotCard).getByRole("menuitem", { name: "Trocar jogo" }),
+    );
+
+    expect(
+      await screen.findByText("Trocar jogo eliminatório"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Jogo 1.*Posição 3 na fila/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(supabaseRpcCalls[0]).toMatchObject({
+        functionName: "list_knockout_schedule_swap_candidates",
+        payload: {
+          _source_bracket_match_id: "knockout-placeholder-source",
+        },
+      });
+    });
+
+    fireEvent.click(
+      screen.getByRole("combobox", {
+        name: "Selecionar jogo eliminatório para troca",
+      }),
+    );
+    const targetOption = await screen.findByText(
+      /CANDIDATO CASA x CANDIDATO VISITANTE/,
+    );
+    expect(targetOption).toHaveTextContent("Jogo 2");
+    expect(targetOption).toHaveTextContent("Posição 4 na fila");
+    expect(targetOption).not.toHaveTextContent("Jogo 4");
+    fireEvent.click(targetOption);
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar troca" }));
+
+    await waitFor(() => {
+      expect(supabaseRpcCalls[1]).toMatchObject({
+        functionName: "swap_knockout_schedule_slots",
+        payload: {
+          _source_bracket_match_id: "knockout-placeholder-source",
+          _target_bracket_match_id: "knockout-match-target",
+        },
+      });
+    });
+    await waitFor(() => {
+      expect(onRefetch).toHaveBeenCalled();
+      expect(onRefetchChampionshipBracket).toHaveBeenCalled();
+    });
   });
 
   it("abre modal de troca e chama RPC para swap de fila", async () => {
