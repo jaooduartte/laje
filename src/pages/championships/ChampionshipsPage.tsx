@@ -16,6 +16,8 @@ import { useCompetitionTeamDisqualifications } from "@/hooks/useCompetitionTeamD
 import { useChampionshipSeasonYears } from "@/hooks/useChampionshipSeasonYears";
 import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividualEvents";
 import { useInterlajeOverallStandings } from "@/hooks/useInterlajeOverallStandings";
+import { useInterlajeCompetitionStandings } from "@/hooks/useInterlajeCompetitionStandings";
+import type { TeamStandingsBadge } from "@/components/TeamStandingsTable";
 import { useChampionshipSeasonRuntime } from "@/hooks/useChampionshipSeasonRuntime";
 import {
   resolveInterlajeOverallPendingTieBreakTeamIds,
@@ -59,6 +61,7 @@ import {
   applyCorrectedGroupPointsToStanding,
   aggregateStandingsByTeam,
   completeTeamStandingAggregates,
+  formatStandingsPoints,
   moveDisqualifiedStandingsToBottom,
   resolveCorrectedStandingKey,
   resolveManualTieBreakWinnerTeamIdByPairKey,
@@ -264,6 +267,34 @@ export function ChampionshipsPage() {
     !championshipBracketHistoryLoading &&
     !standingsSeasonSettingsLoading &&
     selectedStandingsSeasonUsesDivisions;
+  const isInterlajeCompetitionStandingsAvailable =
+    selectedChampionship?.code == ChampionshipCode.INTERLAJE &&
+    standingsYearFilter != ALL_YEAR_FILTER &&
+    standingsSportFilter != ALL_STANDINGS_SPORT_FILTER &&
+    standingsNaipeFilter != ALL_STANDINGS_NAIPE_FILTER;
+  const {
+    standings: interlajeCompetitionStandings,
+    loading: interlajeCompetitionStandingsLoading,
+  } = useInterlajeCompetitionStandings({
+    championshipId: selectedChampionshipId,
+    seasonYear:
+      standingsYearFilter == ALL_YEAR_FILTER
+        ? null
+        : Number(standingsYearFilter),
+    sportId:
+      standingsSportFilter == ALL_STANDINGS_SPORT_FILTER
+        ? null
+        : standingsSportFilter,
+    naipe:
+      standingsNaipeFilter == ALL_STANDINGS_NAIPE_FILTER
+        ? null
+        : (standingsNaipeFilter as MatchNaipe),
+    division:
+      standingsDivisionFilter == ALL_STANDINGS_DIVISION_FILTER
+        ? null
+        : (standingsDivisionFilter as TeamDivision),
+    enabled: isInterlajeCompetitionStandingsAvailable,
+  });
 
   useEffect(() => {
     if (
@@ -378,6 +409,33 @@ export function ChampionshipsPage() {
     () => resolveInterlajeOverallPendingTieBreakTeamIds(interlajeOverallStandings),
     [interlajeOverallStandings],
   );
+  const interlajeOverallBadgesByTeamId = useMemo(() => {
+    return new Map<string, TeamStandingsBadge[]>(
+      interlajeOverallStandings.map((standing) => {
+        const badges: TeamStandingsBadge[] = [];
+
+        if (standing.opening_bonus_points > 0) {
+          badges.push({
+            key: "opening-bonus",
+            label: `Bônus abertura +${formatStandingsPoints(standing.opening_bonus_points)} pts`,
+            className:
+              "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+          });
+        }
+
+        if (standing.walkover_count > 0) {
+          badges.push({
+            key: "walkover-penalty",
+            label: `W.O. ${standing.walkover_count} · −${formatStandingsPoints(standing.walkover_penalty_points)} pts`,
+            className:
+              "border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-300",
+          });
+        }
+
+        return [standing.team_id, badges];
+      }),
+    );
+  }, [interlajeOverallStandings]);
 
   const standingsTieBreakerRule = useMemo(() => {
     if (standingsSportFilter == ALL_STANDINGS_SPORT_FILTER) {
@@ -832,7 +890,9 @@ export function ChampionshipsPage() {
             standingsHeadToHeadMatchesLoading ||
             resolvedTieBreakOrdersLoading ||
             (isInterlajeOverallStandingsView &&
-              interlajeOverallStandingsLoading)
+              interlajeOverallStandingsLoading) ||
+            (isInterlajeCompetitionStandingsAvailable &&
+              interlajeCompetitionStandingsLoading)
       }
       championships={championships}
       selectedChampionship={selectedChampionship}
@@ -857,9 +917,18 @@ export function ChampionshipsPage() {
           : standingsWithoutGroups
       }
       standingsGroups={standingsGroups}
+      isInterlajeCompetitionStandingsAvailable={
+        isInterlajeCompetitionStandingsAvailable
+      }
+      interlajeCompetitionStandings={interlajeCompetitionStandings}
       pendingTieBreakTeamIds={
         isInterlajeOverallStandingsView
           ? interlajeOverallPendingTieBreakTeamIds
+          : undefined
+      }
+      teamBadgesByTeamId={
+        isInterlajeOverallStandingsView
+          ? interlajeOverallBadgesByTeamId
           : undefined
       }
       isIndividualStandingsView={isIndividualStandingsView}

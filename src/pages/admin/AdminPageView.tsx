@@ -312,7 +312,7 @@ export function AdminPageView({
     if (canViewOpeningCeremonyBonusTab) {
       nextAdminTabItems.push({
         value: AdminPanelTab.OPENING_CEREMONY_BONUS,
-        label: "Bônus da abertura",
+        label: "Ajustes da classificação geral",
       });
     }
 
@@ -870,6 +870,7 @@ export function AdminPageView({
                 loadingTeams={allTeamsLoading}
                 canManageOpeningCeremonyBonus={canManageOpeningCeremonyBonus}
                 onSaved={onInterlajeOpeningCeremonyBonusSaved}
+                availableSeasonYears={availableMatchSeasonYears}
               />
             </TabsContent>
           ) : null}

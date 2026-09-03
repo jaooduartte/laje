@@ -108,4 +108,37 @@ describe("TeamStandingsTable draw winner icon", () => {
 
     expect(screen.queryByText("Desempate geral pendente")).not.toBeInTheDocument();
   });
+
+  it("exibe badges adicionais na variante pública quando recebidos pela tabela", () => {
+    render(
+      <TooltipProvider>
+        <TeamStandingsTable
+          standings={standings}
+          variant="public"
+          teamBadgesByTeamId={
+            new Map([
+              [
+                "team-1",
+                [
+                  {
+                    key: "opening-bonus",
+                    label: "Bônus abertura +8 pts",
+                    className: "border-emerald-500/30",
+                  },
+                  {
+                    key: "walkover-penalty",
+                    label: "W.O. 2 · −4 pts",
+                    className: "border-rose-500/30",
+                  },
+                ],
+              ],
+            ])
+          }
+        />
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByText("Bônus abertura +8 pts")).toBeInTheDocument();
+    expect(screen.getByText("W.O. 2 · −4 pts")).toBeInTheDocument();
+  });
 });

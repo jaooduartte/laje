@@ -105,6 +105,14 @@ const ADMIN_LOG_RESOURCE_LABELS: Record<AdminLogResourceTable, string> = {
     "Configuração de Campeonato",
   [AdminLogResourceTable.AUTH_USERS]: "Usuários administrativos",
   [AdminLogResourceTable.PUBLIC_PAGE_ACCESS_SETTINGS]: "Configurações públicas",
+  [AdminLogResourceTable.CHAMPIONSHIP_OPENING_CEREMONY_BONUS_SETTINGS]:
+    "Ajustes da classificação geral",
+  [AdminLogResourceTable.CHAMPIONSHIP_OVERALL_SCORE_ADJUSTMENTS]:
+    "Ajustes da classificação geral",
+  [AdminLogResourceTable.CHAMPIONSHIP_WALKOVER_PENALTY_SETTINGS]:
+    "Penalidades por W.O.",
+  [AdminLogResourceTable.CHAMPIONSHIP_WALKOVER_PENALTY_COUNTS]:
+    "Penalidades por W.O.",
 };
 
 const ADMIN_LOG_RESOURCE_ENTITY_LABELS: Record<AdminLogResourceTable, string> =
@@ -125,6 +133,14 @@ const ADMIN_LOG_RESOURCE_ENTITY_LABELS: Record<AdminLogResourceTable, string> =
       "configuração de campeonato",
     [AdminLogResourceTable.AUTH_USERS]: "usuário administrativo",
     [AdminLogResourceTable.PUBLIC_PAGE_ACCESS_SETTINGS]: "configuração pública",
+    [AdminLogResourceTable.CHAMPIONSHIP_OPENING_CEREMONY_BONUS_SETTINGS]:
+      "ajuste da classificação geral",
+    [AdminLogResourceTable.CHAMPIONSHIP_OVERALL_SCORE_ADJUSTMENTS]:
+      "ajuste da classificação geral",
+    [AdminLogResourceTable.CHAMPIONSHIP_WALKOVER_PENALTY_SETTINGS]:
+      "penalidade por W.O.",
+    [AdminLogResourceTable.CHAMPIONSHIP_WALKOVER_PENALTY_COUNTS]:
+      "penalidades por W.O.",
   };
 
 const ADMIN_LOG_DEFAULT_FIELD_LABELS: Record<string, string> = {
@@ -137,6 +153,10 @@ const ADMIN_LOG_DEFAULT_FIELD_LABELS: Record<string, string> = {
   login_identifier: "Login",
   password_status: "Status da senha",
   permissions: "Permissões",
+  points: "Pontuação",
+  eligible: "Elegível para bônus da abertura",
+  walkover_count: "Quantidade de W.O.",
+  counts: "Contagens de W.O.",
   target_user_name: "Usuário",
   target_user_email: "E-mail do usuário",
   target_user_login_identifier: "Login do usuário",

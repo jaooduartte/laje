@@ -280,6 +280,10 @@ export enum AdminLogResourceTable {
   CHAMPIONSHIP_BRACKET_WORKFLOW = "public.championship_bracket_workflow",
   AUTH_USERS = "auth.users",
   PUBLIC_PAGE_ACCESS_SETTINGS = "public.public_page_access_settings",
+  CHAMPIONSHIP_OPENING_CEREMONY_BONUS_SETTINGS = "public.championship_opening_ceremony_bonus_settings",
+  CHAMPIONSHIP_OVERALL_SCORE_ADJUSTMENTS = "public.championship_overall_score_adjustments",
+  CHAMPIONSHIP_WALKOVER_PENALTY_SETTINGS = "public.championship_walkover_penalty_settings",
+  CHAMPIONSHIP_WALKOVER_PENALTY_COUNTS = "public.championship_walkover_penalty_counts",
 }
 
 export enum OnlineVisitorsContext {

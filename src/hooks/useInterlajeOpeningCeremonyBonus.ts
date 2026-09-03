@@ -15,6 +15,10 @@ export function useInterlajeOpeningCeremonyBonus({
     useState<InterlajeOpeningCeremonyBonusSettings | null>(null);
   const [eligibleTeamIds, setEligibleTeamIds] = useState<string[]>([]);
   const [registeredTeamIds, setRegisteredTeamIds] = useState<string[]>([]);
+  const [walkoverPenaltyPoints, setWalkoverPenaltyPoints] = useState<number | null>(null);
+  const [walkoverCounts, setWalkoverCounts] = useState<
+    Array<{ teamId: string; walkoverCount: number }>
+  >([]);
   const [loading, setLoading] = useState(false);
 
   const refetch = useCallback(async () => {
@@ -26,6 +30,8 @@ export function useInterlajeOpeningCeremonyBonus({
     setSettings(response.settings);
     setEligibleTeamIds(response.eligibleTeamIds);
     setRegisteredTeamIds(response.registeredTeamIds);
+    setWalkoverPenaltyPoints(response.walkoverPenaltyPoints);
+    setWalkoverCounts(response.walkoverCounts);
     setLoading(false);
     return response;
   }, [championshipId, seasonYear]);
@@ -38,6 +44,8 @@ export function useInterlajeOpeningCeremonyBonus({
     settings,
     eligibleTeamIds,
     registeredTeamIds,
+    walkoverPenaltyPoints,
+    walkoverCounts,
     loading,
     refetch,
   };

@@ -10,6 +10,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Shuffle } from "lucide-react";
 import { type ModalidadeConfig, type StandingsColumnKey, STANDINGS_COLUMN_LABELS, STANDINGS_COLUMN_TOOLTIPS } from "@/lib/modalidadeConfig";
 
+export interface TeamStandingsBadge {
+  key: string;
+  label: string;
+  className: string;
+}
+
 interface Props {
   standings: TeamStandingAggregate[];
   modalidadeConfig?: ModalidadeConfig;
@@ -19,6 +25,7 @@ interface Props {
   groupLabelByTeamId?: Map<string, string>;
   disqualifiedTeamKeys?: ReadonlySet<string>;
   pendingTieBreakTeamIds?: ReadonlySet<string>;
+  teamBadgesByTeamId?: ReadonlyMap<string, TeamStandingsBadge[]>;
 }
 
 function resolveTopPlacementRowClass(position: number): string {
@@ -66,6 +73,7 @@ export function TeamStandingsTable({
   groupLabelByTeamId,
   disqualifiedTeamKeys,
   pendingTieBreakTeamIds,
+  teamBadgesByTeamId,
 }: Props) {
   if (isLoading) {
   const columnsCount =
@@ -117,6 +125,7 @@ export function TeamStandingsTable({
             const isDisqualified = disqualifiedTeamKeys?.has(resolveTeamStandingAggregateKey(standing)) ?? false;
             const hasPendingTieBreak = pendingTieBreakTeamIds?.has(standing.team_id) ?? false;
             const groupLabel = groupLabelByTeamId?.get(standing.team_id);
+            const teamBadges = teamBadgesByTeamId?.get(standing.team_id) ?? [];
 
             return (
               <TableRow
@@ -150,6 +159,14 @@ export function TeamStandingsTable({
                         Desclassificada
                       </span>
                     )}
+                    {teamBadges.map((badge) => (
+                      <span
+                        key={badge.key}
+                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${badge.className}`}
+                      >
+                        {badge.label}
+                      </span>
+                    ))}
                   </div>
                 </TableCell>
                 {!isPublic &&

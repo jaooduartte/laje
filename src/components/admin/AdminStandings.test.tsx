@@ -24,6 +24,7 @@ const {
   disqualificationsState,
   teamStandingsTableMock,
   interlajeOverallStandingsState,
+  interlajeCompetitionStandingsState,
   individualSessionRepositoryMocks,
   replaceDivisionMovementsMock,
   teamDivisionUpdateMock,
@@ -84,10 +85,23 @@ const {
         team_name: string;
         placement_points: number;
         opening_bonus_points: number;
+        walkover_count: number;
+        walkover_penalty_points: number;
         overall_points: number;
         confirmed_competitions_count: number;
         has_pending_tie_break: boolean;
       }>;
+      loading: boolean;
+    };
+  },
+  interlajeCompetitionStandingsState: {
+    current: {
+      standings: [],
+      loading: false,
+    },
+  } as {
+    current: {
+      standings: Array<Record<string, unknown>>;
       loading: boolean;
     };
   },
@@ -141,6 +155,11 @@ vi.mock("@/hooks/useStandings", () => ({
 
 vi.mock("@/hooks/useInterlajeOverallStandings", () => ({
   useInterlajeOverallStandings: () => interlajeOverallStandingsState.current,
+}));
+
+vi.mock("@/hooks/useInterlajeCompetitionStandings", () => ({
+  useInterlajeCompetitionStandings: () =>
+    interlajeCompetitionStandingsState.current,
 }));
 
 vi.mock("@/hooks/useMatches", () => ({
@@ -403,6 +422,10 @@ describe("AdminStandings", () => {
       standings: [],
       loading: false,
     };
+    interlajeCompetitionStandingsState.current = {
+      standings: [],
+      loading: false,
+    };
     rankingsMock.top_scorers = [
       {
         player_id: "player-1",
@@ -480,6 +503,7 @@ describe("AdminStandings", () => {
       />,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "2026" }));
     fireEvent.click(screen.getByRole("button", { name: "Sport filter" }));
     fireEvent.click(screen.getByRole("button", { name: "Masculino" }));
 
@@ -522,6 +546,8 @@ describe("AdminStandings", () => {
           team_name: "ENGENIOS",
           placement_points: 3,
           opening_bonus_points: 8,
+          walkover_count: 2,
+          walkover_penalty_points: 4,
           overall_points: 11,
           confirmed_competitions_count: 0,
           has_pending_tie_break: true,
@@ -557,6 +583,17 @@ describe("AdminStandings", () => {
       standings: [expect.objectContaining({ team_id: "team-1", points: 11 })],
     });
     expect(lastCall?.[0].pendingTieBreakTeamIds).toEqual(new Set(["team-1"]));
+    expect(lastCall?.[0].teamBadgesByTeamId).toEqual(
+      new Map([
+        [
+          "team-1",
+          [
+            expect.objectContaining({ label: "Bônus abertura +8 pts" }),
+            expect.objectContaining({ label: "W.O. 2 · −4 pts" }),
+          ],
+        ],
+      ]),
+    );
     expect(lastCall?.[0].disqualifiedTeamKeys).toBeUndefined();
     expect(screen.queryByText("Todas as divisões")).not.toBeInTheDocument();
     expect(
@@ -598,6 +635,8 @@ describe("AdminStandings", () => {
           team_name: "ENGENIOS",
           placement_points: 3,
           opening_bonus_points: 8,
+          walkover_count: 2,
+          walkover_penalty_points: 4,
           overall_points: 11,
           confirmed_competitions_count: 0,
           has_pending_tie_break: true,
@@ -627,6 +666,72 @@ describe("AdminStandings", () => {
       standings: [expect.objectContaining({ team_id: "team-1", points: 4.5 })],
     });
     expect(lastCall?.[0].pendingTieBreakTeamIds).toBeUndefined();
+  });
+
+  it("exibe a geral da modalidade do INTERLAJE sem remover as tabelas por grupo", async () => {
+    interlajeCompetitionStandingsState.current = {
+      loading: false,
+      standings: [
+        {
+          team_id: "team-1",
+          team_name: "ENGENIOS",
+          division: null,
+          played: 3,
+          wins: 2,
+          draws: 1,
+          losses: 0,
+          goals_for: 6,
+          goals_against: 2,
+          goal_diff: 4,
+          points: 7,
+          yellow_cards: 0,
+          red_cards: 0,
+          blue_cards: 0,
+          two_minute_penalties: 0,
+          final_position: 1,
+          placement_points: 24,
+        },
+      ],
+    };
+
+    render(
+      <AdminStandings
+        selectedChampionship={{
+          ...selectedChampionship,
+          code: ChampionshipCode.INTERLAJE,
+          name: "INTERLAJE",
+        }}
+        championshipSports={championshipSports}
+        sports={sports}
+        championshipBracketView={championshipBracketView}
+        availableSeasonYears={[2026]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sport filter" }));
+    fireEvent.click(screen.getByRole("button", { name: "Masculino" }));
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: "Por grupos" })).toBeInTheDocument();
+    });
+    await act(async () => undefined);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Geral da modalidade" }), {
+      button: 0,
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: "Geral da modalidade" })).toHaveAttribute(
+        "data-state",
+        "active",
+      );
+      expect(
+        teamStandingsTableMock.mock.calls.some(([props]) =>
+          (props.standings as Array<{ placement_points?: number }>).some(
+            (standing) => standing.placement_points == 24,
+          ),
+        ),
+      ).toBe(true);
+    });
   });
 
   it("consulta sem recorte e oculta o filtro de divisão na temporada unificada", () => {

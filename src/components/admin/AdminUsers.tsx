@@ -109,7 +109,7 @@ const ADMIN_TAB_LABELS: Record<AdminPanelTab, string> = {
   [AdminPanelTab.SCORE_SHEET_REVIEW]: "Conferência de Súmula",
   [AdminPanelTab.TIE_BREAKS]: "Sorteios",
   [AdminPanelTab.CHAMPIONSHIP_SCHEDULE]: "Agenda",
-  [AdminPanelTab.OPENING_CEREMONY_BONUS]: "Bônus da abertura",
+  [AdminPanelTab.OPENING_CEREMONY_BONUS]: "Ajustes da classificação geral",
 };
 
 const ADMIN_PERMISSION_LEVEL_LABELS: Record<AdminPanelPermissionLevel, string> =

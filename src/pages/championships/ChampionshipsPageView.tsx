@@ -4,7 +4,10 @@ import { Header } from "@/components/Header";
 import { PageContentSkeleton } from "@/components/skeletons/PageContentSkeleton";
 import { CardListSkeleton } from "@/components/skeletons/CardListSkeleton";
 import { MatchCard } from "@/components/MatchCard";
-import { TeamStandingsTable } from "@/components/TeamStandingsTable";
+import {
+  TeamStandingsTable,
+  type TeamStandingsBadge,
+} from "@/components/TeamStandingsTable";
 import { IndividualSportStandingsTable } from "@/components/IndividualSportStandingsTable";
 import { YellowCardDisciplineTable } from "@/components/YellowCardDisciplineTable";
 import { Input } from "@/components/ui/input";
@@ -95,7 +98,10 @@ interface ChampionshipsPageViewProps {
     label: string;
     standings: TeamStandingAggregate[];
   }>;
+  isInterlajeCompetitionStandingsAvailable?: boolean;
+  interlajeCompetitionStandings?: TeamStandingAggregate[];
   pendingTieBreakTeamIds?: ReadonlySet<string>;
+  teamBadgesByTeamId?: ReadonlyMap<string, TeamStandingsBadge[]>;
   isIndividualStandingsView?: boolean;
   individualStandingsRows?: Array<ChampionshipIndividualTeamStanding | Standing>;
   individualEvents?: ChampionshipIndividualEvent[];
@@ -166,7 +172,10 @@ export function ChampionshipsPageView({
   selectedChampionshipHasDivisions,
   filteredStandings,
   standingsGroups = [],
+  isInterlajeCompetitionStandingsAvailable = false,
+  interlajeCompetitionStandings = [],
   pendingTieBreakTeamIds,
+  teamBadgesByTeamId,
   isIndividualStandingsView = false,
   individualStandingsRows = [],
   individualEvents = [],
@@ -206,6 +215,32 @@ export function ChampionshipsPageView({
   onYearFilterChange,
   onGroupFilterChange,
 }: ChampionshipsPageViewProps) {
+  const [interlajeStandingsView, setInterlajeStandingsView] = useState<
+    "groups" | "overall"
+  >("groups");
+  const interlajeCompetitionStandingsByDivision = useMemo(() => {
+    const standingsByDivision = new Map<string, TeamStandingAggregate[]>();
+
+    interlajeCompetitionStandings.forEach((standing) => {
+      const key = standing.division ?? "WITHOUT_DIVISION";
+      standingsByDivision.set(key, [
+        ...(standingsByDivision.get(key) ?? []),
+        standing,
+      ]);
+    });
+
+    return [...standingsByDivision.entries()].map(([division, standings]) => ({
+      label:
+        division == "WITHOUT_DIVISION"
+          ? null
+          : TEAM_DIVISION_LABELS[division as TeamDivision],
+      standings,
+    }));
+  }, [interlajeCompetitionStandings]);
+
+  useEffect(() => {
+    setInterlajeStandingsView("groups");
+  }, [standingsDivisionFilter, standingsNaipeFilter, standingsSportFilter, standingsYearFilter]);
   const firstPlaceTeam = overallPodiumStandings[0] ?? null;
   const secondPlaceTeam = overallPodiumStandings[1] ?? null;
   const thirdPlaceTeam = overallPodiumStandings[2] ?? null;
@@ -654,7 +689,78 @@ export function ChampionshipsPageView({
                     ) : null}
                   </div>
 
-                  {isIndividualStandingsView ? (
+                  {isInterlajeCompetitionStandingsAvailable ? (
+                    <Tabs
+                      value={interlajeStandingsView}
+                      onValueChange={(value) =>
+                        setInterlajeStandingsView(value as "groups" | "overall")
+                      }
+                    >
+                      <TabsNavigationList className="mb-4">
+                        <TabsNavigationTrigger value="groups">
+                          Por grupos
+                        </TabsNavigationTrigger>
+                        <TabsNavigationTrigger value="overall">
+                          Geral da modalidade
+                        </TabsNavigationTrigger>
+                      </TabsNavigationList>
+                      <TabsContent value="groups">
+                        {isIndividualStandingsView ? (
+                          <IndividualSportStandingsTable
+                            standings={individualStandingsRows}
+                            isLoading={isStandingsLoading}
+                            disqualifiedTeamKeys={disqualifiedTeamKeys}
+                          />
+                        ) : (
+                          <div className="space-y-5">
+                            {(standingsGroups.length > 0
+                              ? standingsGroups
+                              : [{ label: null, standings: filteredStandings }]
+                            ).map((standingsGroup) => (
+                              <section key={standingsGroup.label ?? "overall"} className="space-y-2">
+                                {standingsGroup.label ? (
+                                  <h3 className="text-base font-display font-bold">
+                                    {standingsGroup.label}
+                                  </h3>
+                                ) : null}
+                                <TeamStandingsTable
+                                  standings={standingsGroup.standings}
+                                  modalidadeConfig={standingsModalidadeConfig}
+                                  isLoading={isStandingsLoading}
+                                  variant="public"
+                                  disqualifiedTeamKeys={disqualifiedTeamKeys}
+                                />
+                              </section>
+                            ))}
+                          </div>
+                        )}
+                      </TabsContent>
+                      <TabsContent value="overall" className="space-y-5">
+                        <p className="text-xs text-muted-foreground">
+                          A posição desta tabela define os pontos da modalidade na classificação geral do INTERLAJE.
+                        </p>
+                        {(interlajeCompetitionStandingsByDivision.length > 0
+                          ? interlajeCompetitionStandingsByDivision
+                          : [{ label: null, standings: [] }]
+                        ).map((standingsGroup) => (
+                          <section key={standingsGroup.label ?? "overall"} className="space-y-2">
+                            {standingsGroup.label ? (
+                              <h3 className="text-base font-display font-bold">
+                                {standingsGroup.label}
+                              </h3>
+                            ) : null}
+                            <TeamStandingsTable
+                              standings={standingsGroup.standings}
+                              modalidadeConfig={standingsModalidadeConfig}
+                              isLoading={isStandingsLoading}
+                              variant="public"
+                              disqualifiedTeamKeys={disqualifiedTeamKeys}
+                            />
+                          </section>
+                        ))}
+                      </TabsContent>
+                    </Tabs>
+                  ) : isIndividualStandingsView ? (
                     <IndividualSportStandingsTable
                       standings={individualStandingsRows}
                       isLoading={isStandingsLoading}
@@ -679,6 +785,7 @@ export function ChampionshipsPageView({
                             variant="public"
                             disqualifiedTeamKeys={disqualifiedTeamKeys}
                             pendingTieBreakTeamIds={pendingTieBreakTeamIds}
+                            teamBadgesByTeamId={teamBadgesByTeamId}
                           />
                         </section>
                       ))}

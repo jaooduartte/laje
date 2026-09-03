@@ -1,39 +1,50 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  fetchInterlajeOverallStandings,
-  type InterlajeOverallStanding,
+  fetchInterlajeCompetitionStandings,
+  type InterlajeCompetitionStanding,
 } from "@/domain/interlaje/interlajeOverallStandings.repository";
 import { supabase } from "@/integrations/supabase/client";
+import type { MatchNaipe, TeamDivision } from "@/lib/enums";
 
-export function useInterlajeOverallStandings({
+export function useInterlajeCompetitionStandings({
   championshipId,
   seasonYear,
+  sportId,
+  naipe,
+  division,
   enabled = true,
-  refreshKey,
 }: {
   championshipId?: string | null;
   seasonYear?: number | null;
+  sportId?: string | null;
+  naipe?: MatchNaipe | null;
+  division: TeamDivision | null;
   enabled?: boolean;
-  refreshKey?: number;
 }) {
-  const [standings, setStandings] = useState<InterlajeOverallStanding[]>([]);
+  const [standings, setStandings] = useState<InterlajeCompetitionStanding[]>([]);
   const [loading, setLoading] = useState(false);
 
   const refetch = useCallback(async () => {
-    if (!enabled || !championshipId || !seasonYear) {
+    if (!enabled || !championshipId || !seasonYear || !sportId || !naipe) {
       setStandings([]);
       return;
     }
 
     setLoading(true);
-    const response = await fetchInterlajeOverallStandings(championshipId, seasonYear);
+    const response = await fetchInterlajeCompetitionStandings({
+      championshipId,
+      seasonYear,
+      sportId,
+      naipe,
+      division,
+    });
     setStandings(response.data);
     setLoading(false);
-  }, [championshipId, enabled, seasonYear]);
+  }, [championshipId, division, enabled, naipe, seasonYear, sportId]);
 
   useEffect(() => {
     void refetch();
-  }, [refetch, refreshKey]);
+  }, [refetch]);
 
   useEffect(() => {
     if (!enabled || !championshipId || !seasonYear) {
@@ -60,7 +71,7 @@ export function useInterlajeOverallStandings({
     };
 
     const channel = supabase
-      .channel(`interlaje-overall-standings-${championshipId}-${seasonYear}`)
+      .channel(`interlaje-competition-standings-${championshipId}-${seasonYear}`)
       .on(
         "postgres_changes",
         {
@@ -87,36 +98,6 @@ export function useInterlajeOverallStandings({
           event: "*",
           schema: "public",
           table: "championship_overall_position_point_settings",
-          filter: `championship_id=eq.${championshipId}`,
-        },
-        refreshWhenSeasonMatches,
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "championship_overall_score_adjustments",
-          filter: `championship_id=eq.${championshipId}`,
-        },
-        refreshWhenSeasonMatches,
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "championship_walkover_penalty_counts",
-          filter: `championship_id=eq.${championshipId}`,
-        },
-        refreshWhenSeasonMatches,
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "championship_walkover_penalty_settings",
           filter: `championship_id=eq.${championshipId}`,
         },
         refreshWhenSeasonMatches,

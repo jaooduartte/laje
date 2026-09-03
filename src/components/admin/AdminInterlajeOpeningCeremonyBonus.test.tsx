@@ -4,13 +4,30 @@ import { AdminInterlajeOpeningCeremonyBonus } from "@/components/admin/AdminInte
 import { ChampionshipCode, ChampionshipStatus } from "@/lib/enums";
 import type { Championship, Team } from "@/lib/types";
 
-const { saveEligibilityMock, savePointsMock, refetchMock } = vi.hoisted(() => ({
+const {
+  saveEligibilityMock,
+  savePointsMock,
+  saveWalkoverCountsMock,
+  saveWalkoverPointsMock,
+  savePositionPointsMock,
+  refetchMock,
+  refetchPositionPointsMock,
+} = vi.hoisted(() => ({
   saveEligibilityMock: vi.fn().mockResolvedValue({ error: null }),
   savePointsMock: vi.fn().mockResolvedValue({ error: null }),
+  saveWalkoverCountsMock: vi.fn().mockResolvedValue({ error: null }),
+  saveWalkoverPointsMock: vi.fn().mockResolvedValue({ error: null }),
+  savePositionPointsMock: vi.fn().mockResolvedValue({ error: null }),
   refetchMock: vi.fn().mockResolvedValue({ error: null }),
+  refetchPositionPointsMock: vi.fn().mockResolvedValue({ error: null }),
 }));
 const eligibleTeamIds: string[] = [];
 const registeredTeamIds: string[] = [];
+const walkoverCounts: Array<{ teamId: string; walkoverCount: number }> = [];
+const positionPointSettings = Array.from({ length: 20 }, (_, index) => ({
+  final_position: index + 1,
+  points: 21 - index,
+}));
 
 vi.mock("sonner", () => ({
   toast: {
@@ -24,6 +41,8 @@ vi.mock("@/hooks/useInterlajeOpeningCeremonyBonus", () => ({
     settings: { points: 8 },
     eligibleTeamIds,
     registeredTeamIds,
+    walkoverPenaltyPoints: 2,
+    walkoverCounts,
     loading: false,
     refetch: refetchMock,
   }),
@@ -32,6 +51,20 @@ vi.mock("@/hooks/useInterlajeOpeningCeremonyBonus", () => ({
 vi.mock("@/domain/interlaje/interlajeOpeningCeremonyBonus.repository", () => ({
   saveInterlajeOpeningCeremonyBonusEligibility: saveEligibilityMock,
   saveInterlajeOpeningCeremonyBonusPoints: savePointsMock,
+  saveInterlajeWalkoverPenaltyCounts: saveWalkoverCountsMock,
+  saveInterlajeWalkoverPenaltyPoints: saveWalkoverPointsMock,
+}));
+
+vi.mock("@/domain/interlaje/interlajeOverallStandings.repository", () => ({
+  saveInterlajePositionPointSettings: savePositionPointsMock,
+}));
+
+vi.mock("@/hooks/useInterlajePositionPointSettings", () => ({
+  useInterlajePositionPointSettings: () => ({
+    settings: positionPointSettings,
+    loading: false,
+    refetch: refetchPositionPointsMock,
+  }),
 }));
 
 const teams: Team[] = [
@@ -78,7 +111,12 @@ describe("AdminInterlajeOpeningCeremonyBonus", () => {
     registeredTeamIds.splice(0, registeredTeamIds.length, "team-1", "team-3");
     saveEligibilityMock.mockClear();
     savePointsMock.mockClear();
+    saveWalkoverCountsMock.mockClear();
+    saveWalkoverPointsMock.mockClear();
+    savePositionPointsMock.mockClear();
     refetchMock.mockClear();
+    refetchPositionPointsMock.mockClear();
+    walkoverCounts.splice(0, walkoverCounts.length);
   });
 
   it("permite atualizar o valor e marcar atléticas em revisão", async () => {
@@ -105,7 +143,7 @@ describe("AdminInterlajeOpeningCeremonyBonus", () => {
     fireEvent.change(pointsInput, {
       target: { value: "12" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Salvar pontos" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salvar bônus" }));
 
     await waitFor(() => {
       expect(savePointsMock).toHaveBeenCalledWith({
@@ -178,9 +216,109 @@ describe("AdminInterlajeOpeningCeremonyBonus", () => {
     );
 
     expect(screen.getByLabelText("Pontos")).toBeDisabled();
+    expect(screen.getByLabelText("Pontos por W.O.")).toBeDisabled();
+    expect(screen.getByLabelText("W.O. de Atlética A")).toBeDisabled();
     expect(screen.getByRole("checkbox", { name: "Atlética A" })).toBeDisabled();
     expect(
-      screen.queryByRole("button", { name: "Salvar pontos" }),
+      screen.queryByRole("button", { name: "Salvar bônus" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("salva a pontuação e os contadores manuais de W.O. em lote", async () => {
+    render(
+      <AdminInterlajeOpeningCeremonyBonus
+        selectedChampionship={buildChampionship(ChampionshipStatus.PLANNING)}
+        teams={teams}
+        loadingTeams={false}
+        canManageOpeningCeremonyBonus
+        onSaved={() => undefined}
+      />,
+    );
+
+    const walkoverPointsInput = screen.getByLabelText("Pontos por W.O.");
+    expect(walkoverPointsInput).toHaveAttribute("placeholder", "0");
+    expect(screen.getByLabelText("W.O. de Atlética A")).toHaveAttribute(
+      "placeholder",
+      "0",
+    );
+    fireEvent.change(walkoverPointsInput, {
+      target: { value: "3" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar penalidade" }));
+
+    await waitFor(() => {
+      expect(saveWalkoverPointsMock).toHaveBeenCalledWith({
+        championshipId: "championship-1",
+        seasonYear: 2026,
+        points: 3,
+      });
+    });
+
+    fireEvent.change(screen.getByLabelText("W.O. de Atlética A"), {
+      target: { value: "2" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar penalidades" }));
+
+    await waitFor(() => {
+      expect(saveWalkoverCountsMock).toHaveBeenCalledWith({
+        championshipId: "championship-1",
+        seasonYear: 2026,
+        counts: [{ teamId: "team-1", walkoverCount: 2 }],
+      });
+    });
+  });
+
+  it("salva os 20 valores da pontuação por colocação da temporada", async () => {
+    render(
+      <AdminInterlajeOpeningCeremonyBonus
+        selectedChampionship={buildChampionship(ChampionshipStatus.IN_PROGRESS)}
+        teams={teams}
+        loadingTeams={false}
+        canManageOpeningCeremonyBonus
+        availableSeasonYears={[2026]}
+        onSaved={() => undefined}
+      />,
+    );
+
+    expect(screen.getByLabelText("1º lugar")).toHaveValue("21");
+    fireEvent.change(screen.getByLabelText("20º lugar"), {
+      target: { value: "0" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Salvar pontuação por colocação" }),
+    );
+
+    await waitFor(() => {
+      expect(savePositionPointsMock).toHaveBeenCalledWith({
+        championshipId: "championship-1",
+        seasonYear: 2026,
+        settings: expect.arrayContaining([
+          { final_position: 1, points: 21 },
+          { final_position: 20, points: 0 },
+        ]),
+      });
+    });
+  });
+
+  it("agrupa o bônus com as atléticas presentes e ordena as colocações por coluna", () => {
+    render(
+      <AdminInterlajeOpeningCeremonyBonus
+        selectedChampionship={buildChampionship(ChampionshipStatus.IN_PROGRESS)}
+        teams={teams}
+        loadingTeams={false}
+        canManageOpeningCeremonyBonus
+        onSaved={() => undefined}
+      />,
+    );
+
+    const bonusCard = screen.getByText("Bônus da abertura").closest("section");
+    expect(bonusCard).toContainElement(
+      screen.getByText("Atléticas presentes na abertura"),
+    );
+
+    const positionPointsGrid = screen
+      .getByLabelText("1º lugar")
+      .parentElement?.parentElement;
+    expect(positionPointsGrid).toHaveClass("sm:grid-flow-col", "xl:grid-rows-4");
   });
 });

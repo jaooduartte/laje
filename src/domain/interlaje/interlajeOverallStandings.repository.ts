@@ -15,6 +15,8 @@ export interface InterlajeOverallStanding {
   team_name: string;
   placement_points: number;
   opening_bonus_points: number;
+  walkover_count: number;
+  walkover_penalty_points: number;
   overall_points: number;
   confirmed_competitions_count: number;
   has_pending_tie_break: boolean;
@@ -23,6 +25,31 @@ export interface InterlajeOverallStanding {
 export interface InterlajeOverallCompetitionPlacementInput {
   team_id: string;
   final_position: number;
+}
+
+export interface InterlajePositionPointSetting {
+  final_position: number;
+  points: number;
+}
+
+export interface InterlajeCompetitionStanding {
+  team_id: string;
+  team_name: string;
+  division: TeamDivision | null;
+  played: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  goals_for: number;
+  goals_against: number;
+  goal_diff: number;
+  points: number;
+  yellow_cards: number;
+  red_cards: number;
+  blue_cards: number;
+  two_minute_penalties: number;
+  final_position: number;
+  placement_points: number;
 }
 
 export async function fetchInterlajeOverallStandings(
@@ -42,6 +69,62 @@ export async function fetchInterlajeOverallStandings(
     data: (response.data as InterlajeOverallStanding[] | null) ?? [],
     error: response.error,
   };
+}
+
+export async function fetchInterlajeCompetitionStandings(input: {
+  championshipId: string | null | undefined;
+  seasonYear: number | null | undefined;
+  sportId: string | null | undefined;
+  naipe: MatchNaipe | null | undefined;
+  division: TeamDivision | null;
+}): Promise<{ data: InterlajeCompetitionStanding[]; error: Error | null }> {
+  if (!input.championshipId || !input.seasonYear || !input.sportId || !input.naipe) {
+    return { data: [], error: null };
+  }
+
+  const response = await supabaseLoose.rpc("get_interlaje_competition_standings", {
+    _championship_id: input.championshipId,
+    _season_year: input.seasonYear,
+    _sport_id: input.sportId,
+    _naipe: input.naipe,
+    _division: input.division,
+  });
+
+  return {
+    data: (response.data as InterlajeCompetitionStanding[] | null) ?? [],
+    error: response.error,
+  };
+}
+
+export async function fetchInterlajePositionPointSettings(
+  championshipId: string | null | undefined,
+  seasonYear: number | null | undefined,
+): Promise<{ data: InterlajePositionPointSetting[]; error: Error | null }> {
+  if (!championshipId || !seasonYear) {
+    return { data: [], error: null };
+  }
+
+  const response = await supabaseLoose.rpc("get_interlaje_position_point_settings", {
+    _championship_id: championshipId,
+    _season_year: seasonYear,
+  });
+
+  return {
+    data: (response.data as InterlajePositionPointSetting[] | null) ?? [],
+    error: response.error,
+  };
+}
+
+export function saveInterlajePositionPointSettings(input: {
+  championshipId: string;
+  seasonYear: number;
+  settings: InterlajePositionPointSetting[];
+}) {
+  return supabaseLoose.rpc("save_interlaje_position_point_settings", {
+    _championship_id: input.championshipId,
+    _season_year: input.seasonYear,
+    _settings: input.settings,
+  });
 }
 
 export async function saveInterlajeOverallCompetitionPlacements(input: {

@@ -82,7 +82,7 @@ describe("useInterlajeOverallStandings", () => {
       expect(fetchInterlajeOverallStandingsMock).toHaveBeenCalledTimes(2);
     });
 
-    expect(channelMock.on).toHaveBeenCalledTimes(2);
+    expect(channelMock.on).toHaveBeenCalledTimes(7);
     unmount();
     expect(removeChannelMock).toHaveBeenCalledWith(channelMock);
   });

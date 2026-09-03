@@ -23,6 +23,13 @@ const correctionMigration = readFileSync(
   ),
   "utf8",
 );
+const auditMigration = readFileSync(
+  resolve(
+    process.cwd(),
+    "supabase/migrations/20260903144450_audit_interlaje_overall_standings_adjustments.sql",
+  ),
+  "utf8",
+);
 
 describe("interlaje opening ceremony bonus migration", () => {
   it("creates an independent permission and seasonal positive integer configuration", () => {
@@ -80,5 +87,20 @@ describe("interlaje opening ceremony bonus migration", () => {
       "adjustment_type <> 'OPENING_CEREMONY'",
     );
     expect(correctionMigration).toContain("points > 0 AND points = trunc(points)");
+  });
+
+  it("audits point and athletic eligibility changes", () => {
+    expect(auditMigration).toContain(
+      "CREATE OR REPLACE FUNCTION public.save_interlaje_opening_ceremony_bonus_points",
+    );
+    expect(auditMigration).toContain(
+      "CREATE OR REPLACE FUNCTION public.save_interlaje_opening_ceremony_bonus(",
+    );
+    expect(auditMigration).toContain(
+      "'public.championship_opening_ceremony_bonus_settings'",
+    );
+    expect(auditMigration).toContain(
+      "'public.championship_overall_score_adjustments'",
+    );
   });
 });
