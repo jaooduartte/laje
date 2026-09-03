@@ -3,6 +3,7 @@ import {
   fetchChampionshipAthletes,
   fetchChampionshipIndividualEventEntries,
   fetchChampionshipIndividualEvents,
+  fetchChampionshipIndividualSessionParticipants,
   fetchChampionshipIndividualSessions,
   fetchChampionshipIndividualTeamStandings,
 } from "@/domain/individual-events/championshipIndividualEvents.repository";
@@ -22,6 +23,7 @@ interface UseChampionshipIndividualEventsOptions {
   sportId?: string | null;
   naipe?: MatchNaipe | null;
   division?: TeamDivision | null | undefined;
+  participantTeamId?: string | null;
   sessionIds?: string[];
   includeEntries?: boolean;
   includeAthletes?: boolean;
@@ -37,6 +39,7 @@ export function useChampionshipIndividualEvents({
   sportId,
   naipe,
   division,
+  participantTeamId,
   sessionIds,
   includeEntries = true,
   includeAthletes = false,
@@ -136,7 +139,53 @@ export function useChampionshipIndividualEvents({
       return;
     }
 
-    const eventIds = eventsResponse.data.map((event) => event.id);
+    const sessionParticipantResponses = participantTeamId
+      ? await Promise.all(
+          sessionsResponse.data.map(async (session) => ({
+            sessionId: session.id,
+            response: await fetchChampionshipIndividualSessionParticipants(
+              session.id,
+            ),
+          })),
+        )
+      : [];
+    const sessionParticipantError = sessionParticipantResponses.find(
+      ({ response }) => response.error,
+    )?.response.error;
+
+    if (sessionParticipantError) {
+      console.error(
+        "Erro ao carregar participantes das sessões individuais:",
+        sessionParticipantError.message,
+      );
+      setEvents([]);
+      setSessions([]);
+      setAthletes([]);
+      setEntries([]);
+      setStandings([]);
+      setLoading(false);
+      return;
+    }
+
+    const visibleSessionIds = participantTeamId
+      ? new Set(
+          sessionParticipantResponses
+            .filter(({ response }) =>
+              response.data.some((team) => team.id == participantTeamId),
+            )
+            .map(({ sessionId }) => sessionId),
+        )
+      : null;
+    const visibleSessions = visibleSessionIds
+      ? sessionsResponse.data.filter((session) => visibleSessionIds.has(session.id))
+      : sessionsResponse.data;
+    const visibleEvents = visibleSessionIds
+      ? eventsResponse.data.filter(
+          (event) => !event.session_id || visibleSessionIds.has(event.session_id),
+        )
+      : eventsResponse.data;
+
+    const eventIds = visibleEvents.map((event) => event.id);
     const entriesResponse = includeEntries
       ? await fetchChampionshipIndividualEventEntries({ eventIds })
       : { data: [], error: null };
@@ -146,8 +195,8 @@ export function useChampionshipIndividualEvents({
         "Erro ao carregar inscrições das provas individuais:",
         entriesResponse.error.message,
       );
-      setEvents(eventsResponse.data);
-      setSessions(sessionsResponse.data);
+      setEvents(visibleEvents);
+      setSessions(visibleSessions);
       setAthletes(athletesResponse.data);
       setEntries([]);
       setStandings(standingsResponse.data);
@@ -155,8 +204,8 @@ export function useChampionshipIndividualEvents({
       return;
     }
 
-    setEvents(eventsResponse.data);
-    setSessions(sessionsResponse.data);
+    setEvents(visibleEvents);
+    setSessions(visibleSessions);
     setAthletes(athletesResponse.data);
     setEntries(entriesResponse.data);
     setStandings(standingsResponse.data);
@@ -170,6 +219,7 @@ export function useChampionshipIndividualEvents({
     includeEvents,
     includeStandings,
     naipe,
+    participantTeamId,
     seasonYear,
     hasExplicitSessionIds,
     normalizedSessionIdsKey,

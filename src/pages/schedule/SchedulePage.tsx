@@ -322,6 +322,7 @@ export function SchedulePage() {
     sportIds: individualSportIds,
     sportId: sportFilter,
     naipe: naipeFilter,
+    participantTeamId: teamFilter,
     division:
       selectedChampionshipHasDivisions && divisionFilter != ALL_SCHEDULE_DIVISIONS_FILTER
         ? (divisionFilter as TeamDivision)

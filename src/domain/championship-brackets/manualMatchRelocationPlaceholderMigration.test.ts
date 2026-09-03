@@ -9,6 +9,13 @@ const migration = readFileSync(
   ),
   "utf8",
 );
+const placeholderFixMigration = readFileSync(
+  resolve(
+    process.cwd(),
+    "supabase/migrations/20260903032856_preserve_manual_schedule_and_fix_placeholder_preview.sql",
+  ),
+  "utf8",
+);
 
 describe("manual relocation planned placeholder migration", () => {
   it("extends both preview builders with unresolved knockout placeholders", () => {
@@ -33,5 +40,17 @@ describe("manual relocation planned placeholder migration", () => {
     expect(migration).toContain("pg_advisory_xact_lock");
     expect(migration).toContain("A prévia está desatualizada");
     expect(migration).toContain("reprogramming_revision = reprogramming_revision + 1");
+  });
+
+  it("loads the championship data through the bracket edition for slot previews", () => {
+    expect(placeholderFixMigration).toContain(
+      "JOIN public.championship_bracket_editions AS editions_table",
+    );
+    expect(placeholderFixMigration).toContain(
+      "editions_table.championship_id",
+    );
+    expect(placeholderFixMigration).toContain(
+      "competitions_table.championship_id",
+    );
   });
 });

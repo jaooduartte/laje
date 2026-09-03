@@ -2896,6 +2896,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      apply_day_schedule_reorganization: {
+        Args: {
+          _bracket_edition_id: string
+          _expected_revision: number
+          _payload: Json
+        }
+        Returns: undefined
+      }
       hold_matches_for_manual_relocation: {
         Args: { _bracket_edition_id: string; _payload: Json }
         Returns: undefined
@@ -2939,6 +2947,10 @@ export type Database = {
         Returns: Json
       }
       preview_manual_match_relocation_slot: {
+        Args: { _bracket_edition_id: string; _payload: Json }
+        Returns: Json
+      }
+      preview_day_schedule_reorganization: {
         Args: { _bracket_edition_id: string; _payload: Json }
         Returns: Json
       }
@@ -3224,6 +3236,31 @@ export type Database = {
         }[]
       }
       get_championship_knockout_final_program_schedule: {
+        Args: { _bracket_edition_id: string }
+        Returns: {
+          bracket_court_id: string
+          bracket_day_id: string
+          competition_id: string
+          court_group_id: string
+          court_name: string
+          display_order: number
+          division: Database["public"]["Enums"]["team_division"]
+          duration_minutes: number
+          expected_final_round: number
+          location_group_id: string
+          location_name: string
+          naipe: Database["public"]["Enums"]["match_naipe"]
+          naipe_position: number
+          planned_end_at: string
+          planned_queue_position: number
+          planned_scheduled_slot: number
+          planned_start_at: string
+          schedule_period: Database["public"]["Enums"]["championship_schedule_period"]
+          scheduled_date: string
+          sport_id: string
+        }[]
+      }
+      get_admin_championship_knockout_final_program_schedule: {
         Args: { _bracket_edition_id: string }
         Returns: {
           bracket_court_id: string

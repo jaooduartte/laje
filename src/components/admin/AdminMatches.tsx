@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type DragEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { MatchListSkeleton } from "@/components/skeletons/MatchListSkeleton";
 import {
   type ScheduledKnockoutPlaceholder,
@@ -46,7 +53,9 @@ import {
   previewChampionshipBracketReconfiguration,
   applyManualMatchRelocation,
   applyManualMatchRelocationSlot,
+  applyDayScheduleReorganization,
   holdMatchesForManualRelocation,
+  previewDayScheduleReorganization,
   previewManualMatchRelocation,
   previewManualMatchRelocationSlot,
 } from "@/domain/championship-brackets/championshipBracket.repository";
@@ -63,6 +72,9 @@ import type {
   ManualMatchRelocationPreview,
   ManualMatchRelocationReason,
   ManualMatchRelocationSlotPreview,
+  DayScheduleReorganizationBreakPolicy,
+  DayScheduleReorganizationInput,
+  DayScheduleReorganizationPreview,
   MatchSetInput,
 } from "@/domain/championship-brackets/championshipBracket.types";
 import {
@@ -617,6 +629,51 @@ type ListMatchQueueSwapCandidatesResponseItem = {
   uses_reduced_cross_sport_rest_gap: boolean;
 };
 
+type DayScheduleReorganizationTimelineItem =
+  DayScheduleReorganizationPreview["timeline"][number];
+
+type DayScheduleReorganizationTimelineDisplayItem =
+  | DayScheduleReorganizationTimelineItem
+  | {
+      item_type: "BREAK";
+      item_id: string;
+      match_id: null;
+      placeholder_id: null;
+      label: "Intervalo";
+      status: "SCHEDULED";
+      start_time: string;
+      end_time: string;
+      location: string;
+      court_name: string;
+      is_relocated: false;
+      is_displaced: boolean;
+      is_fixed: true;
+    rest_conflicts: string[];
+  };
+
+function resolveDayScheduleReorganizationTimelineItemId(
+  item: DayScheduleReorganizationTimelineItem,
+): string | null {
+  return item.item_id ?? item.match_id ?? item.placeholder_id ?? null;
+}
+
+function resolveDayScheduleReorganizationManualCourtItemOrder(
+  preview: DayScheduleReorganizationPreview,
+): Record<string, string[]> {
+  return preview.timeline.reduce<Record<string, string[]>>((courtItemOrder, item) => {
+    const itemId = resolveDayScheduleReorganizationTimelineItemId(item);
+
+    if (!itemId) {
+      return courtItemOrder;
+    }
+
+    const courtItems = courtItemOrder[item.court_name] ?? [];
+    courtItems.push(itemId);
+    courtItemOrder[item.court_name] = courtItems;
+    return courtItemOrder;
+  }, {});
+}
+
 function resolveDateOnlyString(date: Date): string {
   return format(date, "yyyy-MM-dd");
 }
@@ -648,6 +705,36 @@ function resolveManualRelocationItemLabel(item: {
   return isManualRelocationPlaceholderItem(item) ? "A definir" : "Jogo";
 }
 
+function resolvePendingManualRelocationScheduleValue(
+  match: Match,
+  key:
+    | "scheduled_date"
+    | "location"
+    | "court_name"
+    | "start_time"
+    | "scheduled_slot"
+    | "queue_position",
+): string | number | null {
+  const schedule = match.pending_manual_relocation_previous_schedule;
+
+  if (!schedule || typeof schedule != "object") {
+    return null;
+  }
+
+  const value = schedule[key];
+
+  if (
+    key == "scheduled_date" ||
+    key == "location" ||
+    key == "court_name" ||
+    key == "start_time"
+  ) {
+    return typeof value == "string" ? value : null;
+  }
+
+  return typeof value == "number" ? value : null;
+}
+
 function AdminMatchesKnockoutPlaceholderCard({
   placeholder,
 }: {
@@ -673,7 +760,7 @@ function AdminMatchesKnockoutPlaceholderCard({
             <AppBadge tone={resolveMatchNaipeBadgeTone(placeholder.naipe)}>
               {MATCH_NAIPE_LABELS[placeholder.naipe]}
             </AppBadge>
-            <AppBadge tone={AppBadgeTone.WARNING}>A definir</AppBadge>
+            <AppBadge tone={AppBadgeTone.AMBER}>A definir</AppBadge>
             {placeholder.division ? (
               <AppBadge tone={TEAM_DIVISION_BADGE_TONES[placeholder.division]}>
                 {TEAM_DIVISION_LABELS[placeholder.division]}
@@ -1371,6 +1458,39 @@ export function AdminMatches({
     useState(false);
   const [selectedPendingManualRelocationMatchIds, setSelectedPendingManualRelocationMatchIds] =
     useState<string[]>([]);
+  const [showDayScheduleReorganizationDialog, setShowDayScheduleReorganizationDialog] =
+    useState(false);
+  const [dayScheduleReorganizationTargetDate, setDayScheduleReorganizationTargetDate] =
+    useState("");
+  const [dayScheduleReorganizationTargetLocation, setDayScheduleReorganizationTargetLocation] =
+    useState("");
+  const [dayScheduleReorganizationTargetCourt, setDayScheduleReorganizationTargetCourt] =
+    useState("");
+  const [dayScheduleReorganizationDayStartTime, setDayScheduleReorganizationDayStartTime] =
+    useState("");
+  const [dayScheduleReorganizationBreakPolicy, setDayScheduleReorganizationBreakPolicy] =
+    useState<DayScheduleReorganizationBreakPolicy>("KEEP_BEFORE_KNOCKOUT");
+  const [dayScheduleReorganizationReason, setDayScheduleReorganizationReason] =
+    useState<ManualMatchRelocationReason>("WEATHER");
+  const [dayScheduleReorganizationSchedules, setDayScheduleReorganizationSchedules] =
+    useState<BracketDaySchedule[]>([]);
+  const [dayScheduleReorganizationManualPreview, setDayScheduleReorganizationManualPreview] =
+    useState<DayScheduleReorganizationPreview | null>(null);
+  const [dayScheduleReorganizationManualCourtItemOrder, setDayScheduleReorganizationManualCourtItemOrder] =
+    useState<Record<string, string[]>>({});
+  const [draggedDayScheduleReorganizationItem, setDraggedDayScheduleReorganizationItem] =
+    useState<
+      | { type: "PENDING"; itemId: string }
+      | { type: "TIMELINE"; courtName: string; itemId: string }
+      | null
+    >(null);
+  const dayScheduleReorganizationDialogContentRef = useRef<HTMLDivElement>(null);
+  const [placedDayScheduleReorganizationMatchIds, setPlacedDayScheduleReorganizationMatchIds] =
+    useState<string[]>([]);
+  const [loadingDayScheduleReorganizationPreview, setLoadingDayScheduleReorganizationPreview] =
+    useState(false);
+  const [applyingDayScheduleReorganization, setApplyingDayScheduleReorganization] =
+    useState(false);
   const [showHoldMatchesDialog, setShowHoldMatchesDialog] = useState(false);
   const [holdingMatchesForRelocation, setHoldingMatchesForRelocation] =
     useState(false);
@@ -1618,6 +1738,10 @@ export function AdminMatches({
       championshipId: selectedChampionship.id,
       seasonYear: displayedSeasonYear,
       sportIds: individualSportIds,
+      participantTeamId:
+        matchesTeamFilter != ALL_MATCHES_TEAM_FILTER
+          ? matchesTeamFilter
+          : null,
     });
   const individualSessions = useMemo(() => {
     return championshipIndividualSessions.filter((session) =>
@@ -2541,10 +2665,6 @@ export function AdminMatches({
         return false;
       }
 
-      if (matchesTeamFilter != ALL_MATCHES_TEAM_FILTER) {
-        return false;
-      }
-
       if (
         matchesNaipeFilter != ALL_MATCHES_NAIPE_FILTER &&
         session.naipe != matchesNaipeFilter
@@ -2573,7 +2693,6 @@ export function AdminMatches({
     matchesNaipeFilter,
     matchesSportFilter,
     matchesStatusFilter,
-    matchesTeamFilter,
   ]);
 
   const availableNaipeOptions = useMemo(() => {
@@ -3182,6 +3301,47 @@ export function AdminMatches({
       );
   }, [matches]);
 
+  const pendingManualRelocationMatchGroups = useMemo(() => {
+    const groupsBySportAndNaipe = new Map<
+      string,
+      {
+        sportId: string;
+        sportName: string;
+        naipe: MatchNaipe;
+        matches: Match[];
+      }
+    >();
+
+    pendingManualRelocationMatches.forEach((match) => {
+      const key = `${match.sport_id}:${match.naipe}`;
+      const group = groupsBySportAndNaipe.get(key);
+
+      if (group) {
+        group.matches.push(match);
+        return;
+      }
+
+      groupsBySportAndNaipe.set(key, {
+        sportId: match.sport_id,
+        sportName: match.sports?.name ?? "Modalidade",
+        naipe: match.naipe,
+        matches: [match],
+      });
+    });
+
+    return [...groupsBySportAndNaipe.values()].sort((firstGroup, secondGroup) => {
+      const sportComparison = firstGroup.sportName.localeCompare(
+        secondGroup.sportName,
+      );
+
+      if (sportComparison != 0) {
+        return sportComparison;
+      }
+
+      return NAIPE_OPTIONS.indexOf(firstGroup.naipe) - NAIPE_OPTIONS.indexOf(secondGroup.naipe);
+    });
+  }, [pendingManualRelocationMatches]);
+
   const filteredAndSortedMatches = useMemo(() => {
     return [...matchesFilteredByBaseCriteria]
       .filter((match) => {
@@ -3394,6 +3554,298 @@ export function AdminMatches({
     selectedPendingManualRelocationMatchIds,
     shouldUseScheduledSlotInMatchList,
   ]);
+
+  const selectedPendingMatchesForDayScheduleReorganization = useMemo(() => {
+    const selectedMatchIdSet = new Set(selectedPendingManualRelocationMatchIds);
+
+    return matches
+      .filter((match) => selectedMatchIdSet.has(match.id))
+      .sort((firstMatch, secondMatch) => {
+        const firstStart = String(
+          resolvePendingManualRelocationScheduleValue(firstMatch, "start_time") ??
+            "9999-12-31T23:59:59",
+        );
+        const secondStart = String(
+          resolvePendingManualRelocationScheduleValue(secondMatch, "start_time") ??
+            "9999-12-31T23:59:59",
+        );
+
+        if (firstStart != secondStart) {
+          return firstStart.localeCompare(secondStart);
+        }
+
+        return (
+          Number(
+            resolvePendingManualRelocationScheduleValue(
+              firstMatch,
+              "scheduled_slot",
+            ) ??
+              resolvePendingManualRelocationScheduleValue(
+                firstMatch,
+                "queue_position",
+              ) ??
+              0,
+          ) -
+          Number(
+            resolvePendingManualRelocationScheduleValue(
+              secondMatch,
+              "scheduled_slot",
+            ) ??
+              resolvePendingManualRelocationScheduleValue(
+                secondMatch,
+                "queue_position",
+              ) ??
+              0,
+          )
+        );
+      });
+  }, [matches, selectedPendingManualRelocationMatchIds]);
+
+  const dayScheduleReorganizationTargetDay = useMemo(() => {
+    return (
+      bracketCourtSportsDays.find(
+        (scheduleDay) =>
+          scheduleDay.event_date == dayScheduleReorganizationTargetDate,
+      ) ?? null
+    );
+  }, [bracketCourtSportsDays, dayScheduleReorganizationTargetDate]);
+
+  const dayScheduleReorganizationLocations = useMemo(() => {
+    return dayScheduleReorganizationTargetDay?.locations ?? [];
+  }, [dayScheduleReorganizationTargetDay]);
+
+  const dayScheduleReorganizationCourts = useMemo(() => {
+    const targetLocation = dayScheduleReorganizationLocations.find(
+      (scheduleLocation) =>
+        scheduleLocation.name == dayScheduleReorganizationTargetLocation,
+    );
+    const selectedSportIds = new Set(
+      selectedPendingMatchesForDayScheduleReorganization.map(
+        (match) => match.sport_id,
+      ),
+    );
+
+    return (targetLocation?.courts ?? []).filter((court) =>
+      [...selectedSportIds].every((sportId) =>
+        court.sports.some((courtSport) => courtSport.sport_id == sportId),
+      ),
+    );
+  }, [
+    dayScheduleReorganizationLocations,
+    dayScheduleReorganizationTargetLocation,
+    selectedPendingMatchesForDayScheduleReorganization,
+  ]);
+
+  const dayScheduleReorganizationTargetLocationRecord = useMemo(() => {
+    return (
+      dayScheduleReorganizationLocations.find(
+        (scheduleLocation) =>
+          scheduleLocation.name == dayScheduleReorganizationTargetLocation,
+      ) ?? null
+    );
+  }, [
+    dayScheduleReorganizationLocations,
+    dayScheduleReorganizationTargetLocation,
+  ]);
+
+  const dayScheduleReorganizationPreview = dayScheduleReorganizationManualPreview;
+
+  const dayScheduleReorganizationHasRestConflicts = useMemo(
+    () =>
+      dayScheduleReorganizationPreview?.timeline.some(
+        (item) => (item.rest_conflicts ?? []).length > 0,
+      ) ?? false,
+    [dayScheduleReorganizationPreview],
+  );
+
+  const dayScheduleReorganizationPlaceholdersById = useMemo(() => {
+    const placeholders = resolveAdminMatchesKnockoutPlaceholders({
+      championshipBracketView,
+      matchesForMatchNumbering: matches,
+      sportId: null,
+      scheduledDate: dayScheduleReorganizationTargetDate || null,
+      naipe: null,
+      division: null,
+      location: dayScheduleReorganizationTargetLocation || null,
+      courtName: null,
+      shouldIncludeScheduledItems: true,
+      shouldExcludePlaceholdersForTeamOrGroupFilter: false,
+    });
+
+    return new Map(
+      placeholders.map((placeholder) => [placeholder.id, placeholder]),
+    );
+  }, [
+    championshipBracketView,
+    dayScheduleReorganizationTargetDate,
+    dayScheduleReorganizationTargetLocation,
+    matches,
+  ]);
+
+  const dayScheduleReorganizationTimelineCourtColumns = useMemo(() => {
+    if (!dayScheduleReorganizationPreview) {
+      return [];
+    }
+
+    const timelineByCourtName = new Map<
+      string,
+      DayScheduleReorganizationTimelineDisplayItem[]
+    >();
+
+    dayScheduleReorganizationPreview.timeline.forEach((item) => {
+      const courtTimeline = timelineByCourtName.get(item.court_name) ?? [];
+      courtTimeline.push(item);
+      timelineByCourtName.set(item.court_name, courtTimeline);
+    });
+
+    const targetDay = dayScheduleReorganizationSchedules.find(
+      (scheduleDay) =>
+        scheduleDay.event_date == dayScheduleReorganizationTargetDate,
+    );
+    const configuredCourts = [
+      ...(dayScheduleReorganizationTargetLocationRecord?.courts ?? []),
+    ].sort((firstCourt, secondCourt) => firstCourt.position - secondCourt.position);
+    const previewBreak = dayScheduleReorganizationPreview.break;
+
+    if (previewBreak.policy == "KEEP_BEFORE_KNOCKOUT") {
+      targetDay?.breaks.forEach((breakItem) => {
+        const usesPreviewPosition = previewBreak.before.id == breakItem.id;
+        const startTime =
+          usesPreviewPosition && previewBreak.after.start_time
+            ? previewBreak.after.start_time
+            : breakItem.break_start_time.slice(0, 5);
+        const endTime =
+          usesPreviewPosition && previewBreak.after.end_time
+            ? previewBreak.after.end_time
+            : breakItem.break_end_time.slice(0, 5);
+        const courtNamesForBreak =
+          breakItem.scope_type == "ALL_COURTS"
+            ? configuredCourts.map((court) => court.name)
+            : configuredCourts
+                .filter((court) => court.id == breakItem.bracket_court_id)
+                .map((court) => court.name);
+
+        courtNamesForBreak.forEach((courtName) => {
+          const courtTimeline = timelineByCourtName.get(courtName) ?? [];
+          courtTimeline.push({
+            item_type: "BREAK",
+            item_id: `break-${breakItem.id}-${courtName}`,
+            match_id: null,
+            placeholder_id: null,
+            label: "Intervalo",
+            status: "SCHEDULED",
+            start_time: `${dayScheduleReorganizationPreview.target_date}T${startTime}:00`,
+            end_time: `${dayScheduleReorganizationPreview.target_date}T${endTime}:00`,
+            location: dayScheduleReorganizationPreview.target_location,
+            court_name: courtName,
+            is_relocated: false,
+            is_displaced:
+              usesPreviewPosition &&
+              (previewBreak.before.start_time != startTime ||
+                previewBreak.before.end_time != endTime),
+            is_fixed: true,
+            rest_conflicts: [],
+          });
+          timelineByCourtName.set(courtName, courtTimeline);
+        });
+      });
+    }
+
+    const configuredCourtNameSet = new Set(
+      configuredCourts.map((court) => court.name),
+    );
+    const courtNames = [
+      ...configuredCourts.map((court) => court.name),
+      ...[...timelineByCourtName.keys()]
+        .filter((courtName) => !configuredCourtNameSet.has(courtName))
+        .sort((firstCourtName, secondCourtName) =>
+          firstCourtName.localeCompare(secondCourtName),
+        ),
+    ];
+
+    return courtNames.map((courtName) => ({
+      courtName,
+      items: [...(timelineByCourtName.get(courtName) ?? [])].sort(
+        (firstItem, secondItem) => {
+          const firstStart = firstItem.start_time ?? "9999-12-31T23:59:59";
+          const secondStart = secondItem.start_time ?? "9999-12-31T23:59:59";
+
+          if (firstStart != secondStart) {
+            return firstStart.localeCompare(secondStart);
+          }
+
+          return String(
+            firstItem.item_id ?? firstItem.match_id ?? firstItem.placeholder_id,
+          ).localeCompare(
+            String(
+              secondItem.item_id ??
+                secondItem.match_id ??
+                secondItem.placeholder_id,
+            ),
+          );
+        },
+      ),
+    }));
+  }, [
+    dayScheduleReorganizationPreview,
+    dayScheduleReorganizationSchedules,
+    dayScheduleReorganizationTargetDate,
+    dayScheduleReorganizationTargetLocationRecord,
+  ]);
+
+  const dayScheduleReorganizationBreak = useMemo(() => {
+    const targetDay = dayScheduleReorganizationSchedules.find(
+      (scheduleDay) =>
+        scheduleDay.event_date == dayScheduleReorganizationTargetDate,
+    );
+
+    return (
+      targetDay?.breaks.find((breakItem) => breakItem.scope_type == "ALL_COURTS") ??
+      null
+    );
+  }, [
+    dayScheduleReorganizationSchedules,
+    dayScheduleReorganizationTargetDate,
+  ]);
+
+  const dayScheduleReorganizationTargetCourtBreaks = useMemo(() => {
+    const targetDay = dayScheduleReorganizationSchedules.find(
+      (scheduleDay) =>
+        scheduleDay.event_date == dayScheduleReorganizationTargetDate,
+    );
+    const targetCourt = targetDay?.locations
+      .find(
+        (location) => location.name == dayScheduleReorganizationTargetLocation,
+      )
+      ?.courts.find(
+        (court) => court.name == dayScheduleReorganizationTargetCourt,
+      );
+
+    if (!targetDay || !targetCourt) {
+      return [];
+    }
+
+    return targetDay.breaks.filter(
+      (breakItem) =>
+        breakItem.scope_type == "COURT" &&
+        breakItem.bracket_court_id == targetCourt.id,
+    );
+  }, [
+    dayScheduleReorganizationSchedules,
+    dayScheduleReorganizationTargetCourt,
+    dayScheduleReorganizationTargetDate,
+    dayScheduleReorganizationTargetLocation,
+  ]);
+
+  const dayScheduleReorganizationManagedBreak =
+    dayScheduleReorganizationBreak ??
+    dayScheduleReorganizationTargetCourtBreaks[0] ??
+    null;
+
+  const dayScheduleReorganizationRemovableResourceLock =
+    dayScheduleReorganizationBreakPolicy == "REMOVE"
+      ? dayScheduleReorganizationManagedBreak?.resource_lock ?? null
+      : null;
 
   const manualRelocationTargetDay = useMemo(() => {
     return (
@@ -4530,6 +4982,356 @@ export function AdminMatches({
     toast.success("Jogos realocados com sucesso.");
   };
 
+  const handleCloseDayScheduleReorganizationDialog = () => {
+    if (
+      loadingDayScheduleReorganizationPreview ||
+      applyingDayScheduleReorganization
+    ) {
+      return;
+    }
+
+    setShowDayScheduleReorganizationDialog(false);
+    setDayScheduleReorganizationManualPreview(null);
+    setDayScheduleReorganizationManualCourtItemOrder({});
+    setDraggedDayScheduleReorganizationItem(null);
+    setPlacedDayScheduleReorganizationMatchIds([]);
+  };
+
+  const handleOpenDayScheduleReorganizationDialog = async () => {
+    const bracketEditionId = championshipBracketView.edition?.id;
+
+    if (
+      !canManageMatches ||
+      selectedPendingMatchesForDayScheduleReorganization.length == 0
+    ) {
+      toast.error("Selecione ao menos um jogo aguardando realocação.");
+      return;
+    }
+
+    if (!bracketEditionId) {
+      toast.error("Não foi possível localizar a agenda do campeonato.");
+      return;
+    }
+
+    const { data, error } = await getBracketDaySchedules(bracketEditionId);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    const firstMatch = selectedPendingMatchesForDayScheduleReorganization[0];
+    const previousDate = resolvePendingManualRelocationScheduleValue(
+      firstMatch,
+      "scheduled_date",
+    );
+    const previousLocation = resolvePendingManualRelocationScheduleValue(
+      firstMatch,
+      "location",
+    );
+    const previousCourt = resolvePendingManualRelocationScheduleValue(
+      firstMatch,
+      "court_name",
+    );
+
+    setDayScheduleReorganizationSchedules(data);
+    setDayScheduleReorganizationTargetDate(
+      typeof previousDate == "string" ? previousDate : "",
+    );
+    setDayScheduleReorganizationTargetLocation(
+      typeof previousLocation == "string" ? previousLocation : "",
+    );
+    setDayScheduleReorganizationTargetCourt(
+      typeof previousCourt == "string" ? previousCourt : "",
+    );
+    setDayScheduleReorganizationDayStartTime("");
+    setDayScheduleReorganizationBreakPolicy("KEEP_BEFORE_KNOCKOUT");
+    setDayScheduleReorganizationReason("WEATHER");
+    setDayScheduleReorganizationManualPreview(null);
+    setDayScheduleReorganizationManualCourtItemOrder({});
+    setDraggedDayScheduleReorganizationItem(null);
+    setPlacedDayScheduleReorganizationMatchIds([]);
+    setShowDayScheduleReorganizationDialog(true);
+  };
+
+  const buildDayScheduleReorganizationInput = (
+    placedMatchIds = placedDayScheduleReorganizationMatchIds,
+    manualCourtItemOrder = dayScheduleReorganizationManualCourtItemOrder,
+  ): DayScheduleReorganizationInput | null => {
+    if (
+      !dayScheduleReorganizationTargetDate ||
+      !dayScheduleReorganizationTargetLocation ||
+      !dayScheduleReorganizationTargetCourt
+    ) {
+      toast.error("Selecione o dia, local e quadra de destino.");
+      return null;
+    }
+
+    return {
+      match_ids: selectedPendingMatchesForDayScheduleReorganization.map(
+        (match) => match.id,
+      ),
+      placed_match_ids: placedMatchIds,
+      target_date: dayScheduleReorganizationTargetDate,
+      target_location: dayScheduleReorganizationTargetLocation,
+      target_court_name: dayScheduleReorganizationTargetCourt,
+      day_start_time: dayScheduleReorganizationDayStartTime || null,
+      strategy: "MANUAL",
+      manual_court_item_order: manualCourtItemOrder,
+      break_policy: dayScheduleReorganizationBreakPolicy,
+      removable_resource_lock: dayScheduleReorganizationRemovableResourceLock,
+      reason: dayScheduleReorganizationReason,
+    };
+  };
+
+  const handlePreviewDayScheduleReorganization = async () => {
+    const bracketEditionId = championshipBracketView.edition?.id;
+    const input = buildDayScheduleReorganizationInput([], {});
+
+    if (!bracketEditionId || !input) {
+      return;
+    }
+
+    setLoadingDayScheduleReorganizationPreview(true);
+    const { data, error } = await previewDayScheduleReorganization(
+      bracketEditionId,
+      input,
+    );
+    setLoadingDayScheduleReorganizationPreview(false);
+
+    if (error || !data) {
+      toast.error(error?.message ?? "Não foi possível montar o cronograma.");
+      return;
+    }
+
+    setPlacedDayScheduleReorganizationMatchIds([]);
+    setDayScheduleReorganizationManualCourtItemOrder({});
+    setDayScheduleReorganizationManualPreview(data);
+  };
+
+  const handlePreviewDayScheduleReorganizationPlacement = async (
+    placedMatchIds = placedDayScheduleReorganizationMatchIds,
+    manualCourtItemOrder = dayScheduleReorganizationManualCourtItemOrder,
+  ): Promise<DayScheduleReorganizationPreview | null> => {
+    const bracketEditionId = championshipBracketView.edition?.id;
+    const input = buildDayScheduleReorganizationInput(
+      placedMatchIds,
+      manualCourtItemOrder,
+    );
+
+    if (!bracketEditionId || !input) {
+      return null;
+    }
+
+    setLoadingDayScheduleReorganizationPreview(true);
+    const { data, error } = await previewDayScheduleReorganization(
+      bracketEditionId,
+      input,
+    );
+    setLoadingDayScheduleReorganizationPreview(false);
+
+    if (error || !data) {
+      toast.error(error?.message ?? "Não foi possível recalcular o cronograma.");
+      return null;
+    }
+
+    return data;
+  };
+
+  const handleDayScheduleReorganizationDialogDragOver = (
+    event: DragEvent<HTMLDivElement>,
+  ) => {
+    if (!draggedDayScheduleReorganizationItem) {
+      return;
+    }
+
+    const dialogContent = event.currentTarget;
+    const dialogBounds = dialogContent.getBoundingClientRect();
+    const scrollThreshold = 96;
+    const maximumScrollStep = 24;
+    const distanceFromTop = event.clientY - dialogBounds.top;
+    const distanceFromBottom = dialogBounds.bottom - event.clientY;
+
+    if (distanceFromTop > 0 && distanceFromTop < scrollThreshold) {
+      dialogContent.scrollBy({
+        top: -Math.ceil(
+          ((scrollThreshold - distanceFromTop) / scrollThreshold) * maximumScrollStep,
+        ),
+      });
+    } else if (distanceFromBottom > 0 && distanceFromBottom < scrollThreshold) {
+      dialogContent.scrollBy({
+        top: Math.ceil(
+          ((scrollThreshold - distanceFromBottom) / scrollThreshold) * maximumScrollStep,
+        ),
+      });
+    }
+  };
+
+  const handleReorderDayScheduleReorganizationManualItem = async (
+    courtName: string,
+    targetItemId: string,
+    placement: "BEFORE" | "AFTER" = "BEFORE",
+  ) => {
+    const draggedItem = draggedDayScheduleReorganizationItem;
+
+    setDraggedDayScheduleReorganizationItem(null);
+
+    if (
+      loadingDayScheduleReorganizationPreview ||
+      !draggedItem ||
+      draggedItem.type != "TIMELINE" ||
+      draggedItem.courtName != courtName ||
+      draggedItem.itemId == targetItemId
+    ) {
+      return;
+    }
+
+    const currentCourtItemOrder =
+      dayScheduleReorganizationManualCourtItemOrder[courtName] ??
+      (dayScheduleReorganizationManualPreview
+        ? resolveDayScheduleReorganizationManualCourtItemOrder(
+            dayScheduleReorganizationManualPreview,
+          )[courtName]
+        : []) ?? [];
+    const draggedItemIndex = currentCourtItemOrder.indexOf(draggedItem.itemId);
+    const targetItemIndex = currentCourtItemOrder.indexOf(targetItemId);
+
+    if (draggedItemIndex < 0 || targetItemIndex < 0) {
+      return;
+    }
+
+    const nextCourtItemOrder = [...currentCourtItemOrder];
+    nextCourtItemOrder.splice(draggedItemIndex, 1);
+    nextCourtItemOrder.splice(
+      nextCourtItemOrder.indexOf(targetItemId) + (placement == "AFTER" ? 1 : 0),
+      0,
+      draggedItem.itemId,
+    );
+
+    const nextManualCourtItemOrder = {
+      ...dayScheduleReorganizationManualCourtItemOrder,
+      [courtName]: nextCourtItemOrder,
+    };
+
+    const nextPreview = await handlePreviewDayScheduleReorganizationPlacement(
+      placedDayScheduleReorganizationMatchIds,
+      nextManualCourtItemOrder,
+    );
+
+    if (!nextPreview) {
+      return;
+    }
+
+    setDayScheduleReorganizationManualCourtItemOrder(nextManualCourtItemOrder);
+    setDayScheduleReorganizationManualPreview(nextPreview);
+  };
+
+  const handlePlaceDayScheduleReorganizationPendingMatch = async (
+    targetItemId: string,
+    placement: "BEFORE" | "AFTER" = "AFTER",
+  ) => {
+    const draggedItem = draggedDayScheduleReorganizationItem;
+    const preview = dayScheduleReorganizationManualPreview;
+
+    setDraggedDayScheduleReorganizationItem(null);
+
+    if (
+      loadingDayScheduleReorganizationPreview ||
+      !preview ||
+      !draggedItem ||
+      draggedItem.type != "PENDING" ||
+      placedDayScheduleReorganizationMatchIds.includes(draggedItem.itemId)
+    ) {
+      return;
+    }
+
+    const currentCourtItemOrder =
+      dayScheduleReorganizationManualCourtItemOrder[
+        dayScheduleReorganizationTargetCourt
+      ] ??
+      resolveDayScheduleReorganizationManualCourtItemOrder(preview)[
+        dayScheduleReorganizationTargetCourt
+      ] ?? [];
+    const targetItemIndex = currentCourtItemOrder.indexOf(targetItemId);
+
+    if (targetItemIndex < 0) {
+      return;
+    }
+
+    const nextCourtItemOrder = [...currentCourtItemOrder];
+    nextCourtItemOrder.splice(
+      targetItemIndex + (placement == "AFTER" ? 1 : 0),
+      0,
+      draggedItem.itemId,
+    );
+    const nextPlacedMatchIds = [
+      ...placedDayScheduleReorganizationMatchIds,
+      draggedItem.itemId,
+    ];
+    const nextManualCourtItemOrder = {
+      ...dayScheduleReorganizationManualCourtItemOrder,
+      [dayScheduleReorganizationTargetCourt]: nextCourtItemOrder,
+    };
+
+    const nextPreview = await handlePreviewDayScheduleReorganizationPlacement(
+      nextPlacedMatchIds,
+      nextManualCourtItemOrder,
+    );
+
+    const placedTimelineItem = nextPreview?.timeline.find(
+      (item) => item.match_id == draggedItem.itemId && item.is_relocated,
+    );
+
+    if (!nextPreview || !placedTimelineItem) {
+      toast.error(
+        "O jogo não foi incluído no cronograma calculado e permaneceu na bandeja.",
+      );
+      return;
+    }
+
+    setPlacedDayScheduleReorganizationMatchIds(nextPlacedMatchIds);
+    setDayScheduleReorganizationManualCourtItemOrder(nextManualCourtItemOrder);
+    setDayScheduleReorganizationManualPreview(nextPreview);
+  };
+
+  const handleApplyDayScheduleReorganization = async () => {
+    const bracketEditionId = championshipBracketView.edition?.id;
+    const preview = dayScheduleReorganizationManualPreview;
+    const input = buildDayScheduleReorganizationInput();
+
+    if (
+      !bracketEditionId ||
+      !input ||
+      !preview ||
+      preview.blockers.length > 0 ||
+      placedDayScheduleReorganizationMatchIds.length !=
+        selectedPendingMatchesForDayScheduleReorganization.length
+    ) {
+      return;
+    }
+
+    setApplyingDayScheduleReorganization(true);
+    const { error } = await applyDayScheduleReorganization(
+      bracketEditionId,
+      input,
+      preview.revision,
+    );
+    setApplyingDayScheduleReorganization(false);
+
+    if (error) {
+      toast.error(resolveAdminMatchesOperationalErrorMessage(error));
+      return;
+    }
+
+    const relocatedMatchIdSet = new Set(placedDayScheduleReorganizationMatchIds);
+    setSelectedPendingManualRelocationMatchIds((currentMatchIds) =>
+      currentMatchIds.filter((matchId) => !relocatedMatchIdSet.has(matchId)),
+    );
+    handleCloseDayScheduleReorganizationDialog();
+    await Promise.all([onRefetch(), onRefetchChampionshipBracket()]);
+    toast.success("Programação do dia reorganizada com sucesso.");
+  };
+
   const handleCloseManualRelocationSlotDialog = () => {
     if (loadingManualRelocationSlots || applyingManualRelocationSlot) {
       return;
@@ -4741,6 +5543,21 @@ export function AdminMatches({
       }
 
       return currentMatchIds.filter((currentMatchId) => currentMatchId != matchId);
+    });
+  };
+
+  const handleToggleSelectedPendingManualRelocationMatchGroup = (
+    matchIds: string[],
+    checked: CheckedState,
+  ) => {
+    setSelectedPendingManualRelocationMatchIds((currentMatchIds) => {
+      const matchIdSet = new Set(matchIds);
+
+      if (checked == true) {
+        return [...new Set([...currentMatchIds, ...matchIds])];
+      }
+
+      return currentMatchIds.filter((matchId) => !matchIdSet.has(matchId));
     });
   };
 
@@ -7038,18 +7855,19 @@ export function AdminMatches({
               </p>
             </div>
             {canManageMatches ? (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleOpenManualRelocationDialog}
-                disabled={
-                  selectedPendingManualRelocationMatchIds.length == 0 ||
-                  loadingManualRelocationPreview ||
-                  applyingManualRelocation
-                }
-              >
-                Realocar selecionados
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  onClick={() => void handleOpenDayScheduleReorganizationDialog()}
+                  disabled={
+                    selectedPendingManualRelocationMatchIds.length == 0 ||
+                    loadingDayScheduleReorganizationPreview ||
+                    applyingDayScheduleReorganization
+                  }
+                >
+                  Realocar jogos selecionados
+                </Button>
+              </div>
             ) : null}
           </div>
 
@@ -7060,72 +7878,111 @@ export function AdminMatches({
               ))}
             </div>
           ) : pendingManualRelocationMatches.length > 0 ? (
-            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-              {pendingManualRelocationMatches.map((match) => (
-                <div key={match.id} className="app-card-muted space-y-2 rounded-xl p-3">
-                  <div className="flex items-start gap-2">
-                    {canManageMatches ? (
-                      <Checkbox
-                        checked={selectedPendingManualRelocationMatchIds.includes(match.id)}
-                        onCheckedChange={(checked) =>
-                          handleToggleSelectedPendingManualRelocationMatch(match.id, checked)
-                        }
-                      />
-                    ) : null}
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-foreground">
-                        {match.home_team?.name ?? "Casa"} x {match.away_team?.name ?? "Visitante"}
-                      </p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {match.sports?.name ?? "Modalidade"} • {MATCH_NAIPE_LABELS[match.naipe]}
-                      </p>
-                    </div>
-                    {canManageMatches && match.status == MatchStatus.SCHEDULED ? (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Ações do jogo ${match.home_team?.name ?? "casa"} x ${match.away_team?.name ?? "visitante"}`}
-                          >
-                            <MoreVertical className="h-4 w-4 text-muted-foreground" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-56">
-                          <DropdownMenuItem
-                            onSelect={() => {
-                              handleOpenManualRelocationSlotDialog(match);
-                            }}
-                          >
-                            <Clock className="mr-2 h-4 w-4" />
-                            Encaixar em horário livre
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    ) : null}
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    <AppBadge tone={AppBadgeTone.NEUTRAL}>
-                      {match.pending_manual_relocation_previous_label ?? "Jogo anterior"}
+            <div className="space-y-4">
+              {pendingManualRelocationMatchGroups.map((group) => (
+                <section key={`${group.sportId}:${group.naipe}`} className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2 px-1">
+                    {canManageMatches ? (() => {
+                      const groupMatchIds = group.matches.map((match) => match.id);
+                      const selectedGroupMatchCount = groupMatchIds.filter((matchId) =>
+                        selectedPendingManualRelocationMatchIds.includes(matchId),
+                      ).length;
+                      const isGroupSelected = selectedGroupMatchCount == groupMatchIds.length;
+                      const isGroupPartiallySelected =
+                        selectedGroupMatchCount > 0 && !isGroupSelected;
+
+                      return (
+                        <Checkbox
+                          checked={isGroupSelected ? true : isGroupPartiallySelected ? "indeterminate" : false}
+                          onCheckedChange={(checked) =>
+                            handleToggleSelectedPendingManualRelocationMatchGroup(
+                              groupMatchIds,
+                              checked,
+                            )
+                          }
+                          aria-label={`Selecionar todos os jogos de ${group.sportName} ${MATCH_NAIPE_LABELS[group.naipe]}`}
+                        />
+                      );
+                    })() : null}
+                    <AppBadge tone={AppBadgeTone.NEUTRAL}>{group.sportName}</AppBadge>
+                    <AppBadge tone={resolveMatchNaipeBadgeTone(group.naipe)}>
+                      {MATCH_NAIPE_LABELS[group.naipe]}
                     </AppBadge>
-                    {match.pending_manual_relocation_reason ? (
-                      <AppBadge tone={AppBadgeTone.WARNING}>
-                        {MANUAL_MATCH_RELOCATION_REASON_LABELS[
-                          match.pending_manual_relocation_reason as ManualMatchRelocationReason
-                        ] ?? match.pending_manual_relocation_reason}
-                      </AppBadge>
-                    ) : null}
+                    <span className="text-xs text-muted-foreground">
+                      {group.matches.length} jogo(s) aguardando realocação
+                    </span>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Guardado em {match.pending_manual_relocation_at
-                      ? format(new Date(match.pending_manual_relocation_at), "dd/MM/yyyy 'às' HH:mm")
-                      : "data não informada"}
-                    {match.pending_manual_relocation_notes
-                      ? ` • ${match.pending_manual_relocation_notes}`
-                      : ""}
-                  </p>
-                </div>
+                  <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                    {group.matches.map((match) => (
+                      <div key={match.id} className="app-card-muted space-y-2 rounded-xl p-3">
+                        <div className="flex items-start gap-2">
+                          {canManageMatches ? (
+                            <Checkbox
+                              checked={selectedPendingManualRelocationMatchIds.includes(match.id)}
+                              onCheckedChange={(checked) =>
+                                handleToggleSelectedPendingManualRelocationMatch(match.id, checked)
+                              }
+                            />
+                          ) : null}
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-foreground">
+                              {match.home_team?.name ?? "Casa"} x {match.away_team?.name ?? "Visitante"}
+                            </p>
+                            {match.division ? (
+                              <p className="mt-0.5 text-xs text-muted-foreground">
+                                {TEAM_DIVISION_LABELS[match.division]}
+                              </p>
+                            ) : null}
+                          </div>
+                          {canManageMatches && match.status == MatchStatus.SCHEDULED ? (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  aria-label={`Ações do jogo ${match.home_team?.name ?? "casa"} x ${match.away_team?.name ?? "visitante"}`}
+                                >
+                                  <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-56">
+                                <DropdownMenuItem
+                                  onSelect={() => {
+                                    handleOpenManualRelocationSlotDialog(match);
+                                  }}
+                                >
+                                  <Clock className="mr-2 h-4 w-4" />
+                                  Encaixar em horário livre
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          ) : null}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          <AppBadge tone={AppBadgeTone.NEUTRAL}>
+                            {match.pending_manual_relocation_previous_label ?? "Jogo anterior"}
+                          </AppBadge>
+                          {match.pending_manual_relocation_reason ? (
+                            <AppBadge tone={AppBadgeTone.AMBER}>
+                              {MANUAL_MATCH_RELOCATION_REASON_LABELS[
+                                match.pending_manual_relocation_reason as ManualMatchRelocationReason
+                              ] ?? match.pending_manual_relocation_reason}
+                            </AppBadge>
+                          ) : null}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Guardado em {match.pending_manual_relocation_at
+                            ? format(new Date(match.pending_manual_relocation_at), "dd/MM/yyyy 'às' HH:mm")
+                            : "data não informada"}
+                          {match.pending_manual_relocation_notes
+                            ? ` • ${match.pending_manual_relocation_notes}`
+                            : ""}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
               ))}
             </div>
           ) : (
@@ -8781,7 +9638,7 @@ export function AdminMatches({
 
             <div className="grid gap-3 md:grid-cols-3">
               <div className="space-y-1">
-                <Label>Dia de destino</Label>
+                <Label className="flex h-4 items-center">Dia de destino</Label>
                 <Select
                   value={manualRelocationSlotTargetDate || EMPTY_MANUAL_RELOCATION_OPTION_VALUE}
                   onValueChange={(value) => {
@@ -8807,7 +9664,7 @@ export function AdminMatches({
               </div>
 
               <div className="space-y-1">
-                <Label>Local</Label>
+                <Label className="flex h-4 items-center">Local</Label>
                 <Select
                   value={manualRelocationSlotTargetLocation || EMPTY_MANUAL_RELOCATION_OPTION_VALUE}
                   onValueChange={(value) => {
@@ -8916,7 +9773,7 @@ export function AdminMatches({
                     <p className="font-medium">Prévia do encaixe</p>
                     <p className="text-sm text-muted-foreground">Encerramento previsto: {manualRelocationSlotPreview.next_day_end}{manualRelocationSlotPreview.extends_day_end ? ` (antes: ${manualRelocationSlotPreview.previous_day_end})` : ""}</p>
                   </div>
-                  {manualRelocationSlotPreview.extends_day_end ? <AppBadge tone={AppBadgeTone.WARNING}>Dia ampliado</AppBadge> : null}
+                  {manualRelocationSlotPreview.extends_day_end ? <AppBadge tone={AppBadgeTone.AMBER}>Dia ampliado</AppBadge> : null}
                 </div>
                 {manualRelocationSlotPreview.blockers.length > 0 ? <div className="space-y-1 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{manualRelocationSlotPreview.blockers.map((blocker) => <p key={blocker}>{blocker}</p>)}</div> : null}
                 {manualRelocationSlotPreview.representation_warning ? <p className="rounded-lg bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200">{manualRelocationSlotPreview.representation_warning}</p> : null}
@@ -8925,10 +9782,10 @@ export function AdminMatches({
                     const status = item.status as MatchStatus;
                     const isPlaceholder = isManualRelocationPlaceholderItem(item);
                     return <div key={item.item_id ?? item.match_id ?? item.placeholder_id} className="app-card-muted space-y-2 rounded-lg p-2.5">
-                      <div className="flex items-center justify-between gap-2"><p className="text-sm font-semibold tabular-nums">{item.start_time ? format(new Date(item.start_time), "HH:mm") : "Sem horário"}</p><AppBadge tone={isPlaceholder ? AppBadgeTone.WARNING : resolveMatchStatusBadgeTone(status)}>{isPlaceholder ? "A definir" : resolveMatchStatusLabel(status)}</AppBadge></div>
+                      <div className="flex items-center justify-between gap-2"><p className="text-sm font-semibold tabular-nums">{item.start_time ? format(new Date(item.start_time), "HH:mm") : "Sem horário"}</p><AppBadge tone={isPlaceholder ? AppBadgeTone.AMBER : resolveMatchStatusBadgeTone(status)}>{isPlaceholder ? "A definir" : resolveMatchStatusLabel(status)}</AppBadge></div>
                       <p className="text-xs font-medium text-foreground">{resolveManualRelocationItemLabel(item)}</p>
                       <p className="text-xs text-muted-foreground">{item.end_time ? `Término ${format(new Date(item.end_time), "HH:mm")}` : "Sem término previsto"}</p>
-                      {item.is_relocated ? <AppBadge tone={AppBadgeTone.WARNING}>Encaixado</AppBadge> : item.is_displaced ? <AppBadge tone={AppBadgeTone.NEUTRAL}>Reposicionado</AppBadge> : null}
+                      {item.is_relocated ? <AppBadge tone={AppBadgeTone.AMBER}>Encaixado</AppBadge> : item.is_displaced ? <AppBadge tone={AppBadgeTone.NEUTRAL}>Reposicionado</AppBadge> : null}
                     </div>;
                   })}
                 </div>
@@ -8941,6 +9798,583 @@ export function AdminMatches({
             <Button type="button" variant="outline" onClick={() => void handleLoadManualRelocationSlots()} disabled={loadingManualRelocationSlots || applyingManualRelocationSlot}>{loadingManualRelocationSlots ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Buscar horários</Button>
             <Button type="button" variant="outline" onClick={() => void handlePreviewManualRelocationSlot()} disabled={!manualRelocationSlotId || loadingManualRelocationSlots || applyingManualRelocationSlot}>Calcular prévia</Button>
             <Button type="button" onClick={() => void handleApplyManualRelocationSlot()} disabled={!manualRelocationSlotPreview || manualRelocationSlotPreview.changes.length == 0 || manualRelocationSlotPreview.blockers.length > 0 || loadingManualRelocationSlots || applyingManualRelocationSlot}>{applyingManualRelocationSlot ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Confirmar encaixe</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={showDayScheduleReorganizationDialog}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            handleCloseDayScheduleReorganizationDialog();
+          }
+        }}
+      >
+        <DialogContent
+          ref={dayScheduleReorganizationDialogContentRef}
+          className="max-h-[90vh] overflow-y-auto sm:max-w-5xl"
+          onDragOver={handleDayScheduleReorganizationDialogDragOver}
+        >
+          <DialogHeader>
+            <DialogTitle>Realocar jogos selecionados</DialogTitle>
+            <DialogDescription>
+              Encaixa os jogos guardados e recalcula as quadras do local no mesmo dia,
+              respeitando descanso, reservas, jogos protegidos e slots planejados.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {!dayScheduleReorganizationPreview ? (
+              <div className="space-y-2 rounded-xl border border-border p-3">
+                <div>
+                  <p className="text-sm font-medium">Jogos que serão encaixados</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    A sequência original desta seleção será preservada ao posicionar os jogos.
+                  </p>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {selectedPendingMatchesForDayScheduleReorganization.map((match) => {
+                    const previousDate = resolvePendingManualRelocationScheduleValue(
+                      match,
+                      "scheduled_date",
+                    );
+                    const previousLocation = resolvePendingManualRelocationScheduleValue(
+                      match,
+                      "location",
+                    );
+                    const previousCourt = resolvePendingManualRelocationScheduleValue(
+                      match,
+                      "court_name",
+                    );
+                    const previousStart = resolvePendingManualRelocationScheduleValue(
+                      match,
+                      "start_time",
+                    );
+
+                    return (
+                      <div key={match.id} className="app-card-muted rounded-lg p-3">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <AppBadge tone={AppBadgeTone.NEUTRAL}>
+                            {match.sports?.name ?? "Modalidade"}
+                          </AppBadge>
+                          <AppBadge tone={resolveMatchNaipeBadgeTone(match.naipe)}>
+                            {MATCH_NAIPE_LABELS[match.naipe]}
+                          </AppBadge>
+                          {match.division ? (
+                            <AppBadge tone={TEAM_DIVISION_BADGE_TONES[match.division]}>
+                              {TEAM_DIVISION_LABELS[match.division]}
+                            </AppBadge>
+                          ) : null}
+                        </div>
+                        <p className="mt-2 text-sm font-semibold">
+                          {match.home_team?.name ?? "Casa"} x {match.away_team?.name ?? "Visitante"}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Antes: {typeof previousDate == "string" ? resolveBrazilianDateLabel(previousDate) : "sem data"}
+                          {typeof previousStart == "string" ? ` • ${resolvePublicScheduleTimeLabel(previousStart) ?? previousStart.slice(0, 5)}` : ""}
+                          {typeof previousLocation == "string" ? ` • ${previousLocation}` : ""}
+                          {typeof previousCourt == "string" ? ` • ${previousCourt}` : ""}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="space-y-1">
+                <Label>Dia de destino</Label>
+                <Select
+                  value={dayScheduleReorganizationTargetDate || EMPTY_MANUAL_RELOCATION_OPTION_VALUE}
+                  onValueChange={(value) => {
+                    setDayScheduleReorganizationTargetDate(
+                      value == EMPTY_MANUAL_RELOCATION_OPTION_VALUE ? "" : value,
+                    );
+                    setDayScheduleReorganizationTargetLocation("");
+                    setDayScheduleReorganizationTargetCourt("");
+                    setDayScheduleReorganizationManualPreview(null);
+                    setDayScheduleReorganizationManualCourtItemOrder({});
+                    setPlacedDayScheduleReorganizationMatchIds([]);
+                  }}
+                >
+                  <SelectTrigger className="app-input-field" aria-label="Dia da reorganização">
+                    <SelectValue placeholder="Selecione o dia" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={EMPTY_MANUAL_RELOCATION_OPTION_VALUE}>Selecione o dia</SelectItem>
+                    {bracketCourtSportsDays.map((scheduleDay) => (
+                      <SelectItem key={scheduleDay.bracket_day_id} value={scheduleDay.event_date}>
+                        {format(new Date(`${scheduleDay.event_date}T12:00:00`), "dd/MM/yyyy")}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Local</Label>
+                <Select
+                  value={dayScheduleReorganizationTargetLocation || EMPTY_MANUAL_RELOCATION_OPTION_VALUE}
+                  onValueChange={(value) => {
+                    setDayScheduleReorganizationTargetLocation(
+                      value == EMPTY_MANUAL_RELOCATION_OPTION_VALUE ? "" : value,
+                    );
+                    setDayScheduleReorganizationTargetCourt("");
+                    setDayScheduleReorganizationManualPreview(null);
+                    setDayScheduleReorganizationManualCourtItemOrder({});
+                    setPlacedDayScheduleReorganizationMatchIds([]);
+                  }}
+                  disabled={!dayScheduleReorganizationTargetDate}
+                >
+                  <SelectTrigger className="app-input-field" aria-label="Local da reorganização">
+                    <SelectValue placeholder="Selecione o local" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={EMPTY_MANUAL_RELOCATION_OPTION_VALUE}>Selecione o local</SelectItem>
+                    {dayScheduleReorganizationLocations.map((scheduleLocation) => (
+                      <SelectItem key={scheduleLocation.id} value={scheduleLocation.name}>
+                        {scheduleLocation.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="flex h-4 items-center">Quadra-base</Label>
+                <Select
+                  value={dayScheduleReorganizationTargetCourt || EMPTY_MANUAL_RELOCATION_OPTION_VALUE}
+                  onValueChange={(value) => {
+                    setDayScheduleReorganizationTargetCourt(
+                      value == EMPTY_MANUAL_RELOCATION_OPTION_VALUE ? "" : value,
+                    );
+                    setDayScheduleReorganizationManualPreview(null);
+                    setDayScheduleReorganizationManualCourtItemOrder({});
+                    setPlacedDayScheduleReorganizationMatchIds([]);
+                  }}
+                  disabled={!dayScheduleReorganizationTargetLocation}
+                >
+                  <SelectTrigger className="app-input-field" aria-label="Quadra-base da reorganização">
+                    <SelectValue placeholder="Selecione a quadra" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={EMPTY_MANUAL_RELOCATION_OPTION_VALUE}>Selecione a quadra</SelectItem>
+                    {dayScheduleReorganizationCourts.map((court) => (
+                      <SelectItem key={court.id} value={court.name}>{court.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="space-y-1">
+                <div className="flex h-4 items-center gap-1.5">
+                  <Label htmlFor="day-schedule-reorganization-day-start">Novo horário de início do dia</Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+                        aria-label="Ajuda sobre novo horário de início do dia"
+                      >
+                        <CircleHelp className="h-3.5 w-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs text-xs leading-relaxed">
+                      Opcional. Informe somente para antecipar o início do dia; não define o horário do jogo selecionado.
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <Input
+                  id="day-schedule-reorganization-day-start"
+                  type="time"
+                  className="app-input-field [appearance:textfield] [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-clear-button]:hidden [&::-webkit-inner-spin-button]:hidden"
+                  value={dayScheduleReorganizationDayStartTime}
+                  onChange={(event) => {
+                    setDayScheduleReorganizationDayStartTime(event.target.value);
+                    setDayScheduleReorganizationManualPreview(null);
+                    setDayScheduleReorganizationManualCourtItemOrder({});
+                    setPlacedDayScheduleReorganizationMatchIds([]);
+                  }}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="flex h-4 items-center">Motivo</Label>
+                <Select
+                  value={dayScheduleReorganizationReason}
+                  onValueChange={(value) => {
+                    if (value in MANUAL_MATCH_RELOCATION_REASON_LABELS) {
+                      setDayScheduleReorganizationReason(value as ManualMatchRelocationReason);
+                      setDayScheduleReorganizationManualPreview(null);
+                      setDayScheduleReorganizationManualCourtItemOrder({});
+                      setPlacedDayScheduleReorganizationMatchIds([]);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="app-input-field" aria-label="Motivo da reorganização">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(MANUAL_MATCH_RELOCATION_REASON_LABELS) as ManualMatchRelocationReason[]).map((reason) => (
+                      <SelectItem key={reason} value={reason}>{MANUAL_MATCH_RELOCATION_REASON_LABELS[reason]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <div className="flex h-4 items-center gap-1.5">
+                  <Label>Intervalo da programação</Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+                        aria-label="Ajuda sobre intervalo da programação"
+                      >
+                        <CircleHelp className="h-3.5 w-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs text-xs leading-relaxed">
+                      {dayScheduleReorganizationManagedBreak
+                        ? dayScheduleReorganizationBreakPolicy == "REMOVE"
+                          ? `Intervalo da quadra-base ${dayScheduleReorganizationTargetCourt}: ${dayScheduleReorganizationManagedBreak.break_start_time.slice(0, 5)}–${dayScheduleReorganizationManagedBreak.break_end_time.slice(0, 5)}. Será removido na confirmação e sua janela ficará disponível; ajustes posteriores podem ocorrer para respeitar descanso, reservas e bloqueios.`
+                          : dayScheduleReorganizationBreak
+                            ? `Intervalo geral: ${dayScheduleReorganizationManagedBreak.break_start_time.slice(0, 5)}–${dayScheduleReorganizationManagedBreak.break_end_time.slice(0, 5)}. Será reposicionado antes do primeiro jogo eliminatório.`
+                            : `Intervalo da quadra-base ${dayScheduleReorganizationTargetCourt}: ${dayScheduleReorganizationManagedBreak.break_start_time.slice(0, 5)}–${dayScheduleReorganizationManagedBreak.break_end_time.slice(0, 5)}. Mantém a duração e acompanha os jogos encaixados antes dele; os itens seguintes permanecem após o intervalo.`
+                        : "Não há intervalo configurado para este dia ou para a quadra-base."}
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <Select
+                  value={
+                    dayScheduleReorganizationManagedBreak
+                      ? dayScheduleReorganizationBreakPolicy
+                      : "NO_BREAK"
+                  }
+                  onValueChange={(value) => {
+                    if (value == "KEEP_BEFORE_KNOCKOUT" || value == "REMOVE") {
+                      setDayScheduleReorganizationBreakPolicy(value);
+                      setDayScheduleReorganizationManualPreview(null);
+                      setDayScheduleReorganizationManualCourtItemOrder({});
+                      setPlacedDayScheduleReorganizationMatchIds([]);
+                    }
+                  }}
+                  disabled={!dayScheduleReorganizationManagedBreak}
+                >
+                  <SelectTrigger className="app-input-field" aria-label="Política do intervalo da programação">
+                    <SelectValue placeholder="Sem intervalo configurado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {dayScheduleReorganizationManagedBreak ? (
+                      <>
+                        <SelectItem value="KEEP_BEFORE_KNOCKOUT">
+                          {dayScheduleReorganizationBreak
+                            ? "Manter antes do mata-mata"
+                            : "Manter na sequência da quadra"}
+                        </SelectItem>
+                        <SelectItem value="REMOVE">
+                          Remover intervalo
+                        </SelectItem>
+                      </>
+                    ) : (
+                      <SelectItem value="NO_BREAK" disabled>
+                        Sem intervalo configurado
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {dayScheduleReorganizationPreview ? (
+              <div className="space-y-3 rounded-xl border border-border p-3">
+                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+                  <div className="space-y-1">
+                    <Label>Montagem do cronograma</Label>
+                    <p className="text-xs text-muted-foreground">
+                      A prévia mantém as demais quadras até que você reordene os itens móveis da própria quadra para resolver conflitos de descanso.
+                    </p>
+                  </div>
+                  {dayScheduleReorganizationPreview ? (
+                    <div className="text-sm text-muted-foreground md:text-right">
+                      <p>Início: {dayScheduleReorganizationPreview.next_day_start}</p>
+                      <p>Fim: {dayScheduleReorganizationPreview.next_day_end}</p>
+                    </div>
+                  ) : null}
+                </div>
+
+                {dayScheduleReorganizationPreview ? (
+                  <>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      {dayScheduleReorganizationBreakPolicy == "REMOVE" && dayScheduleReorganizationManagedBreak ? (
+                        <span>Intervalo: removido na confirmação</span>
+                      ) : dayScheduleReorganizationPreview.break.before.id ? (
+                        <span>
+                          Intervalo: {dayScheduleReorganizationPreview.break.after.start_time && dayScheduleReorganizationPreview.break.after.end_time
+                            ? `${dayScheduleReorganizationPreview.break.after.start_time}–${dayScheduleReorganizationPreview.break.after.end_time}`
+                            : "removido"}
+                        </span>
+                      ) : (
+                        <span>Sem intervalo configurado</span>
+                      )}
+                      {dayScheduleReorganizationPreview.advances_day_start ? <AppBadge tone={AppBadgeTone.AMBER}>Dia antecipado</AppBadge> : null}
+                      {dayScheduleReorganizationPreview.extends_day_end ? <AppBadge tone={AppBadgeTone.AMBER}>Dia ampliado</AppBadge> : null}
+                    </div>
+                    <div className="space-y-2 rounded-lg border border-dashed border-border p-3">
+                      <p className="text-sm font-medium">Jogos a encaixar</p>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {selectedPendingMatchesForDayScheduleReorganization
+                          .filter(
+                            (match) =>
+                              !placedDayScheduleReorganizationMatchIds.includes(match.id),
+                          )
+                          .map((match) => (
+                            <div
+                              key={match.id}
+                              className="app-card-muted cursor-grab rounded-lg p-2.5 active:cursor-grabbing"
+                              draggable={!loadingDayScheduleReorganizationPreview}
+                              onDragStart={() =>
+                                setDraggedDayScheduleReorganizationItem({
+                                  type: "PENDING",
+                                  itemId: match.id,
+                                })
+                              }
+                              onDragEnd={() =>
+                                setDraggedDayScheduleReorganizationItem(null)
+                              }
+                            >
+                              <div className="flex flex-wrap gap-1">
+                                <AppBadge tone={AppBadgeTone.NEUTRAL}>
+                                  {match.sports?.name ?? "Modalidade"}
+                                </AppBadge>
+                                <AppBadge tone={resolveMatchNaipeBadgeTone(match.naipe)}>
+                                  {MATCH_NAIPE_LABELS[match.naipe]}
+                                </AppBadge>
+                              </div>
+                              <p className="mt-2 text-sm font-semibold">
+                                {match.home_team?.name ?? "Casa"} x {match.away_team?.name ?? "Visitante"}
+                              </p>
+                            </div>
+                          ))}
+                      </div>
+                      {placedDayScheduleReorganizationMatchIds.length == selectedPendingMatchesForDayScheduleReorganization.length ? (
+                        <p className="text-xs text-emerald-700 dark:text-emerald-300">Todos os jogos selecionados foram posicionados.</p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">Posicione todos os jogos desta bandeja antes de confirmar.</p>
+                      )}
+                    </div>
+
+                    {dayScheduleReorganizationPreview.blockers.length > 0 ? (
+                      <div className="space-y-1 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+                        {dayScheduleReorganizationPreview.blockers.map((blocker) => <p key={blocker}>{blocker}</p>)}
+                      </div>
+                    ) : null}
+
+                    <div className="overflow-x-auto pb-1">
+                      <div
+                        className="grid min-w-[34rem] gap-3"
+                        style={{
+                          gridTemplateColumns: `repeat(${Math.max(dayScheduleReorganizationTimelineCourtColumns.length, 1)}, minmax(16rem, 1fr))`,
+                        }}
+                      >
+                        {dayScheduleReorganizationTimelineCourtColumns.map((courtColumn) => (
+                          <div key={courtColumn.courtName} className="min-w-0 rounded-xl border border-border/70 bg-muted/20 p-3">
+                            <div className="border-b border-border/60 pb-2">
+                              <p className="font-semibold">{courtColumn.courtName}</p>
+                              <p className="text-xs text-muted-foreground">Sequência cronológica da quadra</p>
+                            </div>
+                            <div className="mt-3 space-y-2">
+                              {courtColumn.items.map((item) => {
+                                if (item.item_type == "BREAK") {
+                                  return (
+                                    <div key={item.item_id} className="rounded-lg border border-amber-300/80 bg-amber-500/10 p-2.5">
+                                      <div className="flex items-start justify-between gap-2">
+                                        <AppBadge tone={AppBadgeTone.AMBER}>Intervalo</AppBadge>
+                                        <p className="shrink-0 text-xs font-semibold tabular-nums">
+                                          {format(new Date(item.start_time), "HH:mm")}–{format(new Date(item.end_time), "HH:mm")}
+                                        </p>
+                                      </div>
+                                      <p className="mt-2 text-sm font-semibold leading-tight">Intervalo da quadra</p>
+                                      <div className="mt-2 flex flex-wrap items-center gap-1">
+                                        <AppBadge tone={item.is_displaced ? AppBadgeTone.NEUTRAL : AppBadgeTone.SILVER}>
+                                          {item.is_displaced ? "Reposicionado" : "Mantido"}
+                                        </AppBadge>
+                                      </div>
+                                    </div>
+                                  );
+                                }
+
+                                const isPlaceholder = isManualRelocationPlaceholderItem(item);
+                                const match = item.match_id
+                                  ? matches.find((candidateMatch) => candidateMatch.id == item.match_id)
+                                  : null;
+                                const placeholder = item.placeholder_id
+                                  ? dayScheduleReorganizationPlaceholdersById.get(item.placeholder_id)
+                                  : null;
+                                const sportName = placeholder?.sport_name ?? match?.sports?.name ?? "Modalidade";
+                                const naipe = placeholder?.naipe ?? match?.naipe ?? null;
+                                const division = placeholder?.division ?? match?.division ?? null;
+                                const label = isPlaceholder
+                                  ? "A definir x A definir"
+                                  : match
+                                    ? `${match.home_team?.name ?? "Casa"} x ${match.away_team?.name ?? "Visitante"}`
+                                    : resolveManualRelocationItemLabel(item);
+
+                                const itemId =
+                                  item.item_type == "BREAK"
+                                    ? null
+                                    : resolveDayScheduleReorganizationTimelineItemId(item);
+                                const restConflicts = item.rest_conflicts ?? [];
+                                const canReorderManualItem =
+                                  Boolean(itemId) &&
+                                  !item.is_fixed;
+                                const canPlacePendingMatch =
+                                  courtColumn.courtName == dayScheduleReorganizationTargetCourt &&
+                                  Boolean(itemId) &&
+                                  !item.is_fixed;
+
+                                return (
+                                  <div
+                                    key={item.item_id ?? item.match_id ?? item.placeholder_id}
+                                    className="space-y-2"
+                                  >
+                                    <div
+                                      className={`app-card-muted rounded-lg p-2.5 ${
+                                        restConflicts.length > 0
+                                          ? `border-2 border-destructive/90 bg-destructive/20 ${
+                                              canReorderManualItem
+                                                ? "cursor-grab active:cursor-grabbing"
+                                                : ""
+                                            }`
+                                          : canReorderManualItem
+                                            ? "cursor-grab active:cursor-grabbing"
+                                            : ""
+                                      }`}
+                                    draggable={canReorderManualItem && !loadingDayScheduleReorganizationPreview}
+                                      onDragStart={() => {
+                                        if (itemId) {
+                                          setDraggedDayScheduleReorganizationItem({
+                                            type: "TIMELINE",
+                                            courtName: courtColumn.courtName,
+                                            itemId,
+                                          });
+                                        }
+                                      }}
+                                      onDragEnd={() =>
+                                        setDraggedDayScheduleReorganizationItem(null)
+                                      }
+                                      onDragOver={(event) => {
+                                        if (canReorderManualItem || canPlacePendingMatch) {
+                                          event.preventDefault();
+                                        }
+                                      }}
+                                      onDrop={(event) => {
+                                        event.preventDefault();
+
+                                        if (!itemId) {
+                                          return;
+                                        }
+
+                                        if (draggedDayScheduleReorganizationItem?.type == "PENDING") {
+                                          if (canPlacePendingMatch) {
+                                            void handlePlaceDayScheduleReorganizationPendingMatch(
+                                              itemId,
+                                              "BEFORE",
+                                            );
+                                          }
+                                        } else if (canReorderManualItem) {
+                                          void handleReorderDayScheduleReorganizationManualItem(
+                                            courtColumn.courtName,
+                                            itemId,
+                                            "BEFORE",
+                                          );
+                                        }
+                                      }}
+                                    >
+                                      <div className="flex items-start justify-between gap-2">
+                                      <div className="flex min-w-0 flex-wrap items-center gap-1">
+                                        <AppBadge tone={AppBadgeTone.NEUTRAL}>{sportName}</AppBadge>
+                                        {naipe ? <AppBadge tone={resolveMatchNaipeBadgeTone(naipe)}>{MATCH_NAIPE_LABELS[naipe]}</AppBadge> : null}
+                                        {division ? <AppBadge tone={TEAM_DIVISION_BADGE_TONES[division]}>{TEAM_DIVISION_LABELS[division]}</AppBadge> : null}
+                                      </div>
+                                      <p className="shrink-0 text-xs font-semibold tabular-nums">
+                                        {item.start_time ? format(new Date(item.start_time), "HH:mm") : "Sem horário"}
+                                      </p>
+                                    </div>
+                                    <p className="mt-2 text-sm font-semibold leading-tight">{label}</p>
+                                    <div className="mt-2 flex flex-wrap items-center gap-1">
+                                      {isPlaceholder ? <AppBadge tone={AppBadgeTone.AMBER}>A definir</AppBadge> : null}
+                                      {placeholder?.display_match_number != null ? <AppBadge tone={AppBadgeTone.SILVER}>Jogo {placeholder.display_match_number}</AppBadge> : null}
+                                      {placeholder ? <AppBadge tone={AppBadgeTone.NEUTRAL}>{placeholder.stage_label}</AppBadge> : null}
+                                      {item.is_relocated ? <AppBadge tone={AppBadgeTone.AMBER}>Encaixado</AppBadge> : item.is_displaced ? <AppBadge tone={AppBadgeTone.NEUTRAL}>Reposicionado</AppBadge> : null}
+                                    </div>
+                                    <p className="mt-2 text-xs text-muted-foreground">
+                                      {item.end_time ? `Término ${format(new Date(item.end_time), "HH:mm")}` : "Sem término previsto"}
+                                    </p>
+                                    {restConflicts.length > 0 ? (
+                                      <p className="mt-2 text-xs font-medium text-destructive">
+                                        {restConflicts.join(" ")}
+                                      </p>
+                                    ) : null}
+                                  </div>
+                                  {(canPlacePendingMatch || canReorderManualItem) && itemId ? (
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      className="w-full"
+                                      onDragOver={(event) => event.preventDefault()}
+                                      onDrop={(event) => {
+                                        event.preventDefault();
+                                        if (draggedDayScheduleReorganizationItem?.type == "PENDING") {
+                                          if (canPlacePendingMatch) {
+                                            void handlePlaceDayScheduleReorganizationPendingMatch(
+                                              itemId,
+                                              "AFTER",
+                                            );
+                                          }
+                                        } else if (
+                                          draggedDayScheduleReorganizationItem?.type == "TIMELINE" &&
+                                          canReorderManualItem
+                                        ) {
+                                          void handleReorderDayScheduleReorganizationManualItem(
+                                            courtColumn.courtName,
+                                            itemId,
+                                            "AFTER",
+                                          );
+                                        }
+                                      }}
+                                    >
+                                      Soltar após este item
+                                    </Button>
+                                  ) : null}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={handleCloseDayScheduleReorganizationDialog} disabled={loadingDayScheduleReorganizationPreview || applyingDayScheduleReorganization}>Cancelar</Button>
+            <Button type="button" variant="outline" onClick={() => void handlePreviewDayScheduleReorganization()} disabled={loadingDayScheduleReorganizationPreview || applyingDayScheduleReorganization}>
+              {loadingDayScheduleReorganizationPreview ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Montar cronograma
+            </Button>
+            <Button type="button" onClick={() => void handleApplyDayScheduleReorganization()} disabled={!dayScheduleReorganizationManualPreview || placedDayScheduleReorganizationMatchIds.length != selectedPendingMatchesForDayScheduleReorganization.length || dayScheduleReorganizationHasRestConflicts || dayScheduleReorganizationManualPreview.blockers.length > 0 || applyingDayScheduleReorganization || loadingDayScheduleReorganizationPreview}>
+              {applyingDayScheduleReorganization ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Confirmar reorganização
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -9162,10 +10596,10 @@ export function AdminMatches({
                     </p>
                   </div>
                   {manualRelocationPreview.extends_day_end ? (
-                    <AppBadge tone={AppBadgeTone.WARNING}>Dia ampliado</AppBadge>
+                    <AppBadge tone={AppBadgeTone.AMBER}>Dia ampliado</AppBadge>
                   ) : null}
                   {manualRelocationPreview.advances_day_start ? (
-                    <AppBadge tone={AppBadgeTone.WARNING}>Dia antecipado</AppBadge>
+                    <AppBadge tone={AppBadgeTone.AMBER}>Dia antecipado</AppBadge>
                   ) : null}
                 </div>
 
@@ -9235,7 +10669,7 @@ export function AdminMatches({
                             <AppBadge
                               tone={
                                 isPlaceholder
-                                  ? AppBadgeTone.WARNING
+                                  ? AppBadgeTone.AMBER
                                   : resolveMatchStatusBadgeTone(status)
                               }
                             >
@@ -9253,7 +10687,7 @@ export function AdminMatches({
                               : "Sem término previsto"}
                           </p>
                           {item.is_relocated ? (
-                            <AppBadge tone={AppBadgeTone.WARNING}>Realocado</AppBadge>
+                            <AppBadge tone={AppBadgeTone.AMBER}>Realocado</AppBadge>
                           ) : item.is_displaced ? (
                             <AppBadge tone={AppBadgeTone.NEUTRAL}>Reposicionado</AppBadge>
                           ) : null}

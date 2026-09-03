@@ -30,6 +30,8 @@ import type {
   ManualMatchRelocationPreview,
   ManualMatchRelocationSlotPreview,
   HoldMatchesForManualRelocationInput,
+  DayScheduleReorganizationInput,
+  DayScheduleReorganizationPreview,
   ChampionshipBracketReconfigurationAction,
   ChampionshipBracketReconfigurationPreview,
 } from "@/domain/championship-brackets/championshipBracket.types";
@@ -182,6 +184,40 @@ export async function holdMatchesForManualRelocation(
   const response = await supabase.rpc("hold_matches_for_manual_relocation", {
     _bracket_edition_id: bracketEditionId,
     _payload: toSupabaseJson(input),
+  });
+
+  return { error: response.error };
+}
+
+export async function previewDayScheduleReorganization(
+  bracketEditionId: string,
+  input: DayScheduleReorganizationInput,
+): Promise<{
+  data: DayScheduleReorganizationPreview | null;
+  error: Error | null;
+}> {
+  const response = await supabase.rpc("preview_day_schedule_reorganization", {
+    _bracket_edition_id: bracketEditionId,
+    _payload: toSupabaseJson(input),
+  });
+
+  return {
+    data:
+      (response.data as unknown as DayScheduleReorganizationPreview | null) ??
+      null,
+    error: response.error,
+  };
+}
+
+export async function applyDayScheduleReorganization(
+  bracketEditionId: string,
+  input: DayScheduleReorganizationInput,
+  expectedRevision: number,
+): Promise<{ error: Error | null }> {
+  const response = await supabase.rpc("apply_day_schedule_reorganization", {
+    _bracket_edition_id: bracketEditionId,
+    _payload: toSupabaseJson(input),
+    _expected_revision: expectedRevision,
   });
 
   return { error: response.error };

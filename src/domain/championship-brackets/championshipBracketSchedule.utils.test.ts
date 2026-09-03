@@ -83,6 +83,13 @@ describe("resolveBracketDaySchedules", () => {
           bracket_court_id: "court-1",
           break_start_time: "09:00:00",
           break_end_time: "10:00:00",
+          resource_lock: {
+            date: "2026-08-29",
+            start_time: "09:00:00",
+            end_time: "10:00:00",
+            location_group_id: "source-location-1",
+            court_group_id: "source-court-1",
+          },
         }),
       ]),
     );

@@ -304,6 +304,13 @@ export function resolveBracketDaySchedules(
           position: breaks.length + 1,
           scope_type: "COURT",
           bracket_court_id: courtId,
+          resource_lock: {
+            date: resourceLock.date,
+            start_time: resourceLock.start_time,
+            end_time: resourceLock.end_time,
+            location_group_id: resourceLock.location_key,
+            court_group_id: resourceLock.court_key,
+          },
         });
       });
 

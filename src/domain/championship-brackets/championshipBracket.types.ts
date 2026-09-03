@@ -895,6 +895,13 @@ export interface BracketDayBreak {
   position: number;
   scope_type: BracketDayBreakScopeType;
   bracket_court_id: string | null;
+  resource_lock?: {
+    date: string;
+    start_time: string;
+    end_time: string;
+    location_group_id: string;
+    court_group_id: string;
+  };
 }
 
 export type BracketDayBreakScopeType = "ALL_COURTS" | "COURT";
@@ -1059,6 +1066,8 @@ export interface ManualMatchRelocationPreview {
     court_name: string;
     is_relocated: boolean;
     is_displaced: boolean;
+    is_fixed?: boolean;
+    rest_conflicts?: string[];
   }>;
   previous_day_start: string;
   next_day_start: string;
@@ -1073,6 +1082,51 @@ export interface ManualMatchRelocationPreview {
   reason: ManualMatchRelocationReason;
   notes: string | null;
   representation_warning: string | null;
+}
+
+export type DayScheduleReorganizationStrategy = "START" | "END" | "AUTO" | "MANUAL";
+
+export type DayScheduleReorganizationBreakPolicy =
+  | "KEEP_BEFORE_KNOCKOUT"
+  | "REMOVE";
+
+export interface DayScheduleReorganizationInput {
+  match_ids: string[];
+  placed_match_ids?: string[];
+  target_date: string;
+  target_location: string;
+  target_court_name: string;
+  day_start_time?: string | null;
+  strategy: "MANUAL";
+  manual_court_item_order?: Record<string, string[]>;
+  break_policy: DayScheduleReorganizationBreakPolicy;
+  removable_resource_lock?: {
+    date: string;
+    start_time: string;
+    end_time: string;
+    location_group_id: string;
+    court_group_id: string;
+  } | null;
+  reason: ManualMatchRelocationReason;
+}
+
+export interface DayScheduleReorganizationBreakPreview {
+  policy: DayScheduleReorganizationBreakPolicy;
+  before: {
+    id: string | null;
+    start_time: string | null;
+    end_time: string | null;
+  };
+  after: {
+    start_time: string | null;
+    end_time: string | null;
+  };
+}
+
+export interface DayScheduleReorganizationPreview
+  extends Omit<ManualMatchRelocationPreview, "notes"> {
+  strategy: DayScheduleReorganizationStrategy;
+  break: DayScheduleReorganizationBreakPreview;
 }
 
 export interface BracketCourtPriorityUpdate {
