@@ -54,8 +54,11 @@ import {
   applyManualMatchRelocation,
   applyManualMatchRelocationSlot,
   applyDayScheduleReorganization,
+  applyOperationalKnockoutScheduleAdjustment,
   holdMatchesForManualRelocation,
+  listOperationalKnockoutScheduleAdjustmentCandidates,
   previewDayScheduleReorganization,
+  previewOperationalKnockoutScheduleAdjustment,
   previewManualMatchRelocation,
   previewManualMatchRelocationSlot,
 } from "@/domain/championship-brackets/championshipBracket.repository";
@@ -76,6 +79,9 @@ import type {
   DayScheduleReorganizationInput,
   DayScheduleReorganizationPreview,
   MatchSetInput,
+  OperationalKnockoutScheduleAdjustmentCandidates,
+  OperationalKnockoutScheduleAdjustmentInput,
+  OperationalKnockoutScheduleAdjustmentPreview,
 } from "@/domain/championship-brackets/championshipBracket.types";
 import {
   resolveChampionshipBracketFirstRoundSeedIndexes,
@@ -820,18 +826,68 @@ function resolveKnockoutScheduleSwapSourceLabel(
     .join(" • ");
 }
 
+function resolveOperationalKnockoutScheduleAdjustmentItemLabel(item: {
+  sport_name: string;
+  naipe: MatchNaipe;
+  division: TeamDivision | null;
+  round_number: number;
+  slot_number: number;
+  is_third_place: boolean;
+  start_time: string;
+  end_time: string;
+  duration_minutes: number;
+  is_placeholder: boolean;
+  home_team_name: string | null;
+  away_team_name: string | null;
+}) {
+  const participantLabel = item.is_placeholder
+    ? "A definir x A definir"
+    : `${item.home_team_name ?? "Casa"} x ${item.away_team_name ?? "Visitante"}`;
+
+  return [
+    item.sport_name,
+    MATCH_NAIPE_LABELS[item.naipe],
+    item.division ? TEAM_DIVISION_LABELS[item.division] : null,
+    item.is_third_place ? "Disputa de 3º lugar" : `Rodada ${item.round_number}`,
+    `${resolveSaoPauloTimeLabel(item.start_time) ?? "Sem horário"}–${resolveSaoPauloTimeLabel(item.end_time) ?? ""}`,
+    `${item.duration_minutes} min`,
+    participantLabel,
+  ]
+    .filter(Boolean)
+    .join(" • ");
+}
+
+function resolveKnockoutBracketMatchIdForMatch(
+  championshipBracketView: ChampionshipBracketView,
+  matchId: string,
+) {
+  for (const competition of championshipBracketView.competitions) {
+    const knockoutMatch = competition.knockout_matches.find(
+      (candidate) => candidate.match_id == matchId,
+    );
+
+    if (knockoutMatch) {
+      return knockoutMatch.id;
+    }
+  }
+
+  return null;
+}
+
 function AdminMatchesKnockoutPlaceholderCard({
   placeholder,
   canManageMatches,
   isScoreSheetReviewMode,
   disabled,
   onSwap,
+  onAdjustSchedule,
 }: {
   placeholder: ScheduledKnockoutPlaceholder;
   canManageMatches: boolean;
   isScoreSheetReviewMode: boolean;
   disabled: boolean;
   onSwap: (placeholder: ScheduledKnockoutPlaceholder) => void;
+  onAdjustSchedule: (bracketMatchId: string) => void;
 }) {
   const scheduledTimeLabel = resolvePublicScheduleTimeLabel(
     placeholder.start_time,
@@ -900,6 +956,10 @@ function AdminMatchesKnockoutPlaceholderCard({
               <DropdownMenuItem onSelect={() => onSwap(placeholder)}>
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Trocar jogo
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onAdjustSchedule(placeholder.id)}>
+                <Clock className="mr-2 h-4 w-4" />
+                Ajustar programação futura
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -1539,6 +1599,34 @@ export function AdminMatches({
   const [eligibleKnockoutScheduleSwapCandidates, setEligibleKnockoutScheduleSwapCandidates] =
     useState<ListKnockoutScheduleSwapCandidatesResponseItem[]>([]);
   const [loadingKnockoutScheduleSwapCandidates, setLoadingKnockoutScheduleSwapCandidates] =
+    useState(false);
+  const [showOperationalKnockoutScheduleAdjustmentDialog, setShowOperationalKnockoutScheduleAdjustmentDialog] =
+    useState(false);
+  const [operationalKnockoutScheduleAdjustmentSourceBracketMatchId, setOperationalKnockoutScheduleAdjustmentSourceBracketMatchId] =
+    useState("");
+  const [operationalKnockoutScheduleAdjustmentCandidates, setOperationalKnockoutScheduleAdjustmentCandidates] =
+    useState<OperationalKnockoutScheduleAdjustmentCandidates | null>(null);
+  const [operationalKnockoutScheduleAdjustmentSchedules, setOperationalKnockoutScheduleAdjustmentSchedules] =
+    useState<BracketDaySchedule[]>([]);
+  const [selectedOperationalKnockoutScheduleAdjustmentItemIds, setSelectedOperationalKnockoutScheduleAdjustmentItemIds] =
+    useState<string[]>([]);
+  const [operationalKnockoutScheduleAdjustmentDuration, setOperationalKnockoutScheduleAdjustmentDuration] =
+    useState("");
+  const [operationalKnockoutScheduleAdjustmentBreakAction, setOperationalKnockoutScheduleAdjustmentBreakAction] =
+    useState<OperationalKnockoutScheduleAdjustmentInput["break"]["action"]>("KEEP");
+  const [operationalKnockoutScheduleAdjustmentBreakId, setOperationalKnockoutScheduleAdjustmentBreakId] =
+    useState("");
+  const [operationalKnockoutScheduleAdjustmentBreakScopeType, setOperationalKnockoutScheduleAdjustmentBreakScopeType] =
+    useState<OperationalKnockoutScheduleAdjustmentInput["break"]["scope_type"]>("ALL_COURTS");
+  const [operationalKnockoutScheduleAdjustmentBreakStartTime, setOperationalKnockoutScheduleAdjustmentBreakStartTime] =
+    useState("");
+  const [operationalKnockoutScheduleAdjustmentBreakEndTime, setOperationalKnockoutScheduleAdjustmentBreakEndTime] =
+    useState("");
+  const [operationalKnockoutScheduleAdjustmentPreview, setOperationalKnockoutScheduleAdjustmentPreview] =
+    useState<OperationalKnockoutScheduleAdjustmentPreview | null>(null);
+  const [loadingOperationalKnockoutScheduleAdjustment, setLoadingOperationalKnockoutScheduleAdjustment] =
+    useState(false);
+  const [applyingOperationalKnockoutScheduleAdjustment, setApplyingOperationalKnockoutScheduleAdjustment] =
     useState(false);
   const [showManualRelocationDialog, setShowManualRelocationDialog] =
     useState(false);
@@ -5176,6 +5264,191 @@ export function AdminMatches({
     toast.success("Jogos eliminatórios trocados.");
   };
 
+  const handleCloseOperationalKnockoutScheduleAdjustmentDialog = () => {
+    if (loadingOperationalKnockoutScheduleAdjustment || applyingOperationalKnockoutScheduleAdjustment) {
+      return;
+    }
+
+    setShowOperationalKnockoutScheduleAdjustmentDialog(false);
+    setOperationalKnockoutScheduleAdjustmentSourceBracketMatchId("");
+    setOperationalKnockoutScheduleAdjustmentCandidates(null);
+    setOperationalKnockoutScheduleAdjustmentSchedules([]);
+    setSelectedOperationalKnockoutScheduleAdjustmentItemIds([]);
+    setOperationalKnockoutScheduleAdjustmentPreview(null);
+  };
+
+  const handleOpenOperationalKnockoutScheduleAdjustmentDialog = async (
+    sourceBracketMatchId: string,
+  ) => {
+    if (!canManageMatches || isScoreSheetReviewMode) {
+      return;
+    }
+
+    const bracketEditionId = championshipBracketView.edition?.id;
+
+    if (!bracketEditionId) {
+      toast.error("Não foi possível localizar a agenda do campeonato.");
+      return;
+    }
+
+    setLoadingOperationalKnockoutScheduleAdjustment(true);
+
+    const [{ data, error }, schedulesResponse] = await Promise.all([
+      listOperationalKnockoutScheduleAdjustmentCandidates(sourceBracketMatchId),
+      getBracketDaySchedules(bracketEditionId),
+    ]);
+
+    setLoadingOperationalKnockoutScheduleAdjustment(false);
+
+    if (error || !data) {
+      toast.error(resolveAdminMatchesOperationalErrorMessage(error));
+      return;
+    }
+
+    if (schedulesResponse.error) {
+      toast.error(schedulesResponse.error.message);
+      return;
+    }
+
+    const sourceItem = data.items.find(
+      (item) => item.bracket_match_id == sourceBracketMatchId,
+    );
+
+    if (!sourceItem) {
+      toast.error("Não foi possível localizar o item selecionado na programação.");
+      return;
+    }
+
+    const scheduleDay = schedulesResponse.data.find(
+      (schedule) => schedule.event_date == sourceItem.scheduled_date,
+    );
+    const currentBreak =
+      scheduleDay?.breaks.find((item) => item.scope_type == "ALL_COURTS") ??
+      scheduleDay?.breaks.find(
+        (item) => item.bracket_court_id == sourceItem.bracket_court_id,
+      ) ??
+      null;
+
+    setOperationalKnockoutScheduleAdjustmentCandidates(data);
+    setOperationalKnockoutScheduleAdjustmentSourceBracketMatchId(sourceBracketMatchId);
+    setOperationalKnockoutScheduleAdjustmentSchedules(schedulesResponse.data);
+    setSelectedOperationalKnockoutScheduleAdjustmentItemIds([sourceBracketMatchId]);
+    setOperationalKnockoutScheduleAdjustmentDuration(
+      String(sourceItem.duration_minutes),
+    );
+    setOperationalKnockoutScheduleAdjustmentBreakAction("KEEP");
+    setOperationalKnockoutScheduleAdjustmentBreakId(currentBreak?.id ?? "");
+    setOperationalKnockoutScheduleAdjustmentBreakScopeType(
+      currentBreak?.scope_type ?? "ALL_COURTS",
+    );
+    setOperationalKnockoutScheduleAdjustmentBreakStartTime(
+      currentBreak?.break_start_time.slice(0, 5) ?? "",
+    );
+    setOperationalKnockoutScheduleAdjustmentBreakEndTime(
+      currentBreak?.break_end_time.slice(0, 5) ?? "",
+    );
+    setOperationalKnockoutScheduleAdjustmentPreview(null);
+    setShowOperationalKnockoutScheduleAdjustmentDialog(true);
+  };
+
+  const handleToggleOperationalKnockoutScheduleAdjustmentItem = (
+    bracketMatchId: string,
+    checked: CheckedState,
+  ) => {
+    setSelectedOperationalKnockoutScheduleAdjustmentItemIds((current) => {
+      if (checked === true) {
+        return current.includes(bracketMatchId) ? current : [...current, bracketMatchId];
+      }
+
+      return current.filter((id) => id != bracketMatchId);
+    });
+    setOperationalKnockoutScheduleAdjustmentPreview(null);
+  };
+
+  const buildOperationalKnockoutScheduleAdjustmentInput = (
+    acceptDayEndExtension = false,
+  ): OperationalKnockoutScheduleAdjustmentInput | null => {
+    const durationMinutes = Number.parseInt(
+      operationalKnockoutScheduleAdjustmentDuration,
+      10,
+    );
+
+    if (selectedOperationalKnockoutScheduleAdjustmentItemIds.length == 0) {
+      toast.error("Selecione ao menos um jogo ou slot para ajustar.");
+      return null;
+    }
+
+    if (!Number.isInteger(durationMinutes) || durationMinutes < 1) {
+      toast.error("Informe uma duração válida em minutos.");
+      return null;
+    }
+
+    return {
+      bracket_match_ids: selectedOperationalKnockoutScheduleAdjustmentItemIds,
+      duration_minutes: durationMinutes,
+      break: {
+        action: operationalKnockoutScheduleAdjustmentBreakAction,
+        id: operationalKnockoutScheduleAdjustmentBreakId || null,
+        scope_type: operationalKnockoutScheduleAdjustmentBreakScopeType,
+        start_time: operationalKnockoutScheduleAdjustmentBreakStartTime || null,
+        end_time: operationalKnockoutScheduleAdjustmentBreakEndTime || null,
+      },
+      accept_day_end_extension: acceptDayEndExtension,
+    };
+  };
+
+  const handlePreviewOperationalKnockoutScheduleAdjustment = async () => {
+    const bracketEditionId = championshipBracketView.edition?.id;
+    const input = buildOperationalKnockoutScheduleAdjustmentInput();
+
+    if (!bracketEditionId || !input) {
+      return;
+    }
+
+    setLoadingOperationalKnockoutScheduleAdjustment(true);
+    const { data, error } = await previewOperationalKnockoutScheduleAdjustment(
+      bracketEditionId,
+      input,
+    );
+    setLoadingOperationalKnockoutScheduleAdjustment(false);
+
+    if (error || !data) {
+      toast.error(resolveAdminMatchesOperationalErrorMessage(error));
+      return;
+    }
+
+    setOperationalKnockoutScheduleAdjustmentPreview(data);
+  };
+
+  const handleApplyOperationalKnockoutScheduleAdjustment = async () => {
+    const bracketEditionId = championshipBracketView.edition?.id;
+    const preview = operationalKnockoutScheduleAdjustmentPreview;
+    const input = buildOperationalKnockoutScheduleAdjustmentInput(
+      preview?.extends_day_end === true,
+    );
+
+    if (!bracketEditionId || !preview || !input || preview.blockers.length > 0) {
+      return;
+    }
+
+    setApplyingOperationalKnockoutScheduleAdjustment(true);
+    const { error } = await applyOperationalKnockoutScheduleAdjustment(
+      bracketEditionId,
+      input,
+      preview.revision,
+    );
+    setApplyingOperationalKnockoutScheduleAdjustment(false);
+
+    if (error) {
+      toast.error(resolveAdminMatchesOperationalErrorMessage(error));
+      return;
+    }
+
+    handleCloseOperationalKnockoutScheduleAdjustmentDialog();
+    await Promise.all([onRefetch(), onRefetchChampionshipBracket()]);
+    toast.success("Programação futura do mata-mata ajustada com sucesso.");
+  };
+
   const handleCloseManualRelocationDialog = () => {
     if (loadingManualRelocationPreview || applyingManualRelocation) {
       return;
@@ -8096,6 +8369,27 @@ export function AdminMatches({
     );
   }
 
+  const operationalKnockoutScheduleAdjustmentSource =
+    operationalKnockoutScheduleAdjustmentCandidates?.items.find(
+      (item) =>
+        item.bracket_match_id ==
+        operationalKnockoutScheduleAdjustmentSourceBracketMatchId,
+    ) ?? null;
+  const operationalKnockoutScheduleAdjustmentDay =
+    operationalKnockoutScheduleAdjustmentSource
+      ? operationalKnockoutScheduleAdjustmentSchedules.find(
+          (schedule) =>
+            schedule.event_date ==
+            operationalKnockoutScheduleAdjustmentSource.scheduled_date,
+        ) ?? null
+      : null;
+  const operationalKnockoutScheduleAdjustmentBreaks =
+    operationalKnockoutScheduleAdjustmentDay?.breaks.filter(
+      (item) =>
+        item.scope_type == "ALL_COURTS" ||
+        item.bracket_court_id == operationalKnockoutScheduleAdjustmentSource?.bracket_court_id,
+    ) ?? [];
+
   return (
     <div className="space-y-6">
       {shouldShowTieBreakBanner ? (
@@ -8848,6 +9142,9 @@ export function AdminMatches({
                     isScoreSheetReviewMode={isScoreSheetReviewMode}
                     disabled={swappingMatches}
                     onSwap={handleOpenKnockoutScheduleSwapDialog}
+                    onAdjustSchedule={
+                      handleOpenOperationalKnockoutScheduleAdjustmentDialog
+                    }
                   />
                 );
               }
@@ -8855,6 +9152,13 @@ export function AdminMatches({
               const match = item.match;
               const matchBracketContext =
                 matchBracketContextByMatchId[match.id];
+              const knockoutBracketMatchId =
+                match.status == MatchStatus.SCHEDULED
+                  ? resolveKnockoutBracketMatchIdForMatch(
+                      championshipBracketView,
+                      match.id,
+                    )
+                  : null;
               const startedAtLabel = resolveMatchStartedAtLabel(
                 match.start_time,
                 match.status,
@@ -8956,14 +9260,28 @@ export function AdminMatches({
 
                                 {!isScoreSheetReviewMode &&
                                 match.status === MatchStatus.SCHEDULED ? (
-                                  <DropdownMenuItem
-                                    onSelect={() => {
-                                      handleOpenManualRelocationSlotDialog(match);
-                                    }}
-                                  >
-                                    <Clock className="mr-2 h-4 w-4" />
-                                    Encaixar em horário livre
-                                  </DropdownMenuItem>
+                                  <>
+                                    <DropdownMenuItem
+                                      onSelect={() => {
+                                        handleOpenManualRelocationSlotDialog(match);
+                                      }}
+                                    >
+                                      <Clock className="mr-2 h-4 w-4" />
+                                      Encaixar em horário livre
+                                    </DropdownMenuItem>
+                                    {knockoutBracketMatchId ? (
+                                      <DropdownMenuItem
+                                        onSelect={() =>
+                                          void handleOpenOperationalKnockoutScheduleAdjustmentDialog(
+                                            knockoutBracketMatchId,
+                                          )
+                                        }
+                                      >
+                                        <Clock className="mr-2 h-4 w-4" />
+                                        Ajustar programação futura
+                                      </DropdownMenuItem>
+                                    ) : null}
+                                  </>
                                 ) : null}
 
                                 {!isScoreSheetReviewMode ? (
@@ -9286,14 +9604,28 @@ export function AdminMatches({
 
                             {!isScoreSheetReviewMode &&
                             match.status === MatchStatus.SCHEDULED ? (
-                              <DropdownMenuItem
-                                onSelect={() => {
-                                  handleOpenManualRelocationSlotDialog(match);
-                                }}
-                              >
-                                <Clock className="mr-2 h-4 w-4" />
-                                Encaixar em horário livre
-                              </DropdownMenuItem>
+                              <>
+                                <DropdownMenuItem
+                                  onSelect={() => {
+                                    handleOpenManualRelocationSlotDialog(match);
+                                  }}
+                                >
+                                  <Clock className="mr-2 h-4 w-4" />
+                                  Encaixar em horário livre
+                                </DropdownMenuItem>
+                                {knockoutBracketMatchId ? (
+                                  <DropdownMenuItem
+                                    onSelect={() =>
+                                      void handleOpenOperationalKnockoutScheduleAdjustmentDialog(
+                                        knockoutBracketMatchId,
+                                      )
+                                    }
+                                  >
+                                    <Clock className="mr-2 h-4 w-4" />
+                                    Ajustar programação futura
+                                  </DropdownMenuItem>
+                                ) : null}
+                              </>
                             ) : null}
 
                             {!isScoreSheetReviewMode ? (
@@ -9724,6 +10056,252 @@ export function AdminMatches({
               </DialogFooter>
             </div>
           ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={showOperationalKnockoutScheduleAdjustmentDialog}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            handleCloseOperationalKnockoutScheduleAdjustmentDialog();
+          }
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Ajustar programação futura</DialogTitle>
+            <DialogDescription>
+              Defina uma duração excepcional para slots ou jogos eliminatórios futuros da mesma quadra e recalcule a sequência sem alterar o chaveamento.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {operationalKnockoutScheduleAdjustmentSource ? (
+              <div className="app-card-muted rounded-xl p-3 text-sm">
+                {resolveBrazilianDateLabel(
+                  operationalKnockoutScheduleAdjustmentSource.scheduled_date,
+                )}
+                {" • "}
+                {operationalKnockoutScheduleAdjustmentSource.location}
+                {" • "}
+                {operationalKnockoutScheduleAdjustmentSource.court_name}
+              </div>
+            ) : null}
+
+            <div className="space-y-2">
+              <Label>Jogos e slots que receberão a duração</Label>
+              <div className="space-y-2 rounded-xl border border-border p-3">
+                {operationalKnockoutScheduleAdjustmentCandidates?.items.map((item) => (
+                  <label
+                    key={item.bracket_match_id}
+                    className="flex items-start gap-3 rounded-lg border border-border/60 p-2.5"
+                  >
+                    <Checkbox
+                      checked={selectedOperationalKnockoutScheduleAdjustmentItemIds.includes(
+                        item.bracket_match_id,
+                      )}
+                      onCheckedChange={(checked) =>
+                        handleToggleOperationalKnockoutScheduleAdjustmentItem(
+                          item.bracket_match_id,
+                          checked,
+                        )
+                      }
+                      disabled={
+                        loadingOperationalKnockoutScheduleAdjustment ||
+                        applyingOperationalKnockoutScheduleAdjustment
+                      }
+                    />
+                    <span className="min-w-0 text-sm text-muted-foreground">
+                      {resolveOperationalKnockoutScheduleAdjustmentItemLabel(item)}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="operational-knockout-duration">Duração comum dos selecionados</Label>
+                <Input
+                  id="operational-knockout-duration"
+                  type="number"
+                  min="1"
+                  className="app-input-field"
+                  value={operationalKnockoutScheduleAdjustmentDuration}
+                  onChange={(event) => {
+                    setOperationalKnockoutScheduleAdjustmentDuration(event.target.value);
+                    setOperationalKnockoutScheduleAdjustmentPreview(null);
+                  }}
+                  placeholder="90"
+                />
+                <p className="text-xs text-muted-foreground">Em minutos. Não altera o padrão da modalidade.</p>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Intervalo da programação</Label>
+                <Select
+                  value={operationalKnockoutScheduleAdjustmentBreakAction}
+                  onValueChange={(value) => {
+                    if (value == "KEEP" || value == "REMOVE" || value == "UPSERT") {
+                      setOperationalKnockoutScheduleAdjustmentBreakAction(value);
+                      setOperationalKnockoutScheduleAdjustmentPreview(null);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="app-input-field" aria-label="Ação do intervalo">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="KEEP">Manter intervalo</SelectItem>
+                    <SelectItem value="REMOVE">Remover intervalo</SelectItem>
+                    <SelectItem value="UPSERT">Criar ou editar intervalo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {operationalKnockoutScheduleAdjustmentBreakAction != "KEEP" ? (
+              <div className="grid gap-3 rounded-xl border border-border p-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label>Intervalo existente</Label>
+                  <Select
+                    value={operationalKnockoutScheduleAdjustmentBreakId || "NEW_BREAK"}
+                    onValueChange={(value) => {
+                      const breakItem = operationalKnockoutScheduleAdjustmentBreaks.find(
+                        (item) => item.id == value,
+                      );
+                      setOperationalKnockoutScheduleAdjustmentBreakId(
+                        value == "NEW_BREAK" ? "" : value,
+                      );
+                      if (breakItem) {
+                        setOperationalKnockoutScheduleAdjustmentBreakScopeType(
+                          breakItem.scope_type,
+                        );
+                        setOperationalKnockoutScheduleAdjustmentBreakStartTime(
+                          breakItem.break_start_time.slice(0, 5),
+                        );
+                        setOperationalKnockoutScheduleAdjustmentBreakEndTime(
+                          breakItem.break_end_time.slice(0, 5),
+                        );
+                      }
+                      setOperationalKnockoutScheduleAdjustmentPreview(null);
+                    }}
+                  >
+                    <SelectTrigger className="app-input-field" aria-label="Intervalo a alterar">
+                      <SelectValue placeholder="Selecione o intervalo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {operationalKnockoutScheduleAdjustmentBreakAction == "UPSERT" ? (
+                        <SelectItem value="NEW_BREAK">Novo intervalo</SelectItem>
+                      ) : null}
+                      {operationalKnockoutScheduleAdjustmentBreaks.map((item) => (
+                        <SelectItem key={item.id} value={item.id}>
+                          {item.scope_type == "ALL_COURTS" ? "Dia inteiro" : "Quadra"} • {item.break_start_time.slice(0, 5)}–{item.break_end_time.slice(0, 5)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {operationalKnockoutScheduleAdjustmentBreakAction == "UPSERT" ? (
+                  <>
+                    <div className="space-y-1">
+                      <Label>Escopo</Label>
+                      <Select
+                        value={operationalKnockoutScheduleAdjustmentBreakScopeType}
+                        onValueChange={(value) => {
+                          if (value == "ALL_COURTS" || value == "COURT") {
+                            setOperationalKnockoutScheduleAdjustmentBreakScopeType(value);
+                            setOperationalKnockoutScheduleAdjustmentPreview(null);
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="app-input-field"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ALL_COURTS">Dia inteiro</SelectItem>
+                          <SelectItem value="COURT">Somente esta quadra</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="operational-break-start">Início</Label>
+                      <Input
+                        id="operational-break-start"
+                        type="time"
+                        className="app-input-field"
+                        value={operationalKnockoutScheduleAdjustmentBreakStartTime}
+                        onChange={(event) => {
+                          setOperationalKnockoutScheduleAdjustmentBreakStartTime(event.target.value);
+                          setOperationalKnockoutScheduleAdjustmentPreview(null);
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="operational-break-end">Fim</Label>
+                      <Input
+                        id="operational-break-end"
+                        type="time"
+                        className="app-input-field"
+                        value={operationalKnockoutScheduleAdjustmentBreakEndTime}
+                        onChange={(event) => {
+                          setOperationalKnockoutScheduleAdjustmentBreakEndTime(event.target.value);
+                          setOperationalKnockoutScheduleAdjustmentPreview(null);
+                        }}
+                      />
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
+
+            {operationalKnockoutScheduleAdjustmentPreview ? (
+              <div className="space-y-3 rounded-xl border border-border p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-medium">Prévia da programação</p>
+                  {operationalKnockoutScheduleAdjustmentPreview.extends_day_end ? (
+                    <AppBadge tone={AppBadgeTone.AMBER}>Amplia o fim do dia para {resolveSaoPauloTimeLabel(operationalKnockoutScheduleAdjustmentPreview.day_end_after)}</AppBadge>
+                  ) : null}
+                </div>
+                {operationalKnockoutScheduleAdjustmentPreview.blockers.length > 0 ? (
+                  <div className="space-y-1 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+                    {operationalKnockoutScheduleAdjustmentPreview.blockers.map((blocker) => <p key={blocker}>{blocker}</p>)}
+                  </div>
+                ) : null}
+                <div className="space-y-2">
+                  {operationalKnockoutScheduleAdjustmentPreview.timeline.map((item) => (
+                    <div key={item.bracket_match_id} className="app-card-muted rounded-lg p-2.5 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span>
+                          {item.sport_name}
+                          {" • "}
+                          {MATCH_NAIPE_LABELS[item.naipe]}
+                          {item.division ? ` • ${TEAM_DIVISION_LABELS[item.division]}` : ""}
+                          {" • "}
+                          {item.is_placeholder ? "A definir" : "Jogo definido"}
+                          {item.is_selected ? " • duração ajustada" : ""}
+                        </span>
+                        <span className="font-medium">{resolveSaoPauloTimeLabel(item.original_start_time)}–{resolveSaoPauloTimeLabel(item.original_end_time)} → {resolveSaoPauloTimeLabel(item.start_time)}–{resolveSaoPauloTimeLabel(item.end_time)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={handleCloseOperationalKnockoutScheduleAdjustmentDialog} disabled={loadingOperationalKnockoutScheduleAdjustment || applyingOperationalKnockoutScheduleAdjustment}>
+              Cancelar
+            </Button>
+            <Button type="button" variant="outline" onClick={() => void handlePreviewOperationalKnockoutScheduleAdjustment()} disabled={loadingOperationalKnockoutScheduleAdjustment || applyingOperationalKnockoutScheduleAdjustment}>
+              {loadingOperationalKnockoutScheduleAdjustment ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Gerar prévia
+            </Button>
+            <Button type="button" onClick={() => void handleApplyOperationalKnockoutScheduleAdjustment()} disabled={!operationalKnockoutScheduleAdjustmentPreview || operationalKnockoutScheduleAdjustmentPreview.blockers.length > 0 || loadingOperationalKnockoutScheduleAdjustment || applyingOperationalKnockoutScheduleAdjustment}>
+              {applyingOperationalKnockoutScheduleAdjustment ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Confirmar ajuste
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
