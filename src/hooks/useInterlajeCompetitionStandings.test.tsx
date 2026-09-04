@@ -1,14 +1,15 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useInterlajeOverallStandings } from "@/hooks/useInterlajeOverallStandings";
+import { useInterlajeCompetitionStandings } from "@/hooks/useInterlajeCompetitionStandings";
+import { MatchNaipe } from "@/lib/enums";
 
 const {
-  fetchInterlajeOverallStandingsMock,
+  fetchInterlajeCompetitionStandingsMock,
   channelCallbacks,
   channelMock,
   removeChannelMock,
 } = vi.hoisted(() => ({
-  fetchInterlajeOverallStandingsMock: vi.fn(),
+  fetchInterlajeCompetitionStandingsMock: vi.fn(),
   channelCallbacks: [] as Array<
     (payload: { new?: Record<string, unknown> | null; old?: Record<string, unknown> | null }) => void
   >,
@@ -32,8 +33,8 @@ channelMock.on.mockImplementation(
 channelMock.subscribe.mockImplementation(() => channelMock);
 
 vi.mock("@/domain/interlaje/interlajeOverallStandings.repository", () => ({
-  fetchInterlajeOverallStandings: (...args: unknown[]) =>
-    fetchInterlajeOverallStandingsMock(...args),
+  fetchInterlajeCompetitionStandings: (...args: unknown[]) =>
+    fetchInterlajeCompetitionStandingsMock(...args),
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -43,10 +44,10 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 
-describe("useInterlajeOverallStandings", () => {
+describe("useInterlajeCompetitionStandings", () => {
   beforeEach(() => {
-    fetchInterlajeOverallStandingsMock.mockReset();
-    fetchInterlajeOverallStandingsMock.mockResolvedValue({ data: [], error: null });
+    fetchInterlajeCompetitionStandingsMock.mockReset();
+    fetchInterlajeCompetitionStandingsMock.mockResolvedValue({ data: [], error: null });
     channelMock.on.mockClear();
     channelMock.subscribe.mockClear();
     removeChannelMock.mockClear();
@@ -57,20 +58,23 @@ describe("useInterlajeOverallStandings", () => {
     vi.clearAllMocks();
   });
 
-  it("refaz a consulta quando a classificação coletiva da temporada muda", async () => {
+  it("atualiza a projeção quando uma partida ou o chaveamento muda", async () => {
     const { unmount } = renderHook(() =>
-      useInterlajeOverallStandings({
+      useInterlajeCompetitionStandings({
         championshipId: "championship-1",
         seasonYear: 2026,
+        sportId: "sport-1",
+        naipe: MatchNaipe.MASCULINO,
+        division: null,
       }),
     );
 
     await waitFor(() => {
-      expect(fetchInterlajeOverallStandingsMock).toHaveBeenCalledTimes(1);
+      expect(fetchInterlajeCompetitionStandingsMock).toHaveBeenCalledTimes(1);
     });
 
     await act(async () => {
-      channelCallbacks[0]?.({
+      channelCallbacks[2]?.({
         new: {
           championship_id: "championship-1",
           season_year: 2026,
@@ -79,20 +83,15 @@ describe("useInterlajeOverallStandings", () => {
     });
 
     await waitFor(() => {
-      expect(fetchInterlajeOverallStandingsMock).toHaveBeenCalledTimes(2);
+      expect(fetchInterlajeCompetitionStandingsMock).toHaveBeenCalledTimes(2);
     });
 
-    expect(channelMock.on).toHaveBeenCalledWith(
-      "postgres_changes",
-      expect.objectContaining({ table: "matches" }),
-      expect.any(Function),
-    );
     expect(channelMock.on).toHaveBeenCalledWith(
       "postgres_changes",
       expect.objectContaining({ table: "championship_bracket_matches" }),
       expect.any(Function),
     );
-    expect(channelMock.on).toHaveBeenCalledTimes(9);
+    expect(channelMock.on).toHaveBeenCalledTimes(6);
     unmount();
     expect(removeChannelMock).toHaveBeenCalledWith(channelMock);
   });

@@ -966,10 +966,21 @@ export function AdminStandings({
       interlajeOverallStandings.map((standing) => {
         const badges: TeamStandingsBadge[] = [];
 
+        if (standing.confirmed_placement_points > 0) {
+          badges.push({
+            key: "confirmed-placement",
+            label: `Colocação confirmada +${formatStandingsPoints(standing.confirmed_placement_points)} pts`,
+            mobileLabel: `+${formatStandingsPoints(standing.confirmed_placement_points)}`,
+            className:
+              "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300",
+          });
+        }
+
         if (standing.opening_bonus_points > 0) {
           badges.push({
             key: "opening-bonus",
             label: `Bônus abertura +${formatStandingsPoints(standing.opening_bonus_points)} pts`,
+            mobileLabel: `+${formatStandingsPoints(standing.opening_bonus_points)}`,
             className:
               "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
           });
@@ -979,6 +990,7 @@ export function AdminStandings({
           badges.push({
             key: "walkover-penalty",
             label: `W.O. ${standing.walkover_count} · −${formatStandingsPoints(standing.walkover_penalty_points)} pts`,
+            mobileLabel: `−${formatStandingsPoints(standing.walkover_penalty_points)}`,
             className:
               "border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-300",
           });
@@ -988,6 +1000,33 @@ export function AdminStandings({
       }),
     );
   }, [interlajeOverallStandings]);
+  const interlajeCompetitionBadgesByTeamId = useMemo(() => {
+    return new Map<string, TeamStandingsBadge[]>(
+      interlajeCompetitionStandings.map((standing) => [
+        standing.team_id,
+        standing.placement_status == "PROJECTED"
+          ? [{
+              key: "projected-placement",
+              label: "Colocação projetada",
+              className:
+                "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300",
+            }]
+          : [],
+      ]),
+    );
+  }, [interlajeCompetitionStandings]);
+  const hasInterlajeCompetitionProjectedPlacement = useMemo(
+    () => interlajeCompetitionStandings.some(
+      (standing) => standing.placement_status == "PROJECTED",
+    ),
+    [interlajeCompetitionStandings],
+  );
+  const hasInterlajeOverallProjectedPlacement = useMemo(
+    () => interlajeOverallStandings.some(
+      (standing) => standing.has_projected_placement_points,
+    ),
+    [interlajeOverallStandings],
+  );
 
   const disqualificationBracketView = useMemo(() => {
     if (selectedDisqualificationSeasonYear == null) {
@@ -1713,6 +1752,11 @@ export function AdminStandings({
     />
   ) : (
     <div className="space-y-5">
+      {isInterlajeOverallStandingsView && hasInterlajeOverallProjectedPlacement ? (
+        <p className="text-xs text-center text-muted-foreground">
+          PTS projetados: os pontos de colocação podem mudar conforme os próximos jogos do mata-mata.
+        </p>
+      ) : null}
       {(standingsGroups.length > 0
         ? standingsGroups
         : [{ label: null, standings: displayedTeamStandingsWithParticipants }]
@@ -1749,6 +1793,7 @@ export function AdminStandings({
                 ? interlajeOverallBadgesByTeamId
                 : undefined
             }
+            showMobileBadgeLegend={isInterlajeOverallStandingsView}
           />
         </section>
       ))}
@@ -1929,13 +1974,16 @@ export function AdminStandings({
             <TabsContent value="groups">{standingsByGroupsContent}</TabsContent>
             <TabsContent value="overall" className="space-y-2">
               <p className="text-xs text-muted-foreground">
-                A posição desta tabela define os pontos da modalidade na classificação geral do INTERLAJE.
+                {hasInterlajeCompetitionProjectedPlacement
+                  ? "A colocação usada para pontuar a classificação geral é projetada pelo chaveamento atual e pode mudar até a final."
+                  : "A posição desta tabela define os pontos da modalidade na classificação geral do INTERLAJE."}
               </p>
               <TeamStandingsTable
                 standings={interlajeCompetitionStandings}
                 modalidadeConfig={activeModalidadeConfig}
                 isLoading={interlajeCompetitionStandingsLoading}
                 disqualifiedTeamKeys={visibleCompetitionDisqualifiedTeamKeys}
+                teamBadgesByTeamId={interlajeCompetitionBadgesByTeamId}
               />
             </TabsContent>
           </Tabs>

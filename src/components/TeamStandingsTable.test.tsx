@@ -99,6 +99,22 @@ describe("TeamStandingsTable draw winner icon", () => {
     expect(screen.getAllByText("Desempate geral pendente")).toHaveLength(2);
   });
 
+  it("exibe ícone de alerta no badge compacto de desempate pendente", () => {
+    const { container } = render(
+      <TooltipProvider>
+        <TeamStandingsTable
+          variant="public"
+          standings={standings}
+          pendingTieBreakTeamIds={new Set(["team-1"])}
+          showMobileBadgeLegend
+        />
+      </TooltipProvider>,
+    );
+
+    expect(container.querySelector(".lucide-circle-alert")).not.toBeNull();
+    expect(screen.getByLabelText("Desempate pendente").parentElement?.parentElement).toHaveClass("h-6");
+  });
+
   it("não sinaliza desempate quando não há pendência", () => {
     render(
       <TooltipProvider>
@@ -123,22 +139,31 @@ describe("TeamStandingsTable draw winner icon", () => {
                   {
                     key: "opening-bonus",
                     label: "Bônus abertura +8 pts",
+                    mobileLabel: "+8",
                     className: "border-emerald-500/30",
                   },
                   {
                     key: "walkover-penalty",
                     label: "W.O. 2 · −4 pts",
+                    mobileLabel: "−4",
                     className: "border-rose-500/30",
                   },
                 ],
               ],
             ])
           }
+          showMobileBadgeLegend
         />
       </TooltipProvider>,
     );
 
     expect(screen.getByText("Bônus abertura +8 pts")).toBeInTheDocument();
     expect(screen.getByText("W.O. 2 · −4 pts")).toBeInTheDocument();
+    expect(screen.getByText("Legenda dos badges")).toBeInTheDocument();
+    expect(screen.getByText("Bônus de abertura")).toBeInTheDocument();
+    expect(screen.getByText("+8")).toBeInTheDocument();
+    expect(screen.getByText("Bônus abertura +8 pts")).toHaveClass(
+      "whitespace-nowrap",
+    );
   });
 });

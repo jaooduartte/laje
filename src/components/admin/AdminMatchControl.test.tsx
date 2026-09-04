@@ -324,6 +324,7 @@ function buildIndividualSession(
 function renderAdminMatchControl(params: {
   matches: Match[];
   championshipSports: ChampionshipSport[];
+  championshipCode?: ChampionshipCode;
   championshipStatus?: ChampionshipStatus;
   isInitialLoading?: boolean;
   isFetchingMatches?: boolean;
@@ -339,6 +340,7 @@ function renderAdminMatchControl(params: {
   const renderResult = render(
     <AdminMatchControl
       championshipId="championship-1"
+      championshipCode={params.championshipCode}
       seasonYear={2026}
       matches={params.matches}
       championshipStatus={params.championshipStatus ?? ChampionshipStatus.IN_PROGRESS}
@@ -361,6 +363,7 @@ function renderAdminMatchControl(params: {
   const rerenderAdminMatchControl = (nextParams: {
     matches: Match[];
     championshipSports: ChampionshipSport[];
+    championshipCode?: ChampionshipCode;
     championshipStatus?: ChampionshipStatus;
     isInitialLoading?: boolean;
     isFetchingMatches?: boolean;
@@ -374,6 +377,7 @@ function renderAdminMatchControl(params: {
     renderResult.rerender(
       <AdminMatchControl
         championshipId="championship-1"
+        championshipCode={nextParams.championshipCode}
         seasonYear={2026}
         matches={nextParams.matches}
         championshipStatus={nextParams.championshipStatus ?? ChampionshipStatus.IN_PROGRESS}
@@ -2725,6 +2729,95 @@ describe("AdminMatchControl", () => {
       current_set_away_score: 0,
     });
     expect(toastSuccessMock).toHaveBeenCalledWith("Set 1 encerrado.");
+  });
+
+  it("limita o Voleibol do INTERLAJE a três sets", () => {
+    const match = buildMatch({
+      id: "interlaje-volleyball-complete-match",
+      sport_id: "sport-interlaje-volleyball",
+      status: MatchStatus.LIVE,
+      sports: buildSport({
+        id: "sport-interlaje-volleyball",
+        name: "Voleibol",
+      }),
+      home_team: buildTeam({
+        id: "interlaje-volleyball-home",
+        name: "Atlética Vôlei Casa",
+      }),
+      away_team: buildTeam({
+        id: "interlaje-volleyball-away",
+        name: "Atlética Vôlei Visitante",
+      }),
+      match_sets: [
+        { set_number: 1, home_points: 21, away_points: 15 },
+        { set_number: 2, home_points: 21, away_points: 18 },
+      ],
+    });
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-interlaje-volleyball",
+      sport_id: "sport-interlaje-volleyball",
+      result_rule: ChampionshipSportResultRule.SETS,
+      supports_cards: true,
+    });
+
+    renderAdminMatchControl({
+      matches: [match],
+      championshipSports: [championshipSport],
+      championshipCode: ChampionshipCode.INTERLAJE,
+    });
+
+    const matchCardElement = resolveMatchCardElement("Atlética Vôlei Casa");
+    expect(
+      within(matchCardElement).getByRole("button", { name: /fim do set/i }),
+    ).toBeDisabled();
+    expect(within(matchCardElement).getAllByText("Amarelos").length).toBeGreaterThan(0);
+  });
+
+  it("não finaliza o Voleibol do INTERLAJE com resultado diferente de 2 × 0 ou 2 × 1", async () => {
+    const match = buildMatch({
+      id: "interlaje-volleyball-invalid-finish-match",
+      sport_id: "sport-interlaje-volleyball-invalid-finish",
+      status: MatchStatus.LIVE,
+      sports: buildSport({
+        id: "sport-interlaje-volleyball-invalid-finish",
+        name: "Voleibol",
+      }),
+      home_team: buildTeam({
+        id: "interlaje-volleyball-invalid-home",
+        name: "Atlética Vôlei Incompleta Casa",
+      }),
+      away_team: buildTeam({
+        id: "interlaje-volleyball-invalid-away",
+        name: "Atlética Vôlei Incompleta Visitante",
+      }),
+      match_sets: [{ set_number: 1, home_points: 21, away_points: 15 }],
+    });
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-interlaje-volleyball-invalid-finish",
+      sport_id: "sport-interlaje-volleyball-invalid-finish",
+      result_rule: ChampionshipSportResultRule.SETS,
+      supports_cards: true,
+    });
+
+    renderAdminMatchControl({
+      matches: [match],
+      championshipSports: [championshipSport],
+      championshipCode: ChampionshipCode.INTERLAJE,
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /finalizar/i }));
+    });
+    await confirmFinishDialog();
+
+    expect(toastErrorMock).toHaveBeenCalledWith(
+      "No Voleibol do INTERLAJE, a partida deve terminar em 2 × 0 ou 2 × 1.",
+    );
+    expect(
+      supabaseUpdateCalls.some(
+        (updateCall) => updateCall.payload.status == MatchStatus.FINISHED,
+      ),
+    ).toBe(false);
   });
 
   it("rehydrates set-rule draft from backend when match updates and draft is not dirty", async () => {

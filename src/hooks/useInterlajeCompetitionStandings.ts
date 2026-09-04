@@ -87,6 +87,27 @@ export function useInterlajeCompetitionStandings({
         {
           event: "*",
           schema: "public",
+          table: "matches",
+          filter: `championship_id=eq.${championshipId}`,
+        },
+        refreshWhenSeasonMatches,
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "championship_bracket_matches",
+        },
+        () => {
+          void refetch();
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
           table: "championship_individual_team_standings",
           filter: `championship_id=eq.${championshipId}`,
         },

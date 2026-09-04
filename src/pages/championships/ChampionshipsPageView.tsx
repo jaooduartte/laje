@@ -34,6 +34,7 @@ import {
   formatStandingsPoints,
   type TeamStandingAggregate,
 } from "@/lib/standings";
+import type { InterlajeCompetitionStanding } from "@/domain/interlaje/interlajeOverallStandings.repository";
 import type {
   Championship,
   ChampionshipIndividualEvent,
@@ -99,7 +100,10 @@ interface ChampionshipsPageViewProps {
     standings: TeamStandingAggregate[];
   }>;
   isInterlajeCompetitionStandingsAvailable?: boolean;
-  interlajeCompetitionStandings?: TeamStandingAggregate[];
+  interlajeCompetitionStandings?: InterlajeCompetitionStanding[];
+  interlajeCompetitionBadgesByTeamId?: ReadonlyMap<string, TeamStandingsBadge[]>;
+  hasInterlajeCompetitionProjectedPlacement?: boolean;
+  hasInterlajeOverallProjectedPlacement?: boolean;
   pendingTieBreakTeamIds?: ReadonlySet<string>;
   teamBadgesByTeamId?: ReadonlyMap<string, TeamStandingsBadge[]>;
   isIndividualStandingsView?: boolean;
@@ -174,6 +178,9 @@ export function ChampionshipsPageView({
   standingsGroups = [],
   isInterlajeCompetitionStandingsAvailable = false,
   interlajeCompetitionStandings = [],
+  interlajeCompetitionBadgesByTeamId,
+  hasInterlajeCompetitionProjectedPlacement = false,
+  hasInterlajeOverallProjectedPlacement = false,
   pendingTieBreakTeamIds,
   teamBadgesByTeamId,
   isIndividualStandingsView = false,
@@ -219,7 +226,7 @@ export function ChampionshipsPageView({
     "groups" | "overall"
   >("groups");
   const interlajeCompetitionStandingsByDivision = useMemo(() => {
-    const standingsByDivision = new Map<string, TeamStandingAggregate[]>();
+    const standingsByDivision = new Map<string, InterlajeCompetitionStanding[]>();
 
     interlajeCompetitionStandings.forEach((standing) => {
       const key = standing.division ?? "WITHOUT_DIVISION";
@@ -253,6 +260,12 @@ export function ChampionshipsPageView({
   > | null>(null);
   const isStandingsHelpTooltipOpen =
     isStandingsHelpTooltipHoverOpen || isStandingsHelpTooltipClickOpen;
+  const isInterlajeOverallStandingsView =
+    selectedChampionship?.code == ChampionshipCode.INTERLAJE &&
+    standingsSportFilter == allStandingsSportFilter &&
+    standingsNaipeFilter == allStandingsNaipeFilter &&
+    (!selectedChampionshipHasDivisions ||
+      standingsDivisionFilter == allStandingsDivisionFilter);
   const [cardsSportFilter, setCardsSportFilter] = useState(
     DISCIPLINE_ALL_FILTER,
   );
@@ -586,11 +599,25 @@ export function ChampionshipsPageView({
                           <HelpCircle className="h-4 w-4" />
                         </button>
                       </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-xs text-xs">
-                        Algumas pontuações podem aparecer em formato decimal.
-                        Isso ocorre quando um multiplicador de 1,5× é aplicado
-                        para equalização proporcional da classificação entre
-                        atléticas que jogaram em chaves de tamanhos diferentes.
+                      <TooltipContent side="top" className="max-w-xs text-xs leading-relaxed">
+                        {isInterlajeOverallStandingsView ? (
+                          <>
+                            Nesta classificação geral do INTERLAJE, o PTS não é
+                            a soma direta dos jogos. Ele soma os pontos de
+                            colocação de cada modalidade, naipe e divisão, o
+                            bônus de abertura e desconta as penalidades por
+                            W.O. Durante o mata-mata, esses pontos de colocação
+                            podem ser projetados pelo chaveamento até a final.
+                          </>
+                        ) : (
+                          <>
+                            Algumas pontuações podem aparecer em formato
+                            decimal. Isso ocorre quando um multiplicador de
+                            1,5× é aplicado para equalização proporcional da
+                            classificação entre atléticas que jogaram em chaves
+                            de tamanhos diferentes.
+                          </>
+                        )}
                       </TooltipContent>
                     </Tooltip>
                   </div>
@@ -696,7 +723,7 @@ export function ChampionshipsPageView({
                         setInterlajeStandingsView(value as "groups" | "overall")
                       }
                     >
-                      <TabsNavigationList className="mb-4">
+                      <TabsNavigationList className="mx-auto mb-4 !flex w-fit">
                         <TabsNavigationTrigger value="groups">
                           Por grupos
                         </TabsNavigationTrigger>
@@ -737,7 +764,9 @@ export function ChampionshipsPageView({
                       </TabsContent>
                       <TabsContent value="overall" className="space-y-5">
                         <p className="text-xs text-muted-foreground">
-                          A posição desta tabela define os pontos da modalidade na classificação geral do INTERLAJE.
+                          {hasInterlajeCompetitionProjectedPlacement
+                            ? "A colocação usada para pontuar a classificação geral é projetada pelo chaveamento atual e pode mudar até a final."
+                            : "A posição desta tabela define os pontos da modalidade na classificação geral do INTERLAJE."}
                         </p>
                         {(interlajeCompetitionStandingsByDivision.length > 0
                           ? interlajeCompetitionStandingsByDivision
@@ -755,6 +784,7 @@ export function ChampionshipsPageView({
                               isLoading={isStandingsLoading}
                               variant="public"
                               disqualifiedTeamKeys={disqualifiedTeamKeys}
+                              teamBadgesByTeamId={interlajeCompetitionBadgesByTeamId}
                             />
                           </section>
                         ))}
@@ -768,6 +798,11 @@ export function ChampionshipsPageView({
                     />
                   ) : (
                     <div className="space-y-5">
+                      {hasInterlajeOverallProjectedPlacement ? (
+                        <p className="text-xs text-center text-muted-foreground">
+                          PTS projetados: os pontos de colocação podem mudar conforme os próximos jogos do mata-mata.
+                        </p>
+                      ) : null}
                       {(standingsGroups.length > 0
                         ? standingsGroups
                         : [{ label: null, standings: filteredStandings }]
@@ -786,6 +821,7 @@ export function ChampionshipsPageView({
                             disqualifiedTeamKeys={disqualifiedTeamKeys}
                             pendingTieBreakTeamIds={pendingTieBreakTeamIds}
                             teamBadgesByTeamId={teamBadgesByTeamId}
+                            showMobileBadgeLegend={isInterlajeOverallStandingsView}
                           />
                         </section>
                       ))}

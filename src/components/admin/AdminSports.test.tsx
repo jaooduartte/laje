@@ -208,7 +208,7 @@ describe("AdminSports", () => {
           : sport.name == "Voleibol"
             ? ChampionshipSportTieBreakerRule.POINTS_AVERAGE
             : ChampionshipSportTieBreakerRule.STANDARD,
-      supports_cards: sport.name == "Futsal" || sport.name == "Handebol",
+      supports_cards: ["Futsal", "Handebol", "Voleibol"].includes(sport.name),
       result_rule: sport.name == "Voleibol" ? ChampionshipSportResultRule.SETS : ChampionshipSportResultRule.POINTS,
       points_win: ["Atletismo", "Natação"].includes(sport.name) ? 24 : 3,
       points_draw: ["Voleibol", "Atletismo", "Natação"].includes(sport.name) ? 0 : 1,
@@ -228,6 +228,11 @@ describe("AdminSports", () => {
     expect(screen.getByText("Futsal")).toBeInTheDocument();
     expect(screen.getByText("Handebol")).toBeInTheDocument();
     expect(screen.getByText("Voleibol")).toBeInTheDocument();
+    expect(screen.getByText("Pontuação por resultado")).toBeInTheDocument();
+    expect(screen.getByText("Vitória 2 × 0")).toBeInTheDocument();
+    expect(screen.getByText("3 pontos")).toBeInTheDocument();
+    expect(screen.getByText("Derrota 1 × 2")).toBeInTheDocument();
+    expect(screen.getByText("1 ponto")).toBeInTheDocument();
     expect(screen.getByText("Atletismo")).toBeInTheDocument();
     expect(screen.getByText("Natação")).toBeInTheDocument();
     expect(screen.queryByText("Modalidade oficial ainda não cadastrada na plataforma.")).not.toBeInTheDocument();

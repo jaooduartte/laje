@@ -14,11 +14,14 @@ export interface InterlajeOverallStanding {
   team_id: string;
   team_name: string;
   placement_points: number;
+  confirmed_placement_points: number;
+  projected_placement_points: number;
   opening_bonus_points: number;
   walkover_count: number;
   walkover_penalty_points: number;
   overall_points: number;
   confirmed_competitions_count: number;
+  has_projected_placement_points: boolean;
   has_pending_tie_break: boolean;
 }
 
@@ -50,6 +53,8 @@ export interface InterlajeCompetitionStanding {
   two_minute_penalties: number;
   final_position: number;
   placement_points: number;
+  placement_status: "CONFIRMED" | "PROJECTED";
+  placement_basis: "GROUP_STAGE" | "KNOCKOUT";
 }
 
 export async function fetchInterlajeOverallStandings(

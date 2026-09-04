@@ -414,10 +414,21 @@ export function ChampionshipsPage() {
       interlajeOverallStandings.map((standing) => {
         const badges: TeamStandingsBadge[] = [];
 
+        if (standing.confirmed_placement_points > 0) {
+          badges.push({
+            key: "confirmed-placement",
+            label: `Colocação confirmada +${formatStandingsPoints(standing.confirmed_placement_points)} pts`,
+            mobileLabel: `+${formatStandingsPoints(standing.confirmed_placement_points)}`,
+            className:
+              "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300",
+          });
+        }
+
         if (standing.opening_bonus_points > 0) {
           badges.push({
             key: "opening-bonus",
             label: `Bônus abertura +${formatStandingsPoints(standing.opening_bonus_points)} pts`,
+            mobileLabel: `+${formatStandingsPoints(standing.opening_bonus_points)}`,
             className:
               "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
           });
@@ -427,6 +438,7 @@ export function ChampionshipsPage() {
           badges.push({
             key: "walkover-penalty",
             label: `W.O. ${standing.walkover_count} · −${formatStandingsPoints(standing.walkover_penalty_points)} pts`,
+            mobileLabel: `−${formatStandingsPoints(standing.walkover_penalty_points)}`,
             className:
               "border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-300",
           });
@@ -436,6 +448,27 @@ export function ChampionshipsPage() {
       }),
     );
   }, [interlajeOverallStandings]);
+  const interlajeCompetitionBadgesByTeamId = useMemo(() => {
+    return new Map<string, TeamStandingsBadge[]>(
+      interlajeCompetitionStandings.map((standing) => [
+        standing.team_id,
+        standing.placement_status == "PROJECTED"
+          ? [{
+              key: "projected-placement",
+              label: "Colocação projetada",
+              className:
+                "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300",
+            }]
+          : [],
+      ]),
+    );
+  }, [interlajeCompetitionStandings]);
+  const hasInterlajeCompetitionProjectedPlacement = useMemo(
+    () => interlajeCompetitionStandings.some(
+      (standing) => standing.placement_status == "PROJECTED",
+    ),
+    [interlajeCompetitionStandings],
+  );
 
   const standingsTieBreakerRule = useMemo(() => {
     if (standingsSportFilter == ALL_STANDINGS_SPORT_FILTER) {
@@ -921,6 +954,13 @@ export function ChampionshipsPage() {
         isInterlajeCompetitionStandingsAvailable
       }
       interlajeCompetitionStandings={interlajeCompetitionStandings}
+      interlajeCompetitionBadgesByTeamId={interlajeCompetitionBadgesByTeamId}
+      hasInterlajeCompetitionProjectedPlacement={
+        hasInterlajeCompetitionProjectedPlacement
+      }
+      hasInterlajeOverallProjectedPlacement={interlajeOverallStandings.some(
+        (standing) => standing.has_projected_placement_points,
+      )}
       pendingTieBreakTeamIds={
         isInterlajeOverallStandingsView
           ? interlajeOverallPendingTieBreakTeamIds

@@ -68,7 +68,7 @@ export const INTERLAJE_VOLLEYBALL_RULE: PlatformSportRule = {
   pointsLoss: 0,
   resultRule: ChampionshipSportResultRule.SETS,
   tieBreakerRule: ChampionshipSportTieBreakerRule.POINTS_AVERAGE,
-  supportsCards: false,
+  supportsCards: true,
   tieBreakerPriority: [
     "Maior número de vitórias",
     "Maior saldo de sets",

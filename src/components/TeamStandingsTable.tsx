@@ -7,17 +7,20 @@ import {
 } from "@/lib/standings";
 import { TableSkeleton } from "@/components/skeletons/TableSkeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Shuffle } from "lucide-react";
+import { CircleAlert, Shuffle } from "lucide-react";
 import { type ModalidadeConfig, type StandingsColumnKey, STANDINGS_COLUMN_LABELS, STANDINGS_COLUMN_TOOLTIPS } from "@/lib/modalidadeConfig";
 
 export interface TeamStandingsBadge {
   key: string;
   label: string;
+  mobileLabel?: string;
   className: string;
 }
 
+type TeamStandingsTableStanding = Omit<TeamStandingAggregate, "team_city">;
+
 interface Props {
-  standings: TeamStandingAggregate[];
+  standings: TeamStandingsTableStanding[];
   modalidadeConfig?: ModalidadeConfig;
   isLoading?: boolean;
   variant?: "full" | "public";
@@ -26,7 +29,19 @@ interface Props {
   disqualifiedTeamKeys?: ReadonlySet<string>;
   pendingTieBreakTeamIds?: ReadonlySet<string>;
   teamBadgesByTeamId?: ReadonlyMap<string, TeamStandingsBadge[]>;
+  showMobileBadgeLegend?: boolean;
 }
+
+const MOBILE_BADGE_LEGEND_LABEL_BY_KEY: Record<string, string> = {
+  "confirmed-placement": "Colocação confirmada",
+  "projected-placement": "Colocação projetada",
+  "opening-bonus": "Bônus de abertura",
+  "walkover-penalty": "Desconto por W.O.",
+  "pending-tie-break": "Desempate pendente",
+};
+
+const PENDING_TIE_BREAK_BADGE_CLASS_NAME =
+  "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300";
 
 function resolveTopPlacementRowClass(position: number): string {
   if (position == 1) {
@@ -44,7 +59,7 @@ function resolveTopPlacementRowClass(position: number): string {
   return "hover:bg-secondary/20";
 }
 
-function renderCell(col: StandingsColumnKey, standing: TeamStandingAggregate): React.ReactNode {
+function renderCell(col: StandingsColumnKey, standing: TeamStandingsTableStanding): React.ReactNode {
   switch (col) {
     case "J": return standing.played;
     case "V": return standing.wins;
@@ -74,6 +89,7 @@ export function TeamStandingsTable({
   disqualifiedTeamKeys,
   pendingTieBreakTeamIds,
   teamBadgesByTeamId,
+  showMobileBadgeLegend = false,
 }: Props) {
   if (isLoading) {
   const columnsCount =
@@ -97,9 +113,48 @@ export function TeamStandingsTable({
   const isPublic = variant === "public";
   const activeColumns = modalidadeConfig?.display_columns ?? DEFAULT_COLUMNS;
   const orderedStandings = moveDisqualifiedStandingsToBottom(standings, disqualifiedTeamKeys);
+  const mobileBadgeLegendByKey = new Map<string, TeamStandingsBadge>();
+
+  if (showMobileBadgeLegend) {
+    orderedStandings.forEach((standing) => {
+      teamBadgesByTeamId?.get(standing.team_id)?.forEach((badge) => {
+        mobileBadgeLegendByKey.set(badge.key, badge);
+      });
+
+      if (pendingTieBreakTeamIds?.has(standing.team_id)) {
+        mobileBadgeLegendByKey.set("pending-tie-break", {
+          key: "pending-tie-break",
+          label: "Desempate geral pendente",
+          className: PENDING_TIE_BREAK_BADGE_CLASS_NAME,
+        });
+      }
+    });
+  }
+
+  const mobileBadgeLegend = Array.from(mobileBadgeLegendByKey.values());
 
   return (
     <div className="glass-panel enter-section overflow-hidden">
+      {showMobileBadgeLegend && mobileBadgeLegend.length > 0 ? (
+        <div className="space-y-2 border-b border-border/60 px-3 py-2 sm:hidden">
+          <p className="text-[10px] text-center font-medium uppercase tracking-wide text-muted-foreground">
+            Legenda dos badges
+          </p>
+          <div className="flex flex-wrap justify-center gap-x-3 gap-y-1.5">
+            {mobileBadgeLegend.map((badge) => (
+              <span
+                key={badge.key}
+                className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground"
+              >
+                <span
+                  className={`h-2 w-2 shrink-0 rounded-full border ${badge.className}`}
+                />
+                {MOBILE_BADGE_LEGEND_LABEL_BY_KEY[badge.key] ?? badge.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <Table>
         <TableHeader>
           <TableRow className="bg-secondary/40">
@@ -136,37 +191,51 @@ export function TeamStandingsTable({
                   {standingIndex + 1}
                 </TableCell>
                 <TableCell className="font-display font-semibold">
-                  <div className="flex items-center gap-2">
-                    {standing.team_name}
-                    {groupLabel && (
-                      <span className="inline-flex items-center rounded-full border border-muted-foreground/20 bg-secondary px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                        {groupLabel}
-                      </span>
-                    )}
-                    {isDrawWinner && (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-                        <Shuffle className="h-3 w-3" />
-                        Desempate por sorteio
-                      </span>
-                    )}
-                    {hasPendingTieBreak && (
-                      <span className="inline-flex items-center rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
-                        Desempate geral pendente
-                      </span>
-                    )}
-                    {isDisqualified && (
-                      <span className="inline-flex items-center rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 text-[10px] font-medium text-rose-600 dark:text-rose-300">
-                        Desclassificada
-                      </span>
-                    )}
-                    {teamBadges.map((badge) => (
-                      <span
-                        key={badge.key}
-                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${badge.className}`}
-                      >
-                        {badge.label}
-                      </span>
-                    ))}
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="shrink-0 whitespace-nowrap">
+                      {standing.team_name}
+                    </span>
+                    <div data-testid={`team-standing-badges-${standing.team_id}`} className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 sm:gap-2">
+                      {groupLabel && (
+                        <span className="inline-flex shrink-0 whitespace-nowrap items-center rounded-full border border-muted-foreground/20 bg-secondary px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                          {groupLabel}
+                        </span>
+                      )}
+                      {isDrawWinner && (
+                        <span className="inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                          <Shuffle className="h-3 w-3" />
+                          Desempate por sorteio
+                        </span>
+                      )}
+                      {hasPendingTieBreak && (
+                        <span className={`inline-flex h-6 shrink-0 items-center justify-center whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-medium ${PENDING_TIE_BREAK_BADGE_CLASS_NAME}`}>
+                          <span className={showMobileBadgeLegend ? "sm:hidden" : "hidden"}>
+                            <CircleAlert aria-label="Desempate pendente" className="h-3 w-3" />
+                          </span>
+                          <span className={`whitespace-nowrap ${showMobileBadgeLegend ? "hidden sm:inline" : "inline"}`}>
+                            Desempate geral pendente
+                          </span>
+                        </span>
+                      )}
+                      {isDisqualified && (
+                        <span className="inline-flex shrink-0 whitespace-nowrap items-center rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 text-[10px] font-medium text-rose-600 dark:text-rose-300">
+                          Desclassificada
+                        </span>
+                      )}
+                      {teamBadges.map((badge) => (
+                        <span
+                          key={badge.key}
+                          className={`inline-flex shrink-0 whitespace-nowrap items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${badge.className}`}
+                        >
+                          <span className={showMobileBadgeLegend ? "sm:hidden" : "hidden"}>
+                            {badge.mobileLabel ?? badge.label}
+                          </span>
+                          <span className={`whitespace-nowrap ${showMobileBadgeLegend ? "hidden sm:inline" : "inline"}`}>
+                            {badge.label}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 </TableCell>
                 {!isPublic &&

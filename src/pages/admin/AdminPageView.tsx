@@ -821,6 +821,7 @@ export function AdminPageView({
             <TabsContent value={AdminPanelTab.CONTROL}>
               <AdminMatchControl
                 championshipId={selectedChampionship.id}
+                championshipCode={selectedChampionship.code}
                 seasonYear={selectedChampionship.current_season_year}
                 matches={liveAndScheduledMatches}
                 isInitialLoading={initialOperationalLoading}

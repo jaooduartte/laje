@@ -46,6 +46,7 @@ import type {
 import {
   AppBadgeTone,
   BracketPhase,
+  ChampionshipCode,
   ChampionshipSportResultRule,
   ChampionshipSportTieBreakerRule,
   ChampionshipStatus,
@@ -110,6 +111,7 @@ import {
 
 interface Props {
   championshipId: string;
+  championshipCode?: ChampionshipCode;
   seasonYear: number;
   matches: Match[];
   isInitialLoading?: boolean;
@@ -542,6 +544,26 @@ function isHandballMatch(match: Match): boolean {
   return resolveSportCode(match.sports?.name ?? "") == "HANDEBOL";
 }
 
+function isInterlajeVolleyballMatch(
+  match: Match,
+  championshipCode?: ChampionshipCode,
+): boolean {
+  return (
+    championshipCode == ChampionshipCode.INTERLAJE &&
+    resolveSportCode(match.sports?.name ?? "") == "VOLEIBOL"
+  );
+}
+
+function isRegulationInterlajeVolleyballScore(
+  homeSets: number,
+  awaySets: number,
+): boolean {
+  return (
+    (homeSets == 2 && (awaySets == 0 || awaySets == 1)) ||
+    (awaySets == 2 && (homeSets == 0 || homeSets == 1))
+  );
+}
+
 function resolveSetWins(matchSets: MatchSetInput[]) {
   return matchSets.reduce(
     (total, matchSet) => {
@@ -634,6 +656,7 @@ function SuspendedPlayersMatchAlert({
 
 export function AdminMatchControl({
   championshipId,
+  championshipCode,
   seasonYear,
   matches,
   isInitialLoading = false,
@@ -2497,6 +2520,19 @@ export function AdminMatchControl({
       return;
     }
 
+    if (
+      isInterlajeVolleyballMatch(match, championshipCode) &&
+      !isRegulationInterlajeVolleyballScore(
+        displayedSetWins.home_sets,
+        displayedSetWins.away_sets,
+      )
+    ) {
+      toast.error(
+        "No Voleibol do INTERLAJE, a partida deve terminar em 2 × 0 ou 2 × 1.",
+      );
+      return;
+    }
+
     const matchBracketContext = matchBracketContextByMatchId[match.id];
     const resolvedHomeScore = isSetMatch
       ? displayedSetWins.home_sets
@@ -3830,6 +3866,10 @@ export function AdminMatchControl({
               const hasCurrentSetScore =
                 Number(matchDraft.homeScore) > 0 ||
                 Number(matchDraft.awayScore) > 0;
+              const hasReachedInterlajeVolleyballSetLimit =
+                isInterlajeVolleyballMatch(match, championshipCode) &&
+                (displayedSetWins.home_sets >= 2 ||
+                  displayedSetWins.away_sets >= 2);
               const selectedWalkoverMode = resolveSelectedWalkoverMode(match);
               const hasWalkoverSelection =
                 selectedWalkoverMode != WALKOVER_MODE_NONE;
@@ -3927,7 +3967,11 @@ export function AdminMatchControl({
                         <Button
                           size="sm"
                           onClick={() => handleFinishSet(match)}
-                          disabled={!canManageScoreboard || !hasCurrentSetScore}
+                          disabled={
+                            !canManageScoreboard ||
+                            !hasCurrentSetScore ||
+                            hasReachedInterlajeVolleyballSetLimit
+                          }
                           className="!bg-amber-500 !text-white hover:!bg-amber-400"
                         >
                           <Square className="h-3 w-3 sm:mr-1" />
