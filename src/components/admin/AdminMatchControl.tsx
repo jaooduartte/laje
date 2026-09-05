@@ -789,6 +789,8 @@ export function AdminMatchControl({
   const [sessionActionLoadingById, setSessionActionLoadingById] = useState<
     Record<string, boolean>
   >({});
+  const [matchCompletionLoadingById, setMatchCompletionLoadingById] =
+    useState<Record<string, boolean>>({});
   const [sessionParticipantsBySessionId, setSessionParticipantsBySessionId] =
     useState<Record<string, Team[]>>({});
   const [sessionParticipantsLoading, setSessionParticipantsLoading] =
@@ -828,6 +830,7 @@ export function AdminMatchControl({
     Record<string, ReturnType<typeof setTimeout> | undefined>
   >({});
   const hasHandledPaginationScrollRef = useRef(false);
+  const matchCompletionLoadingByIdRef = useRef<Record<string, boolean>>({});
   const hasInitializedPaginationRefetchRef = useRef(false);
 
   useEffect(() => {
@@ -2250,11 +2253,20 @@ export function AdminMatchControl({
     onRefetch();
   };
 
+  const setMatchCompletionLoading = (matchId: string, isLoading: boolean) => {
+    matchCompletionLoadingByIdRef.current[matchId] = isLoading;
+    setMatchCompletionLoadingById((current) => ({
+      ...current,
+      [matchId]: isLoading,
+    }));
+  };
+
   const handleFinishSet = async (match: Match) => {
     if (
       !canManageScoreboard ||
       match.status != MatchStatus.LIVE ||
-      !isSetRuleMatch(match)
+      !isSetRuleMatch(match) ||
+      matchCompletionLoadingByIdRef.current[match.id]
     ) {
       return;
     }
@@ -2275,55 +2287,61 @@ export function AdminMatchControl({
 
     cancelPendingAutosave(match.id);
 
-    const closedMatchSets = resolveClosedMatchSets(match);
-    const nextMatchSets = [
-      ...closedMatchSets,
-      {
-        set_number: closedMatchSets.length + 1,
-        home_points: homePoints,
-        away_points: awayPoints,
-      },
-    ];
-    const resolvedSetWins = await persistMatchSets(match, nextMatchSets);
+    setMatchCompletionLoading(match.id, true);
 
-    if (!resolvedSetWins) {
-      return;
+    try {
+      const closedMatchSets = resolveClosedMatchSets(match);
+      const nextMatchSets = [
+        ...closedMatchSets,
+        {
+          set_number: closedMatchSets.length + 1,
+          home_points: homePoints,
+          away_points: awayPoints,
+        },
+      ];
+      const resolvedSetWins = await persistMatchSets(match, nextMatchSets);
+
+      if (!resolvedSetWins) {
+        return;
+      }
+
+      const { error } = await supabase
+        .from("matches")
+        .update({
+          home_score: resolvedSetWins.home_sets,
+          away_score: resolvedSetWins.away_sets,
+          current_set_home_score: 0,
+          current_set_away_score: 0,
+        })
+        .eq("id", match.id);
+
+      if (error) {
+        toast.error(resolveAdminMatchControlErrorMessage(error, error.message), {
+          id: "admin-match-control-migration-required",
+        });
+        return;
+      }
+
+      setMatchSetsByMatchId((currentMatchSetsByMatchId) => ({
+        ...currentMatchSetsByMatchId,
+        [match.id]: nextMatchSets,
+      }));
+      setMatchDraftById((currentMatchDraftById) => ({
+        ...currentMatchDraftById,
+        [match.id]: {
+          ...currentMatchDraft,
+          homeScore: 0,
+          awayScore: 0,
+        },
+      }));
+      clearPersistedMatchDraft(match.id);
+      setDraftDirty(match.id, false);
+
+      await onRefetch();
+      toast.success(`Set ${nextMatchSets.length} encerrado.`);
+    } finally {
+      setMatchCompletionLoading(match.id, false);
     }
-
-    const { error } = await supabase
-      .from("matches")
-      .update({
-        home_score: resolvedSetWins.home_sets,
-        away_score: resolvedSetWins.away_sets,
-        current_set_home_score: 0,
-        current_set_away_score: 0,
-      })
-      .eq("id", match.id);
-
-    if (error) {
-      toast.error(resolveAdminMatchControlErrorMessage(error, error.message), {
-        id: "admin-match-control-migration-required",
-      });
-      return;
-    }
-
-    setMatchSetsByMatchId((currentMatchSetsByMatchId) => ({
-      ...currentMatchSetsByMatchId,
-      [match.id]: nextMatchSets,
-    }));
-    setMatchDraftById((currentMatchDraftById) => ({
-      ...currentMatchDraftById,
-      [match.id]: {
-        ...currentMatchDraft,
-        homeScore: 0,
-        awayScore: 0,
-      },
-    }));
-    clearPersistedMatchDraft(match.id);
-    setDraftDirty(match.id, false);
-
-    toast.success(`Set ${nextMatchSets.length} encerrado.`);
-    onRefetch();
   };
 
   const handleReturnToScheduled = async (match: Match) => {
@@ -2510,8 +2528,8 @@ export function AdminMatchControl({
       clearWalkoverSelection(match.id);
       setDraftDirty(match.id, false);
 
+      await onRefetch();
       toast.success("Jogo encerrado por W.O.! Classificação atualizada.");
-      onRefetch();
       onRefetchChampionshipBracket();
       return;
     }
@@ -2613,8 +2631,8 @@ export function AdminMatchControl({
     clearWalkoverSelection(match.id);
     setDraftDirty(match.id, false);
 
+    await onRefetch();
     toast.success("Jogo encerrado por W.O.! Classificação atualizada.");
-    onRefetch();
     onRefetchChampionshipBracket();
   };
 
@@ -2639,14 +2657,22 @@ export function AdminMatchControl({
       awayPenaltyScore: number;
     },
   ) => {
-    if (!canManageScoreboard) {
+    if (
+      !canManageScoreboard ||
+      matchCompletionLoadingByIdRef.current[match.id]
+    ) {
       return;
     }
 
     const selectedWalkoverMode = resolveSelectedWalkoverMode(match);
 
     if (selectedWalkoverMode !== WALKOVER_MODE_NONE) {
-      await handleFinishWithWalkover(match, selectedWalkoverMode);
+      setMatchCompletionLoading(match.id, true);
+      try {
+        await handleFinishWithWalkover(match, selectedWalkoverMode);
+      } finally {
+        setMatchCompletionLoading(match.id, false);
+      }
       return;
     }
 
@@ -2712,88 +2738,95 @@ export function AdminMatchControl({
       return;
     }
 
-    const matchSaved = await flushPendingAutosave(match, currentMatchDraft);
+    setMatchCompletionLoading(match.id, true);
 
-    if (!matchSaved) {
-      toast.error(
-        "Não foi possível salvar os dados antes de finalizar o jogo.",
-      );
-      return;
+    try {
+      const matchSaved = await flushPendingAutosave(match, currentMatchDraft);
+
+      if (!matchSaved) {
+        toast.error(
+          "Não foi possível salvar os dados antes de finalizar o jogo.",
+        );
+        return;
+      }
+
+      const resolvedPenaltyShootoutWinnerTeamId =
+        shouldUseSocietyPenaltyShootout && penaltyShootoutScores
+          ? resolvePenaltyShootoutWinnerTeamId(
+              match,
+              penaltyShootoutScores.homePenaltyScore,
+              penaltyShootoutScores.awayPenaltyScore,
+            )
+          : null;
+
+      const { error } = await supabase
+        .from("matches")
+        .update({
+          ...resolveMatchUpdatePayload(match, currentMatchDraft, {
+            supportsCards,
+            isHandball: handballMatch,
+            shouldUseCurrentSetScore: isSetMatch,
+          }),
+          home_score: resolvedHomeScore,
+          away_score: resolvedAwayScore,
+          current_set_home_score: isSetMatch ? null : null,
+          current_set_away_score: isSetMatch ? null : null,
+          home_yellow_cards: supportsCards
+            ? Math.max(0, currentMatchDraft.homeYellowCards)
+            : 0,
+          home_red_cards: supportsCards
+            ? Math.max(0, currentMatchDraft.homeRedCards)
+            : 0,
+          home_blue_cards: handballMatch
+            ? Math.max(0, currentMatchDraft.homeBlueCards)
+            : 0,
+          home_two_minute_penalties: handballMatch
+            ? Math.max(0, currentMatchDraft.homeTwoMinutePenalties)
+            : 0,
+          away_yellow_cards: supportsCards
+            ? Math.max(0, currentMatchDraft.awayYellowCards)
+            : 0,
+          away_red_cards: supportsCards
+            ? Math.max(0, currentMatchDraft.awayRedCards)
+            : 0,
+          away_blue_cards: handballMatch
+            ? Math.max(0, currentMatchDraft.awayBlueCards)
+            : 0,
+          away_two_minute_penalties: handballMatch
+            ? Math.max(0, currentMatchDraft.awayTwoMinutePenalties)
+            : 0,
+          home_penalty_score: penaltyShootoutScores?.homePenaltyScore ?? null,
+          away_penalty_score: penaltyShootoutScores?.awayPenaltyScore ?? null,
+          resolved_tie_breaker_rule: resolvedPenaltyShootoutWinnerTeamId
+            ? ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY
+            : null,
+          resolved_tie_break_winner_team_id:
+            resolvedPenaltyShootoutWinnerTeamId,
+          end_time: new Date().toISOString(),
+          status: MatchStatus.FINISHED,
+          is_walkover: false,
+          is_double_walkover: false,
+          walkover_loser_team_id: null,
+        })
+        .eq("id", match.id);
+
+      if (error) {
+        toast.error(resolveAdminMatchControlErrorMessage(error, error.message), {
+          id: "admin-match-control-migration-required",
+        });
+        return;
+      }
+
+      if (showPenaltyShootoutDialog) {
+        closePenaltyShootoutDialog();
+      }
+
+      await onRefetch();
+      toast.success("Jogo finalizado! Classificação atualizada.");
+      onRefetchChampionshipBracket();
+    } finally {
+      setMatchCompletionLoading(match.id, false);
     }
-
-    const resolvedPenaltyShootoutWinnerTeamId =
-      shouldUseSocietyPenaltyShootout && penaltyShootoutScores
-        ? resolvePenaltyShootoutWinnerTeamId(
-            match,
-            penaltyShootoutScores.homePenaltyScore,
-            penaltyShootoutScores.awayPenaltyScore,
-          )
-        : null;
-
-    const { error } = await supabase
-      .from("matches")
-      .update({
-        ...resolveMatchUpdatePayload(match, currentMatchDraft, {
-          supportsCards,
-          isHandball: handballMatch,
-          shouldUseCurrentSetScore: isSetMatch,
-        }),
-        home_score: resolvedHomeScore,
-        away_score: resolvedAwayScore,
-        current_set_home_score: isSetMatch ? null : null,
-        current_set_away_score: isSetMatch ? null : null,
-        home_yellow_cards: supportsCards
-          ? Math.max(0, currentMatchDraft.homeYellowCards)
-          : 0,
-        home_red_cards: supportsCards
-          ? Math.max(0, currentMatchDraft.homeRedCards)
-          : 0,
-        home_blue_cards: handballMatch
-          ? Math.max(0, currentMatchDraft.homeBlueCards)
-          : 0,
-        home_two_minute_penalties: handballMatch
-          ? Math.max(0, currentMatchDraft.homeTwoMinutePenalties)
-          : 0,
-        away_yellow_cards: supportsCards
-          ? Math.max(0, currentMatchDraft.awayYellowCards)
-          : 0,
-        away_red_cards: supportsCards
-          ? Math.max(0, currentMatchDraft.awayRedCards)
-          : 0,
-        away_blue_cards: handballMatch
-          ? Math.max(0, currentMatchDraft.awayBlueCards)
-          : 0,
-        away_two_minute_penalties: handballMatch
-          ? Math.max(0, currentMatchDraft.awayTwoMinutePenalties)
-          : 0,
-        home_penalty_score: penaltyShootoutScores?.homePenaltyScore ?? null,
-        away_penalty_score: penaltyShootoutScores?.awayPenaltyScore ?? null,
-        resolved_tie_breaker_rule: resolvedPenaltyShootoutWinnerTeamId
-          ? ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY
-          : null,
-        resolved_tie_break_winner_team_id: resolvedPenaltyShootoutWinnerTeamId,
-        end_time: new Date().toISOString(),
-        status: MatchStatus.FINISHED,
-        is_walkover: false,
-        is_double_walkover: false,
-        walkover_loser_team_id: null,
-      })
-      .eq("id", match.id);
-
-    if (error) {
-      toast.error(resolveAdminMatchControlErrorMessage(error, error.message), {
-        id: "admin-match-control-migration-required",
-      });
-      return;
-    }
-
-    if (showPenaltyShootoutDialog) {
-      closePenaltyShootoutDialog();
-    }
-
-    toast.success("Jogo finalizado! Classificação atualizada.");
-    onRefetch();
-    onRefetchChampionshipBracket();
   };
 
   const handleConfirmPenaltyShootout = async () => {
@@ -3999,6 +4032,8 @@ export function AdminMatchControl({
                 isInterlajeVolleyballMatch(match, championshipCode) &&
                 (displayedSetWins.home_sets >= 2 ||
                   displayedSetWins.away_sets >= 2);
+              const isMatchCompletionLoading =
+                matchCompletionLoadingById[match.id] == true;
               const selectedWalkoverMode = resolveSelectedWalkoverMode(match);
               const hasWalkoverSelection =
                 selectedWalkoverMode != WALKOVER_MODE_NONE;
@@ -4020,7 +4055,10 @@ export function AdminMatchControl({
               return (
                 <div
                   key={match.id}
+                  aria-busy={isMatchCompletionLoading}
                   className={`order-2 space-y-4 list-item-card admin-match-control-card p-5 ${
+                    isMatchCompletionLoading ? "pointer-events-none" : ""
+                  } ${
                     match.status == MatchStatus.LIVE
                       ? "list-item-card-live admin-match-control-live-card"
                       : "admin-match-control-scheduled-card"
@@ -4045,7 +4083,9 @@ export function AdminMatchControl({
                                 value as WalkoverMode,
                               )
                             }
-                            disabled={!canManageScoreboard}
+                            disabled={
+                              !canManageScoreboard || isMatchCompletionLoading
+                            }
                           >
                             <SelectTrigger
                               aria-labelledby={`match-walkover-label-${match.id}`}
@@ -4083,7 +4123,9 @@ export function AdminMatchControl({
                             setPendingReturnToScheduledMatch(match);
                             setShowReturnToScheduledConfirmDialog(true);
                           }}
-                          disabled={!canManageScoreboard}
+                          disabled={
+                            !canManageScoreboard || isMatchCompletionLoading
+                          }
                         >
                           <RotateCcw className="h-3 w-3 sm:mr-1" />
                           <span className="hidden sm:inline">
@@ -4098,13 +4140,22 @@ export function AdminMatchControl({
                           onClick={() => handleFinishSet(match)}
                           disabled={
                             !canManageScoreboard ||
+                            isMatchCompletionLoading ||
                             !hasCurrentSetScore ||
                             hasReachedInterlajeVolleyballSetLimit
                           }
                           className="!bg-amber-500 !text-white hover:!bg-amber-400"
                         >
-                          <Square className="h-3 w-3 sm:mr-1" />
-                          <span className="hidden sm:inline">Fim do set</span>
+                          {isMatchCompletionLoading ? (
+                            <Loader2 className="h-3 w-3 animate-spin sm:mr-1" />
+                          ) : (
+                            <Square className="h-3 w-3 sm:mr-1" />
+                          )}
+                          <span className="hidden sm:inline">
+                            {isMatchCompletionLoading
+                              ? "Processando"
+                              : "Fim do set"}
+                          </span>
                         </Button>
                       ) : null}
 
@@ -4118,14 +4169,21 @@ export function AdminMatchControl({
                           }}
                           disabled={
                             !canManageScoreboard ||
+                            isMatchCompletionLoading ||
                             (isSetMatch &&
                               !hasWalkoverSelection &&
                               closedMatchSets.length == 0)
                           }
                         >
-                          <Square className="h-3 w-3 sm:mr-1" />
+                          {isMatchCompletionLoading ? (
+                            <Loader2 className="h-3 w-3 animate-spin sm:mr-1" />
+                          ) : (
+                            <Square className="h-3 w-3 sm:mr-1" />
+                          )}
                           <span className="hidden sm:inline">
-                            {hasWalkoverSelection
+                            {isMatchCompletionLoading
+                              ? "Processando"
+                              : hasWalkoverSelection
                               ? "Encerrar W.O."
                               : "Finalizar"}
                           </span>

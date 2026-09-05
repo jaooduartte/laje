@@ -334,8 +334,9 @@ function renderAdminMatchControl(params: {
   isFullQueueVisible?: boolean;
   fullQueueItemsCount?: number | null;
   onFullQueueVisibleChange?: (isVisible: boolean) => void;
+  onRefetch?: () => void | Promise<void>;
 }) {
-  const onRefetch = vi.fn();
+  const onRefetch = params.onRefetch ?? vi.fn();
   const onRefetchChampionshipBracket = vi.fn();
   const renderResult = render(
     <AdminMatchControl
@@ -2847,6 +2848,61 @@ describe("AdminMatchControl", () => {
     expect(toastSuccessMock).toHaveBeenCalledWith("Set 1 encerrado.");
   });
 
+  it("mantém o botão Fim do set em processamento até atualizar a partida", async () => {
+    const match = buildMatch({
+      id: "live-set-loading-match",
+      sport_id: "sport-set-loading",
+      status: MatchStatus.LIVE,
+      home_team: buildTeam({ id: "home-set-loading", name: "Atlética Set Processando Casa" }),
+      away_team: buildTeam({ id: "away-set-loading", name: "Atlética Set Processando Visitante" }),
+    });
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-set-loading",
+      sport_id: "sport-set-loading",
+      result_rule: ChampionshipSportResultRule.SETS,
+    });
+    let resolveRefetch: (() => void) | undefined;
+    const onRefetch = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveRefetch = resolve;
+        }),
+    );
+    renderAdminMatchControl({
+      matches: [match],
+      championshipSports: [championshipSport],
+      onRefetch,
+    });
+
+    const matchCardElement = resolveMatchCardElement("Atlética Set Processando Casa");
+    const scoreInputs = within(matchCardElement).getAllByRole("spinbutton");
+
+    await act(async () => {
+      fireEvent.change(scoreInputs[0] as HTMLElement, {
+        target: { value: "21" },
+      });
+      fireEvent.change(scoreInputs[1] as HTMLElement, {
+        target: { value: "15" },
+      });
+      fireEvent.click(within(matchCardElement).getByRole("button", { name: /fim do set/i }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(onRefetch).toHaveBeenCalledTimes(1);
+    expect(matchCardElement).toHaveAttribute("aria-busy", "true");
+    expect(
+      within(matchCardElement).getAllByRole("button", { name: /processando/i }),
+    ).toHaveLength(2);
+
+    await act(async () => {
+      resolveRefetch?.();
+      await Promise.resolve();
+    });
+
+    expect(matchCardElement).toHaveAttribute("aria-busy", "false");
+  });
+
   it("limita o Voleibol do INTERLAJE a três sets", () => {
     const match = buildMatch({
       id: "interlaje-volleyball-complete-match",
@@ -3006,6 +3062,54 @@ describe("AdminMatchControl", () => {
     expect(typeof supabaseUpdateCalls.at(-1)?.payload.end_time).toBe("string");
     expect(toastSuccessMock).toHaveBeenCalledWith("Jogo finalizado! Classificação atualizada.");
     expect(onRefetch).toHaveBeenCalledTimes(1);
+    expect(onRefetchChampionshipBracket).toHaveBeenCalledTimes(1);
+  });
+
+  it("mantém o botão Finalizar em processamento até atualizar o resultado", async () => {
+    const match = buildMatch({
+      id: "finish-loading-match",
+      sport_id: "sport-finish-loading",
+      status: MatchStatus.LIVE,
+      home_score: 2,
+      away_score: 1,
+      home_team: buildTeam({ id: "home-finish-loading", name: "Atlética Finalizar Processando Casa" }),
+      away_team: buildTeam({ id: "away-finish-loading", name: "Atlética Finalizar Processando Visitante" }),
+    });
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-finish-loading",
+      sport_id: "sport-finish-loading",
+      result_rule: ChampionshipSportResultRule.POINTS,
+    });
+    let resolveRefetch: (() => void) | undefined;
+    const onRefetch = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveRefetch = resolve;
+        }),
+    );
+    const { onRefetchChampionshipBracket } = renderAdminMatchControl({
+      matches: [match],
+      championshipSports: [championshipSport],
+      onRefetch,
+    });
+
+    const matchCardElement = resolveMatchCardElement("Atlética Finalizar Processando Casa");
+
+    await act(async () => {
+      fireEvent.click(within(matchCardElement).getByRole("button", { name: /finalizar/i }));
+    });
+    await confirmFinishDialog();
+
+    expect(onRefetch).toHaveBeenCalledTimes(1);
+    expect(matchCardElement).toHaveAttribute("aria-busy", "true");
+    expect(within(matchCardElement).getByRole("button", { name: /processando/i })).toBeDisabled();
+
+    await act(async () => {
+      resolveRefetch?.();
+      await Promise.resolve();
+    });
+
+    expect(matchCardElement).toHaveAttribute("aria-busy", "false");
     expect(onRefetchChampionshipBracket).toHaveBeenCalledTimes(1);
   });
 });
