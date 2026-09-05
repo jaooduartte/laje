@@ -57,6 +57,7 @@ import {
 import { scrollToTopOfPage } from "@/lib/scroll";
 import { shouldRenderMatchScheduleChange } from "@/components/admin/adminLogsMatchSlot.utils";
 import { resolveAdminProfileLogChanges } from "@/components/admin/adminLogsAdminProfile.utils";
+import { resolveWalkoverPenaltyCountChanges } from "@/components/admin/adminLogsWalkoverPenalty.utils";
 
 const ALL_USERS_FILTER = "ALL_USERS";
 const ALL_ACTIONS_FILTER = "ALL_ACTIONS";
@@ -329,6 +330,7 @@ function isAdminLogResourceTable(
   value: string,
 ): value is AdminLogResourceTable {
   return (
+    value == AdminLogResourceTable.ADMIN_PROFILES ||
     value == AdminLogResourceTable.CHAMPIONSHIPS ||
     value == AdminLogResourceTable.SPORTS ||
     value == AdminLogResourceTable.TEAMS ||
@@ -340,7 +342,11 @@ function isAdminLogResourceTable(
     value == AdminLogResourceTable.PUBLIC_LINK_ITEMS ||
     value == AdminLogResourceTable.CHAMPIONSHIP_BRACKET_WORKFLOW ||
     value == AdminLogResourceTable.AUTH_USERS ||
-    value == AdminLogResourceTable.PUBLIC_PAGE_ACCESS_SETTINGS
+    value == AdminLogResourceTable.PUBLIC_PAGE_ACCESS_SETTINGS ||
+    value == AdminLogResourceTable.CHAMPIONSHIP_OPENING_CEREMONY_BONUS_SETTINGS ||
+    value == AdminLogResourceTable.CHAMPIONSHIP_OVERALL_SCORE_ADJUSTMENTS ||
+    value == AdminLogResourceTable.CHAMPIONSHIP_WALKOVER_PENALTY_SETTINGS ||
+    value == AdminLogResourceTable.CHAMPIONSHIP_WALKOVER_PENALTY_COUNTS
   );
 }
 
@@ -746,8 +752,24 @@ function resolveChangedFields(
         nextValues[fieldName],
       );
     })
-    .map((fieldName) => {
+    .flatMap((fieldName) => {
       const fieldLabel = resolveFieldLabel(log.resource_table, fieldName);
+
+      if (
+        log.resource_table ==
+          AdminLogResourceTable.CHAMPIONSHIP_WALKOVER_PENALTY_COUNTS &&
+        fieldName == "counts"
+      ) {
+        const countChanges = resolveWalkoverPenaltyCountChanges(
+          previousValues[fieldName],
+          nextValues[fieldName],
+          teamNameById,
+        );
+
+        if (countChanges != null) {
+          return countChanges;
+        }
+      }
 
       const previousValueText = resolveFieldValueText(
         fieldName,
@@ -764,10 +786,10 @@ function resolveChangedFields(
         log.resource_table == AdminLogResourceTable.MATCHES &&
         MATCH_TEAM_FIELDS.has(fieldName)
       ) {
-        return `${fieldLabel}: ${previousValueText} para ${nextValueText}`;
+        return [`${fieldLabel}: ${previousValueText} para ${nextValueText}`];
       }
 
-      return `${fieldLabel}: ${previousValueText} para ${nextValueText}`;
+      return [`${fieldLabel}: ${previousValueText} para ${nextValueText}`];
     })
     .slice(0, MAXIMUM_LOG_CHANGES);
 }

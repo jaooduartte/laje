@@ -565,7 +565,7 @@ describe("AdminPageView tabs", () => {
     );
   });
 
-  it("mantém Configurações como última aba quando Reprogramar agenda está visível em revisão", () => {
+  it("mantém Configurações como última aba com as abas de agenda em revisão", () => {
     const championship = buildChampionship({ status: ChampionshipStatus.REVIEW });
     const match = buildMatch();
 
@@ -644,7 +644,8 @@ describe("AdminPageView tabs", () => {
 
     const tabLabels = screen.getAllByRole("tab").map((tab) => tab.textContent?.trim());
 
-    expect(tabLabels.at(-2)).toBe("Reprogramar agenda");
+    expect(tabLabels.at(-3)).toBe("Reprogramar agenda");
+    expect(tabLabels.at(-2)).toBe("Locais e intervalos");
     expect(tabLabels.at(-1)).toBe("Configurações");
   });
 

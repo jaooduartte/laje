@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface TimeInputProps {
@@ -68,7 +67,6 @@ export function TimeInput({
         className,
       )}
     >
-      <Clock className="mr-2 h-4 w-4 shrink-0 text-foreground/80 stroke-[2.25]" />
       <input
         id={id}
         type="text"

@@ -1,10 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type FocusEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   AlertTriangle,
   Check,
-  EyeOff,
   Loader2,
   Minus,
   Pencil,
@@ -173,6 +179,48 @@ type SaveStatus = "saving" | "saved" | "error";
 type MatchSide = "home" | "away";
 type CardColor = "yellow" | "red" | "blue" | "twoMinute";
 type WalkoverMode = "NONE" | "HOME_LOST" | "AWAY_LOST" | "DOUBLE";
+type MatchControlDraftField = keyof MatchControlDraft;
+
+function resolveMatchControlDraftScoreField(
+  side: MatchSide,
+): MatchControlDraftField {
+  return side == "home" ? "homeScore" : "awayScore";
+}
+
+const MATCH_CONTROL_DRAFT_CARD_FIELD_BY_SIDE_AND_COLOR = {
+  home: {
+    yellow: "homeYellowCards",
+    red: "homeRedCards",
+    blue: "homeBlueCards",
+    twoMinute: "homeTwoMinutePenalties",
+  },
+  away: {
+    yellow: "awayYellowCards",
+    red: "awayRedCards",
+    blue: "awayBlueCards",
+    twoMinute: "awayTwoMinutePenalties",
+  },
+} satisfies Record<MatchSide, Record<CardColor, MatchControlDraftField>>;
+
+function resolveMatchControlDraftCardField(
+  side: MatchSide,
+  color: CardColor,
+): MatchControlDraftField {
+  return MATCH_CONTROL_DRAFT_CARD_FIELD_BY_SIDE_AND_COLOR[side][color];
+}
+
+function selectInitialZeroValue(event: FocusEvent<HTMLInputElement>) {
+  if (event.currentTarget.value == "0") {
+    event.currentTarget.select();
+  }
+}
+
+function resolveMatchDraftFieldKey(
+  matchId: string,
+  field: MatchControlDraftField,
+) {
+  return `${matchId}-${field}`;
+}
 
 const SAVE_STATUS_LABELS: Record<SaveStatus, string> = {
   saving: "Salvando...",
@@ -680,6 +728,9 @@ export function AdminMatchControl({
   const [matchDraftById, setMatchDraftById] = useState<
     Record<string, MatchControlDraft>
   >({});
+  const [emptyMatchDraftFieldKeys, setEmptyMatchDraftFieldKeys] = useState(
+    () => new Set<string>(),
+  );
   const [isDraftDirtyByMatchId, setIsDraftDirtyByMatchId] = useState<
     Record<string, boolean>
   >({});
@@ -711,7 +762,6 @@ export function AdminMatchControl({
   const [courtFilter, setCourtFilter] = useState<string>(
     ALL_CONTROL_COURT_FILTER,
   );
-  const [showOnlyLiveMatches, setShowOnlyLiveMatches] = useState(false);
   const [showFinishConfirmDialog, setShowFinishConfirmDialog] = useState(false);
   const [pendingFinishMatch, setPendingFinishMatch] = useState<Match | null>(
     null,
@@ -1505,7 +1555,6 @@ export function AdminMatchControl({
     locationFilter,
     matches.length,
     naipeFilter,
-    showOnlyLiveMatches,
     sportFilter,
   ]);
 
@@ -1535,6 +1584,54 @@ export function AdminMatchControl({
     },
     [isSetRuleMatch, matchDraftById],
   );
+
+  const markMatchDraftFieldAsEmpty = (
+    matchId: string,
+    field: MatchControlDraftField,
+  ) => {
+    const fieldKey = resolveMatchDraftFieldKey(matchId, field);
+
+    setEmptyMatchDraftFieldKeys((currentEmptyFieldKeys) => {
+      if (currentEmptyFieldKeys.has(fieldKey)) {
+        return currentEmptyFieldKeys;
+      }
+
+      return new Set(currentEmptyFieldKeys).add(fieldKey);
+    });
+  };
+
+  const clearEmptyMatchDraftField = (
+    matchId: string,
+    field: MatchControlDraftField,
+  ) => {
+    const fieldKey = resolveMatchDraftFieldKey(matchId, field);
+
+    setEmptyMatchDraftFieldKeys((currentEmptyFieldKeys) => {
+      if (!currentEmptyFieldKeys.has(fieldKey)) {
+        return currentEmptyFieldKeys;
+      }
+
+      const nextEmptyFieldKeys = new Set(currentEmptyFieldKeys);
+      nextEmptyFieldKeys.delete(fieldKey);
+      return nextEmptyFieldKeys;
+    });
+  };
+
+  const getMatchDraftInputProps = (
+    matchId: string,
+    field: MatchControlDraftField,
+    value: number,
+  ) => {
+    return {
+      value: emptyMatchDraftFieldKeys.has(
+        resolveMatchDraftFieldKey(matchId, field),
+      )
+        ? ""
+        : value,
+      onFocus: selectInitialZeroValue,
+      onBlur: () => clearEmptyMatchDraftField(matchId, field),
+    };
+  };
 
   const resolveClosedMatchSets = useCallback(
     (match: Match) => {
@@ -1777,6 +1874,11 @@ export function AdminMatchControl({
       return;
     }
 
+    clearEmptyMatchDraftField(
+      match.id,
+      resolveMatchControlDraftScoreField(side),
+    );
+
     setMatchDraftById((previousMatchDraftById) => {
       const currentMatchDraft =
         previousMatchDraftById[match.id] ??
@@ -1813,7 +1915,17 @@ export function AdminMatchControl({
       return;
     }
 
+    const field = resolveMatchControlDraftScoreField(side);
+
+    if (value.length == 0) {
+      cancelPendingAutosave(match.id);
+      markMatchDraftFieldAsEmpty(match.id, field);
+      return;
+    }
+
     const parsedValue = parseNonNegativeNumber(value);
+
+    clearEmptyMatchDraftField(match.id, field);
 
     setMatchDraftById((previousMatchDraftById) => {
       const currentMatchDraft =
@@ -1845,6 +1957,11 @@ export function AdminMatchControl({
     if (match.status != MatchStatus.LIVE || !doesMatchSupportCards(match)) {
       return;
     }
+
+    clearEmptyMatchDraftField(
+      match.id,
+      resolveMatchControlDraftCardField(side, color),
+    );
 
     setMatchDraftById((previousMatchDraftById) => {
       const currentMatchDraft =
@@ -1915,7 +2032,17 @@ export function AdminMatchControl({
       return;
     }
 
+    const field = resolveMatchControlDraftCardField(side, color);
+
+    if (value.length == 0) {
+      cancelPendingAutosave(match.id);
+      markMatchDraftFieldAsEmpty(match.id, field);
+      return;
+    }
+
     const parsedValue = parseNonNegativeNumber(value);
+
+    clearEmptyMatchDraftField(match.id, field);
 
     setMatchDraftById((previousMatchDraftById) => {
       const currentMatchDraft =
@@ -2802,10 +2929,6 @@ export function AdminMatchControl({
         return false;
       }
 
-      if (showOnlyLiveMatches && match.status != MatchStatus.LIVE) {
-        return false;
-      }
-
       if (
         usesDivisions &&
         divisionFilter !== ALL_CONTROL_DIVISION_FILTER &&
@@ -2816,7 +2939,7 @@ export function AdminMatchControl({
 
       return true;
     });
-  }, [divisionFilter, matches, naipeFilter, showOnlyLiveMatches, sportFilter, usesDivisions]);
+  }, [divisionFilter, matches, naipeFilter, sportFilter, usesDivisions]);
 
   const groupOptions = useMemo(() => {
     const eligibleMatchIds = new Set(
@@ -3418,9 +3541,9 @@ export function AdminMatchControl({
           )}
         </div>
 
-        <div className="grid grid-cols-12 gap-3 sm:flex sm:flex-wrap sm:items-stretch">
+        <div className="grid grid-cols-1 gap-3 sm:flex sm:flex-wrap sm:items-stretch">
           {usesDivisions && divisionOptions.length > 0 ? (
-            <div className="col-span-6 min-w-0 sm:min-w-40 sm:flex-1">
+            <div className="min-w-0 sm:min-w-40 sm:flex-1">
               <Select value={divisionFilter} onValueChange={setDivisionFilter}>
                 <SelectTrigger
                   aria-label="Filtrar por divisão no controle ao vivo"
@@ -3442,7 +3565,7 @@ export function AdminMatchControl({
             </div>
           ) : null}
 
-          <div className="col-span-6 min-w-0 sm:min-w-40 sm:flex-1">
+          <div className="min-w-0 sm:min-w-40 sm:flex-1">
             <Select value={naipeFilter} onValueChange={setNaipeFilter}>
               <SelectTrigger
                 aria-label="Filtrar por naipe no controle ao vivo"
@@ -3463,7 +3586,7 @@ export function AdminMatchControl({
             </Select>
           </div>
 
-          <div className="col-span-6 min-w-0 sm:min-w-40 sm:flex-1">
+          <div className="min-w-0 sm:min-w-40 sm:flex-1">
             <Select value={groupFilter} onValueChange={setGroupFilter}>
               <SelectTrigger
                 aria-label="Filtrar por grupo no controle ao vivo"
@@ -3487,7 +3610,7 @@ export function AdminMatchControl({
             </Select>
           </div>
 
-          <div className="col-span-12 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2.5rem] gap-3 sm:contents">
+          <div className="contents">
             <div className="min-w-0 sm:min-w-40 sm:flex-1">
               <Select value={locationFilter} onValueChange={setLocationFilter}>
                 <SelectTrigger
@@ -3529,25 +3652,6 @@ export function AdminMatchControl({
                 </SelectContent>
               </Select>
             </div>
-
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            onClick={() =>
-              setShowOnlyLiveMatches(
-                (currentShowOnlyLiveMatches) => !currentShowOnlyLiveMatches,
-              )
-            }
-            className={`h-10 w-10 ${showOnlyLiveMatches ? "app-button-secondary-active" : ""}`}
-            aria-label={
-              showOnlyLiveMatches
-                ? "Mostrar jogos agendados também"
-                : "Ocultar jogos que não estão ao vivo"
-            }
-          >
-            <EyeOff className="h-4 w-4" />
-          </Button>
           </div>
         </div>
       </div>
@@ -3586,11 +3690,9 @@ export function AdminMatchControl({
         ) : sortedMatches.length == 0 &&
           visibleIndividualSessions.length == 0 ? (
           <p className="order-3 flex min-h-48 w-full items-center justify-center px-4 text-center text-sm text-muted-foreground">
-            {showOnlyLiveMatches
-              ? "Nenhum jogo ao vivo para os filtros selecionados."
-              : isFullQueueVisible
-                ? "Nenhum jogo agendado na fila completa."
-                : "Nenhum jogo agendado para hoje."}
+            {isFullQueueVisible
+              ? "Nenhum jogo agendado na fila completa."
+              : "Nenhum jogo agendado para hoje."}
           </p>
         ) : (
           <>
@@ -4159,7 +4261,11 @@ export function AdminMatchControl({
 
                         <Input
                           type="number"
-                          value={displayedHomeScore}
+                          {...getMatchDraftInputProps(
+                            match.id,
+                            "homeScore",
+                            displayedHomeScore,
+                          )}
                           onChange={(event) =>
                             updateManualInputScore(
                               match,
@@ -4208,7 +4314,11 @@ export function AdminMatchControl({
 
                         <Input
                           type="number"
-                          value={displayedAwayScore}
+                          {...getMatchDraftInputProps(
+                            match.id,
+                            "awayScore",
+                            displayedAwayScore,
+                          )}
                           onChange={(event) =>
                             updateManualInputScore(
                               match,
@@ -4263,7 +4373,11 @@ export function AdminMatchControl({
 
                         <Input
                           type="number"
-                          value={displayedHomeScore}
+                          {...getMatchDraftInputProps(
+                            match.id,
+                            "homeScore",
+                            displayedHomeScore,
+                          )}
                           onChange={(event) =>
                             updateManualInputScore(
                               match,
@@ -4312,7 +4426,11 @@ export function AdminMatchControl({
 
                         <Input
                           type="number"
-                          value={displayedAwayScore}
+                          {...getMatchDraftInputProps(
+                            match.id,
+                            "awayScore",
+                            displayedAwayScore,
+                          )}
                           onChange={(event) =>
                             updateManualInputScore(
                               match,
@@ -4516,35 +4634,22 @@ export function AdminMatchControl({
                                   className="space-y-1"
                                 >
                                   <p
-                                    className={`truncate text-[10px] font-semibold uppercase ${counter.className}`}
+                                    className={`min-h-6 text-center text-[10px] font-semibold uppercase leading-3 ${counter.className}`}
                                   >
                                     {counter.label}
                                   </p>
 
-                                  <div className="grid grid-cols-[2.75rem_3rem_2.75rem] items-center justify-center gap-1.5">
-                                    <Button
-                                      size="icon"
-                                      variant="outline"
-                                      className="h-10 w-11"
-                                      onClick={() =>
-                                        updateCards(
-                                          match,
-                                          teamColumn.side,
-                                          counter.color,
-                                          -1,
-                                        )
-                                      }
-                                      disabled={
-                                        match.status != MatchStatus.LIVE ||
-                                        !canManageScoreboard
-                                      }
-                                    >
-                                      <Minus className="h-3 w-3" />
-                                    </Button>
-
+                                  <div className="flex flex-col items-center gap-2">
                                     <Input
                                       type="number"
-                                      value={counter.value}
+                                      {...getMatchDraftInputProps(
+                                        match.id,
+                                        resolveMatchControlDraftCardField(
+                                          teamColumn.side,
+                                          counter.color,
+                                        ),
+                                        counter.value,
+                                      )}
                                       onChange={(event) =>
                                         updateManualInputCards(
                                           match,
@@ -4553,32 +4658,54 @@ export function AdminMatchControl({
                                           event.target.value,
                                         )
                                       }
-                                      className="h-10 w-12 app-input-field px-1 text-center font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                      className="h-14 w-16 app-input-field px-1 text-center text-lg font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                       disabled={
                                         match.status != MatchStatus.LIVE ||
                                         !canManageScoreboard
                                       }
                                     />
 
-                                    <Button
-                                      size="icon"
-                                      variant="outline"
-                                      className="h-10 w-11"
-                                      onClick={() =>
-                                        updateCards(
-                                          match,
-                                          teamColumn.side,
-                                          counter.color,
-                                          1,
-                                        )
-                                      }
-                                      disabled={
-                                        match.status != MatchStatus.LIVE ||
-                                        !canManageScoreboard
-                                      }
-                                    >
-                                      <Plus className="h-3 w-3" />
-                                    </Button>
+                                    <div className="flex">
+                                      <Button
+                                        size="icon"
+                                        variant="outline"
+                                        className="h-11 w-14 rounded-r-none"
+                                        onClick={() =>
+                                          updateCards(
+                                            match,
+                                            teamColumn.side,
+                                            counter.color,
+                                            -1,
+                                          )
+                                        }
+                                        disabled={
+                                          match.status != MatchStatus.LIVE ||
+                                          !canManageScoreboard
+                                        }
+                                      >
+                                        <Minus className="h-4 w-4" />
+                                      </Button>
+
+                                      <Button
+                                        size="icon"
+                                        variant="outline"
+                                        className="h-11 w-14 rounded-l-none border-l-0"
+                                        onClick={() =>
+                                          updateCards(
+                                            match,
+                                            teamColumn.side,
+                                            counter.color,
+                                            1,
+                                          )
+                                        }
+                                        disabled={
+                                          match.status != MatchStatus.LIVE ||
+                                          !canManageScoreboard
+                                        }
+                                      >
+                                        <Plus className="h-4 w-4" />
+                                      </Button>
+                                    </div>
                                   </div>
                                 </div>
                               ))}
@@ -4618,7 +4745,11 @@ export function AdminMatchControl({
                                 </Button>
                                 <Input
                                   type="number"
-                                  value={matchDraft.homeYellowCards}
+                                  {...getMatchDraftInputProps(
+                                    match.id,
+                                    "homeYellowCards",
+                                    matchDraft.homeYellowCards,
+                                  )}
                                   onChange={(event) =>
                                     updateManualInputCards(
                                       match,
@@ -4671,7 +4802,11 @@ export function AdminMatchControl({
                                 </Button>
                                 <Input
                                   type="number"
-                                  value={matchDraft.homeRedCards}
+                                  {...getMatchDraftInputProps(
+                                    match.id,
+                                    "homeRedCards",
+                                    matchDraft.homeRedCards,
+                                  )}
                                   onChange={(event) =>
                                     updateManualInputCards(
                                       match,
@@ -4731,7 +4866,11 @@ export function AdminMatchControl({
                                 </Button>
                                 <Input
                                   type="number"
-                                  value={matchDraft.awayYellowCards}
+                                  {...getMatchDraftInputProps(
+                                    match.id,
+                                    "awayYellowCards",
+                                    matchDraft.awayYellowCards,
+                                  )}
                                   onChange={(event) =>
                                     updateManualInputCards(
                                       match,
@@ -4784,7 +4923,11 @@ export function AdminMatchControl({
                                 </Button>
                                 <Input
                                   type="number"
-                                  value={matchDraft.awayRedCards}
+                                  {...getMatchDraftInputProps(
+                                    match.id,
+                                    "awayRedCards",
+                                    matchDraft.awayRedCards,
+                                  )}
                                   onChange={(event) =>
                                     updateManualInputCards(
                                       match,
@@ -4844,7 +4987,11 @@ export function AdminMatchControl({
                                   </Button>
                                   <Input
                                     type="number"
-                                    value={matchDraft.homeBlueCards}
+                                    {...getMatchDraftInputProps(
+                                      match.id,
+                                      "homeBlueCards",
+                                      matchDraft.homeBlueCards,
+                                    )}
                                     onChange={(event) =>
                                       updateManualInputCards(
                                         match,
@@ -4901,7 +5048,11 @@ export function AdminMatchControl({
                                   </Button>
                                   <Input
                                     type="number"
-                                    value={matchDraft.homeTwoMinutePenalties}
+                                    {...getMatchDraftInputProps(
+                                      match.id,
+                                      "homeTwoMinutePenalties",
+                                      matchDraft.homeTwoMinutePenalties,
+                                    )}
                                     onChange={(event) =>
                                       updateManualInputCards(
                                         match,
@@ -4957,7 +5108,11 @@ export function AdminMatchControl({
                                   </Button>
                                   <Input
                                     type="number"
-                                    value={matchDraft.awayBlueCards}
+                                    {...getMatchDraftInputProps(
+                                      match.id,
+                                      "awayBlueCards",
+                                      matchDraft.awayBlueCards,
+                                    )}
                                     onChange={(event) =>
                                       updateManualInputCards(
                                         match,
@@ -5014,7 +5169,11 @@ export function AdminMatchControl({
                                   </Button>
                                   <Input
                                     type="number"
-                                    value={matchDraft.awayTwoMinutePenalties}
+                                    {...getMatchDraftInputProps(
+                                      match.id,
+                                      "awayTwoMinutePenalties",
+                                      matchDraft.awayTwoMinutePenalties,
+                                    )}
                                     onChange={(event) =>
                                       updateManualInputCards(
                                         match,

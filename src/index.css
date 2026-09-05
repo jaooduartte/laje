@@ -286,6 +286,17 @@
     opacity: 1 !important;
   }
 
+  input[type="time"] {
+    -webkit-appearance: textfield;
+    appearance: textfield;
+  }
+
+  input[type="time"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-clear-button,
+  input[type="time"]::-webkit-inner-spin-button {
+    display: none;
+  }
+
   .app-button-primary {
     background: hsl(var(--primary));
     color: hsl(var(--primary-foreground));

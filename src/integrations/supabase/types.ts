@@ -2953,6 +2953,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      apply_operational_schedule_interval: {
+        Args: {
+          _bracket_edition_id: string
+          _expected_revision: number
+          _payload: Json
+        }
+        Returns: undefined
+      }
       hold_matches_for_manual_relocation: {
         Args: { _bracket_edition_id: string; _payload: Json }
         Returns: undefined
@@ -3000,6 +3008,10 @@ export type Database = {
         Returns: Json
       }
       preview_day_schedule_reorganization: {
+        Args: { _bracket_edition_id: string; _payload: Json }
+        Returns: Json
+      }
+      preview_operational_schedule_interval: {
         Args: { _bracket_edition_id: string; _payload: Json }
         Returns: Json
       }

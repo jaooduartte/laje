@@ -578,6 +578,42 @@ describe("AdminMatchControl", () => {
     );
   });
 
+  it("não oferece filtro exclusivo de jogos ao vivo", async () => {
+    const scheduledMatch = buildMatch({
+      id: "scheduled-match-without-live-filter",
+      sport_id: "sport-futsal",
+      status: MatchStatus.SCHEDULED,
+      home_team: buildTeam({
+        id: "scheduled-home-without-live-filter",
+        name: "Atlética Agendada",
+      }),
+    });
+    const liveMatch = buildMatch({
+      id: "live-match-without-live-filter",
+      sport_id: "sport-futsal",
+      status: MatchStatus.LIVE,
+      home_team: buildTeam({
+        id: "live-home-without-live-filter",
+        name: "Atlética Ao Vivo",
+      }),
+    });
+
+    renderAdminMatchControl({
+      matches: [scheduledMatch, liveMatch],
+      championshipSports: [],
+    });
+
+    await completeInitialControlLoad();
+
+    expect(screen.getByText("Atlética Agendada")).toBeInTheDocument();
+    expect(screen.getAllByText("Atlética Ao Vivo")).not.toHaveLength(0);
+    expect(
+      screen.queryByRole("button", {
+        name: "Ocultar jogos que não estão ao vivo",
+      }),
+    ).toBeNull();
+  });
+
   it("exibe sessão individual configurada em revisão e inclui seus dados nos filtros", async () => {
     const athleticsSport = buildChampionshipSport({
       id: "championship-sport-athletics",
@@ -2579,6 +2615,64 @@ describe("AdminMatchControl", () => {
         "Atlética Visitante Handebol",
       ),
     ).toHaveLength(1);
+  });
+
+  it("permite limpar placar e penalidades antes de digitar novos valores", async () => {
+    const match = buildMatch({
+      id: "live-handball-editable-numeric-inputs-match",
+      sport_id: "sport-handball-editable-numeric-inputs",
+      status: MatchStatus.LIVE,
+      supports_cards: true,
+      sports: buildSport({
+        id: "sport-handball-editable-numeric-inputs",
+        name: "Handebol",
+      }),
+      home_team: buildTeam({
+        id: "home-handball-editable-numeric-inputs-team",
+        name: "Atlética Casa Editável",
+      }),
+      away_team: buildTeam({
+        id: "away-handball-editable-numeric-inputs-team",
+        name: "Atlética Visitante Editável",
+      }),
+    });
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-handball-editable-numeric-inputs",
+      sport_id: "sport-handball-editable-numeric-inputs",
+      supports_cards: true,
+      sports: match.sports,
+    });
+
+    renderAdminMatchControl({
+      matches: [match],
+      championshipSports: [championshipSport],
+    });
+
+    const matchCardElement = resolveMatchCardElement("Atlética Casa Editável");
+    const homeScoreInput = within(matchCardElement).getAllByRole("spinbutton")[0];
+    const homeTwoMinutePenaltyLabel = within(matchCardElement).getAllByText(
+      "Penalidades de 2 Min",
+    )[0];
+    const homeTwoMinutePenaltyInput = within(
+      homeTwoMinutePenaltyLabel.parentElement as HTMLElement,
+    ).getByRole("spinbutton");
+
+    fireEvent.change(homeScoreInput, { target: { value: "" } });
+    fireEvent.change(homeTwoMinutePenaltyInput, { target: { value: "" } });
+
+    expect((homeScoreInput as HTMLInputElement).value).toBe("");
+    expect((homeTwoMinutePenaltyInput as HTMLInputElement).value).toBe("");
+
+    await act(async () => {
+      fireEvent.change(homeScoreInput, { target: { value: "4" } });
+      fireEvent.change(homeTwoMinutePenaltyInput, { target: { value: "2" } });
+      vi.advanceTimersByTime(150);
+      await Promise.resolve();
+    });
+
+    expect(supabaseUpdateCalls).toHaveLength(1);
+    expect(supabaseUpdateCalls[0]?.payload.home_score).toBe(4);
+    expect(supabaseUpdateCalls[0]?.payload.home_two_minute_penalties).toBe(2);
   });
 
   it("organiza os cartões em colunas por atlética no painel móvel", () => {

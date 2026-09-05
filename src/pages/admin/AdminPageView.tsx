@@ -26,6 +26,7 @@ import { AdminStandings } from "@/components/admin/AdminStandings";
 import { AdminDiscipline } from "@/components/admin/AdminDiscipline";
 import { AdminChampionshipBracketPage } from "@/components/admin/AdminChampionshipBracketPage";
 import { AdminChampionshipSchedule } from "@/components/admin/AdminChampionshipSchedule";
+import { AdminOperationalScheduleIntervals } from "@/components/admin/AdminOperationalScheduleIntervals";
 import { AdminInterlajeOpeningCeremonyBonus } from "@/components/admin/AdminInterlajeOpeningCeremonyBonus";
 import { useChampionshipSeasonRuntime } from "@/hooks/useChampionshipSeasonRuntime";
 import { Button } from "@/components/ui/button";
@@ -153,11 +154,13 @@ interface AdminPageViewProps {
 const SCORE_SHEET_REVIEW_TAB_VALUE = "score_sheet_review";
 const DISCIPLINE_TAB_VALUE = "discipline";
 const TIE_BREAKS_TAB_VALUE = "tie_breaks";
+const OPERATIONAL_INTERVALS_TAB_VALUE = "operational_intervals";
 type AdminPageTabValue =
   | AdminPanelTab
   | typeof SCORE_SHEET_REVIEW_TAB_VALUE
   | typeof DISCIPLINE_TAB_VALUE
-  | typeof TIE_BREAKS_TAB_VALUE;
+  | typeof TIE_BREAKS_TAB_VALUE
+  | typeof OPERATIONAL_INTERVALS_TAB_VALUE;
 
 interface AdminTabItem {
   value: AdminPageTabValue;
@@ -264,6 +267,11 @@ export function AdminPageView({
   const canViewScheduleDuringReview =
     canViewScheduleTab &&
     selectedChampionship.status === ChampionshipStatus.REVIEW;
+  const canViewOperationalIntervals =
+    canViewScheduleTab &&
+    [ChampionshipStatus.REVIEW, ChampionshipStatus.IN_PROGRESS].includes(
+      selectedChampionship.status,
+    );
 
   const totalSorteiosCount =
     pendingTieBreaksCount + pendingAwardDrawContexts.length;
@@ -371,6 +379,13 @@ export function AdminPageView({
       });
     }
 
+    if (canViewOperationalIntervals) {
+      nextAdminTabItems.push({
+        value: OPERATIONAL_INTERVALS_TAB_VALUE,
+        label: "Locais e intervalos",
+      });
+    }
+
     if (canViewSettingsTab) {
       nextAdminTabItems.push({
         value: AdminPanelTab.SETTINGS,
@@ -382,6 +397,7 @@ export function AdminPageView({
   }, [
     canViewBracketSetupTab,
     canViewScheduleDuringReview,
+    canViewOperationalIntervals,
     canViewControlTab,
     canViewEventsTab,
     canViewLinksTab,
@@ -704,6 +720,28 @@ export function AdminPageView({
                 <div className="glass-panel p-5">
                   <p className="text-sm text-muted-foreground">
                     A agenda deste campeonato não está disponível.
+                  </p>
+                </div>
+              )}
+            </TabsContent>
+          ) : null}
+
+          {canViewOperationalIntervals ? (
+            <TabsContent value={OPERATIONAL_INTERVALS_TAB_VALUE}>
+              {loadingChampionshipBracket ? (
+                <PageContentSkeleton filterCount={2} contentCount={3} />
+              ) : championshipBracketView.edition != null ? (
+                <AdminOperationalScheduleIntervals
+                  bracketEditionId={championshipBracketView.edition.id}
+                  championshipStatus={selectedChampionship.status}
+                  canManageSchedule={canManageSchedule}
+                  onRefetchMatches={onRefetchMatches}
+                  onRefetchChampionshipBracket={onRefetchChampionshipBracket}
+                />
+              ) : (
+                <div className="glass-panel p-5">
+                  <p className="text-sm text-muted-foreground">
+                    Os locais deste campeonato não estão disponíveis.
                   </p>
                 </div>
               )}

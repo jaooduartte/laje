@@ -1208,6 +1208,46 @@ export interface OperationalKnockoutScheduleAdjustmentPreview {
   extends_day_end: boolean;
 }
 
+export type OperationalScheduleIntervalAction = "UPSERT" | "REMOVE";
+
+export interface OperationalScheduleIntervalInput {
+  event_date: string;
+  action: OperationalScheduleIntervalAction;
+  interval_id?: string | null;
+  scope_type: BracketDayBreakScopeType;
+  court_ids: string[];
+  start_time?: string | null;
+  end_time?: string | null;
+  accept_day_end_extension?: boolean;
+}
+
+export interface OperationalScheduleIntervalTimelineItem {
+  item_id: string;
+  item_type: "MATCH" | "KNOCKOUT_PLACEHOLDER";
+  match_status: string | null;
+  location_name: string;
+  court_name: string;
+  label: string;
+  original_start_time: string;
+  original_end_time: string;
+  start_time: string;
+  end_time: string;
+  queue_position: number;
+  scheduled_slot: number;
+  is_displaced: boolean;
+}
+
+export interface OperationalScheduleIntervalPreview {
+  revision: number;
+  blockers: string[];
+  timeline: OperationalScheduleIntervalTimelineItem[];
+  breaks_before: BracketDayBreak[];
+  breaks_after: BracketDayBreak[];
+  day_end_before: string;
+  day_end_after: string;
+  extends_day_end: boolean;
+}
+
 export interface BracketCourtPriorityUpdate {
   bracket_court_id: string;
   sport_id: string;

@@ -10947,7 +10947,7 @@ export function AdminMatches({
               </div>
 
               <div className="space-y-1">
-                <Label>Quadra</Label>
+                <Label className="flex h-4 items-center">Quadra</Label>
                 <Select
                   value={manualRelocationSlotTargetCourt || EMPTY_MANUAL_RELOCATION_OPTION_VALUE}
                   onValueChange={(value) => {
@@ -13166,7 +13166,7 @@ export function AdminMatches({
         }}
       >
         {editingMatch && editingMatchDraft ? (
-          <DialogContent className="flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col overflow-hidden sm:max-h-none sm:w-full sm:max-w-4xl sm:overflow-visible">
+          <DialogContent className="flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col overflow-hidden sm:w-full sm:max-w-4xl">
             <DialogHeader className="shrink-0">
               <DialogTitle>
                 Editar jogo - {selectedChampionship.name}
@@ -13177,7 +13177,7 @@ export function AdminMatches({
               </DialogDescription>
             </DialogHeader>
 
-            <div className="min-h-0 overflow-y-auto pr-1 sm:overflow-visible sm:pr-0">
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
               <div className="space-y-5">
                 <div className="space-y-2">
                   <p className="text-xs font-medium text-muted-foreground">

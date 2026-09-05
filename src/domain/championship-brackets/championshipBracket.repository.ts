@@ -35,6 +35,8 @@ import type {
   OperationalKnockoutScheduleAdjustmentCandidates,
   OperationalKnockoutScheduleAdjustmentInput,
   OperationalKnockoutScheduleAdjustmentPreview,
+  OperationalScheduleIntervalInput,
+  OperationalScheduleIntervalPreview,
   ChampionshipBracketReconfigurationAction,
   ChampionshipBracketReconfigurationPreview,
 } from "@/domain/championship-brackets/championshipBracket.types";
@@ -218,6 +220,40 @@ export async function applyDayScheduleReorganization(
   expectedRevision: number,
 ): Promise<{ error: Error | null }> {
   const response = await supabase.rpc("apply_day_schedule_reorganization", {
+    _bracket_edition_id: bracketEditionId,
+    _payload: toSupabaseJson(input),
+    _expected_revision: expectedRevision,
+  });
+
+  return { error: response.error };
+}
+
+export async function previewOperationalScheduleInterval(
+  bracketEditionId: string,
+  input: OperationalScheduleIntervalInput,
+): Promise<{
+  data: OperationalScheduleIntervalPreview | null;
+  error: Error | null;
+}> {
+  const response = await supabase.rpc("preview_operational_schedule_interval", {
+    _bracket_edition_id: bracketEditionId,
+    _payload: toSupabaseJson(input),
+  });
+
+  return {
+    data:
+      (response.data as unknown as OperationalScheduleIntervalPreview | null) ??
+      null,
+    error: response.error,
+  };
+}
+
+export async function applyOperationalScheduleInterval(
+  bracketEditionId: string,
+  input: OperationalScheduleIntervalInput,
+  expectedRevision: number,
+): Promise<{ error: Error | null }> {
+  const response = await supabase.rpc("apply_operational_schedule_interval", {
     _bracket_edition_id: bracketEditionId,
     _payload: toSupabaseJson(input),
     _expected_revision: expectedRevision,
