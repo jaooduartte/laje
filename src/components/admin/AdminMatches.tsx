@@ -315,12 +315,15 @@ interface MatchScoreSheetAwardsContext {
   match_id: string;
   home_team_id: string;
   away_team_id: string;
+  requires_goal_scorers: boolean;
   required_home_goals: number;
   required_away_goals: number;
   required_home_yellow_cards: number;
   required_away_yellow_cards: number;
   required_home_red_cards: number;
   required_away_red_cards: number;
+  required_home_blue_cards: number;
+  required_away_blue_cards: number;
   supports_cards: boolean;
   is_walkover: boolean;
   home_players: ScoreSheetAwardPlayerOption[];
@@ -349,10 +352,102 @@ interface MatchScoreSheetAwardsContext {
     player_id: string | null;
     player_name: string | null;
   }>;
+  home_blue_cards: Array<{
+    player_id: string | null;
+    player_name: string | null;
+  }>;
+  away_blue_cards: Array<{
+    player_id: string | null;
+    player_name: string | null;
+  }>;
 }
 
 interface GoalSelection {
   scorerId: string;
+}
+
+interface ScoreSheetDisciplineSelectionFieldsProps {
+  ariaLabelPrefix: string;
+  emptyMessage: string;
+  eventLabel: string;
+  noEventMessage: string;
+  playerOptions: ScoreSheetAwardPlayerOption[];
+  selections: GoalSelection[];
+  title: string;
+  onSelectionChange: (selectionIndex: number, value: string) => void;
+}
+
+function ScoreSheetDisciplineSelectionFields({
+  ariaLabelPrefix,
+  emptyMessage,
+  eventLabel,
+  noEventMessage,
+  playerOptions,
+  selections,
+  title,
+  onSelectionChange,
+}: ScoreSheetDisciplineSelectionFieldsProps) {
+  return (
+    <div className="mt-4 space-y-2 border-t border-border/50 pt-3">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {title}
+      </p>
+      <p className="text-xs text-muted-foreground">
+        O vínculo com o atleta é obrigatório.
+      </p>
+      {selections.length > 0 ? (
+        playerOptions.length > 0 ? (
+          <div className="space-y-2">
+            {selections.map((selection, selectionIndex) => (
+              <div
+                key={`${ariaLabelPrefix}-${selectionIndex + 1}`}
+                className="space-y-1"
+              >
+                <Label className="text-xs text-muted-foreground">
+                  {selectionIndex + 1}º {eventLabel}
+                </Label>
+                <Select
+                  value={
+                    selection.scorerId || EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE
+                  }
+                  onValueChange={(value) =>
+                    onSelectionChange(
+                      selectionIndex,
+                      value == EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE ? "" : value,
+                    )
+                  }
+                >
+                  <SelectTrigger
+                    className="app-input-field"
+                    aria-label={`${ariaLabelPrefix} ${selectionIndex + 1}`}
+                  >
+                    <SelectValue placeholder="Selecione o atleta" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE}>
+                      Selecione o atleta
+                    </SelectItem>
+                    {playerOptions.map((playerOption) => (
+                      <SelectItem key={playerOption.id} value={playerOption.id}>
+                        {playerOption.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-lg border border-dashed border-destructive/30 bg-background/70 px-3 py-3 text-sm text-muted-foreground">
+            Cadastre um atleta abaixo para vincular {emptyMessage} desta
+            atlética.
+          </div>
+        )
+      ) : (
+        <p className="text-sm text-muted-foreground">{noEventMessage}</p>
+      )}
+    </div>
+  );
 }
 
 interface MatchScoreSheetAwardsDraft {
@@ -364,6 +459,8 @@ interface MatchScoreSheetAwardsDraft {
   awayYellowCardSelections: GoalSelection[];
   homeRedCardSelections: GoalSelection[];
   awayRedCardSelections: GoalSelection[];
+  homeBlueCardSelections: GoalSelection[];
+  awayBlueCardSelections: GoalSelection[];
   newHomePlayerName: string;
   newAwayPlayerName: string;
   requiredHomeGoals: number;
@@ -372,6 +469,9 @@ interface MatchScoreSheetAwardsDraft {
   requiredAwayYellowCards: number;
   requiredHomeRedCards: number;
   requiredAwayRedCards: number;
+  requiredHomeBlueCards: number;
+  requiredAwayBlueCards: number;
+  requiresGoalScorers: boolean;
   supportsCards: boolean;
   isWalkover: boolean;
 }
@@ -1408,6 +1508,16 @@ function resolveScoreSheetDraftFromContext(
       scorerId: resolvePlayerSelection(redCard, awayPlayerOptions),
     }),
   );
+  const homeBlueCardSelections: GoalSelection[] = (
+    context.home_blue_cards ?? []
+  ).map((blueCard) => ({
+    scorerId: resolvePlayerSelection(blueCard, homePlayerOptions),
+  }));
+  const awayBlueCardSelections: GoalSelection[] = (
+    context.away_blue_cards ?? []
+  ).map((blueCard) => ({
+    scorerId: resolvePlayerSelection(blueCard, awayPlayerOptions),
+  }));
 
   while (homeGoalSelections.length < context.required_home_goals) {
     homeGoalSelections.push({ scorerId: "" });
@@ -1431,6 +1541,14 @@ function resolveScoreSheetDraftFromContext(
 
   while (awayRedCardSelections.length < (context.required_away_red_cards ?? 0)) {
     awayRedCardSelections.push({ scorerId: "" });
+  }
+
+  while (homeBlueCardSelections.length < (context.required_home_blue_cards ?? 0)) {
+    homeBlueCardSelections.push({ scorerId: "" });
+  }
+
+  while (awayBlueCardSelections.length < (context.required_away_blue_cards ?? 0)) {
+    awayBlueCardSelections.push({ scorerId: "" });
   }
 
   return {
@@ -1464,6 +1582,14 @@ function resolveScoreSheetDraftFromContext(
       0,
       context.required_away_red_cards ?? 0,
     ),
+    homeBlueCardSelections: homeBlueCardSelections.slice(
+      0,
+      context.required_home_blue_cards ?? 0,
+    ),
+    awayBlueCardSelections: awayBlueCardSelections.slice(
+      0,
+      context.required_away_blue_cards ?? 0,
+    ),
     newHomePlayerName: "",
     newAwayPlayerName: "",
     requiredHomeGoals: context.required_home_goals,
@@ -1472,8 +1598,59 @@ function resolveScoreSheetDraftFromContext(
     requiredAwayYellowCards: context.required_away_yellow_cards,
     requiredHomeRedCards: context.required_home_red_cards ?? 0,
     requiredAwayRedCards: context.required_away_red_cards ?? 0,
+    requiredHomeBlueCards: context.required_home_blue_cards ?? 0,
+    requiredAwayBlueCards: context.required_away_blue_cards ?? 0,
+    requiresGoalScorers:
+      context.requires_goal_scorers ??
+      context.required_home_goals + context.required_away_goals > 0,
     supportsCards: context.supports_cards,
     isWalkover: context.is_walkover,
+  };
+}
+
+function resolveScoreSheetAwardsContextWithMatchDisciplineFallback(
+  context: MatchScoreSheetAwardsContext,
+  match: Match,
+  supportsCards: boolean,
+): MatchScoreSheetAwardsContext {
+  const shouldUseMatchDisciplineFallback =
+    supportsCards && !context.supports_cards;
+
+  const resolveRequiredDisciplineCount = (
+    contextValue: number | undefined,
+    matchValue: number | null,
+  ) =>
+    shouldUseMatchDisciplineFallback || contextValue == null
+      ? (matchValue ?? 0)
+      : contextValue;
+
+  return {
+    ...context,
+    supports_cards: context.supports_cards || supportsCards,
+    required_home_yellow_cards: resolveRequiredDisciplineCount(
+      context.required_home_yellow_cards,
+      match.home_yellow_cards,
+    ),
+    required_away_yellow_cards: resolveRequiredDisciplineCount(
+      context.required_away_yellow_cards,
+      match.away_yellow_cards,
+    ),
+    required_home_red_cards: resolveRequiredDisciplineCount(
+      context.required_home_red_cards,
+      match.home_red_cards,
+    ),
+    required_away_red_cards: resolveRequiredDisciplineCount(
+      context.required_away_red_cards,
+      match.away_red_cards,
+    ),
+    required_home_blue_cards: resolveRequiredDisciplineCount(
+      context.required_home_blue_cards,
+      match.home_blue_cards,
+    ),
+    required_away_blue_cards: resolveRequiredDisciplineCount(
+      context.required_away_blue_cards,
+      match.away_blue_cards,
+    ),
   };
 }
 
@@ -1882,10 +2059,28 @@ export function AdminMatches({
         )?.sports?.name ??
         "";
 
+      const hasDisciplineOccurrences =
+        (match.home_yellow_cards ?? 0) +
+          (match.away_yellow_cards ?? 0) +
+          (match.home_red_cards ?? 0) +
+          (match.away_red_cards ?? 0) +
+          (match.home_blue_cards ?? 0) +
+          (match.away_blue_cards ?? 0) >
+        0;
+
+      const hasGoalsRequiringScorers =
+        (match.home_score ?? 0) + (match.away_score ?? 0) > 0;
+      const supportsCards =
+        match.supports_cards ||
+        championshipSports.find(
+          (championshipSport) => championshipSport.sport_id == match.sport_id,
+        )?.supports_cards === true;
+
       return (
         !match.is_walkover &&
-        (match.supports_cards ||
-          (selectedChampionship.code == ChampionshipCode.SOCIETY &&
+        ((supportsCards && hasDisciplineOccurrences) ||
+          (hasGoalsRequiringScorers &&
+            selectedChampionship.code == ChampionshipCode.SOCIETY &&
             supportsIndividualAwardsBySportId.get(match.sport_id) === true &&
             resolveSportCode(sportName) == "FUTEBOL_SOCIETY"))
       );
@@ -3358,21 +3553,28 @@ export function AdminMatches({
   const hasIncompleteActiveScoreSheetGoalSelections =
     !!activeScoreSheetAwardsDraft &&
     !activeScoreSheetAwardsDraft.isWalkover &&
+    activeScoreSheetAwardsDraft.requiresGoalScorers &&
     (activeScoreSheetAwardsDraft.homeGoalSelections.some(
       (goalSelection) => goalSelection.scorerId.trim().length == 0,
     ) ||
       activeScoreSheetAwardsDraft.awayGoalSelections.some(
         (goalSelection) => goalSelection.scorerId.trim().length == 0,
       ));
-  const hasIncompleteActiveScoreSheetRedCardSelections =
+  const hasIncompleteActiveScoreSheetDisciplineSelections =
     !!activeScoreSheetAwardsDraft &&
     !activeScoreSheetAwardsDraft.isWalkover &&
-    (activeScoreSheetAwardsDraft.homeRedCardSelections.some(
-      (selection) => selection.scorerId.trim().length == 0,
-    ) ||
-      activeScoreSheetAwardsDraft.awayRedCardSelections.some(
+    [
+      activeScoreSheetAwardsDraft.homeYellowCardSelections,
+      activeScoreSheetAwardsDraft.awayYellowCardSelections,
+      activeScoreSheetAwardsDraft.homeRedCardSelections,
+      activeScoreSheetAwardsDraft.awayRedCardSelections,
+      activeScoreSheetAwardsDraft.homeBlueCardSelections,
+      activeScoreSheetAwardsDraft.awayBlueCardSelections,
+    ].some((selections) =>
+      selections.some(
         (selection) => selection.scorerId.trim().length == 0,
-      ));
+      ),
+    );
   const hasActiveScoreSheetYellowCardAccumulation =
     !!activeScoreSheetAwardsDraft &&
     [
@@ -3397,7 +3599,8 @@ export function AdminMatches({
   const activeScoreSheetGoalSelectionSummary = useMemo(() => {
     if (
       !activeScoreSheetAwardsDraft ||
-      activeScoreSheetAwardsDraft.isWalkover
+      activeScoreSheetAwardsDraft.isWalkover ||
+      !activeScoreSheetAwardsDraft.requiresGoalScorers
     ) {
       return {
         totalGoals: 0,
@@ -6360,14 +6563,28 @@ export function AdminMatches({
         return null;
       }
 
+      const match = matches.find((item) => item.id == matchId);
+      const supportsCards =
+        match?.supports_cards ||
+        championshipSports.find(
+          (championshipSport) => championshipSport.sport_id == match?.sport_id,
+        )?.supports_cards === true;
+      const resolvedContext = match
+        ? resolveScoreSheetAwardsContextWithMatchDisciplineFallback(
+            context,
+            match,
+            supportsCards,
+          )
+        : context;
+
       setScoreSheetAwardsDraftByMatchId((currentDraftByMatchId) => ({
         ...currentDraftByMatchId,
-        [matchId]: resolveScoreSheetDraftFromContext(context),
+        [matchId]: resolveScoreSheetDraftFromContext(resolvedContext),
       }));
 
-      return context;
+      return resolvedContext;
     },
-    [],
+    [championshipSports, matches],
   );
 
   const handleOpenScoreSheetReview = async (matchId: string) => {
@@ -6432,6 +6649,8 @@ export function AdminMatches({
         awayYellowCardSelections: clearGoalId(draft.awayYellowCardSelections),
         homeRedCardSelections: clearGoalId(draft.homeRedCardSelections),
         awayRedCardSelections: clearGoalId(draft.awayRedCardSelections),
+        homeBlueCardSelections: clearGoalId(draft.homeBlueCardSelections),
+        awayBlueCardSelections: clearGoalId(draft.awayBlueCardSelections),
       };
     });
   };
@@ -6481,6 +6700,8 @@ export function AdminMatches({
         awayYellowCardSelections: updateGoalId(draft.awayYellowCardSelections),
         homeRedCardSelections: updateGoalId(draft.homeRedCardSelections),
         awayRedCardSelections: updateGoalId(draft.awayRedCardSelections),
+        homeBlueCardSelections: updateGoalId(draft.homeBlueCardSelections),
+        awayBlueCardSelections: updateGoalId(draft.awayBlueCardSelections),
       };
     });
 
@@ -6582,30 +6803,34 @@ export function AdminMatches({
     const { isWalkover } = activeScoreSheetAwardsDraft;
 
     if (!isWalkover) {
-      const hasIncompleteHomeGoals =
-        activeScoreSheetAwardsDraft.homeGoalSelections.some(
-          (gs) => gs.scorerId.trim().length == 0,
+      const hasIncompleteGoals =
+        activeScoreSheetAwardsDraft.requiresGoalScorers &&
+        [
+          activeScoreSheetAwardsDraft.homeGoalSelections,
+          activeScoreSheetAwardsDraft.awayGoalSelections,
+        ].some((selections) =>
+          selections.some((selection) => selection.scorerId.trim().length == 0),
         );
-      const hasIncompleteAwayGoals =
-        activeScoreSheetAwardsDraft.awayGoalSelections.some(
-          (gs) => gs.scorerId.trim().length == 0,
-        );
-      const hasIncompleteHomeRedCards =
-        activeScoreSheetAwardsDraft.homeRedCardSelections.some(
-          (selection) => selection.scorerId.trim().length == 0,
-        );
-      const hasIncompleteAwayRedCards =
-        activeScoreSheetAwardsDraft.awayRedCardSelections.some(
-          (selection) => selection.scorerId.trim().length == 0,
-        );
+      const hasIncompleteDiscipline = [
+        activeScoreSheetAwardsDraft.homeYellowCardSelections,
+        activeScoreSheetAwardsDraft.awayYellowCardSelections,
+        activeScoreSheetAwardsDraft.homeRedCardSelections,
+        activeScoreSheetAwardsDraft.awayRedCardSelections,
+        activeScoreSheetAwardsDraft.homeBlueCardSelections,
+        activeScoreSheetAwardsDraft.awayBlueCardSelections,
+      ].some((selections) =>
+        selections.some((selection) => selection.scorerId.trim().length == 0),
+      );
 
-      if (hasIncompleteHomeGoals || hasIncompleteAwayGoals) {
+      if (hasIncompleteGoals) {
         toast.error("Preencha os autores de todos os gols antes de salvar.");
         return;
       }
 
-      if (hasIncompleteHomeRedCards || hasIncompleteAwayRedCards) {
-        toast.error("Informe o atleta de cada cartão vermelho antes de salvar.");
+      if (hasIncompleteDiscipline) {
+        toast.error(
+          "Informe o atleta responsável por cada cartão antes de salvar.",
+        );
         return;
       }
     }
@@ -6631,7 +6856,6 @@ export function AdminMatches({
       );
     const homeYellowCardPlayersPayload =
       activeScoreSheetAwardsDraft.homeYellowCardSelections
-        .filter((selection) => selection.scorerId.trim().length > 0)
         .map((selection) =>
           resolveScoreSheetSelectionOptionByValue(
             selection.scorerId,
@@ -6640,7 +6864,6 @@ export function AdminMatches({
         );
     const awayYellowCardPlayersPayload =
       activeScoreSheetAwardsDraft.awayYellowCardSelections
-        .filter((selection) => selection.scorerId.trim().length > 0)
         .map((selection) =>
           resolveScoreSheetSelectionOptionByValue(
             selection.scorerId,
@@ -6661,7 +6884,20 @@ export function AdminMatches({
           activeScoreSheetAwardsDraft.awayPlayerOptions,
         ),
       );
-
+    const homeBlueCardPlayersPayload =
+      activeScoreSheetAwardsDraft.homeBlueCardSelections.map((selection) =>
+        resolveScoreSheetSelectionOptionByValue(
+          selection.scorerId,
+          activeScoreSheetAwardsDraft.homePlayerOptions,
+        ),
+      );
+    const awayBlueCardPlayersPayload =
+      activeScoreSheetAwardsDraft.awayBlueCardSelections.map((selection) =>
+        resolveScoreSheetSelectionOptionByValue(
+          selection.scorerId,
+          activeScoreSheetAwardsDraft.awayPlayerOptions,
+        ),
+      );
     const { error } = await supabaseLoose.rpc("save_match_score_sheet_awards", {
       _match_id: activeScoreSheetReviewMatch.id,
       _home_goal_scorers: homeGoalScorersPayload,
@@ -6670,6 +6906,8 @@ export function AdminMatches({
       _away_yellow_card_players: awayYellowCardPlayersPayload,
       _home_red_card_players: homeRedCardPlayersPayload,
       _away_red_card_players: awayRedCardPlayersPayload,
+      _home_blue_card_players: homeBlueCardPlayersPayload,
+      _away_blue_card_players: awayBlueCardPlayersPayload,
     });
 
     setSavingScoreSheetAwardsByMatchId((currentSavingState) => ({
@@ -11839,8 +12077,8 @@ export function AdminMatches({
           <DialogHeader>
             <DialogTitle>Revisão de súmula e premiações</DialogTitle>
             <DialogDescription>
-            Informe os autores dos gols quando a modalidade tiver artilharia e,
-            opcionalmente, os atletas que receberam cartões amarelos.
+              Informe os autores de gol do Futebol Society e os atletas
+              responsáveis por cada cartão lançado.
             </DialogDescription>
           </DialogHeader>
 
@@ -11894,7 +12132,8 @@ export function AdminMatches({
                     revisão.
                   </p>
                 ) : null}
-                {resolveMatchPenaltyShootoutSummary(
+                {activeScoreSheetAwardsDraft.requiresGoalScorers &&
+                resolveMatchPenaltyShootoutSummary(
                   activeScoreSheetReviewMatch,
                   matchBracketContextByMatchId[activeScoreSheetReviewMatch.id],
                 ) ? (
@@ -11906,7 +12145,8 @@ export function AdminMatches({
                 ) : null}
               </div>
 
-              {!activeScoreSheetAwardsDraft.isWalkover ? (
+              {!activeScoreSheetAwardsDraft.isWalkover &&
+              activeScoreSheetAwardsDraft.requiresGoalScorers ? (
                 <div
                   className={`rounded-xl border px-3 py-2.5 text-sm ${hasIncompleteActiveScoreSheetGoalSelections ? "border-amber-300/60 bg-amber-50 text-amber-900 dark:border-amber-700/50 dark:bg-amber-950 dark:text-amber-100" : "border-emerald-300/60 bg-emerald-50 text-emerald-900 dark:border-emerald-700/50 dark:bg-emerald-950 dark:text-emerald-100"}`}
                 >
@@ -11924,9 +12164,9 @@ export function AdminMatches({
               ) : null}
 
               {!activeScoreSheetAwardsDraft.isWalkover &&
-              hasIncompleteActiveScoreSheetRedCardSelections ? (
+              hasIncompleteActiveScoreSheetDisciplineSelections ? (
                 <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
-                  Informe o atleta de cada cartão vermelho para liberar o
+                  Informe o atleta responsável por cada cartão para liberar o
                   salvamento.
                 </div>
               ) : null}
@@ -11956,6 +12196,8 @@ export function AdminMatches({
                         activeScoreSheetAwardsDraft.homeYellowCardSelections,
                       redCardSelections:
                         activeScoreSheetAwardsDraft.homeRedCardSelections,
+                      blueCardSelections:
+                        activeScoreSheetAwardsDraft.homeBlueCardSelections,
                       newPlayerName:
                         activeScoreSheetAwardsDraft.newHomePlayerName,
                     },
@@ -11972,10 +12214,20 @@ export function AdminMatches({
                         activeScoreSheetAwardsDraft.awayYellowCardSelections,
                       redCardSelections:
                         activeScoreSheetAwardsDraft.awayRedCardSelections,
+                      blueCardSelections:
+                        activeScoreSheetAwardsDraft.awayBlueCardSelections,
                       newPlayerName:
                         activeScoreSheetAwardsDraft.newAwayPlayerName,
                     },
-                  ].map((teamSection) => {
+                  ]
+                    .filter(
+                      (teamSection) =>
+                        teamSection.goalSelections.length > 0 ||
+                        teamSection.yellowCardSelections.length > 0 ||
+                        teamSection.redCardSelections.length > 0 ||
+                        teamSection.blueCardSelections.length > 0,
+                    )
+                    .map((teamSection) => {
                     const totalGoals = teamSection.goalSelections.length;
                     const filledGoals = teamSection.goalSelections.filter(
                       (goalSelection) =>
@@ -11993,7 +12245,8 @@ export function AdminMatches({
                             <p className="text-sm font-semibold">
                               {teamSection.title}
                             </p>
-                            {totalGoals > 0 ? (
+                            {activeScoreSheetAwardsDraft.requiresGoalScorers &&
+                            totalGoals > 0 ? (
                               <p className="text-xs text-muted-foreground">
                                 {filledGoals} de {totalGoals} gols vinculados
                                 {pendingGoals > 0
@@ -12002,11 +12255,12 @@ export function AdminMatches({
                               </p>
                             ) : activeScoreSheetAwardsDraft.supportsCards ? (
                               <p className="text-xs text-muted-foreground">
-                                Cartões podem ser vinculados abaixo.
+                                Ocorrências disciplinares devem ser vinculadas abaixo.
                               </p>
                             ) : null}
                           </div>
-                          {totalGoals > 0 ? (
+                          {activeScoreSheetAwardsDraft.requiresGoalScorers &&
+                          totalGoals > 0 ? (
                             <div
                               className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${pendingGoals > 0 ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-100" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-100"}`}
                             >
@@ -12017,6 +12271,8 @@ export function AdminMatches({
 
                         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)] xl:items-start">
                           <div className="space-y-2">
+                            {activeScoreSheetAwardsDraft.requiresGoalScorers ? (
+                              <>
                             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                               Autores dos gols
                             </p>
@@ -12112,6 +12368,8 @@ export function AdminMatches({
                                 Esta atlética não marcou gols nesta partida.
                               </div>
                             )}
+                              </>
+                            ) : null}
 
                             {activeScoreSheetAwardsDraft.supportsCards ? (
                               <div className="mt-4 space-y-2 border-t border-border/50 pt-3">
@@ -12119,7 +12377,7 @@ export function AdminMatches({
                                   Cartões amarelos
                                 </p>
                                 <p className="text-xs text-muted-foreground">
-                                  O vínculo com o atleta é opcional.
+                                  O vínculo com o atleta é obrigatório.
                                 </p>
                                 {teamSection.yellowCardSelections.length > 0 ? (
                                   teamSection.playerOptions.length > 0 ? (
@@ -12182,7 +12440,7 @@ export function AdminMatches({
                                                     EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE
                                                   }
                                                 >
-                                                  Não informar atleta
+                                                  Selecione o atleta
                                                 </SelectItem>
                                                 {teamSection.playerOptions.map(
                                                   (playerOption) => (
@@ -12314,6 +12572,44 @@ export function AdminMatches({
                                   </p>
                                 )}
                               </div>
+                            ) : null}
+                            {activeScoreSheetAwardsDraft.supportsCards ? (
+                              <ScoreSheetDisciplineSelectionFields
+                                ariaLabelPrefix={`${teamSection.title} cartão azul`}
+                                emptyMessage="cartões azuis"
+                                eventLabel="azul"
+                                noEventMessage="Nenhum cartão azul lançado para esta atlética."
+                                playerOptions={teamSection.playerOptions}
+                                selections={teamSection.blueCardSelections}
+                                title="Cartões azuis"
+                                onSelectionChange={(selectionIndex, value) => {
+                                  handleUpdateScoreSheetAwardsDraft(
+                                    activeScoreSheetReviewMatch.id,
+                                    (draft) => {
+                                      const selections = [
+                                        ...(teamSection.key == "home"
+                                          ? draft.homeBlueCardSelections
+                                          : draft.awayBlueCardSelections),
+                                      ];
+                                      selections[selectionIndex] = {
+                                        ...selections[selectionIndex],
+                                        scorerId: value,
+                                      };
+                                      return {
+                                        ...draft,
+                                        homeBlueCardSelections:
+                                          teamSection.key == "home"
+                                            ? selections
+                                            : draft.homeBlueCardSelections,
+                                        awayBlueCardSelections:
+                                          teamSection.key == "away"
+                                            ? selections
+                                            : draft.awayBlueCardSelections,
+                                      };
+                                    },
+                                  );
+                                }}
+                              />
                             ) : null}
                           </div>
 
@@ -12472,7 +12768,7 @@ export function AdminMatches({
                                 Cadastrar atleta
                               </p>
                               <p className="text-xs text-muted-foreground">
-                                Use este campo apenas se o autor do gol ainda
+                                Use este campo quando o atleta responsável ainda
                                 não estiver na lista acima.
                               </p>
                               <div className="flex gap-2">
@@ -12569,11 +12865,11 @@ export function AdminMatches({
           <DialogFooter className="mt-2 flex-col gap-3 sm:flex-col sm:space-x-0">
             {!activeScoreSheetAwardsDraft?.isWalkover &&
             (hasIncompleteActiveScoreSheetGoalSelections ||
-              hasIncompleteActiveScoreSheetRedCardSelections) ? (
+              hasIncompleteActiveScoreSheetDisciplineSelections) ? (
               <p className="text-sm text-amber-700 dark:text-amber-300">
                 {hasIncompleteActiveScoreSheetGoalSelections
                   ? `Preencha os ${activeScoreSheetGoalSelectionSummary.pendingGoals} autores de gol restantes para salvar.`
-                  : "Informe os atletas dos cartões vermelhos para salvar."}
+                  : "Informe os atletas responsáveis por cada cartão para salvar."}
               </p>
             ) : (
               <div />
@@ -12595,7 +12891,7 @@ export function AdminMatches({
                   isSavingActiveScoreSheetAwardsContext ||
                   !activeScoreSheetAwardsDraft ||
                   hasIncompleteActiveScoreSheetGoalSelections ||
-                  hasIncompleteActiveScoreSheetRedCardSelections
+                  hasIncompleteActiveScoreSheetDisciplineSelections
                 }
               >
                 {isSavingActiveScoreSheetAwardsContext ? (
@@ -13691,26 +13987,19 @@ export function AdminMatches({
                             <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
                               Penalidades de 2 min
                             </p>
-                            <Input
-                              type="number"
-                              min={0}
-                              step={1}
+                            <MatchEditCounter
                               value={editingMatchDraft.homeTwoMinutePenalties}
-                              onChange={(event) =>
+                              label={`penalidades de 2 minutos de ${editingHomeTeamName}`}
+                              onChange={(homeTwoMinutePenalties) =>
                                 setEditingMatchDraft((currentDraft) =>
                                   currentDraft
                                     ? {
                                         ...currentDraft,
-                                        homeTwoMinutePenalties:
-                                          resolveParsedScoreInputValue(
-                                            event.target.value,
-                                          ),
+                                        homeTwoMinutePenalties,
                                       }
                                     : currentDraft,
                                 )
                               }
-                              className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                              aria-label="Penalidades de 2 minutos da casa"
                             />
                           </div>
                         </div>
@@ -13743,26 +14032,19 @@ export function AdminMatches({
                             <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
                               Penalidades de 2 min
                             </p>
-                            <Input
-                              type="number"
-                              min={0}
-                              step={1}
+                            <MatchEditCounter
                               value={editingMatchDraft.awayTwoMinutePenalties}
-                              onChange={(event) =>
+                              label={`penalidades de 2 minutos de ${editingAwayTeamName}`}
+                              onChange={(awayTwoMinutePenalties) =>
                                 setEditingMatchDraft((currentDraft) =>
                                   currentDraft
                                     ? {
                                         ...currentDraft,
-                                        awayTwoMinutePenalties:
-                                          resolveParsedScoreInputValue(
-                                            event.target.value,
-                                          ),
+                                        awayTwoMinutePenalties,
                                       }
                                     : currentDraft,
                                 )
                               }
-                              className="app-input-field h-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                              aria-label="Penalidades de 2 minutos do visitante"
                             />
                           </div>
                         </div>

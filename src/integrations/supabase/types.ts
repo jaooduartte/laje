@@ -2252,6 +2252,55 @@ export type Database = {
           },
         ]
       }
+      match_blue_card_players: {
+        Row: {
+          card_order: number
+          created_at: string
+          id: string
+          match_id: string
+          player_id: string
+          team_id: string
+        }
+        Insert: {
+          card_order: number
+          created_at?: string
+          id?: string
+          match_id: string
+          player_id: string
+          team_id: string
+        }
+        Update: {
+          card_order?: number
+          created_at?: string
+          id?: string
+          match_id?: string
+          player_id?: string
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "match_blue_card_players_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "match_blue_card_players_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "championship_award_players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "match_blue_card_players_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       match_sets: {
         Row: {
           away_points: number
@@ -3888,11 +3937,15 @@ export type Database = {
         Args: {
           _away_goal_scorers?: Json
           _away_goalkeepers?: Json
+          _away_blue_card_players?: Json
           _away_red_card_players?: Json
+          _away_two_minute_penalty_players?: Json
           _away_yellow_card_players?: Json
+          _home_blue_card_players?: Json
           _home_goal_scorers?: Json
           _home_goalkeepers?: Json
           _home_red_card_players?: Json
+          _home_two_minute_penalty_players?: Json
           _home_yellow_card_players?: Json
           _match_id: string
         }

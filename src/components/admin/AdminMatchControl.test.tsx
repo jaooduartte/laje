@@ -2697,7 +2697,7 @@ describe("AdminMatchControl", () => {
       sport_id: "sport-sets",
       result_rule: ChampionshipSportResultRule.SETS,
     });
-    renderAdminMatchControl({
+    const { unmount } = renderAdminMatchControl({
       matches: [match],
       championshipSports: [championshipSport],
     });
@@ -2728,6 +2728,28 @@ describe("AdminMatchControl", () => {
       current_set_home_score: 0,
       current_set_away_score: 0,
     });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(150);
+    });
+    expect(supabaseUpdateCalls).toHaveLength(1);
+    unmount();
+    renderAdminMatchControl({
+      matches: [
+        buildMatch({
+          ...match,
+          current_set_home_score: 0,
+          current_set_away_score: 0,
+        }),
+      ],
+      championshipSports: [championshipSport],
+    });
+
+    const rehydratedScoreInputs = within(
+      resolveMatchCardElement("Atlética Sets Casa"),
+    ).getAllByRole("spinbutton");
+
+    expect(rehydratedScoreInputs[0]).toHaveValue(0);
+    expect(rehydratedScoreInputs[1]).toHaveValue(0);
     expect(toastSuccessMock).toHaveBeenCalledWith("Set 1 encerrado.");
   });
 

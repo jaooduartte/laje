@@ -852,14 +852,15 @@ describe("AdminMatches score sheet review", () => {
     expect(screen.getAllByText("PENDENTE CASA").length).toBeGreaterThan(0);
   });
 
-  it("abre revisão de súmula e salva premiações antes de marcar como revisado", async () => {
+  it("exige autores de gol no Futebol Society antes de marcar como revisado", async () => {
     supabaseRpcResponses.push(
       {
         data: {
           match_id: "match-1",
           home_team_id: "team-1-home",
           away_team_id: "team-1-away",
-          required_home_goals: 0,
+          requires_goal_scorers: true,
+          required_home_goals: 1,
           required_away_goals: 0,
           is_walkover: false,
           home_players: [{ id: "home-player-1", name: "Atleta Casa" }],
@@ -895,6 +896,7 @@ describe("AdminMatches score sheet review", () => {
           sport_id: "sport-football-society",
           status: MatchStatus.FINISHED,
           is_score_sheet_reviewed: false,
+          home_score: 1,
           sports: buildSport({
             id: "sport-football-society",
             name: "Futebol Society",
@@ -914,6 +916,10 @@ describe("AdminMatches score sheet review", () => {
     expect(await screen.findByText("Revisão de súmula e premiações")).toBeInTheDocument();
     expect(screen.queryByText("Goleiros")).not.toBeInTheDocument();
     expect(screen.queryByText("Goleiro")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("combobox", { name: "CASA 1 gol 1" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Atleta Casa" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Salvar revisão" }));
 
@@ -927,14 +933,55 @@ describe("AdminMatches score sheet review", () => {
       )?.payload,
     ).toMatchObject({
       _match_id: "match-1",
-      _home_goal_scorers: [],
+      _home_goal_scorers: [{ player_id: "home-player-1" }],
       _away_goal_scorers: [],
     });
 
     expect(supabaseUpdateCalls).toHaveLength(0);
   });
 
-  it("permite vincular opcionalmente cartões amarelos a atletas da mesma equipe", async () => {
+  it("marca Vôlei sem ocorrências disciplinares como revisado sem abrir autores", async () => {
+    renderAdminMatches({
+      viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
+      matches: [
+        buildMatch({
+          id: "volleyball-match",
+          sport_id: "sport-volleyball",
+          status: MatchStatus.FINISHED,
+          home_score: 2,
+          away_score: 0,
+          sports: buildSport({ id: "sport-volleyball", name: "Vôlei" }),
+          home_team: buildTeam({ id: "volleyball-home", name: "VÔLEI CASA" }),
+          away_team: buildTeam({ id: "volleyball-away", name: "VÔLEI VISITANTE" }),
+        }),
+      ],
+    });
+
+    fireEvent.pointerDown(
+      await screen.findByLabelText("Ações do jogo VÔLEI CASA x VÔLEI VISITANTE"),
+    );
+    clickFirstMenuItemInMatchCard(
+      getMatchCardContainerByTeamName("VÔLEI CASA"),
+      "Revisar súmula e premiações",
+    );
+
+    await waitFor(() => {
+      expect(supabaseUpdateCalls).toContainEqual({
+        table: "matches",
+        payload: { is_score_sheet_reviewed: true },
+        method: "eq",
+        ids: ["volleyball-match"],
+      });
+    });
+    expect(screen.queryByText("Revisão de súmula e premiações")).not.toBeInTheDocument();
+    expect(
+      supabaseRpcCalls.some(
+        (rpcCall) => rpcCall.functionName == "get_match_score_sheet_awards_context",
+      ),
+    ).toBe(false);
+  });
+
+  it("exige atleta para cada cartão amarelo", async () => {
     supabaseRpcResponses.push(
       {
         data: {
@@ -967,6 +1014,8 @@ describe("AdminMatches score sheet review", () => {
           sport_id: "sport-cards",
           status: MatchStatus.FINISHED,
           supports_cards: true,
+          home_yellow_cards: 2,
+          away_yellow_cards: 1,
           sports: buildSport({ id: "sport-cards", name: "Futsal" }),
           home_team: buildTeam({ id: "yellow-home", name: "AMARELO CASA" }),
           away_team: buildTeam({ id: "yellow-away", name: "AMARELO VISITANTE" }),
@@ -982,6 +1031,9 @@ describe("AdminMatches score sheet review", () => {
     fireEvent.click(await screen.findByRole("option", { name: "Atleta Casa" }));
     fireEvent.click(screen.getByRole("combobox", { name: "AMARELO CASA cartão amarelo 2" }));
     fireEvent.click(await screen.findByRole("option", { name: "Atleta Casa" }));
+    expect(screen.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("combobox", { name: "AMARELO VISITANTE cartão amarelo 1" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Atleta Visitante" }));
     expect(await screen.findByText(/Isso gera vermelho por acúmulo/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Salvar revisão" }));
 
@@ -997,7 +1049,7 @@ describe("AdminMatches score sheet review", () => {
           { player_id: "yellow-home-player" },
           { player_id: "yellow-home-player" },
         ],
-        _away_yellow_card_players: [],
+        _away_yellow_card_players: [{ player_id: "yellow-away-player" }],
       });
     });
   });
@@ -1050,7 +1102,8 @@ describe("AdminMatches score sheet review", () => {
     fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo VERMELHO CASA x VERMELHO VISITANTE"));
     clickFirstMenuItemInMatchCard(getMatchCardContainerByTeamName("VERMELHO CASA"), "Revisar súmula e premiações");
 
-    expect(await screen.findAllByText("Cartões vermelhos")).toHaveLength(2);
+    expect(await screen.findAllByText("Cartões vermelhos")).toHaveLength(1);
+    expect(screen.getAllByText("Cadastrar atleta")).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
 
     fireEvent.click(screen.getByRole("combobox", { name: "VERMELHO CASA cartão vermelho 1" }));
@@ -1070,6 +1123,160 @@ describe("AdminMatches score sheet review", () => {
         _away_red_card_players: [],
       });
     });
+  });
+
+  it("exige e salva atletas para cartões azuis, sem vincular penalidades de 2 minutos", async () => {
+    supabaseRpcResponses.push(
+      {
+        data: {
+          match_id: "handball-discipline-match",
+          home_team_id: "handball-home",
+          away_team_id: "handball-away",
+          requires_goal_scorers: false,
+          required_home_goals: 0,
+          required_away_goals: 0,
+          required_home_yellow_cards: 0,
+          required_away_yellow_cards: 0,
+          required_home_red_cards: 0,
+          required_away_red_cards: 0,
+          supports_cards: false,
+          is_walkover: false,
+          home_players: [{ id: "handball-home-player", name: "Atleta Casa" }],
+          away_players: [{ id: "handball-away-player", name: "Atleta Visitante" }],
+          home_goals: [],
+          away_goals: [],
+          home_yellow_cards: [],
+          away_yellow_cards: [],
+          home_red_cards: [],
+          away_red_cards: [],
+        },
+        error: null,
+      },
+      { data: null, error: null },
+    );
+
+    renderAdminMatches({
+      viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
+      championshipSports: [
+        buildChampionshipSport({
+          id: "handball-championship-sport",
+          sport_id: "sport-handball",
+          supports_cards: true,
+          sports: buildSport({ id: "sport-handball", name: "Handebol" }),
+        }),
+      ],
+      matches: [
+        buildMatch({
+          id: "handball-discipline-match",
+          sport_id: "sport-handball",
+          status: MatchStatus.FINISHED,
+          supports_cards: false,
+          home_yellow_cards: 1,
+          home_blue_cards: 1,
+          home_two_minute_penalties: 1,
+          sports: buildSport({ id: "sport-handball", name: "Handebol" }),
+          home_team: buildTeam({ id: "handball-home", name: "HANDEBOL CASA" }),
+          away_team: buildTeam({ id: "handball-away", name: "HANDEBOL VISITANTE" }),
+        }),
+      ],
+    });
+
+    fireEvent.pointerDown(
+      await screen.findByLabelText(
+        "Ações do jogo HANDEBOL CASA x HANDEBOL VISITANTE",
+      ),
+    );
+    clickFirstMenuItemInMatchCard(
+      getMatchCardContainerByTeamName("HANDEBOL CASA"),
+      "Revisar súmula e premiações",
+    );
+
+    expect(await screen.findByText("Cartões amarelos")).toBeInTheDocument();
+    expect(screen.getAllByText("Cartões azuis")).toHaveLength(1);
+    expect(screen.queryByText("Penalidades de 2 minutos")).not.toBeInTheDocument();
+    expect(screen.queryByText("Autores dos gols")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Cadastrar atleta")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
+
+    fireEvent.click(
+      screen.getByRole("combobox", {
+        name: "HANDEBOL CASA cartão amarelo 1",
+      }),
+    );
+    fireEvent.click(await screen.findByRole("option", { name: "Atleta Casa" }));
+    fireEvent.click(
+      screen.getByRole("combobox", {
+        name: "HANDEBOL CASA cartão azul 1",
+      }),
+    );
+    fireEvent.click(await screen.findByRole("option", { name: "Atleta Casa" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salvar revisão" }));
+
+    await waitFor(() => {
+      expect(
+        supabaseRpcCalls.find(
+          (rpcCall) =>
+            rpcCall.functionName == "save_match_score_sheet_awards" &&
+            rpcCall.payload._match_id == "handball-discipline-match",
+        )?.payload,
+      ).toMatchObject({
+        _home_yellow_card_players: [{ player_id: "handball-home-player" }],
+        _away_yellow_card_players: [],
+        _home_blue_card_players: [{ player_id: "handball-home-player" }],
+        _away_blue_card_players: [],
+      });
+    });
+  });
+
+  it("marca Handebol com somente penalidades de 2 minutos como revisado sem abrir a modal", async () => {
+    renderAdminMatches({
+      viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
+      championshipSports: [
+        buildChampionshipSport({
+          id: "handball-championship-sport",
+          sport_id: "sport-handball",
+          supports_cards: true,
+          sports: buildSport({ id: "sport-handball", name: "Handebol" }),
+        }),
+      ],
+      matches: [
+        buildMatch({
+          id: "handball-two-minute-only-match",
+          sport_id: "sport-handball",
+          status: MatchStatus.FINISHED,
+          supports_cards: true,
+          home_two_minute_penalties: 2,
+          sports: buildSport({ id: "sport-handball", name: "Handebol" }),
+          home_team: buildTeam({ id: "handball-home", name: "HANDEBOL CASA" }),
+          away_team: buildTeam({ id: "handball-away", name: "HANDEBOL VISITANTE" }),
+        }),
+      ],
+    });
+
+    fireEvent.pointerDown(
+      await screen.findByLabelText(
+        "Ações do jogo HANDEBOL CASA x HANDEBOL VISITANTE",
+      ),
+    );
+    clickFirstMenuItemInMatchCard(
+      getMatchCardContainerByTeamName("HANDEBOL CASA"),
+      "Revisar súmula e premiações",
+    );
+
+    await waitFor(() => {
+      expect(supabaseUpdateCalls).toContainEqual({
+        table: "matches",
+        payload: { is_score_sheet_reviewed: true },
+        method: "eq",
+        ids: ["handball-two-minute-only-match"],
+      });
+    });
+    expect(screen.queryByText("Revisão de súmula e premiações")).not.toBeInTheDocument();
+    expect(
+      supabaseRpcCalls.some(
+        (rpcCall) => rpcCall.functionName == "get_match_score_sheet_awards_context",
+      ),
+    ).toBe(false);
   });
 
   it("mostra aviso de que pênaltis não entram na artilharia na revisão de súmula", async () => {
@@ -2093,6 +2300,70 @@ describe("AdminMatches score sheet review", () => {
     expect(supabaseUpdateCalls[0].payload).not.toHaveProperty("manual_representation_mode");
   });
 
+  it("permite controlar as penalidades de dois minutos ao editar um jogo encerrado de Handebol", async () => {
+    renderAdminMatches({
+      matches: [
+        buildMatch({
+          id: "handball-two-minute-penalties-edit-match",
+          sport_id: "sport-handball",
+          status: MatchStatus.FINISHED,
+          court_name: "Ginásio",
+          start_time: "2026-04-11T08:00:00.000Z",
+          sports: buildSport({ id: "sport-handball", name: "Handebol" }),
+          home_team: buildTeam({ id: "handball-home", name: "HANDBOL CASA" }),
+          away_team: buildTeam({ id: "handball-away", name: "HANDBOL VISITANTE" }),
+        }),
+      ],
+      championshipSports: [
+        buildChampionshipSport({
+          id: "championship-sport-handball",
+          sport_id: "sport-handball",
+          sports: buildSport({ id: "sport-handball", name: "Handebol" }),
+        }),
+      ],
+    });
+
+    fireEvent.pointerDown(
+      await screen.findByLabelText(
+        "Ações do jogo HANDBOL CASA x HANDBOL VISITANTE",
+      ),
+    );
+    clickFirstMenuItemInMatchCard(
+      getMatchCardContainerByTeamName("HANDBOL CASA"),
+      "Editar",
+    );
+
+    await screen.findByText("Disciplina do Handebol");
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Aumentar penalidades de 2 minutos de HANDBOL CASA",
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Aumentar penalidades de 2 minutos de HANDBOL VISITANTE",
+      }),
+    );
+
+    expect(
+      screen.getByLabelText("penalidades de 2 minutos de HANDBOL CASA"),
+    ).toHaveTextContent("1");
+    expect(
+      screen.getByLabelText("penalidades de 2 minutos de HANDBOL VISITANTE"),
+    ).toHaveTextContent("1");
+
+    fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
+
+    await waitFor(() => {
+      expect(supabaseUpdateCalls.length).toBeGreaterThan(0);
+    });
+
+    expect(supabaseUpdateCalls[0].payload).toMatchObject({
+      home_two_minute_penalties: 1,
+      away_two_minute_penalties: 1,
+    });
+  });
+
   it("mostra o indicador de pênaltis no card admin quando o mata-mata da Society foi decidido nos pênaltis", async () => {
     renderAdminMatches({
       selectedChampionship: buildChampionship({
@@ -2445,6 +2716,7 @@ describe("AdminMatches score sheet review", () => {
           away_team_id: "team-review-loader-away",
           required_home_goals: 1,
           required_away_goals: 0,
+          requires_goal_scorers: true,
           is_walkover: false,
           home_players: [{ id: "home-player-2", name: "Atacante Casa" }],
           away_players: [{ id: "away-player-2", name: "Atleta Visitante" }],
@@ -2477,6 +2749,7 @@ describe("AdminMatches score sheet review", () => {
           sport_id: "sport-football-society",
           status: MatchStatus.FINISHED,
           is_score_sheet_reviewed: false,
+          home_score: 1,
           sports: buildSport({
             id: "sport-football-society",
             name: "Futebol Society",

@@ -812,6 +812,19 @@ export function AdminMatchControl({
     [],
   );
 
+  const clearPersistedMatchDraft = useCallback((matchId: string) => {
+    if (!persistedDraftByMatchIdRef.current[matchId]) {
+      return;
+    }
+
+    const nextPersistedDraftByMatchId = {
+      ...persistedDraftByMatchIdRef.current,
+    };
+    delete nextPersistedDraftByMatchId[matchId];
+    persistedDraftByMatchIdRef.current = nextPersistedDraftByMatchId;
+    writePersistedMatchControlDraftByMatchId(nextPersistedDraftByMatchId);
+  }, []);
+
   const championshipSportResultRuleBySportId = useMemo(() => {
     const map = new Map<string, ChampionshipSportResultRule>();
 
@@ -1748,6 +1761,17 @@ export function AdminMatchControl({
     }, MATCH_CONTROL_AUTOSAVE_DEBOUNCE_IN_MILLISECONDS);
   };
 
+  const cancelPendingAutosave = (matchId: string) => {
+    const saveTimeoutReference = saveTimeoutByMatchIdRef.current[matchId];
+
+    if (!saveTimeoutReference) {
+      return;
+    }
+
+    clearTimeout(saveTimeoutReference);
+    saveTimeoutByMatchIdRef.current[matchId] = undefined;
+  };
+
   const updateScore = (match: Match, side: MatchSide, delta: number) => {
     if (match.status != MatchStatus.LIVE) {
       return;
@@ -2122,6 +2146,8 @@ export function AdminMatchControl({
       return;
     }
 
+    cancelPendingAutosave(match.id);
+
     const closedMatchSets = resolveClosedMatchSets(match);
     const nextMatchSets = [
       ...closedMatchSets,
@@ -2166,6 +2192,7 @@ export function AdminMatchControl({
         awayScore: 0,
       },
     }));
+    clearPersistedMatchDraft(match.id);
     setDraftDirty(match.id, false);
 
     toast.success(`Set ${nextMatchSets.length} encerrado.`);
