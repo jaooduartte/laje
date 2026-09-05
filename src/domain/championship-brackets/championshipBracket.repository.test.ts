@@ -13,8 +13,11 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 import {
+  applyOperationalKnockoutScheduleAdjustment,
   getBracketLocationSportPriorities,
   getBracketKnockoutCourtPriorities,
+  listOperationalKnockoutScheduleAdjustmentCandidates,
+  previewOperationalKnockoutScheduleAdjustment,
 } from "@/domain/championship-brackets/championshipBracket.repository";
 
 describe("getBracketLocationSportPriorities", () => {
@@ -380,5 +383,63 @@ describe("getBracketKnockoutCourtPriorities", () => {
       response.data.find((group) => group.phase === "FINAL")?.automatic_court
         ?.court_group_id,
     ).toBe("court-group-day-1");
+  });
+});
+
+describe("operational knockout schedule adjustment", () => {
+  beforeEach(() => {
+    mocks.from.mockReset();
+    mocks.rpc.mockReset();
+  });
+
+  it("loads selectable future knockout slots and matches by source slot", async () => {
+    const response = {
+      data: { revision: 4, items: [{ bracket_match_id: "slot-1" }] },
+      error: null,
+    };
+    mocks.rpc.mockResolvedValue(response);
+
+    await expect(
+      listOperationalKnockoutScheduleAdjustmentCandidates("slot-1"),
+    ).resolves.toEqual({ data: response.data, error: null });
+
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "list_operational_knockout_schedule_adjustment_candidates",
+      { _source_bracket_match_id: "slot-1" },
+    );
+  });
+
+  it("sends the common duration and break action to the preview and confirmation RPCs", async () => {
+    const input = {
+      bracket_match_ids: ["slot-1", "match-2"],
+      duration_minutes: 90,
+      break: {
+        action: "REMOVE" as const,
+        id: "break-1",
+        scope_type: "ALL_COURTS" as const,
+        start_time: null,
+        end_time: null,
+      },
+      accept_day_end_extension: true,
+    };
+    mocks.rpc.mockResolvedValue({ data: { revision: 4 }, error: null });
+
+    await previewOperationalKnockoutScheduleAdjustment("edition-1", input);
+    await applyOperationalKnockoutScheduleAdjustment("edition-1", input, 4);
+
+    expect(mocks.rpc).toHaveBeenNthCalledWith(
+      1,
+      "preview_operational_knockout_schedule_adjustment",
+      { _bracket_edition_id: "edition-1", _payload: input },
+    );
+    expect(mocks.rpc).toHaveBeenNthCalledWith(
+      2,
+      "apply_operational_knockout_schedule_adjustment",
+      {
+        _bracket_edition_id: "edition-1",
+        _payload: input,
+        _expected_revision: 4,
+      },
+    );
   });
 });

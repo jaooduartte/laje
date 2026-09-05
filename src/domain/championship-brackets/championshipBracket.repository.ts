@@ -32,6 +32,9 @@ import type {
   HoldMatchesForManualRelocationInput,
   DayScheduleReorganizationInput,
   DayScheduleReorganizationPreview,
+  OperationalKnockoutScheduleAdjustmentCandidates,
+  OperationalKnockoutScheduleAdjustmentInput,
+  OperationalKnockoutScheduleAdjustmentPreview,
   ChampionshipBracketReconfigurationAction,
   ChampionshipBracketReconfigurationPreview,
 } from "@/domain/championship-brackets/championshipBracket.types";
@@ -219,6 +222,67 @@ export async function applyDayScheduleReorganization(
     _payload: toSupabaseJson(input),
     _expected_revision: expectedRevision,
   });
+
+  return { error: response.error };
+}
+
+export async function listOperationalKnockoutScheduleAdjustmentCandidates(
+  sourceBracketMatchId: string,
+): Promise<{
+  data: OperationalKnockoutScheduleAdjustmentCandidates | null;
+  error: Error | null;
+}> {
+  const response = await supabase.rpc(
+    "list_operational_knockout_schedule_adjustment_candidates",
+    {
+      _source_bracket_match_id: sourceBracketMatchId,
+    },
+  );
+
+  return {
+    data:
+      (response.data as unknown as OperationalKnockoutScheduleAdjustmentCandidates | null) ??
+      null,
+    error: response.error,
+  };
+}
+
+export async function previewOperationalKnockoutScheduleAdjustment(
+  bracketEditionId: string,
+  input: OperationalKnockoutScheduleAdjustmentInput,
+): Promise<{
+  data: OperationalKnockoutScheduleAdjustmentPreview | null;
+  error: Error | null;
+}> {
+  const response = await supabase.rpc(
+    "preview_operational_knockout_schedule_adjustment",
+    {
+      _bracket_edition_id: bracketEditionId,
+      _payload: toSupabaseJson(input),
+    },
+  );
+
+  return {
+    data:
+      (response.data as unknown as OperationalKnockoutScheduleAdjustmentPreview | null) ??
+      null,
+    error: response.error,
+  };
+}
+
+export async function applyOperationalKnockoutScheduleAdjustment(
+  bracketEditionId: string,
+  input: OperationalKnockoutScheduleAdjustmentInput,
+  expectedRevision: number,
+): Promise<{ error: Error | null }> {
+  const response = await supabase.rpc(
+    "apply_operational_knockout_schedule_adjustment",
+    {
+      _bracket_edition_id: bracketEditionId,
+      _payload: toSupabaseJson(input),
+      _expected_revision: expectedRevision,
+    },
+  );
 
   return { error: response.error };
 }

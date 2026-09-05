@@ -1129,6 +1129,85 @@ export interface DayScheduleReorganizationPreview
   break: DayScheduleReorganizationBreakPreview;
 }
 
+export type OperationalKnockoutScheduleBreakAction = "KEEP" | "REMOVE" | "UPSERT";
+
+export interface OperationalKnockoutScheduleAdjustmentItem {
+  bracket_match_id: string;
+  match_id: string | null;
+  is_placeholder: boolean;
+  sport_name: string;
+  naipe: MatchNaipe;
+  division: TeamDivision | null;
+  round_number: number;
+  slot_number: number;
+  is_third_place: boolean;
+  scheduled_date: string;
+  bracket_court_id: string | null;
+  location: string;
+  court_name: string;
+  start_time: string;
+  end_time: string;
+  duration_minutes: number;
+  queue_position: number;
+  scheduled_slot: number;
+  home_team_name: string | null;
+  away_team_name: string | null;
+}
+
+export interface OperationalKnockoutScheduleAdjustmentCandidates {
+  revision: number;
+  items: OperationalKnockoutScheduleAdjustmentItem[];
+}
+
+export interface OperationalKnockoutScheduleAdjustmentInput {
+  bracket_match_ids: string[];
+  duration_minutes: number;
+  break: {
+    action: OperationalKnockoutScheduleBreakAction;
+    id?: string | null;
+    scope_type?: BracketDayBreakScopeType;
+    start_time?: string | null;
+    end_time?: string | null;
+  };
+  accept_day_end_extension?: boolean;
+}
+
+export interface OperationalKnockoutScheduleAdjustmentPreviewItem {
+  bracket_match_id: string;
+  match_id: string | null;
+  is_placeholder: boolean;
+  is_selected: boolean;
+  sport_name: string;
+  naipe: MatchNaipe;
+  division: TeamDivision | null;
+  scheduled_date: string;
+  location: string;
+  court_name: string;
+  queue_position: number;
+  scheduled_slot: number;
+  original_start_time: string;
+  original_end_time: string;
+  original_duration_minutes: number;
+  start_time: string;
+  end_time: string;
+  duration_minutes: number;
+  is_displaced: boolean;
+}
+
+export interface OperationalKnockoutScheduleAdjustmentPreview {
+  revision: number;
+  timeline: OperationalKnockoutScheduleAdjustmentPreviewItem[];
+  blockers: string[];
+  break: {
+    action: OperationalKnockoutScheduleBreakAction;
+    before: BracketDayBreak[];
+    after: BracketDayBreak[];
+  };
+  day_end_before: string;
+  day_end_after: string;
+  extends_day_end: boolean;
+}
+
 export interface BracketCourtPriorityUpdate {
   bracket_court_id: string;
   sport_id: string;
