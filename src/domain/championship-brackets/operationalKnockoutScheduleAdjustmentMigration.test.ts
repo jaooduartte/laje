@@ -16,6 +16,13 @@ const previewFixMigrationSource = readFileSync(
   ),
   "utf8",
 );
+const conflictSafeguardsMigrationSource = readFileSync(
+  resolve(
+    process.cwd(),
+    "supabase/migrations/20260905032640_enforce_operational_knockout_schedule_conflicts.sql",
+  ),
+  "utf8",
+);
 
 describe("operational knockout schedule adjustment migration", () => {
   it("limits candidates to editable future knockout slots and scheduled matches", () => {
@@ -59,5 +66,26 @@ describe("operational knockout schedule adjustment migration", () => {
     expect(migrationSource).toContain("write_admin_action_log");
     expect(migrationSource).toContain("FOR UPDATE OF bracket_matches_table, reservations_table");
     expect(migrationSource).toContain("GRANT EXECUTE ON FUNCTION public.apply_operational_knockout_schedule_adjustment");
+  });
+
+  it("keeps the published RPCs immutable while validating projected and applied court conflicts", () => {
+    expect(conflictSafeguardsMigrationSource).toContain(
+      "RENAME TO preview_operational_knockout_schedule_adjustment_base",
+    );
+    expect(conflictSafeguardsMigrationSource).toContain(
+      "RENAME TO apply_operational_knockout_schedule_adjustment_base",
+    );
+    expect(conflictSafeguardsMigrationSource).toContain(
+      "resolve_scheduled_match_court_sequence_conflict",
+    );
+    expect(conflictSafeguardsMigrationSource).toContain(
+      "A programação planejada sobrepõe outra partida agendada na mesma quadra.",
+    );
+    expect(conflictSafeguardsMigrationSource).toContain(
+      "A programação ajustada sobrepõe outra partida agendada na mesma quadra.",
+    );
+    expect(conflictSafeguardsMigrationSource).toContain(
+      "REVOKE ALL ON FUNCTION public.apply_operational_knockout_schedule_adjustment_base",
+    );
   });
 });
