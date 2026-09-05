@@ -3,6 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.97.0";
 import {
   buildCalendarDocument,
   resolveETag,
+  resolveScheduledSessionDateTime,
 } from "./calendarIcs.ts";
 
 type CalendarSubscriptionScope =
@@ -10,6 +11,7 @@ type CalendarSubscriptionScope =
   | "SESSION"
   | "SPORT_NAIPE"
   | "TEAM"
+  | "TEAM_MATCHES"
   | "TEAM_SPORT_NAIPE";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -25,6 +27,7 @@ const supportedScopes = new Set<CalendarSubscriptionScope>([
   "SESSION",
   "SPORT_NAIPE",
   "TEAM",
+  "TEAM_MATCHES",
   "TEAM_SPORT_NAIPE",
 ]);
 
@@ -91,6 +94,21 @@ function resolveRequiredSearchParameter(url: URL, key: string): string | null {
   return value?.trim() || null;
 }
 
+function resolveSaoPauloDate(date: Date): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const valuesByType = parts.reduce<Record<string, string>>((carry, part) => {
+    carry[part.type] = part.value;
+    return carry;
+  }, {});
+
+  return `${valuesByType.year}-${valuesByType.month}-${valuesByType.day}`;
+}
+
 Deno.serve(async (request) => {
   if (request.method != "GET") {
     return respond(405, "Method not allowed", { Allow: "GET" });
@@ -120,7 +138,7 @@ Deno.serve(async (request) => {
     (scope == "MATCH" && !isUuid(matchId)) ||
     (scope == "SESSION" && !isUuid(sessionId)) ||
     (scope == "SPORT_NAIPE" && (!isUuid(sportId) || !naipe)) ||
-    (scope == "TEAM" && !isUuid(teamId)) ||
+    ((scope == "TEAM" || scope == "TEAM_MATCHES") && !isUuid(teamId)) ||
     (scope == "TEAM_SPORT_NAIPE" &&
       (!isUuid(teamId) || !isUuid(sportId) || !naipe))
   ) {
@@ -150,7 +168,8 @@ Deno.serve(async (request) => {
     return respond(404, "Calendar feed not found.");
   }
 
-  const now = new Date().toISOString();
+  const now = new Date();
+  const nowIso = now.toISOString();
   const shouldIncludeMatches = scope != "SESSION";
   const shouldIncludeSessions =
     scope == "SESSION" || scope == "SPORT_NAIPE" || scope == "TEAM";
@@ -168,7 +187,7 @@ Deno.serve(async (request) => {
       .eq("status", "SCHEDULED")
       .eq("is_pending_manual_relocation", false)
       .not("start_time", "is", null)
-      .gte("start_time", now);
+      .gte("start_time", nowIso);
 
     if (scope == "MATCH") {
       matchesQuery = matchesQuery.eq("id", matchId);
@@ -178,7 +197,7 @@ Deno.serve(async (request) => {
       matchesQuery = matchesQuery.eq("sport_id", sportId).eq("naipe", naipe);
     }
 
-    if (scope == "TEAM") {
+    if (scope == "TEAM" || scope == "TEAM_MATCHES") {
       matchesQuery = matchesQuery.or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`);
     }
 
@@ -210,7 +229,7 @@ Deno.serve(async (request) => {
       .eq("status", "SCHEDULED")
       .not("start_time", "is", null)
       .not("end_time", "is", null)
-      .gte("start_time", now);
+      .gte("scheduled_date", resolveSaoPauloDate(now));
 
     if (scope == "SESSION") {
       sessionsQuery = sessionsQuery.eq("id", sessionId);
@@ -227,7 +246,14 @@ Deno.serve(async (request) => {
       return respond(500, "Unable to load calendar feed.");
     }
 
-    sessions = (data ?? []) as Array<Record<string, unknown>>;
+    sessions = ((data ?? []) as Array<Record<string, unknown>>).filter((session) => {
+      const sessionStartTime = resolveScheduledSessionDateTime(
+        typeof session.scheduled_date == "string" ? session.scheduled_date : null,
+        typeof session.start_time == "string" ? session.start_time : null,
+      );
+
+      return sessionStartTime != null && new Date(sessionStartTime).getTime() >= now.getTime();
+    });
   }
 
   if (scope == "TEAM") {
@@ -332,8 +358,17 @@ Deno.serve(async (request) => {
     ];
   });
   const sessionEvents = sessions.flatMap((session) => {
-    const startTime = typeof session.start_time == "string" ? session.start_time : null;
-    const endTime = typeof session.end_time == "string" ? session.end_time : null;
+    const scheduledDate = typeof session.scheduled_date == "string"
+      ? session.scheduled_date
+      : null;
+    const startTime = resolveScheduledSessionDateTime(
+      scheduledDate,
+      typeof session.start_time == "string" ? session.start_time : null,
+    );
+    const endTime = resolveScheduledSessionDateTime(
+      scheduledDate,
+      typeof session.end_time == "string" ? session.end_time : null,
+    );
     const sportName = (session.sports as { name?: string } | null)?.name ?? "Modalidade individual";
     const divisionLabel = resolveDivisionLabel(
       typeof session.division == "string" ? session.division : null,

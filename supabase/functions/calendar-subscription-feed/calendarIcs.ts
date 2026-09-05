@@ -8,6 +8,27 @@ export interface CalendarFeedEvent {
   updatedAt: string;
 }
 
+const scheduledDatePattern = /^\d{4}-\d{2}-\d{2}$/;
+const scheduledTimePattern = /^\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?$/;
+
+export function resolveScheduledSessionDateTime(
+  scheduledDate: string | null,
+  scheduledTime: string | null,
+): string | null {
+  if (
+    !scheduledDate ||
+    !scheduledTime ||
+    !scheduledDatePattern.test(scheduledDate) ||
+    !scheduledTimePattern.test(scheduledTime)
+  ) {
+    return null;
+  }
+
+  const dateTime = new Date(`${scheduledDate}T${scheduledTime}-03:00`);
+
+  return Number.isFinite(dateTime.getTime()) ? dateTime.toISOString() : null;
+}
+
 function escapeIcsText(value: string): string {
   return value
     .replace(/\\/g, "\\\\")

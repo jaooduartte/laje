@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildCalendarDocument,
   resolveETag,
+  resolveScheduledSessionDateTime,
 } from "../../../supabase/functions/calendar-subscription-feed/calendarIcs";
 
 describe("calendar ICS document", () => {
@@ -56,5 +57,12 @@ describe("calendar ICS document", () => {
     await expect(resolveETag(firstCalendar)).resolves.not.toBe(
       await resolveETag(updatedCalendar),
     );
+  });
+
+  it("combina a data e o horário de uma sessão no fuso da liga", () => {
+    expect(resolveScheduledSessionDateTime("2026-09-10", "10:00:00")).toBe(
+      "2026-09-10T13:00:00.000Z",
+    );
+    expect(resolveScheduledSessionDateTime("2026-09-10", "inválido")).toBeNull();
   });
 });

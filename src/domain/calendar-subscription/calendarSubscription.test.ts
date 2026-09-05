@@ -93,8 +93,8 @@ describe("calendar subscriptions", () => {
       "MATCH",
       "TEAM_SPORT_NAIPE",
       "TEAM_SPORT_NAIPE",
-      "TEAM",
-      "TEAM",
+      "TEAM_MATCHES",
+      "TEAM_MATCHES",
     ]);
     expect(options.map((option) => option.label)).toEqual([
       "Este jogo",

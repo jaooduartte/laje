@@ -5,6 +5,7 @@ export type CalendarSubscriptionScope =
   | "SESSION"
   | "SPORT_NAIPE"
   | "TEAM"
+  | "TEAM_MATCHES"
   | "TEAM_SPORT_NAIPE";
 
 export interface CalendarSubscriptionOption {
@@ -72,16 +73,16 @@ export function resolveMatchCalendarSubscriptionOptions(
       ...base,
     },
     {
-      id: `team:${match.home_team_id}`,
+      id: `team-matches:${match.home_team_id}`,
       label: `Todos os jogos da ${match.home_team?.name ?? "atlética da casa"}`,
-      scope: "TEAM",
+      scope: "TEAM_MATCHES",
       teamId: match.home_team_id,
       ...base,
     },
     {
-      id: `team:${match.away_team_id}`,
+      id: `team-matches:${match.away_team_id}`,
       label: `Todos os jogos da ${match.away_team?.name ?? "atlética visitante"}`,
-      scope: "TEAM",
+      scope: "TEAM_MATCHES",
       teamId: match.away_team_id,
       ...base,
     },
