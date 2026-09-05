@@ -2,3 +2,6 @@ project_id = "cugqidtapnqvonbdbbdf"
 
 [functions.process-championship-bracket-preview]
 verify_jwt = false
+
+[functions.calendar-subscription-feed]
+verify_jwt = false

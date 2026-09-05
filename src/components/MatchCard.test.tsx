@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { MatchCard } from "@/components/MatchCard";
 import type { MatchBracketContext } from "@/lib/championship";
 import { BracketPhase, ChampionshipCode, ChampionshipSportResultRule, ChampionshipStatus, MatchNaipe, MatchStatus } from "@/lib/enums";
@@ -77,6 +77,10 @@ function buildMatch(overrides: Partial<Match> = {}): Match {
 }
 
 describe("MatchCard", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("mostra o rótulo derivado de cancelamento por desclassificação", () => {
     render(<MatchCard match={buildMatch()} />);
 
@@ -150,5 +154,28 @@ describe("MatchCard", () => {
     );
 
     expect(screen.queryByLabelText("Cartões azuis: 0")).not.toBeInTheDocument();
+  });
+
+  it("oferece assinaturas do calendário somente quando a Agenda pública habilita o card", () => {
+    vi.stubEnv("VITE_SUPABASE_URL", "https://project.supabase.co");
+
+    render(
+      <MatchCard
+        match={buildMatch({
+          status: MatchStatus.SCHEDULED,
+          is_walkover: false,
+          disqualification_id: null,
+          start_time: "2099-06-21T10:00:00.000Z",
+          end_time: "2099-06-21T11:00:00.000Z",
+        })}
+        showCalendarSubscription
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText(/adicionar.*ao calendário/i));
+
+    expect(screen.getByText("Adicionar ao calendário")).toBeInTheDocument();
+    expect(screen.getAllByText("Assinar atualizações")).toHaveLength(5);
+    expect(screen.getAllByText("Baixar .ics")).toHaveLength(5);
   });
 });

@@ -50,7 +50,7 @@ describe("useChampionshipBracket", () => {
 
     const { unmount } = renderHook(() =>
       useChampionshipBracket({
-        championshipId: "championship-1",
+        championshipId: "championship-subscription",
         seasonYear: 2026,
       }),
     );
@@ -89,7 +89,7 @@ describe("useChampionshipBracket", () => {
 
     const { result, unmount } = renderHook(() =>
       useChampionshipBracket({
-        championshipId: "championship-1",
+        championshipId: "championship-coalescing",
         seasonYear: 2026,
       }),
     );
@@ -138,13 +138,13 @@ describe("useChampionshipBracket", () => {
 
     const firstHook = renderHook(() =>
       useChampionshipBracket({
-        championshipId: "championship-1",
+        championshipId: "championship-shared",
         seasonYear: 2026,
       }),
     );
     const secondHook = renderHook(() =>
       useChampionshipBracket({
-        championshipId: "championship-1",
+        championshipId: "championship-shared",
         seasonYear: 2026,
       }),
     );

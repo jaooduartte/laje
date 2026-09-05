@@ -343,10 +343,16 @@ export function AdminPage() {
       championshipId: selectedChampionshipId,
       seasonYear: resolvedMatchesSeasonYear,
     });
-  const { count: pendingTieBreaksCount, refetch: refetchPendingTieBreaks } =
-    usePendingTieBreaks({
-      championshipId: selectedChampionshipId,
-    });
+  const {
+    pendingContexts: pendingTieBreakContexts,
+    count: pendingTieBreaksCount,
+    loading: loadingPendingTieBreaks,
+    refetch: refetchPendingTieBreaks,
+  } = usePendingTieBreaks({
+    championshipId: selectedChampionshipId,
+    bracketEditionId: operationalChampionshipBracketView.edition?.id ?? null,
+    enabled: selectedChampionship?.status === ChampionshipStatus.IN_PROGRESS,
+  });
   const {
     pendingContexts: pendingAwardDrawContexts,
     loading: loadingPendingAwardDraws,
@@ -892,6 +898,12 @@ export function AdminPage() {
         }
         pendingScoreSheetReviewCount={pendingScoreSheetReviewCount}
         pendingTieBreaksCount={pendingTieBreaksCount}
+        pendingTieBreakContexts={pendingTieBreakContexts}
+        pendingTieBreakEditionId={
+          operationalChampionshipBracketView.edition?.id ?? null
+        }
+        loadingPendingTieBreaks={loadingPendingTieBreaks}
+        refetchPendingTieBreaks={refetchPendingTieBreaks}
         pendingAwardDrawContexts={pendingAwardDrawContexts}
         loadingPendingAwardDraws={loadingPendingAwardDraws}
         refetchPendingAwardDraws={refetchPendingAwardDraws}

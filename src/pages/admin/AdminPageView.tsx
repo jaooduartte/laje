@@ -45,6 +45,7 @@ import {
 } from "@/lib/enums";
 import type { MatchBracketContext } from "@/lib/championship";
 import type { AwardDrawPendingContext } from "@/hooks/usePendingAwardDraws";
+import type { ChampionshipBracketTieBreakPendingContext } from "@/domain/championship-brackets/championshipBracket.types";
 import { CHAMPIONSHIP_STATUS_LABELS } from "@/lib/championship";
 import type {
   Championship,
@@ -144,6 +145,10 @@ interface AdminPageViewProps {
   pendingLeagueEventReservationsCount: number;
   pendingScoreSheetReviewCount?: number;
   pendingTieBreaksCount: number;
+  pendingTieBreakContexts?: ChampionshipBracketTieBreakPendingContext[];
+  pendingTieBreakEditionId?: string | null;
+  loadingPendingTieBreaks?: boolean;
+  refetchPendingTieBreaks?: () => void | Promise<void>;
   pendingAwardDrawContexts?: AwardDrawPendingContext[];
   loadingPendingAwardDraws?: boolean;
   refetchPendingAwardDraws?: () => void | Promise<void>;
@@ -253,6 +258,10 @@ export function AdminPageView({
   pendingLeagueEventReservationsCount,
   pendingScoreSheetReviewCount = 0,
   pendingTieBreaksCount,
+  pendingTieBreakContexts = [],
+  pendingTieBreakEditionId,
+  loadingPendingTieBreaks = false,
+  refetchPendingTieBreaks = () => {},
   pendingAwardDrawContexts = [],
   loadingPendingAwardDraws = false,
   refetchPendingAwardDraws = () => {},
@@ -785,6 +794,10 @@ export function AdminPageView({
                 onOpenTieBreaksTab={() =>
                   onActiveTabChange(TIE_BREAKS_TAB_VALUE)
                 }
+                externalPendingTieBreakContexts={pendingTieBreakContexts}
+                externalPendingTieBreakEditionId={pendingTieBreakEditionId}
+                externalLoadingPendingTieBreaks={loadingPendingTieBreaks}
+                externalRefetchPendingTieBreaks={refetchPendingTieBreaks}
               />
             </TabsContent>
           ) : null}
@@ -811,6 +824,10 @@ export function AdminPageView({
                 viewMode={AdminMatchesViewMode.SCORE_SHEET_REVIEW}
                 onRefetch={onRefetchMatches}
                 onRefetchChampionshipBracket={onRefetchChampionshipBracket}
+                externalPendingTieBreakContexts={pendingTieBreakContexts}
+                externalPendingTieBreakEditionId={pendingTieBreakEditionId}
+                externalLoadingPendingTieBreaks={loadingPendingTieBreaks}
+                externalRefetchPendingTieBreaks={refetchPendingTieBreaks}
               />
             </TabsContent>
           ) : null}
@@ -848,6 +865,10 @@ export function AdminPageView({
                 viewMode={AdminMatchesViewMode.TIE_BREAKS}
                 onRefetch={onRefetchMatches}
                 onRefetchChampionshipBracket={onRefetchChampionshipBracket}
+                externalPendingTieBreakContexts={pendingTieBreakContexts}
+                externalPendingTieBreakEditionId={pendingTieBreakEditionId}
+                externalLoadingPendingTieBreaks={loadingPendingTieBreaks}
+                externalRefetchPendingTieBreaks={refetchPendingTieBreaks}
                 externalPendingAwardDrawContexts={pendingAwardDrawContexts}
                 externalLoadingPendingAwardDraws={loadingPendingAwardDraws}
                 externalRefetchPendingAwardDraws={refetchPendingAwardDraws}

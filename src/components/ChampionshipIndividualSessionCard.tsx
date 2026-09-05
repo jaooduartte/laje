@@ -1,16 +1,27 @@
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import type { ChampionshipIndividualSession } from "@/lib/types";
-import { MatchNaipe, TeamDivision } from "@/lib/enums";
+import { useState } from "react";
+import type { ChampionshipIndividualSession, Team } from "@/lib/types";
+import { ChampionshipIndividualSessionStatus, MatchNaipe, TeamDivision } from "@/lib/enums";
 import { TEAM_DIVISION_LABELS } from "@/lib/championship";
+import { CalendarSubscriptionButton } from "@/components/calendar/CalendarSubscriptionButton";
+import { fetchChampionshipIndividualSessionParticipants } from "@/domain/individual-events/championshipIndividualEvents.repository";
+import {
+  canSubscribeToCalendar,
+  resolveSessionCalendarSubscriptionOptions,
+} from "@/domain/calendar-subscription/calendarSubscription";
 
 export function ChampionshipIndividualSessionCard({
   session,
   eventCount,
+  showCalendarSubscription = false,
 }: {
   session: ChampionshipIndividualSession;
   eventCount: number;
+  showCalendarSubscription?: boolean;
 }) {
+  const [participantTeams, setParticipantTeams] = useState<Team[]>([]);
+  const [hasLoadedParticipantTeams, setHasLoadedParticipantTeams] = useState(false);
   const naipeLabel =
     session.naipe == MatchNaipe.MASCULINO
       ? "Masculino"
@@ -23,6 +34,27 @@ export function ChampionshipIndividualSessionCard({
       : session.period == "VESPERTINO"
         ? "Vespertino"
         : null;
+  const canShowCalendarSubscription =
+    showCalendarSubscription &&
+    session.status == ChampionshipIndividualSessionStatus.SCHEDULED &&
+    canSubscribeToCalendar(session.start_time);
+  const handleCalendarSubscriptionOpenChange = (open: boolean) => {
+    if (!open || hasLoadedParticipantTeams) {
+      return;
+    }
+
+    setHasLoadedParticipantTeams(true);
+    void fetchChampionshipIndividualSessionParticipants(session.id).then(
+      ({ data, error }) => {
+        if (error) {
+          console.error("Erro ao carregar atléticas da sessão para o calendário:", error.message);
+          return;
+        }
+
+        setParticipantTeams(data);
+      },
+    );
+  };
 
   return (
     <div className="list-item-card list-item-card-hover flex h-full w-full flex-col p-4 dark:bg-[hsl(0_0%_12%)] dark:hover:bg-[hsl(0_0%_14%)]">
@@ -31,9 +63,19 @@ export function ChampionshipIndividualSessionCard({
           <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             {session.sports?.name ?? "Modalidade individual"}
           </span>
-          <span className="rounded-full border border-border/60 bg-background/40 px-2.5 py-1 text-[11px] font-medium">
-            Sessão
-          </span>
+          <div className="flex items-center gap-1">
+            {canShowCalendarSubscription ? (
+              <CalendarSubscriptionButton
+                title={`sessão de ${session.sports?.name ?? "modalidade individual"}`}
+                options={resolveSessionCalendarSubscriptionOptions(session, participantTeams)}
+                triggerLabel={`Adicionar sessão de ${session.sports?.name ?? "modalidade individual"} ao calendário`}
+                onOpenChange={handleCalendarSubscriptionOpenChange}
+              />
+            ) : null}
+            <span className="rounded-full border border-border/60 bg-background/40 px-2.5 py-1 text-[11px] font-medium">
+              Sessão
+            </span>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="rounded-full border border-border/60 bg-background/40 px-2.5 py-1 text-[11px] font-medium">

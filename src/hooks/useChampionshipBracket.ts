@@ -23,6 +23,14 @@ const championshipBracketRequestByKey = new Map<
   string,
   Promise<ChampionshipBracketFetchResult>
 >();
+const championshipBracketResultByKey = new Map<
+  string,
+  {
+    expiresAt: number;
+    result: ChampionshipBracketFetchResult;
+  }
+>();
+const CHAMPIONSHIP_BRACKET_REALTIME_DEBOUNCE_MS = 1000;
 
 function resolveChampionshipBracketRequestKey(
   championshipId: string,
@@ -34,6 +42,7 @@ function resolveChampionshipBracketRequestKey(
 function fetchSharedChampionshipBracketView(
   championshipId: string,
   seasonYear?: number | null,
+  forceFresh = false,
 ) {
   const requestKey = resolveChampionshipBracketRequestKey(
     championshipId,
@@ -45,16 +54,40 @@ function fetchSharedChampionshipBracketView(
     return currentRequest;
   }
 
-  const request = fetchChampionshipBracketView(championshipId, seasonYear).finally(
-    () => {
+  const cachedResult = championshipBracketResultByKey.get(requestKey);
+
+  if (!forceFresh && cachedResult && cachedResult.expiresAt > Date.now()) {
+    return Promise.resolve(cachedResult.result);
+  }
+
+  const request = fetchChampionshipBracketView(championshipId, seasonYear)
+    .then((result) => {
+      if (!result.error && result.data) {
+        championshipBracketResultByKey.set(requestKey, {
+          expiresAt: Date.now() + CHAMPIONSHIP_BRACKET_REALTIME_DEBOUNCE_MS,
+          result,
+        });
+      }
+
+      return result;
+    })
+    .finally(() => {
       if (championshipBracketRequestByKey.get(requestKey) === request) {
         championshipBracketRequestByKey.delete(requestKey);
       }
-    },
-  );
+    });
 
   championshipBracketRequestByKey.set(requestKey, request);
   return request;
+}
+
+function invalidateChampionshipBracketView(
+  championshipId: string,
+  seasonYear?: number | null,
+) {
+  championshipBracketResultByKey.delete(
+    resolveChampionshipBracketRequestKey(championshipId, seasonYear),
+  );
 }
 
 function isChampionshipScopedRealtimeRow(
@@ -74,17 +107,19 @@ export function useChampionshipBracket({
   const hasLoadedBracketRef = useRef(false);
   const isFetchingBracketRef = useRef(false);
   const hasQueuedBracketRefetchRef = useRef(false);
+  const shouldForceFreshOnQueuedBracketRefetchRef = useRef(false);
   const scheduledRefetchTimeoutRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
 
   const fetchBracket = useCallback(
-    async (shouldShowLoading = false) => {
+    async (shouldShowLoading = false, forceFresh = false) => {
       if (!enabled) {
         setLoading(true);
         hasLoadedBracketRef.current = false;
         isFetchingBracketRef.current = false;
         hasQueuedBracketRefetchRef.current = false;
+        shouldForceFreshOnQueuedBracketRefetchRef.current = false;
         return;
       }
 
@@ -94,11 +129,14 @@ export function useChampionshipBracket({
         hasLoadedBracketRef.current = false;
         isFetchingBracketRef.current = false;
         hasQueuedBracketRefetchRef.current = false;
+        shouldForceFreshOnQueuedBracketRefetchRef.current = false;
         return;
       }
 
       if (isFetchingBracketRef.current) {
         hasQueuedBracketRefetchRef.current = true;
+        shouldForceFreshOnQueuedBracketRefetchRef.current =
+          shouldForceFreshOnQueuedBracketRefetchRef.current || forceFresh;
         return;
       }
 
@@ -112,6 +150,7 @@ export function useChampionshipBracket({
         const { data, error } = await fetchSharedChampionshipBracketView(
           championshipId,
           seasonYear,
+          forceFresh,
         );
 
         if (error || !data) {
@@ -127,7 +166,10 @@ export function useChampionshipBracket({
 
         if (hasQueuedBracketRefetchRef.current) {
           hasQueuedBracketRefetchRef.current = false;
-          void fetchBracket();
+          const shouldForceFresh =
+            shouldForceFreshOnQueuedBracketRefetchRef.current;
+          shouldForceFreshOnQueuedBracketRefetchRef.current = false;
+          void fetchBracket(false, shouldForceFresh);
         }
       }
     },
@@ -192,8 +234,9 @@ export function useChampionshipBracket({
           }
 
           scheduledRefetchTimeoutRef.current = setTimeout(() => {
-            fetchBracket();
-          }, 120);
+            invalidateChampionshipBracketView(championshipId, seasonYear);
+            void fetchBracket(false, true);
+          }, CHAMPIONSHIP_BRACKET_REALTIME_DEBOUNCE_MS);
         },
       )
       .on(
@@ -234,8 +277,9 @@ export function useChampionshipBracket({
           }
 
           scheduledRefetchTimeoutRef.current = setTimeout(() => {
-            fetchBracket();
-          }, 120);
+            invalidateChampionshipBracketView(championshipId, seasonYear);
+            void fetchBracket(false, true);
+          }, CHAMPIONSHIP_BRACKET_REALTIME_DEBOUNCE_MS);
         },
       )
       .subscribe();
@@ -259,9 +303,14 @@ export function useChampionshipBracket({
     };
   }, []);
 
+  const refetch = useCallback(
+    () => fetchBracket(true, true),
+    [fetchBracket],
+  );
+
   return {
     championshipBracketView,
     loading,
-    refetch: fetchBracket,
+    refetch,
   };
 }

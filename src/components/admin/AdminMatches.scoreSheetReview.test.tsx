@@ -29,7 +29,10 @@ import type {
   Sport,
   Team,
 } from "@/lib/types";
-import type { ChampionshipCorrectedGroupStanding } from "@/domain/championship-brackets/championshipBracket.types";
+import type {
+  ChampionshipBracketTieBreakPendingContext,
+  ChampionshipCorrectedGroupStanding,
+} from "@/domain/championship-brackets/championshipBracket.types";
 
 type SupabaseUpdateCall = {
   table: string;
@@ -430,6 +433,8 @@ function renderAdminMatches(params: {
   championshipSports?: ChampionshipSport[];
   canManageMatches?: boolean;
   hasMatchesEditPermission?: boolean;
+  externalPendingTieBreakContexts?: ChampionshipBracketTieBreakPendingContext[];
+  externalPendingTieBreakEditionId?: string | null;
 }) {
   const onRefetch = vi.fn();
   const onRefetchChampionshipBracket = vi.fn();
@@ -453,6 +458,8 @@ function renderAdminMatches(params: {
         viewMode={params.viewMode ?? AdminMatchesViewMode.DEFAULT}
         onRefetch={onRefetch}
         onRefetchChampionshipBracket={onRefetchChampionshipBracket}
+        externalPendingTieBreakContexts={params.externalPendingTieBreakContexts}
+        externalPendingTieBreakEditionId={params.externalPendingTieBreakEditionId}
       />
     </TooltipProvider>,
   );
@@ -545,6 +552,18 @@ describe("AdminMatches score sheet review", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("sport-filter-mock")).toBeInTheDocument();
+    });
+  });
+
+  it("reutiliza os desempates carregados pela página administrativa na edição atual", async () => {
+    renderAdminMatches({
+      matches: [],
+      externalPendingTieBreakContexts: [],
+      externalPendingTieBreakEditionId: "edition-1",
+    });
+
+    await waitFor(() => {
+      expect(fetchPendingTieBreaksMock).not.toHaveBeenCalled();
     });
   });
 

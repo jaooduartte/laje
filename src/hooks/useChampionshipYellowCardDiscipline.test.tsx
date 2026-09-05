@@ -92,7 +92,13 @@ describe("useChampionshipYellowCardDiscipline", () => {
     expect(rpcMock).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(180);
+      await vi.advanceTimersByTimeAsync(999);
+    });
+
+    expect(rpcMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
     });
 
     expect(rpcMock).toHaveBeenCalledTimes(2);

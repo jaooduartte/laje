@@ -239,6 +239,7 @@ export function SchedulePageView({
           matchRepresentation={matchRepresentationByMatchId[item.match.id]}
           visualQueuePosition={visualQueuePositionByMatchId[item.match.id]}
           estimatedStartTime={estimatedStartTimeByMatchId[item.match.id]}
+          showCalendarSubscription
         />
       );
     }
@@ -257,6 +258,7 @@ export function SchedulePageView({
         key={item.id}
         session={item.session}
         eventCount={item.eventCount}
+        showCalendarSubscription
       />
     );
   };
@@ -573,6 +575,7 @@ export function SchedulePageView({
                             estimatedStartTime={
                               estimatedStartTimeByMatchId[match.id]
                             }
+                            showCalendarSubscription
                           />
                         ))}
                         {(groupedKnockoutPlaceholdersByDate[date] ?? []).map(

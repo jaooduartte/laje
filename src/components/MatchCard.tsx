@@ -2,6 +2,7 @@ import type { Match } from "@/lib/types";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AlertTriangle, Square } from "lucide-react";
+import { CalendarSubscriptionButton } from "@/components/calendar/CalendarSubscriptionButton";
 import { AppBadgeTone, BracketPhase, ChampionshipSportResultRule, MatchStatus } from "@/lib/enums";
 import { AppBadge } from "@/components/ui/app-badge";
 import {
@@ -22,6 +23,10 @@ import {
   resolveMatchTieBreakRuleLabel,
 } from "@/lib/championship";
 import { resolveSportCode } from "@/lib/modalidadeConfig";
+import {
+  canSubscribeToCalendar,
+  resolveMatchCalendarSubscriptionOptions,
+} from "@/domain/calendar-subscription/calendarSubscription";
 
 interface Props {
   match: Match;
@@ -31,6 +36,7 @@ interface Props {
   matchRepresentation?: string;
   visualQueuePosition?: number;
   estimatedStartTime?: string;
+  showCalendarSubscription?: boolean;
 }
 
 function RedCardIndicator({ quantity }: { quantity: number }) {
@@ -74,6 +80,7 @@ export function MatchCard({
   matchRepresentation,
   visualQueuePosition,
   estimatedStartTime,
+  showCalendarSubscription = false,
 }: Props) {
   const matchCardClassName =
     match.status == MatchStatus.LIVE
@@ -118,6 +125,10 @@ export function MatchCard({
         ? liveSetAwayScore
         : match.away_score;
   const isHandballMatch = resolveSportCode(match.sports?.name ?? "") == "HANDEBOL";
+  const canShowCalendarSubscription =
+    showCalendarSubscription &&
+    match.status == MatchStatus.SCHEDULED &&
+    canSubscribeToCalendar(match.start_time);
 
   return (
     <div className={matchCardClassName}>
@@ -126,9 +137,18 @@ export function MatchCard({
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
             {match.sports?.name}
           </span>
-          <AppBadge tone={resolveMatchStatusBadgeTone(match.status)} className="shrink-0">
-            {resolveMatchDisplayStatusLabel(match)}
-          </AppBadge>
+          <div className="flex items-center gap-1">
+            {canShowCalendarSubscription ? (
+              <CalendarSubscriptionButton
+                title={`${match.home_team?.name ?? "Atlética da casa"} x ${match.away_team?.name ?? "Atlética visitante"}`}
+                options={resolveMatchCalendarSubscriptionOptions(match)}
+                triggerLabel={`Adicionar ${match.home_team?.name ?? "jogo"} x ${match.away_team?.name ?? "jogo"} ao calendário`}
+              />
+            ) : null}
+            <AppBadge tone={resolveMatchStatusBadgeTone(match.status)} className="shrink-0">
+              {resolveMatchDisplayStatusLabel(match)}
+            </AppBadge>
+          </div>
         </div>
         <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {showChampionshipBadge && match.championships?.name ? (

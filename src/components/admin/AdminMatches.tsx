@@ -628,6 +628,10 @@ interface Props {
     showFetching?: boolean;
   }) => void | Promise<void>;
   onRefetchChampionshipBracket: () => void;
+  externalPendingTieBreakContexts?: ChampionshipBracketTieBreakPendingContext[];
+  externalPendingTieBreakEditionId?: string | null;
+  externalLoadingPendingTieBreaks?: boolean;
+  externalRefetchPendingTieBreaks?: () => void | Promise<void>;
   /** Dados externos de sorteios de premiação (vindos de AdminPage para o badge funcionar antes de entrar na aba). Quando fornecidos, o hook interno é desabilitado. */
   externalPendingAwardDrawContexts?: AwardDrawPendingContext[];
   externalLoadingPendingAwardDraws?: boolean;
@@ -1676,6 +1680,10 @@ export function AdminMatches({
   onOpenTieBreaksTab,
   onRefetch,
   onRefetchChampionshipBracket,
+  externalPendingTieBreakContexts,
+  externalPendingTieBreakEditionId,
+  externalLoadingPendingTieBreaks = false,
+  externalRefetchPendingTieBreaks,
   externalPendingAwardDrawContexts,
   externalLoadingPendingAwardDraws,
   externalRefetchPendingAwardDraws,
@@ -1683,6 +1691,10 @@ export function AdminMatches({
   const isScoreSheetReviewMode =
     viewMode == AdminMatchesViewMode.SCORE_SHEET_REVIEW;
   const isTieBreaksMode = viewMode == AdminMatchesViewMode.TIE_BREAKS;
+  const shouldUseExternalPendingTieBreaks =
+    externalPendingTieBreakEditionId !== undefined &&
+    (externalPendingTieBreakEditionId == null ||
+      externalPendingTieBreakEditionId == championshipBracketView.edition?.id);
   const isHistoricalSeasonView =
     !isScoreSheetReviewMode &&
     !isTieBreaksMode &&
@@ -2547,6 +2559,11 @@ export function AdminMatches({
   }, [championshipUsesDivisions, teams]);
 
   const loadPendingTieBreakContexts = useCallback(async () => {
+    if (shouldUseExternalPendingTieBreaks) {
+      await externalRefetchPendingTieBreaks?.();
+      return;
+    }
+
     if (!championshipBracketView.edition?.id) {
       setPendingTieBreakContexts([]);
       setDraftTieBreakTeamIdsByContextKey({});
@@ -2580,7 +2597,12 @@ export function AdminMatches({
         {},
       );
     });
-  }, [championshipBracketView.edition?.id, selectedChampionship.id]);
+  }, [
+    championshipBracketView.edition?.id,
+    externalRefetchPendingTieBreaks,
+    selectedChampionship.id,
+    shouldUseExternalPendingTieBreaks,
+  ]);
 
   const loadLocationTemplates = useCallback(async () => {
     setLoadingLocationTemplates(true);
@@ -2667,8 +2689,34 @@ export function AdminMatches({
   }, [defaultMatchesStatusFilter, isScoreSheetReviewMode]);
 
   useEffect(() => {
-    void loadPendingTieBreakContexts();
-  }, [loadPendingTieBreakContexts]);
+    if (!shouldUseExternalPendingTieBreaks) {
+      void loadPendingTieBreakContexts();
+    }
+  }, [loadPendingTieBreakContexts, shouldUseExternalPendingTieBreaks]);
+
+  useEffect(() => {
+    if (!shouldUseExternalPendingTieBreaks) {
+      return;
+    }
+
+    const contexts = externalPendingTieBreakContexts ?? [];
+    setPendingTieBreakContexts(contexts);
+    setLoadingPendingTieBreakContexts(externalLoadingPendingTieBreaks);
+    setSavingTieBreakResolutionByContextKey({});
+    setDraftTieBreakTeamIdsByContextKey(() => {
+      return contexts.reduce<Record<string, string[]>>(
+        (carry, pendingTieBreakContext) => {
+          carry[pendingTieBreakContext.context_key] = [];
+          return carry;
+        },
+        {},
+      );
+    });
+  }, [
+    externalLoadingPendingTieBreaks,
+    externalPendingTieBreakContexts,
+    shouldUseExternalPendingTieBreaks,
+  ]);
 
   useEffect(() => {
     if (

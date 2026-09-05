@@ -59,6 +59,97 @@ export interface ChampionshipYellowCardDiscipline {
   athletes: YellowCardDisciplineAthlete[];
 }
 
+type ChampionshipYellowCardDisciplineResult = {
+  data: ChampionshipYellowCardDiscipline | null;
+  error: unknown;
+};
+
+const championshipYellowCardDisciplineRequestByKey = new Map<
+  string,
+  Promise<ChampionshipYellowCardDisciplineResult>
+>();
+const championshipYellowCardDisciplineResultByKey = new Map<
+  string,
+  {
+    expiresAt: number;
+    result: ChampionshipYellowCardDisciplineResult;
+  }
+>();
+const CHAMPIONSHIP_YELLOW_CARD_DISCIPLINE_REALTIME_DEBOUNCE_MS = 1000;
+
+function resolveChampionshipYellowCardDisciplineRequestKey(
+  championshipId: string,
+  seasonYear: number,
+) {
+  return `${championshipId}-${seasonYear}`;
+}
+
+function fetchSharedChampionshipYellowCardDiscipline(
+  championshipId: string,
+  seasonYear: number,
+  forceFresh = false,
+) {
+  const requestKey = resolveChampionshipYellowCardDisciplineRequestKey(
+    championshipId,
+    seasonYear,
+  );
+  const currentRequest = championshipYellowCardDisciplineRequestByKey.get(
+    requestKey,
+  );
+
+  if (currentRequest) {
+    return currentRequest;
+  }
+
+  const cachedResult = championshipYellowCardDisciplineResultByKey.get(
+    requestKey,
+  );
+
+  if (!forceFresh && cachedResult && cachedResult.expiresAt > Date.now()) {
+    return Promise.resolve(cachedResult.result);
+  }
+
+  const request = supabase
+    .rpc("get_championship_yellow_card_discipline", {
+      _championship_id: championshipId,
+      _season_year: seasonYear,
+    })
+    .then((response) => {
+      const result = {
+        data:
+          (response.data as unknown as ChampionshipYellowCardDiscipline) ?? null,
+        error: response.error,
+      };
+
+      if (!result.error) {
+        championshipYellowCardDisciplineResultByKey.set(requestKey, {
+          expiresAt:
+            Date.now() + CHAMPIONSHIP_YELLOW_CARD_DISCIPLINE_REALTIME_DEBOUNCE_MS,
+          result,
+        });
+      }
+
+      return result;
+    })
+    .finally(() => {
+      if (championshipYellowCardDisciplineRequestByKey.get(requestKey) === request) {
+        championshipYellowCardDisciplineRequestByKey.delete(requestKey);
+      }
+    });
+
+  championshipYellowCardDisciplineRequestByKey.set(requestKey, request);
+  return request;
+}
+
+function invalidateChampionshipYellowCardDiscipline(
+  championshipId: string,
+  seasonYear: number,
+) {
+  championshipYellowCardDisciplineResultByKey.delete(
+    resolveChampionshipYellowCardDisciplineRequestKey(championshipId, seasonYear),
+  );
+}
+
 export function useChampionshipYellowCardDiscipline({
   championshipId,
   seasonYear,
@@ -71,21 +162,37 @@ export function useChampionshipYellowCardDiscipline({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scheduledRefetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isFetchingRef = useRef(false);
+  const hasQueuedRefetchRef = useRef(false);
+  const shouldForceFreshOnQueuedRefetchRef = useRef(false);
 
-  const fetch = useCallback(async () => {
+  const fetch = useCallback(async (forceFresh = false) => {
     if (!championshipId || !seasonYear) {
       setDiscipline(null);
       setError(null);
       setLoading(false);
+      isFetchingRef.current = false;
+      hasQueuedRefetchRef.current = false;
+      shouldForceFreshOnQueuedRefetchRef.current = false;
       return;
     }
 
+    if (isFetchingRef.current) {
+      hasQueuedRefetchRef.current = true;
+      shouldForceFreshOnQueuedRefetchRef.current =
+        shouldForceFreshOnQueuedRefetchRef.current || forceFresh;
+      return;
+    }
+
+    isFetchingRef.current = true;
     setLoading(true);
     try {
-      const { data, error: rpcError } = await supabase.rpc("get_championship_yellow_card_discipline", {
-        _championship_id: championshipId,
-        _season_year: seasonYear,
-      });
+      const { data, error: rpcError } =
+        await fetchSharedChampionshipYellowCardDiscipline(
+          championshipId,
+          seasonYear,
+          forceFresh,
+        );
 
       if (rpcError) {
         setDiscipline(null);
@@ -100,6 +207,14 @@ export function useChampionshipYellowCardDiscipline({
       setError("Não foi possível carregar os cartões. Tente novamente.");
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
+
+      if (hasQueuedRefetchRef.current) {
+        hasQueuedRefetchRef.current = false;
+        const shouldForceFresh = shouldForceFreshOnQueuedRefetchRef.current;
+        shouldForceFreshOnQueuedRefetchRef.current = false;
+        void fetch(shouldForceFresh);
+      }
     }
   }, [championshipId, seasonYear]);
 
@@ -117,8 +232,9 @@ export function useChampionshipYellowCardDiscipline({
 
       scheduledRefetchTimeoutRef.current = setTimeout(() => {
         scheduledRefetchTimeoutRef.current = null;
-        void fetch();
-      }, 180);
+        invalidateChampionshipYellowCardDiscipline(championshipId, seasonYear);
+        void fetch(true);
+      }, CHAMPIONSHIP_YELLOW_CARD_DISCIPLINE_REALTIME_DEBOUNCE_MS);
     };
 
     const channel = supabase
@@ -139,5 +255,15 @@ export function useChampionshipYellowCardDiscipline({
     };
   }, [championshipId, seasonYear, fetch]);
 
-  return { discipline, loading, error, refetch: fetch };
+  const refetch = useCallback(
+    () => fetch(true),
+    [fetch],
+  );
+
+  return {
+    discipline,
+    loading,
+    error,
+    refetch,
+  };
 }
