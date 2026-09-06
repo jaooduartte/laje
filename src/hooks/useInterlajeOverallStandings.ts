@@ -23,6 +23,7 @@ export function useInterlajeOverallStandings({
   const scheduledRefetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isFetchingRef = useRef(false);
   const hasQueuedRefetchRef = useRef(false);
+  const refetchRef = useRef<() => Promise<void>>(async () => undefined);
 
   const refetch = useCallback(async () => {
     if (!enabled || !championshipId || !seasonYear) {
@@ -50,6 +51,8 @@ export function useInterlajeOverallStandings({
       if (!response.error) {
         setStandings(response.data);
       }
+    } catch (error) {
+      console.error("Erro ao carregar classificação geral do Interlaje:", error);
     } finally {
       setLoading(false);
       isFetchingRef.current = false;
@@ -63,11 +66,13 @@ export function useInterlajeOverallStandings({
 
         scheduledRefetchTimeoutRef.current = setTimeout(() => {
           scheduledRefetchTimeoutRef.current = null;
-          void refetch();
+          void refetchRef.current();
         }, INTERLAJE_OVERALL_REALTIME_DEBOUNCE_MS);
       }
     }
   }, [championshipId, enabled, seasonYear]);
+
+  refetchRef.current = refetch;
 
   useEffect(() => {
     void refetch();
