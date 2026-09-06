@@ -181,6 +181,84 @@ describe("AdminSports", () => {
     expect(screen.queryByText("Critérios de premiação")).not.toBeInTheDocument();
   });
 
+  it("exibe a política oficial persistida do Interlaje em vez da lista estática", () => {
+    const interlajeChampionship: Championship = {
+      ...championship,
+      code: ChampionshipCode.INTERLAJE,
+      name: "Interlaje",
+    };
+
+    render(
+      <AdminSports
+        sports={[
+          {
+            id: "sport-basket",
+            name: "Basquetebol",
+            default_match_duration_minutes: 35,
+            created_at: championship.created_at,
+          },
+          {
+            id: "sport-swimming",
+            name: "Natação",
+            default_match_duration_minutes: 35,
+            created_at: championship.created_at,
+          },
+        ]}
+        championshipSports={[
+          {
+            ...championshipSports[0],
+            championship_id: interlajeChampionship.id,
+            sport_id: "sport-basket",
+            supports_cards: false,
+            classification_policy: {
+              criteria: [
+                "POINTS",
+                "POINTS_AVERAGE",
+                "HEAD_TO_HEAD_EXACTLY_TWO",
+                "POINT_DIFF",
+                "POINTS_FOR",
+                "POINTS_AGAINST_ASC",
+                "EXPULSIONS_ASC",
+                "MANUAL_DRAW",
+              ],
+            },
+          },
+          {
+            ...championshipSports[0],
+            id: "championship-sport-swimming",
+            championship_id: interlajeChampionship.id,
+            sport_id: "sport-swimming",
+            supports_cards: false,
+            classification_policy: {
+              event_ranking: ["LOWEST_TIME"],
+              event_tie_break: ["SWIM_OFF_50M_SAME_CATEGORY"],
+              overall_ranking: ["POINTS", "FIRST_PLACES_TO_TWENTIETH_PLACES"],
+              relay_multiplier: 2,
+            },
+          },
+        ]}
+        selectedChampionship={interlajeChampionship}
+      />,
+    );
+
+    expect(
+      screen.getAllByText("Critérios oficiais de classificação e desempate"),
+    ).toHaveLength(6);
+    expect(screen.getByText(/Pontos average/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Menor número de expulsões por jogo/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByText("Classificação por prova (ordem de prioridade)"),
+    ).toHaveLength(1);
+    expect(
+      screen.getByText(/Swim-off de 50 m na mesma categoria/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Revezamento vale 2× os pontos das provas individuais/),
+    ).toBeInTheDocument();
+  });
+
   it("renderiza as modalidades oficiais do Interlaje já vinculadas sem mensagem de estado morto", () => {
     const interlajeChampionship: Championship = {
       ...championship,

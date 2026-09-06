@@ -64,48 +64,104 @@ export interface InterlajeCompetitionStanding {
 }
 
 const INTERLAJE_POLICY_LABELS: Record<string, string> = {
-  POINTS: "Pontos",
+  POINTS: "Pontuação simples",
   POINTS_AVERAGE: "Pontos average",
-  HEAD_TO_HEAD_EXACTLY_TWO: "Confronto direto entre duas equipes",
-  POINT_DIFF: "Saldo de pontos",
-  POINTS_FOR: "Pontos pró",
-  POINTS_AGAINST_ASC: "Menos pontos sofridos",
-  GOAL_DIFF: "Saldo de gols",
-  GOALS_FOR: "Gols pró",
-  GOALS_AGAINST_ASC: "Menos gols sofridos",
+  HEAD_TO_HEAD_EXACTLY_TWO: "Confronto direto (somente entre duas equipes)",
+  POINT_DIFF: "Maior saldo de pontos",
+  POINTS_FOR: "Maior número de pontos marcados",
+  POINTS_AGAINST_ASC: "Menor número de pontos sofridos",
+  GOAL_DIFF: "Maior saldo de gols",
+  GOALS_FOR: "Maior número de gols marcados",
+  GOALS_AGAINST_ASC: "Menor número de gols sofridos",
   SETS_AVERAGE: "Sets average",
-  SETS_FOR: "Sets vencidos",
-  SETS_AGAINST_ASC: "Menos sets perdidos",
-  RALLY_POINTS_FOR: "Pontos de rally vencidos",
-  RALLY_POINTS_AGAINST_ASC: "Menos pontos de rally sofridos",
-  BLUE_CARDS_ASC: "Menos cartões azuis",
-  RED_CARDS_ASC: "Menos cartões vermelhos",
-  YELLOW_CARDS_ASC: "Menos cartões amarelos",
-  TWO_MINUTE_PENALTIES_ASC: "Menos penalidades de 2 minutos",
-  EXPULSIONS_ASC: "Menos expulsões",
-  MANUAL_DRAW: "Sorteio registrado",
+  SETS_FOR: "Maior número de sets vencidos",
+  SETS_AGAINST_ASC: "Menor número de sets perdidos",
+  RALLY_POINTS_FOR: "Maior número de pontos de rally vencidos",
+  RALLY_POINTS_AGAINST_ASC: "Menor número de pontos de rally sofridos",
+  BLUE_CARDS_ASC: "Menor número de cartões azuis por jogo",
+  RED_CARDS_ASC: "Menor número de cartões vermelhos por jogo",
+  YELLOW_CARDS_ASC: "Menor número de cartões amarelos por jogo",
+  TWO_MINUTE_PENALTIES_ASC: "Menor número de penalidades de 2 minutos",
+  EXPULSIONS_ASC: "Menor número de expulsões por jogo",
+  MANUAL_DRAW: "Sorteio com decisão registrada",
   LOWEST_TIME: "Menor tempo",
   LOWEST_TIME_FOR_RACES: "Menor tempo nas corridas",
   HIGHEST_MARK_FOR_JUMPS_AND_THROWS: "Maior marca em salto e arremesso",
-  SWIM_OFF_50M_SAME_CATEGORY: "Swim-off de 50 m",
-  REPEAT_MARK_UNTIL_FIRST: "Repetição de marca",
-  CAMERA_ARBITRATION_FOR_RACES: "Câmera e arbitragem",
-  FIRST_PLACES_TO_TWENTIETH_PLACES: "Mais 1ºs, 2ºs e assim por diante",
+  SWIM_OFF_50M_SAME_CATEGORY: "Swim-off de 50 m na mesma categoria",
+  REPEAT_MARK_UNTIL_FIRST: "Repetição da prova até definir o primeiro colocado",
+  CAMERA_ARBITRATION_FOR_RACES: "Câmera e arbitragem na linha de chegada",
+  FIRST_PLACES_TO_TWENTIETH_PLACES:
+    "Maior número de 1ºs, depois 2ºs e assim sucessivamente até 20ºs",
 };
+
+export interface InterlajeClassificationPolicySection {
+  title: string;
+  criteria: string[];
+}
+
+function resolveInterlajePolicyCriteria(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((criterion): criterion is string => typeof criterion == "string")
+    .map((criterion) => INTERLAJE_POLICY_LABELS[criterion] ?? criterion);
+}
+
+export function resolveInterlajeClassificationPolicySections(
+  policy: Record<string, unknown> | undefined | null,
+): InterlajeClassificationPolicySection[] {
+  const collectiveCriteria = resolveInterlajePolicyCriteria(policy?.criteria);
+
+  if (collectiveCriteria.length > 0) {
+    return [
+      {
+        title: "Classificação e desempate",
+        criteria: collectiveCriteria,
+      },
+    ];
+  }
+
+  const eventRankingCriteria = resolveInterlajePolicyCriteria(
+    policy?.event_ranking,
+  );
+  const eventTieBreakCriteria = resolveInterlajePolicyCriteria(
+    policy?.event_tie_break,
+  );
+  const overallRankingCriteria = resolveInterlajePolicyCriteria(
+    policy?.overall_ranking,
+  );
+  const relayMultiplier = policy?.relay_multiplier;
+
+  if (typeof relayMultiplier == "number" && relayMultiplier > 1) {
+    overallRankingCriteria.push(
+      `Revezamento vale ${relayMultiplier}× os pontos das provas individuais`,
+    );
+  }
+
+  return [
+    {
+      title: "Classificação por prova",
+      criteria: eventRankingCriteria,
+    },
+    {
+      title: "Desempate por prova",
+      criteria: eventTieBreakCriteria,
+    },
+    {
+      title: "Classificação geral",
+      criteria: overallRankingCriteria,
+    },
+  ].filter((section) => section.criteria.length > 0);
+}
 
 export function formatInterlajeClassificationPolicy(
   policy: Record<string, unknown> | undefined,
 ) {
-  const criteria = policy?.criteria ?? policy?.event_ranking ?? policy?.overall_ranking;
+  const [firstSection] = resolveInterlajeClassificationPolicySections(policy);
 
-  if (!Array.isArray(criteria)) {
-    return null;
-  }
-
-  return criteria
-    .filter((criterion): criterion is string => typeof criterion == "string")
-    .map((criterion) => INTERLAJE_POLICY_LABELS[criterion] ?? criterion)
-    .join(" → ");
+  return firstSection?.criteria.join(" → ") ?? null;
 }
 
 export async function fetchInterlajeOverallStandings(

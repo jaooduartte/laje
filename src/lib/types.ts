@@ -287,6 +287,7 @@ export interface ChampionshipSport {
   walkover_winner_set_count: number;
   awards_include_knockout_phase: boolean;
   supports_individual_awards: boolean;
+  classification_policy?: Record<string, unknown> | null;
   // Joined
   championships?: Championship;
   sports?: Sport;

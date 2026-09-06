@@ -4,6 +4,7 @@ import { AdminListSkeleton } from "@/components/skeletons/AdminListSkeleton";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { updateBracketLocationSportPriorities } from "@/domain/championship-brackets/championshipBracket.repository";
+import { resolveInterlajeClassificationPolicySections } from "@/domain/interlaje/interlajeOverallStandings.repository";
 import type { Championship, ChampionshipSport, Sport } from "@/lib/types";
 import {
   ChampionshipCode,
@@ -687,6 +688,12 @@ export function AdminSports({
               optimisticSupportsIndividualAwardsBySportId[sport?.id ?? ""] ??
               championshipSport?.supports_individual_awards ??
               false;
+            const interlajeClassificationPolicySections =
+              selectedChampionship.code == ChampionshipCode.INTERLAJE
+                ? resolveInterlajeClassificationPolicySections(
+                    championshipSport?.classification_policy,
+                  )
+                : [];
 
             return (
               <div
@@ -831,21 +838,49 @@ export function AdminSports({
                   </div>
                 ) : null}
 
-                <div className="app-card-muted px-3 py-2">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Critérios de desempate (ordem de prioridade)
-                  </p>
-                  <ol className="mt-1 space-y-1 text-sm font-medium">
-                    {platformSportRule.tieBreakerPriority.map(
-                      (tieBreakerPriorityItem, tieBreakerPriorityIndex) => (
-                        <li key={tieBreakerPriorityItem}>
-                          {tieBreakerPriorityIndex + 1}.{" "}
-                          {tieBreakerPriorityItem}
-                        </li>
-                      ),
+                {selectedChampionship.code == ChampionshipCode.INTERLAJE ? (
+                  <div className="app-card-muted space-y-3 px-3 py-2">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Critérios oficiais de classificação e desempate
+                    </p>
+                    {interlajeClassificationPolicySections.length > 0 ? (
+                      interlajeClassificationPolicySections.map((section) => (
+                        <div key={section.title}>
+                          <p className="text-xs font-medium text-muted-foreground">
+                            {section.title} (ordem de prioridade)
+                          </p>
+                          <ol className="mt-1 space-y-1 text-sm font-medium">
+                            {section.criteria.map((criterion, criterionIndex) => (
+                              <li key={criterion}>
+                                {criterionIndex + 1}. {criterion}
+                              </li>
+                            ))}
+                          </ol>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        Política oficial ainda não disponível para esta modalidade.
+                      </p>
                     )}
-                  </ol>
-                </div>
+                  </div>
+                ) : (
+                  <div className="app-card-muted px-3 py-2">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Critérios de desempate (ordem de prioridade)
+                    </p>
+                    <ol className="mt-1 space-y-1 text-sm font-medium">
+                      {platformSportRule.tieBreakerPriority.map(
+                        (tieBreakerPriorityItem, tieBreakerPriorityIndex) => (
+                          <li key={tieBreakerPriorityItem}>
+                            {tieBreakerPriorityIndex + 1}.{" "}
+                            {tieBreakerPriorityItem}
+                          </li>
+                        ),
+                      )}
+                    </ol>
+                  </div>
+                )}
 
                 <div className="app-card-muted space-y-2 px-3 py-2">
                   <p className="text-xs font-medium text-muted-foreground">
