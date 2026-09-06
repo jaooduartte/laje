@@ -1,11 +1,22 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCalendarDocument,
+  resolveCalendarDescription,
   resolveETag,
+  resolveMatchCalendarTitle,
   resolveScheduledSessionDateTime,
 } from "../../../supabase/functions/calendar-subscription-feed/calendarIcs";
 
 describe("calendar ICS document", () => {
+  it("inclui o naipe no título do jogo e mantém a descrição em múltiplas linhas", () => {
+    expect(
+      resolveMatchCalendarTitle("Voleibol", "Masculino", "ENGÊNIOS", "UEFA"),
+    ).toBe("LAJE · Voleibol Masculino — ENGÊNIOS x UEFA");
+    expect(
+      resolveCalendarDescription(["Interlaje", "Edição 2026", "Masculino"]),
+    ).toBe("Interlaje\nEdição 2026\nMasculino");
+  });
+
   it("gera evento estável, com CRLF, UTC e textos escapados", () => {
     const calendar = buildCalendarDocument([
       {

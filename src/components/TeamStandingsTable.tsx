@@ -33,7 +33,6 @@ interface Props {
 }
 
 const MOBILE_BADGE_LEGEND_LABEL_BY_KEY: Record<string, string> = {
-  "confirmed-placement": "Colocação confirmada",
   "projected-placement": "Colocação projetada",
   "opening-bonus": "Bônus de abertura",
   "walkover-penalty": "Desconto por W.O.",

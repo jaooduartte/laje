@@ -791,6 +791,8 @@ export function AdminMatchControl({
   >({});
   const [matchCompletionLoadingById, setMatchCompletionLoadingById] =
     useState<Record<string, boolean>>({});
+  const [setFinalizationLoadingByMatchId, setSetFinalizationLoadingByMatchId] =
+    useState<Record<string, boolean>>({});
   const [sessionParticipantsBySessionId, setSessionParticipantsBySessionId] =
     useState<Record<string, Team[]>>({});
   const [sessionParticipantsLoading, setSessionParticipantsLoading] =
@@ -2261,6 +2263,13 @@ export function AdminMatchControl({
     }));
   };
 
+  const setSetFinalizationLoading = (matchId: string, isLoading: boolean) => {
+    setSetFinalizationLoadingByMatchId((current) => ({
+      ...current,
+      [matchId]: isLoading,
+    }));
+  };
+
   const handleFinishSet = async (match: Match) => {
     if (
       !canManageScoreboard ||
@@ -2288,6 +2297,7 @@ export function AdminMatchControl({
     cancelPendingAutosave(match.id);
 
     setMatchCompletionLoading(match.id, true);
+    setSetFinalizationLoading(match.id, true);
 
     try {
       const closedMatchSets = resolveClosedMatchSets(match);
@@ -2340,6 +2350,7 @@ export function AdminMatchControl({
       await onRefetch();
       toast.success(`Set ${nextMatchSets.length} encerrado.`);
     } finally {
+      setSetFinalizationLoading(match.id, false);
       setMatchCompletionLoading(match.id, false);
     }
   };
@@ -4034,6 +4045,8 @@ export function AdminMatchControl({
                   displayedSetWins.away_sets >= 2);
               const isMatchCompletionLoading =
                 matchCompletionLoadingById[match.id] == true;
+              const isSetFinalizationLoading =
+                setFinalizationLoadingByMatchId[match.id] == true;
               const selectedWalkoverMode = resolveSelectedWalkoverMode(match);
               const hasWalkoverSelection =
                 selectedWalkoverMode != WALKOVER_MODE_NONE;
@@ -4525,7 +4538,8 @@ export function AdminMatchControl({
                     </div>
                   </div>
 
-                  {isSetMatch && setSummary.length > 0 ? (
+                  {isSetMatch &&
+                  (setSummary.length > 0 || isSetFinalizationLoading) ? (
                     <div className="space-y-2 app-card-emphasis p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-xs font-semibold uppercase text-muted-foreground">
@@ -4669,6 +4683,21 @@ export function AdminMatchControl({
                             </div>
                           );
                         })}
+                        {isSetFinalizationLoading ? (
+                          <div
+                            role="status"
+                            aria-live="polite"
+                            className="flex items-center gap-2 app-card-muted px-2 py-1.5 text-xs text-muted-foreground"
+                          >
+                            <Loader2
+                              aria-hidden="true"
+                              className="h-3.5 w-3.5 shrink-0 animate-spin"
+                            />
+                            <span>
+                              Registrando set {closedMatchSets.length + 1}...
+                            </span>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   ) : null}

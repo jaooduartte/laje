@@ -1,3 +1,5 @@
+import type { ChampionshipBracketMatchNumberingMode } from "@/domain/championship-brackets/championshipBracket.types";
+import type { MatchNaipe } from "@/lib/enums";
 import type { ChampionshipBracketView, Match } from "@/lib/types";
 import { resolvePublicScheduleTimeLabel } from "@/domain/public-schedule/publicScheduleTimeline";
 
@@ -42,20 +44,49 @@ function resolveStoredMatchNumber(match: Match) {
   );
 }
 
+export function resolveChampionshipBracketMatchNumberingMode(
+  payloadSnapshot: Record<string, unknown> | null | undefined,
+): ChampionshipBracketMatchNumberingMode {
+  if (payloadSnapshot?.match_numbering_mode == "SPORT_NAIPE") {
+    return "SPORT_NAIPE";
+  }
+
+  return payloadSnapshot?.match_numbering_mode == "SPORT" ? "SPORT" : "COURT";
+}
+
+function resolveMatchNumberingScopeKey(
+  sportId: string,
+  naipe: MatchNaipe,
+  matchNumberingMode: ChampionshipBracketMatchNumberingMode,
+): string {
+  return matchNumberingMode == "SPORT_NAIPE"
+    ? `${sportId}:${naipe}`
+    : sportId;
+}
+
 export function resolveKnockoutDisplayMatchNumberById(
   championshipBracketView: ChampionshipBracketView,
   matches: Match[] = [],
+  matchNumberingMode = resolveChampionshipBracketMatchNumberingMode(
+    championshipBracketView.edition?.payload_snapshot,
+  ),
 ): Record<string, number> {
-  const lastGroupStageMatchNumberBySportId = new Map<string, number>();
-  const firstGroupStageMatchNumberBySportId = new Map<string, number>();
-  const groupStageMatchCountBySportId = new Map<string, number>();
+  const lastGroupStageMatchNumberByScopeKey = new Map<string, number>();
+  const firstGroupStageMatchNumberByScopeKey = new Map<string, number>();
+  const groupStageMatchCountByScopeKey = new Map<string, number>();
 
   championshipBracketView.competitions.forEach((competition) => {
+    const scopeKey = resolveMatchNumberingScopeKey(
+      competition.sport_id,
+      competition.naipe,
+      matchNumberingMode,
+    );
+
     competition.groups.forEach((group) => {
       group.matches.forEach((match) => {
-        groupStageMatchCountBySportId.set(
-          competition.sport_id,
-          (groupStageMatchCountBySportId.get(competition.sport_id) ?? 0) + 1,
+        groupStageMatchCountByScopeKey.set(
+          scopeKey,
+          (groupStageMatchCountByScopeKey.get(scopeKey) ?? 0) + 1,
         );
 
         const matchNumber =
@@ -65,17 +96,17 @@ export function resolveKnockoutDisplayMatchNumberById(
           return;
         }
 
-        lastGroupStageMatchNumberBySportId.set(
-          competition.sport_id,
+        lastGroupStageMatchNumberByScopeKey.set(
+          scopeKey,
           Math.max(
-            lastGroupStageMatchNumberBySportId.get(competition.sport_id) ?? 0,
+            lastGroupStageMatchNumberByScopeKey.get(scopeKey) ?? 0,
             matchNumber,
           ),
         );
-        firstGroupStageMatchNumberBySportId.set(
-          competition.sport_id,
+        firstGroupStageMatchNumberByScopeKey.set(
+          scopeKey,
           Math.min(
-            firstGroupStageMatchNumberBySportId.get(competition.sport_id) ??
+            firstGroupStageMatchNumberByScopeKey.get(scopeKey) ??
               matchNumber,
             matchNumber,
           ),
@@ -91,10 +122,16 @@ export function resolveKnockoutDisplayMatchNumberById(
       return;
     }
 
-    lastGroupStageMatchNumberBySportId.set(
+    const scopeKey = resolveMatchNumberingScopeKey(
       match.sport_id,
+      match.naipe,
+      matchNumberingMode,
+    );
+
+    lastGroupStageMatchNumberByScopeKey.set(
+      scopeKey,
       Math.max(
-        lastGroupStageMatchNumberBySportId.get(match.sport_id) ?? 0,
+        lastGroupStageMatchNumberByScopeKey.get(scopeKey) ?? 0,
         matchNumber,
       ),
     );
@@ -102,29 +139,37 @@ export function resolveKnockoutDisplayMatchNumberById(
 
   const displayMatchNumberById: Record<string, number> = {};
 
-  const knockoutMatchesBySportId = new Map<
+  const knockoutMatchesByScopeKey = new Map<
     string,
     ChampionshipBracketView["competitions"][number]["knockout_matches"]
   >();
 
   championshipBracketView.competitions.forEach((competition) => {
-    const knockoutMatches = knockoutMatchesBySportId.get(competition.sport_id) ?? [];
+    const scopeKey = resolveMatchNumberingScopeKey(
+      competition.sport_id,
+      competition.naipe,
+      matchNumberingMode,
+    );
+    const knockoutMatches = knockoutMatchesByScopeKey.get(scopeKey) ?? [];
     knockoutMatches.push(...competition.knockout_matches);
-    knockoutMatchesBySportId.set(competition.sport_id, knockoutMatches);
+    knockoutMatchesByScopeKey.set(scopeKey, knockoutMatches);
   });
 
-  knockoutMatchesBySportId.forEach((knockoutMatches, sportId) => {
+  knockoutMatchesByScopeKey.forEach((knockoutMatches, scopeKey) => {
     const firstGroupStageMatchNumber =
-      firstGroupStageMatchNumberBySportId.get(sportId);
-    const groupStageMatchCount = groupStageMatchCountBySportId.get(sportId) ?? 0;
+      firstGroupStageMatchNumberByScopeKey.get(scopeKey);
+    const groupStageMatchCount = groupStageMatchCountByScopeKey.get(scopeKey) ?? 0;
     const expectedLastGroupStageMatchNumber =
       firstGroupStageMatchNumber != null && groupStageMatchCount > 0
         ? firstGroupStageMatchNumber + groupStageMatchCount - 1
         : 0;
-    const baseMatchNumber = Math.max(
-      lastGroupStageMatchNumberBySportId.get(sportId) ?? 0,
-      expectedLastGroupStageMatchNumber,
-    );
+    const baseMatchNumber =
+      matchNumberingMode == "SPORT_NAIPE"
+        ? groupStageMatchCount
+        : Math.max(
+            lastGroupStageMatchNumberByScopeKey.get(scopeKey) ?? 0,
+            expectedLastGroupStageMatchNumber,
+          );
 
     knockoutMatches
       .filter((match) => !match.is_bye && match.scheduled_date != null)

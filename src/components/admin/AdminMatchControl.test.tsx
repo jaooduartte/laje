@@ -2894,6 +2894,9 @@ describe("AdminMatchControl", () => {
     expect(
       within(matchCardElement).getAllByRole("button", { name: /processando/i }),
     ).toHaveLength(2);
+    expect(
+      within(matchCardElement).getByRole("status"),
+    ).toBeInTheDocument();
 
     await act(async () => {
       resolveRefetch?.();
@@ -2901,6 +2904,9 @@ describe("AdminMatchControl", () => {
     });
 
     expect(matchCardElement).toHaveAttribute("aria-busy", "false");
+    expect(
+      within(matchCardElement).queryByRole("status"),
+    ).not.toBeInTheDocument();
   });
 
   it("limita o Voleibol do INTERLAJE a três sets", () => {

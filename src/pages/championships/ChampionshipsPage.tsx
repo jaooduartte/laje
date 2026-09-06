@@ -414,16 +414,6 @@ export function ChampionshipsPage() {
       interlajeOverallStandings.map((standing) => {
         const badges: TeamStandingsBadge[] = [];
 
-        if (standing.confirmed_placement_points > 0) {
-          badges.push({
-            key: "confirmed-placement",
-            label: `Colocação confirmada +${formatStandingsPoints(standing.confirmed_placement_points)} pts`,
-            mobileLabel: `+${formatStandingsPoints(standing.confirmed_placement_points)}`,
-            className:
-              "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300",
-          });
-        }
-
         if (standing.opening_bonus_points > 0) {
           badges.push({
             key: "opening-bonus",
@@ -448,21 +438,6 @@ export function ChampionshipsPage() {
       }),
     );
   }, [interlajeOverallStandings]);
-  const interlajeCompetitionBadgesByTeamId = useMemo(() => {
-    return new Map<string, TeamStandingsBadge[]>(
-      interlajeCompetitionStandings.map((standing) => [
-        standing.team_id,
-        standing.placement_status == "PROJECTED"
-          ? [{
-              key: "projected-placement",
-              label: "Colocação projetada",
-              className:
-                "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300",
-            }]
-          : [],
-      ]),
-    );
-  }, [interlajeCompetitionStandings]);
   const hasInterlajeCompetitionProjectedPlacement = useMemo(
     () => interlajeCompetitionStandings.some(
       (standing) => standing.placement_status == "PROJECTED",
@@ -954,7 +929,6 @@ export function ChampionshipsPage() {
         isInterlajeCompetitionStandingsAvailable
       }
       interlajeCompetitionStandings={interlajeCompetitionStandings}
-      interlajeCompetitionBadgesByTeamId={interlajeCompetitionBadgesByTeamId}
       hasInterlajeCompetitionProjectedPlacement={
         hasInterlajeCompetitionProjectedPlacement
       }

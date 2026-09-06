@@ -1298,6 +1298,55 @@ describe("AdminMatches score sheet review", () => {
     ).toBe(false);
   });
 
+  it("mostra carregamento no card enquanto marca como revisado sem abrir a modal", async () => {
+    shouldDelaySupabaseUpdate.value = true;
+
+    renderAdminMatches({
+      viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
+      matches: [
+        buildMatch({
+          id: "score-sheet-loading-match",
+          sport_id: "sport-1",
+          status: MatchStatus.FINISHED,
+          home_team: buildTeam({ id: "loading-home", name: "LOADING CASA" }),
+          away_team: buildTeam({ id: "loading-away", name: "LOADING VISITANTE" }),
+        }),
+      ],
+    });
+
+    fireEvent.pointerDown(
+      await screen.findByLabelText(
+        "Ações do jogo LOADING CASA x LOADING VISITANTE",
+      ),
+    );
+    const matchCardContainer = getMatchCardContainerByTeamName("LOADING CASA");
+    clickFirstMenuItemInMatchCard(
+      matchCardContainer,
+      "Revisar súmula e premiações",
+    );
+
+    expect(
+      await within(matchCardContainer).findByRole("status", {
+        name: "Salvando revisão da súmula",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(matchCardContainer).queryByTitle("Conferido com súmula"),
+    ).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveDelayedSupabaseUpdate.current?.();
+    });
+
+    await waitFor(() => {
+      expect(
+        within(matchCardContainer).queryByRole("status", {
+          name: "Salvando revisão da súmula",
+        }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
   it("mostra aviso de que pênaltis não entram na artilharia na revisão de súmula", async () => {
     supabaseRpcResponses.push({
       data: {
@@ -2317,6 +2366,178 @@ describe("AdminMatches score sheet review", () => {
     expect(supabaseUpdateCalls[0].payload).not.toHaveProperty("location");
     expect(supabaseUpdateCalls[0].payload).not.toHaveProperty("scheduled_date");
     expect(supabaseUpdateCalls[0].payload).not.toHaveProperty("manual_representation_mode");
+  });
+
+  it("altera a atlética que recebeu W.O. ao editar jogo encerrado", async () => {
+    const { onRefetch, onRefetchChampionshipBracket } = renderAdminMatches({
+      matches: [
+        buildMatch({
+          id: "finished-walkover-edit-match",
+          sport_id: "sport-1",
+          status: MatchStatus.FINISHED,
+          start_time: "2026-04-11T08:00:00.000Z",
+          court_name: "Quadra 1",
+          is_walkover: true,
+          walkover_loser_team_id: "walkover-edit-home",
+          is_score_sheet_reviewed: true,
+          home_team: buildTeam({ id: "walkover-edit-home", name: "W.O. CASA" }),
+          away_team: buildTeam({ id: "walkover-edit-away", name: "W.O. VISITANTE" }),
+        }),
+      ],
+    });
+
+    fireEvent.pointerDown(
+      await screen.findByLabelText("Ações do jogo W.O. CASA x W.O. VISITANTE"),
+    );
+    const matchCardContainer = getMatchCardContainerByTeamName("W.O. CASA");
+    clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
+
+    expect(screen.getByRole("combobox", { name: "W.O.?" })).toHaveTextContent(
+      "W.O. CASA",
+    );
+
+    fireEvent.click(screen.getByRole("combobox", { name: "W.O.?" }));
+    fireEvent.click(await screen.findByRole("option", { name: "W.O. VISITANTE" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
+
+    await waitFor(() => {
+      expect(
+        supabaseRpcCalls.find(
+          (rpcCall) => rpcCall.functionName == "save_finished_match_walkover",
+        )?.payload,
+      ).toEqual({
+        _match_id: "finished-walkover-edit-match",
+        _walkover_mode: "AWAY_LOST",
+      });
+    });
+
+    expect(screen.queryByText("Jogo já revisado na súmula")).not.toBeInTheDocument();
+    expect(supabaseUpdateCalls).toHaveLength(0);
+    expect(toastSuccessMock).toHaveBeenCalledWith("W.O. atualizado.");
+    expect(onRefetch).toHaveBeenCalledTimes(1);
+    expect(onRefetchChampionshipBracket).toHaveBeenCalledTimes(1);
+  });
+
+  it("permite aplicar W.O. duplo ao editar jogo encerrado", async () => {
+    renderAdminMatches({
+      matches: [
+        buildMatch({
+          id: "finished-double-walkover-edit-match",
+          sport_id: "sport-1",
+          status: MatchStatus.FINISHED,
+          start_time: "2026-04-11T08:00:00.000Z",
+          court_name: "Quadra 1",
+          home_team: buildTeam({ id: "double-edit-home", name: "DUPLO CASA" }),
+          away_team: buildTeam({ id: "double-edit-away", name: "DUPLO VISITANTE" }),
+        }),
+      ],
+    });
+
+    fireEvent.pointerDown(
+      await screen.findByLabelText("Ações do jogo DUPLO CASA x DUPLO VISITANTE"),
+    );
+    const matchCardContainer = getMatchCardContainerByTeamName("DUPLO CASA");
+    clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
+
+    fireEvent.click(screen.getByRole("combobox", { name: "W.O.?" }));
+    fireEvent.click(
+      await screen.findByRole("option", {
+        name: "Ambas as atléticas tomaram W.O.",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
+
+    await waitFor(() => {
+      expect(
+        supabaseRpcCalls.find(
+          (rpcCall) => rpcCall.functionName == "save_finished_match_walkover",
+        )?.payload,
+      ).toEqual({
+        _match_id: "finished-double-walkover-edit-match",
+        _walkover_mode: "DOUBLE",
+      });
+    });
+  });
+
+  it("bloqueia W.O. duplo ao editar jogo encerrado de mata-mata", async () => {
+    renderAdminMatches({
+      matches: [
+        buildMatch({
+          id: "finished-knockout-walkover-edit-match",
+          sport_id: "sport-1",
+          status: MatchStatus.FINISHED,
+          start_time: "2026-04-11T08:00:00.000Z",
+          court_name: "Quadra 1",
+          home_team: buildTeam({ id: "knockout-edit-home", name: "MATA CASA" }),
+          away_team: buildTeam({ id: "knockout-edit-away", name: "MATA VISITANTE" }),
+        }),
+      ],
+      matchBracketContextByMatchId: {
+        "finished-knockout-walkover-edit-match": {
+          badgeLabel: "Mata-mata",
+          phase: BracketPhase.KNOCKOUT,
+          stageLabel: "Semifinal",
+        },
+      },
+    });
+
+    fireEvent.pointerDown(
+      await screen.findByLabelText("Ações do jogo MATA CASA x MATA VISITANTE"),
+    );
+    const matchCardContainer = getMatchCardContainerByTeamName("MATA CASA");
+    clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
+
+    fireEvent.click(screen.getByRole("combobox", { name: "W.O.?" }));
+
+    expect(
+      await screen.findByRole("option", {
+        name: "Ambas as atléticas tomaram W.O.",
+      }),
+    ).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("remove o W.O. e dispensa a confirmação da súmula revisada", async () => {
+    renderAdminMatches({
+      matches: [
+        buildMatch({
+          id: "finished-remove-walkover-edit-match",
+          sport_id: "sport-1",
+          status: MatchStatus.FINISHED,
+          start_time: "2026-04-11T08:00:00.000Z",
+          court_name: "Quadra 1",
+          is_walkover: true,
+          walkover_loser_team_id: "remove-walkover-home",
+          is_score_sheet_reviewed: true,
+          home_team: buildTeam({ id: "remove-walkover-home", name: "REMOVER CASA" }),
+          away_team: buildTeam({ id: "remove-walkover-away", name: "REMOVER VISITANTE" }),
+        }),
+      ],
+    });
+
+    fireEvent.pointerDown(
+      await screen.findByLabelText(
+        "Ações do jogo REMOVER CASA x REMOVER VISITANTE",
+      ),
+    );
+    const matchCardContainer = getMatchCardContainerByTeamName("REMOVER CASA");
+    clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
+
+    fireEvent.click(screen.getByRole("combobox", { name: "W.O.?" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Não" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
+
+    await waitFor(() => {
+      expect(
+        supabaseRpcCalls.find(
+          (rpcCall) => rpcCall.functionName == "save_finished_match_walkover",
+        )?.payload,
+      ).toEqual({
+        _match_id: "finished-remove-walkover-edit-match",
+        _walkover_mode: "NONE",
+      });
+    });
+
+    expect(screen.queryByText("Jogo já revisado na súmula")).not.toBeInTheDocument();
   });
 
   it("permite controlar as penalidades de dois minutos ao editar um jogo encerrado de Handebol", async () => {

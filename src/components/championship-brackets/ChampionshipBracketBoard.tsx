@@ -26,6 +26,10 @@ import {
   TeamDivision,
 } from "@/lib/enums";
 import {
+  resolveChampionshipBracketMatchNumberingMode,
+  resolveKnockoutDisplayMatchNumberById,
+} from "@/domain/championship-brackets/championshipBracketDisplayMatchNumbers";
+import {
   BRACKET_EDITION_STATUS_LABELS,
   BRACKET_THIRD_PLACE_MODE_LABELS,
   MATCH_NAIPE_LABELS,
@@ -67,6 +71,7 @@ interface ProjectedKnockoutMatchDisplay {
   home_team_name: string | null;
   away_team_name: string | null;
   winner_team_name: string | null;
+  display_match_number: number | null;
   home_placeholder_label: string;
   away_placeholder_label: string;
 }
@@ -147,6 +152,7 @@ function resolveWinnerSourceLabel(
 
 function resolveFallbackKnockoutRounds(
   competition: ChampionshipBracketCompetition,
+  displayMatchNumberById: Record<string, number>,
 ): ProjectedKnockoutRoundDisplay[] {
   const knockoutMatchesByRound = [...competition.knockout_matches].reduce<
     Record<number, ChampionshipBracketKnockoutMatch[]>
@@ -196,6 +202,7 @@ function resolveFallbackKnockoutRounds(
           home_team_name: knockoutMatch.home_team_name,
           away_team_name: knockoutMatch.away_team_name,
           winner_team_name: knockoutMatch.winner_team_name,
+          display_match_number: displayMatchNumberById[knockoutMatch.id] ?? null,
           home_placeholder_label: resolveWinnerSourceLabel(
             Math.max(1, knockoutMatch.round_number - 1),
             Math.max(1, knockoutMatch.slot_number * 2 - 1),
@@ -212,6 +219,7 @@ function resolveFallbackKnockoutRounds(
 
 function resolveProjectedKnockoutRounds(
   competition: ChampionshipBracketCompetition,
+  displayMatchNumberById: Record<string, number>,
 ): ProjectedKnockoutRoundDisplay[] {
   const knockoutProjection = resolveChampionshipBracketKnockoutProjection({
     groups_count: competition.groups_count,
@@ -226,7 +234,7 @@ function resolveProjectedKnockoutRounds(
       return [];
     }
 
-    return resolveFallbackKnockoutRounds(competition);
+    return resolveFallbackKnockoutRounds(competition, displayMatchNumberById);
   }
 
   const bracketSize = knockoutProjection.projected_bracket_size;
@@ -307,6 +315,9 @@ function resolveProjectedKnockoutRounds(
         home_team_name: knockoutMatch?.home_team_name ?? null,
         away_team_name: knockoutMatch?.away_team_name ?? null,
         winner_team_name: knockoutMatch?.winner_team_name ?? null,
+        display_match_number: knockoutMatch
+          ? (displayMatchNumberById[knockoutMatch.id] ?? null)
+          : null,
         home_placeholder_label: homePlaceholderLabel,
         away_placeholder_label: awayPlaceholderLabel,
       });
@@ -337,6 +348,9 @@ function resolveProjectedKnockoutRounds(
         home_team_name: knockoutMatch?.home_team_name ?? null,
         away_team_name: knockoutMatch?.away_team_name ?? null,
         winner_team_name: knockoutMatch?.winner_team_name ?? null,
+        display_match_number: knockoutMatch
+          ? (displayMatchNumberById[knockoutMatch.id] ?? null)
+          : null,
         home_placeholder_label: "Perdedor da Semifinal 1",
         away_placeholder_label: "Perdedor da Semifinal 2",
       });
@@ -565,10 +579,12 @@ function resolveProjectedMatchScheduleSummary(
     const scheduledDateValue = resolveMatchScheduledDateValue(projectedMatch);
 
     if (scheduledDateValue) {
-      return `${format(new Date(`${scheduledDateValue}T12:00:00`), "dd/MM", { locale: ptBR })} • ${resolveMatchQueueLabel(projectedMatch.queue_position)}`;
+      return `${format(new Date(`${scheduledDateValue}T12:00:00`), "dd/MM", { locale: ptBR })} • ${resolveMatchQueueLabel(projectedMatch.display_match_number ?? projectedMatch.queue_position)}`;
     }
 
-    return resolveMatchQueueLabel(projectedMatch.queue_position);
+    return resolveMatchQueueLabel(
+      projectedMatch.display_match_number ?? projectedMatch.queue_position,
+    );
   }
 
   if (!projectedMatch.start_time) {
@@ -1026,6 +1042,21 @@ export function ChampionshipBracketBoard({
       return true;
     });
   }, [divisionFilter, visibleCompetitions]);
+  const knockoutDisplayMatchNumberById = useMemo(() => {
+    const matchNumberingMode = resolveChampionshipBracketMatchNumberingMode(
+      championshipBracketView.edition?.payload_snapshot,
+    );
+
+    if (matchNumberingMode == "COURT") {
+      return {};
+    }
+
+    return resolveKnockoutDisplayMatchNumberById(
+      championshipBracketView,
+      [],
+      matchNumberingMode,
+    );
+  }, [championshipBracketView]);
 
   if (loading) {
   return (
@@ -1102,8 +1133,10 @@ export function ChampionshipBracketBoard({
       ) : null}
 
       {filteredCompetitions.map((competition) => {
-        const projectedKnockoutRounds =
-          resolveProjectedKnockoutRounds(competition);
+        const projectedKnockoutRounds = resolveProjectedKnockoutRounds(
+          competition,
+          knockoutDisplayMatchNumberById,
+        );
         const competitionPodium = resolveCompetitionPodium(competition);
         const qualificationSummary =
           resolveChampionshipBracketQualificationSummary({

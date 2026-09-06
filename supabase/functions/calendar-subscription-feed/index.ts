@@ -2,7 +2,9 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.97.0";
 import {
   buildCalendarDocument,
+  resolveCalendarDescription,
   resolveETag,
+  resolveMatchCalendarTitle,
   resolveScheduledSessionDateTime,
 } from "./calendarIcs.ts";
 
@@ -335,16 +337,19 @@ Deno.serve(async (request) => {
     return [
       {
         uid: `match-${match.id}@laje.app`,
-        title: `LAJE · ${sportName} — ${homeTeam} x ${awayTeam}`,
-        description: [
+        title: resolveMatchCalendarTitle(
+          sportName,
+          resolveNaipeLabel(String(match.naipe)),
+          homeTeam,
+          awayTeam,
+        ),
+        description: resolveCalendarDescription([
           championshipName,
           `Edição ${match.season_year}`,
           resolveNaipeLabel(String(match.naipe)),
           divisionLabel,
           `Agenda: ${appUrl}/agenda`,
-        ]
-          .filter((value): value is string => Boolean(value))
-          .join("\\n"),
+        ]),
         location: resolveLocation(
           typeof match.location == "string" ? match.location : null,
           typeof match.court_name == "string" ? match.court_name : null,
@@ -382,15 +387,13 @@ Deno.serve(async (request) => {
       {
         uid: `session-${session.id}@laje.app`,
         title: `LAJE · Sessão de ${sportName} — ${resolveNaipeLabel(String(session.naipe))}`,
-        description: [
+        description: resolveCalendarDescription([
           "Sessão individual",
           `Edição ${session.season_year}`,
           resolveNaipeLabel(String(session.naipe)),
           divisionLabel,
           `Agenda: ${appUrl}/agenda`,
-        ]
-          .filter((value): value is string => Boolean(value))
-          .join("\\n"),
+        ]),
         location: resolveLocation(
           typeof session.location_name == "string" ? session.location_name : null,
           typeof session.court_name == "string" ? session.court_name : null,

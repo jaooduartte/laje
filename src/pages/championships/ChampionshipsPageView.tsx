@@ -101,7 +101,6 @@ interface ChampionshipsPageViewProps {
   }>;
   isInterlajeCompetitionStandingsAvailable?: boolean;
   interlajeCompetitionStandings?: InterlajeCompetitionStanding[];
-  interlajeCompetitionBadgesByTeamId?: ReadonlyMap<string, TeamStandingsBadge[]>;
   hasInterlajeCompetitionProjectedPlacement?: boolean;
   hasInterlajeOverallProjectedPlacement?: boolean;
   pendingTieBreakTeamIds?: ReadonlySet<string>;
@@ -178,7 +177,6 @@ export function ChampionshipsPageView({
   standingsGroups = [],
   isInterlajeCompetitionStandingsAvailable = false,
   interlajeCompetitionStandings = [],
-  interlajeCompetitionBadgesByTeamId,
   hasInterlajeCompetitionProjectedPlacement = false,
   hasInterlajeOverallProjectedPlacement = false,
   pendingTieBreakTeamIds,
@@ -784,7 +782,6 @@ export function ChampionshipsPageView({
                               isLoading={isStandingsLoading}
                               variant="public"
                               disqualifiedTeamKeys={disqualifiedTeamKeys}
-                              teamBadgesByTeamId={interlajeCompetitionBadgesByTeamId}
                             />
                           </section>
                         ))}

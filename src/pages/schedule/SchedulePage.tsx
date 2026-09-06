@@ -28,7 +28,10 @@ import {
 import { DEFAULT_PAGINATION_ITEMS_PER_PAGE } from "@/components/ui/app-pagination-controls";
 import { SchedulePageView } from "@/pages/schedule/SchedulePageView";
 import { resolveKnockoutRoundLabel } from "@/lib/championship";
-import { resolveKnockoutDisplayMatchNumberById } from "@/domain/championship-brackets/championshipBracketDisplayMatchNumbers";
+import {
+  resolveChampionshipBracketMatchNumberingMode,
+  resolveKnockoutDisplayMatchNumberById,
+} from "@/domain/championship-brackets/championshipBracketDisplayMatchNumbers";
 import {
   type PublicScheduleTimelineItem,
   type ScheduledKnockoutPlaceholder,
@@ -443,6 +446,9 @@ export function SchedulePage() {
       resolveKnockoutDisplayMatchNumberById(
         visibleChampionshipBracketView,
         storedScheduledMatchesForMatchNumbering,
+        resolveChampionshipBracketMatchNumberingMode(
+          visibleChampionshipBracketView.edition?.payload_snapshot,
+        ),
       );
 
     return visibleChampionshipBracketView.competitions.flatMap((competition) => {

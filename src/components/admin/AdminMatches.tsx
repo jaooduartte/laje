@@ -88,7 +88,10 @@ import {
   resolveChampionshipBracketKnockoutProjection,
   resolveChampionshipBracketSeedPlaceholderLabels,
 } from "@/domain/championship-brackets/championshipBracketKnockoutProjection";
-import { resolveKnockoutDisplayMatchNumberById } from "@/domain/championship-brackets/championshipBracketDisplayMatchNumbers";
+import {
+  resolveChampionshipBracketMatchNumberingMode,
+  resolveKnockoutDisplayMatchNumberById,
+} from "@/domain/championship-brackets/championshipBracketDisplayMatchNumbers";
 import type {
   Championship,
   ChampionshipBracketCompetition,
@@ -664,12 +667,14 @@ interface MatchEditDraft {
   division: TeamDivision | null;
   naipe: MatchNaipe;
   status: MatchStatus;
+  walkoverMode: MatchWalkoverMode;
   selectedGroupOptionValue: string;
   resolvedTieBreakerRule: ChampionshipSportTieBreakerRule | "";
 }
 
 type ScoreSheetReviewSaveDecision = "KEEP_REVIEW" | "REMOVE_REVIEW";
 type BulkReviewAction = "MARK" | "UNMARK";
+type MatchWalkoverMode = "NONE" | "HOME_LOST" | "AWAY_LOST" | "DOUBLE";
 
 const NAIPE_OPTIONS: MatchNaipe[] = [
   MatchNaipe.MASCULINO,
@@ -701,6 +706,10 @@ const EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE =
   "EMPTY_SCORE_SHEET_PLAYER_OPTION_VALUE";
 const EMPTY_AWARD_DRAW_PLAYER_OPTION_VALUE =
   "EMPTY_AWARD_DRAW_PLAYER_OPTION_VALUE";
+const MATCH_WALKOVER_MODE_NONE: MatchWalkoverMode = "NONE";
+const MATCH_WALKOVER_MODE_HOME_LOST: MatchWalkoverMode = "HOME_LOST";
+const MATCH_WALKOVER_MODE_AWAY_LOST: MatchWalkoverMode = "AWAY_LOST";
+const MATCH_WALKOVER_MODE_DOUBLE: MatchWalkoverMode = "DOUBLE";
 
 const MANUAL_MATCH_RELOCATION_REASON_LABELS: Record<
   ManualMatchRelocationReason,
@@ -1265,9 +1274,30 @@ function resolveInitialEditingMatchDraft(
     division: match.division,
     naipe: match.naipe,
     status: match.status,
+    walkoverMode: resolvePersistedMatchWalkoverMode(match),
     selectedGroupOptionValue,
     resolvedTieBreakerRule: match.resolved_tie_breaker_rule ?? "",
   };
+}
+
+function resolvePersistedMatchWalkoverMode(match: Match): MatchWalkoverMode {
+  if (match.is_walkover != true) {
+    return MATCH_WALKOVER_MODE_NONE;
+  }
+
+  if (match.is_double_walkover == true) {
+    return MATCH_WALKOVER_MODE_DOUBLE;
+  }
+
+  if (match.walkover_loser_team_id == match.home_team_id) {
+    return MATCH_WALKOVER_MODE_HOME_LOST;
+  }
+
+  if (match.walkover_loser_team_id == match.away_team_id) {
+    return MATCH_WALKOVER_MODE_AWAY_LOST;
+  }
+
+  return MATCH_WALKOVER_MODE_NONE;
 }
 
 function isHandballSportName(sportName: string | undefined): boolean {
@@ -3332,6 +3362,18 @@ export function AdminMatches({
     teams.find((team) => team.id == editingMatchDraft?.awayTeamId)?.name ??
     editingMatch?.away_team?.name ??
     "Visitante";
+  const persistedEditingWalkoverMode = editingMatch
+    ? resolvePersistedMatchWalkoverMode(editingMatch)
+    : MATCH_WALKOVER_MODE_NONE;
+  const isEditingFinishedWalkover =
+    editingMatch?.status == MatchStatus.FINISHED &&
+    editingMatchDraft?.status == MatchStatus.FINISHED &&
+    (editingMatchDraft.walkoverMode != MATCH_WALKOVER_MODE_NONE ||
+      editingMatchDraft.walkoverMode != persistedEditingWalkoverMode);
+  const isEditingKnockoutMatch =
+    editingMatch != null &&
+    matchBracketContextByMatchId[editingMatch.id]?.phase ==
+      BracketPhase.KNOCKOUT;
 
   const editingMatchBracketBinding = useMemo(() => {
     if (!editingMatchId) {
@@ -3754,6 +3796,9 @@ export function AdminMatches({
       resolveKnockoutDisplayMatchNumberById(
         championshipBracketView,
         matches,
+        resolveChampionshipBracketMatchNumberingMode(
+          championshipBracketView.edition?.payload_snapshot,
+        ),
       ),
     [championshipBracketView, matches],
   );
@@ -7237,6 +7282,9 @@ export function AdminMatches({
       didChangeAwayTeam ||
       didChangeGroupBinding;
     const didChangeStatus = editingMatchDraft.status != editingMatch.status;
+    const didChangeWalkoverMode =
+      editingMatchDraft.walkoverMode !=
+      resolvePersistedMatchWalkoverMode(editingMatch);
     const requiresAvailableScheduleSlot =
       canEditScheduledMatchSetup &&
       (didChangeScheduledMatchPlacement ||
@@ -7281,7 +7329,8 @@ export function AdminMatches({
 
     if (
       editingMatch?.is_score_sheet_reviewed &&
-      scoreSheetReviewSaveDecision == null
+      scoreSheetReviewSaveDecision == null &&
+      !didChangeWalkoverMode
     ) {
       setShowEditReviewConfirmationDialog(true);
       return;
@@ -7289,13 +7338,38 @@ export function AdminMatches({
 
     const shouldKeepScoreSheetReview =
       editingMatch?.is_score_sheet_reviewed == true &&
-      scoreSheetReviewSaveDecision != "REMOVE_REVIEW";
+      scoreSheetReviewSaveDecision != "REMOVE_REVIEW" &&
+      !didChangeWalkoverMode;
 
     if (scoreSheetReviewSaveDecision != null) {
       setShowEditReviewConfirmationDialog(false);
     }
 
     setSavingEditingMatch(true);
+
+    if (didChangeWalkoverMode) {
+      const { error: walkoverError } = await supabase.rpc(
+        "save_finished_match_walkover",
+        {
+          _match_id: editingMatchId,
+          _walkover_mode: editingMatchDraft.walkoverMode,
+        },
+      );
+
+      if (walkoverError) {
+        setSavingEditingMatch(false);
+        toast.error(
+          resolveAdminMatchesOperationalErrorMessage(walkoverError),
+        );
+        return;
+      }
+
+      toast.success("W.O. atualizado.");
+      setSavingEditingMatch(false);
+      handleCancelEditingMatch();
+      await Promise.all([onRefetch(), onRefetchChampionshipBracket()]);
+      return;
+    }
 
     // Para jogos do primeiro round do KO: se o novo time já está na chave, acionar o swap
     const editingBracketMatch =
@@ -9499,7 +9573,16 @@ export function AdminMatches({
                           {match.sports?.name}
                         </span>
 
-                        {match.is_score_sheet_reviewed ? (
+                        {isSavingMatchReviewState ? (
+                          <span
+                            role="status"
+                            aria-label="Salvando revisão da súmula"
+                            title="Salvando revisão da súmula"
+                            className="inline-flex h-5 w-5 items-center justify-center text-muted-foreground"
+                          >
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          </span>
+                        ) : match.is_score_sheet_reviewed ? (
                           <span
                             title="Conferido com súmula"
                             className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400"
@@ -13778,7 +13861,67 @@ export function AdminMatches({
                   </div>
                 </div>
 
-                {editingMatchDraft.status === MatchStatus.FINISHED ? (
+                {editingMatch?.status === MatchStatus.FINISHED &&
+                editingMatchDraft.status === MatchStatus.FINISHED ? (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      W.O.
+                    </p>
+                    <Select
+                      value={editingMatchDraft.walkoverMode}
+                      onValueChange={(value) => {
+                        if (
+                          value == MATCH_WALKOVER_MODE_NONE ||
+                          value == MATCH_WALKOVER_MODE_HOME_LOST ||
+                          value == MATCH_WALKOVER_MODE_AWAY_LOST ||
+                          value == MATCH_WALKOVER_MODE_DOUBLE
+                        ) {
+                          setEditingMatchDraft((currentDraft) =>
+                            currentDraft
+                              ? {
+                                  ...currentDraft,
+                                  walkoverMode: value,
+                                }
+                              : currentDraft,
+                          );
+                        }
+                      }}
+                    >
+                      <SelectTrigger
+                        aria-label="W.O.?"
+                        className="app-input-field"
+                      >
+                        <SelectValue placeholder="W.O.?" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={MATCH_WALKOVER_MODE_NONE}>
+                          Não
+                        </SelectItem>
+                        <SelectItem value={MATCH_WALKOVER_MODE_HOME_LOST}>
+                          {editingHomeTeamName}
+                        </SelectItem>
+                        <SelectItem value={MATCH_WALKOVER_MODE_AWAY_LOST}>
+                          {editingAwayTeamName}
+                        </SelectItem>
+                        <SelectItem
+                          value={MATCH_WALKOVER_MODE_DOUBLE}
+                          disabled={isEditingKnockoutMatch}
+                        >
+                          Ambas as atléticas tomaram W.O.
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {isEditingFinishedWalkover ? (
+                      <p className="text-xs text-muted-foreground">
+                        Ao salvar, o resultado e a súmula serão atualizados
+                        conforme o W.O. selecionado.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {editingMatchDraft.status === MatchStatus.FINISHED &&
+                !isEditingFinishedWalkover ? (
                   <div className="space-y-3">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       Placar
@@ -13897,7 +14040,8 @@ export function AdminMatches({
                 ) : null}
 
                 {isEditingSportWithCards &&
-                editingMatchDraft.status === MatchStatus.FINISHED ? (
+                editingMatchDraft.status === MatchStatus.FINISHED &&
+                !isEditingFinishedWalkover ? (
                   <div className="space-y-3">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       Cartões
@@ -14001,7 +14145,8 @@ export function AdminMatches({
                 ) : null}
 
                 {isEditingHandballSport &&
-                editingMatchDraft.status === MatchStatus.FINISHED ? (
+                editingMatchDraft.status === MatchStatus.FINISHED &&
+                !isEditingFinishedWalkover ? (
                   <div className="space-y-3">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       Disciplina do Handebol
@@ -14101,7 +14246,7 @@ export function AdminMatches({
                   </div>
                 ) : null}
 
-                {isEditingSetRuleMatch ? (
+                {isEditingSetRuleMatch && !isEditingFinishedWalkover ? (
                   <div className="space-y-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

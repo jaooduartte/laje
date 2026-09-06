@@ -2,7 +2,10 @@ import type { ScheduledKnockoutPlaceholder } from "@/domain/public-schedule/publ
 import { resolvePublicScheduleTimelineItems } from "@/domain/public-schedule/publicScheduleTimeline";
 import type { ChampionshipBracketView, Match } from "@/lib/types";
 import type { MatchNaipe, TeamDivision } from "@/lib/enums";
-import { resolveKnockoutDisplayMatchNumberById } from "@/domain/championship-brackets/championshipBracketDisplayMatchNumbers";
+import {
+  resolveChampionshipBracketMatchNumberingMode,
+  resolveKnockoutDisplayMatchNumberById,
+} from "@/domain/championship-brackets/championshipBracketDisplayMatchNumbers";
 import {
   resolveKnockoutRoundLabel,
 } from "@/lib/championship";
@@ -55,6 +58,9 @@ export function resolveAdminMatchesKnockoutPlaceholders({
     resolveKnockoutDisplayMatchNumberById(
       championshipBracketView,
       matchesForMatchNumbering,
+      resolveChampionshipBracketMatchNumberingMode(
+        championshipBracketView.edition?.payload_snapshot,
+      ),
     );
 
   return championshipBracketView.competitions.flatMap((competition) => {

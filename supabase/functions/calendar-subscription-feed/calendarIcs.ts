@@ -8,6 +8,23 @@ export interface CalendarFeedEvent {
   updatedAt: string;
 }
 
+export function resolveMatchCalendarTitle(
+  sportName: string,
+  naipeLabel: string,
+  homeTeam: string,
+  awayTeam: string,
+): string {
+  return `LAJE · ${sportName} ${naipeLabel} — ${homeTeam} x ${awayTeam}`;
+}
+
+export function resolveCalendarDescription(
+  descriptionParts: Array<string | null | undefined>,
+): string {
+  return descriptionParts
+    .filter((value): value is string => Boolean(value))
+    .join("\n");
+}
+
 const scheduledDatePattern = /^\d{4}-\d{2}-\d{2}$/;
 const scheduledTimePattern = /^\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?$/;
 

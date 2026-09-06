@@ -3945,6 +3945,10 @@ export type Database = {
         Args: { _championship_id: string; _points: number; _season_year: number }
         Returns: undefined
       }
+      save_finished_match_walkover: {
+        Args: { _match_id: string; _walkover_mode: string }
+        Returns: Json
+      }
       save_match_score_sheet_awards: {
         Args: {
           _away_goal_scorers?: Json
