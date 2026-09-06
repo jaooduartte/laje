@@ -54,10 +54,12 @@ describe("useInterlajeOverallStandings", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.clearAllMocks();
   });
 
   it("refaz a consulta quando a classificação coletiva da temporada muda", async () => {
+    vi.useFakeTimers();
     const { unmount } = renderHook(() =>
       useInterlajeOverallStandings({
         championshipId: "championship-1",
@@ -65,9 +67,11 @@ describe("useInterlajeOverallStandings", () => {
       }),
     );
 
-    await waitFor(() => {
-      expect(fetchInterlajeOverallStandingsMock).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await Promise.resolve();
     });
+
+    expect(fetchInterlajeOverallStandingsMock).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       channelCallbacks[0]?.({
@@ -78,9 +82,11 @@ describe("useInterlajeOverallStandings", () => {
       });
     });
 
-    await waitFor(() => {
-      expect(fetchInterlajeOverallStandingsMock).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
     });
+
+    expect(fetchInterlajeOverallStandingsMock).toHaveBeenCalledTimes(2);
 
     expect(channelMock.on).toHaveBeenCalledWith(
       "postgres_changes",

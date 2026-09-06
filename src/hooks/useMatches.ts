@@ -20,6 +20,8 @@ import type {
   MatchSetInput,
 } from "@/domain/championship-brackets/championshipBracket.types";
 
+const MATCHES_REALTIME_DEBOUNCE_MS = 1000;
+
 interface UseMatchesOptions {
   championshipId?: string | null;
   seasonYear?: number | null;
@@ -1136,7 +1138,7 @@ export function useMatches({
 
           scheduledRefetchTimeoutRef.current = setTimeout(() => {
             void fetchMatches({ refreshOperationalContext: false });
-          }, 120);
+          }, MATCHES_REALTIME_DEBOUNCE_MS);
         },
       )
       .on(
@@ -1156,7 +1158,7 @@ export function useMatches({
 
           scheduledRefetchTimeoutRef.current = setTimeout(() => {
             void fetchMatches();
-          }, 120);
+          }, MATCHES_REALTIME_DEBOUNCE_MS);
         },
       )
       .on(
@@ -1200,7 +1202,7 @@ export function useMatches({
 
           scheduledRefetchTimeoutRef.current = setTimeout(() => {
             void fetchMatches();
-          }, 120);
+          }, MATCHES_REALTIME_DEBOUNCE_MS);
         },
       )
       .subscribe();

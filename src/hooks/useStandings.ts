@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Standing } from "@/lib/types";
 import type { MatchNaipe, TeamDivision } from "@/lib/enums";
@@ -11,9 +11,15 @@ interface UseStandingsOptions {
   naipe?: MatchNaipe;
 }
 
+const STANDINGS_REALTIME_DEBOUNCE_MS = 1000;
+
 export function useStandings({ championshipId, seasonYear, division, naipe }: UseStandingsOptions = {}) {
   const [standings, setStandings] = useState<Standing[]>([]);
   const [loading, setLoading] = useState(true);
+  const scheduledRefetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isFetchingRef = useRef(false);
+  const hasQueuedRefetchRef = useRef(false);
+  const fetchStandingsRef = useRef<() => Promise<void>>(async () => undefined);
 
   const fetchStandings = useCallback(async () => {
     if (championshipId === null) {
@@ -22,6 +28,12 @@ export function useStandings({ championshipId, seasonYear, division, naipe }: Us
       return;
     }
 
+    if (isFetchingRef.current) {
+      hasQueuedRefetchRef.current = true;
+      return;
+    }
+
+    isFetchingRef.current = true;
     setLoading(true);
 
     try {
@@ -102,8 +114,16 @@ export function useStandings({ championshipId, seasonYear, division, naipe }: Us
       setStandings([]);
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
+
+      if (hasQueuedRefetchRef.current) {
+        hasQueuedRefetchRef.current = false;
+        void fetchStandingsRef.current();
+      }
     }
   }, [championshipId, division, naipe, seasonYear]);
+
+  fetchStandingsRef.current = fetchStandings;
 
   useEffect(() => {
     if (championshipId === null) {
@@ -112,7 +132,23 @@ export function useStandings({ championshipId, seasonYear, division, naipe }: Us
       return;
     }
 
-    fetchStandings();
+    void fetchStandings();
+
+    const scheduleFetchStandings = () => {
+      if (scheduledRefetchTimeoutRef.current) {
+        clearTimeout(scheduledRefetchTimeoutRef.current);
+      }
+
+      scheduledRefetchTimeoutRef.current = setTimeout(() => {
+        scheduledRefetchTimeoutRef.current = null;
+        void fetchStandings();
+      }, STANDINGS_REALTIME_DEBOUNCE_MS);
+    };
+
+    const scopedFilter = [
+      championshipId ? `championship_id=eq.${championshipId}` : null,
+      typeof seasonYear == "number" ? `season_year=eq.${seasonYear}` : null,
+    ].filter((value): value is string => value != null).join(",") || undefined;
 
     const channel = supabase
       .channel(`standings-realtime-${championshipId ?? "all"}-${seasonYear ?? "all"}-${division ?? "any"}-${naipe ?? "all"}`)
@@ -122,7 +158,7 @@ export function useStandings({ championshipId, seasonYear, division, naipe }: Us
           event: "*",
           schema: "public",
           table: "standings",
-          filter: championshipId ? `championship_id=eq.${championshipId}` : undefined,
+          filter: scopedFilter,
         },
         (payload) => {
           const relevantRows = [payload.new, payload.old].filter((row) => row && typeof row == "object");
@@ -151,7 +187,7 @@ export function useStandings({ championshipId, seasonYear, division, naipe }: Us
           });
 
           if (shouldRefetch) {
-            fetchStandings();
+            scheduleFetchStandings();
           }
         },
       )
@@ -161,7 +197,7 @@ export function useStandings({ championshipId, seasonYear, division, naipe }: Us
           event: "*",
           schema: "public",
           table: "championship_individual_team_standings",
-          filter: championshipId ? `championship_id=eq.${championshipId}` : undefined,
+          filter: scopedFilter,
         },
         (payload) => {
           const relevantRows = [payload.new, payload.old].filter((row) => row && typeof row == "object");
@@ -190,13 +226,18 @@ export function useStandings({ championshipId, seasonYear, division, naipe }: Us
           });
 
           if (shouldRefetch) {
-            fetchStandings();
+            scheduleFetchStandings();
           }
         },
       )
       .subscribe();
 
     return () => {
+      if (scheduledRefetchTimeoutRef.current) {
+        clearTimeout(scheduledRefetchTimeoutRef.current);
+        scheduledRefetchTimeoutRef.current = null;
+      }
+
       supabase.removeChannel(channel);
     };
   }, [championshipId, division, fetchStandings, naipe, seasonYear]);

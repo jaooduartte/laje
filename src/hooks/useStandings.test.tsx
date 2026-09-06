@@ -51,6 +51,7 @@ describe("useStandings", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.clearAllMocks();
   });
 
@@ -149,7 +150,8 @@ describe("useStandings", () => {
     expect(removeChannelMock).toHaveBeenCalledWith(channelMock);
   });
 
-  it("refaz a busca quando um update relevante chega pela tabela de standings individuais", async () => {
+  it("coalesce eventos relevantes em uma única consulta após um segundo", async () => {
+    vi.useFakeTimers();
     fetchChampionshipEffectiveStandingsMock.mockResolvedValue({
       data: [],
       error: null,
@@ -164,12 +166,30 @@ describe("useStandings", () => {
       }),
     );
 
-    await waitFor(() => {
-      expect(fetchChampionshipEffectiveStandingsMock).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await Promise.resolve();
     });
 
-    await act(async () => {
+    expect(fetchChampionshipEffectiveStandingsMock).toHaveBeenCalledTimes(1);
+
+    act(() => {
       channelCallbacks[1]?.({
+        new: {
+          championship_id: "championship-1",
+          season_year: 2026,
+          division: null,
+          naipe: MatchNaipe.MASCULINO,
+        },
+      });
+      channelCallbacks[1]?.({
+        new: {
+          championship_id: "championship-1",
+          season_year: 2026,
+          division: null,
+          naipe: MatchNaipe.MASCULINO,
+        },
+      });
+      channelCallbacks[0]?.({
         new: {
           championship_id: "championship-1",
           season_year: 2026,
@@ -179,8 +199,56 @@ describe("useStandings", () => {
       });
     });
 
-    await waitFor(() => {
-      expect(fetchChampionshipEffectiveStandingsMock).toHaveBeenCalledTimes(2);
+    expect(fetchChampionshipEffectiveStandingsMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
     });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(fetchChampionshipEffectiveStandingsMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("limpa o refetch agendado quando a assinatura é desmontada", async () => {
+    vi.useFakeTimers();
+    fetchChampionshipEffectiveStandingsMock.mockResolvedValue({ data: [], error: null });
+
+    const { unmount } = renderHook(() =>
+      useStandings({
+        championshipId: "championship-1",
+        seasonYear: 2026,
+        division: null,
+        naipe: MatchNaipe.MASCULINO,
+      }),
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(fetchChampionshipEffectiveStandingsMock).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      channelCallbacks[0]?.({
+        new: {
+          championship_id: "championship-1",
+          season_year: 2026,
+          division: null,
+          naipe: MatchNaipe.MASCULINO,
+        },
+      });
+    });
+
+    unmount();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+
+    expect(fetchChampionshipEffectiveStandingsMock).toHaveBeenCalledTimes(1);
+    expect(removeChannelMock).toHaveBeenCalledWith(channelMock);
   });
 });

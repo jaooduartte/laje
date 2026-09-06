@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { ChampionshipAwardType, MatchNaipe, TeamDivision } from "@/lib/enums";
 
@@ -87,9 +87,15 @@ interface UseChampionshipAwardsRankingsOptions {
   seasonYear: number | null;
 }
 
+const AWARDS_RANKINGS_REALTIME_DEBOUNCE_MS = 1000;
+
 export function useChampionshipAwardsRankings({ championshipId, seasonYear }: UseChampionshipAwardsRankingsOptions) {
   const [rankings, setRankings] = useState<ChampionshipAwardsRankings | null>(null);
   const [loading, setLoading] = useState(false);
+  const scheduledRefetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isFetchingRef = useRef(false);
+  const hasQueuedRefetchRef = useRef(false);
+  const fetchRef = useRef<() => Promise<void>>(async () => undefined);
 
   const fetch = useCallback(async () => {
     if (!championshipId || !seasonYear) {
@@ -97,6 +103,12 @@ export function useChampionshipAwardsRankings({ championshipId, seasonYear }: Us
       return;
     }
 
+    if (isFetchingRef.current) {
+      hasQueuedRefetchRef.current = true;
+      return;
+    }
+
+    isFetchingRef.current = true;
     setLoading(true);
     try {
       const { data, error } = await (supabase as unknown as {
@@ -114,36 +126,64 @@ export function useChampionshipAwardsRankings({ championshipId, seasonYear }: Us
       setRankings((data as ChampionshipAwardsRankings) ?? null);
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
+
+      if (hasQueuedRefetchRef.current) {
+        hasQueuedRefetchRef.current = false;
+        void fetchRef.current();
+      }
     }
   }, [championshipId, seasonYear]);
+
+  fetchRef.current = fetch;
 
   useEffect(() => {
     void fetch();
 
     if (!championshipId || !seasonYear) return;
 
+    const scheduleFetch = () => {
+      if (scheduledRefetchTimeoutRef.current) {
+        clearTimeout(scheduledRefetchTimeoutRef.current);
+      }
+
+      scheduledRefetchTimeoutRef.current = setTimeout(() => {
+        scheduledRefetchTimeoutRef.current = null;
+        void fetch();
+      }, AWARDS_RANKINGS_REALTIME_DEBOUNCE_MS);
+    };
+
+    const championshipSeasonFilter = `championship_id=eq.${championshipId},season_year=eq.${seasonYear}`;
+
     const channel = supabase
       .channel(`awards-rankings-${championshipId}-${seasonYear}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "match_award_goal_scorers" }, () => void fetch())
-      .on("postgres_changes", { event: "*", schema: "public", table: "championship_award_draw_results" }, () => void fetch())
+      .on("postgres_changes", { event: "*", schema: "public", table: "match_award_goal_scorers" }, scheduleFetch)
+      .on("postgres_changes", { event: "*", schema: "public", table: "championship_award_draw_results", filter: championshipSeasonFilter }, scheduleFetch)
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
           table: "championship_competition_team_disqualifications",
-          filter: `championship_id=eq.${championshipId}`,
+          filter: championshipSeasonFilter,
         },
-        () => void fetch(),
+        scheduleFetch,
       )
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "matches", filter: `championship_id=eq.${championshipId}` },
-        () => void fetch(),
+        { event: "UPDATE", schema: "public", table: "matches", filter: championshipSeasonFilter },
+        scheduleFetch,
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      if (scheduledRefetchTimeoutRef.current) {
+        clearTimeout(scheduledRefetchTimeoutRef.current);
+        scheduledRefetchTimeoutRef.current = null;
+      }
+
+      supabase.removeChannel(channel);
+    };
   }, [championshipId, seasonYear, fetch]);
 
   return { rankings, loading };
