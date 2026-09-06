@@ -21,6 +21,7 @@ import {
 import {
   saveChampionshipAthlete,
   saveChampionshipIndividualEventLiveResults,
+  saveInterlajeIndividualTieBreakResolution,
 } from "@/domain/individual-events/championshipIndividualEvents.repository";
 import { INDIVIDUAL_ENTRY_STATUS_LABELS } from "@/lib/individualEvents";
 import {
@@ -120,6 +121,8 @@ export function AdminIndividualSessionResultsDialog({
   const [saving, setSaving] = useState(false);
   const [createdAthletes, setCreatedAthletes] = useState<ChampionshipAthlete[]>([]);
   const [newAthleteNameByDraftKey, setNewAthleteNameByDraftKey] = useState<Record<string, string>>({});
+  const [tieBreakDecision, setTieBreakDecision] = useState<"STANDARD" | "SWIM_OFF" | "REPEAT_MARK" | "CAMERA">("STANDARD");
+  const [tieBreakJustification, setTieBreakJustification] = useState("");
   const selectedEvent = useMemo(
     () => events.find((event) => event.id == selectedEventId) ?? events[0] ?? null,
     [events, selectedEventId],
@@ -216,12 +219,10 @@ export function AdminIndividualSessionResultsDialog({
   const handleSave = async () => {
     if (!selectedEvent) return;
     setSaving(true);
-    const response = await saveChampionshipIndividualEventLiveResults(
-      selectedEvent.id,
-      drafts.map((draft) => ({
+    const entries = drafts.map((draft) => ({
         entry_id: draft.entryId,
-      team_id: draft.teamId,
-      athlete_id: isRelay ? null : draft.athleteId || null,
+        team_id: draft.teamId,
+        athlete_id: isRelay ? null : draft.athleteId || null,
         starter_athlete_ids: isRelay
           ? draft.starterAthleteIds.filter((athleteId): athleteId is string => athleteId != null)
           : [],
@@ -231,8 +232,15 @@ export function AdminIndividualSessionResultsDialog({
         attempt_one_centimeters: draft.attemptOneCentimeters ? Number(draft.attemptOneCentimeters) : null,
         attempt_two_centimeters: draft.attemptTwoCentimeters ? Number(draft.attemptTwoCentimeters) : null,
         attempt_three_centimeters: draft.attemptThreeCentimeters ? Number(draft.attemptThreeCentimeters) : null,
-      })),
-    );
+      }));
+    const response = tieBreakDecision == "STANDARD"
+      ? await saveChampionshipIndividualEventLiveResults(selectedEvent.id, entries)
+      : await saveInterlajeIndividualTieBreakResolution({
+        eventId: selectedEvent.id,
+        entries,
+        decisionKind: tieBreakDecision,
+        justification: tieBreakJustification,
+      });
     setSaving(false);
     if (response.error) {
       toast.error(response.error.message);
@@ -262,6 +270,10 @@ export function AdminIndividualSessionResultsDialog({
               ? "Informe as três tentativas em centímetros. A melhor marca define a colocação."
               : "Informe o tempo em milissegundos. O menor tempo define a colocação."}
           </p>
+          {session?.sports?.name == "Natação" || session?.sports?.name == "Atletismo" ? <div className="grid gap-3 rounded-xl border border-border/50 p-3 sm:grid-cols-2">
+            <div className="space-y-1"><Label>Resolução de desempate</Label><Select value={tieBreakDecision} onValueChange={(value) => setTieBreakDecision(value as typeof tieBreakDecision)} disabled={!canManage || saving}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="STANDARD">Resultado regular</SelectItem>{session?.sports?.name == "Natação" ? <SelectItem value="SWIM_OFF">Swim-off de 50 m</SelectItem> : <><SelectItem value="REPEAT_MARK">Repetição de marca</SelectItem><SelectItem value="CAMERA">Câmera e arbitragem</SelectItem></>}</SelectContent></Select></div>
+            {tieBreakDecision != "STANDARD" ? <div className="space-y-1"><Label>Registro da decisão</Label><Input value={tieBreakJustification} onChange={(event) => setTieBreakJustification(event.target.value)} placeholder="Súmula, árbitro ou referência da gravação" disabled={!canManage || saving} /></div> : null}
+          </div> : null}
           <div className="space-y-3">
             {drafts.map((draft, index) => {
               const teamAthletes = availableAthletes.filter((athlete) => athlete.team_id == draft.teamId);
@@ -282,7 +294,7 @@ export function AdminIndividualSessionResultsDialog({
           </div>
           <Button type="button" variant="outline" disabled={!canManage || saving} onClick={() => setDrafts((current) => [...current, emptyDraft(current.length)])}><Plus className="h-4 w-4" /> Adicionar participante</Button>
         </div>
-        <div className="flex shrink-0 justify-end gap-2 pt-2"><Button type="button" onClick={() => void handleSave()} disabled={!canManage || saving || !selectedEvent}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Confirmar resultados</Button></div>
+        <div className="flex shrink-0 justify-end gap-2 pt-2"><Button type="button" onClick={() => void handleSave()} disabled={!canManage || saving || !selectedEvent || (tieBreakDecision != "STANDARD" && !tieBreakJustification.trim())}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Confirmar resultados</Button></div>
       </DialogContent>
     </Dialog>
   );

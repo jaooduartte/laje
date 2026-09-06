@@ -315,8 +315,7 @@ export function rankByCascade<T extends RankingMetrics>(
       if (criterion === "MANUAL_DRAW") {
         const sorted = [...bucket].sort((a, b) => {
           const cmp = compareByManualTieBreakOrder(a, b, ctx);
-          if (cmp !== 0) return cmp;
-          return resolveName(a).localeCompare(resolveName(b));
+          return cmp;
         });
         // Separa resolvidos dos empatados (draw order 0 = não resolvido)
         const partitions: T[][] = [];
@@ -353,10 +352,7 @@ export function rankByCascade<T extends RankingMetrics>(
     buckets = newBuckets;
   }
 
-  // Achata: empates restantes são ordenados alfabeticamente
-  return buckets.flatMap((bucket) =>
-    bucket.length <= 1 ? bucket : [...bucket].sort((a, b) => resolveName(a).localeCompare(resolveName(b))),
-  );
+  return buckets.flat();
 }
 
 // ─── PA (pontos médios) ───────────────────────────────────────────────────────

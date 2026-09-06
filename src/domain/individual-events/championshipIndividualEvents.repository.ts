@@ -451,6 +451,20 @@ export async function saveChampionshipIndividualEventLiveResults(
   });
 }
 
+export async function saveInterlajeIndividualTieBreakResolution(input: {
+  eventId: string;
+  entries: SaveChampionshipIndividualLiveEntryInput[];
+  decisionKind: "SWIM_OFF" | "REPEAT_MARK" | "CAMERA";
+  justification: string;
+}) {
+  return supabaseLoose.rpc("save_interlaje_individual_tie_break_resolution", {
+    _event_id: input.eventId,
+    _entries: input.entries,
+    _decision_kind: input.decisionKind,
+    _justification: input.justification,
+  });
+}
+
 export async function previewChampionshipIndividualSessionScoreboard(
   sessionId: string,
 ): Promise<{ data: ChampionshipIndividualSessionScoreboardRow[]; error: Error | null }> {

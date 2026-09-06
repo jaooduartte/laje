@@ -34,7 +34,10 @@ import {
   formatStandingsPoints,
   type TeamStandingAggregate,
 } from "@/lib/standings";
-import type { InterlajeCompetitionStanding } from "@/domain/interlaje/interlajeOverallStandings.repository";
+import {
+  formatInterlajeClassificationPolicy,
+  type InterlajeCompetitionStanding,
+} from "@/domain/interlaje/interlajeOverallStandings.repository";
 import type {
   Championship,
   ChampionshipIndividualEvent,
@@ -761,6 +764,7 @@ export function ChampionshipsPageView({
                         )}
                       </TabsContent>
                       <TabsContent value="overall" className="space-y-5">
+                        {formatInterlajeClassificationPolicy(interlajeCompetitionStandings[0]?.classification_policy) ? <p className="text-xs text-muted-foreground">Critérios oficiais: {formatInterlajeClassificationPolicy(interlajeCompetitionStandings[0]?.classification_policy)}</p> : null}
                         <p className="text-xs text-muted-foreground">
                           {hasInterlajeCompetitionProjectedPlacement
                             ? "A colocação usada para pontuar a classificação geral é projetada pelo chaveamento atual e pode mudar até a final."

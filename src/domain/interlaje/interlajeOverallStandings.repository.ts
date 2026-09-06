@@ -53,8 +53,59 @@ export interface InterlajeCompetitionStanding {
   two_minute_penalties: number;
   final_position: number;
   placement_points: number;
-  placement_status: "CONFIRMED" | "PROJECTED";
+  placement_status: "CONFIRMED" | "PROJECTED" | "PENDING_TIE_BREAK";
   placement_basis: "GROUP_STAGE" | "KNOCKOUT";
+  sets_for?: number;
+  sets_against?: number;
+  rally_points_for?: number;
+  rally_points_against?: number;
+  has_pending_tie_break?: boolean;
+  classification_policy?: Record<string, unknown>;
+}
+
+const INTERLAJE_POLICY_LABELS: Record<string, string> = {
+  POINTS: "Pontos",
+  POINTS_AVERAGE: "Pontos average",
+  HEAD_TO_HEAD_EXACTLY_TWO: "Confronto direto entre duas equipes",
+  POINT_DIFF: "Saldo de pontos",
+  POINTS_FOR: "Pontos pró",
+  POINTS_AGAINST_ASC: "Menos pontos sofridos",
+  GOAL_DIFF: "Saldo de gols",
+  GOALS_FOR: "Gols pró",
+  GOALS_AGAINST_ASC: "Menos gols sofridos",
+  SETS_AVERAGE: "Sets average",
+  SETS_FOR: "Sets vencidos",
+  SETS_AGAINST_ASC: "Menos sets perdidos",
+  RALLY_POINTS_FOR: "Pontos de rally vencidos",
+  RALLY_POINTS_AGAINST_ASC: "Menos pontos de rally sofridos",
+  BLUE_CARDS_ASC: "Menos cartões azuis",
+  RED_CARDS_ASC: "Menos cartões vermelhos",
+  YELLOW_CARDS_ASC: "Menos cartões amarelos",
+  TWO_MINUTE_PENALTIES_ASC: "Menos penalidades de 2 minutos",
+  EXPULSIONS_ASC: "Menos expulsões",
+  MANUAL_DRAW: "Sorteio registrado",
+  LOWEST_TIME: "Menor tempo",
+  LOWEST_TIME_FOR_RACES: "Menor tempo nas corridas",
+  HIGHEST_MARK_FOR_JUMPS_AND_THROWS: "Maior marca em salto e arremesso",
+  SWIM_OFF_50M_SAME_CATEGORY: "Swim-off de 50 m",
+  REPEAT_MARK_UNTIL_FIRST: "Repetição de marca",
+  CAMERA_ARBITRATION_FOR_RACES: "Câmera e arbitragem",
+  FIRST_PLACES_TO_TWENTIETH_PLACES: "Mais 1ºs, 2ºs e assim por diante",
+};
+
+export function formatInterlajeClassificationPolicy(
+  policy: Record<string, unknown> | undefined,
+) {
+  const criteria = policy?.criteria ?? policy?.event_ranking ?? policy?.overall_ranking;
+
+  if (!Array.isArray(criteria)) {
+    return null;
+  }
+
+  return criteria
+    .filter((criterion): criterion is string => typeof criterion == "string")
+    .map((criterion) => INTERLAJE_POLICY_LABELS[criterion] ?? criterion)
+    .join(" → ");
 }
 
 export async function fetchInterlajeOverallStandings(
@@ -87,7 +138,7 @@ export async function fetchInterlajeCompetitionStandings(input: {
     return { data: [], error: null };
   }
 
-  const response = await supabaseLoose.rpc("get_interlaje_competition_standings", {
+  const response = await supabaseLoose.rpc("get_interlaje_regulation_competition_standings", {
     _championship_id: input.championshipId,
     _season_year: input.seasonYear,
     _sport_id: input.sportId,
