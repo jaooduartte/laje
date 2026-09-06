@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   fetchInterlajeOverallStandings,
   type InterlajeOverallStanding,
 } from "@/domain/interlaje/interlajeOverallStandings.repository";
 import { supabase } from "@/integrations/supabase/client";
+
+const INTERLAJE_OVERALL_REALTIME_DEBOUNCE_MS = 1000;
 
 export function useInterlajeOverallStandings({
   championshipId,
@@ -18,17 +20,53 @@ export function useInterlajeOverallStandings({
 }) {
   const [standings, setStandings] = useState<InterlajeOverallStanding[]>([]);
   const [loading, setLoading] = useState(false);
+  const scheduledRefetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isFetchingRef = useRef(false);
+  const hasQueuedRefetchRef = useRef(false);
 
   const refetch = useCallback(async () => {
     if (!enabled || !championshipId || !seasonYear) {
       setStandings([]);
+      setLoading(false);
+      isFetchingRef.current = false;
+      hasQueuedRefetchRef.current = false;
       return;
     }
 
+    if (isFetchingRef.current) {
+      hasQueuedRefetchRef.current = true;
+      return;
+    }
+
+    isFetchingRef.current = true;
     setLoading(true);
-    const response = await fetchInterlajeOverallStandings(championshipId, seasonYear);
-    setStandings(response.data);
-    setLoading(false);
+
+    try {
+      const response = await fetchInterlajeOverallStandings(championshipId, seasonYear);
+
+      // Keep the last known-good standings during transient Data API/database
+      // failures. Realtime changes are coalesced below and will trigger a new
+      // attempt without blanking an already rendered classification.
+      if (!response.error) {
+        setStandings(response.data);
+      }
+    } finally {
+      setLoading(false);
+      isFetchingRef.current = false;
+
+      if (hasQueuedRefetchRef.current) {
+        hasQueuedRefetchRef.current = false;
+
+        if (scheduledRefetchTimeoutRef.current) {
+          clearTimeout(scheduledRefetchTimeoutRef.current);
+        }
+
+        scheduledRefetchTimeoutRef.current = setTimeout(() => {
+          scheduledRefetchTimeoutRef.current = null;
+          void refetch();
+        }, INTERLAJE_OVERALL_REALTIME_DEBOUNCE_MS);
+      }
+    }
   }, [championshipId, enabled, seasonYear]);
 
   useEffect(() => {
@@ -39,6 +77,17 @@ export function useInterlajeOverallStandings({
     if (!enabled || !championshipId || !seasonYear) {
       return;
     }
+
+    const scheduleRefetch = () => {
+      if (scheduledRefetchTimeoutRef.current) {
+        clearTimeout(scheduledRefetchTimeoutRef.current);
+      }
+
+      scheduledRefetchTimeoutRef.current = setTimeout(() => {
+        scheduledRefetchTimeoutRef.current = null;
+        void refetch();
+      }, INTERLAJE_OVERALL_REALTIME_DEBOUNCE_MS);
+    };
 
     const refreshWhenSeasonMatches = (payload: {
       new?: Record<string, unknown> | null;
@@ -55,7 +104,7 @@ export function useInterlajeOverallStandings({
             row.championship_id == championshipId && row.season_year == seasonYear,
         )
       ) {
-        void refetch();
+        scheduleRefetch();
       }
     };
 
@@ -88,9 +137,7 @@ export function useInterlajeOverallStandings({
           schema: "public",
           table: "championship_bracket_matches",
         },
-        () => {
-          void refetch();
-        },
+        scheduleRefetch,
       )
       .on(
         "postgres_changes",
@@ -155,6 +202,11 @@ export function useInterlajeOverallStandings({
       .subscribe();
 
     return () => {
+      if (scheduledRefetchTimeoutRef.current) {
+        clearTimeout(scheduledRefetchTimeoutRef.current);
+        scheduledRefetchTimeoutRef.current = null;
+      }
+
       supabase.removeChannel(channel);
     };
   }, [championshipId, enabled, refetch, seasonYear]);
