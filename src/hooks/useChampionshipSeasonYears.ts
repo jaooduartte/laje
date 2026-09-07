@@ -7,15 +7,25 @@ interface UseChampionshipSeasonYearsOptions {
   enabled?: boolean;
 }
 
-function resolveSeasonYearsFromRows(
-  rows: Array<{ season_year: number | null }> | null | undefined,
-): number[] {
-  return (rows ?? [])
-    .map((row) => row.season_year)
-    .filter(
-      (seasonYear): seasonYear is number =>
-        typeof seasonYear == "number" && Number.isFinite(seasonYear),
+const CHAMPIONSHIP_SEASON_YEARS_TIMEOUT_MS = 7000;
+
+function withRequestTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(new Error(`Supabase request timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timeoutId);
+        reject(error);
+      },
     );
+  });
 }
 
 export function useChampionshipSeasonYears({
@@ -23,21 +33,26 @@ export function useChampionshipSeasonYears({
   currentSeasonYear,
   enabled = true,
 }: UseChampionshipSeasonYearsOptions = {}) {
-  const [seasonYears, setSeasonYears] = useState<number[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [seasonYears, setSeasonYears] = useState<number[]>(() =>
+    currentSeasonYear != null && Number.isFinite(currentSeasonYear)
+      ? [currentSeasonYear]
+      : [],
+  );
+  const [loading, setLoading] = useState(false);
 
   const fetchSeasonYears = useCallback(async () => {
     if (!enabled) {
-      setLoading(true);
+      setLoading(false);
       return;
     }
 
+    const fallbackSeasonYears =
+      currentSeasonYear != null && Number.isFinite(currentSeasonYear)
+        ? [currentSeasonYear]
+        : [];
+
     if (!championshipId) {
-      setSeasonYears(
-        currentSeasonYear != null && Number.isFinite(currentSeasonYear)
-          ? [currentSeasonYear]
-          : [],
-      );
+      setSeasonYears(fallbackSeasonYears);
       setLoading(false);
       return;
     }
@@ -45,95 +60,39 @@ export function useChampionshipSeasonYears({
     setLoading(true);
 
     try {
-      const [
-        matchesResponse,
-        standingsResponse,
-        bracketEditionsResponse,
-        individualEventsResponse,
-        individualSessionsResponse,
-        individualTeamStandingsResponse,
-      ] =
-        await Promise.all([
-          supabase
-            .from("matches")
-            .select("season_year")
-            .eq("championship_id", championshipId),
-          supabase
-            .from("standings")
-            .select("season_year")
-            .eq("championship_id", championshipId),
-          supabase
-            .from("championship_bracket_editions")
-            .select("season_year")
-            .eq("championship_id", championshipId),
-          supabase
-            .from("championship_individual_events")
-            .select("season_year")
-            .eq("championship_id", championshipId),
-          supabase
-            .from("championship_individual_sessions")
-            .select("season_year")
-            .eq("championship_id", championshipId),
-          supabase
-            .from("championship_individual_team_standings")
-            .select("season_year")
-            .eq("championship_id", championshipId),
-        ]);
+      // A single RPC replaces six parallel Data API reads that previously ran
+      // on every public championship page load and amplified PostgREST pressure.
+      const response = await withRequestTimeout(
+        supabase.rpc("get_championship_available_season_years", {
+          _championship_id: championshipId,
+        }),
+        CHAMPIONSHIP_SEASON_YEARS_TIMEOUT_MS,
+      );
 
-      const nextSeasonYears = new Set<number>();
+      if (response.error) {
+        throw response.error;
+      }
 
-      resolveSeasonYearsFromRows(
-        matchesResponse.data as
-          | Array<{ season_year: number | null }>
-          | null
-          | undefined,
-      ).forEach((seasonYear) => nextSeasonYears.add(seasonYear));
-      resolveSeasonYearsFromRows(
-        standingsResponse.data as
-          | Array<{ season_year: number | null }>
-          | null
-          | undefined,
-      ).forEach((seasonYear) => nextSeasonYears.add(seasonYear));
-      resolveSeasonYearsFromRows(
-        bracketEditionsResponse.data as
-          | Array<{ season_year: number | null }>
-          | null
-          | undefined,
-      ).forEach((seasonYear) => nextSeasonYears.add(seasonYear));
-      resolveSeasonYearsFromRows(
-        individualEventsResponse.data as
-          | Array<{ season_year: number | null }>
-          | null
-          | undefined,
-      ).forEach((seasonYear) => nextSeasonYears.add(seasonYear));
-      resolveSeasonYearsFromRows(
-        individualSessionsResponse.data as
-          | Array<{ season_year: number | null }>
-          | null
-          | undefined,
-      ).forEach((seasonYear) => nextSeasonYears.add(seasonYear));
-      resolveSeasonYearsFromRows(
-        individualTeamStandingsResponse.data as
-          | Array<{ season_year: number | null }>
-          | null
-          | undefined,
-      ).forEach((seasonYear) => nextSeasonYears.add(seasonYear));
+      const years = (response.data ?? [])
+        .map((row) => Number((row as { season_year?: number | null }).season_year))
+        .filter((seasonYear) => Number.isFinite(seasonYear));
 
       if (currentSeasonYear != null && Number.isFinite(currentSeasonYear)) {
-        nextSeasonYears.add(currentSeasonYear);
+        years.push(currentSeasonYear);
       }
 
       setSeasonYears(
-        [...nextSeasonYears].sort(
+        [...new Set(years)].sort(
           (firstYear, secondYear) => secondYear - firstYear,
         ),
       );
     } catch (error) {
-      console.error("Erro ao carregar anos disponíveis do campeonato:", error);
-      setSeasonYears(
-        currentSeasonYear != null && Number.isFinite(currentSeasonYear)
-          ? [currentSeasonYear]
-          : [],
+      console.warn(
+        "Não foi possível atualizar os anos disponíveis do campeonato; usando a temporada atual como fallback:",
+        error,
+      );
+      setSeasonYears((currentYears) =>
+        currentYears.length > 0 ? currentYears : fallbackSeasonYears,
       );
     } finally {
       setLoading(false);
@@ -141,13 +100,21 @@ export function useChampionshipSeasonYears({
   }, [championshipId, currentSeasonYear, enabled]);
 
   useEffect(() => {
-    if (!enabled) {
-      setLoading(true);
-      return;
+    if (
+      currentSeasonYear != null &&
+      Number.isFinite(currentSeasonYear)
+    ) {
+      setSeasonYears((currentYears) =>
+        currentYears.includes(currentSeasonYear)
+          ? currentYears
+          : [currentSeasonYear, ...currentYears].sort(
+              (firstYear, secondYear) => secondYear - firstYear,
+            ),
+      );
     }
 
     void fetchSeasonYears();
-  }, [enabled, fetchSeasonYears]);
+  }, [currentSeasonYear, fetchSeasonYears]);
 
   return {
     seasonYears,
