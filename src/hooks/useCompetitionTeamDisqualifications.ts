@@ -6,12 +6,16 @@ interface UseCompetitionTeamDisqualificationsOptions {
   championshipId: string | null;
   seasonYear?: number | null;
   seasonYears?: number[];
+  enabled?: boolean;
+  realtimeEnabled?: boolean;
 }
 
 export function useCompetitionTeamDisqualifications({
   championshipId,
   seasonYear,
   seasonYears,
+  enabled = true,
+  realtimeEnabled = true,
 }: UseCompetitionTeamDisqualificationsOptions) {
   const [disqualifications, setDisqualifications] = useState<CompetitionTeamDisqualification[]>([]);
   const [loading, setLoading] = useState(false);
@@ -30,7 +34,7 @@ export function useCompetitionTeamDisqualifications({
   }, [seasonYearsKey]);
 
   const fetch = useCallback(async () => {
-    if (!championshipId || resolvedSeasonYears.length == 0) {
+    if (!enabled || !championshipId || resolvedSeasonYears.length == 0) {
       setDisqualifications([]);
       return;
     }
@@ -63,12 +67,16 @@ export function useCompetitionTeamDisqualifications({
     } finally {
       setLoading(false);
     }
-  }, [championshipId, resolvedSeasonYears]);
+  }, [championshipId, enabled, resolvedSeasonYears]);
 
   useEffect(() => {
     void fetch();
 
-    if (!championshipId || resolvedSeasonYears.length == 0) {
+    if (!enabled || !championshipId || resolvedSeasonYears.length == 0) {
+      return;
+    }
+
+    if (!realtimeEnabled) {
       return;
     }
 
@@ -89,7 +97,7 @@ export function useCompetitionTeamDisqualifications({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [championshipId, fetch, resolvedSeasonYears]);
+  }, [championshipId, enabled, fetch, realtimeEnabled, resolvedSeasonYears]);
 
   return {
     disqualifications,

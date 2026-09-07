@@ -6,9 +6,10 @@ import { fetchLeagueEventsByDateRange } from "@/domain/league-events/leagueEvent
 
 interface UseLeagueEventsOptions {
   monthDate: Date;
+  realtimeEnabled?: boolean;
 }
 
-export function useLeagueEvents({ monthDate }: UseLeagueEventsOptions) {
+export function useLeagueEvents({ monthDate, realtimeEnabled = true }: UseLeagueEventsOptions) {
   const [leagueEvents, setLeagueEvents] = useState<LeagueEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -80,6 +81,10 @@ export function useLeagueEvents({ monthDate }: UseLeagueEventsOptions) {
   useEffect(() => {
     fetchLeagueEvents();
 
+    if (!realtimeEnabled) {
+      return;
+    }
+
     const channel = supabase
       .channel(`league-events-realtime-${dateRange.yearKey}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "league_events" }, () => {
@@ -90,7 +95,7 @@ export function useLeagueEvents({ monthDate }: UseLeagueEventsOptions) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [dateRange.yearKey, fetchLeagueEvents]);
+  }, [dateRange.yearKey, fetchLeagueEvents, realtimeEnabled]);
 
   return {
     leagueEvents,

@@ -13,6 +13,7 @@ export function useInterlajeCompetitionStandings({
   naipe,
   division,
   enabled = true,
+  realtimeEnabled = true,
 }: {
   championshipId?: string | null;
   seasonYear?: number | null;
@@ -20,6 +21,7 @@ export function useInterlajeCompetitionStandings({
   naipe?: MatchNaipe | null;
   division: TeamDivision | null;
   enabled?: boolean;
+  realtimeEnabled?: boolean;
 }) {
   const [standings, setStandings] = useState<InterlajeCompetitionStanding[]>([]);
   const [loading, setLoading] = useState(false);
@@ -47,7 +49,7 @@ export function useInterlajeCompetitionStandings({
   }, [refetch]);
 
   useEffect(() => {
-    if (!enabled || !championshipId || !seasonYear) {
+    if (!enabled || !championshipId || !seasonYear || !realtimeEnabled) {
       return;
     }
 
@@ -138,7 +140,7 @@ export function useInterlajeCompetitionStandings({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [championshipId, enabled, refetch, seasonYear]);
+  }, [championshipId, enabled, realtimeEnabled, refetch, seasonYear]);
 
   return { standings, loading, refetch };
 }

@@ -44,7 +44,10 @@ export function LeagueCalendarPage() {
   const [activeTab, setActiveTab] = useState<typeof CALENDAR_VIEW_TAB | typeof RESERVATION_VIEW_TAB>(CALENDAR_VIEW_TAB);
   const [monthDate, setMonthDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
-  const { leagueEvents, loading } = useLeagueEvents({ monthDate });
+  const { leagueEvents, loading } = useLeagueEvents({
+    monthDate,
+    realtimeEnabled: false,
+  });
   const { teams } = useTeams({ includeInactive: true });
   const [athleticFilter, setAthleticFilter] = useState<string>(ALL_ATHLETICS_FILTER);
   const [eventTypeFilter, setEventTypeFilter] = useState<string>(ALL_EVENT_TYPES_FILTER);

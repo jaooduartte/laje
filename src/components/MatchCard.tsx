@@ -36,6 +36,7 @@ interface Props {
   matchRepresentation?: string;
   visualQueuePosition?: number;
   estimatedStartTime?: string;
+  showEstimatedScheduleTime?: boolean;
   showCalendarSubscription?: boolean;
 }
 
@@ -80,6 +81,7 @@ export function MatchCard({
   matchRepresentation,
   visualQueuePosition,
   estimatedStartTime,
+  showEstimatedScheduleTime = false,
   showCalendarSubscription = false,
 }: Props) {
   const matchCardClassName =
@@ -91,6 +93,10 @@ export function MatchCard({
   const scheduledDayLabel = scheduledDateValue
     ? `${format(new Date(`${scheduledDateValue}T12:00:00`), "dd/MM", { locale: ptBR })} • ${scheduledQueueLabel}`
     : scheduledQueueLabel;
+  const estimatedScheduleLabel =
+    scheduledDateValue && estimatedStartTime
+      ? `${format(new Date(`${scheduledDateValue}T12:00:00`), "dd/MM", { locale: ptBR })} • ${estimatedStartTime}`
+      : scheduledDayLabel;
   const isSetMatch = match.result_rule == ChampionshipSportResultRule.SETS;
   const matchSetSummary = isSetMatch ? resolveMatchSetSummary(match) : [];
   const tieBreakRuleLabel =
@@ -108,6 +114,8 @@ export function MatchCard({
   const footerScheduleLabel =
     match.status == MatchStatus.SCHEDULED
       ? scheduledDayLabel
+      : showEstimatedScheduleTime
+        ? estimatedScheduleLabel
       : startedAtLabel ?? scheduledDayLabel;
   const shouldShowFinishedQueueSummary = match.status == MatchStatus.FINISHED;
   const liveSetHomeScore = match.current_set_home_score ?? 0;

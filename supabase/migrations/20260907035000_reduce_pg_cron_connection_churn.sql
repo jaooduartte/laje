@@ -29,7 +29,7 @@ BEGIN
 
   PERFORM cron.schedule(
     'process-championship-bracket-preview-jobs',
-    '2 minutes',
+    '*/2 * * * *',
     'SELECT championship_bracket_preview_private.recover_and_cleanup();'
   );
 END;

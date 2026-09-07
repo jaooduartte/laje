@@ -5,11 +5,13 @@ import type { ChampionshipSport, Sport } from "@/lib/types";
 interface UseSportsOptions {
   championshipId?: string | null;
   enabled?: boolean;
+  realtimeEnabled?: boolean;
 }
 
 export function useSports({
   championshipId,
   enabled = true,
+  realtimeEnabled = true,
 }: UseSportsOptions = {}) {
   const [sports, setSports] = useState<Sport[]>([]);
   const [championshipSports, setChampionshipSports] = useState<
@@ -108,6 +110,10 @@ export function useSports({
 
     fetchSports();
 
+    if (!realtimeEnabled) {
+      return;
+    }
+
     const channel = supabase
       .channel(`sports-realtime-${championshipId ?? "all"}`)
       .on(
@@ -129,7 +135,7 @@ export function useSports({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [championshipId, enabled, fetchSports]);
+  }, [championshipId, enabled, fetchSports, realtimeEnabled]);
 
   return { sports, championshipSports, loading, refetch: fetchSports };
 }

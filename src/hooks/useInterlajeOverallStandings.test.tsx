@@ -45,6 +45,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 
 describe("useInterlajeOverallStandings", () => {
   beforeEach(() => {
+    window.history.replaceState({}, "", "/");
     fetchInterlajeOverallStandingsMock.mockReset();
     fetchInterlajeOverallStandingsMock.mockResolvedValue({ data: [], error: null });
     channelMock.on.mockClear();
@@ -101,5 +102,54 @@ describe("useInterlajeOverallStandings", () => {
     expect(channelMock.on).toHaveBeenCalledTimes(9);
     unmount();
     expect(removeChannelMock).toHaveBeenCalledWith(channelMock);
+  });
+
+  it("consulta a classificação pública uma única vez ao entrar na página", async () => {
+    vi.useFakeTimers();
+    window.history.replaceState({}, "", "/campeonatos");
+
+    const { unmount } = renderHook(() =>
+      useInterlajeOverallStandings({
+        championshipId: "championship-1",
+        seasonYear: 2026,
+      }),
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(60000);
+    });
+
+    expect(fetchInterlajeOverallStandingsMock).toHaveBeenCalledTimes(1);
+    expect(channelMock.subscribe).not.toHaveBeenCalled();
+    unmount();
+    expect(removeChannelMock).not.toHaveBeenCalled();
+  });
+
+  it("expõe falha recuperável e permite tentar novamente", async () => {
+    window.history.replaceState({}, "", "/campeonatos");
+    fetchInterlajeOverallStandingsMock
+      .mockResolvedValueOnce({ data: [], error: { message: "Falha" } })
+      .mockResolvedValueOnce({ data: [{ team_id: "team-1" }], error: null });
+
+    const { result } = renderHook(() =>
+      useInterlajeOverallStandings({
+        championshipId: "championship-1",
+        seasonYear: 2026,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(result.current.error).toBe(
+        "Não foi possível carregar a classificação geral. Tente novamente.",
+      );
+    });
+
+    await act(async () => {
+      await result.current.refetch();
+    });
+
+    expect(result.current.error).toBeNull();
+    expect(result.current.standings).toEqual([{ team_id: "team-1" }]);
   });
 });

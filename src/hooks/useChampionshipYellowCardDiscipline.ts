@@ -76,22 +76,6 @@ const championshipYellowCardDisciplineResultByKey = new Map<
   }
 >();
 const CHAMPIONSHIP_YELLOW_CARD_DISCIPLINE_REALTIME_DEBOUNCE_MS = 1000;
-const PUBLIC_DISCIPLINE_POLL_MIN_MS = 45000;
-const PUBLIC_DISCIPLINE_POLL_JITTER_MS = 15000;
-
-function isPublicChampionshipsPage() {
-  return (
-    typeof window != "undefined" &&
-    window.location.pathname.startsWith("/campeonatos")
-  );
-}
-
-function resolvePublicPollDelay() {
-  return (
-    PUBLIC_DISCIPLINE_POLL_MIN_MS +
-    Math.floor(Math.random() * PUBLIC_DISCIPLINE_POLL_JITTER_MS)
-  );
-}
 
 function resolveChampionshipYellowCardDisciplineRequestKey(
   championshipId: string,
@@ -169,9 +153,13 @@ function invalidateChampionshipYellowCardDiscipline(
 export function useChampionshipYellowCardDiscipline({
   championshipId,
   seasonYear,
+  enabled = true,
+  realtimeEnabled = true,
 }: {
   championshipId: string | null;
   seasonYear: number | null;
+  enabled?: boolean;
+  realtimeEnabled?: boolean;
 }) {
   const [discipline, setDiscipline] =
     useState<ChampionshipYellowCardDiscipline | null>(null);
@@ -183,7 +171,7 @@ export function useChampionshipYellowCardDiscipline({
   const shouldForceFreshOnQueuedRefetchRef = useRef(false);
 
   const fetch = useCallback(async (forceFresh = false) => {
-    if (!championshipId || !seasonYear) {
+    if (!enabled || !championshipId || !seasonYear) {
       setDiscipline(null);
       setError(null);
       setLoading(false);
@@ -230,45 +218,18 @@ export function useChampionshipYellowCardDiscipline({
         void fetch(shouldForceFresh);
       }
     }
-  }, [championshipId, seasonYear]);
+  }, [championshipId, enabled, seasonYear]);
 
   useEffect(() => {
-    void fetch();
-
-    if (!championshipId || !seasonYear) {
+    if (!enabled || !championshipId || !seasonYear) {
+      void fetch();
       return;
     }
 
-    if (isPublicChampionshipsPage()) {
-      let cancelled = false;
+    void fetch();
 
-      const scheduleNextPoll = () => {
-        scheduledRefetchTimeoutRef.current = setTimeout(() => {
-          scheduledRefetchTimeoutRef.current = null;
-
-          if (!cancelled) {
-            if (
-              typeof document == "undefined" ||
-              document.visibilityState == "visible"
-            ) {
-              invalidateChampionshipYellowCardDiscipline(championshipId, seasonYear);
-              void fetch(true);
-            }
-
-            scheduleNextPoll();
-          }
-        }, resolvePublicPollDelay());
-      };
-
-      scheduleNextPoll();
-
-      return () => {
-        cancelled = true;
-        if (scheduledRefetchTimeoutRef.current) {
-          clearTimeout(scheduledRefetchTimeoutRef.current);
-          scheduledRefetchTimeoutRef.current = null;
-        }
-      };
+    if (!realtimeEnabled) {
+      return;
     }
 
     const scheduleFetch = () => {
@@ -299,7 +260,7 @@ export function useChampionshipYellowCardDiscipline({
 
       supabase.removeChannel(channel);
     };
-  }, [championshipId, seasonYear, fetch]);
+  }, [championshipId, enabled, fetch, realtimeEnabled, seasonYear]);
 
   const refetch = useCallback(
     () => fetch(true),

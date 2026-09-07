@@ -156,6 +156,23 @@ describe("MatchCard", () => {
     expect(screen.queryByLabelText("Cartões azuis: 0")).not.toBeInTheDocument();
   });
 
+  it("exibe o horário estimado em vez do horário real de início quando solicitado", () => {
+    render(
+      <MatchCard
+        match={buildMatch({
+          is_walkover: false,
+          disqualification_id: null,
+          start_time: "2026-06-21T13:15:00.000Z",
+        })}
+        estimatedStartTime="10:00"
+        showEstimatedScheduleTime
+      />,
+    );
+
+    expect(screen.getByText("21/06 • 10:00")).toBeInTheDocument();
+    expect(screen.queryByText(/Jogo iniciado às/)).not.toBeInTheDocument();
+  });
+
   it("oferece assinaturas do calendário somente quando a Agenda pública habilita o card", () => {
     vi.stubEnv("VITE_SUPABASE_URL", "https://project.supabase.co");
 

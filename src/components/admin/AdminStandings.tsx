@@ -1730,7 +1730,7 @@ export function AdminStandings({
     <div className="space-y-5">
       {isInterlajeOverallStandingsView && hasInterlajeOverallProjectedPlacement ? (
         <p className="text-xs text-center text-muted-foreground">
-          PTS projetados: os pontos de colocação podem mudar conforme os próximos jogos do mata-mata.
+          Os pontos de colocação podem mudar conforme os próximos jogos do mata-mata.
         </p>
       ) : null}
       {(standingsGroups.length > 0

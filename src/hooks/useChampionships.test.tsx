@@ -43,8 +43,8 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 
-function HookProbe() {
-  const { championships, loading } = useChampionships();
+function HookProbe({ realtimeEnabled = true }: { realtimeEnabled?: boolean }) {
+  const { championships, loading } = useChampionships({ realtimeEnabled });
 
   return (
     <div>
@@ -108,5 +108,17 @@ describe("useChampionships", () => {
     expect(screen.getByTestId("championship-names")).toHaveTextContent(
       "Copa Laje de Verão | Copa Laje Society | Interlaje",
     );
+  });
+
+  it("carrega a lista pública sem criar um canal realtime", async () => {
+    selectChampionshipsMock.mockResolvedValue({ data: [], error: null });
+
+    render(<HookProbe realtimeEnabled={false} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-state")).toHaveTextContent("loaded");
+    });
+
+    expect(subscribeMock).not.toHaveBeenCalled();
   });
 });

@@ -177,6 +177,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [roleLoading, setRoleLoading] = useState(false);
   const lastResolvedRoleUserIdRef = useRef<string | null>(null);
   const resolvingRoleUserIdRef = useRef<string | null>(null);
+  const roleResolutionTimeoutReference = useRef<number | null>(null);
 
   useEffect(() => {
     const resolveUserRole = async (currentUser: User | null) => {
@@ -252,16 +253,43 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     };
 
+    const clearScheduledRoleResolution = () => {
+      if (roleResolutionTimeoutReference.current == null) {
+        return;
+      }
+
+      window.clearTimeout(roleResolutionTimeoutReference.current);
+      roleResolutionTimeoutReference.current = null;
+    };
+
+    const scheduleUserRoleResolution = (currentUser: User | null) => {
+      clearScheduledRoleResolution();
+
+      if (!currentUser) {
+        void resolveUserRole(null);
+        return;
+      }
+
+      if (
+        lastResolvedRoleUserIdRef.current == currentUser.id ||
+        resolvingRoleUserIdRef.current == currentUser.id
+      ) {
+        return;
+      }
+
+      setRoleLoading(true);
+      roleResolutionTimeoutReference.current = window.setTimeout(() => {
+        roleResolutionTimeoutReference.current = null;
+        void resolveUserRole(currentUser);
+      }, 0);
+    };
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
 
       if (!currentUser) {
-        setRole(null);
-        setProfileId(null);
-        setProfileName(null);
-        setAdminTabPermissions(DEFAULT_ADMIN_TAB_PERMISSIONS);
-        setRoleLoading(false);
+        scheduleUserRoleResolution(null);
         setLoading(false);
         return;
       }
@@ -271,7 +299,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return;
       }
 
-      void resolveUserRole(currentUser);
+      scheduleUserRoleResolution(currentUser);
       setLoading(false);
     });
 
@@ -307,6 +335,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
 
     return () => {
+      clearScheduledRoleResolution();
       subscription.unsubscribe();
     };
   }, []);

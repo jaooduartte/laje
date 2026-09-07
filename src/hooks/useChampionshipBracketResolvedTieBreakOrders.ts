@@ -7,26 +7,11 @@ interface UseChampionshipBracketResolvedTieBreakOrdersOptions {
   championshipId?: string | null;
   seasonYear?: number | null;
   enabled?: boolean;
+  realtimeEnabled?: boolean;
 }
 
 const RESOLVED_TIE_BREAK_REALTIME_DEBOUNCE_MS = 1000;
-const PUBLIC_RESOLVED_TIE_BREAK_POLL_MIN_MS = 60000;
-const PUBLIC_RESOLVED_TIE_BREAK_POLL_JITTER_MS = 30000;
 const RESOLVED_TIE_BREAK_REQUEST_TIMEOUT_MS = 8000;
-
-function isPublicChampionshipsPage() {
-  return (
-    typeof window != "undefined" &&
-    window.location.pathname.startsWith("/campeonatos")
-  );
-}
-
-function resolvePublicPollDelay() {
-  return (
-    PUBLIC_RESOLVED_TIE_BREAK_POLL_MIN_MS +
-    Math.floor(Math.random() * PUBLIC_RESOLVED_TIE_BREAK_POLL_JITTER_MS)
-  );
-}
 
 function withRequestTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -51,6 +36,7 @@ export function useChampionshipBracketResolvedTieBreakOrders({
   championshipId,
   seasonYear,
   enabled = true,
+  realtimeEnabled = true,
 }: UseChampionshipBracketResolvedTieBreakOrdersOptions = {}) {
   const [resolvedTieBreakOrders, setResolvedTieBreakOrders] = useState<ChampionshipBracketResolvedTieBreakOrderContext[]>([]);
   const [loading, setLoading] = useState(() => enabled && championshipId != null);
@@ -121,35 +107,8 @@ export function useChampionshipBracketResolvedTieBreakOrders({
 
     void fetchResolvedTieBreakOrders(true);
 
-    if (isPublicChampionshipsPage()) {
-      let cancelled = false;
-
-      const scheduleNextPoll = () => {
-        scheduledRefetchTimeoutRef.current = setTimeout(() => {
-          scheduledRefetchTimeoutRef.current = null;
-
-          if (!cancelled) {
-            if (
-              typeof document == "undefined" ||
-              document.visibilityState == "visible"
-            ) {
-              void fetchResolvedTieBreakOrders();
-            }
-
-            scheduleNextPoll();
-          }
-        }, resolvePublicPollDelay());
-      };
-
-      scheduleNextPoll();
-
-      return () => {
-        cancelled = true;
-        if (scheduledRefetchTimeoutRef.current) {
-          clearTimeout(scheduledRefetchTimeoutRef.current);
-          scheduledRefetchTimeoutRef.current = null;
-        }
-      };
+    if (!realtimeEnabled) {
+      return;
     }
 
     const scheduleFetch = () => {
@@ -181,7 +140,7 @@ export function useChampionshipBracketResolvedTieBreakOrders({
 
       supabase.removeChannel(channel);
     };
-  }, [championshipId, enabled, fetchResolvedTieBreakOrders, seasonYear]);
+  }, [championshipId, enabled, fetchResolvedTieBreakOrders, realtimeEnabled, seasonYear]);
 
   useEffect(() => {
     return () => {

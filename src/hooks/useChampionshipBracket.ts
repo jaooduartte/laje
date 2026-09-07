@@ -8,6 +8,7 @@ interface UseChampionshipBracketOptions {
   championshipId?: string | null;
   seasonYear?: number | null;
   enabled?: boolean;
+  realtimeEnabled?: boolean;
 }
 
 interface ChampionshipScopedRealtimeRow {
@@ -100,6 +101,7 @@ export function useChampionshipBracket({
   championshipId,
   seasonYear,
   enabled = true,
+  realtimeEnabled = true,
 }: UseChampionshipBracketOptions = {}) {
   const [championshipBracketView, setChampionshipBracketView] =
     useState<ChampionshipBracketView>(EMPTY_CHAMPIONSHIP_BRACKET_VIEW);
@@ -191,6 +193,10 @@ export function useChampionshipBracket({
     }
 
     fetchBracket(true);
+
+    if (!realtimeEnabled) {
+      return;
+    }
 
     const channel = supabase
       .channel(
@@ -292,7 +298,7 @@ export function useChampionshipBracket({
 
       supabase.removeChannel(channel);
     };
-  }, [championshipId, enabled, fetchBracket, seasonYear]);
+  }, [championshipId, enabled, fetchBracket, realtimeEnabled, seasonYear]);
 
   useEffect(() => {
     return () => {

@@ -6,26 +6,12 @@ import type { ChampionshipBracketSeasonView } from "@/lib/types";
 interface UseChampionshipBracketHistoryOptions {
   championshipId?: string | null;
   seasonYears?: number[];
+  enabled?: boolean;
+  realtimeEnabled?: boolean;
 }
 
 const BRACKET_REALTIME_DEBOUNCE_MS = 1000;
 const BRACKET_REQUEST_TIMEOUT_MS = 10000;
-const PUBLIC_BRACKET_POLL_MIN_MS = 45000;
-const PUBLIC_BRACKET_POLL_JITTER_MS = 15000;
-
-function isPublicChampionshipsPage() {
-  return (
-    typeof window != "undefined" &&
-    window.location.pathname.startsWith("/campeonatos")
-  );
-}
-
-function resolvePublicBracketPollDelay() {
-  return (
-    PUBLIC_BRACKET_POLL_MIN_MS +
-    Math.floor(Math.random() * PUBLIC_BRACKET_POLL_JITTER_MS)
-  );
-}
 
 function withRequestTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -49,6 +35,8 @@ function withRequestTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<
 export function useChampionshipBracketHistory({
   championshipId,
   seasonYears = [],
+  enabled = true,
+  realtimeEnabled = true,
 }: UseChampionshipBracketHistoryOptions = {}) {
   const [championshipBracketSeasonViews, setChampionshipBracketSeasonViews] = useState<ChampionshipBracketSeasonView[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,7 +52,7 @@ export function useChampionshipBracketHistory({
   }, [seasonYears]);
 
   const fetchBracketHistory = useCallback(async (shouldShowLoading = false) => {
-    if (!championshipId || normalizedSeasonYears.length == 0) {
+    if (!enabled || !championshipId || normalizedSeasonYears.length == 0) {
       setChampionshipBracketSeasonViews([]);
       setLoading(false);
       hasLoadedBracketHistoryRef.current = false;
@@ -131,12 +119,12 @@ export function useChampionshipBracketHistory({
         void fetchBracketHistoryRef.current();
       }
     }
-  }, [championshipId, normalizedSeasonYears]);
+  }, [championshipId, enabled, normalizedSeasonYears]);
 
   fetchBracketHistoryRef.current = fetchBracketHistory;
 
   useEffect(() => {
-    if (!championshipId || normalizedSeasonYears.length == 0) {
+    if (!enabled || !championshipId || normalizedSeasonYears.length == 0) {
       setChampionshipBracketSeasonViews([]);
       setLoading(false);
       hasLoadedBracketHistoryRef.current = false;
@@ -145,35 +133,8 @@ export function useChampionshipBracketHistory({
 
     void fetchBracketHistory(true);
 
-    if (isPublicChampionshipsPage()) {
-      let cancelled = false;
-
-      const scheduleNextPoll = () => {
-        scheduledRefetchTimeoutRef.current = setTimeout(() => {
-          scheduledRefetchTimeoutRef.current = null;
-
-          if (!cancelled) {
-            if (
-              typeof document == "undefined" ||
-              document.visibilityState == "visible"
-            ) {
-              void fetchBracketHistory();
-            }
-
-            scheduleNextPoll();
-          }
-        }, resolvePublicBracketPollDelay());
-      };
-
-      scheduleNextPoll();
-
-      return () => {
-        cancelled = true;
-        if (scheduledRefetchTimeoutRef.current) {
-          clearTimeout(scheduledRefetchTimeoutRef.current);
-          scheduledRefetchTimeoutRef.current = null;
-        }
-      };
+    if (!realtimeEnabled) {
+      return;
     }
 
     const scheduleFetch = () => {
@@ -222,7 +183,7 @@ export function useChampionshipBracketHistory({
 
       supabase.removeChannel(channel);
     };
-  }, [championshipId, fetchBracketHistory, normalizedSeasonYears]);
+  }, [championshipId, enabled, fetchBracketHistory, normalizedSeasonYears, realtimeEnabled]);
 
   useEffect(() => {
     return () => {

@@ -10,7 +10,19 @@ vi.mock("@/components/Header", () => ({
 }));
 
 vi.mock("@/components/MatchCard", () => ({
-  MatchCard: ({ match }: { match: Match }) => <div>{match.id}</div>,
+  MatchCard: ({
+    match,
+    estimatedStartTime,
+    showEstimatedScheduleTime,
+  }: {
+    match: Match;
+    estimatedStartTime?: string;
+    showEstimatedScheduleTime?: boolean;
+  }) => (
+    <div data-testid={`match-card-${match.id}`}>
+      {`${match.id}:${estimatedStartTime ?? ""}:${String(showEstimatedScheduleTime)}`}
+    </div>
+  ),
 }));
 
 vi.mock("@/components/SportFilter", () => ({
@@ -241,6 +253,99 @@ describe("SchedulePageView", () => {
     expect(screen.getByText("Arena Central")).toBeInTheDocument();
     expect(screen.getByText("Ginásio 2")).toBeInTheDocument();
     expect(screen.getByText("Quadra 2")).toBeInTheDocument();
+  });
+
+  it("ordena jogos anteriores pelo horário estimado e os separa por data", () => {
+    const championship = buildChampionship();
+    const latestEstimatedMatch = {
+      ...buildMatch("latest-estimated-match"),
+      status: MatchStatus.FINISHED,
+      scheduled_date: "2026-08-30",
+      scheduled_slot: 1,
+      queue_position: 1,
+    };
+    const earlierEstimatedMatch = {
+      ...buildMatch("earlier-estimated-match"),
+      status: MatchStatus.FINISHED,
+      scheduled_date: "2026-08-30",
+      scheduled_slot: 3,
+      queue_position: 3,
+    };
+    const previousDayMatch = {
+      ...buildMatch("previous-day-match"),
+      status: MatchStatus.FINISHED,
+      scheduled_date: "2026-08-29",
+    };
+
+    render(
+      <SchedulePageView
+        isLoading={false}
+        selectedChampionship={championship}
+        championships={[championship]}
+        selectedChampionshipCode={championship.code}
+        selectedChampionshipHasDivisions
+        teams={[]}
+        sports={[]}
+        sportFilter={null}
+        naipeFilter={null}
+        teamFilter={null}
+        groupFilter={null}
+        locationFilter={null}
+        courtFilter={null}
+        locationOptions={[]}
+        courtOptions={[]}
+        groupOptions={[]}
+        divisionFilter="ALL_SCHEDULE_DIVISIONS_FILTER"
+        statusFilter={MatchStatus.FINISHED}
+        yearFilter="2026"
+        availableSeasonYears={[2026]}
+        orderedDates={[]}
+        groupedMatches={{}}
+        individualEvents={[]}
+        individualSessions={[]}
+        matches={[
+          earlierEstimatedMatch,
+          previousDayMatch,
+          latestEstimatedMatch,
+        ]}
+        isMatchesFetching={false}
+        matchesCurrentPage={1}
+        matchesItemsPerPage={12}
+        matchesTotalPages={1}
+        matchBracketContextByMatchId={{}}
+        matchRepresentationByMatchId={{}}
+        visualQueuePositionByMatchId={{}}
+        estimatedStartTimeByMatchId={{
+          "latest-estimated-match": "19:30",
+          "earlier-estimated-match": "18:00",
+          "previous-day-match": "22:00",
+        }}
+        onChampionshipCodeChange={vi.fn()}
+        onSportFilterChange={vi.fn()}
+        onNaipeFilterChange={vi.fn()}
+        onTeamFilterChange={vi.fn()}
+        onGroupFilterChange={vi.fn()}
+        onLocationFilterChange={vi.fn()}
+        onCourtFilterChange={vi.fn()}
+        onDivisionChange={vi.fn()}
+        onStatusFilterChange={vi.fn()}
+        onYearFilterChange={vi.fn()}
+        onMatchesPageChange={vi.fn()}
+        onMatchesItemsPerPageChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent)).toEqual([
+      "domingo, 30 de agosto",
+      "sábado, 29 de agosto",
+    ]);
+    expect(
+      screen.getAllByTestId(/match-card-/).map((card) => card.textContent),
+    ).toEqual([
+      "latest-estimated-match:19:30:true",
+      "earlier-estimated-match:18:00:true",
+      "previous-day-match:22:00:true",
+    ]);
   });
 
   it("exibe sessões individuais com slot oficial e total de provas vinculadas", () => {

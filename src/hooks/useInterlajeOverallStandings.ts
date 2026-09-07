@@ -6,8 +6,6 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 
 const INTERLAJE_OVERALL_REALTIME_DEBOUNCE_MS = 1000;
-const PUBLIC_STANDINGS_POLL_MIN_MS = 30000;
-const PUBLIC_STANDINGS_POLL_JITTER_MS = 15000;
 
 function isPublicChampionshipsPage() {
   return (
@@ -16,26 +14,22 @@ function isPublicChampionshipsPage() {
   );
 }
 
-function resolvePublicStandingsPollDelay() {
-  return (
-    PUBLIC_STANDINGS_POLL_MIN_MS +
-    Math.floor(Math.random() * PUBLIC_STANDINGS_POLL_JITTER_MS)
-  );
-}
-
 export function useInterlajeOverallStandings({
   championshipId,
   seasonYear,
   enabled = true,
+  realtimeEnabled = true,
   refreshKey,
 }: {
   championshipId?: string | null;
   seasonYear?: number | null;
   enabled?: boolean;
+  realtimeEnabled?: boolean;
   refreshKey?: number;
 }) {
   const [standings, setStandings] = useState<InterlajeOverallStanding[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const scheduledRefetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isFetchingRef = useRef(false);
   const hasQueuedRefetchRef = useRef(false);
@@ -45,6 +39,7 @@ export function useInterlajeOverallStandings({
     if (!enabled || !championshipId || !seasonYear) {
       setStandings([]);
       setLoading(false);
+      setError(null);
       isFetchingRef.current = false;
       hasQueuedRefetchRef.current = false;
       return;
@@ -61,14 +56,14 @@ export function useInterlajeOverallStandings({
     try {
       const response = await fetchInterlajeOverallStandings(championshipId, seasonYear);
 
-      // Keep the last known-good standings during transient Data API/database
-      // failures. Refreshes will retry without blanking an already rendered
-      // classification.
       if (!response.error) {
         setStandings(response.data);
+        setError(null);
+      } else {
+        setError("Não foi possível carregar a classificação geral. Tente novamente.");
       }
-    } catch (error) {
-      console.error("Erro ao carregar classificação geral do Interlaje:", error);
+    } catch {
+      setError("Não foi possível carregar a classificação geral. Tente novamente.");
     } finally {
       setLoading(false);
       isFetchingRef.current = false;
@@ -99,40 +94,8 @@ export function useInterlajeOverallStandings({
       return;
     }
 
-    // Public visitors previously subscribed to every standings/match/bracket
-    // change. A single score update therefore caused every open public page to
-    // execute the expensive overall-standings RPC at nearly the same instant.
-    // Keep authenticated/admin behavior realtime, but make the public page use
-    // staggered visibility-aware polling to avoid a thundering herd.
-    if (isPublicChampionshipsPage()) {
-      let cancelled = false;
-
-      const scheduleNextPoll = () => {
-        scheduledRefetchTimeoutRef.current = setTimeout(() => {
-          scheduledRefetchTimeoutRef.current = null;
-
-          if (!cancelled) {
-            if (
-              typeof document == "undefined" ||
-              document.visibilityState == "visible"
-            ) {
-              void refetch();
-            }
-
-            scheduleNextPoll();
-          }
-        }, resolvePublicStandingsPollDelay());
-      };
-
-      scheduleNextPoll();
-
-      return () => {
-        cancelled = true;
-        if (scheduledRefetchTimeoutRef.current) {
-          clearTimeout(scheduledRefetchTimeoutRef.current);
-          scheduledRefetchTimeoutRef.current = null;
-        }
-      };
+    if (!realtimeEnabled || isPublicChampionshipsPage()) {
+      return;
     }
 
     const scheduleRefetch = () => {
@@ -266,7 +229,7 @@ export function useInterlajeOverallStandings({
 
       supabase.removeChannel(channel);
     };
-  }, [championshipId, enabled, refetch, seasonYear]);
+  }, [championshipId, enabled, realtimeEnabled, refetch, seasonYear]);
 
-  return { standings, loading, refetch };
+  return { standings, loading, error, refetch };
 }

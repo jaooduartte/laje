@@ -83,9 +83,12 @@ const ALL_STANDINGS_SPORT_FILTER = "ALL_STANDINGS_SPORTS";
 const ALL_STANDINGS_NAIPE_FILTER = "ALL_STANDINGS_NAIPES";
 const ALL_STANDINGS_DIVISION_FILTER = "ALL_STANDINGS_DIVISIONS";
 const DEFAULT_NEXT_MATCHES_LIMIT = 6;
+type ChampionshipContentTab = "standings" | "cards" | "champions";
 
 export function ChampionshipsPage() {
-  const { championships, loading: championshipsLoading } = useChampionships();
+  const { championships, loading: championshipsLoading } = useChampionships({
+    realtimeEnabled: false,
+  });
   const { selectedChampionshipCode, setSelectedChampionshipCode } =
     useSelectedChampionship();
 
@@ -124,6 +127,13 @@ export function ChampionshipsPage() {
       ? String(selectedChampionshipSeasonYear)
       : ALL_YEAR_FILTER,
   );
+  const [activeContentTab, setActiveContentTab] =
+    useState<ChampionshipContentTab>("standings");
+  const shouldLoadDetailedStandings =
+    selectedChampionship?.code != ChampionshipCode.INTERLAJE ||
+    standingsSportFilter != ALL_STANDINGS_SPORT_FILTER ||
+    standingsNaipeFilter != ALL_STANDINGS_NAIPE_FILTER ||
+    standingsDivisionFilter != ALL_STANDINGS_DIVISION_FILTER;
 
   const { standings, loading: standingsLoading } = useStandings({
     championshipId: selectedChampionshipId,
@@ -132,6 +142,8 @@ export function ChampionshipsPage() {
         ? null
         : Number(standingsYearFilter),
     division: standingsDbDivisionFilter,
+    enabled: shouldLoadDetailedStandings,
+    realtimeEnabled: false,
   });
   const standingsCorrectedSeasonYear =
     standingsYearFilter == ALL_YEAR_FILTER ? null : Number(standingsYearFilter);
@@ -144,10 +156,13 @@ export function ChampionshipsPage() {
       seasonYear: shouldUseCorrectedPointsOnStandings
         ? standingsCorrectedSeasonYear
         : null,
-      enabled: shouldUseCorrectedPointsOnStandings,
+      enabled:
+        shouldUseCorrectedPointsOnStandings && shouldLoadDetailedStandings,
+      realtimeEnabled: false,
     });
   const { sports, championshipSports } = useSports({
     championshipId: selectedChampionshipId,
+    realtimeEnabled: false,
   });
   const selectedInterlajeOverallSeasonYear =
     standingsYearFilter == ALL_YEAR_FILTER
@@ -156,6 +171,8 @@ export function ChampionshipsPage() {
   const {
     standings: interlajeOverallStandings,
     loading: interlajeOverallStandingsLoading,
+    error: interlajeOverallStandingsError,
+    refetch: refetchInterlajeOverallStandings,
   } = useInterlajeOverallStandings({
     championshipId:
       selectedChampionship?.code == ChampionshipCode.INTERLAJE
@@ -165,6 +182,7 @@ export function ChampionshipsPage() {
       selectedChampionship?.code == ChampionshipCode.INTERLAJE
         ? selectedInterlajeOverallSeasonYear
         : null,
+    realtimeEnabled: false,
   });
   const individualSportIds = useMemo(
     () => resolveIndividualSportIds(sports),
@@ -177,6 +195,8 @@ export function ChampionshipsPage() {
     seasonYear: shouldLoadAwardsRankings
       ? selectedChampionshipSeasonYear
       : null,
+    enabled: activeContentTab == "champions",
+    realtimeEnabled: false,
   });
   const yellowCardDisciplineSeasonYear =
     standingsYearFilter == ALL_YEAR_FILTER
@@ -190,6 +210,8 @@ export function ChampionshipsPage() {
   } = useChampionshipYellowCardDiscipline({
     championshipId: selectedChampionshipId,
     seasonYear: yellowCardDisciplineSeasonYear,
+    enabled: activeContentTab == "cards",
+    realtimeEnabled: false,
   });
   const standingsDisqualificationSeasonYear =
     standingsYearFilter == ALL_YEAR_FILTER ? null : Number(standingsYearFilter);
@@ -197,10 +219,13 @@ export function ChampionshipsPage() {
     useCompetitionTeamDisqualifications({
       championshipId: selectedChampionshipId,
       seasonYear: standingsDisqualificationSeasonYear,
+      enabled: shouldLoadDetailedStandings,
+      realtimeEnabled: false,
     });
   const { teams } = useTeams({ includeInactive: true });
 
   useEffect(() => {
+    setActiveContentTab("standings");
     setTeamFilter(ALL_TEAM_FILTER);
     setYearFilter(ALL_YEAR_FILTER);
     setGroupFilter(ALL_GROUP_FILTER);
@@ -230,6 +255,8 @@ export function ChampionshipsPage() {
   } = useChampionshipBracketHistory({
     championshipId: selectedChampionshipId,
     seasonYears: championshipBracketSeasonYears,
+    enabled: activeContentTab == "champions",
+    realtimeEnabled: false,
   });
   const selectedStandingsSeasonView = useMemo(() => {
     if (standingsYearFilter == ALL_YEAR_FILTER) {
@@ -294,6 +321,7 @@ export function ChampionshipsPage() {
         ? null
         : (standingsDivisionFilter as TeamDivision),
     enabled: isInterlajeCompetitionStandingsAvailable,
+    realtimeEnabled: false,
   });
 
   useEffect(() => {
@@ -542,6 +570,7 @@ export function ChampionshipsPage() {
       championshipId: selectedChampionshipId,
       seasonYear: standingsResolvedTieBreakSeasonYear,
       enabled: shouldUseManualTieBreakOnStandings,
+      realtimeEnabled: false,
     });
 
   const filteredResolvedTieBreakOrders = useMemo<
@@ -605,6 +634,8 @@ export function ChampionshipsPage() {
     sportId: standingsHeadToHeadSportFilter,
     naipe: standingsHeadToHeadNaipeFilter,
     sortMode: "FINISHED",
+    enabled: shouldLoadDetailedStandings,
+    includeRealtime: false,
   });
 
   const filteredStandings = useMemo(() => {
@@ -823,6 +854,7 @@ export function ChampionshipsPage() {
       standingsDivisionFilter == ALL_STANDINGS_DIVISION_FILTER
         ? undefined
         : (standingsDivisionFilter as TeamDivision),
+    enabled: shouldLoadDetailedStandings,
   });
 
   const individualStandingsRows = useMemo(() => {
@@ -880,7 +912,8 @@ export function ChampionshipsPage() {
 
   const isLoading = championshipsLoading;
 
-  const isChampionshipContentLoading = championshipBracketHistoryLoading;
+  const isChampionshipContentLoading =
+    activeContentTab == "champions" && championshipBracketHistoryLoading;
 
   const isNextMatchesFetching = false;
   const isHistoryMatchesFetching = false;
@@ -890,12 +923,14 @@ export function ChampionshipsPage() {
     <ChampionshipsPageView
       isLoading={isLoading}
       isChampionshipContentLoading={isChampionshipContentLoading}
+      activeContentTab={activeContentTab}
       isStandingsLoading={
         isIndividualStandingsView
           ? individualStandingsLoading
           : standingsLoading ||
             correctedGroupStandingsLoading ||
-            standingsHeadToHeadMatchesLoading ||
+            (shouldLoadDetailedStandings &&
+              standingsHeadToHeadMatchesLoading) ||
             resolvedTieBreakOrdersLoading ||
             (isInterlajeOverallStandingsView &&
               interlajeOverallStandingsLoading) ||
@@ -973,6 +1008,10 @@ export function ChampionshipsPage() {
       yellowCardDisciplineLoading={yellowCardDisciplineLoading}
       yellowCardDisciplineError={yellowCardDisciplineError}
       onRetryYellowCardDiscipline={() => void refetchYellowCardDiscipline()}
+      interlajeOverallStandingsError={interlajeOverallStandingsError}
+      onRetryInterlajeOverallStandings={() =>
+        void refetchInterlajeOverallStandings()
+      }
       awardsSeasonYear={selectedChampionshipSeasonYear}
       disqualifiedTeamKeys={standingsDisqualifiedTeamKeys}
       competitionDisqualifications={competitionDisqualifications}
@@ -983,6 +1022,9 @@ export function ChampionshipsPage() {
       onTeamFilterChange={setTeamFilter}
       onYearFilterChange={setYearFilter}
       onGroupFilterChange={setGroupFilter}
+      onActiveContentTabChange={(value) =>
+        setActiveContentTab(value as ChampionshipContentTab)
+      }
     />
   );
 }

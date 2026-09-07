@@ -150,6 +150,30 @@ describe("useStandings", () => {
     expect(removeChannelMock).toHaveBeenCalledWith(channelMock);
   });
 
+  it("carrega a classificação pública sem abrir um canal realtime", async () => {
+    fetchChampionshipEffectiveStandingsMock.mockResolvedValue({
+      data: [],
+      error: null,
+    });
+
+    const { result, unmount } = renderHook(() =>
+      useStandings({
+        championshipId: "championship-1",
+        seasonYear: 2026,
+        realtimeEnabled: false,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(fetchChampionshipEffectiveStandingsMock).toHaveBeenCalledTimes(1);
+    expect(channelMock.subscribe).not.toHaveBeenCalled();
+    unmount();
+    expect(removeChannelMock).not.toHaveBeenCalled();
+  });
+
   it("coalesce eventos relevantes em uma única consulta após um segundo", async () => {
     vi.useFakeTimers();
     fetchChampionshipEffectiveStandingsMock.mockResolvedValue({

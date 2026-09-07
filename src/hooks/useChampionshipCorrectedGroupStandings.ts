@@ -7,30 +7,16 @@ interface UseChampionshipCorrectedGroupStandingsOptions {
   championshipId?: string | null;
   seasonYear?: number | null;
   enabled?: boolean;
+  realtimeEnabled?: boolean;
 }
 
 const CORRECTED_GROUP_STANDINGS_REALTIME_DEBOUNCE_MS = 1000;
-const PUBLIC_CORRECTED_STANDINGS_POLL_MIN_MS = 30000;
-const PUBLIC_CORRECTED_STANDINGS_POLL_JITTER_MS = 15000;
-
-function isPublicChampionshipsPage() {
-  return (
-    typeof window != "undefined" &&
-    window.location.pathname.startsWith("/campeonatos")
-  );
-}
-
-function resolvePublicPollDelay() {
-  return (
-    PUBLIC_CORRECTED_STANDINGS_POLL_MIN_MS +
-    Math.floor(Math.random() * PUBLIC_CORRECTED_STANDINGS_POLL_JITTER_MS)
-  );
-}
 
 export function useChampionshipCorrectedGroupStandings({
   championshipId,
   seasonYear,
   enabled = true,
+  realtimeEnabled = true,
 }: UseChampionshipCorrectedGroupStandingsOptions = {}) {
   const [correctedGroupStandings, setCorrectedGroupStandings] = useState<ChampionshipCorrectedGroupStanding[]>([]);
   const [loading, setLoading] = useState(() => enabled && championshipId != null);
@@ -93,35 +79,8 @@ export function useChampionshipCorrectedGroupStandings({
 
     void fetchCorrectedGroupStandings(true);
 
-    if (isPublicChampionshipsPage()) {
-      let cancelled = false;
-
-      const scheduleNextPoll = () => {
-        scheduledRefetchTimeoutRef.current = setTimeout(() => {
-          scheduledRefetchTimeoutRef.current = null;
-
-          if (!cancelled) {
-            if (
-              typeof document == "undefined" ||
-              document.visibilityState == "visible"
-            ) {
-              void fetchCorrectedGroupStandings();
-            }
-
-            scheduleNextPoll();
-          }
-        }, resolvePublicPollDelay());
-      };
-
-      scheduleNextPoll();
-
-      return () => {
-        cancelled = true;
-        if (scheduledRefetchTimeoutRef.current) {
-          clearTimeout(scheduledRefetchTimeoutRef.current);
-          scheduledRefetchTimeoutRef.current = null;
-        }
-      };
+    if (!realtimeEnabled) {
+      return;
     }
 
     const scheduleFetch = () => {
@@ -156,7 +115,7 @@ export function useChampionshipCorrectedGroupStandings({
 
       supabase.removeChannel(channel);
     };
-  }, [championshipId, enabled, fetchCorrectedGroupStandings, seasonYear]);
+  }, [championshipId, enabled, fetchCorrectedGroupStandings, realtimeEnabled, seasonYear]);
 
   useEffect(() => {
     return () => {

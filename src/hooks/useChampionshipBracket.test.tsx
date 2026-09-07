@@ -69,6 +69,28 @@ describe("useChampionshipBracket", () => {
     unmount();
   });
 
+  it("carrega o chaveamento público sem abrir um canal realtime", async () => {
+    fetchChampionshipBracketViewMock.mockResolvedValue({
+      data: EMPTY_CHAMPIONSHIP_BRACKET_VIEW,
+      error: null,
+    });
+
+    const { unmount } = renderHook(() =>
+      useChampionshipBracket({
+        championshipId: "championship-public",
+        seasonYear: 2026,
+        realtimeEnabled: false,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(fetchChampionshipBracketViewMock).toHaveBeenCalledTimes(1);
+    });
+
+    expect(realtimeChannelSubscribeMock).not.toHaveBeenCalled();
+    unmount();
+  });
+
   it("coalesce atualizações enquanto a consulta do chaveamento está pendente", async () => {
     let resolveFirstRequest: ((value: unknown) => void) | null = null;
     let resolveSecondRequest: ((value: unknown) => void) | null = null;

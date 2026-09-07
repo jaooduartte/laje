@@ -68,7 +68,9 @@ function resolveScheduleGroupNumber(groupFilterValue: string | null): number | n
 }
 
 export function SchedulePage() {
-  const { championships, loading: championshipsLoading } = useChampionships();
+  const { championships, loading: championshipsLoading } = useChampionships({
+    realtimeEnabled: false,
+  });
   const { selectedChampionshipCode, setSelectedChampionshipCode } = useSelectedChampionship();
 
   const {
@@ -95,9 +97,11 @@ export function SchedulePage() {
   const { championshipBracketView } = useChampionshipBracket({
     championshipId: selectedChampionshipId,
     seasonYear: correctedYearFilter,
+    realtimeEnabled: false,
   });
   const { sports, championshipSports } = useSports({
     championshipId: selectedChampionshipId,
+    realtimeEnabled: false,
   });
   const individualSportIds = useMemo(() => resolveIndividualSportIds(sports), [sports]);
   const { teams } = useTeams({ includeInactive: true });
@@ -303,6 +307,7 @@ export function SchedulePage() {
         ? undefined
         : matchesItemsPerPage,
     sortMode: statusFilter === MatchStatus.SCHEDULED ? "SCHEDULED" : "FINISHED",
+    includeRealtime: false,
   });
   const {
     matches: storedScheduledMatchesForMatchNumbering,

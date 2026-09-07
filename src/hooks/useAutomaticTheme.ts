@@ -90,7 +90,9 @@ export function useAutomaticTheme() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      void applyCurrentUserThemeModePreference(Boolean(session?.user));
+      window.setTimeout(() => {
+        void applyCurrentUserThemeModePreference(Boolean(session?.user));
+      }, 0);
     });
 
     return () => {

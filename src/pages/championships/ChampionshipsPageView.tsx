@@ -79,6 +79,7 @@ const DISCIPLINE_SUSPENDED_FIRST_SORT = "SUSPENDED_FIRST";
 interface ChampionshipsPageViewProps {
   isLoading: boolean;
   isChampionshipContentLoading?: boolean;
+  activeContentTab?: "standings" | "cards" | "champions";
   isStandingsLoading: boolean;
   championships: Championship[];
   selectedChampionship: Championship | null;
@@ -136,6 +137,8 @@ interface ChampionshipsPageViewProps {
   yellowCardDisciplineLoading?: boolean;
   yellowCardDisciplineError?: string | null;
   onRetryYellowCardDiscipline?: () => void;
+  interlajeOverallStandingsError?: string | null;
+  onRetryInterlajeOverallStandings?: () => void;
   awardsSeasonYear: number | null;
   competitionDisqualifications?: CompetitionTeamDisqualification[];
   matchBracketContextByMatchId: Record<string, MatchBracketContext>;
@@ -149,11 +152,13 @@ interface ChampionshipsPageViewProps {
   onTeamFilterChange: (value: string) => void;
   onYearFilterChange: (value: string) => void;
   onGroupFilterChange: (value: string) => void;
+  onActiveContentTabChange?: (value: string) => void;
 }
 
 export function ChampionshipsPageView({
   isLoading,
   isChampionshipContentLoading = false,
+  activeContentTab = "standings",
   isStandingsLoading,
   championships,
   selectedChampionship,
@@ -209,6 +214,8 @@ export function ChampionshipsPageView({
   yellowCardDisciplineLoading = false,
   yellowCardDisciplineError = null,
   onRetryYellowCardDiscipline,
+  interlajeOverallStandingsError = null,
+  onRetryInterlajeOverallStandings,
   awardsSeasonYear,
   competitionDisqualifications = [],
   matchBracketContextByMatchId,
@@ -222,6 +229,7 @@ export function ChampionshipsPageView({
   onTeamFilterChange,
   onYearFilterChange,
   onGroupFilterChange,
+  onActiveContentTabChange,
 }: ChampionshipsPageViewProps) {
   const [interlajeStandingsView, setInterlajeStandingsView] = useState<
     "groups" | "overall"
@@ -533,7 +541,11 @@ export function ChampionshipsPageView({
           </div>
         </section>
 
-        <Tabs defaultValue="standings" className="enter-section space-y-4">
+        <Tabs
+          value={activeContentTab}
+          onValueChange={onActiveContentTabChange}
+          className="enter-section space-y-4"
+        >
           <TabsNavigationList className="grid w-full grid-cols-3">
             <TabsNavigationTrigger value="standings">
               Classificação
@@ -797,11 +809,25 @@ export function ChampionshipsPageView({
                       isLoading={isStandingsLoading}
                       disqualifiedTeamKeys={disqualifiedTeamKeys}
                     />
+                  ) : isInterlajeOverallStandingsView &&
+                    interlajeOverallStandingsError ? (
+                    <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-center">
+                      <p className="text-sm text-muted-foreground">
+                        {interlajeOverallStandingsError}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={onRetryInterlajeOverallStandings}
+                        className="mt-3 text-sm font-semibold text-primary hover:underline"
+                      >
+                        Tentar novamente
+                      </button>
+                    </div>
                   ) : (
                     <div className="space-y-5">
                       {hasInterlajeOverallProjectedPlacement ? (
                         <p className="text-xs text-center text-muted-foreground">
-                          PTS projetados: os pontos de colocação podem mudar conforme os próximos jogos do mata-mata.
+                          Os pontos de colocação podem mudar conforme os próximos jogos do mata-mata.
                         </p>
                       ) : null}
                       {(standingsGroups.length > 0

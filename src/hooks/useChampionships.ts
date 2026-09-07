@@ -9,7 +9,7 @@ const CHAMPIONSHIP_SORT_ORDER: Record<ChampionshipCode, number> = {
   [ChampionshipCode.INTERLAJE]: 2,
 };
 
-export function useChampionships() {
+export function useChampionships({ realtimeEnabled = true }: { realtimeEnabled?: boolean } = {}) {
   const [championships, setChampionships] = useState<Championship[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -42,6 +42,10 @@ export function useChampionships() {
   useEffect(() => {
     fetchChampionships();
 
+    if (!realtimeEnabled) {
+      return;
+    }
+
     const channel = supabase
       .channel("championships-realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "championships" }, () => {
@@ -52,7 +56,7 @@ export function useChampionships() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [realtimeEnabled]);
 
   return { championships, loading, refetch: fetchChampionships };
 }

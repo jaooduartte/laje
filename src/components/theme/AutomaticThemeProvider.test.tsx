@@ -3,21 +3,39 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { ThemeMode } from "@/lib/enums";
 import { AutomaticThemeProvider, useAutomaticThemeContext } from "@/components/theme/AutomaticThemeProvider";
 
+const { mockGetSession, mockOnAuthStateChange, mockRpc } = vi.hoisted(() => ({
+  mockGetSession: vi.fn(),
+  mockOnAuthStateChange: vi.fn(),
+  mockRpc: vi.fn(),
+}));
+
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     auth: {
-      getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
-      onAuthStateChange: vi.fn(() => ({
-        data: {
-          subscription: {
-            unsubscribe: vi.fn(),
-          },
-        },
-      })),
+      getSession: mockGetSession,
+      onAuthStateChange: mockOnAuthStateChange,
     },
-    rpc: vi.fn(),
+    rpc: mockRpc,
   },
 }));
+
+function configureSupabaseMock() {
+  mockGetSession.mockResolvedValue({ data: { session: null } });
+  mockOnAuthStateChange.mockReturnValue({
+    data: {
+      subscription: {
+        unsubscribe: vi.fn(),
+      },
+    },
+  });
+  mockRpc.mockResolvedValue({ data: null, error: null });
+}
+
+function emitAuthStateChange(hasAuthenticatedUser: boolean) {
+  const callback = mockOnAuthStateChange.mock.calls[0]?.[0];
+
+  callback?.("SIGNED_IN", hasAuthenticatedUser ? { user: { id: "admin-user-id" } } : null);
+}
 
 function ThemeModeTestValue() {
   const { themeMode, preferredThemeMode, setPreferredThemeMode } = useAutomaticThemeContext();
@@ -36,9 +54,11 @@ function ThemeModeTestValue() {
 describe("AutomaticThemeProvider", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    configureSupabaseMock();
   });
 
   afterEach(() => {
+    vi.clearAllMocks();
     vi.useRealTimers();
     document.documentElement.classList.remove("dark");
   });
@@ -87,5 +107,22 @@ describe("AutomaticThemeProvider", () => {
     expect(screen.getByTestId("preferred-theme-mode-value")).toHaveTextContent(ThemeMode.DARK);
     expect(screen.getByTestId("theme-mode-value")).toHaveTextContent(ThemeMode.DARK);
     expect(document.documentElement.classList.contains("dark")).toBe(true);
+  });
+
+  it("loads the authenticated user preference after the authentication state callback returns", async () => {
+    await renderProvider();
+    mockRpc.mockClear();
+
+    act(() => {
+      emitAuthStateChange(true);
+    });
+
+    expect(mockRpc).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(mockRpc).toHaveBeenCalledWith("get_current_user_theme_mode_preference");
   });
 });

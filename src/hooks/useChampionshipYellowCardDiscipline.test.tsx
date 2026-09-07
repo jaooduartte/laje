@@ -69,6 +69,24 @@ describe("useChampionshipYellowCardDiscipline", () => {
     );
   });
 
+  it("não consulta nem assina enquanto a aba de cartões está fechada", async () => {
+    renderHook(() =>
+      useChampionshipYellowCardDiscipline({
+        championshipId: "championship-1",
+        seasonYear: 2026,
+        enabled: false,
+        realtimeEnabled: false,
+      }),
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(rpcMock).not.toHaveBeenCalled();
+    expect(channelMock.subscribe).not.toHaveBeenCalled();
+  });
+
   it("agrupa eventos realtime próximos em uma única atualização", async () => {
     vi.useFakeTimers();
 

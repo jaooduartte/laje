@@ -195,13 +195,6 @@ export function SchedulePageView({
     }
 
     return [...matches].sort((firstMatch, secondMatch) => {
-      const firstSlot = resolveMatchDisplaySlotValue(firstMatch) ?? 0;
-      const secondSlot = resolveMatchDisplaySlotValue(secondMatch) ?? 0;
-
-      if (firstSlot != secondSlot) {
-        return secondSlot - firstSlot;
-      }
-
       const firstDate = resolveMatchScheduledDateValue(firstMatch) ?? "";
       const secondDate = resolveMatchScheduledDateValue(secondMatch) ?? "";
 
@@ -209,16 +202,50 @@ export function SchedulePageView({
         return secondDate.localeCompare(firstDate);
       }
 
-      const firstStartedAtTimestamp = firstMatch.start_time
-        ? new Date(firstMatch.start_time).getTime()
-        : 0;
-      const secondStartedAtTimestamp = secondMatch.start_time
-        ? new Date(secondMatch.start_time).getTime()
-        : 0;
+      const firstEstimatedStartTime = estimatedStartTimeByMatchId[firstMatch.id];
+      const secondEstimatedStartTime = estimatedStartTimeByMatchId[secondMatch.id];
+      const firstEstimatedStartTimeMinutes = firstEstimatedStartTime
+        ? Number(firstEstimatedStartTime.slice(0, 2)) * 60 +
+          Number(firstEstimatedStartTime.slice(3, 5))
+        : -1;
+      const secondEstimatedStartTimeMinutes = secondEstimatedStartTime
+        ? Number(secondEstimatedStartTime.slice(0, 2)) * 60 +
+          Number(secondEstimatedStartTime.slice(3, 5))
+        : -1;
 
-      return secondStartedAtTimestamp - firstStartedAtTimestamp;
+      if (firstEstimatedStartTimeMinutes != secondEstimatedStartTimeMinutes) {
+        return secondEstimatedStartTimeMinutes - firstEstimatedStartTimeMinutes;
+      }
+
+      const firstSlot = resolveMatchDisplaySlotValue(firstMatch) ?? 0;
+      const secondSlot = resolveMatchDisplaySlotValue(secondMatch) ?? 0;
+
+      if (firstSlot != secondSlot) {
+        return secondSlot - firstSlot;
+      }
+
+      return secondMatch.id.localeCompare(firstMatch.id);
     });
-  }, [matches, statusFilter]);
+  }, [estimatedStartTimeByMatchId, matches, statusFilter]);
+  const groupedFinishedMatchesByDate = useMemo(() => {
+    return orderedFinishedMatches.reduce<Record<string, Match[]>>(
+      (carry, match) => {
+        const scheduledDate = resolveMatchScheduledDateValue(match);
+
+        if (!scheduledDate) {
+          return carry;
+        }
+
+        carry[scheduledDate] = [...(carry[scheduledDate] ?? []), match];
+        return carry;
+      },
+      {},
+    );
+  }, [orderedFinishedMatches]);
+  const orderedFinishedDates = useMemo(
+    () => Object.keys(groupedFinishedMatchesByDate).sort((a, b) => b.localeCompare(a)),
+    [groupedFinishedMatchesByDate],
+  );
   const hasVisibleMatches =
     statusFilter == MatchStatus.FINISHED
       ? orderedFinishedMatches.length > 0
@@ -511,25 +538,35 @@ export function SchedulePageView({
             <p className="text-muted-foreground">Nenhum jogo encontrado.</p>
           ) : statusFilter == MatchStatus.FINISHED ? (
             <div className="space-y-4">
-              <section className="glass-panel enter-section p-4">
-                <div className="grid items-center gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {orderedFinishedMatches.map((match) => (
-                    <MatchCard
-                      key={match.id}
-                      match={match}
-                      showChampionshipBadge={false}
-                      bracketContext={matchBracketContextByMatchId[match.id]}
-                      matchRepresentation={
-                        matchRepresentationByMatchId[match.id]
-                      }
-                      visualQueuePosition={
-                        visualQueuePositionByMatchId[match.id]
-                      }
-                      estimatedStartTime={estimatedStartTimeByMatchId[match.id]}
-                    />
-                  ))}
-                </div>
-              </section>
+              {orderedFinishedDates.map((date) => (
+                <section key={date} className="glass-panel enter-section p-4">
+                  <h3 className="mb-3 text-sm text-center font-display font-semibold uppercase tracking-wider text-muted-foreground">
+                    {format(
+                      new Date(`${date}T12:00:00`),
+                      "EEEE, dd 'de' MMMM",
+                      { locale: ptBR },
+                    )}
+                  </h3>
+                  <div className="grid items-center gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {groupedFinishedMatchesByDate[date].map((match) => (
+                      <MatchCard
+                        key={match.id}
+                        match={match}
+                        showChampionshipBadge={false}
+                        bracketContext={matchBracketContextByMatchId[match.id]}
+                        matchRepresentation={
+                          matchRepresentationByMatchId[match.id]
+                        }
+                        visualQueuePosition={
+                          visualQueuePositionByMatchId[match.id]
+                        }
+                        estimatedStartTime={estimatedStartTimeByMatchId[match.id]}
+                        showEstimatedScheduleTime
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))}
 
               <AppPaginationControls
                 currentPage={matchesCurrentPage}

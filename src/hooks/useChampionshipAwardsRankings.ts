@@ -85,11 +85,13 @@ export function compareAwardsRankingGoalScorers(
 interface UseChampionshipAwardsRankingsOptions {
   championshipId: string | null;
   seasonYear: number | null;
+  enabled?: boolean;
+  realtimeEnabled?: boolean;
 }
 
 const AWARDS_RANKINGS_REALTIME_DEBOUNCE_MS = 1000;
 
-export function useChampionshipAwardsRankings({ championshipId, seasonYear }: UseChampionshipAwardsRankingsOptions) {
+export function useChampionshipAwardsRankings({ championshipId, seasonYear, enabled = true, realtimeEnabled = true }: UseChampionshipAwardsRankingsOptions) {
   const [rankings, setRankings] = useState<ChampionshipAwardsRankings | null>(null);
   const [loading, setLoading] = useState(false);
   const scheduledRefetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -98,7 +100,7 @@ export function useChampionshipAwardsRankings({ championshipId, seasonYear }: Us
   const fetchRef = useRef<() => Promise<void>>(async () => undefined);
 
   const fetch = useCallback(async () => {
-    if (!championshipId || !seasonYear) {
+    if (!enabled || !championshipId || !seasonYear) {
       setRankings(null);
       return;
     }
@@ -133,14 +135,16 @@ export function useChampionshipAwardsRankings({ championshipId, seasonYear }: Us
         void fetchRef.current();
       }
     }
-  }, [championshipId, seasonYear]);
+  }, [championshipId, enabled, seasonYear]);
 
   fetchRef.current = fetch;
 
   useEffect(() => {
     void fetch();
 
-    if (!championshipId || !seasonYear) return;
+    if (!enabled || !championshipId || !seasonYear) return;
+
+    if (!realtimeEnabled) return;
 
     const scheduleFetch = () => {
       if (scheduledRefetchTimeoutRef.current) {
@@ -184,7 +188,7 @@ export function useChampionshipAwardsRankings({ championshipId, seasonYear }: Us
 
       supabase.removeChannel(channel);
     };
-  }, [championshipId, seasonYear, fetch]);
+  }, [championshipId, enabled, seasonYear, fetch, realtimeEnabled]);
 
   return { rankings, loading };
 }

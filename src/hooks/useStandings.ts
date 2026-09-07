@@ -9,11 +9,13 @@ interface UseStandingsOptions {
   seasonYear?: number | null;
   division?: TeamDivision | null;
   naipe?: MatchNaipe;
+  enabled?: boolean;
+  realtimeEnabled?: boolean;
 }
 
 const STANDINGS_REALTIME_DEBOUNCE_MS = 1000;
 
-export function useStandings({ championshipId, seasonYear, division, naipe }: UseStandingsOptions = {}) {
+export function useStandings({ championshipId, seasonYear, division, naipe, enabled = true, realtimeEnabled = true }: UseStandingsOptions = {}) {
   const [standings, setStandings] = useState<Standing[]>([]);
   const [loading, setLoading] = useState(true);
   const scheduledRefetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -22,7 +24,7 @@ export function useStandings({ championshipId, seasonYear, division, naipe }: Us
   const fetchStandingsRef = useRef<() => Promise<void>>(async () => undefined);
 
   const fetchStandings = useCallback(async () => {
-    if (championshipId === null) {
+    if (!enabled || championshipId === null) {
       setStandings([]);
       setLoading(false);
       return;
@@ -121,18 +123,22 @@ export function useStandings({ championshipId, seasonYear, division, naipe }: Us
         void fetchStandingsRef.current();
       }
     }
-  }, [championshipId, division, naipe, seasonYear]);
+  }, [championshipId, division, enabled, naipe, seasonYear]);
 
   fetchStandingsRef.current = fetchStandings;
 
   useEffect(() => {
-    if (championshipId === null) {
+    if (!enabled || championshipId === null) {
       setStandings([]);
       setLoading(false);
       return;
     }
 
     void fetchStandings();
+
+    if (!realtimeEnabled) {
+      return;
+    }
 
     const scheduleFetchStandings = () => {
       if (scheduledRefetchTimeoutRef.current) {
@@ -240,7 +246,7 @@ export function useStandings({ championshipId, seasonYear, division, naipe }: Us
 
       supabase.removeChannel(channel);
     };
-  }, [championshipId, division, fetchStandings, naipe, seasonYear]);
+  }, [championshipId, division, enabled, fetchStandings, naipe, realtimeEnabled, seasonYear]);
 
   return { standings, loading, refetch: fetchStandings };
 }
