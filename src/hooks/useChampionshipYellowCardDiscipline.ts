@@ -76,6 +76,22 @@ const championshipYellowCardDisciplineResultByKey = new Map<
   }
 >();
 const CHAMPIONSHIP_YELLOW_CARD_DISCIPLINE_REALTIME_DEBOUNCE_MS = 1000;
+const PUBLIC_DISCIPLINE_POLL_MIN_MS = 45000;
+const PUBLIC_DISCIPLINE_POLL_JITTER_MS = 15000;
+
+function isPublicChampionshipsPage() {
+  return (
+    typeof window != "undefined" &&
+    window.location.pathname.startsWith("/campeonatos")
+  );
+}
+
+function resolvePublicPollDelay() {
+  return (
+    PUBLIC_DISCIPLINE_POLL_MIN_MS +
+    Math.floor(Math.random() * PUBLIC_DISCIPLINE_POLL_JITTER_MS)
+  );
+}
 
 function resolveChampionshipYellowCardDisciplineRequestKey(
   championshipId: string,
@@ -195,7 +211,6 @@ export function useChampionshipYellowCardDiscipline({
         );
 
       if (rpcError) {
-        setDiscipline(null);
         setError("Não foi possível carregar os cartões. Tente novamente.");
         return;
       }
@@ -203,7 +218,6 @@ export function useChampionshipYellowCardDiscipline({
       setDiscipline((data as unknown as ChampionshipYellowCardDiscipline) ?? null);
       setError(null);
     } catch {
-      setDiscipline(null);
       setError("Não foi possível carregar os cartões. Tente novamente.");
     } finally {
       setLoading(false);
@@ -223,6 +237,38 @@ export function useChampionshipYellowCardDiscipline({
 
     if (!championshipId || !seasonYear) {
       return;
+    }
+
+    if (isPublicChampionshipsPage()) {
+      let cancelled = false;
+
+      const scheduleNextPoll = () => {
+        scheduledRefetchTimeoutRef.current = setTimeout(() => {
+          scheduledRefetchTimeoutRef.current = null;
+
+          if (!cancelled) {
+            if (
+              typeof document == "undefined" ||
+              document.visibilityState == "visible"
+            ) {
+              invalidateChampionshipYellowCardDiscipline(championshipId, seasonYear);
+              void fetch(true);
+            }
+
+            scheduleNextPoll();
+          }
+        }, resolvePublicPollDelay());
+      };
+
+      scheduleNextPoll();
+
+      return () => {
+        cancelled = true;
+        if (scheduledRefetchTimeoutRef.current) {
+          clearTimeout(scheduledRefetchTimeoutRef.current);
+          scheduledRefetchTimeoutRef.current = null;
+        }
+      };
     }
 
     const scheduleFetch = () => {
