@@ -8,6 +8,7 @@ interface UseChampionshipSeasonYearsOptions {
 }
 
 const CHAMPIONSHIP_SEASON_YEARS_TIMEOUT_MS = 7000;
+const CHAMPIONSHIP_SEASON_YEARS_FALLBACK_TIMEOUT_MS = 3500;
 
 function withRequestTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -26,6 +27,69 @@ function withRequestTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<
       },
     );
   });
+}
+
+function resolveSeasonYearsFromRows(
+  rows: Array<{ season_year: number | null }> | null | undefined,
+): number[] {
+  return (rows ?? [])
+    .map((row) => row.season_year)
+    .filter(
+      (seasonYear): seasonYear is number =>
+        typeof seasonYear == "number" && Number.isFinite(seasonYear),
+    );
+}
+
+async function fetchSeasonYearsSequentialFallback(championshipId: string) {
+  const years = new Set<number>();
+  const queries = [
+    supabase
+      .from("championship_bracket_editions")
+      .select("season_year")
+      .eq("championship_id", championshipId),
+    supabase
+      .from("matches")
+      .select("season_year")
+      .eq("championship_id", championshipId),
+    supabase
+      .from("standings")
+      .select("season_year")
+      .eq("championship_id", championshipId),
+    supabase
+      .from("championship_individual_events")
+      .select("season_year")
+      .eq("championship_id", championshipId),
+    supabase
+      .from("championship_individual_sessions")
+      .select("season_year")
+      .eq("championship_id", championshipId),
+    supabase
+      .from("championship_individual_team_standings")
+      .select("season_year")
+      .eq("championship_id", championshipId),
+  ];
+
+  // This path exists only while the consolidated RPC is unavailable. Keep it
+  // serialized so a public page load never recreates the previous six-request
+  // fan-out against PostgREST.
+  for (const query of queries) {
+    try {
+      const response = await withRequestTimeout(
+        query,
+        CHAMPIONSHIP_SEASON_YEARS_FALLBACK_TIMEOUT_MS,
+      );
+
+      if (!response.error) {
+        resolveSeasonYearsFromRows(
+          response.data as Array<{ season_year: number | null }> | null,
+        ).forEach((seasonYear) => years.add(seasonYear));
+      }
+    } catch (error) {
+      console.warn("Falha temporária ao buscar uma fonte de temporadas:", error);
+    }
+  }
+
+  return [...years];
 }
 
 export function useChampionshipSeasonYears({
@@ -60,31 +124,48 @@ export function useChampionshipSeasonYears({
     setLoading(true);
 
     try {
-      // A single RPC replaces six parallel Data API reads that previously ran
-      // on every public championship page load and amplified PostgREST pressure.
-      const response = await withRequestTimeout(
-        supabase.rpc("get_championship_available_season_years", {
-          _championship_id: championshipId,
-        }),
-        CHAMPIONSHIP_SEASON_YEARS_TIMEOUT_MS,
-      );
+      let years: number[] = [];
 
-      if (response.error) {
-        throw response.error;
+      try {
+        // Normal path: one bounded RPC replaces six parallel Data API reads.
+        const response = await withRequestTimeout(
+          supabase.rpc("get_championship_available_season_years", {
+            _championship_id: championshipId,
+          }),
+          CHAMPIONSHIP_SEASON_YEARS_TIMEOUT_MS,
+        );
+
+        if (response.error) {
+          throw response.error;
+        }
+
+        years = (response.data ?? [])
+          .map((row) =>
+            Number((row as { season_year?: number | null }).season_year),
+          )
+          .filter((seasonYear) => Number.isFinite(seasonYear));
+      } catch (rpcError) {
+        console.warn(
+          "RPC consolidada de temporadas indisponível; usando fallback serializado:",
+          rpcError,
+        );
+        years = await fetchSeasonYearsSequentialFallback(championshipId);
       }
-
-      const years = (response.data ?? [])
-        .map((row) => Number((row as { season_year?: number | null }).season_year))
-        .filter((seasonYear) => Number.isFinite(seasonYear));
 
       if (currentSeasonYear != null && Number.isFinite(currentSeasonYear)) {
         years.push(currentSeasonYear);
       }
 
-      setSeasonYears(
-        [...new Set(years)].sort(
-          (firstYear, secondYear) => secondYear - firstYear,
-        ),
+      const normalizedYears = [...new Set(years)].sort(
+        (firstYear, secondYear) => secondYear - firstYear,
+      );
+
+      setSeasonYears((currentYears) =>
+        normalizedYears.length > 0
+          ? normalizedYears
+          : currentYears.length > 0
+            ? currentYears
+            : fallbackSeasonYears,
       );
     } catch (error) {
       console.warn(
