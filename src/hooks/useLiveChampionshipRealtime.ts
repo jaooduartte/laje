@@ -16,7 +16,7 @@ interface UseLiveChampionshipRealtimeOptions {
   onBracketChange: () => void;
 }
 
-const LIVE_CHAMPIONSHIP_REALTIME_DEBOUNCE_MS = 1000;
+const LIVE_CHAMPIONSHIP_REALTIME_DEBOUNCE_MS = 150;
 
 function isLiveMatchRealtimeRow(value: unknown): value is LiveMatchRealtimeRow {
   return value != null && typeof value == "object";

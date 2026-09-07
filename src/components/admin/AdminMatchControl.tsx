@@ -824,6 +824,9 @@ export function AdminMatchControl({
   const saveTimeoutByMatchIdRef = useRef<
     Record<string, ReturnType<typeof setTimeout> | undefined>
   >({});
+  const penaltyShootoutSaveTimeoutByMatchIdRef = useRef<
+    Record<string, ReturnType<typeof setTimeout> | undefined>
+  >({});
   const clearStatusTimeoutByMatchIdRef = useRef<
     Record<string, ReturnType<typeof setTimeout> | undefined>
   >({});
@@ -1532,6 +1535,8 @@ export function AdminMatchControl({
 
   useEffect(() => {
     const saveTimeoutByMatchId = saveTimeoutByMatchIdRef.current;
+    const penaltyShootoutSaveTimeoutByMatchId =
+      penaltyShootoutSaveTimeoutByMatchIdRef.current;
     const clearStatusTimeoutByMatchId = clearStatusTimeoutByMatchIdRef.current;
 
     return () => {
@@ -1575,6 +1580,14 @@ export function AdminMatchControl({
           clearTimeout(timeoutReference);
         }
       });
+
+      Object.values(penaltyShootoutSaveTimeoutByMatchId).forEach(
+        (timeoutReference) => {
+          if (timeoutReference) {
+            clearTimeout(timeoutReference);
+          }
+        },
+      );
 
       Object.values(clearStatusTimeoutByMatchId).forEach((timeoutReference) => {
         if (timeoutReference) {
@@ -1716,13 +1729,14 @@ export function AdminMatchControl({
 
   const clearPenaltyShootout = useCallback((matchId: string) => {
     setPenaltyShootoutEnabledByMatchId((currentEnabledByMatchId) => {
-      if (!currentEnabledByMatchId[matchId]) {
+      if (currentEnabledByMatchId[matchId] == false) {
         return currentEnabledByMatchId;
       }
 
-      const nextEnabledByMatchId = { ...currentEnabledByMatchId };
-      delete nextEnabledByMatchId[matchId];
-      return nextEnabledByMatchId;
+      return {
+        ...currentEnabledByMatchId,
+        [matchId]: false,
+      };
     });
     setPenaltyShootoutDraftByMatchId((currentDraftByMatchId) => {
       if (!currentDraftByMatchId[matchId]) {
@@ -1734,6 +1748,54 @@ export function AdminMatchControl({
       return nextDraftByMatchId;
     });
   }, []);
+
+  const persistPenaltyShootoutDraft = async (
+    match: Match,
+    draft: MatchPenaltyShootoutDraft,
+  ) => {
+    if (!canManageScoreboard) {
+      return;
+    }
+
+    const { error } = await supabase
+      .from("matches")
+      .update({
+        home_penalty_score: resolvePenaltyShootoutScoreValue(
+          draft.homePenaltyScore,
+        ),
+        away_penalty_score: resolvePenaltyShootoutScoreValue(
+          draft.awayPenaltyScore,
+        ),
+      })
+      .eq("id", match.id);
+
+    if (error) {
+      toast.error(resolveAdminMatchControlErrorMessage(error, error.message), {
+        id: "admin-match-control-migration-required",
+      });
+    }
+  };
+
+  const schedulePenaltyShootoutAutosave = (
+    match: Match,
+    draft: MatchPenaltyShootoutDraft,
+  ) => {
+    if (!canManageScoreboard) {
+      return;
+    }
+
+    const saveTimeoutReference =
+      penaltyShootoutSaveTimeoutByMatchIdRef.current[match.id];
+
+    if (saveTimeoutReference) {
+      clearTimeout(saveTimeoutReference);
+    }
+
+    penaltyShootoutSaveTimeoutByMatchIdRef.current[match.id] = setTimeout(() => {
+      penaltyShootoutSaveTimeoutByMatchIdRef.current[match.id] = undefined;
+      void persistPenaltyShootoutDraft(match, draft);
+    }, MATCH_CONTROL_AUTOSAVE_DEBOUNCE_IN_MILLISECONDS);
+  };
 
   const handleUpdateWalkoverMode = useCallback(
     (match: Match, walkoverMode: WalkoverMode) => {
@@ -4076,8 +4138,15 @@ export function AdminMatchControl({
                   matchBracketContext,
                 ) &&
                 displayedHomeScore == displayedAwayScore;
+              const hasPersistedPenaltyShootoutScore =
+                typeof match.home_penalty_score == "number" &&
+                typeof match.away_penalty_score == "number";
+              const penaltyShootoutEnabled =
+                penaltyShootoutEnabledByMatchId[match.id];
               const isPenaltyShootoutEnabled =
-                penaltyShootoutEnabledByMatchId[match.id] == true;
+                penaltyShootoutEnabled == true ||
+                (penaltyShootoutEnabled !== false &&
+                  hasPersistedPenaltyShootoutScore);
               const penaltyShootoutDraft =
                 penaltyShootoutDraftByMatchId[match.id] ??
                 resolveInitialPenaltyShootoutDraft(match);
@@ -4104,23 +4173,25 @@ export function AdminMatchControl({
                                 ? currentDraft.homePenaltyScore
                                 : currentDraft.awayPenaltyScore,
                             ) ?? 0;
+                          const nextDraft = {
+                            ...currentDraft,
+                            ...(side == "home"
+                              ? {
+                                  homePenaltyScore: String(
+                                    Math.max(0, currentScore - 1),
+                                  ),
+                                }
+                              : {
+                                  awayPenaltyScore: String(
+                                    Math.max(0, currentScore - 1),
+                                  ),
+                                }),
+                          };
+                          schedulePenaltyShootoutAutosave(match, nextDraft);
 
                           return {
                             ...currentDraftByMatchId,
-                            [match.id]: {
-                              ...currentDraft,
-                              ...(side == "home"
-                                ? {
-                                    homePenaltyScore: String(
-                                      Math.max(0, currentScore - 1),
-                                    ),
-                                  }
-                                : {
-                                    awayPenaltyScore: String(
-                                      Math.max(0, currentScore - 1),
-                                    ),
-                                  }),
-                            },
+                            [match.id]: nextDraft,
                           };
                         },
                       )
@@ -4141,25 +4212,27 @@ export function AdminMatchControl({
                           const currentDraft =
                             currentDraftByMatchId[match.id] ??
                             resolveInitialPenaltyShootoutDraft(match);
+                          const nextDraft = {
+                            ...currentDraft,
+                            ...(side == "home"
+                              ? {
+                                  homePenaltyScore:
+                                    resolvePenaltyShootoutInputValue(
+                                      event.target.value,
+                                    ),
+                                }
+                              : {
+                                  awayPenaltyScore:
+                                    resolvePenaltyShootoutInputValue(
+                                      event.target.value,
+                                    ),
+                                }),
+                          };
+                          schedulePenaltyShootoutAutosave(match, nextDraft);
 
                           return {
                             ...currentDraftByMatchId,
-                            [match.id]: {
-                              ...currentDraft,
-                              ...(side == "home"
-                                ? {
-                                    homePenaltyScore:
-                                      resolvePenaltyShootoutInputValue(
-                                        event.target.value,
-                                      ),
-                                  }
-                                : {
-                                    awayPenaltyScore:
-                                      resolvePenaltyShootoutInputValue(
-                                        event.target.value,
-                                      ),
-                                  }),
-                            },
+                            [match.id]: nextDraft,
                           };
                         },
                       )
@@ -4186,19 +4259,21 @@ export function AdminMatchControl({
                                 ? currentDraft.homePenaltyScore
                                 : currentDraft.awayPenaltyScore,
                             ) ?? 0;
+                          const nextDraft = {
+                            ...currentDraft,
+                            ...(side == "home"
+                              ? {
+                                  homePenaltyScore: String(currentScore + 1),
+                                }
+                              : {
+                                  awayPenaltyScore: String(currentScore + 1),
+                                }),
+                          };
+                          schedulePenaltyShootoutAutosave(match, nextDraft);
 
                           return {
                             ...currentDraftByMatchId,
-                            [match.id]: {
-                              ...currentDraft,
-                              ...(side == "home"
-                                ? {
-                                    homePenaltyScore: String(currentScore + 1),
-                                  }
-                                : {
-                                    awayPenaltyScore: String(currentScore + 1),
-                                  }),
-                            },
+                            [match.id]: nextDraft,
                           };
                         },
                       )
@@ -4720,6 +4795,16 @@ export function AdminMatchControl({
                           checked={isPenaltyShootoutEnabled}
                           onCheckedChange={(checked) => {
                             if (checked) {
+                              const penaltyShootoutDraft =
+                                penaltyShootoutDraftByMatchId[match.id] ??
+                                resolveInitialPenaltyShootoutDraft(match);
+                              const initialPenaltyShootoutDraft = {
+                                homePenaltyScore:
+                                  penaltyShootoutDraft.homePenaltyScore || "0",
+                                awayPenaltyScore:
+                                  penaltyShootoutDraft.awayPenaltyScore || "0",
+                              };
+
                               setPenaltyShootoutEnabledByMatchId(
                                 (currentEnabledByMatchId) => ({
                                   ...currentEnabledByMatchId,
@@ -4729,15 +4814,36 @@ export function AdminMatchControl({
                               setPenaltyShootoutDraftByMatchId(
                                 (currentDraftByMatchId) => ({
                                   ...currentDraftByMatchId,
-                                  [match.id]:
-                                    currentDraftByMatchId[match.id] ??
-                                    resolveInitialPenaltyShootoutDraft(match),
+                                  [match.id]: initialPenaltyShootoutDraft,
                                 }),
+                              );
+                              void persistPenaltyShootoutDraft(
+                                match,
+                                initialPenaltyShootoutDraft,
                               );
                               return;
                             }
 
                             clearPenaltyShootout(match.id);
+                            const saveTimeoutReference =
+                              penaltyShootoutSaveTimeoutByMatchIdRef.current[
+                                match.id
+                              ];
+
+                            if (saveTimeoutReference) {
+                              clearTimeout(saveTimeoutReference);
+                              penaltyShootoutSaveTimeoutByMatchIdRef.current[
+                                match.id
+                              ] = undefined;
+                            }
+
+                            void supabase
+                              .from("matches")
+                              .update({
+                                home_penalty_score: null,
+                                away_penalty_score: null,
+                              })
+                              .eq("id", match.id);
                           }}
                           disabled={!canManageScoreboard || isMatchCompletionLoading}
                         />

@@ -12006,7 +12006,7 @@ export function AdminMatches({
                     const movementLabel = change.is_selected
                       ? "Jogo selecionado"
                       : isManualRelocationPlaceholderItem(change)
-                        ? "Slot planejado"
+                        ? "Slot planejado reposicionado"
                         : "Jogo reposicionado";
                     const beforeTime = change.before.start_time
                       ? `${format(new Date(change.before.start_time), "HH:mm")}${change.before.end_time ? `–${format(new Date(change.before.end_time), "HH:mm")}` : ""}`

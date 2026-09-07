@@ -1745,7 +1745,152 @@ describe("AdminMatchControl", () => {
     fireEvent.click(penaltyShootoutCheckbox);
     fireEvent.click(penaltyShootoutCheckbox);
 
-    expect(screen.getAllByRole("spinbutton", { name: "Pênaltis de Society Casa" })[0]).toHaveValue(null);
+    expect(screen.getAllByRole("spinbutton", { name: "Pênaltis de Society Casa" })[0]).toHaveValue(0);
+  });
+
+  it("persiste o placar dos pênaltis enquanto o mata-mata está ao vivo", async () => {
+    const match = buildMatch({
+      id: "society-knockout-live-penalties",
+      sport_id: "sport-society-live-penalties",
+      status: MatchStatus.LIVE,
+      home_score: 3,
+      away_score: 3,
+      sports: buildSport({
+        id: "sport-society-live-penalties",
+        name: "Futebol Society",
+        code: "FUTEBOL_SOCIETY",
+      }),
+      home_team: buildTeam({ id: "society-live-home", name: "Society Ao Vivo Casa" }),
+      away_team: buildTeam({ id: "society-live-away", name: "Society Ao Vivo Visitante" }),
+    });
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-society-live-penalties",
+      sport_id: "sport-society-live-penalties",
+      result_rule: ChampionshipSportResultRule.POINTS,
+      tie_breaker_rule: ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY,
+    });
+
+    renderAdminMatchControl({
+      matches: [match],
+      championshipSports: [championshipSport],
+      matchBracketContextByMatchId: {
+        [match.id]: {
+          badgeLabel: "Semifinal",
+          phase: BracketPhase.KNOCKOUT,
+          stageLabel: "Semifinal",
+        },
+      },
+    });
+
+    const matchCardElement = resolveMatchCardElement("Society Ao Vivo Casa");
+
+    fireEvent.click(
+      within(matchCardElement).getByRole("checkbox", {
+        name: "Decidido nos pênaltis",
+      }),
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(supabaseUpdateCalls).toContainEqual({
+      table: "matches",
+      payload: {
+        home_penalty_score: 0,
+        away_penalty_score: 0,
+      },
+      column: "id",
+      value: match.id,
+    });
+
+    fireEvent.change(
+      within(matchCardElement).getAllByRole("spinbutton", {
+        name: "Pênaltis de Society Ao Vivo Casa",
+      })[0],
+      { target: { value: "4" } },
+    );
+    fireEvent.change(
+      within(matchCardElement).getAllByRole("spinbutton", {
+        name: "Pênaltis de Society Ao Vivo Visitante",
+      })[0],
+      { target: { value: "3" } },
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(150);
+    });
+
+    expect(supabaseUpdateCalls).toContainEqual({
+      table: "matches",
+      payload: {
+        home_penalty_score: 4,
+        away_penalty_score: 3,
+      },
+      column: "id",
+      value: match.id,
+    });
+  });
+
+  it("restaura a disputa de pênaltis persistida ao recarregar o card ao vivo", () => {
+    const match = buildMatch({
+      id: "society-knockout-persisted-live-penalties",
+      sport_id: "sport-society-persisted-live-penalties",
+      status: MatchStatus.LIVE,
+      home_score: 3,
+      away_score: 3,
+      home_penalty_score: 3,
+      away_penalty_score: 2,
+      sports: buildSport({
+        id: "sport-society-persisted-live-penalties",
+        name: "Futebol Society",
+        code: "FUTEBOL_SOCIETY",
+      }),
+      home_team: buildTeam({
+        id: "society-persisted-live-home",
+        name: "Society Persistida Casa",
+      }),
+      away_team: buildTeam({
+        id: "society-persisted-live-away",
+        name: "Society Persistida Visitante",
+      }),
+    });
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-society-persisted-live-penalties",
+      sport_id: "sport-society-persisted-live-penalties",
+      result_rule: ChampionshipSportResultRule.POINTS,
+      tie_breaker_rule: ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY,
+    });
+
+    renderAdminMatchControl({
+      matches: [match],
+      championshipSports: [championshipSport],
+      matchBracketContextByMatchId: {
+        [match.id]: {
+          badgeLabel: "Semifinal",
+          phase: BracketPhase.KNOCKOUT,
+          stageLabel: "Semifinal",
+        },
+      },
+    });
+
+    const matchCardElement = resolveMatchCardElement("Society Persistida Casa");
+
+    expect(
+      within(matchCardElement).getByRole("checkbox", {
+        name: "Decidido nos pênaltis",
+      }),
+    ).toBeChecked();
+    expect(
+      within(matchCardElement).getAllByRole("spinbutton", {
+        name: "Pênaltis de Society Persistida Casa",
+      })[0],
+    ).toHaveValue(3);
+    expect(
+      within(matchCardElement).getAllByRole("spinbutton", {
+        name: "Pênaltis de Society Persistida Visitante",
+      })[0],
+    ).toHaveValue(2);
   });
 
   it("bloqueia a finalização sem pênaltis ou com disputa empatada", async () => {
@@ -1807,8 +1952,16 @@ describe("AdminMatchControl", () => {
     });
     await confirmFinishDialog();
 
-    expect(toastErrorMock).toHaveBeenCalledWith("Informe o placar dos pênaltis para as duas atléticas.");
-    expect(supabaseUpdateCalls).toHaveLength(0);
+    expect(toastErrorMock).toHaveBeenCalledWith("O placar dos pênaltis precisa definir um vencedor.");
+    expect(supabaseUpdateCalls).toContainEqual({
+      table: "matches",
+      payload: {
+        home_penalty_score: 0,
+        away_penalty_score: 0,
+      },
+      column: "id",
+      value: match.id,
+    });
 
     fireEvent.change(within(matchCardElement).getAllByRole("spinbutton", { name: "Pênaltis de Society Empate Casa" })[0], {
       target: { value: "3" },
@@ -1823,7 +1976,7 @@ describe("AdminMatchControl", () => {
     await confirmFinishDialog();
 
     expect(toastErrorMock).toHaveBeenCalledWith("O placar dos pênaltis precisa definir um vencedor.");
-    expect(supabaseUpdateCalls).toHaveLength(0);
+    expect(supabaseUpdateCalls).toHaveLength(1);
   });
 
   it.each([

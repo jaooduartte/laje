@@ -7,6 +7,7 @@ import {
   resolveMatchNaipeLabel,
   resolveMatchSetSummary,
   resolveMatchStartedAtLabel,
+  isPenaltyShootoutEligibleSport,
 } from "@/lib/championship";
 import { AppBadgeTone, ChampionshipSportResultRule, MatchStatus } from "@/lib/enums";
 import { resolveSportCode } from "@/lib/modalidadeConfig";
@@ -69,6 +70,11 @@ export function LiveMatchBanner({
           const displayedHomeScore = isSetMatch ? match.current_set_home_score ?? 0 : match.home_score;
           const displayedAwayScore = isSetMatch ? match.current_set_away_score ?? 0 : match.away_score;
           const isHandballMatch = resolveSportCode(match.sports?.name ?? "") == "HANDEBOL";
+          const hasLivePenaltyShootoutScore =
+            match.status == MatchStatus.LIVE &&
+            isPenaltyShootoutEligibleSport(match.sports) &&
+            typeof match.home_penalty_score == "number" &&
+            typeof match.away_penalty_score == "number";
 
           return (
             <div
@@ -134,6 +140,18 @@ export function LiveMatchBanner({
                         ))}
                       </div>
                     ) : null}
+                  </div>
+                ) : null}
+
+                {hasLivePenaltyShootoutScore ? (
+                  <div className="mt-3 text-center">
+                    <p
+                      aria-label={`Placar dos pênaltis: ${match.home_penalty_score} × ${match.away_penalty_score}`}
+                      className="font-display text-base font-bold score-text"
+                    >
+                      {match.home_penalty_score} <span className="text-sm text-muted-foreground">×</span> {match.away_penalty_score}
+                    </p>
+                    <p className="text-xs font-medium text-muted-foreground">Pênaltis</p>
                   </div>
                 ) : null}
 

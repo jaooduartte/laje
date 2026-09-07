@@ -575,25 +575,41 @@ function resolveProjectedMatchStatusSummary(
 function resolveProjectedMatchScheduleSummary(
   projectedMatch: ProjectedKnockoutMatchDisplay,
 ): string {
+  const matchNumber =
+    projectedMatch.display_match_number ?? projectedMatch.queue_position;
+  const matchNumberLabel =
+    matchNumber != null ? resolveMatchQueueLabel(matchNumber) : null;
+
   if (projectedMatch.status == MatchStatus.SCHEDULED) {
     const scheduledDateValue = resolveMatchScheduledDateValue(projectedMatch);
 
     if (scheduledDateValue) {
-      return `${format(new Date(`${scheduledDateValue}T12:00:00`), "dd/MM", { locale: ptBR })} • ${resolveMatchQueueLabel(projectedMatch.display_match_number ?? projectedMatch.queue_position)}`;
+      const scheduledDateLabel = format(
+        new Date(`${scheduledDateValue}T12:00:00`),
+        "dd/MM",
+        { locale: ptBR },
+      );
+      const estimatedTimeLabel = projectedMatch.start_time
+        ? format(new Date(projectedMatch.start_time), "HH:mm", { locale: ptBR })
+        : null;
+
+      return `${scheduledDateLabel}${estimatedTimeLabel ? ` ${estimatedTimeLabel}` : ""} • ${matchNumberLabel ?? resolveMatchQueueLabel(null)}`;
     }
 
-    return resolveMatchQueueLabel(
-      projectedMatch.display_match_number ?? projectedMatch.queue_position,
-    );
+    return matchNumberLabel ?? resolveMatchQueueLabel(null);
   }
 
   if (!projectedMatch.start_time) {
-    return "A definir em fila";
+    return matchNumberLabel
+      ? `A definir em fila • ${matchNumberLabel}`
+      : "A definir em fila";
   }
 
-  return format(new Date(projectedMatch.start_time), "dd/MM HH:mm", {
+  const scheduleLabel = format(new Date(projectedMatch.start_time), "dd/MM HH:mm", {
     locale: ptBR,
   });
+
+  return matchNumberLabel ? `${scheduleLabel} • ${matchNumberLabel}` : scheduleLabel;
 }
 
 function resolveProjectedMatchLocationSummary(

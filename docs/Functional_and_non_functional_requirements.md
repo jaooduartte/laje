@@ -36,8 +36,8 @@
 - **RF-BRACK-01** – O sistema deve disponibilizar um método para geração automática da fase de grupos, incluindo definição de participantes, modalidades, naipes, configuração de grupos, classificados por grupo e agenda (datas, horários, locais e quadras).
 - **RF-BRACK-02** – O sistema deve permitir a distribuição manual de times entre grupos por competição (combinação de esporte, naipe e divisão).
 - **RF-BRACK-03** – O sistema deve gerar a fase de mata-mata a partir da configuração da chave, com opção de jogo de terceiro lugar ou outras políticas de definição de terceiro lugar.
-- **RF-BRACK-04** – O sistema deve permitir a visualização unificada da chave (fase de grupos e mata-mata), com histórico por temporada.
-- **RF-BRACK-05** – O sistema deve atualizar automaticamente a chave e sua visualização quando jogos forem alterados ou excluídos, mantendo a progressão dos times conforme os resultados.
+- **RF-BRACK-04** – O sistema deve permitir a visualização unificada da chave (fase de grupos e mata-mata), com histórico por temporada, incluindo a numeração do jogo nos confrontos agendados, encerrados e ainda aguardando a definição das atléticas.
+- **RF-BRACK-05** – O sistema deve atualizar automaticamente a chave e sua visualização quando jogos forem alterados ou excluídos, mantendo a progressão dos times conforme os resultados. Em confrontos eliminatórios decididos por pênaltis, o vencedor persistido e promovido deve corresponder ao placar dos pênaltis.
 
 ### 1.6 Jogos (matches)
 
@@ -47,6 +47,7 @@
 - **RF-MATCH-04** – O sistema deve oferecer um controle ao vivo de jogo, permitindo iniciar, atualizar placar/sets/cartões em tempo real e encerrar o jogo, restrito a usuários com permissão adequada.
 - **RF-MATCH-05** – O sistema deve reconstruir as tabelas de classificação ao excluir um jogo e validar conflitos de horário, local e quadra na geração de agenda, exibindo mensagens de conflito.
 - **RF-MATCH-06** – O sistema deve vincular jogos à chave do campeonato (fase de grupos e mata-mata), garantindo atualização automática de vencedor e progressão no mata-mata conforme o resultado.
+- **RF-MATCH-07** – Enquanto um confronto eliminatório elegível estiver ao vivo e for decidido nos pênaltis, a ativação deve persistir o placar inicial de 0 × 0 e cada atualização posterior deve ser exibida abaixo do placar principal no card público ao vivo em tempo real.
 
 ### 1.7 Times e esportes
 

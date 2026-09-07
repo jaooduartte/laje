@@ -96,7 +96,7 @@ describe("useLiveChampionshipRealtime", () => {
           status: MatchStatus.LIVE,
         },
       });
-      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(150);
     });
 
     expect(onLiveMatchesChange).toHaveBeenCalledTimes(1);
@@ -132,7 +132,7 @@ describe("useLiveChampionshipRealtime", () => {
           status: MatchStatus.LIVE,
         },
       });
-      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(150);
     });
 
     expect(onLiveMatchesChange).toHaveBeenCalledTimes(1);
@@ -162,7 +162,7 @@ describe("useLiveChampionshipRealtime", () => {
           status: MatchStatus.LIVE,
         },
       });
-      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(150);
     });
 
     expect(onLiveMatchesChange).not.toHaveBeenCalled();
