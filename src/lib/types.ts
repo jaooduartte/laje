@@ -265,6 +265,7 @@ export interface ChampionshipIndividualTeamStanding {
 export interface Sport {
   id: string;
   name: string;
+  code?: string | null;
   default_match_duration_minutes?: number | null;
   created_at: string;
 }

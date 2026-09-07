@@ -1689,13 +1689,18 @@ describe("AdminMatchControl", () => {
     expect(screen.getByRole("option", { name: "Ambas as atléticas tomaram W.O." })).toHaveAttribute("aria-disabled", "true");
   });
 
-  it("abre modal de pênaltis ao encerrar empate no mata-mata da Society", async () => {
+  it("exibe a opção de pênaltis no card de empate do mata-mata", () => {
     const match = buildMatch({
       id: "society-knockout-tie-open-penalties",
       sport_id: "sport-society-knockout",
       status: MatchStatus.LIVE,
       home_score: 2,
       away_score: 2,
+      sports: buildSport({
+        id: "sport-society-knockout",
+        name: "Futebol Society",
+        code: "FUTEBOL_SOCIETY",
+      }),
       championships: {
         id: "championship-society",
         code: ChampionshipCode.SOCIETY,
@@ -1728,24 +1733,33 @@ describe("AdminMatchControl", () => {
       },
     });
 
-    const matchCardElement = resolveMatchCardElement("Society Casa");
-
-    await act(async () => {
-      fireEvent.click(within(matchCardElement).getByRole("button", { name: /finalizar/i }));
+    const penaltyShootoutCheckbox = screen.getByRole("checkbox", {
+      name: "Decidido nos pênaltis",
     });
-    await confirmFinishDialog();
 
-    expect(screen.getByRole("heading", { name: "Registrar pênaltis" })).toBeInTheDocument();
-    expect(supabaseUpdateCalls).toHaveLength(0);
+    expect(penaltyShootoutCheckbox).toBeInTheDocument();
+    fireEvent.click(penaltyShootoutCheckbox);
+    fireEvent.change(screen.getAllByRole("spinbutton", { name: "Pênaltis de Society Casa" })[0], {
+      target: { value: "4" },
+    });
+    fireEvent.click(penaltyShootoutCheckbox);
+    fireEvent.click(penaltyShootoutCheckbox);
+
+    expect(screen.getAllByRole("spinbutton", { name: "Pênaltis de Society Casa" })[0]).toHaveValue(null);
   });
 
-  it("bloqueia confirmação de pênaltis vazios ou empatados no mata-mata da Society", async () => {
+  it("bloqueia a finalização sem pênaltis ou com disputa empatada", async () => {
     const match = buildMatch({
       id: "society-knockout-tie-invalid-penalties",
       sport_id: "sport-society-invalid",
       status: MatchStatus.LIVE,
       home_score: 1,
       away_score: 1,
+      sports: buildSport({
+        id: "sport-society-invalid",
+        name: "Futebol Society",
+        code: "FUTEBOL_SOCIETY",
+      }),
       championships: {
         id: "championship-society-invalid",
         code: ChampionshipCode.SOCIETY,
@@ -1785,23 +1799,38 @@ describe("AdminMatchControl", () => {
     });
     await confirmFinishDialog();
 
-    fireEvent.click(screen.getByRole("button", { name: "Salvar pênaltis e encerrar" }));
+    expect(toastErrorMock).toHaveBeenCalledWith("Marque que o jogo foi decidido nos pênaltis.");
+    fireEvent.click(within(matchCardElement).getByRole("checkbox", { name: "Decidido nos pênaltis" }));
+
+    await act(async () => {
+      fireEvent.click(within(matchCardElement).getByRole("button", { name: /finalizar/i }));
+    });
+    await confirmFinishDialog();
+
     expect(toastErrorMock).toHaveBeenCalledWith("Informe o placar dos pênaltis para as duas atléticas.");
     expect(supabaseUpdateCalls).toHaveLength(0);
 
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Gols nos pênaltis da casa" }), {
+    fireEvent.change(within(matchCardElement).getAllByRole("spinbutton", { name: "Pênaltis de Society Empate Casa" })[0], {
       target: { value: "3" },
     });
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Gols nos pênaltis do visitante" }), {
+    fireEvent.change(within(matchCardElement).getAllByRole("spinbutton", { name: "Pênaltis de Society Empate Visitante" })[0], {
       target: { value: "3" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Salvar pênaltis e encerrar" }));
+
+    await act(async () => {
+      fireEvent.click(within(matchCardElement).getByRole("button", { name: /finalizar/i }));
+    });
+    await confirmFinishDialog();
 
     expect(toastErrorMock).toHaveBeenCalledWith("O placar dos pênaltis precisa definir um vencedor.");
     expect(supabaseUpdateCalls).toHaveLength(0);
   });
 
-  it("encerra empate no mata-mata da Society salvando pênaltis e vencedor oficial", async () => {
+  it.each([
+    ["Futebol Society", "FUTEBOL_SOCIETY", ChampionshipCode.SOCIETY, ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY],
+    ["Beach Soccer", "BEACH_SOCCER", ChampionshipCode.INTERLAJE, ChampionshipSportTieBreakerRule.BEACH_SOCCER],
+    ["Futsal", "FUTSAL", ChampionshipCode.INTERLAJE, ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY],
+  ])("encerra empate de %s no mata-mata salvando pênaltis e vencedor oficial", async (sportName, sportCode, championshipCode, tieBreakerRule) => {
     const homeTeam = buildTeam({ id: "society-finish-home", name: "Society Finalista Casa" });
     const awayTeam = buildTeam({ id: "society-finish-away", name: "Society Finalista Visitante" });
     const match = buildMatch({
@@ -1810,10 +1839,15 @@ describe("AdminMatchControl", () => {
       status: MatchStatus.LIVE,
       home_score: 2,
       away_score: 2,
+      sports: buildSport({
+        id: "sport-society-finish",
+        name: sportName,
+        code: sportCode,
+      }),
       championships: {
         id: "championship-society-finish",
-        code: ChampionshipCode.SOCIETY,
-        name: "Copa Laje Society",
+        code: championshipCode,
+        name: "Campeonato de teste",
         status: ChampionshipStatus.IN_PROGRESS,
         current_season_year: 2026,
         uses_divisions: false,
@@ -1829,7 +1863,7 @@ describe("AdminMatchControl", () => {
       id: "championship-sport-society-finish",
       sport_id: "sport-society-finish",
       result_rule: ChampionshipSportResultRule.POINTS,
-      tie_breaker_rule: ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY,
+      tie_breaker_rule: tieBreakerRule,
     });
     const { onRefetch, onRefetchChampionshipBracket } = renderAdminMatchControl({
       matches: [match],
@@ -1845,20 +1879,19 @@ describe("AdminMatchControl", () => {
 
     const matchCardElement = resolveMatchCardElement("Society Finalista Casa");
 
-    await act(async () => {
-      fireEvent.click(within(matchCardElement).getByRole("button", { name: /finalizar/i }));
-    });
-    await confirmFinishDialog();
-
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Gols nos pênaltis da casa" }), {
+    fireEvent.click(within(matchCardElement).getByRole("checkbox", { name: "Decidido nos pênaltis" }));
+    fireEvent.change(within(matchCardElement).getAllByRole("spinbutton", { name: "Pênaltis de Society Finalista Casa" })[0], {
       target: { value: "4" },
     });
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Gols nos pênaltis do visitante" }), {
+    fireEvent.change(within(matchCardElement).getAllByRole("spinbutton", { name: "Pênaltis de Society Finalista Visitante" })[0], {
       target: { value: "3" },
     });
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Salvar pênaltis e encerrar" }));
+      fireEvent.click(within(matchCardElement).getByRole("button", { name: /finalizar/i }));
+    });
+    await act(async () => {
+      await confirmFinishDialog();
       await Promise.resolve();
     });
 
@@ -1873,7 +1906,7 @@ describe("AdminMatchControl", () => {
       away_score: 2,
       home_penalty_score: 4,
       away_penalty_score: 3,
-      resolved_tie_breaker_rule: ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY,
+      resolved_tie_breaker_rule: tieBreakerRule,
       resolved_tie_break_winner_team_id: homeTeam.id,
     });
     expect(toastSuccessMock).toHaveBeenCalledWith("Jogo finalizado! Classificação atualizada.");

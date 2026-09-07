@@ -9,8 +9,7 @@ import {
   type MatchRepresentationSource,
   resolveEstimatedStartTimeByMatchId,
   resolveInterleavedScheduledMatchesByCompetition,
-  resolveMatchDisplaySlotValue,
-  resolveMatchScheduledDateValue,
+  resolveOrderedFinishedMatches,
   resolveOrderedScheduledMatches,
   resolveMatchRepresentationByMatchId,
   resolveVisualQueuePositionByMatchId,
@@ -91,6 +90,12 @@ type SupabaseLooseTableClient = {
 
 type SupabaseLooseClient = {
   from: (table: string) => SupabaseLooseTableClient;
+};
+
+type FetchMatchesOptions = {
+  showLoading?: boolean;
+  showFetching?: boolean;
+  refreshOperationalContext?: boolean;
 };
 
 type SupabaseMatchQueryChain<TQuery> = {
@@ -258,6 +263,9 @@ export function useMatches({
   const isFetchingMatchesRef = useRef(false);
   const hasQueuedMatchesRefetchRef = useRef(false);
   const shouldRefreshOperationalContextOnQueuedFetchRef = useRef(false);
+  const latestFetchMatchesRef = useRef<
+    (options?: FetchMatchesOptions) => Promise<void>
+  >(async () => {});
   const scheduledRefetchTimeoutRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
@@ -267,11 +275,7 @@ export function useMatches({
       showLoading = false,
       showFetching = false,
       refreshOperationalContext = true,
-    }: {
-      showLoading?: boolean;
-      showFetching?: boolean;
-      refreshOperationalContext?: boolean;
-    } = {}) => {
+    }: FetchMatchesOptions = {}) => {
       if (!enabled) {
         setLoading(true);
         setIsFetching(false);
@@ -425,11 +429,11 @@ export function useMatches({
 
           if (sortMode == "FINISHED") {
             return currentQuery
-              .order("queue_position", { ascending: false, nullsFirst: false })
-              .order("scheduled_slot", { ascending: false, nullsFirst: false })
               .order("scheduled_date", { ascending: false, nullsFirst: false })
               .order("end_time", { ascending: false, nullsFirst: false })
               .order("start_time", { ascending: false, nullsFirst: false })
+              .order("queue_position", { ascending: false, nullsFirst: false })
+              .order("scheduled_slot", { ascending: false, nullsFirst: false })
               .order("created_at", { ascending: false });
           }
 
@@ -612,53 +616,7 @@ export function useMatches({
                     resolveOrderedScheduledMatches(filteredOrderedRows),
                   )
                 : resolveOrderedScheduledMatches(filteredOrderedRows)
-              : [...filteredOrderedRows].sort((firstMatch, secondMatch) => {
-                  const firstSlot =
-                    resolveMatchDisplaySlotValue(firstMatch) ?? 0;
-                  const secondSlot =
-                    resolveMatchDisplaySlotValue(secondMatch) ?? 0;
-
-                  if (firstSlot != secondSlot) {
-                    return secondSlot - firstSlot;
-                  }
-
-                  const firstScheduledDate =
-                    resolveMatchScheduledDateValue(firstMatch) ?? "";
-                  const secondScheduledDate =
-                    resolveMatchScheduledDateValue(secondMatch) ?? "";
-
-                  if (firstScheduledDate != secondScheduledDate) {
-                    return secondScheduledDate.localeCompare(
-                      firstScheduledDate,
-                    );
-                  }
-
-                  const firstEndedAtTimestamp = firstMatch.end_time
-                    ? new Date(firstMatch.end_time).getTime()
-                    : 0;
-                  const secondEndedAtTimestamp = secondMatch.end_time
-                    ? new Date(secondMatch.end_time).getTime()
-                    : 0;
-
-                  if (firstEndedAtTimestamp != secondEndedAtTimestamp) {
-                    return secondEndedAtTimestamp - firstEndedAtTimestamp;
-                  }
-
-                  const firstStartedAtTimestamp = firstMatch.start_time
-                    ? new Date(firstMatch.start_time).getTime()
-                    : 0;
-                  const secondStartedAtTimestamp = secondMatch.start_time
-                    ? new Date(secondMatch.start_time).getTime()
-                    : 0;
-
-                  if (firstStartedAtTimestamp != secondStartedAtTimestamp) {
-                    return secondStartedAtTimestamp - firstStartedAtTimestamp;
-                  }
-
-                  return String(secondMatch.created_at ?? "").localeCompare(
-                    String(firstMatch.created_at ?? ""),
-                  );
-                });
+              : resolveOrderedFinishedMatches(filteredOrderedRows);
           const paginatedOrderedRows = normalizedOrderedRows.slice(
             rangeStart,
             rangeEnd + 1,
@@ -1032,7 +990,9 @@ export function useMatches({
           const shouldRefreshOperationalContext =
             shouldRefreshOperationalContextOnQueuedFetchRef.current;
           shouldRefreshOperationalContextOnQueuedFetchRef.current = false;
-          void fetchMatches({ refreshOperationalContext: shouldRefreshOperationalContext });
+          void latestFetchMatchesRef.current({
+            refreshOperationalContext: shouldRefreshOperationalContext,
+          });
         }
       }
     },
@@ -1058,6 +1018,10 @@ export function useMatches({
       teamId,
     ],
   );
+
+  useEffect(() => {
+    latestFetchMatchesRef.current = fetchMatches;
+  }, [fetchMatches]);
 
   useEffect(() => {
     if (!enabled) {

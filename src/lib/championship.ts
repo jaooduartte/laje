@@ -22,7 +22,8 @@ import {
   TeamDivisionSelection,
   ThemeTimeZone,
 } from "@/lib/enums";
-import type { ChampionshipBracketView, Match } from "@/lib/types";
+import type { ChampionshipBracketView, Match, Sport } from "@/lib/types";
+import { resolveSportCode } from "@/lib/modalidadeConfig";
 
 export interface MatchBracketContext {
   badgeLabel: string;
@@ -1525,6 +1526,56 @@ export function resolveOrderedScheduledMatches<
   });
 }
 
+export function resolveOrderedFinishedMatches<
+  MatchItem extends {
+    id: string;
+    created_at: string;
+    scheduled_date: string | null;
+    start_time: string | null;
+    end_time: string | null;
+    queue_position: number | null;
+    scheduled_slot?: number | null;
+  },
+>(finishedMatches: MatchItem[]): MatchItem[] {
+  return [...finishedMatches].sort((firstMatch, secondMatch) => {
+    const firstScheduledDate = resolveMatchScheduledDateValue(firstMatch) ?? "";
+    const secondScheduledDate =
+      resolveMatchScheduledDateValue(secondMatch) ?? "";
+
+    if (firstScheduledDate != secondScheduledDate) {
+      return secondScheduledDate.localeCompare(firstScheduledDate);
+    }
+
+    const firstEndedAt = firstMatch.end_time ?? "";
+    const secondEndedAt = secondMatch.end_time ?? "";
+
+    if (firstEndedAt != secondEndedAt) {
+      return secondEndedAt.localeCompare(firstEndedAt);
+    }
+
+    const firstStartedAt = firstMatch.start_time ?? "";
+    const secondStartedAt = secondMatch.start_time ?? "";
+
+    if (firstStartedAt != secondStartedAt) {
+      return secondStartedAt.localeCompare(firstStartedAt);
+    }
+
+    const slotDifference =
+      resolveMatchDisplaySlotValue(secondMatch) -
+      resolveMatchDisplaySlotValue(firstMatch);
+
+    if (slotDifference != 0) {
+      return slotDifference;
+    }
+
+    if (firstMatch.created_at != secondMatch.created_at) {
+      return secondMatch.created_at.localeCompare(firstMatch.created_at);
+    }
+
+    return secondMatch.id.localeCompare(firstMatch.id);
+  });
+}
+
 export function resolveOrderedScheduledMatchesByVisualTime<
   MatchItem extends MatchRepresentationSource,
 >(
@@ -1664,13 +1715,27 @@ export function resolveMatchTieBreakRuleLabel(
   return CHAMPIONSHIP_SPORT_TIE_BREAKER_RULE_LABELS[tieBreakerRule];
 }
 
-export function isSocietyKnockoutMatch(
-  match: Pick<Match, "championships">,
+const PENALTY_SHOOTOUT_SPORT_CODES = new Set([
+  "FUTEBOL_SOCIETY",
+  "BEACH_SOCCER",
+  "FUTSAL",
+]);
+
+export function isPenaltyShootoutEligibleSport(
+  sport?: Pick<Sport, "code" | "name"> | null,
+): boolean {
+  return PENALTY_SHOOTOUT_SPORT_CODES.has(
+    sport?.code ?? resolveSportCode(sport?.name ?? ""),
+  );
+}
+
+export function isPenaltyShootoutEligibleKnockoutMatch(
+  match: Pick<Match, "sports">,
   bracketContext?: Pick<MatchBracketContext, "phase"> | null,
 ): boolean {
   return (
-    match.championships?.code == ChampionshipCode.SOCIETY &&
-    bracketContext?.phase == BracketPhase.KNOCKOUT
+    bracketContext?.phase == BracketPhase.KNOCKOUT &&
+    isPenaltyShootoutEligibleSport(match.sports)
   );
 }
 
@@ -1682,13 +1747,13 @@ export function resolveMatchPenaltyShootoutSummary(
     | "away_score"
     | "home_penalty_score"
     | "away_penalty_score"
-    | "championships"
+    | "sports"
   >,
   bracketContext?: Pick<MatchBracketContext, "phase"> | null,
 ) {
   if (
     match.status != MatchStatus.FINISHED ||
-    !isSocietyKnockoutMatch(match, bracketContext) ||
+    !isPenaltyShootoutEligibleKnockoutMatch(match, bracketContext) ||
     match.home_score != match.away_score ||
     typeof match.home_penalty_score != "number" ||
     typeof match.away_penalty_score != "number" ||

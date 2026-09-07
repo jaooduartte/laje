@@ -1,7 +1,7 @@
 import type { Match } from "@/lib/types";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { AlertTriangle, Square } from "lucide-react";
+import { Square } from "lucide-react";
 import { CalendarSubscriptionButton } from "@/components/calendar/CalendarSubscriptionButton";
 import { AppBadgeTone, BracketPhase, ChampionshipSportResultRule, MatchStatus } from "@/lib/enums";
 import { AppBadge } from "@/components/ui/app-badge";
@@ -20,7 +20,6 @@ import {
   resolveMatchSetSummary,
   resolveMatchStartedAtLabel,
   resolveMatchStatusBadgeTone,
-  resolveMatchTieBreakRuleLabel,
 } from "@/lib/championship";
 import { resolveSportCode } from "@/lib/modalidadeConfig";
 import {
@@ -99,8 +98,6 @@ export function MatchCard({
       : scheduledDayLabel;
   const isSetMatch = match.result_rule == ChampionshipSportResultRule.SETS;
   const matchSetSummary = isSetMatch ? resolveMatchSetSummary(match) : [];
-  const tieBreakRuleLabel =
-    match.status == MatchStatus.FINISHED ? resolveMatchTieBreakRuleLabel(match.resolved_tie_breaker_rule) : null;
   const penaltyShootoutSummary = resolveMatchPenaltyShootoutSummary(match, bracketContext);
   const startedAtDateTimeLabel = match.start_time ? resolveSaoPauloDateTimeLabel(match.start_time) : null;
   const startedAtLabel =
@@ -220,10 +217,14 @@ export function MatchCard({
         ) : null}
 
         {penaltyShootoutSummary ? (
-          <div className="mt-3">
-            <p className="text-center text-xs font-medium text-muted-foreground">
-              Pênaltis: ({penaltyShootoutSummary.homePenaltyScore} × {penaltyShootoutSummary.awayPenaltyScore})
+          <div className="mt-1 text-center">
+            <p
+              aria-label={`Placar dos pênaltis: ${penaltyShootoutSummary.homePenaltyScore} × ${penaltyShootoutSummary.awayPenaltyScore}`}
+              className="font-display text-base font-bold score-text"
+            >
+              {penaltyShootoutSummary.homePenaltyScore} <span className="text-sm text-muted-foreground">×</span> {penaltyShootoutSummary.awayPenaltyScore}
             </p>
+            <p className="text-xs font-medium text-muted-foreground">Pênaltis</p>
           </div>
         ) : null}
 
@@ -253,12 +254,6 @@ export function MatchCard({
           </div>
         ) : null}
 
-        {tieBreakRuleLabel ? (
-          <div className="mt-3 inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-500">
-            <AlertTriangle className="h-3 w-3" />
-            Desempate por {tieBreakRuleLabel}
-          </div>
-        ) : null}
       </div>
 
       <div className="space-y-1 pt-3 text-xs text-muted-foreground">

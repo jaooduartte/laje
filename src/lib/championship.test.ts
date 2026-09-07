@@ -7,6 +7,7 @@ import {
   resolveEstimatedStartTimeByMatchId,
   resolveInterleavedScheduledMatchesByCompetition,
   resolveMatchBracketContextByMatchId,
+  resolveOrderedFinishedMatches,
   resolveOrderedScheduledMatchesByVisualTime,
   resolveOrderedScheduledMatches,
   resolveMatchRepresentationByMatchId,
@@ -1439,6 +1440,47 @@ describe("resolveOrderedScheduledMatches", () => {
       "day-1-slot-2",
       "day-1-slot-4",
       "day-2-slot-1",
+    ]);
+  });
+});
+
+describe("resolveOrderedFinishedMatches", () => {
+  it("prioriza a data mais recente antes do slot de jogos anteriores", () => {
+    const olderMatchWithHigherSlot = buildMatch({
+      id: "older-match-with-higher-slot",
+      status: MatchStatus.FINISHED,
+      scheduled_date: "2026-08-30",
+      scheduled_slot: 34,
+      queue_position: 34,
+      end_time: "2026-08-30T21:00:00.000Z",
+    });
+    const latestMatchWithLowerSlot = buildMatch({
+      id: "latest-match-with-lower-slot",
+      status: MatchStatus.FINISHED,
+      scheduled_date: "2026-09-07",
+      scheduled_slot: 1,
+      queue_position: 1,
+      end_time: "2026-09-07T10:00:00.000Z",
+    });
+    const earlierMatchOnLatestDay = buildMatch({
+      id: "earlier-match-on-latest-day",
+      status: MatchStatus.FINISHED,
+      scheduled_date: "2026-09-07",
+      scheduled_slot: 2,
+      queue_position: 2,
+      end_time: "2026-09-07T09:00:00.000Z",
+    });
+
+    const orderedMatches = resolveOrderedFinishedMatches([
+      olderMatchWithHigherSlot,
+      earlierMatchOnLatestDay,
+      latestMatchWithLowerSlot,
+    ]);
+
+    expect(orderedMatches.map((match) => match.id)).toEqual([
+      "latest-match-with-lower-slot",
+      "earlier-match-on-latest-day",
+      "older-match-with-higher-slot",
     ]);
   });
 });

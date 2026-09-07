@@ -204,7 +204,7 @@ import {
   resolveMatchStatusLabel,
   resolveMatchTieBreakRuleLabel,
   resolveKnockoutRoundLabel,
-  isSocietyKnockoutMatch,
+  isPenaltyShootoutEligibleSport,
 } from "@/lib/championship";
 import { AppBadge } from "@/components/ui/app-badge";
 import { scrollToTopOfPage } from "@/lib/scroll";
@@ -1304,15 +1304,15 @@ function isHandballSportName(sportName: string | undefined): boolean {
   return resolveSportCode(sportName ?? "") == "HANDEBOL";
 }
 
-function shouldUseSocietyPenaltyShootout(params: {
-  championship: Pick<Championship, "code">;
+function shouldUsePenaltyShootout(params: {
+  sport?: Pick<Sport, "code" | "name"> | null;
   bracketContext?: MatchBracketContext | null;
   status: MatchStatus;
   homeScore: number;
   awayScore: number;
 }): boolean {
   return (
-    params.championship.code == ChampionshipCode.SOCIETY &&
+    isPenaltyShootoutEligibleSport(params.sport) &&
     params.bracketContext?.phase == BracketPhase.KNOCKOUT &&
     params.status == MatchStatus.FINISHED &&
     params.homeScore == params.awayScore
@@ -3396,13 +3396,15 @@ export function AdminMatches({
     return resolveAllowedEditingStatuses(editingMatch.status);
   }, [editingMatch]);
 
-  const editingShouldUseSocietyPenaltyShootout = useMemo(() => {
+  const editingShouldUsePenaltyShootout = useMemo(() => {
     if (!editingMatch || !editingMatchDraft) {
       return false;
     }
 
-    return shouldUseSocietyPenaltyShootout({
-      championship: selectedChampionship,
+    return shouldUsePenaltyShootout({
+      sport: availableSports.find(
+        (sport) => sport.id == editingMatchDraft.sportId,
+      ),
       bracketContext: matchBracketContextByMatchId[editingMatch.id] ?? null,
       status: editingMatchDraft.status,
       homeScore: editingMatchDraft.homeScore,
@@ -3412,11 +3414,11 @@ export function AdminMatches({
     editingMatch,
     editingMatchDraft,
     matchBracketContextByMatchId,
-    selectedChampionship,
+    availableSports,
   ]);
 
   useEffect(() => {
-    if (!editingShouldUseSocietyPenaltyShootout) {
+    if (!editingShouldUsePenaltyShootout) {
       setEditingMatchDraft((currentDraft) => {
         if (!currentDraft) {
           return currentDraft;
@@ -3436,7 +3438,7 @@ export function AdminMatches({
         };
       });
     }
-  }, [editingShouldUseSocietyPenaltyShootout]);
+  }, [editingShouldUsePenaltyShootout]);
 
   const canEditScheduledMatchSetup =
     editingMatch?.status == MatchStatus.SCHEDULED &&
@@ -7463,24 +7465,24 @@ export function AdminMatches({
     const resolvedAwayScore = resolvedSetWins
       ? resolvedSetWins.away_sets
       : resolveSafeScoreValue(editingMatchDraft.awayScore);
-    const shouldPersistSocietyPenaltyShootout = shouldUseSocietyPenaltyShootout(
+    const shouldPersistPenaltyShootout = shouldUsePenaltyShootout(
       {
-        championship: selectedChampionship,
+        sport: selectedEditingSport,
         bracketContext: editingMatchBracketContext,
         status: editingMatchDraft.status,
         homeScore: resolvedHomeScore,
         awayScore: resolvedAwayScore,
       },
     );
-    const resolvedHomePenaltyScore = shouldPersistSocietyPenaltyShootout
+    const resolvedHomePenaltyScore = shouldPersistPenaltyShootout
       ? editingMatchDraft.homePenaltyScore
       : null;
-    const resolvedAwayPenaltyScore = shouldPersistSocietyPenaltyShootout
+    const resolvedAwayPenaltyScore = shouldPersistPenaltyShootout
       ? editingMatchDraft.awayPenaltyScore
       : null;
 
     if (
-      shouldPersistSocietyPenaltyShootout &&
+      shouldPersistPenaltyShootout &&
       (resolvedHomePenaltyScore == null || resolvedAwayPenaltyScore == null)
     ) {
       setSavingEditingMatch(false);
@@ -7489,7 +7491,7 @@ export function AdminMatches({
     }
 
     if (
-      shouldPersistSocietyPenaltyShootout &&
+      shouldPersistPenaltyShootout &&
       resolvedHomePenaltyScore != null &&
       resolvedAwayPenaltyScore != null &&
       resolvedHomePenaltyScore == resolvedAwayPenaltyScore
@@ -7499,14 +7501,17 @@ export function AdminMatches({
       return;
     }
 
-    const resolvedSocietyPenaltyWinnerTeamId =
-      shouldPersistSocietyPenaltyShootout &&
+    const resolvedPenaltyShootoutWinnerTeamId =
+      shouldPersistPenaltyShootout &&
       resolvedHomePenaltyScore != null &&
       resolvedAwayPenaltyScore != null
         ? resolvedHomePenaltyScore > resolvedAwayPenaltyScore
           ? editingMatchDraft.homeTeamId
           : editingMatchDraft.awayTeamId
         : null;
+    const shouldRetainManualTieBreakResolution =
+      shouldPreserveTieBreakResolution &&
+      !isPenaltyShootoutEligibleSport(selectedEditingSport);
     const resolvedHomeYellowCards = isEditingSportWithCardsBySelectedSport
       ? resolveSafeScoreValue(editingMatchDraft.homeYellowCards)
       : 0;
@@ -7554,18 +7559,17 @@ export function AdminMatches({
         : false;
     const didChangeReviewFlag =
       resolvedReviewFlag != (editingMatch.is_score_sheet_reviewed ?? false);
-    const resolvedTieBreakRule = shouldPersistSocietyPenaltyShootout
-      ? ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY
-      : shouldPreserveTieBreakResolution &&
-          editingMatch.resolved_tie_breaker_rule !=
-            ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY
+    const resolvedTieBreakRule = shouldPersistPenaltyShootout
+      ? championshipSports.find(
+          (championshipSport) =>
+            championshipSport.sport_id == editingMatchDraft.sportId,
+        )?.tie_breaker_rule ?? null
+      : shouldRetainManualTieBreakResolution
         ? editingMatchDraft.resolvedTieBreakerRule || null
         : null;
-    const resolvedTieBreakWinnerTeamId = shouldPersistSocietyPenaltyShootout
-      ? resolvedSocietyPenaltyWinnerTeamId
-      : shouldPreserveTieBreakResolution &&
-          editingMatch.resolved_tie_breaker_rule !=
-            ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY
+    const resolvedTieBreakWinnerTeamId = shouldPersistPenaltyShootout
+      ? resolvedPenaltyShootoutWinnerTeamId
+      : shouldRetainManualTieBreakResolution
         ? (editingMatch.resolved_tie_break_winner_team_id ?? null)
         : null;
     const didChangeResolvedTieBreakFields =
@@ -11976,80 +11980,90 @@ export function AdminMatches({
                     const match = change.match_id
                       ? matches.find((item) => item.id == change.match_id)
                       : null;
+                    const knockoutBracketMatchId = match
+                      ? resolveKnockoutBracketMatchIdForMatch(
+                          championshipBracketView,
+                          match.id,
+                        )
+                      : null;
+                    const displayMatchNumber = match
+                      ? knockoutBracketMatchId
+                        ? (knockoutDisplayMatchNumberById[
+                            knockoutBracketMatchId
+                          ] ??
+                          resolveDisplayedMatchQueuePosition(
+                            match,
+                            visualQueuePositionByMatchId[match.id],
+                          ))
+                        : resolveDisplayedMatchQueuePosition(
+                            match,
+                            visualQueuePositionByMatchId[match.id],
+                          )
+                      : null;
                     const label = match
                       ? `${match.home_team?.name ?? "Casa"} x ${match.away_team?.name ?? "Visitante"}`
                       : resolveManualRelocationItemLabel(change);
+                    const movementLabel = change.is_selected
+                      ? "Jogo selecionado"
+                      : isManualRelocationPlaceholderItem(change)
+                        ? "Slot planejado"
+                        : "Jogo reposicionado";
+                    const beforeTime = change.before.start_time
+                      ? `${format(new Date(change.before.start_time), "HH:mm")}${change.before.end_time ? `–${format(new Date(change.before.end_time), "HH:mm")}` : ""}`
+                      : "Sem horário";
+                    const afterTime = `${format(new Date(change.after.start_time), "HH:mm")}–${format(new Date(change.after.end_time), "HH:mm")}`;
 
                     return (
-                      <div key={change.item_id ?? change.match_id ?? change.placeholder_id} className="app-card-muted rounded-lg p-3 text-sm">
-                        <p className="font-medium">
-                          {change.is_selected
-                            ? "Realocado"
-                            : isManualRelocationPlaceholderItem(change)
-                              ? "Slot planejado reposicionado"
-                              : "Fila deslocada"}
-                          : {label}
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {change.before.court_name ?? "Sem quadra"} {change.before.start_time ? `• ${format(new Date(change.before.start_time), "HH:mm")}` : ""}
-                          {" → "}
-                          {change.after.court_name} • {format(new Date(change.after.start_time), "HH:mm")}–{format(new Date(change.after.end_time), "HH:mm")}
-                        </p>
+                      <div key={change.item_id ?? change.match_id ?? change.placeholder_id} className="app-card-muted rounded-lg p-3">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                              {movementLabel}
+                            </p>
+                            <p className="mt-1 text-sm font-semibold">{label}</p>
+                          </div>
+                          <div className="flex flex-wrap justify-end gap-1">
+                            {match ? (
+                              <>
+                                <AppBadge tone={AppBadgeTone.NEUTRAL}>
+                                  {match.sports?.name ?? "Modalidade"}
+                                </AppBadge>
+                                <AppBadge tone={resolveMatchNaipeBadgeTone(match.naipe)}>
+                                  {MATCH_NAIPE_LABELS[match.naipe]}
+                                </AppBadge>
+                                {displayMatchNumber != null ? (
+                                  <AppBadge tone={AppBadgeTone.SILVER}>
+                                    Jogo {displayMatchNumber}
+                                  </AppBadge>
+                                ) : null}
+                              </>
+                            ) : null}
+                            <AppBadge tone={change.is_selected ? AppBadgeTone.AMBER : AppBadgeTone.NEUTRAL}>
+                              {change.is_selected ? "Vai para a nova posição" : "Ocupa a vaga liberada"}
+                            </AppBadge>
+                          </div>
+                        </div>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                          <div className="rounded-md border border-border bg-background/60 p-2">
+                            <p className="text-xs font-medium text-muted-foreground">Antes</p>
+                            <p className="mt-1 text-sm font-semibold tabular-nums">{beforeTime}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {change.before.court_name ?? "Sem quadra"}
+                            </p>
+                          </div>
+                          <div className="rounded-md border border-primary/20 bg-primary/5 p-2">
+                            <p className="text-xs font-medium text-primary">Depois</p>
+                            <p className="mt-1 text-sm font-semibold tabular-nums">{afterTime}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {change.after.court_name}
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     );
                   })}
                 </div>
 
-                <div className="space-y-2">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Timeline da quadra de destino
-                  </p>
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                  {manualRelocationPreview.timeline.map((item) => {
-                    const status = item.status as MatchStatus;
-                    const isPlaceholder = isManualRelocationPlaceholderItem(item);
-
-                    return (
-                      <div
-                          key={item.item_id ?? item.match_id ?? item.placeholder_id}
-                          className="app-card-muted space-y-2 rounded-lg p-2.5"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm font-semibold tabular-nums">
-                              {item.start_time
-                                ? format(new Date(item.start_time), "HH:mm")
-                                : "Sem horário"}
-                            </p>
-                            <AppBadge
-                              tone={
-                                isPlaceholder
-                                  ? AppBadgeTone.AMBER
-                                  : resolveMatchStatusBadgeTone(status)
-                              }
-                            >
-                              {isPlaceholder
-                                ? "A definir"
-                                : resolveMatchStatusLabel(status)}
-                            </AppBadge>
-                          </div>
-                          <p className="text-xs font-medium text-foreground">
-                            {resolveManualRelocationItemLabel(item)}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {item.end_time
-                              ? `Término ${format(new Date(item.end_time), "HH:mm")}`
-                              : "Sem término previsto"}
-                          </p>
-                          {item.is_relocated ? (
-                            <AppBadge tone={AppBadgeTone.AMBER}>Realocado</AppBadge>
-                          ) : item.is_displaced ? (
-                            <AppBadge tone={AppBadgeTone.NEUTRAL}>Reposicionado</AppBadge>
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
               </div>
             ) : null}
           </div>
@@ -13930,7 +13944,7 @@ export function AdminMatches({
                       </div>
                     </div>
 
-                    {editingShouldUseSocietyPenaltyShootout ? (
+                    {editingShouldUsePenaltyShootout ? (
                       <div className="space-y-3 rounded-2xl border border-border/60 bg-muted/30 p-4">
                         <div className="space-y-1">
                           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

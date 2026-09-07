@@ -276,6 +276,11 @@ describe("SchedulePageView", () => {
       status: MatchStatus.FINISHED,
       scheduled_date: "2026-08-29",
     };
+    const scheduledMatch = {
+      ...buildMatch("scheduled-match"),
+      status: MatchStatus.SCHEDULED,
+      scheduled_date: "2026-09-13",
+    };
 
     render(
       <SchedulePageView
@@ -307,6 +312,7 @@ describe("SchedulePageView", () => {
           earlierEstimatedMatch,
           previousDayMatch,
           latestEstimatedMatch,
+          scheduledMatch,
         ]}
         isMatchesFetching={false}
         matchesCurrentPage={1}
@@ -346,6 +352,7 @@ describe("SchedulePageView", () => {
       "earlier-estimated-match:18:00:true",
       "previous-day-match:22:00:true",
     ]);
+    expect(screen.queryByTestId("match-card-scheduled-match")).not.toBeInTheDocument();
   });
 
   it("exibe sessões individuais com slot oficial e total de provas vinculadas", () => {

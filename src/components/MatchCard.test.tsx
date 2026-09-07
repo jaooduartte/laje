@@ -2,7 +2,15 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MatchCard } from "@/components/MatchCard";
 import type { MatchBracketContext } from "@/lib/championship";
-import { BracketPhase, ChampionshipCode, ChampionshipSportResultRule, ChampionshipStatus, MatchNaipe, MatchStatus } from "@/lib/enums";
+import {
+  BracketPhase,
+  ChampionshipCode,
+  ChampionshipSportResultRule,
+  ChampionshipSportTieBreakerRule,
+  ChampionshipStatus,
+  MatchNaipe,
+  MatchStatus,
+} from "@/lib/enums";
 import type { Match } from "@/lib/types";
 
 function buildMatch(overrides: Partial<Match> = {}): Match {
@@ -88,7 +96,11 @@ describe("MatchCard", () => {
     expect(screen.getByText("W.O.")).toBeInTheDocument();
   });
 
-  it("mostra o placar secundário de pênaltis em empate do mata-mata da Society", () => {
+  it.each([
+    ["Futebol Society", "FUTEBOL_SOCIETY"],
+    ["Beach Soccer", "BEACH_SOCCER"],
+    ["Futsal", "FUTSAL"],
+  ])("mostra o placar secundário de pênaltis em empate do mata-mata de %s", (sportName, sportCode) => {
     const bracketContext: MatchBracketContext = {
       badgeLabel: "Semifinal",
       phase: BracketPhase.KNOCKOUT,
@@ -105,12 +117,25 @@ describe("MatchCard", () => {
           away_score: 2,
           home_penalty_score: 4,
           away_penalty_score: 3,
+          resolved_tie_breaker_rule:
+            ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY,
+          sports: {
+            id: `sport-${sportCode}`,
+            name: sportName,
+            code: sportCode,
+            created_at: "2026-01-01T00:00:00.000Z",
+            default_match_duration_minutes: 40,
+          },
         })}
         bracketContext={bracketContext}
       />,
     );
 
-    expect(screen.getByText("Pênaltis: (4 × 3)")).toBeInTheDocument();
+    expect(screen.getByLabelText("Placar dos pênaltis: 4 × 3")).toHaveClass(
+      "score-text",
+    );
+    expect(screen.getByText("Pênaltis")).toBeInTheDocument();
+    expect(screen.queryByText(/Desempate por/)).not.toBeInTheDocument();
   });
 
   it("mostra cartões azuis por equipe nos cards de Handebol", () => {

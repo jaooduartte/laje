@@ -194,38 +194,44 @@ export function SchedulePageView({
       return [];
     }
 
-    return [...matches].sort((firstMatch, secondMatch) => {
-      const firstDate = resolveMatchScheduledDateValue(firstMatch) ?? "";
-      const secondDate = resolveMatchScheduledDateValue(secondMatch) ?? "";
+    return matches
+      .filter((match) => match.status == MatchStatus.FINISHED)
+      .sort((firstMatch, secondMatch) => {
+        const firstDate = resolveMatchScheduledDateValue(firstMatch) ?? "";
+        const secondDate = resolveMatchScheduledDateValue(secondMatch) ?? "";
 
-      if (firstDate != secondDate) {
-        return secondDate.localeCompare(firstDate);
-      }
+        if (firstDate != secondDate) {
+          return secondDate.localeCompare(firstDate);
+        }
 
-      const firstEstimatedStartTime = estimatedStartTimeByMatchId[firstMatch.id];
-      const secondEstimatedStartTime = estimatedStartTimeByMatchId[secondMatch.id];
-      const firstEstimatedStartTimeMinutes = firstEstimatedStartTime
-        ? Number(firstEstimatedStartTime.slice(0, 2)) * 60 +
-          Number(firstEstimatedStartTime.slice(3, 5))
-        : -1;
-      const secondEstimatedStartTimeMinutes = secondEstimatedStartTime
-        ? Number(secondEstimatedStartTime.slice(0, 2)) * 60 +
-          Number(secondEstimatedStartTime.slice(3, 5))
-        : -1;
+        const firstEstimatedStartTime =
+          estimatedStartTimeByMatchId[firstMatch.id];
+        const secondEstimatedStartTime =
+          estimatedStartTimeByMatchId[secondMatch.id];
+        const firstEstimatedStartTimeMinutes = firstEstimatedStartTime
+          ? Number(firstEstimatedStartTime.slice(0, 2)) * 60 +
+            Number(firstEstimatedStartTime.slice(3, 5))
+          : -1;
+        const secondEstimatedStartTimeMinutes = secondEstimatedStartTime
+          ? Number(secondEstimatedStartTime.slice(0, 2)) * 60 +
+            Number(secondEstimatedStartTime.slice(3, 5))
+          : -1;
 
-      if (firstEstimatedStartTimeMinutes != secondEstimatedStartTimeMinutes) {
-        return secondEstimatedStartTimeMinutes - firstEstimatedStartTimeMinutes;
-      }
+        if (firstEstimatedStartTimeMinutes != secondEstimatedStartTimeMinutes) {
+          return (
+            secondEstimatedStartTimeMinutes - firstEstimatedStartTimeMinutes
+          );
+        }
 
-      const firstSlot = resolveMatchDisplaySlotValue(firstMatch) ?? 0;
-      const secondSlot = resolveMatchDisplaySlotValue(secondMatch) ?? 0;
+        const firstSlot = resolveMatchDisplaySlotValue(firstMatch) ?? 0;
+        const secondSlot = resolveMatchDisplaySlotValue(secondMatch) ?? 0;
 
-      if (firstSlot != secondSlot) {
-        return secondSlot - firstSlot;
-      }
+        if (firstSlot != secondSlot) {
+          return secondSlot - firstSlot;
+        }
 
-      return secondMatch.id.localeCompare(firstMatch.id);
-    });
+        return secondMatch.id.localeCompare(firstMatch.id);
+      });
   }, [estimatedStartTimeByMatchId, matches, statusFilter]);
   const groupedFinishedMatchesByDate = useMemo(() => {
     return orderedFinishedMatches.reduce<Record<string, Match[]>>(
