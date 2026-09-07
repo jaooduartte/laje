@@ -132,7 +132,7 @@
 ### 2.4 Performance e disponibilidade
 
 - **RNF-PERF-01** – O sistema deve aplicar debounce em operações de atualização em tempo real para reduzir o número de requisições.
-- **RNF-PERF-02** – O sistema deve aplicar timeout em operações que resolvem o contexto administrativo para evitar travamento da interface.
+- **RNF-PERF-02** – O sistema deve impedir requisições duplicadas por contexto administrativo e tratar falhas sem iniciar consultas de fallback que concorram com a requisição original ainda em execução.
 - **RNF-PERF-03** – Consultas e assinaturas em tempo real devem ser condicionadas a filtros (por exemplo, campeonato e temporada) para limitar o volume de dados transferido.
 - **RNF-PERF-04** – O sistema deve ser distribuído em modo de produção através de processo de build otimizado.
 

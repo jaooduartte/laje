@@ -72,6 +72,7 @@ interface AdminPageViewProps {
   sportsLoading?: boolean;
   liveAndScheduledMatches: Match[];
   championshipBracketView: ChampionshipBracketView;
+  standingsChampionshipBracketView?: ChampionshipBracketView;
   matchesTabChampionshipBracketView: ChampionshipBracketView;
   loadingChampionshipBracket: boolean;
   loadingMatchesTabChampionshipBracket: boolean;
@@ -188,6 +189,7 @@ export function AdminPageView({
   sportsLoading = false,
   liveAndScheduledMatches,
   championshipBracketView,
+  standingsChampionshipBracketView = championshipBracketView,
   matchesTabChampionshipBracketView,
   loadingChampionshipBracket,
   loadingMatchesTabChampionshipBracket,
@@ -912,7 +914,7 @@ export function AdminPageView({
                 selectedChampionship={selectedChampionship}
                 championshipSports={championshipSports}
                 sports={sports}
-                championshipBracketView={championshipBracketView}
+                championshipBracketView={standingsChampionshipBracketView}
                 availableSeasonYears={availableMatchSeasonYears}
                 onRefetchTeams={onRefetchTeams}
                 canManageStandings={canManageStandings}

@@ -3034,7 +3034,7 @@ describe("AdminMatches score sheet review", () => {
     });
   });
 
-  it("executa reconciliação de mata-mata ao abrir a aba de conferência com edição ativa", async () => {
+  it("não reconcilia o mata-mata automaticamente ao abrir a conferência", async () => {
     renderAdminMatches({
       viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
       matches: [
@@ -3058,9 +3058,10 @@ describe("AdminMatches score sheet review", () => {
       }),
     });
 
-    await waitFor(() => {
-      expect(generateChampionshipKnockoutMock).toHaveBeenCalledWith("championship-1", "edition-1");
-    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(generateChampionshipKnockoutMock).not.toHaveBeenCalled();
+    expect(fetchPendingTieBreaksMock).not.toHaveBeenCalled();
   });
 
   it("permite salvar sorteio individual por contexto na aba dedicada de sorteios", async () => {

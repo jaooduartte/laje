@@ -222,6 +222,12 @@ export function AdminStandings({
   const correctedYearFilter = yearFilter === "all" ? null : Number(yearFilter);
   const displayedSeasonYear =
     correctedYearFilter ?? selectedChampionshipSeasonYear;
+  const shouldReuseDisplayedStandingsForSeasonClosure =
+    correctedYearFilter == selectedChampionshipSeasonYear;
+  const shouldLoadSeparateSeasonClosureStandings =
+    isDivisionMovementDialogOpen &&
+    selectedChampionshipSeasonYear != null &&
+    !shouldReuseDisplayedStandingsForSeasonClosure;
   const {
     standings: interlajeOverallStandings,
     loading: interlajeOverallStandingsLoading,
@@ -235,6 +241,7 @@ export function AdminStandings({
         ? displayedSeasonYear
         : null,
     refreshKey: overallStandingsRefreshKey,
+    realtimeEnabled: false,
   });
   const selectedDisqualificationSeasonYear = useMemo(() => {
     const parsedYear = Number(disqualificationYearFilter);
@@ -326,25 +333,21 @@ export function AdminStandings({
   ]);
 
   const seasonYearsForBracketHistory = useMemo(() => {
-    return [
-      ...new Set([
-        selectedChampionshipSeasonYear,
-        correctedYearFilter,
-        ...availableSeasonYears,
-      ]),
-    ].filter(
-      (seasonYear): seasonYear is number =>
-        seasonYear != null && Number.isFinite(seasonYear),
-    );
-  }, [
-    availableSeasonYears,
-    correctedYearFilter,
-    selectedChampionshipSeasonYear,
-  ]);
+    if (
+      correctedYearFilter == null ||
+      correctedYearFilter == selectedChampionshipSeasonYear
+    ) {
+      return [];
+    }
+
+    return [correctedYearFilter];
+  }, [correctedYearFilter, selectedChampionshipSeasonYear]);
 
   const { championshipBracketSeasonViews } = useChampionshipBracketHistory({
     championshipId: selectedChampionship.id,
     seasonYears: seasonYearsForBracketHistory,
+    enabled: seasonYearsForBracketHistory.length > 0,
+    realtimeEnabled: false,
   });
 
   const selectedSeasonBracketView = useMemo(() => {
@@ -423,6 +426,7 @@ export function AdminStandings({
       naipeFilter == ALL_NAIPES_FILTER ? null : (naipeFilter as MatchNaipe),
     division: interlajeCompetitionDivision,
     enabled: isInterlajeCompetitionStandingsAvailable,
+    realtimeEnabled: false,
   });
 
   useEffect(() => {
@@ -480,27 +484,42 @@ export function AdminStandings({
     division: canFilterByDivision
       ? (divisionFilter as TeamDivision)
       : undefined,
+    realtimeEnabled: false,
   });
 
   const {
-    standings: seasonClosureStandings,
+    standings: separatelyLoadedSeasonClosureStandings,
     loading: seasonClosureStandingsLoading,
     refetch: refetchSeasonClosureStandings,
   } = useStandings({
     championshipId: selectedChampionship.id,
     seasonYear: selectedChampionshipSeasonYear,
+    enabled: shouldLoadSeparateSeasonClosureStandings,
+    realtimeEnabled: false,
   });
+  const seasonClosureStandings = shouldReuseDisplayedStandingsForSeasonClosure
+    ? standings
+    : separatelyLoadedSeasonClosureStandings;
 
   const { correctedGroupStandings, loading: correctedStandingsLoading } =
     useChampionshipCorrectedGroupStandings({
       championshipId: selectedChampionship.id,
       seasonYear: correctedYearFilter,
+      realtimeEnabled: false,
     });
-  const { correctedGroupStandings: seasonClosureCorrectedGroupStandings } =
+  const {
+    correctedGroupStandings: separatelyLoadedSeasonClosureCorrectedGroupStandings,
+  } =
     useChampionshipCorrectedGroupStandings({
       championshipId: selectedChampionship.id,
       seasonYear: selectedChampionshipSeasonYear,
+      enabled: shouldLoadSeparateSeasonClosureStandings,
+      realtimeEnabled: false,
     });
+  const seasonClosureCorrectedGroupStandings =
+    shouldReuseDisplayedStandingsForSeasonClosure
+      ? correctedGroupStandings
+      : separatelyLoadedSeasonClosureCorrectedGroupStandings;
   const {
     disqualifications: competitionDisqualifications,
     refetch: refetchCompetitionDisqualifications,
@@ -516,6 +535,7 @@ export function AdminStandings({
       (seasonYear): seasonYear is number =>
         seasonYear != null && Number.isFinite(seasonYear),
     ),
+    realtimeEnabled: false,
   });
 
   const standingsHeadToHeadSportFilter =
@@ -533,6 +553,10 @@ export function AdminStandings({
     sportId: standingsHeadToHeadSportFilter,
     naipe: standingsHeadToHeadNaipeFilter,
     sortMode: "FINISHED",
+    enabled:
+      sportFilter != ALL_SPORTS_FILTER &&
+      naipeFilter != ALL_NAIPES_FILTER,
+    includeRealtime: false,
   });
 
   const activeSports = useMemo(() => {
@@ -597,6 +621,7 @@ export function AdminStandings({
       championshipId: selectedChampionship.id,
       seasonYear: correctedYearFilter,
       enabled: shouldUseManualTieBreakOnStandings,
+      realtimeEnabled: false,
     });
 
   const manualTieBreakWinnerTeamIdByPairKey = useMemo(() => {

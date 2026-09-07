@@ -802,6 +802,7 @@ export function AdminPage() {
         sportsLoading={sportsLoading || championshipSportsLoading}
         liveAndScheduledMatches={liveAndScheduledMatches}
         championshipBracketView={visibleOperationalChampionshipBracketView}
+        standingsChampionshipBracketView={operationalChampionshipBracketView}
         matchesTabChampionshipBracketView={
           visibleMatchesTabChampionshipBracketView
         }

@@ -11,26 +11,6 @@ interface UseChampionshipBracketResolvedTieBreakOrdersOptions {
 }
 
 const RESOLVED_TIE_BREAK_REALTIME_DEBOUNCE_MS = 1000;
-const RESOLVED_TIE_BREAK_REQUEST_TIMEOUT_MS = 8000;
-
-function withRequestTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
-      reject(new Error(`Supabase request timed out after ${timeoutMs}ms`));
-    }, timeoutMs);
-
-    promise.then(
-      (value) => {
-        clearTimeout(timeoutId);
-        resolve(value);
-      },
-      (error) => {
-        clearTimeout(timeoutId);
-        reject(error);
-      },
-    );
-  });
-}
 
 export function useChampionshipBracketResolvedTieBreakOrders({
   championshipId,
@@ -68,20 +48,15 @@ export function useChampionshipBracketResolvedTieBreakOrders({
     }
 
     try {
-      const response = await withRequestTimeout(
-        fetchChampionshipBracketResolvedTieBreakOrders(
-          championshipId,
-          seasonYear ?? null,
-        ),
-        RESOLVED_TIE_BREAK_REQUEST_TIMEOUT_MS,
+      const response = await fetchChampionshipBracketResolvedTieBreakOrders(
+        championshipId,
+        seasonYear ?? null,
       );
 
       if (!response.error) {
         setResolvedTieBreakOrders(response.data);
       }
     } catch (error) {
-      // Keep the last successful value during transient PostgREST/database
-      // degradation instead of replacing usable public data with an empty state.
       console.warn("Unable to refresh resolved tie-break orders:", error);
     } finally {
       hasLoadedResolvedTieBreakOrdersRef.current = true;

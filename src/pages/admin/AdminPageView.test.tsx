@@ -1,8 +1,12 @@
 import { act, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AdminPageView } from "@/pages/admin/AdminPageView";
-import { AdminPanelTab, ChampionshipCode, ChampionshipSportNaipeMode, ChampionshipSportResultRule, ChampionshipSportTieBreakerRule, ChampionshipStatus, MatchNaipe, MatchStatus } from "@/lib/enums";
+import { AdminPanelTab, BracketThirdPlaceMode, ChampionshipCode, ChampionshipSportNaipeMode, ChampionshipSportResultRule, ChampionshipSportTieBreakerRule, ChampionshipStatus, MatchNaipe, MatchStatus } from "@/lib/enums";
 import type { Championship, ChampionshipBracketView, ChampionshipSport, Match, Team } from "@/lib/types";
+
+const { adminStandingsMock } = vi.hoisted(() => ({
+  adminStandingsMock: vi.fn(),
+}));
 
 vi.mock("@/components/Header", () => ({
   Header: () => <div data-testid="header-mock" />,
@@ -79,6 +83,13 @@ vi.mock("@/components/admin/AdminAccount", () => ({
 
 vi.mock("@/components/admin/AdminPublicAccessSettings", () => ({
   AdminPublicAccessSettings: () => <div data-testid="admin-settings-mock" />,
+}));
+
+vi.mock("@/components/admin/AdminStandings", () => ({
+  AdminStandings: (props: Record<string, unknown>) => {
+    adminStandingsMock(props);
+    return <div data-testid="admin-standings-mock" />;
+  },
 }));
 
 function buildChampionship(overrides: Partial<Championship> = {}): Championship {
@@ -182,7 +193,124 @@ function buildBracketView(): ChampionshipBracketView {
   };
 }
 
+function buildStandingsBracketView(): ChampionshipBracketView {
+  return {
+    edition: null,
+    competitions: [
+      {
+        id: "competition-1",
+        sport_id: "sport-1",
+        sport_name: "Beach Soccer",
+        naipe: MatchNaipe.MASCULINO,
+        division: null,
+        groups_count: 2,
+        qualifiers_per_group: 2,
+        should_complete_knockout_with_best_second_placed_teams: false,
+        third_place_mode: BracketThirdPlaceMode.NONE,
+        groups: [
+          {
+            id: "group-1",
+            group_number: 1,
+            teams: [],
+            matches: [],
+          },
+        ],
+        knockout_matches: [],
+      },
+    ],
+  };
+}
+
 describe("AdminPageView tabs", () => {
+  it("preserva o chaveamento completo na classificação sem jogos operacionais", () => {
+    const championship = buildChampionship({
+      code: ChampionshipCode.INTERLAJE,
+    });
+    const standingsBracketView = buildStandingsBracketView();
+
+    adminStandingsMock.mockClear();
+
+    render(
+      <AdminPageView
+        championships={[championship]}
+        selectedChampionship={championship}
+        selectedChampionshipCode={championship.code}
+        matches={[]}
+        matchesTabMatches={[]}
+        teams={[]}
+        allTeams={[]}
+        sports={[]}
+        championshipSports={[]}
+        liveAndScheduledMatches={[]}
+        championshipBracketView={buildBracketView()}
+        standingsChampionshipBracketView={standingsBracketView}
+        matchesTabChampionshipBracketView={buildBracketView()}
+        loadingChampionshipBracket={false}
+        loadingMatchesTabChampionshipBracket={false}
+        matchBracketContextByMatchId={{}}
+        matchesTabMatchBracketContextByMatchId={{}}
+        matchRepresentationByMatchId={{}}
+        matchesTabMatchRepresentationByMatchId={{}}
+        estimatedStartTimeByMatchId={{}}
+        matchesTabEstimatedStartTimeByMatchId={{}}
+        matchesFetching={false}
+        matchesTabFetching={false}
+        availableMatchSeasonYears={[2026]}
+        selectedMatchesSeasonYear={2026}
+        profileName="Admin"
+        canViewMatchesTab={false}
+        canViewControlTab={false}
+        canViewTeamsTab={false}
+        canViewSportsTab={false}
+        canViewEventsTab={false}
+        canViewLinksTab={false}
+        canViewLogsTab={false}
+        canViewUsersTab={false}
+        canViewAccountTab={false}
+        canViewStandingsTab
+        canViewSettingsTab={false}
+        canViewScoreSheetReviewTab={false}
+        canViewTieBreaksTab={false}
+        canViewChampionshipStatus={false}
+        canViewBracketSetupTab={false}
+        canViewScheduleTab={false}
+        canManageSchedule={false}
+        canManageMatches={false}
+        canManageChampionshipStatus={false}
+        advancingChampionshipSeason={false}
+        canManageScoreboard={false}
+        canManageTeams={false}
+        canManageSports={false}
+        canManageLeagueEvents={false}
+        canManageLinks={false}
+        canManageUsers={false}
+        canManageAccount={false}
+        canManageSettings={false}
+        activeTab={AdminPanelTab.STANDINGS}
+        onActiveTabChange={() => undefined}
+        onBracketGenerated={async () => undefined}
+        updatingChampionshipStatus={false}
+        onChampionshipCodeChange={() => undefined}
+        onChampionshipStatusChange={() => undefined}
+        onAdvanceChampionshipSeason={() => undefined}
+        onSelectedMatchesSeasonYearChange={() => undefined}
+        onSignOut={() => undefined}
+        onRefetchMatches={() => undefined}
+        onRefetchChampionshipBracket={() => undefined}
+        onRefetchTeams={() => undefined}
+        liveMatchesCount={0}
+        pendingLeagueEventReservationsCount={0}
+        pendingTieBreaksCount={0}
+      />,
+    );
+
+    expect(adminStandingsMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        championshipBracketView: standingsBracketView,
+      }),
+    );
+  });
+
   it("dispara uma única atualização ao abrir Controle ao Vivo", async () => {
     vi.useFakeTimers();
     const championship = buildChampionship();

@@ -2003,7 +2003,6 @@ export function AdminMatches({
   const [savingAwardDrawByContextKey, setSavingAwardDrawByContextKey] =
     useState<Record<string, boolean>>({});
   const hasHandledPaginationScrollRef = useRef(false);
-  const hasAttemptedKnockoutCatchUpRef = useRef<string | null>(null);
   const hasInitializedFilterRefetchRef = useRef(false);
   const hasInitializedPaginationRefetchRef = useRef(false);
   const {
@@ -2719,10 +2718,14 @@ export function AdminMatches({
   }, [defaultMatchesStatusFilter, isScoreSheetReviewMode]);
 
   useEffect(() => {
-    if (!shouldUseExternalPendingTieBreaks) {
+    if (isTieBreaksMode && !shouldUseExternalPendingTieBreaks) {
       void loadPendingTieBreakContexts();
     }
-  }, [loadPendingTieBreakContexts, shouldUseExternalPendingTieBreaks]);
+  }, [
+    isTieBreaksMode,
+    loadPendingTieBreakContexts,
+    shouldUseExternalPendingTieBreaks,
+  ]);
 
   useEffect(() => {
     if (!shouldUseExternalPendingTieBreaks) {
@@ -2746,51 +2749,6 @@ export function AdminMatches({
     externalLoadingPendingTieBreaks,
     externalPendingTieBreakContexts,
     shouldUseExternalPendingTieBreaks,
-  ]);
-
-  useEffect(() => {
-    if (
-      !isScoreSheetReviewMode ||
-      !canManageMatches ||
-      !championshipBracketView.edition?.id
-    ) {
-      return;
-    }
-
-    const reconciliationKey = `${selectedChampionship.id}:${championshipBracketView.edition.id}`;
-
-    if (hasAttemptedKnockoutCatchUpRef.current == reconciliationKey) {
-      return;
-    }
-
-    hasAttemptedKnockoutCatchUpRef.current = reconciliationKey;
-
-    void (async () => {
-      const knockoutResponse = await generateChampionshipKnockout(
-        selectedChampionship.id,
-        championshipBracketView.edition?.id,
-      );
-
-      if (knockoutResponse.error) {
-        console.info(
-          "Reconciliação automática do mata-mata não aplicou alterações:",
-          knockoutResponse.error.message,
-        );
-        return;
-      }
-
-      await Promise.all([
-        onRefetchChampionshipBracket(),
-        loadPendingTieBreakContexts(),
-      ]);
-    })();
-  }, [
-    canManageMatches,
-    championshipBracketView.edition?.id,
-    isScoreSheetReviewMode,
-    loadPendingTieBreakContexts,
-    onRefetchChampionshipBracket,
-    selectedChampionship.id,
   ]);
 
   useEffect(() => {
