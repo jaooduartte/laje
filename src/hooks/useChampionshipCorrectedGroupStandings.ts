@@ -10,6 +10,22 @@ interface UseChampionshipCorrectedGroupStandingsOptions {
 }
 
 const CORRECTED_GROUP_STANDINGS_REALTIME_DEBOUNCE_MS = 1000;
+const PUBLIC_CORRECTED_STANDINGS_POLL_MIN_MS = 30000;
+const PUBLIC_CORRECTED_STANDINGS_POLL_JITTER_MS = 15000;
+
+function isPublicChampionshipsPage() {
+  return (
+    typeof window != "undefined" &&
+    window.location.pathname.startsWith("/campeonatos")
+  );
+}
+
+function resolvePublicPollDelay() {
+  return (
+    PUBLIC_CORRECTED_STANDINGS_POLL_MIN_MS +
+    Math.floor(Math.random() * PUBLIC_CORRECTED_STANDINGS_POLL_JITTER_MS)
+  );
+}
 
 export function useChampionshipCorrectedGroupStandings({
   championshipId,
@@ -49,7 +65,6 @@ export function useChampionshipCorrectedGroupStandings({
       const response = await fetchChampionshipCorrectedGroupStandings(championshipId, seasonYear ?? null);
 
       if (response.error) {
-        setCorrectedGroupStandings([]);
         return;
       }
 
@@ -77,6 +92,37 @@ export function useChampionshipCorrectedGroupStandings({
     }
 
     void fetchCorrectedGroupStandings(true);
+
+    if (isPublicChampionshipsPage()) {
+      let cancelled = false;
+
+      const scheduleNextPoll = () => {
+        scheduledRefetchTimeoutRef.current = setTimeout(() => {
+          scheduledRefetchTimeoutRef.current = null;
+
+          if (!cancelled) {
+            if (
+              typeof document == "undefined" ||
+              document.visibilityState == "visible"
+            ) {
+              void fetchCorrectedGroupStandings();
+            }
+
+            scheduleNextPoll();
+          }
+        }, resolvePublicPollDelay());
+      };
+
+      scheduleNextPoll();
+
+      return () => {
+        cancelled = true;
+        if (scheduledRefetchTimeoutRef.current) {
+          clearTimeout(scheduledRefetchTimeoutRef.current);
+          scheduledRefetchTimeoutRef.current = null;
+        }
+      };
+    }
 
     const scheduleFetch = () => {
       if (scheduledRefetchTimeoutRef.current) {
