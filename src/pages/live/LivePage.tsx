@@ -4,6 +4,7 @@ import { useSports } from "@/hooks/useSports";
 import { useChampionships } from "@/hooks/useChampionships";
 import { useChampionshipBracket } from "@/hooks/useChampionshipBracket";
 import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividualEvents";
+import { useLiveChampionshipRealtime } from "@/hooks/useLiveChampionshipRealtime";
 import {
   EMPTY_CHAMPIONSHIP_BRACKET_VIEW,
   resolveMatchBracketContextByMatchId,
@@ -52,6 +53,9 @@ export function LivePage() {
   const selectedChampionshipSeasonYear = featuredChampionship?.current_season_year ?? null;
 
   const [sportFilter, setSportFilter] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"overview" | "knockout">(
+    "overview",
+  );
   const [upcomingMatchesCurrentPage, setUpcomingMatchesCurrentPage] = useState(1);
   const [upcomingMatchesItemsPerPage, setUpcomingMatchesItemsPerPage] = useState(DEFAULT_PAGINATION_ITEMS_PER_PAGE);
 
@@ -65,7 +69,10 @@ export function LivePage() {
     setUpcomingMatchesCurrentPage(1);
   }, [sportFilter, upcomingMatchesItemsPerPage]);
 
-  const { sports } = useSports({ championshipId: selectedChampionshipId });
+  const { sports } = useSports({
+    championshipId: selectedChampionshipId,
+    realtimeEnabled: false,
+  });
   const individualSportIds = useMemo(
     () => resolveIndividualSportIds(sports),
     [sports],
@@ -88,12 +95,14 @@ export function LivePage() {
     estimatedStartTimeByMatchId: liveEstimatedStartTimeByMatchId,
     loading: liveMatchesLoading,
     isFetching: liveMatchesFetching,
+    refetch: refetchLiveMatches,
   } = useMatches({
     championshipId: selectedChampionshipId,
     seasonYear: selectedChampionshipSeasonYear,
     statuses: [MatchStatus.LIVE],
     sportId: sportFilter,
     sortMode: "LIVE",
+    includeRealtime: false,
   });
 
   const {
@@ -103,6 +112,7 @@ export function LivePage() {
     estimatedStartTimeByMatchId: upcomingEstimatedStartTimeByMatchId,
     loading: upcomingMatchesLoading,
     isFetching: upcomingMatchesFetching,
+    refetch: refetchUpcomingMatches,
   } = useMatches({
     championshipId: selectedChampionshipId,
     seasonYear: selectedChampionshipSeasonYear,
@@ -110,11 +120,34 @@ export function LivePage() {
     sportId: sportFilter,
     sortMode: "SCHEDULED",
     scheduledMatchOrdering: "OPERATIONAL",
+    includeRealtime: false,
   });
 
-  const { championshipBracketView, loading: championshipBracketLoading } = useChampionshipBracket({
+  const {
+    championshipBracketView,
+    loading: championshipBracketLoading,
+    refetch: refetchChampionshipBracket,
+  } = useChampionshipBracket({
     championshipId: selectedChampionshipId,
     seasonYear: selectedChampionshipSeasonYear,
+    enabled: activeTab == "knockout",
+    realtimeEnabled: false,
+  });
+
+  useLiveChampionshipRealtime({
+    championshipId: selectedChampionshipId,
+    seasonYear: selectedChampionshipSeasonYear,
+    onLiveMatchesChange: () => {
+      void refetchLiveMatches({ refreshOperationalContext: false });
+    },
+    onUpcomingMatchesChange: () => {
+      void refetchUpcomingMatches({ refreshOperationalContext: false });
+    },
+    onBracketChange: () => {
+      if (activeTab == "knockout") {
+        void refetchChampionshipBracket();
+      }
+    },
   });
   const visibleChampionshipBracketView = useMemo(() => {
     if (championshipBracketView.competitions.length == 0) {
@@ -211,7 +244,7 @@ export function LivePage() {
 
   return (
     <LivePageView
-      isLoading={championshipsLoading || liveMatchesLoading || upcomingMatchesLoading || championshipBracketLoading}
+      isLoading={championshipsLoading || liveMatchesLoading || upcomingMatchesLoading}
       featuredChampionship={featuredChampionship}
       filteredLiveMatches={filteredLiveMatches}
       upcomingScheduleItems={paginatedUpcomingScheduleItems}
@@ -221,6 +254,7 @@ export function LivePage() {
       upcomingMatchesTotalPages={upcomingMatchesTotalPages}
       sports={sports}
       sportFilter={sportFilter}
+      activeTab={activeTab}
       championshipBracketView={filteredChampionshipBracketView}
       championshipBracketLoading={championshipBracketLoading}
       matchBracketContextByMatchId={matchBracketContextByMatchId}
@@ -228,6 +262,7 @@ export function LivePage() {
       visualQueuePositionByMatchId={visualQueuePositionByMatchId}
       estimatedStartTimeByMatchId={estimatedStartTimeByMatchId}
       onSportFilterChange={setSportFilter}
+      onActiveTabChange={setActiveTab}
       onUpcomingMatchesPageChange={setUpcomingMatchesCurrentPage}
       onUpcomingMatchesItemsPerPageChange={setUpcomingMatchesItemsPerPage}
     />

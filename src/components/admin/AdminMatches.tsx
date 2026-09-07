@@ -6995,12 +6995,16 @@ export function AdminMatches({
       _match_id: activeScoreSheetReviewMatch.id,
       _home_goal_scorers: homeGoalScorersPayload,
       _away_goal_scorers: awayGoalScorersPayload,
+      _home_goalkeepers: [],
+      _away_goalkeepers: [],
       _home_yellow_card_players: homeYellowCardPlayersPayload,
       _away_yellow_card_players: awayYellowCardPlayersPayload,
       _home_red_card_players: homeRedCardPlayersPayload,
       _away_red_card_players: awayRedCardPlayersPayload,
       _home_blue_card_players: homeBlueCardPlayersPayload,
       _away_blue_card_players: awayBlueCardPlayersPayload,
+      _home_two_minute_penalty_players: [],
+      _away_two_minute_penalty_players: [],
     });
 
     setSavingScoreSheetAwardsByMatchId((currentSavingState) => ({

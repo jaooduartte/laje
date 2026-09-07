@@ -954,6 +954,10 @@ describe("AdminMatches score sheet review", () => {
       _match_id: "match-1",
       _home_goal_scorers: [{ player_id: "home-player-1" }],
       _away_goal_scorers: [],
+      _home_goalkeepers: [],
+      _away_goalkeepers: [],
+      _home_two_minute_penalty_players: [],
+      _away_two_minute_penalty_players: [],
     });
 
     expect(supabaseUpdateCalls).toHaveLength(0);

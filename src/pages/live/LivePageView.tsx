@@ -41,6 +41,7 @@ interface LivePageViewProps {
   upcomingMatchesTotalPages: number;
   sports: Sport[];
   sportFilter: string | null;
+  activeTab: "overview" | "knockout";
   championshipBracketView: ChampionshipBracketView;
   championshipBracketLoading: boolean;
   matchBracketContextByMatchId: Record<string, MatchBracketContext>;
@@ -48,6 +49,7 @@ interface LivePageViewProps {
   visualQueuePositionByMatchId?: Record<string, number>;
   estimatedStartTimeByMatchId: Record<string, string>;
   onSportFilterChange: (value: string | null) => void;
+  onActiveTabChange: (value: "overview" | "knockout") => void;
   onUpcomingMatchesPageChange: (page: number) => void;
   onUpcomingMatchesItemsPerPageChange: (value: number) => void;
 }
@@ -63,6 +65,7 @@ export function LivePageView({
   upcomingMatchesTotalPages,
   sports,
   sportFilter,
+  activeTab,
   championshipBracketView,
   championshipBracketLoading,
   matchBracketContextByMatchId,
@@ -70,6 +73,7 @@ export function LivePageView({
   visualQueuePositionByMatchId = {},
   estimatedStartTimeByMatchId,
   onSportFilterChange,
+  onActiveTabChange,
   onUpcomingMatchesPageChange,
   onUpcomingMatchesItemsPerPageChange,
 }: LivePageViewProps) {
@@ -131,7 +135,15 @@ export function LivePageView({
           onSelect={onSportFilterChange}
         />
 
-        <Tabs defaultValue="overview" className="enter-section space-y-4">
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) => {
+            if (value == "overview" || value == "knockout") {
+              onActiveTabChange(value);
+            }
+          }}
+          className="enter-section space-y-4"
+        >
           <TabsNavigationList className="grid w-full grid-cols-2">
             <TabsNavigationTrigger value="overview">
               Resumo
