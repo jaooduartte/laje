@@ -9,6 +9,7 @@ interface UseChampionshipBracketHistoryOptions {
 }
 
 const BRACKET_REALTIME_DEBOUNCE_MS = 1000;
+const BRACKET_REQUEST_TIMEOUT_MS = 10000;
 const PUBLIC_BRACKET_POLL_MIN_MS = 45000;
 const PUBLIC_BRACKET_POLL_JITTER_MS = 15000;
 
@@ -24,6 +25,25 @@ function resolvePublicBracketPollDelay() {
     PUBLIC_BRACKET_POLL_MIN_MS +
     Math.floor(Math.random() * PUBLIC_BRACKET_POLL_JITTER_MS)
   );
+}
+
+function withRequestTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(new Error(`Supabase request timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timeoutId);
+        reject(error);
+      },
+    );
+  });
 }
 
 export function useChampionshipBracketHistory({
@@ -66,23 +86,42 @@ export function useChampionshipBracketHistory({
 
     try {
       const seasonViewResponses: ChampionshipBracketSeasonView[] = [];
+      let completedRequests = 0;
 
-      // Do not fan out one RPC per season in parallel. Parallel history reads
-      // amplified each public page load into multiple simultaneous expensive
-      // PostgREST transactions and contributed to connection pool pressure.
+      // Keep history reads serialized and bounded. A stalled PostgREST request
+      // must never keep the public championship page in a permanent skeleton.
       for (const seasonYear of normalizedSeasonYears) {
-        const { data, error } = await fetchChampionshipBracketView(championshipId, seasonYear);
+        try {
+          const { data, error } = await withRequestTimeout(
+            fetchChampionshipBracketView(championshipId, seasonYear),
+            BRACKET_REQUEST_TIMEOUT_MS,
+          );
+          completedRequests += 1;
 
-        if (!error && data) {
-          seasonViewResponses.push({
-            season_year: seasonYear,
-            championship_bracket_view: data,
-          });
+          if (!error && data) {
+            seasonViewResponses.push({
+              season_year: seasonYear,
+              championship_bracket_view: data,
+            });
+          }
+        } catch (error) {
+          console.warn(
+            `Timeout/erro ao carregar chaveamento do campeonato ${championshipId}, temporada ${seasonYear}:`,
+            error,
+          );
         }
       }
 
-      setChampionshipBracketSeasonViews(seasonViewResponses);
-      hasLoadedBracketHistoryRef.current = true;
+      // Preserve the last known-good bracket history during transient failures.
+      // On the first load, release the skeleton even if Supabase is temporarily
+      // unreachable so the rest of the page can continue rendering.
+      if (seasonViewResponses.length > 0 || !hasLoadedBracketHistoryRef.current) {
+        setChampionshipBracketSeasonViews(seasonViewResponses);
+      }
+
+      if (completedRequests > 0 || !hasLoadedBracketHistoryRef.current) {
+        hasLoadedBracketHistoryRef.current = true;
+      }
     } finally {
       setLoading(false);
       isFetchingRef.current = false;
