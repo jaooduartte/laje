@@ -8,6 +8,24 @@ interface UseChampionshipBracketHistoryOptions {
   seasonYears?: number[];
 }
 
+const BRACKET_REALTIME_DEBOUNCE_MS = 1000;
+const PUBLIC_BRACKET_POLL_MIN_MS = 45000;
+const PUBLIC_BRACKET_POLL_JITTER_MS = 15000;
+
+function isPublicChampionshipsPage() {
+  return (
+    typeof window != "undefined" &&
+    window.location.pathname.startsWith("/campeonatos")
+  );
+}
+
+function resolvePublicBracketPollDelay() {
+  return (
+    PUBLIC_BRACKET_POLL_MIN_MS +
+    Math.floor(Math.random() * PUBLIC_BRACKET_POLL_JITTER_MS)
+  );
+}
+
 export function useChampionshipBracketHistory({
   championshipId,
   seasonYears = [],
@@ -16,6 +34,11 @@ export function useChampionshipBracketHistory({
   const [loading, setLoading] = useState(true);
   const hasLoadedBracketHistoryRef = useRef(false);
   const scheduledRefetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isFetchingRef = useRef(false);
+  const hasQueuedRefetchRef = useRef(false);
+  const fetchBracketHistoryRef = useRef<(shouldShowLoading?: boolean) => Promise<void>>(
+    async () => undefined,
+  );
   const normalizedSeasonYears = useMemo(() => {
     return [...new Set(seasonYears)].sort((firstSeasonYear, secondSeasonYear) => secondSeasonYear - firstSeasonYear);
   }, [seasonYears]);
@@ -25,37 +48,53 @@ export function useChampionshipBracketHistory({
       setChampionshipBracketSeasonViews([]);
       setLoading(false);
       hasLoadedBracketHistoryRef.current = false;
+      isFetchingRef.current = false;
+      hasQueuedRefetchRef.current = false;
       return;
     }
+
+    if (isFetchingRef.current) {
+      hasQueuedRefetchRef.current = true;
+      return;
+    }
+
+    isFetchingRef.current = true;
 
     if (shouldShowLoading || !hasLoadedBracketHistoryRef.current) {
       setLoading(true);
     }
 
-    const seasonViewResponses = await Promise.all(
-      normalizedSeasonYears.map(async (seasonYear) => {
+    try {
+      const seasonViewResponses: ChampionshipBracketSeasonView[] = [];
+
+      // Do not fan out one RPC per season in parallel. Parallel history reads
+      // amplified each public page load into multiple simultaneous expensive
+      // PostgREST transactions and contributed to connection pool pressure.
+      for (const seasonYear of normalizedSeasonYears) {
         const { data, error } = await fetchChampionshipBracketView(championshipId, seasonYear);
 
-        if (error || !data) {
-          return null;
+        if (!error && data) {
+          seasonViewResponses.push({
+            season_year: seasonYear,
+            championship_bracket_view: data,
+          });
         }
+      }
 
-        return {
-          season_year: seasonYear,
-          championship_bracket_view: data,
-        } satisfies ChampionshipBracketSeasonView;
-      }),
-    );
+      setChampionshipBracketSeasonViews(seasonViewResponses);
+      hasLoadedBracketHistoryRef.current = true;
+    } finally {
+      setLoading(false);
+      isFetchingRef.current = false;
 
-    setChampionshipBracketSeasonViews(
-      seasonViewResponses.filter(
-        (championshipBracketSeasonView): championshipBracketSeasonView is ChampionshipBracketSeasonView =>
-          championshipBracketSeasonView != null,
-      ),
-    );
-    hasLoadedBracketHistoryRef.current = true;
-    setLoading(false);
+      if (hasQueuedRefetchRef.current) {
+        hasQueuedRefetchRef.current = false;
+        void fetchBracketHistoryRef.current();
+      }
+    }
   }, [championshipId, normalizedSeasonYears]);
+
+  fetchBracketHistoryRef.current = fetchBracketHistory;
 
   useEffect(() => {
     if (!championshipId || normalizedSeasonYears.length == 0) {
@@ -65,7 +104,49 @@ export function useChampionshipBracketHistory({
       return;
     }
 
-    fetchBracketHistory(true);
+    void fetchBracketHistory(true);
+
+    if (isPublicChampionshipsPage()) {
+      let cancelled = false;
+
+      const scheduleNextPoll = () => {
+        scheduledRefetchTimeoutRef.current = setTimeout(() => {
+          scheduledRefetchTimeoutRef.current = null;
+
+          if (!cancelled) {
+            if (
+              typeof document == "undefined" ||
+              document.visibilityState == "visible"
+            ) {
+              void fetchBracketHistory();
+            }
+
+            scheduleNextPoll();
+          }
+        }, resolvePublicBracketPollDelay());
+      };
+
+      scheduleNextPoll();
+
+      return () => {
+        cancelled = true;
+        if (scheduledRefetchTimeoutRef.current) {
+          clearTimeout(scheduledRefetchTimeoutRef.current);
+          scheduledRefetchTimeoutRef.current = null;
+        }
+      };
+    }
+
+    const scheduleFetch = () => {
+      if (scheduledRefetchTimeoutRef.current) {
+        clearTimeout(scheduledRefetchTimeoutRef.current);
+      }
+
+      scheduledRefetchTimeoutRef.current = setTimeout(() => {
+        scheduledRefetchTimeoutRef.current = null;
+        void fetchBracketHistory();
+      }, BRACKET_REALTIME_DEBOUNCE_MS);
+    };
 
     const channel = supabase
       .channel(`championship-bracket-history-realtime-${championshipId}`)
@@ -77,43 +158,11 @@ export function useChampionshipBracketHistory({
           table: "matches",
           filter: `championship_id=eq.${championshipId}`,
         },
-        () => {
-          if (scheduledRefetchTimeoutRef.current) {
-            clearTimeout(scheduledRefetchTimeoutRef.current);
-          }
-
-          scheduledRefetchTimeoutRef.current = setTimeout(() => {
-            fetchBracketHistory();
-          }, 120);
-        },
+        scheduleFetch,
       )
-      .on("postgres_changes", { event: "*", schema: "public", table: "championship_bracket_matches" }, () => {
-        if (scheduledRefetchTimeoutRef.current) {
-          clearTimeout(scheduledRefetchTimeoutRef.current);
-        }
-
-        scheduledRefetchTimeoutRef.current = setTimeout(() => {
-          fetchBracketHistory();
-        }, 120);
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "championship_bracket_groups" }, () => {
-        if (scheduledRefetchTimeoutRef.current) {
-          clearTimeout(scheduledRefetchTimeoutRef.current);
-        }
-
-        scheduledRefetchTimeoutRef.current = setTimeout(() => {
-          fetchBracketHistory();
-        }, 120);
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "championship_bracket_competitions" }, () => {
-        if (scheduledRefetchTimeoutRef.current) {
-          clearTimeout(scheduledRefetchTimeoutRef.current);
-        }
-
-        scheduledRefetchTimeoutRef.current = setTimeout(() => {
-          fetchBracketHistory();
-        }, 120);
-      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "championship_bracket_matches" }, scheduleFetch)
+      .on("postgres_changes", { event: "*", schema: "public", table: "championship_bracket_groups" }, scheduleFetch)
+      .on("postgres_changes", { event: "*", schema: "public", table: "championship_bracket_competitions" }, scheduleFetch)
       .on(
         "postgres_changes",
         {
@@ -122,15 +171,7 @@ export function useChampionshipBracketHistory({
           table: "championship_bracket_editions",
           filter: `championship_id=eq.${championshipId}`,
         },
-        () => {
-          if (scheduledRefetchTimeoutRef.current) {
-            clearTimeout(scheduledRefetchTimeoutRef.current);
-          }
-
-          scheduledRefetchTimeoutRef.current = setTimeout(() => {
-            fetchBracketHistory();
-          }, 120);
-        },
+        scheduleFetch,
       )
       .subscribe();
 
