@@ -1,4 +1,5 @@
 import { AppRoutePath, PublicPageAccessSettingField } from "@/lib/enums";
+import { DEFAULT_ANNOUNCEMENT_TYPE } from "@/lib/announcement";
 import type { PublicAccessSettings } from "@/lib/types";
 
 export const DEFAULT_PUBLIC_ACCESS_SETTINGS: PublicAccessSettings = {
@@ -10,6 +11,8 @@ export const DEFAULT_PUBLIC_ACCESS_SETTINGS: PublicAccessSettings = {
   is_links_page_blocked: false,
   blocked_message: null,
   announcement_message: null,
+  announcement_content: null,
+  announcement_type: DEFAULT_ANNOUNCEMENT_TYPE,
   updated_at: null,
 };
 

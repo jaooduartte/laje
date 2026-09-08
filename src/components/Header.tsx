@@ -7,8 +7,13 @@ import {
   useState,
 } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { AnnouncementRichText } from "@/components/AnnouncementRichText";
 import { useAuth } from "@/hooks/useAuth";
 import { usePublicAccessSettings } from "@/hooks/usePublicAccessSettings";
+import {
+  resolveAnnouncementContent,
+  resolveAnnouncementType,
+} from "@/lib/announcement";
 import { AppRoutePath } from "@/lib/enums";
 import { HEADER_APP_NAVIGATION_ITEMS } from "@/lib/navigation";
 import { resolveIsPublicRouteBlocked } from "@/lib/publicAccess";
@@ -40,14 +45,20 @@ export function Header() {
   const [isAnnouncementOverflowing, setIsAnnouncementOverflowing] =
     useState(false);
 
-  const announcementMessage = useMemo(() => {
-    const normalizedAnnouncementMessage =
-      publicAccessSettings.announcement_message?.trim();
-    return normalizedAnnouncementMessage &&
-      normalizedAnnouncementMessage.length > 0
-      ? normalizedAnnouncementMessage
-      : null;
-  }, [publicAccessSettings.announcement_message]);
+  const announcementContent = useMemo(
+    () =>
+      resolveAnnouncementContent(
+        publicAccessSettings.announcement_content,
+        publicAccessSettings.announcement_message,
+      ),
+    [
+      publicAccessSettings.announcement_content,
+      publicAccessSettings.announcement_message,
+    ],
+  );
+  const announcementType = resolveAnnouncementType(
+    publicAccessSettings.announcement_type,
+  );
 
   const activeRoutePath = useMemo(() => {
     return (
@@ -83,7 +94,7 @@ export function Header() {
 
   const updateAnnouncementOverflow = useCallback(() => {
     if (
-      !announcementMessage ||
+      !announcementContent ||
       !announcementViewportRef.current ||
       !announcementMeasureRef.current
     ) {
@@ -95,7 +106,7 @@ export function Header() {
       announcementMeasureRef.current.scrollWidth >
         announcementViewportRef.current.clientWidth + 1,
     );
-  }, [announcementMessage]);
+  }, [announcementContent]);
 
   useLayoutEffect(() => {
     const animationFrameId = requestAnimationFrame(updateActiveIndicator);
@@ -113,14 +124,14 @@ export function Header() {
   }, [updateActiveIndicator]);
 
   useEffect(() => {
-    if (!announcementMessage) {
+    if (!announcementContent) {
       return;
     }
 
     window.addEventListener("resize", updateAnnouncementOverflow);
     return () =>
       window.removeEventListener("resize", updateAnnouncementOverflow);
-  }, [announcementMessage, updateAnnouncementOverflow]);
+  }, [announcementContent, updateAnnouncementOverflow]);
 
   return (
     <header className="app-header-composition sticky top-0 z-50 pt-4">
@@ -203,9 +214,9 @@ export function Header() {
           </nav>
         </div>
 
-        {announcementMessage ? (
+        {announcementContent ? (
           <div
-            className="app-announcement-banner app-card-warning enter-item rounded-2xl px-3 py-2"
+            className={`app-announcement-banner app-announcement-banner--${announcementType.toLowerCase()} enter-item rounded-2xl px-3 py-2`}
             role="status"
             aria-live="polite"
           >
@@ -216,33 +227,27 @@ export function Header() {
             >
               <span
                 ref={announcementMeasureRef}
-                className="app-announcement-measure"
-                aria-hidden="true"
-              >
-                <span className="app-announcement-prefix">Aviso:</span>
+              className="app-announcement-measure"
+              aria-hidden="true"
+            >
                 <span className="app-announcement-text">
-                  {announcementMessage}
+                  <AnnouncementRichText content={announcementContent} />
                 </span>
               </span>
 
               {isAnnouncementOverflowing ? (
                 <div className="app-announcement-marquee-track">
-                  <span className="app-announcement-prefix">Aviso:</span>
                   <span className="app-announcement-text">
-                    {announcementMessage}
-                  </span>
-                  <span className="app-announcement-prefix" aria-hidden="true">
-                    Aviso:
+                    <AnnouncementRichText content={announcementContent} />
                   </span>
                   <span className="app-announcement-text" aria-hidden="true">
-                    {announcementMessage}
+                    <AnnouncementRichText content={announcementContent} />
                   </span>
                 </div>
               ) : (
                 <span className="app-announcement-inline">
-                  <span className="app-announcement-prefix">Aviso:</span>
                   <span className="app-announcement-text">
-                    {announcementMessage}
+                    <AnnouncementRichText content={announcementContent} />
                   </span>
                 </span>
               )}

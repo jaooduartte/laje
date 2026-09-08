@@ -1,5 +1,6 @@
 import type { MatchSetInput } from "@/domain/championship-brackets/championshipBracket.types";
 import type { ChampionshipKnockoutPairingMode } from "@/domain/championship-brackets/championshipBracketPairing";
+import type { AnnouncementContent, AnnouncementType } from "@/lib/announcement";
 import type {
   AdminActionType,
   AdminPanelPermissionLevel,
@@ -498,6 +499,8 @@ export interface PublicAccessSettings {
   is_links_page_blocked: boolean;
   blocked_message: string | null;
   announcement_message: string | null;
+  announcement_content: AnnouncementContent | null;
+  announcement_type: AnnouncementType;
   updated_at: string | null;
 }
 

@@ -119,4 +119,48 @@ describe("Header", () => {
       screen.getAllByText("Aviso importante com texto longo para validar o comportamento rolando em linha única.").length,
     ).toBeGreaterThan(1);
   });
+
+  it.each([
+    ["IMPROVEMENT", "app-announcement-banner--improvement"],
+    ["NOTICE", "app-announcement-banner--notice"],
+    ["PROBLEM", "app-announcement-banner--problem"],
+  ] as const)("renderiza o tipo %s com o estilo correspondente", (announcementType, className) => {
+    mockUsePublicAccessSettings.mockReturnValue({
+      publicAccessSettings: {
+        ...DEFAULT_PUBLIC_ACCESS_SETTINGS,
+        announcement_type: announcementType,
+        announcement_content: {
+          version: 1,
+          segments: [{ text: "Atualização do app" }],
+        },
+      },
+    });
+
+    renderHeader();
+
+    expect(screen.getByRole("status")).toHaveClass(className);
+    expect(screen.queryByText(/^(Melhoria|Aviso|Problema):$/)).not.toBeInTheDocument();
+  });
+
+  it("preserva a formatação segura do conteúdo estruturado", () => {
+    mockUsePublicAccessSettings.mockReturnValue({
+      publicAccessSettings: {
+        ...DEFAULT_PUBLIC_ACCESS_SETTINGS,
+        announcement_content: {
+          version: 1,
+          segments: [
+            { text: "Novo ", bold: true },
+            { text: "recurso", italic: true, underline: true },
+          ],
+        },
+      },
+    });
+
+    renderHeader();
+
+    const banner = screen.getByRole("status");
+    expect(banner.querySelector("strong")).toHaveTextContent("Novo");
+    expect(banner.querySelector("u")).toHaveTextContent("recurso");
+    expect(banner.querySelector("u em")).not.toBeNull();
+  });
 });

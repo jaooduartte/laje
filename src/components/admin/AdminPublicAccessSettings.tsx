@@ -12,8 +12,18 @@ import {
 import type { PublicAccessSettings } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { AnnouncementRichTextEditor } from "@/components/admin/AnnouncementRichTextEditor";
+import {
+  ANNOUNCEMENT_TYPE_OPTIONS,
+  resolveAnnouncementContent,
+  resolveAnnouncementPlainText,
+  resolveAnnouncementType,
+  type AnnouncementContent,
+  type AnnouncementType,
+} from "@/lib/announcement";
 
 interface Props {
   canManageSettings?: boolean;
@@ -28,7 +38,15 @@ interface PublicAccessSettingsSavePayload {
   is_links_page_blocked: boolean;
   blocked_message: string | null;
   announcement_message: string | null;
+  announcement_content: AnnouncementContent | null;
+  announcement_type: AnnouncementType;
 }
+
+const announcementTypePreviewClassNames: Record<AnnouncementType, string> = {
+  IMPROVEMENT: "bg-emerald-500",
+  NOTICE: "bg-amber-400",
+  PROBLEM: "bg-destructive",
+};
 
 function normalizeOptionalMessage(
   value: string | null | undefined,
@@ -44,6 +62,11 @@ function normalizeOptionalMessage(
 function resolvePublicAccessSettingsSavePayload(
   publicAccessSettings: PublicAccessSettings,
 ): PublicAccessSettingsSavePayload {
+  const announcementContent = resolveAnnouncementContent(
+    publicAccessSettings.announcement_content,
+    publicAccessSettings.announcement_message,
+  );
+
   return {
     is_public_access_blocked: publicAccessSettings.is_public_access_blocked,
     is_live_page_blocked: publicAccessSettings.is_live_page_blocked,
@@ -56,8 +79,10 @@ function resolvePublicAccessSettingsSavePayload(
     blocked_message: normalizeOptionalMessage(
       publicAccessSettings.blocked_message,
     ),
-    announcement_message: normalizeOptionalMessage(
-      publicAccessSettings.announcement_message,
+    announcement_message: resolveAnnouncementPlainText(announcementContent),
+    announcement_content: announcementContent,
+    announcement_type: resolveAnnouncementType(
+      publicAccessSettings.announcement_type,
     ),
   };
 }
@@ -126,6 +151,8 @@ export function AdminPublicAccessSettings({
         _is_links_page_blocked: nextPayload.is_links_page_blocked,
         _blocked_message: nextPayload.blocked_message,
         _announcement_message: nextPayload.announcement_message,
+        _announcement_content: nextPayload.announcement_content,
+        _announcement_type: nextPayload.announcement_type,
       });
 
       if (error) {
@@ -286,22 +313,60 @@ export function AdminPublicAccessSettings({
         <Label htmlFor="public-access-announcement-message">
           Aviso no app (opcional)
         </Label>
-        <Textarea
+        <AnnouncementRichTextEditor
           id="public-access-announcement-message"
-          value={publicAccessSettings.announcement_message ?? ""}
-          onChange={(event) =>
+          value={resolveAnnouncementContent(
+            publicAccessSettings.announcement_content,
+            publicAccessSettings.announcement_message,
+          )}
+          onChange={(announcementContent) =>
             setPublicAccessSettings((currentPublicAccessSettings) => ({
               ...currentPublicAccessSettings,
-              announcement_message: event.target.value,
+              announcement_content: announcementContent,
+              announcement_message: resolveAnnouncementPlainText(announcementContent),
             }))
           }
-          placeholder="Ex.: Novo regulamento disponível na aba Links."
-          className="app-input-field min-h-24 resize-none"
           disabled={!canManageSettings}
         />
+        <div className="space-y-2 pt-1">
+          <p className="text-xs font-medium">Tipo do aviso</p>
+          <RadioGroup
+            value={publicAccessSettings.announcement_type}
+            onValueChange={(announcementType) =>
+              setPublicAccessSettings((currentPublicAccessSettings) => ({
+                ...currentPublicAccessSettings,
+                announcement_type: resolveAnnouncementType(announcementType),
+              }))
+            }
+            disabled={!canManageSettings}
+            className="grid gap-2 sm:grid-cols-3"
+          >
+            {ANNOUNCEMENT_TYPE_OPTIONS.map((option) => (
+              <label
+                key={option.value}
+                className={`cursor-pointer rounded-xl border p-3 transition-colors has-[[data-state=checked]]:border-primary/50 ${option.value == "IMPROVEMENT" ? "has-[[data-state=checked]]:bg-emerald-500/10" : option.value == "PROBLEM" ? "has-[[data-state=checked]]:bg-destructive/10" : "has-[[data-state=checked]]:bg-amber-500/10"}`}
+              >
+                <span className="flex items-start gap-2.5">
+                  <RadioGroupItem
+                    value={option.value}
+                    aria-label={option.label}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium">{option.label}</span>
+                    <span className="block text-xs text-muted-foreground">{option.description}</span>
+                    <span
+                      aria-hidden="true"
+                      className={`mt-2 block h-1.5 w-full rounded-full ${announcementTypePreviewClassNames[option.value]}`}
+                    />
+                  </span>
+                </span>
+              </label>
+            ))}
+          </RadioGroup>
+        </div>
         <p className="text-xs text-muted-foreground">
-          Quando preenchido, aparece abaixo do cabeçalho em todas as telas do
-          app.
+          Quando preenchido, aparece abaixo do cabeçalho em todas as telas do app. O aviso aceita negrito, itálico e sublinhado, sem quebras de linha.
         </p>
       </div>
 

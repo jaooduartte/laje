@@ -2672,7 +2672,9 @@ export type Database = {
       }
       public_page_access_settings: {
         Row: {
+          announcement_content: Json | null
           announcement_message: string | null
+          announcement_type: string
           blocked_message: string | null
           created_at: string
           id: number
@@ -2686,7 +2688,9 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          announcement_content?: Json | null
           announcement_message?: string | null
+          announcement_type?: string
           blocked_message?: string | null
           created_at?: string
           id?: number
@@ -2700,7 +2704,9 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          announcement_content?: Json | null
           announcement_message?: string | null
+          announcement_type?: string
           blocked_message?: string | null
           created_at?: string
           id?: number
@@ -3421,7 +3427,9 @@ export type Database = {
       get_public_access_settings: {
         Args: never
         Returns: {
+          announcement_content: Json
           announcement_message: string
+          announcement_type: string
           blocked_message: string
           is_championships_page_blocked: boolean
           is_league_calendar_page_blocked: boolean
@@ -3973,7 +3981,9 @@ export type Database = {
       }
       set_public_access_settings: {
         Args: {
+          _announcement_content?: Json
           _announcement_message?: string
+          _announcement_type?: string
           _blocked_message?: string
           _is_championships_page_blocked?: boolean
           _is_league_calendar_page_blocked?: boolean

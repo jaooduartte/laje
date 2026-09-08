@@ -74,7 +74,7 @@ describe("AdminPublicAccessSettings", () => {
     render(<AdminPublicAccessSettings canManageSettings />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Aviso no app (opcional)")).toHaveValue("Mensagem global para o app");
+      expect(screen.getByLabelText("Aviso no app (opcional)")).toHaveTextContent("Mensagem global para o app");
     });
   });
 
@@ -83,9 +83,8 @@ describe("AdminPublicAccessSettings", () => {
 
     const announcementField = await screen.findByLabelText("Aviso no app (opcional)");
 
-    fireEvent.change(announcementField, {
-      target: { value: "  Novo aviso importante para todos  " },
-    });
+    announcementField.textContent = "  Novo aviso importante para todos  ";
+    fireEvent.input(announcementField);
     fireEvent.click(screen.getByRole("button", { name: "Salvar configuração" }));
 
     await waitFor(() => {
@@ -93,6 +92,11 @@ describe("AdminPublicAccessSettings", () => {
         "set_public_access_settings",
         expect.objectContaining({
           _announcement_message: "Novo aviso importante para todos",
+          _announcement_content: {
+            version: 1,
+            segments: [{ text: "Novo aviso importante para todos" }],
+          },
+          _announcement_type: "NOTICE",
         }),
       );
     });
@@ -114,9 +118,8 @@ describe("AdminPublicAccessSettings", () => {
 
     const announcementField = await screen.findByLabelText("Aviso no app (opcional)");
 
-    fireEvent.change(announcementField, {
-      target: { value: "   " },
-    });
+    announcementField.textContent = "   ";
+    fireEvent.input(announcementField);
     fireEvent.click(screen.getByRole("button", { name: "Salvar configuração" }));
 
     await waitFor(() => {
@@ -124,6 +127,7 @@ describe("AdminPublicAccessSettings", () => {
         "set_public_access_settings",
         expect.objectContaining({
           _announcement_message: null,
+          _announcement_content: null,
         }),
       );
     });
@@ -145,9 +149,8 @@ describe("AdminPublicAccessSettings", () => {
 
     const announcementField = await screen.findByLabelText("Aviso no app (opcional)");
 
-    fireEvent.change(announcementField, {
-      target: { value: "  Mensagem atual  " },
-    });
+    announcementField.textContent = "  Mensagem atual  ";
+    fireEvent.input(announcementField);
     fireEvent.click(screen.getByRole("button", { name: "Salvar configuração" }));
 
     await waitFor(() => {
@@ -155,5 +158,20 @@ describe("AdminPublicAccessSettings", () => {
     });
 
     expect(mockRpc).toHaveBeenCalledTimes(1);
+  });
+
+  it("permite selecionar um único tipo visual para o aviso", async () => {
+    render(<AdminPublicAccessSettings canManageSettings />);
+
+    const improvementOption = await screen.findByRole("radio", { name: "Melhoria" });
+    const noticeOption = screen.getByRole("radio", { name: "Aviso" });
+    const problemOption = screen.getByRole("radio", { name: "Problema" });
+
+    expect(noticeOption).toBeChecked();
+    fireEvent.click(problemOption);
+
+    expect(problemOption).toBeChecked();
+    expect(improvementOption).not.toBeChecked();
+    expect(noticeOption).not.toBeChecked();
   });
 });

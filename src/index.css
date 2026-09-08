@@ -375,6 +375,18 @@
     border-radius: 1rem;
   }
 
+  .app-announcement-banner--improvement {
+    border-color: hsl(142 71% 35%);
+    background: hsl(142 71% 45% / 0.18);
+    box-shadow: 0 8px 20px hsl(142 71% 35% / 0.12);
+  }
+
+  .app-announcement-banner--problem {
+    border-color: hsl(0 72% 51%);
+    background: hsl(0 84% 60% / 0.16);
+    box-shadow: 0 8px 20px hsl(0 72% 51% / 0.12);
+  }
+
   .app-announcement-viewport {
     position: relative;
     overflow: hidden;
@@ -400,17 +412,6 @@
     white-space: nowrap;
   }
 
-  .app-announcement-prefix {
-    display: inline-block;
-    flex: 0 0 auto;
-    white-space: nowrap;
-    font-size: 0.875rem;
-    font-weight: 700;
-    line-height: 1.4;
-    color: hsl(31 92% 22%);
-    margin-right: 0.35rem;
-  }
-
   .app-announcement-text {
     display: inline-block;
     white-space: nowrap;
@@ -418,6 +419,14 @@
     font-weight: 500;
     line-height: 1.4;
     color: hsl(36 92% 24%);
+  }
+
+  .app-announcement-banner--improvement .app-announcement-text {
+    color: hsl(142 72% 20%);
+  }
+
+  .app-announcement-banner--problem .app-announcement-text {
+    color: hsl(0 72% 28%);
   }
 
   .app-announcement-viewport[data-overflowing="false"] .app-announcement-text {
@@ -429,16 +438,12 @@
   .app-announcement-marquee-track {
     display: flex;
     width: max-content;
-    animation: appAnnouncementMarquee 18s linear infinite;
+    animation: appAnnouncementMarquee 32s linear infinite;
     will-change: transform;
   }
 
   .app-announcement-marquee-track .app-announcement-text {
     padding-right: 3rem;
-  }
-
-  .app-announcement-marquee-track .app-announcement-prefix:last-of-type {
-    padding-left: 3rem;
   }
 
   .app-help-icon-button {
@@ -689,12 +694,26 @@
     box-shadow: 0 10px 26px hsl(0 0% 0% / 0.36);
   }
 
+  .dark .app-announcement-banner--improvement {
+    border-color: hsl(142 71% 45% / 0.82);
+    background: hsl(142 64% 21% / 0.62);
+  }
+
+  .dark .app-announcement-banner--problem {
+    border-color: hsl(0 72% 58% / 0.86);
+    background: hsl(0 60% 25% / 0.64);
+  }
+
   .dark .app-announcement-text {
     color: hsl(44 100% 86%);
   }
 
-  .dark .app-announcement-prefix {
-    color: hsl(44 100% 90%);
+  .dark .app-announcement-banner--improvement .app-announcement-text {
+    color: hsl(142 84% 90%);
+  }
+
+  .dark .app-announcement-banner--problem .app-announcement-text {
+    color: hsl(0 86% 93%);
   }
 
   .dark .app-help-icon-button {
