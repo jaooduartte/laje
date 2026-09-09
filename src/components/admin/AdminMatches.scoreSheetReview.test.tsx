@@ -500,6 +500,53 @@ function clickFirstMenuItemInMatchCard(matchCardContainer: HTMLElement, itemName
 }
 
 describe("AdminMatches score sheet review", () => {
+  it("inicia a programação ativa mostrando apenas jogos em aberto", async () => {
+    renderAdminMatches({
+      matches: [
+        buildMatch({
+          id: "scheduled-default-status-filter",
+          status: MatchStatus.SCHEDULED,
+          home_team: buildTeam({
+            id: "scheduled-default-status-filter-home",
+            name: "EM ABERTO CASA",
+          }),
+          away_team: buildTeam({
+            id: "scheduled-default-status-filter-away",
+            name: "EM ABERTO VISITANTE",
+          }),
+        }),
+        buildMatch({
+          id: "live-default-status-filter",
+          status: MatchStatus.LIVE,
+          home_team: buildTeam({
+            id: "live-default-status-filter-home",
+            name: "AO VIVO CASA",
+          }),
+          away_team: buildTeam({
+            id: "live-default-status-filter-away",
+            name: "AO VIVO VISITANTE",
+          }),
+        }),
+        buildMatch({
+          id: "finished-default-status-filter",
+          status: MatchStatus.FINISHED,
+          home_team: buildTeam({
+            id: "finished-default-status-filter-home",
+            name: "ENCERRADO CASA",
+          }),
+          away_team: buildTeam({
+            id: "finished-default-status-filter-away",
+            name: "ENCERRADO VISITANTE",
+          }),
+        }),
+      ],
+    });
+
+    expect(await screen.findByText("EM ABERTO CASA")).toBeInTheDocument();
+    expect(screen.queryByText("AO VIVO CASA")).not.toBeInTheDocument();
+    expect(screen.queryByText("ENCERRADO CASA")).not.toBeInTheDocument();
+  });
+
   beforeEach(() => {
     vi.stubGlobal("scrollTo", vi.fn());
     supabaseUpdateCalls.length = 0;
@@ -2110,6 +2157,144 @@ describe("AdminMatches score sheet review", () => {
       expect(onRefetch).toHaveBeenCalled();
       expect(onRefetchChampionshipBracket).toHaveBeenCalled();
     });
+  });
+
+  it("usa a troca segura de mata-mata para uma semifinal materializada", async () => {
+    renderAdminMatches({
+      matches: [
+        buildMatch({
+          id: "materialized-knockout-source",
+          sport_id: "sport-1",
+          status: MatchStatus.SCHEDULED,
+          naipe: MatchNaipe.MASCULINO,
+          scheduled_date: "2026-04-11",
+          location: "Praia de Piçarras",
+          court_name: "Quadra 1",
+          start_time: "2026-04-11T10:00:00.000Z",
+          scheduled_slot: 3,
+          queue_position: 3,
+          home_team: buildTeam({
+            id: "materialized-knockout-source-home",
+            name: "SEMIFINAL CASA",
+          }),
+          away_team: buildTeam({
+            id: "materialized-knockout-source-away",
+            name: "SEMIFINAL VISITANTE",
+          }),
+        }),
+        buildMatch({
+          id: "materialized-knockout-target",
+          sport_id: "sport-1",
+          status: MatchStatus.SCHEDULED,
+          naipe: MatchNaipe.MASCULINO,
+          scheduled_date: "2026-04-11",
+          location: "Praia de Piçarras",
+          court_name: "Quadra 1",
+          start_time: "2026-04-11T10:40:00.000Z",
+          scheduled_slot: 4,
+          queue_position: 4,
+          home_team: buildTeam({
+            id: "materialized-knockout-target-home",
+            name: "OUTRA SEMIFINAL CASA",
+          }),
+          away_team: buildTeam({
+            id: "materialized-knockout-target-away",
+            name: "OUTRA SEMIFINAL VISITANTE",
+          }),
+        }),
+      ],
+      bracketView: buildBracketView({
+        competitions: [
+          {
+            id: "materialized-knockout-competition",
+            sport_id: "sport-1",
+            sport_name: "Beach Soccer",
+            naipe: MatchNaipe.MASCULINO,
+            division: null,
+            groups_count: 2,
+            qualifiers_per_group: 2,
+            third_place_mode: BracketThirdPlaceMode.NONE,
+            groups: [],
+            knockout_matches: [
+              {
+                id: "materialized-knockout-source-bracket",
+                round_number: 2,
+                slot_number: 1,
+                match_id: "materialized-knockout-source",
+                status: MatchStatus.SCHEDULED,
+                scheduled_date: "2026-04-11",
+                queue_position: 3,
+                scheduled_slot: 3,
+                start_time: "2026-04-11T10:00:00.000Z",
+                end_time: "2026-04-11T10:30:00.000Z",
+                location: "Praia de Piçarras",
+                court_name: "Quadra 1",
+                home_team_id: "materialized-knockout-source-home",
+                away_team_id: "materialized-knockout-source-away",
+                home_team_name: "SEMIFINAL CASA",
+                away_team_name: "SEMIFINAL VISITANTE",
+                winner_team_id: null,
+                winner_team_name: null,
+                is_bye: false,
+                is_third_place: false,
+              },
+              {
+                id: "materialized-knockout-target-bracket",
+                round_number: 2,
+                slot_number: 2,
+                match_id: "materialized-knockout-target",
+                status: MatchStatus.SCHEDULED,
+                scheduled_date: "2026-04-11",
+                queue_position: 4,
+                scheduled_slot: 4,
+                start_time: "2026-04-11T10:40:00.000Z",
+                end_time: "2026-04-11T11:10:00.000Z",
+                location: "Praia de Piçarras",
+                court_name: "Quadra 1",
+                home_team_id: "materialized-knockout-target-home",
+                away_team_id: "materialized-knockout-target-away",
+                home_team_name: "OUTRA SEMIFINAL CASA",
+                away_team_name: "OUTRA SEMIFINAL VISITANTE",
+                winner_team_id: null,
+                winner_team_name: null,
+                is_bye: false,
+                is_third_place: false,
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    supabaseRpcResponses.push({ data: [], error: null });
+
+    const sourceCardContainer = getMatchCardContainerByTeamName(
+      "SEMIFINAL CASA",
+    );
+
+    fireEvent.pointerDown(
+      await screen.findByLabelText(
+        "Ações do jogo SEMIFINAL CASA x SEMIFINAL VISITANTE",
+      ),
+    );
+    clickFirstMenuItemInMatchCard(sourceCardContainer, "Trocar jogo");
+
+    expect(
+      await screen.findByText("Trocar jogo eliminatório"),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(supabaseRpcCalls[0]).toMatchObject({
+        functionName: "list_knockout_schedule_swap_candidates",
+        payload: {
+          _source_bracket_match_id: "materialized-knockout-source-bracket",
+        },
+      });
+    });
+    expect(
+      supabaseRpcCalls.some(
+        (call) => call.functionName == "list_match_queue_swap_candidates",
+      ),
+    ).toBe(false);
   });
 
   it("abre modal de troca e chama RPC para swap de fila", async () => {

@@ -257,7 +257,7 @@ export function useMatches({
     MatchRepresentationSource[]
   >([]);
   const [totalCount, setTotalCount] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => enabled);
   const [isFetching, setIsFetching] = useState(false);
   const hasLoadedMatchesRef = useRef(false);
   const isFetchingMatchesRef = useRef(false);
@@ -277,7 +277,7 @@ export function useMatches({
       refreshOperationalContext = true,
     }: FetchMatchesOptions = {}) => {
       if (!enabled) {
-        setLoading(true);
+        setLoading(false);
         setIsFetching(false);
         hasLoadedMatchesRef.current = false;
         isFetchingMatchesRef.current = false;
@@ -1025,7 +1025,7 @@ export function useMatches({
 
   useEffect(() => {
     if (!enabled) {
-      setLoading(true);
+      setLoading(false);
       setIsFetching(false);
       hasLoadedMatchesRef.current = false;
       isFetchingMatchesRef.current = false;

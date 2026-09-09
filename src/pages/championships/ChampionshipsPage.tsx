@@ -8,6 +8,7 @@ import { useChampionships } from "@/hooks/useChampionships";
 import { useChampionshipBracketHistory } from "@/hooks/useChampionshipBracketHistory";
 import { useChampionshipBracketResolvedTieBreakOrders } from "@/hooks/useChampionshipBracketResolvedTieBreakOrders";
 import { useChampionshipCorrectedGroupStandings } from "@/hooks/useChampionshipCorrectedGroupStandings";
+import { useChampionshipGroupStageStandings } from "@/hooks/useChampionshipGroupStageStandings";
 import { useSelectedChampionship } from "@/hooks/useSelectedChampionship";
 import { useChampionshipSelection } from "@/hooks/useChampionshipSelection";
 import { useChampionshipAwardsRankings } from "@/hooks/useChampionshipAwardsRankings";
@@ -66,6 +67,7 @@ import {
   resolveCorrectedStandingKey,
   resolveManualTieBreakWinnerTeamIdByPairKey,
   resolveTeamStandingAggregateKey,
+  sortStandingRowsByRanking,
   type TeamStandingAggregate,
 } from "@/lib/standings";
 import { ChampionshipsPageView } from "@/pages/championships/ChampionshipsPageView";
@@ -322,6 +324,17 @@ export function ChampionshipsPage() {
         : (standingsDivisionFilter as TeamDivision),
     enabled: isInterlajeCompetitionStandingsAvailable,
     realtimeEnabled: false,
+  });
+  const {
+    groupStageStandings,
+    loading: groupStageStandingsLoading,
+  } = useChampionshipGroupStageStandings({
+    championshipId: selectedChampionshipId,
+    seasonYear:
+      standingsYearFilter == ALL_YEAR_FILTER
+        ? null
+        : Number(standingsYearFilter),
+    enabled: isInterlajeCompetitionStandingsAvailable,
   });
 
   useEffect(() => {
@@ -637,6 +650,19 @@ export function ChampionshipsPage() {
     enabled: shouldLoadDetailedStandings,
     includeRealtime: false,
   });
+  const displayedInterlajeCompetitionStandings = useMemo(() => {
+    return sortStandingRowsByRanking(interlajeCompetitionStandings, {
+      tieBreakerRule: standingsTieBreakerRule,
+      headToHeadMatches: standingsHeadToHeadMatches,
+      manualTieBreakWinnerTeamIdByPairKey:
+        standingsManualTieBreakWinnerTeamIdByPairKey,
+    });
+  }, [
+    interlajeCompetitionStandings,
+    standingsHeadToHeadMatches,
+    standingsManualTieBreakWinnerTeamIdByPairKey,
+    standingsTieBreakerRule,
+  ]);
 
   const filteredStandings = useMemo(() => {
     const aggregates = aggregateStandingsByTeam(standingsWithFilters, {
@@ -695,6 +721,61 @@ export function ChampionshipsPage() {
   const standingsGroups = useMemo<
     Array<{ label: string; standings: TeamStandingAggregate[] }>
   >(() => {
+    if (isInterlajeCompetitionStandingsAvailable) {
+      const standingsByGroupId = new Map<
+        string,
+        { label: string; groupNumber: number; standings: TeamStandingAggregate[] }
+      >();
+
+      groupStageStandings.forEach((standing) => {
+        if (
+          standing.sport_id != standingsSportFilter ||
+          standing.naipe != standingsNaipeFilter
+        ) {
+          return;
+        }
+
+        if (
+          standingsDivisionFilter != ALL_STANDINGS_DIVISION_FILTER &&
+          standing.division != standingsDivisionFilter
+        ) {
+          return;
+        }
+
+        const standingsGroup = standingsByGroupId.get(standing.group_id) ?? {
+          label: resolveChampionshipGroupLabel(standing.group_number),
+          groupNumber: standing.group_number,
+          standings: [],
+        };
+
+        standingsGroup.standings.push({
+          team_id: standing.team_id,
+          team_name: standing.team_name,
+          team_city: "",
+          division: standing.division,
+          played: standing.played,
+          wins: standing.wins,
+          draws: standing.draws,
+          losses: standing.losses,
+          goals_for: standing.goals_for,
+          goals_against: standing.goals_against,
+          goal_diff: standing.goal_diff,
+          points: standing.points,
+          yellow_cards: standing.yellow_cards,
+          red_cards: standing.red_cards,
+          blue_cards: standing.blue_cards,
+          two_minute_penalties: standing.two_minute_penalties,
+        });
+        standingsByGroupId.set(standing.group_id, standingsGroup);
+      });
+
+      return [...standingsByGroupId.values()]
+        .sort((firstGroup, secondGroup) =>
+          firstGroup.groupNumber - secondGroup.groupNumber,
+        )
+        .map(({ label, standings }) => ({ label, standings }));
+    }
+
     if (
       !selectedStandingsSeasonView ||
       standingsSportFilter == ALL_STANDINGS_SPORT_FILTER ||
@@ -726,6 +807,8 @@ export function ChampionshipsPage() {
       ),
     }));
   }, [
+    groupStageStandings,
+    isInterlajeCompetitionStandingsAvailable,
     selectedStandingsSeasonView,
     standingsDivisionFilter,
     standingsHeadToHeadMatches,
@@ -935,7 +1018,7 @@ export function ChampionshipsPage() {
             (isInterlajeOverallStandingsView &&
               interlajeOverallStandingsLoading) ||
             (isInterlajeCompetitionStandingsAvailable &&
-              interlajeCompetitionStandingsLoading)
+              (interlajeCompetitionStandingsLoading || groupStageStandingsLoading))
       }
       championships={championships}
       selectedChampionship={selectedChampionship}
@@ -963,7 +1046,7 @@ export function ChampionshipsPage() {
       isInterlajeCompetitionStandingsAvailable={
         isInterlajeCompetitionStandingsAvailable
       }
-      interlajeCompetitionStandings={interlajeCompetitionStandings}
+      interlajeCompetitionStandings={displayedInterlajeCompetitionStandings}
       hasInterlajeCompetitionProjectedPlacement={
         hasInterlajeCompetitionProjectedPlacement
       }

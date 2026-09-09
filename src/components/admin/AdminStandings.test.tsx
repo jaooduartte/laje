@@ -29,6 +29,8 @@ const {
   replaceDivisionMovementsMock,
   teamDivisionUpdateMock,
   useStandingsMock,
+  groupStageStandingsState,
+  useMatchesState,
 } = vi.hoisted(() => ({
   rpcMock: vi.fn(),
   rankingsMock: {
@@ -114,6 +116,20 @@ const {
     eq: vi.fn().mockResolvedValue({ error: null }),
   })),
   useStandingsMock: vi.fn(),
+  groupStageStandingsState: {
+    current: [],
+  } as { current: Array<Record<string, unknown>> },
+  useMatchesState: {
+    current: {
+      matches: [],
+      loading: false,
+    },
+  } as {
+    current: {
+      matches: Array<Record<string, unknown>>;
+      loading: boolean;
+    };
+  },
 }));
 
 vi.mock("sonner", () => ({
@@ -163,7 +179,7 @@ vi.mock("@/hooks/useInterlajeCompetitionStandings", () => ({
 }));
 
 vi.mock("@/hooks/useMatches", () => ({
-  useMatches: () => ({ matches: [], loading: false }),
+  useMatches: () => useMatchesState.current,
 }));
 
 vi.mock("@/hooks/useChampionshipBracketResolvedTieBreakOrders", () => ({
@@ -172,6 +188,13 @@ vi.mock("@/hooks/useChampionshipBracketResolvedTieBreakOrders", () => ({
 
 vi.mock("@/hooks/useChampionshipCorrectedGroupStandings", () => ({
   useChampionshipCorrectedGroupStandings: () => ({ correctedGroupStandings: [], loading: false }),
+}));
+
+vi.mock("@/hooks/useChampionshipGroupStageStandings", () => ({
+  useChampionshipGroupStageStandings: () => ({
+    groupStageStandings: groupStageStandingsState.current,
+    loading: false,
+  }),
 }));
 
 vi.mock("@/hooks/useChampionshipBracketHistory", () => ({
@@ -353,6 +376,7 @@ describe("AdminStandings", () => {
       points_loss: 0,
       created_at: "2026-06-18T00:00:00.000Z",
       walkover_winner_points: null,
+      walkover_winner_set_count: 1,
       awards_include_knockout_phase: true,
       supports_individual_awards: true,
     },
@@ -460,6 +484,11 @@ describe("AdminStandings", () => {
       data: [],
       error: null,
     });
+    groupStageStandingsState.current = [];
+    useMatchesState.current = {
+      matches: [],
+      loading: false,
+    };
   });
 
   it("renderiza melhor defesa por atlética no admin", () => {
@@ -492,6 +521,30 @@ describe("AdminStandings", () => {
     expect(screen.queryByRole("button", { name: "Misto" })).not.toBeInTheDocument();
   });
 
+  it("não mantém a tabela carregando ao filtrar modalidade com todos os naipes", () => {
+    useMatchesState.current = {
+      matches: [],
+      loading: true,
+    };
+
+    render(
+      <AdminStandings
+        selectedChampionship={selectedChampionship}
+        championshipSports={championshipSports}
+        sports={sports}
+        championshipBracketView={championshipBracketView}
+        availableSeasonYears={[2026]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Sport filter" }));
+
+    const mostRecentTeamStandingsProps =
+      teamStandingsTableMock.mock.calls.at(-1)?.[0];
+
+    expect(mostRecentTeamStandingsProps).toMatchObject({ isLoading: false });
+  });
+
   it("reúne os melhores de cada grupo em uma tabela ao filtrar por posição", () => {
     render(
       <AdminStandings
@@ -510,11 +563,176 @@ describe("AdminStandings", () => {
     expect(screen.getByRole("heading", { name: "Grupo A" })).toBeInTheDocument();
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Melhores 1º de cada chave" }),
+      screen.getByRole("button", { name: "Melhores 1º da fase de grupos" }),
     );
 
     expect(screen.queryByRole("heading", { name: "Grupo A" })).not.toBeInTheDocument();
     expect(screen.getAllByText("Standings table")).toHaveLength(1);
+  });
+
+  it("consulta melhores primeiros exclusivamente pelos dados da fase de grupos", () => {
+    groupStageStandingsState.current = [
+      {
+        competition_id: "competition-1",
+        sport_id: "sport-1",
+        sport_name: "Futsal",
+        naipe: MatchNaipe.MASCULINO,
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        group_id: "group-1",
+        group_number: 1,
+        team_id: "team-1",
+        team_name: "Atlética A",
+        played: 3,
+        wins: 2,
+        draws: 1,
+        losses: 0,
+        goals_for: 6,
+        goals_against: 2,
+        goal_diff: 4,
+        points: 7,
+        comparison_points: 7,
+        yellow_cards: 1,
+        red_cards: 0,
+        blue_cards: 0,
+        two_minute_penalties: 0,
+        group_rank: 1,
+        comparison_rank: 1,
+      },
+      {
+        competition_id: "competition-1",
+        sport_id: "sport-1",
+        sport_name: "Futsal",
+        naipe: MatchNaipe.MASCULINO,
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        group_id: "group-2",
+        group_number: 2,
+        team_id: "team-2",
+        team_name: "Atlética B",
+        played: 3,
+        wins: 2,
+        draws: 0,
+        losses: 1,
+        goals_for: 4,
+        goals_against: 3,
+        goal_diff: 1,
+        points: 6,
+        comparison_points: 6,
+        yellow_cards: 0,
+        red_cards: 0,
+        blue_cards: 0,
+        two_minute_penalties: 0,
+        group_rank: 1,
+        comparison_rank: 2,
+      },
+    ];
+
+    render(
+      <AdminStandings
+        selectedChampionship={selectedChampionship}
+        championshipSports={championshipSports}
+        sports={sports}
+        championshipBracketView={championshipBracketView}
+        availableSeasonYears={[2026]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Sport filter" }));
+    fireEvent.click(screen.getByRole("button", { name: "Masculino" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Melhores 1º da fase de grupos" }),
+    );
+
+    expect(screen.getByText(/apenas os jogos finalizados da fase de grupos/i)).toBeInTheDocument();
+    expect(teamStandingsTableMock.mock.calls.at(-1)?.[0].standings).toEqual([
+      expect.objectContaining({ team_id: "team-1", points: 7, goals_for: 6 }),
+      expect.objectContaining({ team_id: "team-2", points: 6, goals_for: 4 }),
+    ]);
+  });
+
+  it("exibe pontos proporcionais e preserva a ordem por saldo entre grupos desiguais", () => {
+    groupStageStandingsState.current = [
+      {
+        competition_id: "competition-1",
+        sport_id: "sport-1",
+        sport_name: "Futsal",
+        naipe: MatchNaipe.MASCULINO,
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        group_id: "group-smaller",
+        group_number: 1,
+        team_id: "team-smaller-group",
+        team_name: "Raposas",
+        played: 2,
+        wins: 2,
+        draws: 0,
+        losses: 0,
+        goals_for: 13,
+        goals_against: 2,
+        goal_diff: 11,
+        points: 6,
+        comparison_points: 9,
+        yellow_cards: 0,
+        red_cards: 0,
+        blue_cards: 0,
+        two_minute_penalties: 0,
+        group_rank: 1,
+        comparison_rank: 2,
+      },
+      {
+        competition_id: "competition-1",
+        sport_id: "sport-1",
+        sport_name: "Futsal",
+        naipe: MatchNaipe.MASCULINO,
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        group_id: "group-full",
+        group_number: 2,
+        team_id: "team-full-group",
+        team_name: "AAASF",
+        played: 3,
+        wins: 3,
+        draws: 0,
+        losses: 0,
+        goals_for: 17,
+        goals_against: 2,
+        goal_diff: 15,
+        points: 9,
+        comparison_points: 9,
+        yellow_cards: 0,
+        red_cards: 0,
+        blue_cards: 0,
+        two_minute_penalties: 0,
+        group_rank: 1,
+        comparison_rank: 1,
+      },
+    ];
+
+    render(
+      <AdminStandings
+        selectedChampionship={selectedChampionship}
+        championshipSports={championshipSports}
+        sports={sports}
+        championshipBracketView={championshipBracketView}
+        availableSeasonYears={[2026]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Sport filter" }));
+    fireEvent.click(screen.getByRole("button", { name: "Masculino" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Melhores 1º da fase de grupos" }),
+    );
+
+    expect(teamStandingsTableMock.mock.calls.at(-1)?.[0].standings).toEqual([
+      expect.objectContaining({
+        team_id: "team-full-group",
+        points: 9,
+        goal_diff: 15,
+      }),
+      expect.objectContaining({
+        team_id: "team-smaller-group",
+        points: 9,
+        goal_diff: 11,
+      }),
+    ]);
   });
 
   it("não repete o badge de grupo quando a classificação já está separada por chave", () => {
@@ -673,23 +891,42 @@ describe("AdminStandings", () => {
       loading: false,
       standings: [
         {
-          team_id: "team-1",
-          team_name: "ENGENIOS",
+          team_id: "team-lower-points",
+          team_name: "AACOM",
           division: null,
           played: 3,
-          wins: 2,
+          wins: 1,
           draws: 1,
-          losses: 0,
-          goals_for: 6,
-          goals_against: 2,
-          goal_diff: 4,
-          points: 7,
+          losses: 1,
+          goals_for: 5,
+          goals_against: 6,
+          goal_diff: -1,
+          points: 4.5,
           yellow_cards: 0,
           red_cards: 0,
           blue_cards: 0,
           two_minute_penalties: 0,
-          final_position: 1,
+          final_position: 5,
           placement_points: 24,
+        },
+        {
+          team_id: "team-higher-points",
+          team_name: "ADIN",
+          division: null,
+          played: 3,
+          wins: 3,
+          draws: 0,
+          losses: 0,
+          goals_for: 9,
+          goals_against: 3,
+          goal_diff: 6,
+          points: 9,
+          yellow_cards: 0,
+          red_cards: 0,
+          blue_cards: 0,
+          two_minute_penalties: 0,
+          final_position: 6,
+          placement_points: 16,
         },
       ],
     };
@@ -731,6 +968,13 @@ describe("AdminStandings", () => {
           ),
         ),
       ).toBe(true);
+      const overallStandingsProps = teamStandingsTableMock.mock.calls.at(-1)?.[0] as {
+        standings: Array<{ team_id: string }>;
+      };
+      expect(overallStandingsProps.standings.map((standing) => standing.team_id)).toEqual([
+        "team-higher-points",
+        "team-lower-points",
+      ]);
     });
   });
 

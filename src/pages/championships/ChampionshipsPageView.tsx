@@ -745,6 +745,9 @@ export function ChampionshipsPageView({
                         </TabsNavigationTrigger>
                       </TabsNavigationList>
                       <TabsContent value="groups">
+                        <p className="mb-3 text-xs text-muted-foreground">
+                          Esta consulta considera apenas os jogos finalizados da fase de grupos.
+                        </p>
                         {isIndividualStandingsView ? (
                           <IndividualSportStandingsTable
                             standings={individualStandingsRows}
@@ -779,8 +782,8 @@ export function ChampionshipsPageView({
                         {formatInterlajeClassificationPolicy(interlajeCompetitionStandings[0]?.classification_policy) ? <p className="text-xs text-muted-foreground">Critérios oficiais: {formatInterlajeClassificationPolicy(interlajeCompetitionStandings[0]?.classification_policy)}</p> : null}
                         <p className="text-xs text-muted-foreground">
                           {hasInterlajeCompetitionProjectedPlacement
-                            ? "A colocação usada para pontuar a classificação geral é projetada pelo chaveamento atual e pode mudar até a final."
-                            : "A posição desta tabela define os pontos da modalidade na classificação geral do INTERLAJE."}
+                            ? "A tabela segue os resultados da modalidade. A colocação que pontua a classificação geral é projetada pelo chaveamento atual e pode mudar até a final."
+                            : "A tabela segue os resultados da modalidade. A colocação final define os pontos na classificação geral do INTERLAJE."}
                         </p>
                         {(interlajeCompetitionStandingsByDivision.length > 0
                           ? interlajeCompetitionStandingsByDivision

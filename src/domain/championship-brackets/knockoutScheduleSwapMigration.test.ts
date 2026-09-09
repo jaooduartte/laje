@@ -46,6 +46,20 @@ describe("knockout schedule swap migration", () => {
     expect(migration).toContain("reprogramming_revision = reprogramming_revision + 1");
   });
 
+  it("changes only schedule fields and never the structural identity of a knockout slot", () => {
+    const swapFunction = migration.slice(
+      migration.indexOf("CREATE OR REPLACE FUNCTION public.swap_knockout_schedule_slots"),
+      migration.indexOf("REVOKE ALL ON FUNCTION public.resolve_knockout_schedule_swap_conflict"),
+    );
+
+    expect(swapFunction).not.toMatch(
+      /SET[\s\S]*\b(slot_number|home_team_id|away_team_id|match_id|source_home_bracket_match_id|source_away_bracket_match_id|next_bracket_match_id)\s*=/,
+    );
+    expect(swapFunction).toContain("planned_scheduled_date");
+    expect(swapFunction).toContain("planned_queue_position");
+    expect(swapFunction).toContain("scheduled_date = source_item.planned_scheduled_date");
+  });
+
   it("keeps the operation authorized and revalidates operational constraints", () => {
     expect(migration).toContain("has_admin_tab_access('matches'::public.admin_panel_tab, true)");
     expect(migration).toContain("resolve_scheduled_match_rest_gap_conflict");

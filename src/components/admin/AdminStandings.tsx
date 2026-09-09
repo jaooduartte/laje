@@ -36,6 +36,7 @@ import { useStandings } from "@/hooks/useStandings";
 import { useMatches } from "@/hooks/useMatches";
 import { useChampionshipBracketResolvedTieBreakOrders } from "@/hooks/useChampionshipBracketResolvedTieBreakOrders";
 import { useChampionshipCorrectedGroupStandings } from "@/hooks/useChampionshipCorrectedGroupStandings";
+import { useChampionshipGroupStageStandings } from "@/hooks/useChampionshipGroupStageStandings";
 import { useChampionshipBracketHistory } from "@/hooks/useChampionshipBracketHistory";
 import { useCompetitionTeamDisqualifications } from "@/hooks/useCompetitionTeamDisqualifications";
 import { useChampionshipSeasonRuntime } from "@/hooks/useChampionshipSeasonRuntime";
@@ -68,6 +69,8 @@ import {
   resolveCorrectedStandingKey,
   resolveManualTieBreakWinnerTeamIdByPairKey,
   resolveTeamStandingAggregateKey,
+  sortStandingRowsByRanking,
+  type TeamStandingAggregate,
 } from "@/lib/standings";
 import {
   AppBadgeTone,
@@ -542,6 +545,10 @@ export function AdminStandings({
     sportFilter == ALL_SPORTS_FILTER ? null : sportFilter;
   const standingsHeadToHeadNaipeFilter =
     naipeFilter == ALL_NAIPES_FILTER ? null : (naipeFilter as MatchNaipe);
+  const shouldLoadStandingsHeadToHead =
+    correctedYearFilter != null &&
+    sportFilter != ALL_SPORTS_FILTER &&
+    naipeFilter != ALL_NAIPES_FILTER;
 
   const {
     matches: standingsHeadToHeadMatches,
@@ -553,9 +560,7 @@ export function AdminStandings({
     sportId: standingsHeadToHeadSportFilter,
     naipe: standingsHeadToHeadNaipeFilter,
     sortMode: "FINISHED",
-    enabled:
-      sportFilter != ALL_SPORTS_FILTER &&
-      naipeFilter != ALL_NAIPES_FILTER,
+    enabled: shouldLoadStandingsHeadToHead,
     includeRealtime: false,
   });
 
@@ -606,15 +611,24 @@ export function AdminStandings({
     );
   }, [championshipSports, sportFilter]);
 
-  const shouldUseManualTieBreakOnStandings =
-    correctedYearFilter != null &&
-    sportFilter != ALL_SPORTS_FILTER &&
-    naipeFilter != ALL_NAIPES_FILTER;
+  const shouldUseManualTieBreakOnStandings = shouldLoadStandingsHeadToHead;
   const isPlacementFilterDisabled =
     sportFilter == ALL_SPORTS_FILTER || naipeFilter == ALL_NAIPES_FILTER;
   const resolvedPlacementFilter = isPlacementFilterDisabled
     ? "all"
     : placementFilter;
+
+  const {
+    groupStageStandings,
+    loading: groupStageStandingsLoading,
+  } = useChampionshipGroupStageStandings({
+    championshipId: selectedChampionship.id,
+    seasonYear: correctedYearFilter,
+    enabled:
+      resolvedPlacementFilter != "all" ||
+      (isInterlajeCompetitionStandingsAvailable &&
+        interlajeStandingsView == "groups"),
+  });
 
   const { resolvedTieBreakOrders, loading: tieBreaksLoading } =
     useChampionshipBracketResolvedTieBreakOrders({
@@ -666,6 +680,18 @@ export function AdminStandings({
 
     return new Set(Object.values(manualTieBreakWinnerTeamIdByPairKey));
   }, [manualTieBreakWinnerTeamIdByPairKey]);
+  const displayedInterlajeCompetitionStandings = useMemo(() => {
+    return sortStandingRowsByRanking(interlajeCompetitionStandings, {
+      tieBreakerRule: standingsTieBreakerRule,
+      headToHeadMatches: standingsHeadToHeadMatches,
+      manualTieBreakWinnerTeamIdByPairKey,
+    });
+  }, [
+    interlajeCompetitionStandings,
+    manualTieBreakWinnerTeamIdByPairKey,
+    standingsHeadToHeadMatches,
+    standingsTieBreakerRule,
+  ]);
 
   const groupOptions = useMemo(() => {
     const filteredOptions = selectedSeasonGroupOptions.filter((groupOption) => {
@@ -799,6 +825,59 @@ export function AdminStandings({
   }, [visibleCompetitionDisqualifications]);
 
   const filteredStandings = useMemo(() => {
+    if (resolvedPlacementFilter != "all") {
+      const groupRank =
+        resolvedPlacementFilter == "first_per_group" ? 1 : 2;
+      const filteredGroupStageStandings = groupStageStandings
+        .filter((standing) => {
+          if (standing.group_rank != groupRank) {
+            return false;
+          }
+
+          if (sportFilter != ALL_SPORTS_FILTER && standing.sport_id != sportFilter) {
+            return false;
+          }
+
+          if (naipeFilter != ALL_NAIPES_FILTER && standing.naipe != naipeFilter) {
+            return false;
+          }
+
+          return !championshipUsesDivisions ||
+            divisionFilter == ALL_DIVISIONS_FILTER ||
+            standing.division == divisionFilter;
+        })
+        .sort((firstStanding, secondStanding) => {
+          if (firstStanding.comparison_rank != secondStanding.comparison_rank) {
+            return firstStanding.comparison_rank - secondStanding.comparison_rank;
+          }
+
+          return firstStanding.team_name.localeCompare(secondStanding.team_name);
+        })
+        .map((standing) => ({
+          team_id: standing.team_id,
+          team_name: standing.team_name,
+          team_city: "",
+          division: standing.division,
+          played: standing.played,
+          wins: standing.wins,
+          draws: standing.draws,
+          losses: standing.losses,
+          goals_for: standing.goals_for,
+          goals_against: standing.goals_against,
+          goal_diff: standing.goal_diff,
+          points: standing.comparison_points,
+          yellow_cards: standing.yellow_cards,
+          red_cards: standing.red_cards,
+          blue_cards: standing.blue_cards,
+          two_minute_penalties: standing.two_minute_penalties,
+        }));
+
+      return moveDisqualifiedStandingsToBottom(
+        filteredGroupStageStandings,
+        visibleCompetitionDisqualifiedTeamKeys,
+      );
+    }
+
     const correctedStandingByKey = correctedGroupStandings.reduce<
       Record<string, { points_base: number; corrected_points: number }>
     >((carry, correctedGroupStanding) => {
@@ -845,12 +924,7 @@ export function AdminStandings({
       aggregatesWithDisqualificationOrder,
       {
         groupOptions: selectedSeasonGroupOptions,
-        placement:
-          resolvedPlacementFilter == "first_per_group"
-            ? "first_per_group"
-            : resolvedPlacementFilter == "second_per_group"
-              ? "second_per_group"
-              : "all",
+        placement: "all",
         groupSelectValue: groupFilter,
         allGroupSelectValue: ALL_GROUPS_FILTER,
         sportSelectValue: sportFilter,
@@ -878,8 +952,10 @@ export function AdminStandings({
     );
   }, [
     championshipSports,
+    championshipUsesDivisions,
     correctedGroupStandings,
     groupFilter,
+    groupStageStandings,
     manualTieBreakWinnerTeamIdByPairKey,
     naipeFilter,
     resolvedPlacementFilter,
@@ -889,6 +965,7 @@ export function AdminStandings({
     standingsHeadToHeadMatches,
     standingsTieBreakerRule,
     visibleCompetitionDisqualifiedTeamKeys,
+    divisionFilter,
   ]);
 
   const isIndividualStandingsView = useMemo(() => {
@@ -1416,8 +1493,8 @@ export function AdminStandings({
   const isLoading =
     standingsLoading ||
     correctedStandingsLoading ||
-    tieBreaksLoading ||
-    finishedMatchesLoading;
+    (shouldUseManualTieBreakOnStandings && tieBreaksLoading) ||
+    (shouldLoadStandingsHeadToHead && finishedMatchesLoading);
   const displayedTeamStandings = isInterlajeOverallStandingsView
     ? interlajeOverallStandingAggregates
     : standingsWithOfficialThirdPlacement.adjustedStandings;
@@ -1463,7 +1540,11 @@ export function AdminStandings({
   ]);
   const displayedTeamStandingsLoading = isInterlajeOverallStandingsView
     ? interlajeOverallStandingsLoading
-    : isLoading;
+    : resolvedPlacementFilter != "all" ||
+        (isInterlajeCompetitionStandingsAvailable &&
+          interlajeStandingsView == "groups")
+      ? groupStageStandingsLoading
+      : isLoading;
   const standingsGroups = useMemo(() => {
     if (
       isInterlajeOverallStandingsView ||
@@ -1473,6 +1554,75 @@ export function AdminStandings({
       resolvedPlacementFilter != "all"
     ) {
       return [];
+    }
+
+    if (
+      isInterlajeCompetitionStandingsAvailable &&
+      interlajeStandingsView == "groups"
+    ) {
+      const standingsByGroupId = new Map<
+        string,
+        { label: string; groupNumber: number; standings: TeamStandingAggregate[] }
+      >();
+
+      groupStageStandings.forEach((standing) => {
+        if (standing.sport_id != sportFilter || standing.naipe != naipeFilter) {
+          return;
+        }
+
+        if (
+          championshipUsesDivisions &&
+          divisionFilter != ALL_DIVISIONS_FILTER &&
+          standing.division != divisionFilter
+        ) {
+          return;
+        }
+
+        if (
+          groupFilter != ALL_GROUPS_FILTER &&
+          resolveChampionshipGroupLabel(standing.group_number) != groupFilter
+        ) {
+          return;
+        }
+
+        const standingsGroup = standingsByGroupId.get(standing.group_id) ?? {
+          label: resolveChampionshipGroupLabel(standing.group_number),
+          groupNumber: standing.group_number,
+          standings: [],
+        };
+
+        standingsGroup.standings.push({
+          team_id: standing.team_id,
+          team_name: standing.team_name,
+          team_city: "",
+          division: standing.division,
+          played: standing.played,
+          wins: standing.wins,
+          draws: standing.draws,
+          losses: standing.losses,
+          goals_for: standing.goals_for,
+          goals_against: standing.goals_against,
+          goal_diff: standing.goal_diff,
+          points: standing.points,
+          yellow_cards: standing.yellow_cards,
+          red_cards: standing.red_cards,
+          blue_cards: standing.blue_cards,
+          two_minute_penalties: standing.two_minute_penalties,
+        });
+        standingsByGroupId.set(standing.group_id, standingsGroup);
+      });
+
+      return [...standingsByGroupId.values()]
+        .sort((firstGroup, secondGroup) =>
+          firstGroup.groupNumber - secondGroup.groupNumber,
+        )
+        .map((standingsGroup) => ({
+          label: standingsGroup.label,
+          standings: moveDisqualifiedStandingsToBottom(
+            standingsGroup.standings,
+            visibleCompetitionDisqualifiedTeamKeys,
+          ),
+        }));
     }
 
     return resolveChampionshipStandingsGroups(
@@ -1506,8 +1656,11 @@ export function AdminStandings({
     championshipUsesDivisions,
     displayedTeamStandings,
     groupFilter,
+    groupStageStandings,
     isIndividualStandingsView,
+    isInterlajeCompetitionStandingsAvailable,
     isInterlajeOverallStandingsView,
+    interlajeStandingsView,
     manualTieBreakWinnerTeamIdByPairKey,
     naipeFilter,
     selectedSeasonBracketView,
@@ -1516,6 +1669,7 @@ export function AdminStandings({
     standingsHeadToHeadMatches,
     standingsTieBreakerRule,
     divisionFilter,
+    visibleCompetitionDisqualifiedTeamKeys,
   ]);
 
   const awardsSeasonYear =
@@ -1753,6 +1907,13 @@ export function AdminStandings({
     />
   ) : (
     <div className="space-y-5">
+      {resolvedPlacementFilter != "all" ||
+      (isInterlajeCompetitionStandingsAvailable &&
+        interlajeStandingsView == "groups") ? (
+        <p className="text-xs text-muted-foreground">
+          Esta consulta considera apenas os jogos finalizados da fase de grupos. Nos melhores colocados, PTS aplica o fator proporcional entre grupos de tamanhos diferentes.
+        </p>
+      ) : null}
       {isInterlajeOverallStandingsView && hasInterlajeOverallProjectedPlacement ? (
         <p className="text-xs text-center text-muted-foreground">
           Os pontos de colocação podem mudar conforme os próximos jogos do mata-mata.
@@ -1938,17 +2099,25 @@ export function AdminStandings({
 
         {canFilterByPlacement ? (
           <div>
-            <Select value={placementFilter} onValueChange={setPlacementFilter}>
+            <Select
+              value={placementFilter}
+              onValueChange={(value) => {
+                setPlacementFilter(value);
+                if (value != "all") {
+                  setInterlajeStandingsView("groups");
+                }
+              }}
+            >
               <SelectTrigger className="app-input-field w-full">
                 <SelectValue placeholder="Posição na chave" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas as equipes</SelectItem>
                 <SelectItem value="first_per_group">
-                  Melhores 1º de cada chave
+                  Melhores 1º da fase de grupos
                 </SelectItem>
                 <SelectItem value="second_per_group">
-                  Melhores 2º de cada chave
+                  Melhores 2º da fase de grupos
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -1960,9 +2129,12 @@ export function AdminStandings({
         {isInterlajeCompetitionStandingsAvailable ? (
           <Tabs
             value={interlajeStandingsView}
-            onValueChange={(value) =>
+            onValueChange={(value) => {
               setInterlajeStandingsView(value as "groups" | "overall")
-            }
+              if (value == "overall") {
+                setPlacementFilter("all");
+              }
+            }}
           >
             <TabsNavigationList className="mb-4">
               <TabsNavigationTrigger value="groups">
@@ -1974,14 +2146,14 @@ export function AdminStandings({
             </TabsNavigationList>
             <TabsContent value="groups">{standingsByGroupsContent}</TabsContent>
             <TabsContent value="overall" className="space-y-2">
-              {formatInterlajeClassificationPolicy(interlajeCompetitionStandings[0]?.classification_policy) ? <p className="text-xs text-muted-foreground">Critérios oficiais: {formatInterlajeClassificationPolicy(interlajeCompetitionStandings[0]?.classification_policy)}</p> : null}
+              {formatInterlajeClassificationPolicy(displayedInterlajeCompetitionStandings[0]?.classification_policy) ? <p className="text-xs text-muted-foreground">Critérios oficiais: {formatInterlajeClassificationPolicy(displayedInterlajeCompetitionStandings[0]?.classification_policy)}</p> : null}
               <p className="text-xs text-muted-foreground">
                 {hasInterlajeCompetitionProjectedPlacement
-                  ? "A colocação usada para pontuar a classificação geral é projetada pelo chaveamento atual e pode mudar até a final."
-                  : "A posição desta tabela define os pontos da modalidade na classificação geral do INTERLAJE."}
+                  ? "A tabela segue os resultados da modalidade. A colocação que pontua a classificação geral é projetada pelo chaveamento atual e pode mudar até a final."
+                  : "A tabela segue os resultados da modalidade. A colocação final define os pontos na classificação geral do INTERLAJE."}
               </p>
               <TeamStandingsTable
-                standings={interlajeCompetitionStandings}
+                standings={displayedInterlajeCompetitionStandings}
                 modalidadeConfig={activeModalidadeConfig}
                 isLoading={interlajeCompetitionStandingsLoading}
                 disqualifiedTeamKeys={visibleCompetitionDisqualifiedTeamKeys}

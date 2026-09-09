@@ -616,10 +616,17 @@ function resolveStandingTeamCity(standing: Standing): string {
 }
 
 export function sortStandingsByRanking(standings: Standing[], options: TeamStandingSortOptions = {}): Standing[] {
+  return sortStandingRowsByRanking(standings, options);
+}
+
+export function sortStandingRowsByRanking<TStanding extends RankingMetrics>(
+  standings: TStanding[],
+  options: TeamStandingSortOptions = {},
+): TStanding[] {
   const tieBreakerRule = options.tieBreakerRule ?? DEFAULT_TIE_BREAKER_RULE;
   const cascade = resolveCascadeForLegacyRule(tieBreakerRule);
 
-  return rankByCascade(standings, cascade, options, resolveStandingTeamName);
+  return rankByCascade(standings, cascade, options, () => "");
 }
 
 export function aggregateStandingsByTeam(
@@ -800,10 +807,7 @@ export function sortTeamStandingAggregatesByRanking(
   aggregates: TeamStandingAggregate[],
   options: TeamStandingSortOptions = {},
 ): TeamStandingAggregate[] {
-  const tieBreakerRule = options.tieBreakerRule ?? DEFAULT_TIE_BREAKER_RULE;
-  const cascade = resolveCascadeForLegacyRule(tieBreakerRule);
-
-  return rankByCascade(aggregates, cascade, options, (row) => row.team_name);
+  return sortStandingRowsByRanking(aggregates, options);
 }
 
 export interface BracketGroupPlacementFilterContext {

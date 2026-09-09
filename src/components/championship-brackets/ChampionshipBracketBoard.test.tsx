@@ -40,4 +40,14 @@ describe("ChampionshipBracketBoard", () => {
     expect(componentSource).toContain("estimatedTimeLabel");
     expect(componentSource).toContain("`${scheduledDateLabel}${estimatedTimeLabel");
   });
+
+  it("uses the persisted round and slot to place knockout cards, independently from schedule order", () => {
+    expect(componentSource).toContain("knockoutMatchByRoundAndSlot.set(");
+    expect(componentSource).toContain(
+      "`${knockoutMatch.round_number}:${knockoutMatch.slot_number}:${knockoutMatch.is_third_place}`",
+    );
+    expect(componentSource).toContain("currentRound.matches");
+    expect(componentSource).toContain(".slice(0, sideMatchCount)");
+    expect(componentSource).toContain(".slice(sideMatchCount)");
+  });
 });

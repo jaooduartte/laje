@@ -194,6 +194,38 @@ describe("championshipBracketPairing", () => {
       },
     );
 
+    it("mantém as quartas de futsal masculino nos slots estruturais após uma troca de agenda", () => {
+      const qualifiedTeams = [
+        "AAAMU",
+        "CAMALEÃO",
+        "ENGÊNIOS",
+        "ADIN",
+        "UEFA",
+        "TAUROS",
+        "ATENUN",
+        "AACOM",
+      ];
+      const seedOrder = resolveChampionshipKnockoutSeedOrder(
+        "RANKING_ALTERNATING",
+        8,
+      );
+
+      const structuralQuarterfinals = Array.from(
+        { length: 4 },
+        (_, slotIndex) => [
+          qualifiedTeams[seedOrder[slotIndex * 2]! - 1],
+          qualifiedTeams[seedOrder[slotIndex * 2 + 1]! - 1],
+        ],
+      );
+
+      expect(structuralQuarterfinals).toEqual([
+        ["AAAMU", "AACOM"],
+        ["ENGÊNIOS", "TAUROS"],
+        ["CAMALEÃO", "ATENUN"],
+        ["ADIN", "UEFA"],
+      ]);
+    });
+
     it("rejeita tamanhos de chave que não sejam potência de dois", () => {
       expect(
         resolveChampionshipKnockoutSeedOrder(

@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import type {
   ChampionshipCorrectedGroupStanding,
+  ChampionshipGroupStageStanding,
   ChampionshipBracketLocationTemplate,
   ChampionshipBracketLocationTemplateSaveInput,
   ChampionshipBracketPreviewDay,
@@ -700,6 +701,45 @@ export async function fetchChampionshipCorrectedGroupStandings(
     data: normalizedRows,
     error: null,
   };
+}
+
+export async function fetchChampionshipGroupStageStandings(
+  championship_id: string,
+  season_year?: number | null,
+): Promise<{
+  data: ChampionshipGroupStageStanding[];
+  error: Error | null;
+}> {
+  const response = await supabase.rpc("get_championship_group_stage_standings", {
+    _championship_id: championship_id,
+    _season_year: season_year ?? null,
+  });
+
+  if (response.error) {
+    return { data: [], error: response.error };
+  }
+
+  const data = ((response.data as ChampionshipGroupStageStanding[] | null) ?? [])
+    .map((standing) => ({
+      ...standing,
+      played: Number(standing.played),
+      wins: Number(standing.wins),
+      draws: Number(standing.draws),
+      losses: Number(standing.losses),
+      goals_for: Number(standing.goals_for),
+      goals_against: Number(standing.goals_against),
+      goal_diff: Number(standing.goal_diff),
+      points: Number(standing.points),
+      comparison_points: Number(standing.comparison_points),
+      yellow_cards: Number(standing.yellow_cards),
+      red_cards: Number(standing.red_cards),
+      blue_cards: Number(standing.blue_cards),
+      two_minute_penalties: Number(standing.two_minute_penalties),
+      group_rank: Number(standing.group_rank),
+      comparison_rank: Number(standing.comparison_rank),
+    }));
+
+  return { data, error: null };
 }
 
 export async function saveChampionshipBracketTieBreakResolution(

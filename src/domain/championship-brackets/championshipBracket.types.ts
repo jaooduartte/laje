@@ -795,6 +795,33 @@ export interface ChampionshipCorrectedGroupStanding {
   points_average: number;
 }
 
+export interface ChampionshipGroupStageStanding {
+  competition_id: string;
+  sport_id: string;
+  sport_name: string;
+  naipe: MatchNaipe;
+  division: TeamDivision | null;
+  group_id: string;
+  group_number: number;
+  team_id: string;
+  team_name: string;
+  played: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  goals_for: number;
+  goals_against: number;
+  goal_diff: number;
+  points: number;
+  comparison_points: number;
+  yellow_cards: number;
+  red_cards: number;
+  blue_cards: number;
+  two_minute_penalties: number;
+  group_rank: number;
+  comparison_rank: number;
+}
+
 export interface ChampionshipBracketCompetitionConfigDraft {
   groups_count: number;
   qualifiers_per_group: number;

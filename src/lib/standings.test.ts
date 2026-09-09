@@ -12,6 +12,7 @@ import {
   formatStandingsPoints,
   moveDisqualifiedStandingsToBottom,
   resolveManualTieBreakWinnerTeamIdByPairKey,
+  sortStandingRowsByRanking,
   sortTeamStandingAggregatesByRanking,
   type TeamStandingAggregate,
 } from "@/lib/standings";
@@ -412,6 +413,29 @@ describe("sortTeamStandingAggregatesByRanking — ciclo triangular", () => {
 
     // PA = goals_for / goals_against: A=2.0, B=1.67, C=1.33 → mesma ordem que goal_diff neste caso
     expect(result[0]?.team_id).toBe("team-a");
+  });
+});
+
+describe("sortStandingRowsByRanking", () => {
+  it("ordena a tabela consolidada por pontos, sem usar a posição projetada do mata-mata", () => {
+    const standings = [
+      buildAggregate({ team_id: "team-four-point-five", team_name: "AACOM", points: 4.5 }),
+      buildAggregate({ team_id: "team-nine-first", team_name: "TAUROS", points: 9 }),
+      buildAggregate({ team_id: "team-nine-second", team_name: "ADIN", points: 9 }),
+      buildAggregate({ team_id: "team-twelve", team_name: "AAAMU", points: 12 }),
+    ];
+
+    const sortedStandings = sortStandingRowsByRanking(standings, {
+      tieBreakerRule: ChampionshipSportTieBreakerRule.FUTEBOL_SOCIETY,
+      headToHeadMatches: [],
+    });
+
+    expect(sortedStandings.map((standing) => standing.points)).toEqual([
+      12,
+      9,
+      9,
+      4.5,
+    ]);
   });
 });
 

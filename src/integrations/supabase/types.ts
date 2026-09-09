@@ -2967,6 +2967,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      apply_operational_knockout_schedule_adjustment: {
+        Args: {
+          _bracket_edition_id: string
+          _expected_revision: number
+          _payload: Json
+        }
+        Returns: undefined
+      }
       hold_matches_for_manual_relocation: {
         Args: { _bracket_edition_id: string; _payload: Json }
         Returns: undefined
@@ -3018,6 +3026,10 @@ export type Database = {
         Returns: Json
       }
       preview_operational_schedule_interval: {
+        Args: { _bracket_edition_id: string; _payload: Json }
+        Returns: Json
+      }
+      preview_operational_knockout_schedule_adjustment: {
         Args: { _bracket_edition_id: string; _payload: Json }
         Returns: Json
       }
@@ -3302,6 +3314,35 @@ export type Database = {
           yellow_cards: number
         }[]
       }
+      get_championship_group_stage_standings: {
+        Args: { _championship_id: string; _season_year?: number }
+        Returns: {
+          blue_cards: number
+          comparison_points: number
+          comparison_rank: number
+          competition_id: string
+          division: Database["public"]["Enums"]["team_division"] | null
+          draws: number
+          goal_diff: number
+          goals_against: number
+          goals_for: number
+          group_id: string
+          group_number: number
+          group_rank: number
+          losses: number
+          naipe: Database["public"]["Enums"]["match_naipe"]
+          played: number
+          points: number
+          red_cards: number
+          sport_id: string
+          sport_name: string
+          team_id: string
+          team_name: string
+          two_minute_penalties: number
+          wins: number
+          yellow_cards: number
+        }[]
+      }
       get_championship_knockout_final_program_schedule: {
         Args: { _bracket_edition_id: string }
         Returns: {
@@ -3573,6 +3614,10 @@ export type Database = {
           start_time: string
           uses_reduced_cross_sport_rest_gap: boolean
         }[]
+      }
+      list_operational_knockout_schedule_adjustment_candidates: {
+        Args: { _source_bracket_match_id: string }
+        Returns: Json
       }
       normalize_admin_login_identifier: {
         Args: { _login_identifier: string }
