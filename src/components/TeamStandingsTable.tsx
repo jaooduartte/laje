@@ -64,10 +64,16 @@ function renderCell(col: StandingsColumnKey, standing: TeamStandingsTableStandin
     case "V": return standing.wins;
     case "E": return standing.draws;
     case "D": return standing.losses;
+    case "PTS": return formatStandingsPoints(standing.points);
     case "GP": return standing.goals_for;
     case "GC": return standing.goals_against;
     case "SG": return standing.goal_diff;
     case "PA": return formatPointsAverageForStandings(standing.goals_for, standing.goals_against);
+    case "SA": return formatPointsAverageForStandings(standing.sets_for ?? 0, standing.sets_against ?? 0);
+    case "SV": return standing.sets_for ?? 0;
+    case "SP": return standing.sets_against ?? 0;
+    case "PR": return standing.rally_points_for ?? 0;
+    case "PC": return standing.rally_points_against ?? 0;
     case "CA": return standing.yellow_cards;
     case "CV": return standing.red_cards;
     case "CAZ": return standing.blue_cards;
@@ -76,7 +82,7 @@ function renderCell(col: StandingsColumnKey, standing: TeamStandingsTableStandin
 }
 
 // Colunas exibidas quando não há configuração de modalidade (legado/cross-sport)
-const DEFAULT_COLUMNS: StandingsColumnKey[] = ["J", "V", "E", "D", "GP", "GC", "SG", "PA"];
+const DEFAULT_COLUMNS: StandingsColumnKey[] = ["J", "V", "E", "D", "PTS", "SG", "GP", "GC"];
 
 export function TeamStandingsTable({
   standings,
@@ -90,27 +96,27 @@ export function TeamStandingsTable({
   teamBadgesByTeamId,
   showMobileBadgeLegend = false,
 }: Props) {
-  if (isLoading) {
-  const columnsCount =
-    variant === "public"
-      ? 3
-      : (modalidadeConfig?.display_columns ?? DEFAULT_COLUMNS).length + 3;
+  const shouldShowMetrics = variant != "public" || modalidadeConfig != null;
+  const activeColumns = shouldShowMetrics
+    ? (modalidadeConfig?.display_columns ?? DEFAULT_COLUMNS)
+    : [];
+  const hasStandalonePointsColumn = !shouldShowMetrics;
 
-  return (
-    <TableSkeleton
-      rows={10}
-      columns={columnsCount}
-      className="enter-section"
-    />
-  );
-}
+  if (isLoading) {
+    return (
+      <TableSkeleton
+        rows={10}
+        columns={activeColumns.length + 2 + Number(hasStandalonePointsColumn)}
+        className="enter-section"
+      />
+    );
+  }
 
   if (standings.length === 0) {
     return <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma classificação disponível.</p>;
   }
 
   const isPublic = variant === "public";
-  const activeColumns = modalidadeConfig?.display_columns ?? DEFAULT_COLUMNS;
   const orderedStandings = moveDisqualifiedStandingsToBottom(standings, disqualifiedTeamKeys);
   const mobileBadgeLegendByKey = new Map<string, TeamStandingsBadge>();
 
@@ -133,7 +139,7 @@ export function TeamStandingsTable({
   const mobileBadgeLegend = Array.from(mobileBadgeLegendByKey.values());
 
   return (
-    <div className="glass-panel enter-section overflow-hidden">
+    <div className="glass-panel enter-section overflow-x-auto">
       {showMobileBadgeLegend && mobileBadgeLegend.length > 0 ? (
         <div className="space-y-2 border-b border-border/60 px-3 py-2 sm:hidden">
           <p className="text-[10px] text-center font-medium uppercase tracking-wide text-muted-foreground">
@@ -154,12 +160,12 @@ export function TeamStandingsTable({
           </div>
         </div>
       ) : null}
-      <Table>
+      <Table className="min-w-max">
         <TableHeader>
           <TableRow className="bg-secondary/40">
             <TableHead className="w-8 text-center font-display font-bold">#</TableHead>
             <TableHead className="font-display font-bold">Atlética</TableHead>
-            {!isPublic &&
+            {shouldShowMetrics &&
               activeColumns.map((col) => (
                 <TableHead
                   key={col}
@@ -169,7 +175,9 @@ export function TeamStandingsTable({
                   {STANDINGS_COLUMN_LABELS[col]}
                 </TableHead>
               ))}
-            <TableHead className="w-12 text-center font-display font-bold">PTS</TableHead>
+            {hasStandalonePointsColumn ? (
+              <TableHead className="w-12 text-center font-display font-bold">PTS</TableHead>
+            ) : null}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -237,15 +245,22 @@ export function TeamStandingsTable({
                     </div>
                   </div>
                 </TableCell>
-                {!isPublic &&
+                {shouldShowMetrics &&
                   activeColumns.map((col) => (
-                    <TableCell key={col} className="text-center score-text tabular-nums">
+                    <TableCell
+                      key={col}
+                      className={`text-center score-text tabular-nums ${
+                        col == "PTS" ? "font-display font-bold text-primary" : ""
+                      }`}
+                    >
                       {renderCell(col, standing)}
                     </TableCell>
                   ))}
-                <TableCell className="text-center font-display font-bold text-primary">
-                  {formatStandingsPoints(standing.points)}
-                </TableCell>
+                {hasStandalonePointsColumn ? (
+                  <TableCell className="text-center font-display font-bold text-primary">
+                    {formatStandingsPoints(standing.points)}
+                  </TableCell>
+                ) : null}
               </TableRow>
             );
           })}

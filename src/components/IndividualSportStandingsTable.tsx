@@ -20,8 +20,25 @@ type IndividualStandingRow = Pick<
   third_places?: number;
   fourth_places?: number;
   fifth_places?: number;
+  sixth_places?: number;
+  seventh_places?: number;
+  eighth_places?: number;
+  ninth_places?: number;
+  tenth_places?: number;
+  eleventh_places?: number;
+  twelfth_places?: number;
+  thirteenth_places?: number;
+  fourteenth_places?: number;
+  fifteenth_places?: number;
+  sixteenth_places?: number;
+  seventeenth_places?: number;
+  eighteenth_places?: number;
+  nineteenth_places?: number;
+  twentieth_places?: number;
   relay_points_total?: number;
 };
+
+const PLACEMENTS = Array.from({ length: 20 }, (_, index) => index + 1);
 
 interface Props {
   standings: IndividualStandingRow[];
@@ -36,6 +53,21 @@ function resolvePlacementValue(standing: IndividualStandingRow, placement: numbe
     case 3: return standing.third_places ?? 0;
     case 4: return standing.fourth_places ?? 0;
     case 5: return standing.fifth_places ?? 0;
+    case 6: return standing.sixth_places ?? 0;
+    case 7: return standing.seventh_places ?? 0;
+    case 8: return standing.eighth_places ?? 0;
+    case 9: return standing.ninth_places ?? 0;
+    case 10: return standing.tenth_places ?? 0;
+    case 11: return standing.eleventh_places ?? 0;
+    case 12: return standing.twelfth_places ?? 0;
+    case 13: return standing.thirteenth_places ?? 0;
+    case 14: return standing.fourteenth_places ?? 0;
+    case 15: return standing.fifteenth_places ?? 0;
+    case 16: return standing.sixteenth_places ?? 0;
+    case 17: return standing.seventeenth_places ?? 0;
+    case 18: return standing.eighteenth_places ?? 0;
+    case 19: return standing.nineteenth_places ?? 0;
+    case 20: return standing.twentieth_places ?? 0;
     default: return 0;
   }
 }
@@ -69,7 +101,7 @@ export function IndividualSportStandingsTable({
     return (
       <TableSkeleton
         rows={10}
-        columns={10}
+        columns={24}
       />
     );
   }
@@ -84,20 +116,23 @@ export function IndividualSportStandingsTable({
   );
 
   return (
-    <div className="glass-panel overflow-hidden">
-      <Table>
+    <div className="glass-panel overflow-x-auto">
+      <Table className="min-w-max">
         <TableHeader>
           <TableRow className="bg-secondary/40">
             <TableHead className="w-8 text-center font-display font-bold">#</TableHead>
             <TableHead className="font-display font-bold">Atlética</TableHead>
-            <TableHead className="w-16 text-center font-display font-bold">PTS</TableHead>
-            <TableHead className="w-16 text-center font-display font-bold">1os</TableHead>
-            <TableHead className="w-16 text-center font-display font-bold">2os</TableHead>
-            <TableHead className="w-16 text-center font-display font-bold">3os</TableHead>
-            <TableHead className="w-16 text-center font-display font-bold">4os</TableHead>
-            <TableHead className="w-16 text-center font-display font-bold">5os</TableHead>
             <TableHead className="w-20 text-center font-display font-bold">Provas</TableHead>
             <TableHead className="w-24 text-center font-display font-bold">Revez. 2x</TableHead>
+            {[...PLACEMENTS].reverse().map((placement) => (
+              <TableHead
+                key={placement}
+                className="w-12 text-center font-display font-bold"
+              >
+                {placement}º
+              </TableHead>
+            ))}
+            <TableHead className="w-16 text-center font-display font-bold">PTS</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -119,14 +154,14 @@ export function IndividualSportStandingsTable({
                   ) : null}
                 </div>
               </TableCell>
-              <TableCell className="text-center font-display font-bold text-primary">{resolvePointsValue(standing)}</TableCell>
-              <TableCell className="text-center">{resolvePlacementValue(standing, 1)}</TableCell>
-              <TableCell className="text-center">{resolvePlacementValue(standing, 2)}</TableCell>
-              <TableCell className="text-center">{resolvePlacementValue(standing, 3)}</TableCell>
-              <TableCell className="text-center">{resolvePlacementValue(standing, 4)}</TableCell>
-              <TableCell className="text-center">{resolvePlacementValue(standing, 5)}</TableCell>
               <TableCell className="text-center">{resolveEventsCount(standing)}</TableCell>
               <TableCell className="text-center">{resolveRelayPoints(standing)}</TableCell>
+              {[...PLACEMENTS].reverse().map((placement) => (
+                <TableCell key={placement} className="text-center">
+                  {resolvePlacementValue(standing, placement)}
+                </TableCell>
+              ))}
+              <TableCell className="text-center font-display font-bold text-primary">{resolvePointsValue(standing)}</TableCell>
             </TableRow>
             );
           })}

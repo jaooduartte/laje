@@ -12,6 +12,7 @@ import { useChampionships } from "@/hooks/useChampionships";
 import { useChampionshipBracket } from "@/hooks/useChampionshipBracket";
 import { useChampionshipSeasonYears } from "@/hooks/useChampionshipSeasonYears";
 import { useChampionshipControlOperationalQueue } from "@/hooks/useChampionshipControlOperationalQueue";
+import { useChampionshipSeasonSportRemovals } from "@/hooks/useChampionshipSeasonSportRemovals";
 import { useSelectedChampionship } from "@/hooks/useSelectedChampionship";
 import { useChampionshipSelection } from "@/hooks/useChampionshipSelection";
 import { usePendingLeagueEventReservationRequests } from "@/hooks/usePendingLeagueEventReservationRequests";
@@ -124,6 +125,13 @@ export function AdminPage() {
   );
   const resolvedMatchesSeasonYear =
     matchesSeasonYear ?? selectedChampionshipSeasonYear;
+  const {
+    removedSportIds,
+    refetch: refetchSeasonSportRemovals,
+  } = useChampionshipSeasonSportRemovals({
+    championshipId: selectedChampionshipId,
+    seasonYear: selectedChampionshipSeasonYear,
+  });
   const {
     matchIds: operationalQueueMatchIds,
     individualSessionIds: operationalIndividualSessionIds,
@@ -329,6 +337,12 @@ export function AdminPage() {
   } = useSports({
     championshipId: selectedChampionshipId,
   });
+  const activeChampionshipSports = useMemo(() => {
+    const removedSportIdsSet = new Set(removedSportIds);
+    return championshipSports.filter(
+      (championshipSport) => !removedSportIdsSet.has(championshipSport.sport_id),
+    );
+  }, [championshipSports, removedSportIds]);
   const liveMatches = operationalMatches.filter(
     (match) => match.status == MatchStatus.LIVE,
   );
@@ -798,7 +812,8 @@ export function AdminPage() {
         allTeams={allTeams}
         allTeamsLoading={allTeamsLoading}
         sports={sports}
-        championshipSports={championshipSports}
+        championshipSports={activeChampionshipSports}
+        hiddenSportIds={removedSportIds}
         sportsLoading={sportsLoading || championshipSportsLoading}
         liveAndScheduledMatches={liveAndScheduledMatches}
         championshipBracketView={visibleOperationalChampionshipBracketView}
@@ -885,6 +900,7 @@ export function AdminPage() {
         onRefetchMatches={handleRefetchMatches}
         onRefetchChampionshipBracket={handleRefetchChampionshipBracket}
         onRefetchSports={handleRefetchSports}
+        onSeasonSportRemoved={refetchSeasonSportRemovals}
         onRefetchTeams={async () => {
           await Promise.all([refetchTeams(), refetchAllTeams()]);
         }}

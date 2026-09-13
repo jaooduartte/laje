@@ -21,6 +21,10 @@ export interface TeamStandingAggregate {
   red_cards: number;
   blue_cards?: number;
   two_minute_penalties?: number;
+  sets_for?: number;
+  sets_against?: number;
+  rally_points_for?: number;
+  rally_points_against?: number;
 }
 
 export interface TeamStandingParticipant {
@@ -54,10 +58,15 @@ interface RankingMetrics {
   red_cards: number;
   blue_cards?: number;
   two_minute_penalties?: number;
+  sets_for?: number;
+  sets_against?: number;
+  rally_points_for?: number;
+  rally_points_against?: number;
 }
 
 export interface TeamStandingSortOptions {
   tieBreakerRule?: ChampionshipSportTieBreakerRule;
+  tieBreakerCascade?: readonly TieBreakCriterion[];
   headToHeadMatches?: Match[];
   manualTieBreakWinnerTeamIdByPairKey?: Record<string, string>;
   participants?: readonly TeamStandingParticipant[];
@@ -222,6 +231,8 @@ function calculatePointsAverage(goalsFor: number, goalsAgainst: number): number 
 function isCriterionAscending(criterion: TieBreakCriterion): boolean {
   return (
     criterion === "GOALS_AGAINST_ASC" ||
+    criterion === "SETS_AGAINST_ASC" ||
+    criterion === "RALLY_POINTS_AGAINST_ASC" ||
     criterion === "YELLOW_CARDS_ASC" ||
     criterion === "RED_CARDS_ASC" ||
     criterion === "BLUE_CARDS_ASC" ||
@@ -241,6 +252,11 @@ function resolveNumericValue(criterion: TieBreakCriterion, row: RankingMetrics):
     case "BLUE_CARDS_ASC": return row.blue_cards ?? 0;
     case "TWO_MINUTE_PENALTIES_ASC": return row.two_minute_penalties ?? 0;
     case "POINTS_AVERAGE": return calculatePointsAverage(row.goals_for, row.goals_against);
+    case "SETS_AVERAGE": return calculatePointsAverage(row.sets_for ?? 0, row.sets_against ?? 0);
+    case "SETS_FOR": return row.sets_for ?? 0;
+    case "SETS_AGAINST_ASC": return row.sets_against ?? 0;
+    case "RALLY_POINTS_FOR": return row.rally_points_for ?? 0;
+    case "RALLY_POINTS_AGAINST_ASC": return row.rally_points_against ?? 0;
     default: return 0;
   }
 }
@@ -624,7 +640,8 @@ export function sortStandingRowsByRanking<TStanding extends RankingMetrics>(
   options: TeamStandingSortOptions = {},
 ): TStanding[] {
   const tieBreakerRule = options.tieBreakerRule ?? DEFAULT_TIE_BREAKER_RULE;
-  const cascade = resolveCascadeForLegacyRule(tieBreakerRule);
+  const cascade =
+    options.tieBreakerCascade ?? resolveCascadeForLegacyRule(tieBreakerRule);
 
   return rankByCascade(standings, cascade, options, () => "");
 }
@@ -652,6 +669,10 @@ export function aggregateStandingsByTeam(
       existingTeamStanding.red_cards += standing.red_cards;
       existingTeamStanding.blue_cards += standing.blue_cards ?? 0;
       existingTeamStanding.two_minute_penalties += standing.two_minute_penalties ?? 0;
+      existingTeamStanding.sets_for = (existingTeamStanding.sets_for ?? 0) + (standing.sets_for ?? 0);
+      existingTeamStanding.sets_against = (existingTeamStanding.sets_against ?? 0) + (standing.sets_against ?? 0);
+      existingTeamStanding.rally_points_for = (existingTeamStanding.rally_points_for ?? 0) + (standing.rally_points_for ?? 0);
+      existingTeamStanding.rally_points_against = (existingTeamStanding.rally_points_against ?? 0) + (standing.rally_points_against ?? 0);
       return;
     }
 
@@ -672,6 +693,10 @@ export function aggregateStandingsByTeam(
       red_cards: standing.red_cards,
       blue_cards: standing.blue_cards ?? 0,
       two_minute_penalties: standing.two_minute_penalties ?? 0,
+      sets_for: standing.sets_for ?? 0,
+      sets_against: standing.sets_against ?? 0,
+      rally_points_for: standing.rally_points_for ?? 0,
+      rally_points_against: standing.rally_points_against ?? 0,
     });
   });
 
@@ -699,6 +724,10 @@ export function aggregateStandingsByTeam(
       red_cards: 0,
       blue_cards: 0,
       two_minute_penalties: 0,
+      sets_for: 0,
+      sets_against: 0,
+      rally_points_for: 0,
+      rally_points_against: 0,
     });
   });
 
@@ -738,6 +767,10 @@ export function completeTeamStandingAggregates(
       red_cards: 0,
       blue_cards: 0,
       two_minute_penalties: 0,
+      sets_for: 0,
+      sets_against: 0,
+      rally_points_for: 0,
+      rally_points_against: 0,
     });
   });
 

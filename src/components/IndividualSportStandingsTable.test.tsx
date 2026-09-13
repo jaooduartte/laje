@@ -18,6 +18,7 @@ describe("IndividualSportStandingsTable", () => {
             third_places: 0,
             fourth_places: 0,
             fifth_places: 0,
+            twentieth_places: 2,
             relay_points_total: 0,
           },
           {
@@ -31,6 +32,7 @@ describe("IndividualSportStandingsTable", () => {
             third_places: 0,
             fourth_places: 0,
             fifth_places: 0,
+            twentieth_places: 1,
             relay_points_total: 0,
           },
         ]}
@@ -42,5 +44,9 @@ describe("IndividualSportStandingsTable", () => {
     expect(rows[1]).toHaveTextContent("Atlética com pontos");
     expect(rows[2]).toHaveTextContent("Atlética desclassificada");
     expect(screen.getByText("Desclassificada")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "20º" })).toBeInTheDocument();
+
+    const columnHeaders = screen.getAllByRole("columnheader").map((header) => header.textContent);
+    expect(columnHeaders.slice(-3)).toEqual(["2º", "1º", "PTS"]);
   });
 });

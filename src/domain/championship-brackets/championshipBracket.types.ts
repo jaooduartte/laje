@@ -818,8 +818,25 @@ export interface ChampionshipGroupStageStanding {
   red_cards: number;
   blue_cards: number;
   two_minute_penalties: number;
+  sets_for: number;
+  sets_against: number;
+  rally_points_for: number;
+  rally_points_against: number;
   group_rank: number;
   comparison_rank: number;
+  comparison_goals_for: number;
+  comparison_goals_against: number;
+  comparison_goal_diff: number;
+  comparison_yellow_cards: number;
+  comparison_red_cards: number;
+  comparison_blue_cards: number;
+  comparison_two_minute_penalties: number;
+  comparison_sets_for: number;
+  comparison_sets_against: number;
+  comparison_rally_points_for: number;
+  comparison_rally_points_against: number;
+  qualification_rank: number | null;
+  qualification_pool_rank: number | null;
 }
 
 export interface ChampionshipBracketCompetitionConfigDraft {

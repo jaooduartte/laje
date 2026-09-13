@@ -381,6 +381,7 @@ export type MatchRepresentationSource = Pick<
   | "court_name"
   | "season_year"
   | "scheduled_date"
+  | "scheduled_start_time"
   | "start_time"
   | "status"
   | "sport_id"
@@ -495,7 +496,9 @@ function resolveMatchVisualCourtTimeSortValue(
   estimatedStartTimeByMatchId?: Record<string, string>,
 ): number | null {
   const plannedStartTimeLabel = resolveSaoPauloTimeLabel(
-    match.start_time ?? "",
+    match.scheduled_start_time ??
+      (match.status == MatchStatus.SCHEDULED ? match.start_time : null) ??
+      "",
   );
   const estimatedStartTimeLabel = estimatedStartTimeByMatchId?.[match.id];
 
@@ -518,34 +521,21 @@ function compareMatchVisualCourtOrder(
     return firstScheduledDate.localeCompare(secondScheduledDate);
   }
 
+  const firstVisualTimeSortValue = resolveMatchVisualCourtTimeSortValue(
+    firstMatch,
+    estimatedStartTimeByMatchId,
+  );
+  const secondVisualTimeSortValue = resolveMatchVisualCourtTimeSortValue(
+    secondMatch,
+    estimatedStartTimeByMatchId,
+  );
+
   if (
-    firstMatch.status == MatchStatus.SCHEDULED &&
-    secondMatch.status == MatchStatus.SCHEDULED
+    firstVisualTimeSortValue != null &&
+    secondVisualTimeSortValue != null &&
+    firstVisualTimeSortValue != secondVisualTimeSortValue
   ) {
-    const firstVisualTimeSortValue = resolveMatchVisualCourtTimeSortValue(
-      firstMatch,
-      estimatedStartTimeByMatchId,
-    );
-    const secondVisualTimeSortValue = resolveMatchVisualCourtTimeSortValue(
-      secondMatch,
-      estimatedStartTimeByMatchId,
-    );
-
-    if (
-      firstVisualTimeSortValue != null &&
-      secondVisualTimeSortValue != null &&
-      firstVisualTimeSortValue != secondVisualTimeSortValue
-    ) {
-      return firstVisualTimeSortValue - secondVisualTimeSortValue;
-    }
-
-    if (firstVisualTimeSortValue != null && secondVisualTimeSortValue == null) {
-      return -1;
-    }
-
-    if (firstVisualTimeSortValue == null && secondVisualTimeSortValue != null) {
-      return 1;
-    }
+    return firstVisualTimeSortValue - secondVisualTimeSortValue;
   }
 
   const slotDifference =
@@ -1084,8 +1074,13 @@ export function resolveEstimatedStartTimeByMatchId(params: {
       return carry;
     }
 
-    if (match.status == MatchStatus.SCHEDULED && match.start_time) {
-      const directPlannedStartTime = resolveSaoPauloTimeLabel(match.start_time);
+    const plannedStartTime =
+      match.status == MatchStatus.SCHEDULED
+        ? match.scheduled_start_time ?? match.start_time
+        : match.scheduled_start_time;
+
+    if (plannedStartTime) {
+      const directPlannedStartTime = resolveSaoPauloTimeLabel(plannedStartTime);
 
       if (
         directPlannedStartTime &&

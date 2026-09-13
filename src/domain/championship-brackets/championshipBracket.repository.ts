@@ -49,6 +49,15 @@ import { resolveBracketDaySchedules } from "@/domain/championship-brackets/champ
 import type { ChampionshipBracketView } from "@/lib/types";
 import type { MatchNaipe, TeamDivision } from "@/lib/enums";
 
+type LooseSupabase = {
+  rpc: (functionName: string, arguments_: Record<string, unknown>) => Promise<{
+    data: unknown;
+    error: Error | null;
+  }>;
+};
+
+const supabaseLoose = supabase as unknown as LooseSupabase;
+
 function toSupabaseJson(value: unknown): Json {
   return value as Json;
 }
@@ -710,7 +719,7 @@ export async function fetchChampionshipGroupStageStandings(
   data: ChampionshipGroupStageStanding[];
   error: Error | null;
 }> {
-  const response = await supabase.rpc("get_championship_group_stage_standings", {
+  const response = await supabaseLoose.rpc("get_championship_group_stage_qualification_display_metrics", {
     _championship_id: championship_id,
     _season_year: season_year ?? null,
   });
@@ -735,8 +744,37 @@ export async function fetchChampionshipGroupStageStandings(
       red_cards: Number(standing.red_cards),
       blue_cards: Number(standing.blue_cards),
       two_minute_penalties: Number(standing.two_minute_penalties),
+      sets_for: Number(standing.sets_for),
+      sets_against: Number(standing.sets_against),
+      rally_points_for: Number(standing.rally_points_for),
+      rally_points_against: Number(standing.rally_points_against),
       group_rank: Number(standing.group_rank),
       comparison_rank: Number(standing.comparison_rank),
+      comparison_goals_for: Number(standing.comparison_goals_for),
+      comparison_goals_against: Number(standing.comparison_goals_against),
+      comparison_goal_diff: Number(standing.comparison_goal_diff),
+      comparison_yellow_cards: Number(standing.comparison_yellow_cards),
+      comparison_red_cards: Number(standing.comparison_red_cards),
+      comparison_blue_cards: Number(standing.comparison_blue_cards),
+      comparison_two_minute_penalties: Number(
+        standing.comparison_two_minute_penalties,
+      ),
+      comparison_sets_for: Number(standing.comparison_sets_for),
+      comparison_sets_against: Number(standing.comparison_sets_against),
+      comparison_rally_points_for: Number(
+        standing.comparison_rally_points_for,
+      ),
+      comparison_rally_points_against: Number(
+        standing.comparison_rally_points_against,
+      ),
+      qualification_rank:
+        standing.qualification_rank == null
+          ? null
+          : Number(standing.qualification_rank),
+      qualification_pool_rank:
+        standing.qualification_pool_rank == null
+          ? null
+          : Number(standing.qualification_pool_rank),
     }));
 
   return { data, error: null };

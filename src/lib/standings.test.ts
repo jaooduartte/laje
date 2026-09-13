@@ -343,6 +343,10 @@ function buildAggregate(
     points: overrides.points ?? 6,
     yellow_cards: overrides.yellow_cards ?? 0,
     red_cards: overrides.red_cards ?? 0,
+    sets_for: overrides.sets_for ?? 0,
+    sets_against: overrides.sets_against ?? 0,
+    rally_points_for: overrides.rally_points_for ?? 0,
+    rally_points_against: overrides.rally_points_against ?? 0,
   };
 }
 
@@ -435,6 +439,72 @@ describe("sortStandingRowsByRanking", () => {
       9,
       9,
       4.5,
+    ]);
+  });
+
+  it("aplica PA antes do saldo de pontos quando a cascata oficial do basquete é informada", () => {
+    const standings = [
+      buildAggregate({
+        team_id: "garrudos",
+        team_name: "Garrudos",
+        points: 4.5,
+        goal_diff: 8,
+        goals_for: 66,
+        goals_against: 58,
+      }),
+      buildAggregate({
+        team_id: "uefa",
+        team_name: "UEFA",
+        points: 4.5,
+        goal_diff: 8,
+        goals_for: 58,
+        goals_against: 50,
+      }),
+    ];
+
+    const sortedStandings = sortStandingRowsByRanking(standings, {
+      tieBreakerCascade: [
+        "POINTS",
+        "POINTS_AVERAGE",
+        "HEAD_TO_HEAD",
+        "GOAL_DIFF",
+        "GOALS_AGAINST_ASC",
+        "RED_CARDS_ASC",
+        "MANUAL_DRAW",
+      ],
+    });
+
+    expect(sortedStandings.map((standing) => standing.team_id)).toEqual([
+      "uefa",
+      "garrudos",
+    ]);
+  });
+
+  it("aplica sets average antes dos sets vencidos na cascata oficial do voleibol", () => {
+    const standings = [
+      buildAggregate({
+        team_id: "team-a",
+        team_name: "A",
+        points: 6,
+        sets_for: 5,
+        sets_against: 3,
+      }),
+      buildAggregate({
+        team_id: "team-b",
+        team_name: "B",
+        points: 6,
+        sets_for: 4,
+        sets_against: 1,
+      }),
+    ];
+
+    const sortedStandings = sortStandingRowsByRanking(standings, {
+      tieBreakerCascade: ["POINTS", "SETS_AVERAGE", "SETS_FOR"],
+    });
+
+    expect(sortedStandings.map((standing) => standing.team_id)).toEqual([
+      "team-b",
+      "team-a",
     ]);
   });
 });

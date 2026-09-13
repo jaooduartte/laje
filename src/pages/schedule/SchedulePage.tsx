@@ -6,6 +6,7 @@ import { useTeams } from "@/hooks/useTeams";
 import { useChampionships } from "@/hooks/useChampionships";
 import { useChampionshipBracket } from "@/hooks/useChampionshipBracket";
 import { useChampionshipSeasonYears } from "@/hooks/useChampionshipSeasonYears";
+import { useChampionshipSeasonSportRemovals } from "@/hooks/useChampionshipSeasonSportRemovals";
 import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividualEvents";
 import { useSelectedChampionship } from "@/hooks/useSelectedChampionship";
 import { useChampionshipSelection } from "@/hooks/useChampionshipSelection";
@@ -99,10 +100,20 @@ export function SchedulePage() {
     seasonYear: correctedYearFilter,
     realtimeEnabled: false,
   });
-  const { sports, championshipSports } = useSports({
+  const { sports, championshipSports: allChampionshipSports } = useSports({
     championshipId: selectedChampionshipId,
     realtimeEnabled: false,
   });
+  const { removedSportIds } = useChampionshipSeasonSportRemovals({
+    championshipId: selectedChampionshipId,
+    seasonYear: correctedYearFilter,
+  });
+  const championshipSports = useMemo(() => {
+    const removedSportIdsSet = new Set(removedSportIds);
+    return allChampionshipSports.filter(
+      (championshipSport) => !removedSportIdsSet.has(championshipSport.sport_id),
+    );
+  }, [allChampionshipSports, removedSportIds]);
   const individualSportIds = useMemo(() => resolveIndividualSportIds(sports), [sports]);
   const { teams } = useTeams({ includeInactive: true });
   const visibleChampionshipBracketView = useMemo(() => {

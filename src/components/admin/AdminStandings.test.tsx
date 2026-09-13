@@ -595,6 +595,10 @@ describe("AdminStandings", () => {
         red_cards: 0,
         blue_cards: 0,
         two_minute_penalties: 0,
+        sets_for: 4,
+        sets_against: 1,
+        rally_points_for: 100,
+        rally_points_against: 70,
         group_rank: 1,
         comparison_rank: 1,
       },
@@ -621,6 +625,10 @@ describe("AdminStandings", () => {
         red_cards: 0,
         blue_cards: 0,
         two_minute_penalties: 0,
+        sets_for: 3,
+        sets_against: 2,
+        rally_points_for: 90,
+        rally_points_against: 80,
         group_rank: 1,
         comparison_rank: 2,
       },
@@ -644,8 +652,20 @@ describe("AdminStandings", () => {
 
     expect(screen.getByText(/apenas os jogos finalizados da fase de grupos/i)).toBeInTheDocument();
     expect(teamStandingsTableMock.mock.calls.at(-1)?.[0].standings).toEqual([
-      expect.objectContaining({ team_id: "team-1", points: 7, goals_for: 6 }),
-      expect.objectContaining({ team_id: "team-2", points: 6, goals_for: 4 }),
+      expect.objectContaining({
+        team_id: "team-1",
+        points: 7,
+        goals_for: 6,
+        sets_for: 4,
+        rally_points_for: 100,
+      }),
+      expect.objectContaining({
+        team_id: "team-2",
+        points: 6,
+        goals_for: 4,
+        sets_for: 3,
+        rally_points_for: 90,
+      }),
     ]);
   });
 
@@ -731,6 +751,140 @@ describe("AdminStandings", () => {
         team_id: "team-smaller-group",
         points: 9,
         goal_diff: 11,
+      }),
+    ]);
+  });
+
+  it("espelha a ordem e as métricas normalizadas da chave de voleibol", () => {
+    groupStageStandingsState.current = [
+      {
+        competition_id: "competition-1",
+        sport_id: "sport-1",
+        sport_name: "Voleibol",
+        naipe: MatchNaipe.MASCULINO,
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        group_id: "group-1",
+        group_number: 1,
+        team_id: "team-raw-leader",
+        team_name: "Líder bruto",
+        played: 3,
+        wins: 3,
+        draws: 0,
+        losses: 0,
+        goals_for: 150,
+        goals_against: 82,
+        goal_diff: 68,
+        points: 9,
+        comparison_points: 9,
+        yellow_cards: 0,
+        red_cards: 0,
+        blue_cards: 0,
+        two_minute_penalties: 0,
+        sets_for: 6,
+        sets_against: 0,
+        rally_points_for: 150,
+        rally_points_against: 82,
+        group_rank: 1,
+        comparison_rank: 1,
+        comparison_goals_for: 150,
+        comparison_goals_against: 82,
+        comparison_goal_diff: 68,
+        comparison_yellow_cards: 0,
+        comparison_red_cards: 0,
+        comparison_blue_cards: 0,
+        comparison_two_minute_penalties: 0,
+        comparison_sets_for: 6,
+        comparison_sets_against: 0,
+        comparison_rally_points_for: 150,
+        comparison_rally_points_against: 82,
+        qualification_rank: 1,
+        qualification_pool_rank: 2,
+      },
+      {
+        competition_id: "competition-1",
+        sport_id: "sport-1",
+        sport_name: "Voleibol",
+        naipe: MatchNaipe.MASCULINO,
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        group_id: "group-2",
+        group_number: 2,
+        team_id: "team-normalized-leader",
+        team_name: "Líder normalizado",
+        played: 2,
+        wins: 2,
+        draws: 0,
+        losses: 0,
+        goals_for: 100,
+        goals_against: 33,
+        goal_diff: 67,
+        points: 6,
+        comparison_points: 9,
+        yellow_cards: 0,
+        red_cards: 0,
+        blue_cards: 0,
+        two_minute_penalties: 0,
+        sets_for: 4,
+        sets_against: 0,
+        rally_points_for: 100,
+        rally_points_against: 33,
+        group_rank: 1,
+        comparison_rank: 2,
+        comparison_goals_for: 150,
+        comparison_goals_against: 49.5,
+        comparison_goal_diff: 100.5,
+        comparison_yellow_cards: 0,
+        comparison_red_cards: 0,
+        comparison_blue_cards: 0,
+        comparison_two_minute_penalties: 0,
+        comparison_sets_for: 6,
+        comparison_sets_against: 0,
+        comparison_rally_points_for: 150,
+        comparison_rally_points_against: 49.5,
+        qualification_rank: 1,
+        qualification_pool_rank: 1,
+      },
+    ];
+
+    render(
+      <AdminStandings
+        selectedChampionship={{
+          ...selectedChampionship,
+          code: ChampionshipCode.INTERLAJE,
+          name: "INTERLAJE",
+        }}
+        championshipSports={[
+          {
+            ...championshipSports[0],
+            result_rule: ChampionshipSportResultRule.SETS,
+            tie_breaker_rule: ChampionshipSportTieBreakerRule.POINTS_AVERAGE,
+          },
+        ]}
+        sports={[{ ...sports[0], name: "Voleibol" }]}
+        championshipBracketView={championshipBracketView}
+        availableSeasonYears={[2026]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Sport filter" }));
+    fireEvent.click(screen.getByRole("button", { name: "Masculino" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Melhores 1º da fase de grupos" }),
+    );
+
+    expect(teamStandingsTableMock.mock.calls.at(-1)?.[0].standings).toEqual([
+      expect.objectContaining({
+        team_id: "team-normalized-leader",
+        points: 9,
+        goal_diff: 100.5,
+        sets_for: 6,
+        rally_points_against: 49.5,
+      }),
+      expect.objectContaining({
+        team_id: "team-raw-leader",
+        points: 9,
+        goal_diff: 68,
+        sets_for: 6,
+        rally_points_against: 82,
       }),
     ]);
   });

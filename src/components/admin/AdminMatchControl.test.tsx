@@ -37,6 +37,14 @@ type SupabaseUpdateResult = {
   error: { code?: string; message: string } | null;
 };
 
+type IndividualEventsState = {
+  events: Array<Record<string, unknown>>;
+  sessions: ChampionshipIndividualSession[];
+  entries: Array<Record<string, unknown>>;
+  loading?: boolean;
+  refetch: ReturnType<typeof vi.fn>;
+};
+
 const {
   supabaseUpdateCalls,
   supabaseUpdateResults,
@@ -63,7 +71,7 @@ const {
       sessions: [] as ChampionshipIndividualSession[],
       entries: [] as Array<Record<string, unknown>>,
       refetch: vi.fn(),
-    },
+    } as IndividualEventsState,
   },
   individualDisqualificationsState: {
     current: [],
@@ -85,7 +93,10 @@ const {
     returnToScheduled: vi.fn(),
     saveResults: vi.fn(),
     start: vi.fn(),
+    startMany: vi.fn(),
     participants: vi.fn(),
+    placementCount: vi.fn(),
+    saveTeamPlacements: vi.fn(),
     walkover: vi.fn(),
   },
 }));
@@ -123,6 +134,8 @@ vi.mock("@/domain/individual-events/championshipIndividualEvents.repository", ()
     individualSessionRepositoryMocks.finish(...args),
   fetchChampionshipIndividualSessionParticipants: (...args: unknown[]) =>
     individualSessionRepositoryMocks.participants(...args),
+  fetchChampionshipIndividualEventPlacementCount: (...args: unknown[]) =>
+    individualSessionRepositoryMocks.placementCount(...args),
   markChampionshipIndividualEventTeamWalkover: (...args: unknown[]) =>
     individualSessionRepositoryMocks.walkover(...args),
   reopenChampionshipIndividualSession: (...args: unknown[]) =>
@@ -131,8 +144,12 @@ vi.mock("@/domain/individual-events/championshipIndividualEvents.repository", ()
     individualSessionRepositoryMocks.returnToScheduled(...args),
   saveChampionshipIndividualEventResults: (...args: unknown[]) =>
     individualSessionRepositoryMocks.saveResults(...args),
+  saveChampionshipIndividualEventTeamPlacements: (...args: unknown[]) =>
+    individualSessionRepositoryMocks.saveTeamPlacements(...args),
   startChampionshipIndividualSession: (...args: unknown[]) =>
     individualSessionRepositoryMocks.start(...args),
+  startChampionshipIndividualSessions: (...args: unknown[]) =>
+    individualSessionRepositoryMocks.startMany(...args),
 }));
 
 vi.mock("@/components/SportFilter", () => ({
@@ -258,6 +275,7 @@ function buildMatch(overrides: Partial<Match> & Pick<Match, "id" | "sport_id" | 
     resolved_tie_break_winner_team_id: overrides.resolved_tie_break_winner_team_id ?? null,
     home_penalty_score: overrides.home_penalty_score ?? null,
     away_penalty_score: overrides.away_penalty_score ?? null,
+    scheduled_start_time: overrides.scheduled_start_time ?? null,
     start_time: overrides.start_time ?? null,
     end_time: overrides.end_time ?? null,
     status: overrides.status,
@@ -520,7 +538,14 @@ describe("AdminMatchControl", () => {
       data: [],
       error: null,
     });
+    individualSessionRepositoryMocks.placementCount.mockReset();
+    individualSessionRepositoryMocks.placementCount.mockResolvedValue({
+      data: 20,
+      error: null,
+    });
+    individualSessionRepositoryMocks.saveTeamPlacements.mockReset();
     individualSessionRepositoryMocks.start.mockReset();
+    individualSessionRepositoryMocks.startMany.mockReset();
     window.sessionStorage.clear();
     Object.defineProperty(window, "scrollTo", {
       value: vi.fn(),
@@ -734,6 +759,115 @@ describe("AdminMatchControl", () => {
     ).toBeDisabled();
   });
 
+  it("reúne as sessões masculina e feminina da modalidade individual no mesmo card compacto", async () => {
+    const athleticsSport = buildChampionshipSport({
+      id: "championship-sport-athletics",
+      sport_id: "sport-athletics",
+      sports: buildSport({ id: "sport-athletics", name: "Atletismo" }),
+    });
+    individualEventsState.current = {
+      events: [],
+      sessions: [
+        buildIndividualSession({
+          id: "athletics-male-session",
+          sport_id: athleticsSport.sport_id,
+          naipe: MatchNaipe.MASCULINO,
+          status: ChampionshipIndividualSessionStatus.SCHEDULED,
+        }),
+        buildIndividualSession({
+          id: "athletics-female-session",
+          sport_id: athleticsSport.sport_id,
+          naipe: MatchNaipe.FEMININO,
+          status: ChampionshipIndividualSessionStatus.LIVE,
+        }),
+      ],
+      entries: [],
+      refetch: vi.fn(),
+    };
+    individualSessionRepositoryMocks.start.mockResolvedValue({ error: null });
+
+    renderAdminMatchControl({
+      matches: [],
+      championshipSports: [athleticsSport],
+    });
+
+    await completeInitialControlLoad();
+
+    const athleticsCards = screen
+      .getAllByText(/^Atletismo •/)
+      .map((element) => element.closest(".admin-match-control-card"));
+
+    expect([...new Set(athleticsCards)]).toHaveLength(1);
+    expect(screen.getByText("Masculino")).toBeInTheDocument();
+    expect(screen.getByText("Feminino")).toBeInTheDocument();
+    expect(screen.getByText("● AO VIVO")).toBeInTheDocument();
+    expect(screen.queryByText(/^Ao vivo$/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Iniciar sessão" })).toBeEnabled();
+    expect(
+      screen
+        .getAllByRole("button", { name: "Registrar resultados" })
+        .some((button) => !button.hasAttribute("disabled")),
+    ).toBe(true);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Iniciar sessão" }));
+      await Promise.resolve();
+    });
+
+    expect(individualSessionRepositoryMocks.start).toHaveBeenCalledWith(
+      "athletics-male-session",
+    );
+  });
+
+  it("inicia em conjunto as sessões masculina e feminina agendadas no card compacto", async () => {
+    const athleticsSport = buildChampionshipSport({
+      id: "championship-sport-athletics",
+      sport_id: "sport-athletics",
+      sports: buildSport({ id: "sport-athletics", name: "Atletismo" }),
+    });
+    individualEventsState.current = {
+      events: [],
+      sessions: [
+        buildIndividualSession({
+          id: "athletics-male-scheduled-session",
+          sport_id: athleticsSport.sport_id,
+          naipe: MatchNaipe.MASCULINO,
+          status: ChampionshipIndividualSessionStatus.SCHEDULED,
+        }),
+        buildIndividualSession({
+          id: "athletics-female-scheduled-session",
+          sport_id: athleticsSport.sport_id,
+          naipe: MatchNaipe.FEMININO,
+          status: ChampionshipIndividualSessionStatus.SCHEDULED,
+        }),
+      ],
+      entries: [],
+      refetch: vi.fn(),
+    };
+    individualSessionRepositoryMocks.startMany.mockResolvedValue({ error: null });
+
+    renderAdminMatchControl({
+      matches: [],
+      championshipSports: [athleticsSport],
+    });
+
+    await completeInitialControlLoad();
+
+    expect(screen.getByRole("button", { name: "Iniciar sessões" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Iniciar sessão" })).toBeNull();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Iniciar sessões" }));
+      await Promise.resolve();
+    });
+
+    expect(individualSessionRepositoryMocks.startMany).toHaveBeenCalledWith([
+      "athletics-male-scheduled-session",
+      "athletics-female-scheduled-session",
+    ]);
+    expect(individualSessionRepositoryMocks.start).not.toHaveBeenCalled();
+  });
+
   it("inicia uma sessão individual agendada da data atual", async () => {
     const athleticsSport = buildChampionshipSport({
       id: "championship-sport-athletics",
@@ -822,6 +956,83 @@ describe("AdminMatchControl", () => {
     expect(individualSessionRepositoryMocks.returnToScheduled).toHaveBeenCalledWith("live-individual-session");
   });
 
+  it("confirma o encerramento antes de finalizar uma sessão individual ao vivo", async () => {
+    const swimmingSport = buildChampionshipSport({
+      id: "championship-sport-swimming",
+      sport_id: "sport-swimming",
+      sports: buildSport({ id: "sport-swimming", name: "Natação" }),
+    });
+    individualEventsState.current = {
+      events: [],
+      sessions: [
+        buildIndividualSession({
+          id: "live-individual-session",
+          sport_id: swimmingSport.sport_id,
+          sports: swimmingSport.sports,
+          status: ChampionshipIndividualSessionStatus.LIVE,
+        }),
+      ],
+      entries: [],
+      refetch: vi.fn(),
+    };
+    individualSessionRepositoryMocks.finish.mockResolvedValue({ error: null });
+
+    renderAdminMatchControl({
+      matches: [],
+      championshipSports: [swimmingSport],
+    });
+
+    await completeInitialControlLoad();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Encerrar sessão" }));
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole("heading", { name: "Encerrar sessão" })).toBeInTheDocument();
+    expect(individualSessionRepositoryMocks.finish).not.toHaveBeenCalled();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Encerrar sessão" }));
+      await Promise.resolve();
+    });
+
+    expect(individualSessionRepositoryMocks.finish).toHaveBeenCalledWith("live-individual-session");
+  });
+
+  it("mantém sessão individual ao vivo na fila operacional mesmo após a data agendada", async () => {
+    const swimmingSport = buildChampionshipSport({
+      id: "championship-sport-swimming",
+      sport_id: "sport-swimming",
+      sports: buildSport({ id: "sport-swimming", name: "Natação" }),
+    });
+    individualEventsState.current = {
+      events: [],
+      sessions: [
+        buildIndividualSession({
+          id: "past-live-swimming-session",
+          sport_id: swimmingSport.sport_id,
+          sports: swimmingSport.sports,
+          scheduled_date: "2026-04-10",
+          status: ChampionshipIndividualSessionStatus.LIVE,
+        }),
+      ],
+      entries: [],
+      refetch: vi.fn(),
+    };
+
+    renderAdminMatchControl({
+      matches: [],
+      championshipSports: [swimmingSport],
+      onFullQueueVisibleChange: vi.fn(),
+    });
+
+    await completeInitialControlLoad();
+
+    expect(screen.getByText(/^Natação •/)).toBeInTheDocument();
+    expect(screen.getByText("● AO VIVO")).toBeInTheDocument();
+  });
+
   it("abre a modal de resultados para a sessão individual ao vivo", async () => {
     const athleticsSport = buildChampionshipSport({
       id: "championship-sport-athletics",
@@ -860,7 +1071,7 @@ describe("AdminMatchControl", () => {
       ],
       refetch: vi.fn(),
     };
-    renderAdminMatchControl({
+    const { rerenderAdminMatchControl } = renderAdminMatchControl({
       matches: [],
       championshipSports: [athleticsSport],
     });
@@ -873,14 +1084,29 @@ describe("AdminMatchControl", () => {
       fireEvent.click(screen.getByRole("button", { name: "Registrar resultados" }));
       await Promise.resolve();
     });
+
+    individualEventsState.current = {
+      ...individualEventsState.current,
+      loading: true,
+    };
+
+    await act(async () => {
+      rerenderAdminMatchControl({
+        matches: [],
+        championshipSports: [athleticsSport],
+      });
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByTestId("admin-match-control-loading")).not.toBeInTheDocument();
     expect(individualSessionRepositoryMocks.participants).toHaveBeenCalledWith(
       "live-individual-session",
     );
     expect(
-      screen.getByRole("heading", { name: "Registrar provas - Atletismo" }),
+      screen.getByRole("heading", { name: "Registrar classificação - Atletismo" }),
     ).toBeInTheDocument();
     expect(screen.getByText("100 metros rasos")).toBeInTheDocument();
-    expect(screen.getByText("Atleta")).toBeInTheDocument();
+    expect(screen.getByText("Carregando classificação da prova...")).toBeInTheDocument();
   });
 
   it("mantém as sessões individuais após os jogos coletivos no filtro Todas", async () => {
@@ -1031,6 +1257,9 @@ describe("AdminMatchControl", () => {
     expect(supabaseUpdateCalls[0]?.table).toBe("matches");
     expect(supabaseUpdateCalls[0]?.value).toBe("scheduled-match");
     expect(supabaseUpdateCalls[0]?.payload.status).toBe(MatchStatus.LIVE);
+    expect(supabaseUpdateCalls[0]?.payload.scheduled_start_time).toBe(
+      "2026-04-11T10:00:00.000Z",
+    );
     expect(supabaseUpdateCalls[0]?.payload.start_time).toBe("2026-04-11T10:00:00.000Z");
     expect(supabaseUpdateCalls[0]?.payload.end_time).toBeNull();
     expect(toastSuccessMock).toHaveBeenCalledWith("Jogo iniciado!");
@@ -1196,7 +1425,8 @@ describe("AdminMatchControl", () => {
     expect(supabaseUpdateCalls).toHaveLength(1);
     expect(supabaseUpdateCalls[0]?.payload).toMatchObject({
       status: MatchStatus.SCHEDULED,
-      start_time: "2026-04-11T10:40:00.000Z",
+      scheduled_start_time: "2026-04-11T10:40:00.000Z",
+      start_time: null,
       end_time: null,
       home_score: 0,
       away_score: 0,
@@ -2569,6 +2799,7 @@ describe("AdminMatchControl", () => {
 
     expect(within(matchCardElement).getByText("● AO VIVO")).toBeInTheDocument();
     expect(within(matchCardElement).getByText("Jogo 1")).toBeInTheDocument();
+    expect(within(matchCardElement).queryByText(/Jogo iniciado às/)).not.toBeInTheDocument();
 
     await act(async () => {
       fireEvent.change(scoreInputs[0] as HTMLElement, {
@@ -2584,6 +2815,36 @@ describe("AdminMatchControl", () => {
     expect(supabaseUpdateCalls[0]?.payload.away_score).toBe(0);
     expect(supabaseUpdateCalls[0]?.payload.current_set_home_score).toBeNull();
     expect(supabaseUpdateCalls[0]?.payload.current_set_away_score).toBeNull();
+  });
+
+  it("exibe o horário previsto no controle ao vivo", () => {
+    const match = buildMatch({
+      id: "live-match-with-planned-time",
+      sport_id: "sport-points",
+      status: MatchStatus.LIVE,
+      start_time: "2026-04-11T14:16:00.000Z",
+      scheduled_start_time: "2026-04-11T12:30:00.000Z",
+      home_team: buildTeam({ id: "planned-home", name: "CASA PREVISTA" }),
+      away_team: buildTeam({ id: "planned-away", name: "VISITANTE PREVISTA" }),
+    });
+
+    renderAdminMatchControl({
+      matches: [match],
+      championshipSports: [
+        buildChampionshipSport({
+          id: "championship-sport-points",
+          sport_id: "sport-points",
+        }),
+      ],
+      estimatedStartTimeByMatchId: {
+        "live-match-with-planned-time": "09:30",
+      },
+    });
+
+    const matchCardElement = resolveMatchCardElement("CASA PREVISTA");
+
+    expect(matchCardElement).toHaveTextContent("Horário previsto: 09:30");
+    expect(matchCardElement).not.toHaveTextContent("Jogo iniciado às");
   });
 
   it("mantém o placar digitado após autosave enquanto o backend não retorna novos dados", async () => {

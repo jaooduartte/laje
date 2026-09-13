@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { TeamStandingsTable } from "@/components/TeamStandingsTable";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import type { ModalidadeConfig } from "@/lib/modalidadeConfig";
 
 const standings = [
   {
@@ -23,6 +24,43 @@ const standings = [
 ];
 
 describe("TeamStandingsTable draw winner icon", () => {
+  it("exibe as métricas de sets na tabela pública da modalidade", () => {
+    const modalidadeConfig: ModalidadeConfig = {
+      sport_code: "VOLEIBOL",
+      naipe: null,
+      display_columns: ["J", "V", "E", "D", "CA", "CV", "PC", "SP", "PR", "SV", "SA", "PTS"],
+      tie_breaker_cascade: [],
+      uses_points_average: false,
+      uses_cards: true,
+      knockout_pairing_mode: "LINEAR",
+      legacy_tie_breaker_rule: "POINTS_AVERAGE",
+    };
+
+    render(
+      <TooltipProvider>
+        <TeamStandingsTable
+          variant="public"
+          modalidadeConfig={modalidadeConfig}
+          standings={[{
+            ...standings[0],
+            points: 6,
+            sets_for: 4,
+            sets_against: 2,
+            rally_points_for: 102,
+            rally_points_against: 80,
+          }]}
+        />
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByTitle("Sets average (sets vencidos ÷ sets perdidos)")).toBeInTheDocument();
+    expect(screen.getByText("102")).toBeInTheDocument();
+    expect(screen.getByText("80")).toBeInTheDocument();
+    expect(screen.getByText("2,00")).toBeInTheDocument();
+    expect(screen.getAllByRole("columnheader", { name: "PTS" })).toHaveLength(1);
+    expect(screen.getByText("6")).toHaveClass("text-primary");
+  });
+
   it("exibe ícone de sorteio na variante full", () => {
     const { container } = render(
       <TooltipProvider>

@@ -2,7 +2,7 @@ import type {
   ChampionshipIndividualSession,
   Match,
 } from "@/lib/types";
-import type { MatchNaipe, TeamDivision } from "@/lib/enums";
+import { MatchStatus, type MatchNaipe, type TeamDivision } from "@/lib/enums";
 import {
   resolveMatchDisplaySlotValue,
   resolveMatchScheduledDateValue,
@@ -73,7 +73,11 @@ function resolveTimelineItemTimeValue(
 ) {
   if (item.type == "MATCH") {
     return resolveTimeValueToMinutes(
-      item.match.start_time ?? estimatedStartTimeByMatchId[item.match.id],
+      item.match.scheduled_start_time ??
+        (item.match.status == MatchStatus.SCHEDULED
+          ? item.match.start_time
+          : null) ??
+        estimatedStartTimeByMatchId[item.match.id],
     );
   }
 

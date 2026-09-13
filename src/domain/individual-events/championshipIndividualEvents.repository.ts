@@ -83,6 +83,11 @@ export interface SaveChampionshipIndividualLiveEntryInput {
   attempt_three_centimeters: number | null;
 }
 
+export interface SaveChampionshipIndividualEventTeamPlacementInput {
+  finalPosition: number;
+  teamId: string;
+}
+
 export interface SaveChampionshipIndividualSessionInput {
   sessionId: string;
   scheduledDate: string | null;
@@ -451,6 +456,35 @@ export async function saveChampionshipIndividualEventLiveResults(
   });
 }
 
+export async function fetchChampionshipIndividualEventPlacementCount(
+  eventId: string,
+): Promise<{ data: number | null; error: Error | null }> {
+  const response = await supabaseLoose.rpc(
+    "get_championship_individual_event_placement_count",
+    { _event_id: eventId },
+  );
+
+  return {
+    data: typeof response.data == "number" ? response.data : null,
+    error: response.error,
+  };
+}
+
+export async function saveChampionshipIndividualEventTeamPlacements(input: {
+  eventId: string;
+  placements: SaveChampionshipIndividualEventTeamPlacementInput[];
+  walkoverTeamIds: string[];
+}) {
+  return supabaseLoose.rpc("save_championship_individual_event_team_placements", {
+    _event_id: input.eventId,
+    _placements: input.placements.map((placement) => ({
+      final_position: placement.finalPosition,
+      team_id: placement.teamId,
+    })),
+    _walkover_team_ids: input.walkoverTeamIds,
+  });
+}
+
 export async function saveInterlajeIndividualTieBreakResolution(input: {
   eventId: string;
   entries: SaveChampionshipIndividualLiveEntryInput[];
@@ -503,6 +537,12 @@ export async function startChampionshipIndividualSession(sessionId: string) {
   });
 }
 
+export async function startChampionshipIndividualSessions(sessionIds: string[]) {
+  return supabaseLoose.rpc("start_championship_individual_sessions", {
+    _session_ids: sessionIds,
+  });
+}
+
 export async function finishChampionshipIndividualSession(sessionId: string) {
   return supabaseLoose.rpc("finish_championship_individual_session", {
     _session_id: sessionId,
@@ -544,7 +584,7 @@ export async function fetchChampionshipEffectiveStandings({
   naipe?: MatchNaipe | null;
   sportId?: string | null;
 }) {
-  return supabaseLoose.rpc("get_championship_effective_standings", {
+  return supabaseLoose.rpc("get_championship_standings_display_metrics", {
     _championship_id: championshipId ?? null,
     _season_year: seasonYear ?? null,
     _division_filter:

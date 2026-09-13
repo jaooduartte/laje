@@ -69,6 +69,7 @@ interface AdminPageViewProps {
   allTeamsLoading?: boolean;
   sports: Sport[];
   championshipSports: ChampionshipSport[];
+  hiddenSportIds?: string[];
   sportsLoading?: boolean;
   liveAndScheduledMatches: Match[];
   championshipBracketView: ChampionshipBracketView;
@@ -141,6 +142,7 @@ interface AdminPageViewProps {
   }) => void | Promise<void>;
   onRefetchChampionshipBracket: () => void;
   onRefetchSports?: () => void | Promise<void>;
+  onSeasonSportRemoved?: () => void | Promise<void>;
   onRefetchTeams: () => void;
   liveMatchesCount: number;
   pendingLeagueEventReservationsCount: number;
@@ -186,6 +188,7 @@ export function AdminPageView({
   allTeamsLoading = false,
   sports,
   championshipSports,
+  hiddenSportIds = [],
   sportsLoading = false,
   liveAndScheduledMatches,
   championshipBracketView,
@@ -255,6 +258,7 @@ export function AdminPageView({
   onRefetchMatches,
   onRefetchChampionshipBracket,
   onRefetchSports,
+  onSeasonSportRemoved,
   onRefetchTeams,
   liveMatchesCount,
   pendingLeagueEventReservationsCount,
@@ -959,6 +963,8 @@ export function AdminPageView({
                 canManageSports={canManageSports}
                 onRefetchMatches={onRefetchMatches}
                 onRefetchSports={onRefetchSports}
+                onSeasonSportRemoved={onSeasonSportRemoved}
+                hiddenSportIds={hiddenSportIds}
               />
             </TabsContent>
           ) : null}

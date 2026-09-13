@@ -198,7 +198,6 @@ import {
   resolveMatchSetSummary,
   resolveSaoPauloTimeLabel,
   resolveVisualQueuePositionByMatchId,
-  resolveMatchStartedAtLabel,
   resolveMatchDisplayStatusLabel,
   resolveMatchStatusBadgeTone,
   resolveMatchStatusLabel,
@@ -9533,10 +9532,8 @@ export function AdminMatches({
                       match.id,
                     )
                   : null;
-              const startedAtLabel = resolveMatchStartedAtLabel(
-                match.start_time,
-                match.status,
-              );
+              const plannedStartTimeLabel =
+                estimatedStartTimeByMatchId[match.id];
               const tieBreakRuleLabel = resolveMatchTieBreakRuleLabel(
                 match.resolved_tie_breaker_rule,
               );
@@ -9879,14 +9876,9 @@ export function AdminMatches({
                             {matchRepresentationByMatchId[match.id]}
                           </p>
                         ) : null}
-                        {match.status == MatchStatus.SCHEDULED &&
-                        estimatedStartTimeByMatchId[match.id] ? (
-                          <p>
-                            Horário estimado:{" "}
-                            {estimatedStartTimeByMatchId[match.id]}
-                          </p>
+                        {plannedStartTimeLabel ? (
+                          <p>Horário previsto: {plannedStartTimeLabel}</p>
                         ) : null}
-                        {startedAtLabel ? <p>{startedAtLabel}</p> : null}
                         {tieBreakRuleLabel ? (
                           <p className="mt-1 inline-flex items-center gap-1 font-medium text-amber-500">
                             <AlertTriangle className="h-3 w-3" />

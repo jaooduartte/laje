@@ -208,6 +208,7 @@ export interface ChampionshipIndividualEventEntry {
   attempt_three_centimeters?: number | null;
   status: ChampionshipIndividualEntryStatus;
   points_awarded: number;
+  recording_mode?: "ATHLETE_METRIC" | "TEAM_PLACEMENT";
   created_at: string;
   updated_at: string;
   teams?: Team | null;
@@ -331,6 +332,7 @@ export interface Match {
   is_score_sheet_reviewed?: boolean;
   resolved_tie_breaker_rule?: ChampionshipSportTieBreakerRule | null;
   resolved_tie_break_winner_team_id?: string | null;
+  scheduled_start_time?: string | null;
   start_time: string | null;
   end_time: string | null;
   status: MatchStatus;
@@ -374,6 +376,10 @@ export interface Standing {
   red_cards: number;
   blue_cards?: number;
   two_minute_penalties?: number;
+  sets_for?: number;
+  sets_against?: number;
+  rally_points_for?: number;
+  rally_points_against?: number;
   updated_at: string;
   is_individual_sport?: boolean;
   scored_events_count?: number;

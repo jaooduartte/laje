@@ -6,10 +6,16 @@ export type StandingsColumnKey =
   | "V"
   | "E"
   | "D"
+  | "PTS"
   | "GP"
   | "GC"
   | "SG"
   | "PA"
+  | "SA"
+  | "SV"
+  | "SP"
+  | "PR"
+  | "PC"
   | "CA"
   | "CV"
   | "CAZ"
@@ -20,6 +26,11 @@ export type TieBreakCriterion =
   | "WINS"
   | "HEAD_TO_HEAD"
   | "POINTS_AVERAGE"
+  | "SETS_AVERAGE"
+  | "SETS_FOR"
+  | "SETS_AGAINST_ASC"
+  | "RALLY_POINTS_FOR"
+  | "RALLY_POINTS_AGAINST_ASC"
   | "GOAL_DIFF"
   | "GOALS_FOR"
   | "GOALS_AGAINST_ASC"
@@ -50,10 +61,16 @@ export const STANDINGS_COLUMN_LABELS: Record<StandingsColumnKey, string> = {
   V: "V",
   E: "E",
   D: "D",
+  PTS: "PTS",
   GP: "GP",
   GC: "GC",
   SG: "SG",
   PA: "PA",
+  SA: "SA",
+  SV: "SV",
+  SP: "SP",
+  PR: "PR",
+  PC: "PC",
   CA: "CA",
   CV: "CV",
   CAZ: "CAZ",
@@ -65,10 +82,16 @@ export const STANDINGS_COLUMN_TOOLTIPS: Partial<Record<StandingsColumnKey, strin
   V: "Vitórias",
   E: "Empates",
   D: "Derrotas",
+  PTS: "Pontos",
   GP: "Gols pró",
   GC: "Gols contra",
   SG: "Saldo de gols",
   PA: "Pontos médios (GP ÷ GC)",
+  SA: "Sets average (sets vencidos ÷ sets perdidos)",
+  SV: "Sets vencidos",
+  SP: "Sets perdidos",
+  PR: "Pontos de rally vencidos",
+  PC: "Pontos de rally sofridos",
   CA: "Cartões amarelos",
   CV: "Cartões vermelhos",
   CAZ: "Cartões azuis",
@@ -108,6 +131,81 @@ const POINTS_AVERAGE_COLUMNS: StandingsColumnKey[] = ["J", "V", "E", "D", "GP", 
 const POINTS_AVERAGE_CASCADE: TieBreakCriterion[] = [
   "POINTS", "HEAD_TO_HEAD", "POINTS_AVERAGE", "GOAL_DIFF", "GOALS_FOR", "WINS", "MANUAL_DRAW",
 ];
+
+const INTERLAJE_POLICY_CRITERIA: Partial<Record<string, TieBreakCriterion>> = {
+  POINTS: "POINTS",
+  POINTS_AVERAGE: "POINTS_AVERAGE",
+  HEAD_TO_HEAD_EXACTLY_TWO: "HEAD_TO_HEAD",
+  POINT_DIFF: "GOAL_DIFF",
+  POINTS_FOR: "GOALS_FOR",
+  POINTS_AGAINST_ASC: "GOALS_AGAINST_ASC",
+  GOAL_DIFF: "GOAL_DIFF",
+  GOALS_FOR: "GOALS_FOR",
+  GOALS_AGAINST_ASC: "GOALS_AGAINST_ASC",
+  SETS_AVERAGE: "SETS_AVERAGE",
+  SETS_FOR: "SETS_FOR",
+  SETS_AGAINST_ASC: "SETS_AGAINST_ASC",
+  RALLY_POINTS_FOR: "RALLY_POINTS_FOR",
+  RALLY_POINTS_AGAINST_ASC: "RALLY_POINTS_AGAINST_ASC",
+  BLUE_CARDS_ASC: "BLUE_CARDS_ASC",
+  RED_CARDS_ASC: "RED_CARDS_ASC",
+  YELLOW_CARDS_ASC: "YELLOW_CARDS_ASC",
+  TWO_MINUTE_PENALTIES_ASC: "TWO_MINUTE_PENALTIES_ASC",
+  MANUAL_DRAW: "MANUAL_DRAW",
+};
+
+const STANDINGS_COLUMN_BY_CRITERION: Partial<
+  Record<TieBreakCriterion, StandingsColumnKey>
+> = {
+  POINTS: "PTS",
+  WINS: "V",
+  POINTS_AVERAGE: "PA",
+  SETS_AVERAGE: "SA",
+  SETS_FOR: "SV",
+  SETS_AGAINST_ASC: "SP",
+  RALLY_POINTS_FOR: "PR",
+  RALLY_POINTS_AGAINST_ASC: "PC",
+  GOAL_DIFF: "SG",
+  GOALS_FOR: "GP",
+  GOALS_AGAINST_ASC: "GC",
+  YELLOW_CARDS_ASC: "CA",
+  RED_CARDS_ASC: "CV",
+  BLUE_CARDS_ASC: "CAZ",
+  TWO_MINUTE_PENALTIES_ASC: "2M",
+};
+
+export function resolveStandingsDisplayColumns(
+  cascade: readonly TieBreakCriterion[],
+): StandingsColumnKey[] {
+  const criteriaColumns: StandingsColumnKey[] = [];
+
+  cascade.forEach((criterion) => {
+    const column = STANDINGS_COLUMN_BY_CRITERION[criterion];
+    if (column && !criteriaColumns.includes(column)) {
+      criteriaColumns.push(column);
+    }
+  });
+
+  return ["J", "V", "E", "D", ...criteriaColumns.reverse()];
+}
+
+function resolveInterlajePolicyCascade(
+  classificationPolicy: Record<string, unknown> | null | undefined,
+): TieBreakCriterion[] {
+  const criteria = classificationPolicy?.criteria;
+  if (!Array.isArray(criteria)) {
+    return [];
+  }
+
+  return criteria.flatMap((criterion) => {
+    if (typeof criterion != "string") {
+      return [];
+    }
+
+    const mappedCriterion = INTERLAJE_POLICY_CRITERIA[criterion];
+    return mappedCriterion ? [mappedCriterion] : [];
+  });
+}
 
 const MODALIDADE_CONFIGS: ModalidadeConfig[] = [
   {
@@ -296,14 +394,21 @@ export function resolveModalidadeConfig(sportCode: string, naipe: MatchNaipe | n
   );
 
   if (exactMatch) {
-    return exactMatch;
+    return {
+      ...exactMatch,
+      display_columns: resolveStandingsDisplayColumns(exactMatch.tie_breaker_cascade),
+    };
   }
 
   const fallbackMatch = MODALIDADE_CONFIGS.find(
     (config) => config.sport_code == sportCode && config.naipe == null,
   );
 
-  return fallbackMatch ?? DEFAULT_CONFIG;
+  const resolvedConfig = fallbackMatch ?? DEFAULT_CONFIG;
+  return {
+    ...resolvedConfig,
+    display_columns: resolveStandingsDisplayColumns(resolvedConfig.tie_breaker_cascade),
+  };
 }
 
 export function resolveCascadeForLegacyRule(rule: ChampionshipSportTieBreakerRule): TieBreakCriterion[] {
@@ -342,5 +447,22 @@ export function resolveModalidadeConfigByChampionshipSport(
   sports: Sport[],
   naipe: MatchNaipe | null,
 ): ModalidadeConfig {
-  return resolveModalidadeConfigBySportId(championshipSport.sport_id, naipe, sports);
+  const modalidadeConfig = resolveModalidadeConfigBySportId(
+    championshipSport.sport_id,
+    naipe,
+    sports,
+  );
+  const classificationPolicyCascade = resolveInterlajePolicyCascade(
+    championshipSport.classification_policy,
+  );
+  const tieBreakerCascade =
+    classificationPolicyCascade.length > 0
+      ? classificationPolicyCascade
+      : resolveCascadeForLegacyRule(championshipSport.tie_breaker_rule);
+
+  return {
+    ...modalidadeConfig,
+    tie_breaker_cascade: tieBreakerCascade,
+    display_columns: resolveStandingsDisplayColumns(tieBreakerCascade),
+  };
 }

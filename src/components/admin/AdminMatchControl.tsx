@@ -33,6 +33,7 @@ import {
   reopenChampionshipIndividualSession,
   returnChampionshipIndividualSessionToScheduled,
   startChampionshipIndividualSession,
+  startChampionshipIndividualSessions,
 } from "@/domain/individual-events/championshipIndividualEvents.repository";
 import type {
   BracketDayCourtSports,
@@ -42,7 +43,6 @@ import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividu
 import { useCompetitionTeamDisqualifications } from "@/hooks/useCompetitionTeamDisqualifications";
 import { useChampionshipYellowCardDiscipline } from "@/hooks/useChampionshipYellowCardDiscipline";
 import type {
-  ChampionshipAthlete,
   ChampionshipBracketView,
   ChampionshipSport,
   Match,
@@ -62,6 +62,7 @@ import {
   ThemeTimeZone,
 } from "@/lib/enums";
 import { SportFilter } from "@/components/SportFilter";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -105,7 +106,6 @@ import {
   resolveMatchScheduledDateValue,
   resolveMatchSetSummary,
   resolveVisualQueuePositionByMatchId,
-  resolveMatchStartedAtLabel,
   resolveMatchTieBreakRuleLabel,
   isPenaltyShootoutEligibleKnockoutMatch,
 } from "@/lib/championship";
@@ -241,7 +241,6 @@ const ALL_CONTROL_GROUP_FILTER = "ALL_CONTROL_GROUPS";
 const ALL_CONTROL_LOCATION_FILTER = "ALL_CONTROL_LOCATIONS";
 const ALL_CONTROL_COURT_FILTER = "ALL_CONTROL_COURTS";
 const EMPTY_INDIVIDUAL_ENTRIES: readonly [] = [];
-const EMPTY_CHAMPIONSHIP_ATHLETES: ChampionshipAthlete[] = [];
 const NAIPE_OPTIONS: MatchNaipe[] = [
   MatchNaipe.MASCULINO,
   MatchNaipe.FEMININO,
@@ -800,6 +799,10 @@ export function AdminMatchControl({
   const [resultsDialogSessionId, setResultsDialogSessionId] = useState<
     string | null
   >(null);
+  const [showFinishIndividualSessionDialog, setShowFinishIndividualSessionDialog] =
+    useState(false);
+  const [pendingFinishIndividualSession, setPendingFinishIndividualSession] =
+    useState<ChampionshipIndividualSession | null>(null);
   const [
     showReturnIndividualSessionDialog,
     setShowReturnIndividualSessionDialog,
@@ -1162,7 +1165,6 @@ export function AdminMatchControl({
   const {
     sessions: individualSessions,
     events: individualEvents,
-    athletes: individualAthletes = EMPTY_CHAMPIONSHIP_ATHLETES,
     entries: individualEntries = EMPTY_INDIVIDUAL_ENTRIES,
     loading: individualEventsLoading,
     refetch: refetchIndividualEvents,
@@ -1171,9 +1173,9 @@ export function AdminMatchControl({
     seasonYear,
     sportIds: individualSportIds,
     sessionIds: isFullQueueVisible ? undefined : operationalIndividualSessionIds,
-    includeAthletes: resultsDialogSessionId != null,
-    includeEntries: resultsDialogSessionId != null,
-    includeEvents: resultsDialogSessionId != null,
+    includeAthletes: false,
+    includeEntries: true,
+    includeEvents: true,
     includeStandings: false,
   });
   const { disqualifications: competitionTeamDisqualifications } =
@@ -1259,7 +1261,7 @@ export function AdminMatchControl({
   }, [controlSports, sportFilter]);
 
   useEffect(() => {
-    if (!resultsDialogSessionId || individualEventsLoading) {
+    if (!resultsDialogSessionId) {
       setSessionParticipantsLoading(false);
       return;
     }
@@ -1290,9 +1292,11 @@ export function AdminMatchControl({
     return () => {
       isMounted = false;
     };
-  }, [individualEventsLoading, resultsDialogSessionId]);
+  }, [resultsDialogSessionId]);
 
-  const isInitialControlLoading = isInitialLoading || individualEventsLoading;
+  const isInitialControlLoading =
+    isInitialLoading ||
+    (individualEventsLoading && individualSessions.length == 0);
 
   const runSessionAction = useCallback(
     async (
@@ -1328,6 +1332,52 @@ export function AdminMatchControl({
       setSessionActionLoadingById((current) => ({
         ...current,
         [sessionId]: false,
+      }));
+
+      if (response.error) {
+        toast.error(response.error.message);
+        return;
+      }
+
+      await Promise.all([
+        refetchIndividualEvents(),
+        onRefetch({ showFetching: true }),
+      ]);
+      onRefetchChampionshipBracket();
+    },
+    [
+      canManageScoreboard,
+      championshipStatus,
+      onRefetch,
+      onRefetchChampionshipBracket,
+      refetchIndividualEvents,
+    ],
+  );
+
+  const startSessionGroup = useCallback(
+    async (sessionIds: string[]) => {
+      if (
+        !canManageScoreboard ||
+        championshipStatus !== ChampionshipStatus.IN_PROGRESS
+      ) {
+        if (championshipStatus !== ChampionshipStatus.IN_PROGRESS) {
+          toast.error(
+            "As sessões individuais só podem ser operadas com o campeonato em andamento.",
+          );
+        }
+        return;
+      }
+
+      setSessionActionLoadingById((current) => ({
+        ...current,
+        ...Object.fromEntries(sessionIds.map((sessionId) => [sessionId, true])),
+      }));
+
+      const response = await startChampionshipIndividualSessions(sessionIds);
+
+      setSessionActionLoadingById((current) => ({
+        ...current,
+        ...Object.fromEntries(sessionIds.map((sessionId) => [sessionId, false])),
       }));
 
       if (response.error) {
@@ -2464,7 +2514,8 @@ export function AdminMatchControl({
       .from("matches")
       .update({
         status: MatchStatus.SCHEDULED,
-        start_time: match.start_time,
+        scheduled_start_time: match.scheduled_start_time ?? match.start_time,
+        start_time: null,
         end_time: null,
         home_score: 0,
         away_score: 0,
@@ -2489,7 +2540,13 @@ export function AdminMatchControl({
       .eq("id", match.id);
 
     if (error) {
-      toast.error("Erro ao voltar ao agendamento.");
+      toast.error(
+        resolveAdminMatchControlErrorMessage(
+          error,
+          "Erro ao voltar ao agendamento.",
+        ),
+        { id: "admin-match-control-migration-required" },
+      );
       return;
     }
 
@@ -2536,6 +2593,7 @@ export function AdminMatchControl({
       .from("matches")
       .update({
         status: MatchStatus.LIVE,
+        scheduled_start_time: match.start_time ?? match.scheduled_start_time,
         start_time: match.start_time ?? new Date().toISOString(),
         end_time: null,
         home_penalty_score: null,
@@ -3323,12 +3381,12 @@ export function AdminMatchControl({
     const scheduledMatchesCountByCourtKey = new Map<string, number>();
 
     return sortedMatches.filter((match) => {
-      if (resolveMatchScheduledDateValue(match) != currentControlDateKey) {
-        return false;
-      }
-
       if (match.status == MatchStatus.LIVE) {
         return true;
+      }
+
+      if (resolveMatchScheduledDateValue(match) != currentControlDateKey) {
+        return false;
       }
 
       if (match.status != MatchStatus.SCHEDULED) {
@@ -3352,46 +3410,50 @@ export function AdminMatchControl({
   }, [currentControlDateKey, sortedMatches]);
 
   const localOperationalIndividualSessions = useMemo(() => {
-    const scheduledSessionsCountByCourtKey = new Map<string, number>();
+    const scheduledSessionsCountBySportNaipeKey = new Map<string, number>();
 
     return visibleIndividualSessions.filter((session) => {
-      if (session.scheduled_date != currentControlDateKey) {
-        return false;
-      }
-
       if (session.status == "LIVE") {
         return true;
+      }
+
+      if (session.scheduled_date != currentControlDateKey) {
+        return false;
       }
 
       if (session.status != "SCHEDULED" && session.status != "DRAFT") {
         return false;
       }
 
-      const courtKey = resolveControlQueueCourtKey(
-        session.location_name,
-        session.court_name,
-      );
+      const sportNaipeKey = `${session.sport_id}:${session.naipe}`;
       const scheduledSessionsCount =
-        scheduledSessionsCountByCourtKey.get(courtKey) ?? 0;
+        scheduledSessionsCountBySportNaipeKey.get(sportNaipeKey) ?? 0;
 
       if (scheduledSessionsCount >= 1) {
         return false;
       }
 
-      scheduledSessionsCountByCourtKey.set(courtKey, scheduledSessionsCount + 1);
+      scheduledSessionsCountBySportNaipeKey.set(
+        sportNaipeKey,
+        scheduledSessionsCount + 1,
+      );
       return true;
     });
   }, [currentControlDateKey, visibleIndividualSessions]);
 
   const compactMatches = useMemo(() => {
     return sortedMatches.filter(
-      (match) => resolveMatchScheduledDateValue(match) == currentControlDateKey,
+      (match) =>
+        match.status == MatchStatus.LIVE ||
+        resolveMatchScheduledDateValue(match) == currentControlDateKey,
     );
   }, [currentControlDateKey, sortedMatches]);
 
   const compactIndividualSessions = useMemo(() => {
     return visibleIndividualSessions.filter(
-      (session) => session.scheduled_date == currentControlDateKey,
+      (session) =>
+        session.status == "LIVE" ||
+        session.scheduled_date == currentControlDateKey,
     );
   }, [currentControlDateKey, visibleIndividualSessions]);
 
@@ -3439,6 +3501,30 @@ export function AdminMatchControl({
     : onFullQueueVisibleChange
       ? compactIndividualSessions
       : localOperationalIndividualSessions;
+  const displayedIndividualSessionGroups = useMemo(() => {
+    if (isFullQueueVisible) {
+      return displayedIndividualSessions.map((session) => ({
+        id: session.id,
+        sessions: [session],
+      }));
+    }
+
+    const sessionsBySportId = new Map<
+      string,
+      typeof displayedIndividualSessions
+    >();
+
+    displayedIndividualSessions.forEach((session) => {
+      const groupedSessions = sessionsBySportId.get(session.sport_id) ?? [];
+      groupedSessions.push(session);
+      sessionsBySportId.set(session.sport_id, groupedSessions);
+    });
+
+    return [...sessionsBySportId.entries()].map(([sportId, sessions]) => ({
+      id: sportId,
+      sessions,
+    }));
+  }, [displayedIndividualSessions, isFullQueueVisible]);
   const displayedControlItemsCount = isFullQueueVisible
     ? controlItemsCount
     : displayedMatches.length + displayedIndividualSessions.length;
@@ -3492,7 +3578,45 @@ export function AdminMatchControl({
     <div className="enter-section flex flex-col gap-4">
       {displayedIndividualSessions.length > 0 ? (
         <div className="contents">
-          {displayedIndividualSessions.map((session) => {
+          {displayedIndividualSessionGroups.map((sessionGroup) => {
+            const isUnifiedSessionGroup =
+              !isFullQueueVisible && sessionGroup.sessions.length > 1;
+            const canStartSessionGroup =
+              isUnifiedSessionGroup &&
+              sessionGroup.sessions.every(
+                (session) => session.status == "SCHEDULED",
+              );
+            const isSessionGroupActionLoading = sessionGroup.sessions.some(
+              (session) => sessionActionLoadingById[session.id] == true,
+            );
+
+            return (
+              <div
+                key={sessionGroup.id}
+                className="order-3 space-y-4 list-item-card admin-match-control-card admin-match-control-individual-session-card p-5"
+              >
+                {canStartSessionGroup ? (
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      variant="default"
+                      size="sm"
+                      className="h-9 bg-live text-primary-foreground hover:bg-live-glow"
+                      aria-label="Iniciar sessões"
+                      title="Iniciar sessões"
+                      disabled={isSessionGroupActionLoading || !canManageScoreboard || championshipStatus != ChampionshipStatus.IN_PROGRESS}
+                      onClick={() =>
+                        void startSessionGroup(
+                          sessionGroup.sessions.map((session) => session.id),
+                        )
+                      }
+                    >
+                      <Play className="mr-1 h-4 w-4" />
+                      Iniciar sessões
+                    </Button>
+                  </div>
+                ) : null}
+          {sessionGroup.sessions.map((session, sessionIndex) => {
             const isSessionActionLoading =
               sessionActionLoadingById[session.id] == true;
             const isOperational =
@@ -3503,7 +3627,10 @@ export function AdminMatchControl({
             return (
               <div
                 key={session.id}
-                className="order-3 space-y-4 list-item-card admin-match-control-card admin-match-control-individual-session-card p-5"
+                className={cn(
+                  "space-y-4",
+                  sessionIndex > 0 && "border-t border-border pt-4",
+                )}
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="order-2 space-y-1 text-center sm:order-1 sm:text-left">
@@ -3532,6 +3659,11 @@ export function AdminMatchControl({
                         ) : null}
                       </div>
                     </div>
+                    {isLive ? (
+                      <span className="text-xs font-bold text-live live-pulse">
+                        ● AO VIVO
+                      </span>
+                    ) : null}
                     <p className="text-xs text-muted-foreground">
                       {formatDateOnlyInBrazilianFormat(session.scheduled_date)}
                       {session.period
@@ -3561,7 +3693,7 @@ export function AdminMatchControl({
                         Registrar resultados
                       </span>
                     </Button>
-                    {isScheduled ? (
+                    {isScheduled && !canStartSessionGroup ? (
                       <Button
                         type="button"
                         variant="default"
@@ -3605,9 +3737,10 @@ export function AdminMatchControl({
                           aria-label="Encerrar sessão"
                           title="Encerrar sessão"
                           disabled={isSessionActionLoading || !isOperational}
-                          onClick={() =>
-                            void runSessionAction(session.id, "finish")
-                          }
+                          onClick={() => {
+                            setPendingFinishIndividualSession(session);
+                            setShowFinishIndividualSessionDialog(true);
+                          }}
                         >
                           <Square className="h-4 w-4 sm:mr-1" />
                           <span className="hidden sm:inline">
@@ -3633,7 +3766,7 @@ export function AdminMatchControl({
                         <span className="hidden sm:inline">Reabrir sessão</span>
                       </Button>
                     ) : null}
-                    {session.status != "SCHEDULED" ? (
+                    {session.status != "SCHEDULED" && !isLive ? (
                       <AppBadge
                         tone={
                           session.status == "DRAFT"
@@ -3651,6 +3784,9 @@ export function AdminMatchControl({
                   </div>
                 </div>
 
+              </div>
+            );
+          })}
               </div>
             );
           })}
@@ -4107,10 +4243,8 @@ export function AdminMatchControl({
                 match_sets: closedMatchSets,
               });
               const editingSetDraft = editingSetDraftByMatchId[match.id];
-              const startedAtLabel = resolveMatchStartedAtLabel(
-                match.start_time,
-                match.status,
-              );
+              const plannedStartTimeLabel =
+                estimatedStartTimeByMatchId[match.id];
               const tieBreakRuleLabel = resolveMatchTieBreakRuleLabel(
                 match.resolved_tie_breaker_rule,
               );
@@ -4381,7 +4515,8 @@ export function AdminMatchControl({
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => {
+                          onClick={(event) => {
+                            event.currentTarget.blur();
                             setPendingReturnToScheduledMatch(match);
                             setShowReturnToScheduledConfirmDialog(true);
                           }}
@@ -4511,9 +4646,9 @@ export function AdminMatchControl({
                           </span>
                         )}
 
-                        {startedAtLabel ? (
+                        {plannedStartTimeLabel ? (
                           <p className="text-xs text-muted-foreground">
-                            {startedAtLabel}
+                            Horário previsto: {plannedStartTimeLabel}
                           </p>
                         ) : null}
 
@@ -5791,6 +5926,44 @@ export function AdminMatchControl({
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog
+        open={showFinishIndividualSessionDialog}
+        onOpenChange={(open) => {
+          setShowFinishIndividualSessionDialog(open);
+          if (!open) {
+            setPendingFinishIndividualSession(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Encerrar sessão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deseja encerrar a sessão de{" "}
+              {pendingFinishIndividualSession
+                ? `${pendingFinishIndividualSession.sports?.name ?? "provas"} — ${resolveMatchNaipeLabel(String(pendingFinishIndividualSession.naipe))}`
+                : "provas"}
+              ? Ela deixará de estar ao vivo. Os resultados já registrados serão
+              preservados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (pendingFinishIndividualSession) {
+                  void runSessionAction(pendingFinishIndividualSession.id, "finish");
+                }
+                setPendingFinishIndividualSession(null);
+              }}
+            >
+              Encerrar sessão
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AdminIndividualSessionResultsDialog
         open={resultsDialogSessionId != null}
         onOpenChange={(open) => {
@@ -5814,7 +5987,6 @@ export function AdminMatchControl({
               ) ?? false
             ),
         )}
-        athletes={individualAthletes}
         teams={
           resultsDialogSessionId
             ? (sessionParticipantsBySessionId[resultsDialogSessionId] ?? []).filter(
@@ -5826,6 +5998,10 @@ export function AdminMatchControl({
                   ),
               )
             : []
+        }
+        isLoading={
+          resultsDialogSessionId != null &&
+          (individualEventsLoading || sessionParticipantsLoading)
         }
         canManage={
           canManageScoreboard &&

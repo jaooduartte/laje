@@ -79,4 +79,47 @@ describe("resolvePublicScheduleTimelineItems", () => {
       "match-29-august",
     ]);
   });
+
+  it("ordena jogos encerrados pela hora prevista e não pela hora real de início", () => {
+    const timelineItems = resolvePublicScheduleTimelineItems({
+      matches: [
+        {
+          ...buildMatch({
+            id: "game-30",
+            scheduledDate: "2026-09-12",
+            queuePosition: 15,
+          }),
+          status: MatchStatus.FINISHED,
+          scheduled_start_time: "2026-09-12T13:15:00.000Z",
+          start_time: "2026-09-12T13:15:00.000Z",
+        },
+        {
+          ...buildMatch({
+            id: "game-29",
+            scheduledDate: "2026-09-12",
+            queuePosition: 5,
+          }),
+          status: MatchStatus.FINISHED,
+          scheduled_start_time: "2026-09-12T12:30:00.000Z",
+          start_time: "2026-09-12T14:16:00.000Z",
+        },
+        {
+          ...buildMatch({
+            id: "game-28",
+            scheduledDate: "2026-09-12",
+            queuePosition: 14,
+          }),
+          status: MatchStatus.FINISHED,
+          scheduled_start_time: "2026-09-12T11:45:00.000Z",
+          start_time: "2026-09-12T11:45:00.000Z",
+        },
+      ],
+    });
+
+    expect(timelineItems.map((item) => item.id)).toEqual([
+      "game-28",
+      "game-29",
+      "game-30",
+    ]);
+  });
 });

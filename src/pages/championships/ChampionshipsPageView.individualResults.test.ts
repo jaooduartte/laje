@@ -20,7 +20,7 @@ const event: ChampionshipIndividualEvent = {
   naipe: MatchNaipe.FEMININO,
   division: null,
   event_code: "SWIMMING_50_FREE",
-  name: "50m livre",
+  name: "50m crawl",
   kind: ChampionshipIndividualEventKind.INDIVIDUAL,
   display_order: 1,
   scheduled_date: "2026-09-12",

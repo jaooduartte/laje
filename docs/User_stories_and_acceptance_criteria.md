@@ -223,6 +223,10 @@
 
 - Deve ser possível definir ordem de critérios de desempate (por exemplo: pontos, saldo de gols, confronto direto, cartões).  
 - A tabela de classificação deve respeitar a ordem de critérios configurada para cada modalidade.  
+- A classificação administrativa e pública deve exibir as métricas agregáveis usadas na pontuação e nos desempates da modalidade, mantendo os indicadores de campanha antes delas.
+- A prioridade dos critérios deve ser lida da direita para a esquerda: pontos fica como última coluna e destacado, seguido à esquerda pelos desempates em ordem oficial.
+- Em modalidades por sets, a tabela deve apresentar sets average, sets vencidos e perdidos e pontos de rally; confronto direto e sorteio permanecem descritos como critérios, pois não são um total individual da atlética.
+- Em Atletismo e Natação, a tabela deve apresentar a quantidade de colocações do 1º ao 20º lugar para permitir a conferência do desempate geral.
 
 ***
 

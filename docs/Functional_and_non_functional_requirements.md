@@ -30,6 +30,7 @@
 - **RF-STAND-01** – O sistema deve atualizar automaticamente as tabelas de classificação ao finalizar jogos, calculando vitórias, empates, derrotas, gols marcados, gols sofridos, saldo de gols, pontos (por modalidade) e cartões quando aplicável.
 - **RF-STAND-02** – O sistema deve ordenar as tabelas de classificação seguindo regras de desempate por modalidade definido pelo regulamento do campeonato.
 - **RF-STAND-03** – O sistema deve disponibilizar standings por campeonato, temporada, esporte, naipe e divisão, exibindo de forma agregada os dados de cada time.
+- **RF-STAND-04** – No basquete do INTERLAJE, a seleção entre classificadas de grupos deve aplicar pontos, pontos average, confronto direto quando aplicável, saldo de pontos, menor total de pontos sofridos, expulsões por jogo e sorteio, nessa ordem.
 
 ### 1.5 Chave do campeonato (bracket)
 
@@ -38,6 +39,7 @@
 - **RF-BRACK-03** – O sistema deve gerar a fase de mata-mata a partir da configuração da chave, com opção de jogo de terceiro lugar ou outras políticas de definição de terceiro lugar.
 - **RF-BRACK-04** – O sistema deve permitir a visualização unificada da chave (fase de grupos e mata-mata), com histórico por temporada, incluindo a numeração do jogo nos confrontos agendados, encerrados e ainda aguardando a definição das atléticas.
 - **RF-BRACK-05** – O sistema deve atualizar automaticamente a chave e sua visualização quando jogos forem alterados ou excluídos, mantendo a progressão dos times conforme os resultados. Em confrontos eliminatórios decididos por pênaltis, o vencedor persistido e promovido deve corresponder ao placar dos pênaltis.
+- **RF-BRACK-06** – Ao materializar um confronto de mata-mata, o sistema deve copiar data, horário, local, quadra e posições de fila definidos no slot estrutural da chave, preservando a sequência aprovada da agenda.
 
 ### 1.6 Jogos (matches)
 

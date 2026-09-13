@@ -13,13 +13,16 @@ import type { Championship, ChampionshipSport, Sport } from "@/lib/types";
 const {
   championshipSportsUpdateMock,
   sportsUpdateMock,
+  rpcMock,
 } = vi.hoisted(() => ({
   championshipSportsUpdateMock: vi.fn(),
   sportsUpdateMock: vi.fn(),
+  rpcMock: vi.fn(),
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
+    rpc: (...args: unknown[]) => rpcMock(...args),
     from: vi.fn((table: string) => {
       if (table == "championship_sports") {
         return {
@@ -88,11 +91,16 @@ describe("AdminSports", () => {
   beforeEach(() => {
     championshipSportsUpdateMock.mockReset();
     sportsUpdateMock.mockReset();
+    rpcMock.mockReset();
     championshipSportsUpdateMock.mockReturnValue({
       eq: vi.fn().mockResolvedValue({ error: null }),
     });
     sportsUpdateMock.mockReturnValue({
       eq: vi.fn().mockResolvedValue({ error: null }),
+    });
+    rpcMock.mockResolvedValue({
+      data: { updated_matches_count: 0 },
+      error: null,
     });
   });
 
@@ -344,10 +352,24 @@ describe("AdminSports", () => {
 
     fireEvent.click(walkoverSaveButton);
 
+    expect(
+      screen.getByText("Atualizar W.O.s já encerrados?"),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Salvar sem atualizar jogos" }),
+    );
+
     await waitFor(() => {
-      expect(championshipSportsUpdateMock).toHaveBeenCalledWith({
-        walkover_winner_points: 4,
-      });
+      expect(rpcMock).toHaveBeenCalledWith(
+        "save_championship_sport_walkover_configuration",
+        {
+          _championship_sport_id: "championship-sport-1",
+          _season_year: 2026,
+          _update_finished_walkovers: false,
+          _walkover_winner_points: 4,
+          _walkover_winner_set_count: null,
+        },
+      );
     });
 
     await waitFor(() => {
@@ -398,11 +420,21 @@ describe("AdminSports", () => {
     expect(walkoverSaveButton).toBeDefined();
     fireEvent.click(walkoverSaveButton!);
 
+    fireEvent.click(
+      screen.getByRole("button", { name: "Salvar e atualizar jogos" }),
+    );
+
     await waitFor(() => {
-      expect(championshipSportsUpdateMock).toHaveBeenCalledWith({
-        walkover_winner_points: 21,
-        walkover_winner_set_count: 2,
-      });
+      expect(rpcMock).toHaveBeenCalledWith(
+        "save_championship_sport_walkover_configuration",
+        {
+          _championship_sport_id: "championship-sport-volleyball",
+          _season_year: 2026,
+          _update_finished_walkovers: true,
+          _walkover_winner_points: 21,
+          _walkover_winner_set_count: 2,
+        },
+      );
     });
   });
 

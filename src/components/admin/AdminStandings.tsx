@@ -91,7 +91,7 @@ import {
   resolveChampionshipSeasonSettingsFromBracketPayload,
   resolveSeasonDivisionMovementPreview,
 } from "@/lib/championshipSeason";
-import { resolveModalidadeConfigBySportId } from "@/lib/modalidadeConfig";
+import { resolveModalidadeConfigByChampionshipSport } from "@/lib/modalidadeConfig";
 import {
   MATCH_NAIPE_LABELS,
   TEAM_DIVISION_BADGE_TONES,
@@ -611,6 +611,26 @@ export function AdminStandings({
     );
   }, [championshipSports, sportFilter]);
 
+  const standingsTieBreakerCascade = useMemo(() => {
+    if (sportFilter == ALL_SPORTS_FILTER) {
+      return undefined;
+    }
+
+    const championshipSport = championshipSports.find(
+      (item) => item.sport_id == sportFilter,
+    );
+
+    if (!championshipSport) {
+      return undefined;
+    }
+
+    return resolveModalidadeConfigByChampionshipSport(
+      championshipSport,
+      sports,
+      naipeFilter == ALL_NAIPES_FILTER ? null : (naipeFilter as MatchNaipe),
+    ).tie_breaker_cascade;
+  }, [championshipSports, naipeFilter, sportFilter, sports]);
+
   const shouldUseManualTieBreakOnStandings = shouldLoadStandingsHeadToHead;
   const isPlacementFilterDisabled =
     sportFilter == ALL_SPORTS_FILTER || naipeFilter == ALL_NAIPES_FILTER;
@@ -680,9 +700,37 @@ export function AdminStandings({
 
     return new Set(Object.values(manualTieBreakWinnerTeamIdByPairKey));
   }, [manualTieBreakWinnerTeamIdByPairKey]);
+  const rankedGroupStageStandings = useMemo(() => {
+    const standingsByGroupId = new Map<string, typeof groupStageStandings>();
+
+    groupStageStandings.forEach((standing) => {
+      const standingsForGroup = standingsByGroupId.get(standing.group_id) ?? [];
+      standingsForGroup.push(standing);
+      standingsByGroupId.set(standing.group_id, standingsForGroup);
+    });
+
+    return [...standingsByGroupId.values()].flatMap((standingsForGroup) =>
+      sortStandingRowsByRanking(standingsForGroup, {
+        tieBreakerRule: standingsTieBreakerRule,
+        tieBreakerCascade: standingsTieBreakerCascade,
+        headToHeadMatches: standingsHeadToHeadMatches,
+        manualTieBreakWinnerTeamIdByPairKey,
+      }).map((standing, index) => ({
+        ...standing,
+        group_rank: index + 1,
+      })),
+    );
+  }, [
+    groupStageStandings,
+    manualTieBreakWinnerTeamIdByPairKey,
+    standingsHeadToHeadMatches,
+    standingsTieBreakerCascade,
+    standingsTieBreakerRule,
+  ]);
   const displayedInterlajeCompetitionStandings = useMemo(() => {
     return sortStandingRowsByRanking(interlajeCompetitionStandings, {
       tieBreakerRule: standingsTieBreakerRule,
+      tieBreakerCascade: standingsTieBreakerCascade,
       headToHeadMatches: standingsHeadToHeadMatches,
       manualTieBreakWinnerTeamIdByPairKey,
     });
@@ -690,6 +738,7 @@ export function AdminStandings({
     interlajeCompetitionStandings,
     manualTieBreakWinnerTeamIdByPairKey,
     standingsHeadToHeadMatches,
+    standingsTieBreakerCascade,
     standingsTieBreakerRule,
   ]);
 
@@ -828,9 +877,12 @@ export function AdminStandings({
     if (resolvedPlacementFilter != "all") {
       const groupRank =
         resolvedPlacementFilter == "first_per_group" ? 1 : 2;
-      const filteredGroupStageStandings = groupStageStandings
+      const filteredGroupStageStandings = rankedGroupStageStandings
         .filter((standing) => {
-          if (standing.group_rank != groupRank) {
+          const qualificationRank =
+            standing.qualification_rank ?? standing.group_rank;
+
+          if (qualificationRank != groupRank) {
             return false;
           }
 
@@ -845,35 +897,90 @@ export function AdminStandings({
           return !championshipUsesDivisions ||
             divisionFilter == ALL_DIVISIONS_FILTER ||
             standing.division == divisionFilter;
-        })
-        .sort((firstStanding, secondStanding) => {
-          if (firstStanding.comparison_rank != secondStanding.comparison_rank) {
-            return firstStanding.comparison_rank - secondStanding.comparison_rank;
-          }
+        });
+      const standingsWithQualificationMetrics = filteredGroupStageStandings.map(
+        (standing) => {
+          const usesQualificationPoolRanking =
+            standing.qualification_pool_rank != null;
 
-          return firstStanding.team_name.localeCompare(secondStanding.team_name);
-        })
-        .map((standing) => ({
-          team_id: standing.team_id,
-          team_name: standing.team_name,
-          team_city: "",
-          division: standing.division,
-          played: standing.played,
-          wins: standing.wins,
-          draws: standing.draws,
-          losses: standing.losses,
-          goals_for: standing.goals_for,
-          goals_against: standing.goals_against,
-          goal_diff: standing.goal_diff,
-          points: standing.comparison_points,
-          yellow_cards: standing.yellow_cards,
-          red_cards: standing.red_cards,
-          blue_cards: standing.blue_cards,
-          two_minute_penalties: standing.two_minute_penalties,
-        }));
+          return {
+            team_id: standing.team_id,
+            team_name: standing.team_name,
+            team_city: "",
+            division: standing.division,
+            played: standing.played,
+            wins: standing.wins,
+            draws: standing.draws,
+            losses: standing.losses,
+            goals_for: usesQualificationPoolRanking
+              ? standing.comparison_goals_for
+              : standing.goals_for,
+            goals_against: usesQualificationPoolRanking
+              ? standing.comparison_goals_against
+              : standing.goals_against,
+            goal_diff: usesQualificationPoolRanking
+              ? standing.comparison_goal_diff
+              : standing.goal_diff,
+            points: standing.comparison_points,
+            yellow_cards: usesQualificationPoolRanking
+              ? standing.comparison_yellow_cards
+              : standing.yellow_cards,
+            red_cards: usesQualificationPoolRanking
+              ? standing.comparison_red_cards
+              : standing.red_cards,
+            blue_cards: usesQualificationPoolRanking
+              ? standing.comparison_blue_cards
+              : standing.blue_cards,
+            two_minute_penalties: usesQualificationPoolRanking
+              ? standing.comparison_two_minute_penalties
+              : standing.two_minute_penalties,
+            sets_for: usesQualificationPoolRanking
+              ? standing.comparison_sets_for
+              : standing.sets_for,
+            sets_against: usesQualificationPoolRanking
+              ? standing.comparison_sets_against
+              : standing.sets_against,
+            rally_points_for: usesQualificationPoolRanking
+              ? standing.comparison_rally_points_for
+              : standing.rally_points_for,
+            rally_points_against: usesQualificationPoolRanking
+              ? standing.comparison_rally_points_against
+              : standing.rally_points_against,
+            qualification_pool_rank: standing.qualification_pool_rank,
+          };
+        },
+      );
+      const rankedByQualificationPool = standingsWithQualificationMetrics
+        .filter((standing) => standing.qualification_pool_rank != null)
+        .sort(
+          (firstStanding, secondStanding) =>
+            firstStanding.qualification_pool_rank! -
+            secondStanding.qualification_pool_rank!,
+        );
+      const standingsWithoutQualificationPoolRank =
+        standingsWithQualificationMetrics.filter(
+          (standing) => standing.qualification_pool_rank == null,
+        );
+      const orderedStandings =
+        rankedByQualificationPool.length > 0
+          ? [
+              ...rankedByQualificationPool,
+              ...sortStandingRowsByRanking(standingsWithoutQualificationPoolRank, {
+                tieBreakerRule: standingsTieBreakerRule,
+                tieBreakerCascade: standingsTieBreakerCascade,
+                headToHeadMatches: standingsHeadToHeadMatches,
+                manualTieBreakWinnerTeamIdByPairKey,
+              }),
+            ]
+          : sortStandingRowsByRanking(standingsWithQualificationMetrics, {
+              tieBreakerRule: standingsTieBreakerRule,
+              tieBreakerCascade: standingsTieBreakerCascade,
+              headToHeadMatches: standingsHeadToHeadMatches,
+              manualTieBreakWinnerTeamIdByPairKey,
+            });
 
       return moveDisqualifiedStandingsToBottom(
-        filteredGroupStageStandings,
+        orderedStandings,
         visibleCompetitionDisqualifiedTeamKeys,
       );
     }
@@ -955,7 +1062,7 @@ export function AdminStandings({
     championshipUsesDivisions,
     correctedGroupStandings,
     groupFilter,
-    groupStageStandings,
+    rankedGroupStageStandings,
     manualTieBreakWinnerTeamIdByPairKey,
     naipeFilter,
     resolvedPlacementFilter,
@@ -963,6 +1070,7 @@ export function AdminStandings({
     sportFilter,
     standings,
     standingsHeadToHeadMatches,
+    standingsTieBreakerCascade,
     standingsTieBreakerRule,
     visibleCompetitionDisqualifiedTeamKeys,
     divisionFilter,
@@ -1565,7 +1673,7 @@ export function AdminStandings({
         { label: string; groupNumber: number; standings: TeamStandingAggregate[] }
       >();
 
-      groupStageStandings.forEach((standing) => {
+      rankedGroupStageStandings.forEach((standing) => {
         if (standing.sport_id != sportFilter || standing.naipe != naipeFilter) {
           return;
         }
@@ -1608,6 +1716,10 @@ export function AdminStandings({
           red_cards: standing.red_cards,
           blue_cards: standing.blue_cards,
           two_minute_penalties: standing.two_minute_penalties,
+          sets_for: standing.sets_for,
+          sets_against: standing.sets_against,
+          rally_points_for: standing.rally_points_for,
+          rally_points_against: standing.rally_points_against,
         });
         standingsByGroupId.set(standing.group_id, standingsGroup);
       });
@@ -1656,7 +1768,7 @@ export function AdminStandings({
     championshipUsesDivisions,
     displayedTeamStandings,
     groupFilter,
-    groupStageStandings,
+    rankedGroupStageStandings,
     isIndividualStandingsView,
     isInterlajeCompetitionStandingsAvailable,
     isInterlajeOverallStandingsView,
@@ -1742,8 +1854,18 @@ export function AdminStandings({
 
     const activeNaipe =
       naipeFilter == ALL_NAIPES_FILTER ? null : (naipeFilter as MatchNaipe);
-    return resolveModalidadeConfigBySportId(sportFilter, activeNaipe, sports);
-  }, [naipeFilter, sportFilter, sports]);
+    const championshipSport = championshipSports.find(
+      (item) => item.sport_id == sportFilter,
+    );
+
+    return championshipSport
+      ? resolveModalidadeConfigByChampionshipSport(
+          championshipSport,
+          sports,
+          activeNaipe,
+        )
+      : undefined;
+  }, [championshipSports, naipeFilter, sportFilter, sports]);
 
   function handleOpenDisqualificationDialog() {
     if (!canManageDisqualifications) {
@@ -1911,7 +2033,7 @@ export function AdminStandings({
       (isInterlajeCompetitionStandingsAvailable &&
         interlajeStandingsView == "groups") ? (
         <p className="text-xs text-muted-foreground">
-          Esta consulta considera apenas os jogos finalizados da fase de grupos. Nos melhores colocados, PTS aplica o fator proporcional entre grupos de tamanhos diferentes.
+          Esta consulta considera apenas os jogos finalizados da fase de grupos. Nos melhores colocados do voleibol do INTERLAJE, a ordem e os critérios exibidos usam a mesma normalização proporcional aplicada à chave eliminatória.
         </p>
       ) : null}
       {isInterlajeOverallStandingsView && hasInterlajeOverallProjectedPlacement ? (

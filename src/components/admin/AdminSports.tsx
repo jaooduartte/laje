@@ -20,6 +20,16 @@ import { PLATFORM_SPORT_RULES_BY_CHAMPIONSHIP_CODE } from "@/domain/sport-rules/
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Props {
   sports: Sport[];
@@ -33,6 +43,40 @@ interface Props {
     showFetching?: boolean;
   }) => void | Promise<void>;
   onRefetchSports?: () => void | Promise<void>;
+  onSeasonSportRemoved?: () => void | Promise<void>;
+  hiddenSportIds?: string[];
+}
+
+interface SeasonSportRemovalPreview {
+  sport_name: string;
+  has_live_items: boolean;
+  matches_count: number;
+  individual_sessions_count: number;
+  individual_events_count: number;
+  individual_entries_count: number;
+  standings_count: number;
+  individual_standings_count: number;
+  bracket_competitions_count: number;
+  configured_teams_count: number;
+  athletes_count: number;
+  disqualifications_count: number;
+}
+
+type SupabaseRemovalClient = {
+  rpc: (
+    functionName: string,
+    argumentsValue: Record<string, unknown>,
+  ) => Promise<{ data: SeasonSportRemovalPreview | null; error: { message: string } | null }>;
+};
+
+const supabaseRemovalClient = supabase as unknown as SupabaseRemovalClient;
+
+interface PendingWalkoverConfiguration {
+  championshipSport: ChampionshipSport;
+  sportId: string;
+  isSetRule: boolean;
+  winnerPoints: number | null;
+  winnerSetCount: number | null;
 }
 
 function normalizePositiveIntegerDraftValue(value: string): number | null {
@@ -60,6 +104,8 @@ export function AdminSports({
   canManageSports = true,
   onRefetchMatches,
   onRefetchSports,
+  onSeasonSportRemoved,
+  hiddenSportIds = [],
 }: Props) {
   const [savingSportIdById, setSavingSportIdById] = useState<
     Record<string, boolean>
@@ -83,6 +129,15 @@ export function AdminSports({
   >({});
   const [walkoverSetCountDraftBySportId, setWalkoverSetCountDraftBySportId] =
     useState<Record<string, string>>({});
+  const [pendingWalkoverConfiguration, setPendingWalkoverConfiguration] =
+    useState<PendingWalkoverConfiguration | null>(null);
+  const [pendingSeasonSportRemoval, setPendingSeasonSportRemoval] = useState<{
+    sport: Sport;
+    preview: SeasonSportRemovalPreview;
+  } | null>(null);
+  const [seasonSportRemovalConfirmation, setSeasonSportRemovalConfirmation] =
+    useState("");
+  const [isRemovingSeasonSport, setIsRemovingSeasonSport] = useState(false);
   const [durationDraftBySportId, setDurationDraftBySportId] = useState<
     Record<string, string>
   >({});
@@ -104,6 +159,7 @@ export function AdminSports({
 
     return map;
   }, [sports]);
+  const hiddenSportIdsSet = useMemo(() => new Set(hiddenSportIds), [hiddenSportIds]);
 
   const championshipSportBySportId = useMemo(() => {
     const map = new Map<string, ChampionshipSport>();
@@ -341,18 +397,47 @@ export function AdminSports({
       return;
     }
 
+    setPendingWalkoverConfiguration({
+      championshipSport,
+      sportId,
+      isSetRule,
+      winnerPoints: parsedValue,
+      winnerSetCount: parsedSetCount,
+    });
+  };
+
+  const handleConfirmWalkoverConfiguration = async (
+    shouldUpdateFinishedWalkovers: boolean,
+  ) => {
+    const configuration = pendingWalkoverConfiguration;
+
+    if (!configuration) {
+      return;
+    }
+
+    const {
+      championshipSport,
+      sportId,
+      isSetRule,
+      winnerPoints,
+      winnerSetCount,
+    } = configuration;
+
     setSavingSportIdById((current) => ({
       ...current,
       [championshipSport.id]: true,
     }));
 
-    const { error } = await supabase
-      .from("championship_sports")
-      .update({
-        walkover_winner_points: parsedValue,
-        ...(isSetRule ? { walkover_winner_set_count: parsedSetCount } : {}),
-      })
-      .eq("id", championshipSport.id);
+    const { data, error } = await supabase.rpc(
+      "save_championship_sport_walkover_configuration",
+      {
+        _championship_sport_id: championshipSport.id,
+        _season_year: selectedChampionship.current_season_year,
+        _walkover_winner_points: winnerPoints,
+        _walkover_winner_set_count: isSetRule ? winnerSetCount : null,
+        _update_finished_walkovers: shouldUpdateFinishedWalkovers,
+      },
+    );
 
     setSavingSportIdById((current) => ({
       ...current,
@@ -368,27 +453,46 @@ export function AdminSports({
 
     setOptimisticWalkoverWinnerPointsBySportId((current) => ({
       ...current,
-      [sportId]: parsedValue,
+      [sportId]: winnerPoints,
     }));
     setWalkoverDraftBySportId((current) => ({
       ...current,
-      [sportId]: parsedValue != null ? String(parsedValue) : "",
+      [sportId]: winnerPoints != null ? String(winnerPoints) : "",
     }));
-    if (isSetRule && parsedSetCount != null) {
+    if (isSetRule && winnerSetCount != null) {
       setOptimisticWalkoverWinnerSetCountBySportId((current) => ({
         ...current,
-        [sportId]: parsedSetCount,
+        [sportId]: winnerSetCount,
       }));
       setWalkoverSetCountDraftBySportId((current) => ({
         ...current,
-        [sportId]: String(parsedSetCount),
+        [sportId]: String(winnerSetCount),
       }));
     }
 
+    setPendingWalkoverConfiguration(null);
+
+    await Promise.all([
+      onRefetchSports?.(),
+      shouldUpdateFinishedWalkovers
+        ? onRefetchMatches?.({ showFetching: true })
+        : undefined,
+    ]);
+
+    const updatedMatchesCount =
+      data &&
+      typeof data == "object" &&
+      !Array.isArray(data) &&
+      typeof data.updated_matches_count == "number"
+        ? data.updated_matches_count
+        : 0;
+
     toast.success(
-      parsedValue != null
-        ? "Configuração de W.O. atualizada."
-        : "W.O. desabilitado para esta modalidade.",
+      shouldUpdateFinishedWalkovers
+        ? `Configuração de W.O. atualizada e ${updatedMatchesCount} jogo(s) encerrado(s) recalculado(s).`
+        : winnerPoints != null
+          ? "Configuração de W.O. atualizada. Jogos encerrados foram preservados."
+          : "W.O. desabilitado para esta modalidade. Jogos encerrados foram preservados.",
     );
   };
 
@@ -553,6 +657,74 @@ export function AdminSports({
     toast.success("Configuração de contabilização de prêmios atualizada.");
   };
 
+  const handleOpenSeasonSportRemoval = async (sport: Sport) => {
+    if (!canManageSports) {
+      return;
+    }
+
+    const { data, error } = await supabaseRemovalClient.rpc(
+      "preview_championship_season_sport_removal",
+      {
+        _championship_id: selectedChampionship.id,
+        _season_year: selectedChampionship.current_season_year,
+        _sport_id: sport.id,
+      },
+    );
+
+    if (error || !data) {
+      toast.error(error?.message || "Não foi possível carregar o impacto da remoção.");
+      return;
+    }
+
+    setSeasonSportRemovalConfirmation("");
+    setPendingSeasonSportRemoval({ sport, preview: data });
+  };
+
+  const handleConfirmSeasonSportRemoval = async () => {
+    if (!pendingSeasonSportRemoval) {
+      return;
+    }
+
+    setIsRemovingSeasonSport(true);
+
+    const { error } = await supabaseRemovalClient.rpc(
+      "remove_championship_season_sport",
+      {
+        _championship_id: selectedChampionship.id,
+        _season_year: selectedChampionship.current_season_year,
+        _sport_id: pendingSeasonSportRemoval.sport.id,
+        _confirmation_name: seasonSportRemovalConfirmation,
+      },
+    );
+
+    setIsRemovingSeasonSport(false);
+
+    if (error) {
+      toast.error(error.message || "Não foi possível remover a modalidade.");
+      return;
+    }
+
+    setPendingSeasonSportRemoval(null);
+    setSeasonSportRemovalConfirmation("");
+    await Promise.all([
+      onRefetchMatches?.({ showFetching: true }),
+      onRefetchSports?.(),
+      onSeasonSportRemoved?.(),
+    ]);
+    toast.success("Modalidade removida desta temporada.");
+  };
+
+  const pendingWalkoverSportName = pendingWalkoverConfiguration
+    ? sports.find(
+        (sport) => sport.id == pendingWalkoverConfiguration.sportId,
+      )?.name
+    : null;
+  const isSavingPendingWalkoverConfiguration =
+    pendingWalkoverConfiguration != null &&
+    savingSportIdById[
+      pendingWalkoverConfiguration.championshipSport.id
+    ] == true;
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -585,6 +757,128 @@ export function AdminSports({
 
   return (
     <div className="space-y-6">
+      <AlertDialog
+        open={pendingSeasonSportRemoval != null}
+        onOpenChange={(open) => {
+          if (!open && !isRemovingSeasonSport) {
+            setPendingSeasonSportRemoval(null);
+            setSeasonSportRemovalConfirmation("");
+          }
+        }}
+      >
+        <AlertDialogContent className="w-[calc(100%-2rem)] sm:max-w-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Remover {pendingSeasonSportRemoval?.preview.sport_name} desta temporada?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              A remoção é definitiva apenas para {selectedChampionship.current_season_year}. Dias, locais e quadras compartilhados não serão removidos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {pendingSeasonSportRemoval ? (
+            <div className="app-card-muted space-y-1 px-3 py-2 text-sm">
+              <p className="font-medium">Dados que serão removidos</p>
+              <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
+                {[
+                  ["jogo(s)", pendingSeasonSportRemoval.preview.matches_count],
+                  ["sessão(ões)", pendingSeasonSportRemoval.preview.individual_sessions_count],
+                  ["prova(s)", pendingSeasonSportRemoval.preview.individual_events_count],
+                  ["inscrição(ões)", pendingSeasonSportRemoval.preview.individual_entries_count],
+                  ["classificação(ões)", pendingSeasonSportRemoval.preview.standings_count + pendingSeasonSportRemoval.preview.individual_standings_count],
+                  ["chave(s)", pendingSeasonSportRemoval.preview.bracket_competitions_count],
+                  ["atlética(s) participante(s)", pendingSeasonSportRemoval.preview.configured_teams_count],
+                  ["atleta(s)", pendingSeasonSportRemoval.preview.athletes_count],
+                  ["desclassificação(ões)", pendingSeasonSportRemoval.preview.disqualifications_count],
+                ]
+                  .filter(([, count]) => Number(count) > 0)
+                  .map(([label, count]) => (
+                    <li key={String(label)}>
+                      {count} {label}
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          ) : null}
+          {pendingSeasonSportRemoval?.preview.has_live_items ? (
+            <p className="text-sm font-medium text-destructive">
+              Há jogo ou sessão ao vivo nesta modalidade. Encerre ou retorne o item ao agendamento antes de remover.
+            </p>
+          ) : (
+            <label className="space-y-1 text-sm">
+              <span>Digite {pendingSeasonSportRemoval?.preview.sport_name} para confirmar</span>
+              <Input
+                value={seasonSportRemovalConfirmation}
+                onChange={(event) => setSeasonSportRemovalConfirmation(event.target.value)}
+                disabled={isRemovingSeasonSport}
+              />
+            </label>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isRemovingSeasonSport}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={
+                isRemovingSeasonSport ||
+                pendingSeasonSportRemoval?.preview.has_live_items ||
+                seasonSportRemovalConfirmation.trim().toLocaleLowerCase() !=
+                  pendingSeasonSportRemoval?.preview.sport_name.trim().toLocaleLowerCase()
+              }
+              onClick={(event) => {
+                event.preventDefault();
+                void handleConfirmSeasonSportRemoval();
+              }}
+            >
+              {isRemovingSeasonSport ? "Removendo…" : "Remover modalidade"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={pendingWalkoverConfiguration != null}
+        onOpenChange={(open) => {
+          if (!open && !isSavingPendingWalkoverConfiguration) {
+            setPendingWalkoverConfiguration(null);
+          }
+        }}
+      >
+        <AlertDialogContent className="w-[calc(100%-2rem)] sm:max-w-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Atualizar W.O.s já encerrados?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingWalkoverConfiguration?.winnerPoints != null
+                ? `A nova configuração será salva de qualquer forma. Deseja aplicá-la aos W.O.s simples já encerrados de ${pendingWalkoverSportName ?? "esta modalidade"} na temporada atual (${selectedChampionship.current_season_year})? W.O.s duplos não serão alterados.`
+                : "O W.O. será desabilitado para os próximos jogos. Os W.O.s já encerrados serão preservados para manter o histórico da temporada."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSavingPendingWalkoverConfiguration}>
+              Cancelar
+            </AlertDialogCancel>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isSavingPendingWalkoverConfiguration}
+              onClick={() => {
+                void handleConfirmWalkoverConfiguration(false);
+              }}
+            >
+              Salvar sem atualizar jogos
+            </Button>
+            {pendingWalkoverConfiguration?.winnerPoints != null ? (
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={isSavingPendingWalkoverConfiguration}
+                onClick={() => {
+                  void handleConfirmWalkoverConfiguration(true);
+                }}
+              >
+                Salvar e atualizar jogos
+              </Button>
+            ) : null}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="enter-section space-y-5 glass-card p-4">
         <h2 className="text-2xl font-display font-bold">
           Modalidades oficiais da{" "}
@@ -600,6 +894,9 @@ export function AdminSports({
             const sport = sportsByNormalizedName.get(
               resolveNormalizedSportName(platformSportRule.sportName),
             );
+            if (sport && hiddenSportIdsSet.has(sport.id)) {
+              return null;
+            }
             const championshipSport = sport
               ? championshipSportBySportId.get(sport.id)
               : undefined;
@@ -704,6 +1001,19 @@ export function AdminSports({
                   <p className="font-display font-semibold">
                     {platformSportRule.sportName}
                   </p>
+                  {sport && championshipSport ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={!canManageSports || isSavingSport}
+                      onClick={() => {
+                        void handleOpenSeasonSportRemoval(sport);
+                      }}
+                    >
+                      Remover da temporada
+                    </Button>
+                  ) : null}
                 </div>
 
                 <p className="text-xs font-medium text-muted-foreground">

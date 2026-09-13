@@ -494,7 +494,7 @@ export function useMatches({
           let scheduledOrderQuery = supabaseLoose
             .from("matches")
             .select(
-              "id, championship_id, location, court_name, manual_representation_mode, season_year, scheduled_date, start_time, end_time, sport_id, naipe, division, queue_position, created_at, scheduled_slot, sports(name), home_team:teams!matches_home_team_id_fkey(name), away_team:teams!matches_away_team_id_fkey(name)",
+              "id, championship_id, location, court_name, manual_representation_mode, season_year, scheduled_date, scheduled_start_time, start_time, end_time, sport_id, naipe, division, queue_position, created_at, scheduled_slot, sports(name), home_team:teams!matches_home_team_id_fkey(name), away_team:teams!matches_away_team_id_fkey(name)",
             )
             .order("scheduled_date", {
               ascending: sortMode == "SCHEDULED",
@@ -699,7 +699,7 @@ export function useMatches({
           let operationalContextQuery = supabaseLoose
             .from("matches")
             .select(
-              "id, championship_id, location, court_name, manual_representation_mode, season_year, scheduled_date, start_time, status, sport_id, naipe, division, queue_position, created_at, scheduled_slot, sports(name), home_team:teams!matches_home_team_id_fkey(name), away_team:teams!matches_away_team_id_fkey(name)",
+              "id, championship_id, location, court_name, manual_representation_mode, season_year, scheduled_date, scheduled_start_time, start_time, status, sport_id, naipe, division, queue_position, created_at, scheduled_slot, sports(name), home_team:teams!matches_home_team_id_fkey(name), away_team:teams!matches_away_team_id_fkey(name)",
             )
             .order("scheduled_date", { ascending: true, nullsFirst: false })
             .order("queue_position", { ascending: true, nullsFirst: false })

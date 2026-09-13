@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,7 +9,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -19,80 +18,51 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  saveChampionshipAthlete,
-  saveChampionshipIndividualEventLiveResults,
-  saveInterlajeIndividualTieBreakResolution,
-} from "@/domain/individual-events/championshipIndividualEvents.repository";
-import { INDIVIDUAL_ENTRY_STATUS_LABELS } from "@/lib/individualEvents";
+  Tabs,
+  TabsNavigationList,
+  TabsNavigationTrigger,
+} from "@/components/ui/tabs";
 import {
-  ChampionshipIndividualEntryStatus,
-  ChampionshipIndividualEventKind,
-} from "@/lib/enums";
+  fetchChampionshipIndividualEventPlacementCount,
+  saveChampionshipIndividualEventTeamPlacements,
+} from "@/domain/individual-events/championshipIndividualEvents.repository";
+import { ChampionshipIndividualEntryStatus } from "@/lib/enums";
 import type {
-  ChampionshipAthlete,
   ChampionshipIndividualEvent,
   ChampionshipIndividualEventEntry,
   ChampionshipIndividualSession,
   Team,
 } from "@/lib/types";
 
-interface LiveEntryDraft {
-  key: string;
-  entryId: string | null;
+const EMPTY_TEAM_ID = "__empty_team__";
+
+interface PlacementDraft {
+  finalPosition: number;
   teamId: string;
-  athleteId: string;
-  starterAthleteIds: Array<string | null>;
-  laneNumber: string;
-  status: ChampionshipIndividualEntryStatus;
-  resultTimeMilliseconds: string;
-  attemptOneCentimeters: string;
-  attemptTwoCentimeters: string;
-  attemptThreeCentimeters: string;
 }
 
-function isMeasurementEvent(eventCode: string) {
-  return eventCode == "ATHLETICS_SHOT_PUT" || eventCode == "ATHLETICS_LONG_JUMP";
-}
+function buildPlacementDrafts(
+  placementCount: number,
+  entries: ChampionshipIndividualEventEntry[],
+): PlacementDraft[] {
+  const teamIdByPosition = new Map<number, string>();
 
-function emptyDraft(index: number): LiveEntryDraft {
-  return {
-    key: `new-${Date.now()}-${index}`,
-    entryId: null,
-    teamId: "",
-    athleteId: "",
-    starterAthleteIds: [],
-    laneNumber: String(index + 1),
-    status: ChampionshipIndividualEntryStatus.PENDING,
-    resultTimeMilliseconds: "",
-    attemptOneCentimeters: "",
-    attemptTwoCentimeters: "",
-    attemptThreeCentimeters: "",
-  };
-}
+  entries
+    .filter(
+      (entry) =>
+        entry.status == ChampionshipIndividualEntryStatus.CONFIRMED &&
+        entry.final_position != null,
+    )
+    .forEach((entry) => {
+      if (!teamIdByPosition.has(entry.final_position!)) {
+        teamIdByPosition.set(entry.final_position!, entry.team_id);
+      }
+    });
 
-function entryDraft(
-  entry: ChampionshipIndividualEventEntry,
-  index: number,
-  isRelay: boolean,
-): LiveEntryDraft {
-  return {
-    ...emptyDraft(index),
-    key: entry.id,
-    entryId: entry.id,
-    teamId: entry.team_id,
-    athleteId: entry.athlete_id ?? "",
-    starterAthleteIds: isRelay
-      ? (entry.members ?? [])
-          .filter((member) => member.is_starter && member.athlete_id)
-          .map((member) => member.athlete_id as string)
-      : [],
-    laneNumber: entry.lane_number?.toString() ?? String(index + 1),
-    status: entry.status,
-    resultTimeMilliseconds: entry.result_time_milliseconds?.toString() ?? "",
-    attemptOneCentimeters: entry.attempt_one_centimeters?.toString() ?? "",
-    attemptTwoCentimeters: entry.attempt_two_centimeters?.toString() ?? "",
-    attemptThreeCentimeters: entry.attempt_three_centimeters?.toString() ?? "",
-  };
+  return Array.from({ length: placementCount }, (_, index) => ({
+    finalPosition: index + 1,
+    teamId: teamIdByPosition.get(index + 1) ?? "",
+  }));
 }
 
 export function AdminIndividualSessionResultsDialog({
@@ -101,8 +71,8 @@ export function AdminIndividualSessionResultsDialog({
   session,
   events,
   entries,
-  athletes,
   teams,
+  isLoading,
   canManage,
   onSaved,
 }: {
@@ -111,44 +81,100 @@ export function AdminIndividualSessionResultsDialog({
   session: ChampionshipIndividualSession | null;
   events: ChampionshipIndividualEvent[];
   entries: ChampionshipIndividualEventEntry[];
-  athletes: ChampionshipAthlete[];
   teams: Team[];
+  isLoading: boolean;
   canManage: boolean;
   onSaved: () => Promise<void>;
 }) {
   const [selectedEventId, setSelectedEventId] = useState("");
-  const [drafts, setDrafts] = useState<LiveEntryDraft[]>([]);
+  const [placementCount, setPlacementCount] = useState<number | null>(null);
+  const [placementCountLoading, setPlacementCountLoading] = useState(false);
+  const [placements, setPlacements] = useState<PlacementDraft[]>([]);
+  const [walkoverTeamIds, setWalkoverTeamIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
-  const [createdAthletes, setCreatedAthletes] = useState<ChampionshipAthlete[]>([]);
-  const [newAthleteNameByDraftKey, setNewAthleteNameByDraftKey] = useState<Record<string, string>>({});
-  const [tieBreakDecision, setTieBreakDecision] = useState<"STANDARD" | "SWIM_OFF" | "REPEAT_MARK" | "CAMERA">("STANDARD");
-  const [tieBreakJustification, setTieBreakJustification] = useState("");
+  const [dialogHeight, setDialogHeight] = useState<number | null>(null);
+  const dialogContentRef = useRef<HTMLDivElement>(null);
+  const restoredDraftKeyRef = useRef<string | null>(null);
+
   const selectedEvent = useMemo(
     () => events.find((event) => event.id == selectedEventId) ?? events[0] ?? null,
     [events, selectedEventId],
   );
-  const isRelay = selectedEvent?.kind == ChampionshipIndividualEventKind.RELAY;
   const eventEntries = useMemo(
     () => entries.filter((entry) => entry.event_id == selectedEvent?.id),
-    [entries, selectedEvent],
+    [entries, selectedEvent?.id],
+  );
+  const resultEntries = useMemo(() => {
+    const teamPlacementEntries = eventEntries.filter(
+      (entry) => entry.recording_mode == "TEAM_PLACEMENT",
+    );
+
+    return teamPlacementEntries.length > 0 ? teamPlacementEntries : eventEntries;
+  }, [eventEntries]);
+  const persistedResultEntriesKey = useMemo(
+    () =>
+      resultEntries
+        .map((entry) =>
+          [
+            entry.id,
+            entry.team_id,
+            entry.status,
+            entry.final_position ?? "",
+            entry.recording_mode ?? "ATHLETE_METRIC",
+          ].join(":"),
+        )
+        .sort()
+        .join("|"),
+    [resultEntries],
+  );
+  const registeredEventIds = useMemo(
+    () =>
+      new Set(
+        entries
+          .filter(
+            (entry) =>
+              (entry.status == ChampionshipIndividualEntryStatus.CONFIRMED &&
+                entry.final_position != null) ||
+              entry.status == ChampionshipIndividualEntryStatus.WALKOVER ||
+              entry.status == ChampionshipIndividualEntryStatus.DNS,
+          )
+          .map((entry) => entry.event_id),
+      ),
+    [entries],
   );
   const activeTeams = useMemo(
-    () => teams.filter((team) => team.is_active != false).sort((left, right) => left.name.localeCompare(right.name, "pt-BR")),
+    () =>
+      teams
+        .filter((team) => team.is_active != false)
+        .sort((left, right) => left.name.localeCompare(right.name, "pt-BR")),
     [teams],
   );
-  const availableAthletes = useMemo(() => {
-    if (!selectedEvent) return [];
+  const placementColumns = useMemo(() => {
+    const placementsPerColumn = Math.ceil(placements.length / 3);
 
-    return [...athletes, ...createdAthletes]
-      .filter((athlete) =>
-        athlete.championship_id == selectedEvent.championship_id &&
-        athlete.season_year == selectedEvent.season_year &&
-        athlete.sport_id == selectedEvent.sport_id &&
-        athlete.naipe == selectedEvent.naipe &&
-        athlete.division == selectedEvent.division,
-      )
-      .sort((left, right) => left.name.localeCompare(right.name, "pt-BR"));
-  }, [athletes, createdAthletes, selectedEvent]);
+    return Array.from({ length: 3 }, (_, columnIndex) =>
+      placements.slice(
+        columnIndex * placementsPerColumn,
+        (columnIndex + 1) * placementsPerColumn,
+      ),
+    ).filter((column) => column.length > 0);
+  }, [placements]);
+  const loading = isLoading || placementCountLoading;
+  const hasResult =
+    placements.some((placement) => placement.teamId) || walkoverTeamIds.length > 0;
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setDialogHeight(null);
+      return;
+    }
+
+    if (loading || !selectedEvent || !dialogContentRef.current) {
+      return;
+    }
+
+    setDialogHeight(Math.ceil(dialogContentRef.current.getBoundingClientRect().height));
+  }, [activeTeams.length, loading, open, placements.length, selectedEvent, walkoverTeamIds.length]);
 
   useEffect(() => {
     if (open && !events.some((event) => event.id == selectedEventId)) {
@@ -157,144 +183,284 @@ export function AdminIndividualSessionResultsDialog({
   }, [events, open, selectedEventId]);
 
   useEffect(() => {
-    setDrafts(eventEntries.map((entry, index) => entryDraft(entry, index, isRelay)));
-  }, [eventEntries, isRelay]);
-
-  const updateDraft = (key: string, patch: Partial<LiveEntryDraft>) => {
-    setDrafts((current) => current.map((draft) => draft.key == key ? { ...draft, ...patch } : draft));
-  };
-
-  const selectRelayStarter = (draft: LiveEntryDraft, index: number, athleteId: string) => {
-    const starterAthleteIds = Array.from(
-      { length: 4 },
-      (_, starterIndex) => draft.starterAthleteIds[starterIndex] ?? null,
-    );
-    starterAthleteIds[index] = athleteId;
-    updateDraft(draft.key, { starterAthleteIds });
-  };
-
-  const createAthlete = async (draft: LiveEntryDraft) => {
-    if (!selectedEvent || !draft.teamId) {
-      toast.error("Selecione a atlética antes de cadastrar o atleta.");
+    if (!open || !selectedEventId) {
+      setPlacementCount(null);
+      restoredDraftKeyRef.current = null;
       return;
     }
-    const name = newAthleteNameByDraftKey[draft.key]?.trim() ?? "";
-    if (!name) {
-      toast.error("Informe o nome do atleta.");
-      return;
-    }
-    const response = await saveChampionshipAthlete({
-      championshipId: selectedEvent.championship_id,
-      seasonYear: selectedEvent.season_year,
-      sportId: selectedEvent.sport_id,
-      teamId: draft.teamId,
-      naipe: selectedEvent.naipe,
-      division: selectedEvent.division,
-      name,
-    });
-    if (response.error || typeof response.data != "string") {
-      toast.error(response.error?.message ?? "Não foi possível cadastrar o atleta.");
-      return;
-    }
-    const athlete: ChampionshipAthlete = {
-      id: response.data,
-      championship_id: selectedEvent.championship_id,
-      season_year: selectedEvent.season_year,
-      sport_id: selectedEvent.sport_id,
-      team_id: draft.teamId,
-      naipe: selectedEvent.naipe,
-      division: selectedEvent.division,
-      name,
-      created_at: new Date().toISOString(),
+
+    let isMounted = true;
+    setPlacementCountLoading(true);
+    setPlacementCount(null);
+
+    void fetchChampionshipIndividualEventPlacementCount(selectedEventId)
+      .then((response) => {
+        if (!isMounted) {
+          return;
+        }
+
+        if (response.error || !response.data) {
+          toast.error(
+            response.error?.message ??
+              "Não foi possível carregar as posições configuradas.",
+          );
+          return;
+        }
+
+        setPlacementCount(response.data);
+      })
+      .finally(() => {
+        if (isMounted) {
+          setPlacementCountLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
     };
-    setCreatedAthletes((current) => [...current, athlete]);
-    setNewAthleteNameByDraftKey((current) => ({ ...current, [draft.key]: "" }));
-    updateDraft(draft.key, isRelay
-      ? { starterAthleteIds: [...draft.starterAthleteIds, athlete.id].slice(0, 4) }
-      : { athleteId: athlete.id },
+  }, [open, selectedEventId]);
+
+  useEffect(() => {
+    if (!selectedEventId || placementCount == null) {
+      return;
+    }
+
+    const restoredDraftKey = [
+      selectedEventId,
+      placementCount,
+      persistedResultEntriesKey,
+    ].join("|");
+
+    if (restoredDraftKeyRef.current == restoredDraftKey) {
+      return;
+    }
+
+    restoredDraftKeyRef.current = restoredDraftKey;
+    setPlacements(buildPlacementDrafts(placementCount, resultEntries));
+    setWalkoverTeamIds(
+      resultEntries
+        .filter(
+          (entry) =>
+            entry.status == ChampionshipIndividualEntryStatus.WALKOVER ||
+            entry.status == ChampionshipIndividualEntryStatus.DNS,
+        )
+        .map((entry) => entry.team_id),
     );
-    toast.success("Atleta cadastrado para esta modalidade.");
+  }, [placementCount, persistedResultEntriesKey, resultEntries, selectedEventId]);
+
+  const updatePlacement = (finalPosition: number, teamId: string) => {
+    setPlacements((current) =>
+      current.map((placement) =>
+        placement.finalPosition == finalPosition
+          ? { ...placement, teamId }
+          : placement,
+      ),
+    );
+
+    if (teamId) {
+      setWalkoverTeamIds((current) =>
+        current.filter((walkoverTeamId) => walkoverTeamId != teamId),
+      );
+    }
+  };
+
+  const toggleWalkover = (teamId: string) => {
+    setWalkoverTeamIds((current) => {
+      if (current.includes(teamId)) {
+        return current.filter((walkoverTeamId) => walkoverTeamId != teamId);
+      }
+
+      return [...current, teamId];
+    });
+    setPlacements((current) =>
+      current.map((placement) =>
+        placement.teamId == teamId ? { ...placement, teamId: "" } : placement,
+      ),
+    );
   };
 
   const handleSave = async () => {
-    if (!selectedEvent) return;
+    if (!selectedEvent || !hasResult) {
+      return;
+    }
+
     setSaving(true);
-    const entries = drafts.map((draft) => ({
-        entry_id: draft.entryId,
-        team_id: draft.teamId,
-        athlete_id: isRelay ? null : draft.athleteId || null,
-        starter_athlete_ids: isRelay
-          ? draft.starterAthleteIds.filter((athleteId): athleteId is string => athleteId != null)
-          : [],
-        lane_number: Number(draft.laneNumber),
-        status: draft.status,
-        result_time_milliseconds: draft.resultTimeMilliseconds ? Number(draft.resultTimeMilliseconds) : null,
-        attempt_one_centimeters: draft.attemptOneCentimeters ? Number(draft.attemptOneCentimeters) : null,
-        attempt_two_centimeters: draft.attemptTwoCentimeters ? Number(draft.attemptTwoCentimeters) : null,
-        attempt_three_centimeters: draft.attemptThreeCentimeters ? Number(draft.attemptThreeCentimeters) : null,
-      }));
-    const response = tieBreakDecision == "STANDARD"
-      ? await saveChampionshipIndividualEventLiveResults(selectedEvent.id, entries)
-      : await saveInterlajeIndividualTieBreakResolution({
-        eventId: selectedEvent.id,
-        entries,
-        decisionKind: tieBreakDecision,
-        justification: tieBreakJustification,
-      });
+    const response = await saveChampionshipIndividualEventTeamPlacements({
+      eventId: selectedEvent.id,
+      placements: placements
+        .filter((placement) => placement.teamId)
+        .map((placement) => ({
+          finalPosition: placement.finalPosition,
+          teamId: placement.teamId,
+        })),
+      walkoverTeamIds,
+    });
     setSaving(false);
+
     if (response.error) {
       toast.error(response.error.message);
       return;
     }
-    toast.success("Resultados registrados e classificação recalculada.");
+
+    toast.success("Classificação registrada e pontuação recalculada.");
     await onSaved();
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1rem)] max-w-[min(96vw,1100px)] flex-col overflow-hidden">
+      <DialogContent
+        ref={dialogContentRef}
+        className="flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1rem)] max-w-[min(96vw,1100px)] flex-col overflow-hidden"
+        style={dialogHeight ? { minHeight: `${dialogHeight}px` } : undefined}
+      >
         <DialogHeader className="shrink-0">
-          <DialogTitle>Registrar provas - {session?.sports?.name ?? "Sessão individual"}</DialogTitle>
-          <DialogDescription>Registre atletas, raias e resultados conforme a súmula física.</DialogDescription>
+          <DialogTitle>
+            Registrar classificação - {session?.sports?.name ?? "Sessão individual"}
+          </DialogTitle>
+          <DialogDescription>
+            Registre as colocações oficiais das atléticas conforme a súmula.
+          </DialogDescription>
         </DialogHeader>
-        <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
-          <div className="max-w-md space-y-1">
-            <Label>Prova</Label>
-            <Select value={selectedEvent?.id ?? ""} onValueChange={setSelectedEventId}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{events.map((event) => <SelectItem key={event.id} value={event.id}>{event.name}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            {selectedEvent && isMeasurementEvent(selectedEvent.event_code)
-              ? "Informe as três tentativas em centímetros. A melhor marca define a colocação."
-              : "Informe o tempo em milissegundos. O menor tempo define a colocação."}
-          </p>
-          {session?.sports?.name == "Natação" || session?.sports?.name == "Atletismo" ? <div className="grid gap-3 rounded-xl border border-border/50 p-3 sm:grid-cols-2">
-            <div className="space-y-1"><Label>Resolução de desempate</Label><Select value={tieBreakDecision} onValueChange={(value) => setTieBreakDecision(value as typeof tieBreakDecision)} disabled={!canManage || saving}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="STANDARD">Resultado regular</SelectItem>{session?.sports?.name == "Natação" ? <SelectItem value="SWIM_OFF">Swim-off de 50 m</SelectItem> : <><SelectItem value="REPEAT_MARK">Repetição de marca</SelectItem><SelectItem value="CAMERA">Câmera e arbitragem</SelectItem></>}</SelectContent></Select></div>
-            {tieBreakDecision != "STANDARD" ? <div className="space-y-1"><Label>Registro da decisão</Label><Input value={tieBreakJustification} onChange={(event) => setTieBreakJustification(event.target.value)} placeholder="Súmula, árbitro ou referência da gravação" disabled={!canManage || saving} /></div> : null}
-          </div> : null}
-          <div className="space-y-3">
-            {drafts.map((draft, index) => {
-              const teamAthletes = availableAthletes.filter((athlete) => athlete.team_id == draft.teamId);
-              const measurement = selectedEvent ? isMeasurementEvent(selectedEvent.event_code) : false;
-              return <div key={draft.key} className="space-y-3 rounded-xl border border-border/50 p-3">
-                <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_100px_160px_auto]">
-                  <div className="space-y-1"><Label>Atlética</Label><Select value={draft.teamId} onValueChange={(teamId) => updateDraft(draft.key, { teamId, athleteId: "", starterAthleteIds: [] })} disabled={!canManage || saving}><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger><SelectContent>{activeTeams.map((team) => <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>)}</SelectContent></Select></div>
-                  {isRelay ? <div className="space-y-1"><Label>Revezamento</Label><p className="pt-2 text-sm text-muted-foreground">4 titulares</p></div> : <div className="space-y-1"><Label>Atleta</Label><Select value={draft.athleteId} onValueChange={(athleteId) => updateDraft(draft.key, { athleteId })} disabled={!canManage || saving || !draft.teamId}><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger><SelectContent>{teamAthletes.map((athlete) => <SelectItem key={athlete.id} value={athlete.id}>{athlete.name}</SelectItem>)}</SelectContent></Select></div>}
-                  <div className="space-y-1"><Label>Raia</Label><Input type="number" min={1} value={draft.laneNumber} onChange={(event) => updateDraft(draft.key, { laneNumber: event.target.value })} disabled={!canManage || saving} /></div>
-                  <div className="space-y-1"><Label>Situação</Label><Select value={draft.status} onValueChange={(status) => updateDraft(draft.key, { status: status as ChampionshipIndividualEntryStatus })} disabled={!canManage || saving}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{[ChampionshipIndividualEntryStatus.PENDING, ChampionshipIndividualEntryStatus.CONFIRMED, ChampionshipIndividualEntryStatus.DSQ, ChampionshipIndividualEntryStatus.WALKOVER].map((status) => <SelectItem key={status} value={status}>{INDIVIDUAL_ENTRY_STATUS_LABELS[status]}</SelectItem>)}</SelectContent></Select></div>
-                  <Button type="button" variant="ghost" size="icon" aria-label={`Remover participante ${index + 1}`} disabled={!canManage || saving} onClick={() => setDrafts((current) => current.filter((candidate) => candidate.key != draft.key))}><Trash2 className="h-4 w-4" /></Button>
+
+        <div className="-m-2 flex min-h-0 flex-1 flex-col space-y-5 overflow-y-auto p-2">
+          {events.length > 0 ? (
+            <Tabs
+              value={selectedEvent?.id ?? ""}
+              onValueChange={setSelectedEventId}
+            >
+              <TabsNavigationList className="h-auto w-full justify-start">
+                {events.map((event) => {
+                  const isRegistered = registeredEventIds.has(event.id);
+
+                  return (
+                    <TabsNavigationTrigger
+                      key={event.id}
+                      value={event.id}
+                      className="group gap-1.5 px-3 py-2.5"
+                      disabled={saving || isLoading}
+                      aria-label={
+                        isRegistered
+                          ? `${event.name} — classificação registrada`
+                          : event.name
+                      }
+                    >
+                      {event.name}
+                      {isRegistered ? (
+                        <CheckCircle2
+                          aria-hidden="true"
+                          className="h-4 w-4 shrink-0 text-emerald-600 group-data-[state=active]:text-primary-foreground"
+                        />
+                      ) : null}
+                    </TabsNavigationTrigger>
+                  );
+                })}
+              </TabsNavigationList>
+            </Tabs>
+          ) : null}
+
+          {loading ? (
+            <div className="flex min-h-48 flex-1 items-center justify-center">
+              <Loader2
+                aria-label="Carregando classificação da prova"
+                className="h-5 w-5 animate-spin text-primary"
+              />
+            </div>
+          ) : selectedEvent ? (
+            <>
+              <section className="space-y-3">
+                <div>
+                  <h3 className="font-semibold">Colocações</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Selecione a atlética de cada posição. Posições vazias não pontuam.
+                  </p>
                 </div>
-                {isRelay ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{Array.from({ length: 4 }, (_, starterIndex) => <div key={starterIndex} className="space-y-1"><Label>{starterIndex + 1}º titular</Label><Select value={draft.starterAthleteIds[starterIndex] ?? ""} onValueChange={(athleteId) => selectRelayStarter(draft, starterIndex, athleteId)} disabled={!canManage || saving || !draft.teamId}><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger><SelectContent>{teamAthletes.map((athlete) => <SelectItem key={athlete.id} value={athlete.id} disabled={draft.starterAthleteIds.includes(athlete.id) && draft.starterAthleteIds[starterIndex] != athlete.id}>{athlete.name}</SelectItem>)}</SelectContent></Select></div>)}</div> : null}
-                <div className="flex flex-col gap-2 sm:flex-row"><Input value={newAthleteNameByDraftKey[draft.key] ?? ""} placeholder="Nome do novo atleta" onChange={(event) => setNewAthleteNameByDraftKey((current) => ({ ...current, [draft.key]: event.target.value }))} disabled={!canManage || saving || !draft.teamId} /><Button type="button" variant="outline" onClick={() => void createAthlete(draft)} disabled={!canManage || saving || !draft.teamId}>Cadastrar atleta</Button></div>
-                {measurement ? <div className="grid grid-cols-3 gap-2">{(["attemptOneCentimeters", "attemptTwoCentimeters", "attemptThreeCentimeters"] as const).map((field, attemptIndex) => <div key={field} className="space-y-1"><Label>{attemptIndex + 1}ª tentativa</Label><Input type="number" min={0} value={draft[field]} onChange={(event) => updateDraft(draft.key, { [field]: event.target.value })} disabled={!canManage || saving || draft.status != ChampionshipIndividualEntryStatus.CONFIRMED} /></div>)}</div> : <div className="max-w-sm space-y-1"><Label>Tempo (ms)</Label><Input type="number" min={0} value={draft.resultTimeMilliseconds} onChange={(event) => updateDraft(draft.key, { resultTimeMilliseconds: event.target.value })} disabled={!canManage || saving || draft.status != ChampionshipIndividualEntryStatus.CONFIRMED} /></div>}
-              </div>;
-            })}
-          </div>
-          <Button type="button" variant="outline" disabled={!canManage || saving} onClick={() => setDrafts((current) => [...current, emptyDraft(current.length)])}><Plus className="h-4 w-4" /> Adicionar participante</Button>
+                <div className="grid gap-3 md:grid-cols-3">
+                  {placementColumns.map((column, columnIndex) => (
+                    <div key={columnIndex} className="space-y-3">
+                      {column.map((placement) => (
+                        <div key={placement.finalPosition} className="space-y-1">
+                          <Label htmlFor={`placement-${placement.finalPosition}`}>
+                            {placement.finalPosition}ª colocação
+                          </Label>
+                          <Select
+                            value={placement.teamId || EMPTY_TEAM_ID}
+                            onValueChange={(teamId) =>
+                              updatePlacement(
+                                placement.finalPosition,
+                                teamId == EMPTY_TEAM_ID ? "" : teamId,
+                              )
+                            }
+                            disabled={!canManage || saving}
+                          >
+                            <SelectTrigger id={`placement-${placement.finalPosition}`}>
+                              <SelectValue placeholder="Sem classificação" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={EMPTY_TEAM_ID}>
+                                Sem classificação
+                              </SelectItem>
+                              {activeTeams.map((team) => (
+                                <SelectItem key={team.id} value={team.id}>
+                                  {team.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="space-y-3 rounded-xl border border-border/50 p-4">
+                <div>
+                  <h3 className="font-semibold">W.O. na prova</h3>
+                  <p className="text-sm text-muted-foreground">
+                    O W.O. vale apenas para esta prova e não concede pontos.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {activeTeams.map((team) => {
+                    const selected = walkoverTeamIds.includes(team.id);
+                    const hasPlacement = placements.some(
+                      (placement) => placement.teamId == team.id,
+                    );
+
+                    return (
+                      <Button
+                        key={team.id}
+                        type="button"
+                        variant={selected ? "destructive" : "outline"}
+                        size="sm"
+                        aria-pressed={selected}
+                        onClick={() => toggleWalkover(team.id)}
+                        disabled={!canManage || saving || hasPlacement}
+                      >
+                        {team.name}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </section>
+            </>
+          ) : (
+            <p className="py-10 text-center text-sm text-muted-foreground">
+              Não há provas configuradas para esta sessão.
+            </p>
+          )}
         </div>
-        <div className="flex shrink-0 justify-end gap-2 pt-2"><Button type="button" onClick={() => void handleSave()} disabled={!canManage || saving || !selectedEvent || (tieBreakDecision != "STANDARD" && !tieBreakJustification.trim())}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Confirmar resultados</Button></div>
+
+        <div className="flex shrink-0 justify-center gap-2 pt-2">
+          <Button
+            type="button"
+            onClick={() => void handleSave()}
+            disabled={!canManage || saving || loading || !selectedEvent || !hasResult}
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            Confirmar classificação
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

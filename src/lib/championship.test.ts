@@ -42,6 +42,7 @@ function buildMatch(overrides: Partial<Match> & Pick<Match, "id">): Match {
     current_set_away_score: overrides.current_set_away_score ?? null,
     resolved_tie_breaker_rule: overrides.resolved_tie_breaker_rule ?? null,
     resolved_tie_break_winner_team_id: overrides.resolved_tie_break_winner_team_id ?? null,
+    scheduled_start_time: overrides.scheduled_start_time ?? null,
     start_time: overrides.start_time ?? null,
     end_time: overrides.end_time ?? null,
     status: overrides.status ?? MatchStatus.SCHEDULED,
@@ -798,6 +799,66 @@ describe("resolveVisualQueuePositionByMatchId", () => {
     expect(visualQueuePositionByMatchId["court-a-game-3"]).toBe(4);
   });
 
+  it("renumera jogos encerrados pela hora prevista sem usar a hora real de início", () => {
+    const firstMatch = buildMatch({
+      id: "court-a-game-27",
+      status: MatchStatus.FINISHED,
+      scheduled_slot: 1,
+      scheduled_start_time: "2026-03-20T11:00:00.000Z",
+      start_time: "2026-03-20T11:00:00.000Z",
+      location: "Arena Seven",
+      court_name: "Quadra A",
+    });
+    const secondMatch = buildMatch({
+      id: "court-a-game-28",
+      status: MatchStatus.FINISHED,
+      scheduled_slot: 14,
+      scheduled_start_time: "2026-03-20T11:45:00.000Z",
+      start_time: "2026-03-20T11:45:00.000Z",
+      location: "Arena Seven",
+      court_name: "Quadra A",
+    });
+    const thirdMatch = buildMatch({
+      id: "court-a-game-29",
+      status: MatchStatus.FINISHED,
+      scheduled_slot: 5,
+      scheduled_start_time: "2026-03-20T12:30:00.000Z",
+      start_time: "2026-03-20T14:16:00.000Z",
+      location: "Arena Seven",
+      court_name: "Quadra A",
+    });
+    const fourthMatch = buildMatch({
+      id: "court-a-game-30",
+      status: MatchStatus.FINISHED,
+      scheduled_slot: 15,
+      scheduled_start_time: "2026-03-20T13:15:00.000Z",
+      start_time: "2026-03-20T13:15:00.000Z",
+      location: "Arena Seven",
+      court_name: "Quadra A",
+    });
+    const fifthMatch = buildMatch({
+      id: "court-a-game-31",
+      status: MatchStatus.FINISHED,
+      scheduled_slot: 16,
+      scheduled_start_time: "2026-03-20T14:00:00.000Z",
+      start_time: "2026-03-20T14:00:00.000Z",
+      location: "Arena Seven",
+      court_name: "Quadra A",
+    });
+
+    const visualQueuePositionByMatchId = resolveVisualQueuePositionByMatchId([
+      fifthMatch,
+      fourthMatch,
+      thirdMatch,
+      secondMatch,
+      firstMatch,
+    ]);
+
+    expect(visualQueuePositionByMatchId["court-a-game-29"]).toBe(3);
+    expect(visualQueuePositionByMatchId["court-a-game-30"]).toBe(4);
+    expect(visualQueuePositionByMatchId["court-a-game-31"]).toBe(5);
+  });
+
   it("mantém a posição visual pelo slot quando o jogo já foi iniciado", () => {
     const previousMatches = Array.from({ length: 7 }, (_, matchIndex) =>
       buildMatch({
@@ -1027,6 +1088,59 @@ describe("resolveEstimatedStartTimeByMatchId", () => {
     });
 
     expect(estimatedStartTimeByMatchId["match-with-planned-start-time"]).toBe("08:30");
+  });
+
+  it("keeps the planned time after a live game returns to the schedule", () => {
+    const returnedMatch = buildMatch({
+      id: "returned-match-with-planned-start-time",
+      sport_id: "sport-beach-soccer",
+      queue_position: 9,
+      scheduled_start_time: "2026-03-20 12:30:00+00",
+      start_time: null,
+      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+    });
+
+    const estimatedStartTimeByMatchId = resolveEstimatedStartTimeByMatchId({
+      matches: [returnedMatch],
+      championshipSports: [
+        buildEstimatedStartTimeChampionshipSport({
+          sport_id: "sport-beach-soccer",
+          default_match_duration_minutes: 30,
+          show_estimated_start_time_on_cards: true,
+        }),
+      ],
+      championshipBracketEditions: [buildEstimatedStartTimeBracketEdition({})],
+    });
+
+    expect(
+      estimatedStartTimeByMatchId["returned-match-with-planned-start-time"],
+    ).toBe("09:30");
+  });
+
+  it("uses the persisted planned time instead of the actual start time after the match starts", () => {
+    const liveMatch = buildMatch({
+      id: "live-match-with-planned-start-time",
+      sport_id: "sport-beach-soccer",
+      status: MatchStatus.LIVE,
+      scheduled_start_time: "2026-03-20 12:30:00+00",
+      start_time: "2026-03-20 14:16:00+00",
+      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+    });
+
+    const estimatedStartTimeByMatchId = resolveEstimatedStartTimeByMatchId({
+      matches: [liveMatch],
+      championshipSports: [
+        buildEstimatedStartTimeChampionshipSport({
+          sport_id: "sport-beach-soccer",
+          show_estimated_start_time_on_cards: true,
+        }),
+      ],
+      championshipBracketEditions: [buildEstimatedStartTimeBracketEdition({})],
+    });
+
+    expect(
+      estimatedStartTimeByMatchId["live-match-with-planned-start-time"],
+    ).toBe("09:30");
   });
 
   it("starts slot 1 at day start and advances each slot by match duration", () => {

@@ -52,11 +52,11 @@ export const INDIVIDUAL_EVENT_OFFICIAL_LABELS: Record<string, string> = {
   ATHLETICS_4X100: "4x100",
   ATHLETICS_SHOT_PUT: "Arremesso de peso",
   ATHLETICS_LONG_JUMP: "Salto em distância",
-  SWIMMING_50_FREE: "50m livre",
+  SWIMMING_50_FREE: "50m crawl",
   SWIMMING_50_BACK: "50m costas",
   SWIMMING_50_FLY: "50m borboleta",
   SWIMMING_50_BREAST: "50m peito",
-  SWIMMING_4X50_FREE: "4x50 livre",
+  SWIMMING_4X50_FREE: "50m revezamento",
 };
 
 export function isIndividualSportName(sportName: string | null | undefined) {

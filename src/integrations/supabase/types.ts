@@ -1315,6 +1315,7 @@ export type Database = {
           final_position: number | null
           id: string
           points_awarded: number
+          recording_mode: string
           status: Database["public"]["Enums"]["championship_individual_entry_status"]
           team_id: string
           updated_at: string
@@ -1328,6 +1329,7 @@ export type Database = {
           final_position?: number | null
           id?: string
           points_awarded?: number
+          recording_mode?: string
           status?: Database["public"]["Enums"]["championship_individual_entry_status"]
           team_id: string
           updated_at?: string
@@ -1341,6 +1343,7 @@ export type Database = {
           final_position?: number | null
           id?: string
           points_awarded?: number
+          recording_mode?: string
           status?: Database["public"]["Enums"]["championship_individual_entry_status"]
           team_id?: string
           updated_at?: string
@@ -2387,6 +2390,7 @@ export type Database = {
             | Database["public"]["Enums"]["championship_sport_tie_breaker_rule"]
             | null
           scheduled_date: string | null
+          scheduled_start_time: string | null
           scheduled_slot: number | null
           season_year: number
           sport_id: string
@@ -2442,6 +2446,7 @@ export type Database = {
             | Database["public"]["Enums"]["championship_sport_tie_breaker_rule"]
             | null
           scheduled_date?: string | null
+          scheduled_start_time?: string | null
           scheduled_slot?: number | null
           season_year?: number
           sport_id: string
@@ -2497,6 +2502,7 @@ export type Database = {
             | Database["public"]["Enums"]["championship_sport_tie_breaker_rule"]
             | null
           scheduled_date?: string | null
+          scheduled_start_time?: string | null
           scheduled_slot?: number | null
           season_year?: number
           sport_id?: string
@@ -3343,6 +3349,39 @@ export type Database = {
           yellow_cards: number
         }[]
       }
+      get_championship_group_stage_standings_display_metrics: {
+        Args: { _championship_id: string; _season_year?: number }
+        Returns: {
+          blue_cards: number
+          comparison_points: number
+          comparison_rank: number
+          competition_id: string
+          division: Database["public"]["Enums"]["team_division"] | null
+          draws: number
+          goal_diff: number
+          goals_against: number
+          goals_for: number
+          group_id: string
+          group_number: number
+          group_rank: number
+          losses: number
+          naipe: Database["public"]["Enums"]["match_naipe"]
+          played: number
+          points: number
+          rally_points_against: number
+          rally_points_for: number
+          red_cards: number
+          sets_against: number
+          sets_for: number
+          sport_id: string
+          sport_name: string
+          team_id: string
+          team_name: string
+          two_minute_penalties: number
+          wins: number
+          yellow_cards: number
+        }[]
+      }
       get_championship_knockout_final_program_schedule: {
         Args: { _bracket_edition_id: string }
         Returns: {
@@ -3983,6 +4022,16 @@ export type Database = {
           _status: Database["public"]["Enums"]["championship_individual_session_status"]
         }
         Returns: string
+      }
+      save_championship_sport_walkover_configuration: {
+        Args: {
+          _championship_sport_id: string
+          _season_year: number
+          _update_finished_walkovers: boolean
+          _walkover_winner_points: number | null
+          _walkover_winner_set_count: number | null
+        }
+        Returns: Json
       }
       save_interlaje_opening_ceremony_bonus: {
         Args: {

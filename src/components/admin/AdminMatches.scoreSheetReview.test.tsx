@@ -1853,9 +1853,9 @@ describe("AdminMatches score sheet review", () => {
 
     expect(gameFourCard.compareDocumentPosition(gameThreeCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(gameFourCard).toHaveTextContent("Jogo 3");
-    expect(gameFourCard).toHaveTextContent("Horário estimado: 09:20");
+    expect(gameFourCard).toHaveTextContent("Horário previsto: 09:20");
     expect(gameThreeCard).toHaveTextContent("Jogo 4");
-    expect(gameThreeCard).toHaveTextContent("Horário estimado: 10:00");
+    expect(gameThreeCard).toHaveTextContent("Horário previsto: 10:00");
   });
 
   it("mostra o slot visual correto mesmo quando o queue_position legado está diferente", () => {
@@ -1887,7 +1887,7 @@ describe("AdminMatches score sheet review", () => {
 
     expect(matchCard).toHaveTextContent("Jogo 1");
     expect(matchCard).not.toHaveTextContent("Jogo 7");
-    expect(matchCard).toHaveTextContent("Horário estimado: 08:10");
+    expect(matchCard).toHaveTextContent("Horário previsto: 08:10");
   });
 
   it("mantém menu restrito no modo de conferência sem trocar/apagar", async () => {
