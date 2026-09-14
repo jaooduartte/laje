@@ -30,6 +30,13 @@ const automaticCoMigrationSource = readFileSync(
   ),
   "utf8",
 );
+const synchronizedScheduleTimeMigrationSource = readFileSync(
+  resolve(
+    process.cwd(),
+    "supabase/migrations/20260914183339_synchronize_operational_schedule_display_time.sql",
+  ),
+  "utf8",
+);
 
 describe("operational knockout schedule adjustment migration", () => {
   it("limits candidates to editable future knockout slots and scheduled matches", () => {
@@ -125,6 +132,36 @@ describe("operational knockout schedule adjustment migration", () => {
     expect(automaticCoMigrationSource).toContain("write_admin_action_log");
     expect(automaticCoMigrationSource).toContain(
       "Forçou a representação da CO para conflitos consecutivos na mesma quadra.",
+    );
+  });
+
+  it("synchronizes the card display time when applying a future operational adjustment", () => {
+    expect(synchronizedScheduleTimeMigrationSource).toContain(
+      "SET scheduled_start_time = (timeline_item.value->>'start_time')::TIMESTAMPTZ",
+    );
+    expect(synchronizedScheduleTimeMigrationSource).toContain(
+      "jsonb_array_elements(COALESCE(preview_result->'timeline', '[]'::JSONB))",
+    );
+    expect(synchronizedScheduleTimeMigrationSource).toContain(
+      "matches_table.scheduled_start_time IS DISTINCT FROM (timeline_item.value->>'start_time')::TIMESTAMPTZ",
+    );
+  });
+
+  it("reconciles only future scheduled knockout matches whose operational time matches their reservation", () => {
+    expect(synchronizedScheduleTimeMigrationSource).toContain(
+      "SET scheduled_start_time = reservations_table.start_at",
+    );
+    expect(synchronizedScheduleTimeMigrationSource).toContain(
+      "matches_table.scheduled_date >= timezone('America/Sao_Paulo', now())::DATE",
+    );
+    expect(synchronizedScheduleTimeMigrationSource).toContain(
+      "matches_table.start_time > now()",
+    );
+    expect(synchronizedScheduleTimeMigrationSource).toContain(
+      "matches_table.start_time IS NOT DISTINCT FROM reservations_table.start_at",
+    );
+    expect(synchronizedScheduleTimeMigrationSource).toContain(
+      "matches_table.scheduled_start_time IS DISTINCT FROM reservations_table.start_at",
     );
   });
 });
