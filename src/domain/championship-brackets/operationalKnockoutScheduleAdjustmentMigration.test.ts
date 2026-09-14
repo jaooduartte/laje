@@ -23,6 +23,13 @@ const conflictSafeguardsMigrationSource = readFileSync(
   ),
   "utf8",
 );
+const automaticCoMigrationSource = readFileSync(
+  resolve(
+    process.cwd(),
+    "supabase/migrations/20260914181448_auto_force_co_operational_knockout_schedule_adjustment.sql",
+  ),
+  "utf8",
+);
 
 describe("operational knockout schedule adjustment migration", () => {
   it("limits candidates to editable future knockout slots and scheduled matches", () => {
@@ -86,6 +93,38 @@ describe("operational knockout schedule adjustment migration", () => {
     );
     expect(conflictSafeguardsMigrationSource).toContain(
       "REVOKE ALL ON FUNCTION public.apply_operational_knockout_schedule_adjustment_base",
+    );
+  });
+
+  it("forces CO for the later persisted match instead of blocking a consecutive representation conflict", () => {
+    expect(automaticCoMigrationSource).toContain(
+      "'representation_adjustments'",
+    );
+    expect(automaticCoMigrationSource).toContain("lag(scoped_matches.match_id)");
+    expect(automaticCoMigrationSource).toContain(
+      "previous_home_team_id IN (home_team_id, away_team_id)",
+    );
+    expect(automaticCoMigrationSource).toContain(
+      "manual_representation_mode = 'CO'",
+    );
+    expect(automaticCoMigrationSource).toContain(
+      "A sequência planejada cria conflito de representação na mesma quadra.",
+    );
+    expect(automaticCoMigrationSource).toContain(
+      "A programação planejada sobrepõe outra partida agendada na mesma quadra.",
+    );
+  });
+
+  it("persists every projected CO override atomically and records the adjustment", () => {
+    expect(automaticCoMigrationSource).toContain(
+      "updated_representation_count <> representation_adjustments_count",
+    );
+    expect(automaticCoMigrationSource).toContain(
+      "app.skip_match_conflict_trigger",
+    );
+    expect(automaticCoMigrationSource).toContain("write_admin_action_log");
+    expect(automaticCoMigrationSource).toContain(
+      "Forçou a representação da CO para conflitos consecutivos na mesma quadra.",
     );
   });
 });

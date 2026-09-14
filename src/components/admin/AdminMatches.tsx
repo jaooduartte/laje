@@ -10658,6 +10658,24 @@ export function AdminMatches({
                     {operationalKnockoutScheduleAdjustmentPreview.blockers.map((blocker) => <p key={blocker}>{blocker}</p>)}
                   </div>
                 ) : null}
+                {(operationalKnockoutScheduleAdjustmentPreview.representation_adjustments ?? []).length > 0 ? (
+                  <div className="space-y-2 rounded-lg bg-amber-500/10 p-3 text-sm">
+                    <p className="font-medium">Representação ajustada para CO</p>
+                    {(operationalKnockoutScheduleAdjustmentPreview.representation_adjustments ?? []).map((adjustment) => (
+                      <p key={adjustment.match_id} className="text-muted-foreground">
+                        {adjustment.sport_name}
+                        {" • "}
+                        {MATCH_NAIPE_LABELS[adjustment.naipe]}
+                        {adjustment.division ? ` • ${TEAM_DIVISION_LABELS[adjustment.division]}` : ""}
+                        {" • "}
+                        {adjustment.location}
+                        {" • "}
+                        {adjustment.court_name}
+                        {" • Representação: CO"}
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
                 <div className="space-y-2">
                   {operationalKnockoutScheduleAdjustmentPreview.timeline.map((item) => (
                     <div key={item.bracket_match_id} className="app-card-muted rounded-lg p-2.5 text-sm">

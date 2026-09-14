@@ -1238,10 +1238,24 @@ export interface OperationalKnockoutScheduleAdjustmentPreviewItem {
   is_displaced: boolean;
 }
 
+export interface OperationalKnockoutScheduleRepresentationAdjustment {
+  match_id: string;
+  bracket_match_id: string | null;
+  previous_match_id: string;
+  sport_name: string;
+  naipe: MatchNaipe;
+  division: TeamDivision | null;
+  scheduled_date: string;
+  location: string;
+  court_name: string;
+  representation_mode: "CO";
+}
+
 export interface OperationalKnockoutScheduleAdjustmentPreview {
   revision: number;
   timeline: OperationalKnockoutScheduleAdjustmentPreviewItem[];
   blockers: string[];
+  representation_adjustments?: OperationalKnockoutScheduleRepresentationAdjustment[];
   break: {
     action: OperationalKnockoutScheduleBreakAction;
     before: BracketDayBreak[];

@@ -44,6 +44,12 @@ describe("AdminMatches operational knockout schedule adjustment", () => {
     expect(componentSource).toContain("MATCH_NAIPE_LABELS[item.naipe]");
   });
 
+  it("shows automatic CO representation adjustments from the preview", () => {
+    expect(componentSource).toContain("representation_adjustments");
+    expect(componentSource).toContain("Representação ajustada para CO");
+    expect(componentSource).toContain("Representação: CO");
+  });
+
   it("keeps the action unavailable without edit permission or during score-sheet review", () => {
     expect(componentSource).toContain("!canManageMatches || isScoreSheetReviewMode");
     expect(componentSource).toContain("canManageMatches && !isScoreSheetReviewMode");
