@@ -226,6 +226,16 @@ import {
   resolveShouldRedistributeBracketScheduleAfterMatchEdit,
 } from "@/components/admin/adminMatchesSchedule.utils";
 import { AdminMatchesViewMode } from "@/components/admin/adminMatches.types";
+import { AdminKnockoutResultCorrectionDialog } from "@/components/admin/AdminKnockoutResultCorrectionDialog";
+import {
+  applyKnockoutResultCorrection,
+  previewKnockoutResultCorrection,
+  resolveKnockoutResultCorrectionRpcErrorMessage,
+} from "@/domain/championship-brackets/knockoutResultCorrection.repository";
+import type {
+  KnockoutResultCorrectionPreview,
+  KnockoutResultCorrectionWalkoverMode,
+} from "@/domain/championship-brackets/knockoutResultCorrection.types";
 import {
   resolveAdminMatchesKnockoutPlaceholders,
   resolveAdminMatchesScheduleItems,
@@ -1770,6 +1780,15 @@ export function AdminMatches({
   const [editingMatchId, setEditingMatchId] = useState<string | null>(null);
   const [editingMatchDraft, setEditingMatchDraft] =
     useState<MatchEditDraft | null>(null);
+  const [pendingKnockoutCorrection, setPendingKnockoutCorrection] = useState<{
+    matchId: string;
+    walkoverMode: KnockoutResultCorrectionWalkoverMode;
+    preview: KnockoutResultCorrectionPreview;
+  } | null>(null);
+  const [isGeneratingKnockoutCorrectionSchedule, setIsGeneratingKnockoutCorrectionSchedule] =
+    useState(false);
+  const [isApplyingKnockoutCorrection, setIsApplyingKnockoutCorrection] =
+    useState(false);
   const [matchesSportFilter, setMatchesSportFilter] = useState<string>(
     ALL_MATCHES_SPORT_FILTER,
   );
@@ -7187,6 +7206,69 @@ export function AdminMatches({
     });
   };
 
+  const handleGenerateKnockoutCorrectionSchedule = async () => {
+    if (!pendingKnockoutCorrection) {
+      return;
+    }
+
+    setIsGeneratingKnockoutCorrectionSchedule(true);
+
+    const { data, error } = await previewKnockoutResultCorrection(
+      pendingKnockoutCorrection.matchId,
+      pendingKnockoutCorrection.walkoverMode,
+      true,
+    );
+
+    setIsGeneratingKnockoutCorrectionSchedule(false);
+
+    if (error) {
+      toast.error(resolveKnockoutResultCorrectionRpcErrorMessage(error));
+      return;
+    }
+
+    if (!data) {
+      toast.error("Não foi possível gerar a prévia de horários do mata-mata.");
+      return;
+    }
+
+    setPendingKnockoutCorrection((current) =>
+      current ? { ...current, preview: data } : current,
+    );
+  };
+
+  const handleApplyKnockoutCorrection = async ({
+    scheduleCandidateId,
+    reason,
+  }: {
+    scheduleCandidateId: string | null;
+    reason: string;
+  }) => {
+    if (!pendingKnockoutCorrection) {
+      return;
+    }
+
+    setIsApplyingKnockoutCorrection(true);
+
+    const { error } = await applyKnockoutResultCorrection({
+      matchId: pendingKnockoutCorrection.matchId,
+      walkoverMode: pendingKnockoutCorrection.walkoverMode,
+      scheduleCandidateId,
+      reason,
+    });
+
+    if (error) {
+      setIsApplyingKnockoutCorrection(false);
+      toast.error(resolveKnockoutResultCorrectionRpcErrorMessage(error));
+      return;
+    }
+
+    setPendingKnockoutCorrection(null);
+    handleCancelEditingMatch();
+    toast.success("W.O. aplicado e chaveamento reprocessado.");
+    await Promise.all([onRefetch(), onRefetchChampionshipBracket()]);
+    setIsApplyingKnockoutCorrection(false);
+  };
+
   const handleSaveEditingMatch = async (
     scoreSheetReviewSaveDecision?: ScoreSheetReviewSaveDecision,
   ) => {
@@ -7354,6 +7436,43 @@ export function AdminMatches({
 
     if (scoreSheetReviewSaveDecision != null) {
       setShowEditReviewConfirmationDialog(false);
+    }
+
+    const shouldPreviewKnockoutCorrection =
+      didChangeWalkoverMode &&
+      isEditingKnockoutMatch &&
+      (editingMatchDraft.walkoverMode == "HOME_LOST" ||
+        editingMatchDraft.walkoverMode == "AWAY_LOST");
+
+    if (shouldPreviewKnockoutCorrection) {
+      setSavingEditingMatch(true);
+      const correctionWalkoverMode =
+        editingMatchDraft.walkoverMode as KnockoutResultCorrectionWalkoverMode;
+      const { data: correctionPreview, error: correctionPreviewError } =
+        await previewKnockoutResultCorrection(
+          editingMatchId,
+          correctionWalkoverMode,
+          false,
+        );
+      setSavingEditingMatch(false);
+
+      if (correctionPreviewError) {
+        toast.error(
+          resolveKnockoutResultCorrectionRpcErrorMessage(
+            correctionPreviewError,
+          ),
+        );
+        return;
+      }
+
+      if (correctionPreview?.requires_reprocessing) {
+        setPendingKnockoutCorrection({
+          matchId: editingMatchId,
+          walkoverMode: correctionWalkoverMode,
+          preview: correctionPreview,
+        });
+        return;
+      }
     }
 
     setSavingEditingMatch(true);
@@ -13082,6 +13201,20 @@ export function AdminMatches({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AdminKnockoutResultCorrectionDialog
+        open={pendingKnockoutCorrection != null}
+        preview={pendingKnockoutCorrection?.preview ?? null}
+        isGeneratingSchedule={isGeneratingKnockoutCorrectionSchedule}
+        isApplying={isApplyingKnockoutCorrection}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingKnockoutCorrection(null);
+          }
+        }}
+        onGenerateSchedule={handleGenerateKnockoutCorrectionSchedule}
+        onApply={handleApplyKnockoutCorrection}
+      />
 
       <Dialog
         open={showEditReviewConfirmationDialog}
