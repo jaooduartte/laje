@@ -146,7 +146,20 @@ const TabsNavigationList = React.forwardRef<
     return () => window.removeEventListener("resize", updateActiveIndicator);
   }, [updateActiveIndicator]);
 
-  if (navigationVisibility?.navigationHidden) {
+  const navigationValues = React.Children.toArray(props.children).flatMap(
+    (child) =>
+      React.isValidElement<{ value?: string }>(child) &&
+      typeof child.props.value == "string"
+        ? [child.props.value]
+        : [],
+  );
+  const isStandingsGroupNavigation =
+    navigationValues.includes("groups") && navigationValues.includes("overall");
+
+  if (
+    navigationVisibility?.navigationHidden &&
+    isStandingsGroupNavigation
+  ) {
     return null;
   }
 
