@@ -152,8 +152,9 @@ function renderCell(col: StandingsColumnKey, standing: TeamStandingsTableStandin
   }
 }
 
-// Colunas exibidas quando não há configuração de modalidade (legado/cross-sport)
-const DEFAULT_COLUMNS: StandingsColumnKey[] = ["J", "V", "E", "D", "PTS", "SG", "GP", "GC"];
+// Colunas exibidas quando não há configuração de modalidade (legado/cross-sport).
+// PTS permanece no fim também nas visões agregadas (por exemplo, Todas + naipe).
+const DEFAULT_COLUMNS: StandingsColumnKey[] = ["J", "V", "E", "D", "SG", "GP", "GC", "PTS"];
 
 export function TeamStandingsTable({
   standings,
