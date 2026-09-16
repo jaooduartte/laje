@@ -25,6 +25,7 @@ type TeamStandingsTableStanding = Omit<TeamStandingAggregate, "team_city"> & {
   classification_policy?: Record<string, unknown>;
   final_position?: number;
   placement_status?: string;
+  placement_points?: number;
 };
 
 interface Props {
@@ -172,12 +173,20 @@ export function TeamStandingsTable({
     ? (modalidadeConfig?.display_columns ?? DEFAULT_COLUMNS)
     : [];
   const hasStandalonePointsColumn = !shouldShowMetrics;
+  const hasPlacementPointsColumn = standings.some(
+    (standing) => typeof standing.placement_points == "number",
+  );
 
   if (isLoading) {
     return (
       <TableSkeleton
         rows={10}
-        columns={activeColumns.length + 2 + Number(hasStandalonePointsColumn)}
+        columns={
+          activeColumns.length
+          + 2
+          + Number(hasStandalonePointsColumn)
+          + Number(hasPlacementPointsColumn)
+        }
         className="enter-section"
       />
     );
@@ -255,6 +264,14 @@ export function TeamStandingsTable({
             {hasStandalonePointsColumn ? (
               <TableHead className="w-12 text-center font-display font-bold">PTS</TableHead>
             ) : null}
+            {hasPlacementPointsColumn ? (
+              <TableHead
+                className="w-16 text-center font-display font-bold"
+                title="Pontos da modalidade transferidos para a classificação geral do INTERLAJE"
+              >
+                PTS MOD.
+              </TableHead>
+            ) : null}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -330,15 +347,33 @@ export function TeamStandingsTable({
                     <TableCell
                       key={col}
                       className={`text-center score-text tabular-nums ${
-                        col == "PTS" ? "font-display font-bold text-primary" : ""
+                        col == "PTS"
+                          ? hasPlacementPointsColumn
+                            ? "font-display font-bold"
+                            : "font-display font-bold text-primary"
+                          : ""
                       }`}
                     >
                       {renderCell(col, standing)}
                     </TableCell>
                   ))}
                 {hasStandalonePointsColumn ? (
-                  <TableCell className="text-center font-display font-bold text-primary">
+                  <TableCell
+                    className={`text-center font-display font-bold ${
+                      hasPlacementPointsColumn ? "" : "text-primary"
+                    }`}
+                  >
                     {formatStandingsPoints(standing.points)}
+                  </TableCell>
+                ) : null}
+                {hasPlacementPointsColumn ? (
+                  <TableCell
+                    className="text-center font-display font-bold text-primary tabular-nums"
+                    title="Pontos da modalidade transferidos para a classificação geral do INTERLAJE"
+                  >
+                    {typeof standing.placement_points == "number"
+                      ? formatStandingsPoints(standing.placement_points)
+                      : "—"}
                   </TableCell>
                 ) : null}
               </TableRow>
