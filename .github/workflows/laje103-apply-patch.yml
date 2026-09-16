@@ -1,0 +1,56 @@
+name: LAJE-103 one-shot admin integration
+
+on:
+  push:
+    branches:
+      - LAJE-103
+    paths:
+      - .github/workflows/laje103-apply-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: LAJE-103
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply AdminMatches integration
+        run: python3 scripts/laje103_apply_knockout_correction_patch.py
+
+      - name: Run focused tests
+        run: >-
+          npm test --
+          src/domain/championship-brackets/knockoutResultCorrectionMigration.test.ts
+          src/components/admin/AdminKnockoutResultCorrectionDialog.test.tsx
+
+      - name: Build application
+        run: npm run build
+
+      - name: Remove one-shot automation
+        run: |
+          rm scripts/laje103_apply_knockout_correction_patch.py
+          rm .github/workflows/laje103-apply-patch.yml
+
+      - name: Commit validated implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "LAJE-103 integrate knockout correction preview"
+          git push origin HEAD:LAJE-103
