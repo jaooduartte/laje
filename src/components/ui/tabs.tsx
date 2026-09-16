@@ -3,7 +3,45 @@ import * as TabsPrimitive from "@radix-ui/react-tabs";
 
 import { cn } from "@/lib/utils";
 
-const Tabs = TabsPrimitive.Root;
+interface TabsNavigationVisibilityContextValue {
+  navigationHidden: boolean;
+  setNavigationHidden: React.Dispatch<React.SetStateAction<boolean>>;
+}
+
+const TabsNavigationVisibilityContext =
+  React.createContext<TabsNavigationVisibilityContextValue | null>(null);
+
+const Tabs = React.forwardRef<
+  React.ElementRef<typeof TabsPrimitive.Root>,
+  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Root>
+>((props, ref) => {
+  const [navigationHidden, setNavigationHidden] = React.useState(false);
+  const contextValue = React.useMemo(
+    () => ({ navigationHidden, setNavigationHidden }),
+    [navigationHidden],
+  );
+
+  return (
+    <TabsNavigationVisibilityContext.Provider value={contextValue}>
+      <TabsPrimitive.Root ref={ref} {...props} />
+    </TabsNavigationVisibilityContext.Provider>
+  );
+});
+Tabs.displayName = TabsPrimitive.Root.displayName;
+
+function useTabsNavigationVisibility(hidden: boolean) {
+  const context = React.useContext(TabsNavigationVisibilityContext);
+  const setNavigationHidden = context?.setNavigationHidden;
+
+  React.useEffect(() => {
+    if (!setNavigationHidden || !hidden) {
+      return;
+    }
+
+    setNavigationHidden(true);
+    return () => setNavigationHidden(false);
+  }, [hidden, setNavigationHidden]);
+}
 
 const TabsList = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.List>,
@@ -24,7 +62,12 @@ const TabsNavigationList = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.List>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>
 >(({ className, ...props }, ref) => {
-  const listRef = React.useRef<React.ElementRef<typeof TabsPrimitive.List> | null>(null);
+  const navigationVisibility = React.useContext(
+    TabsNavigationVisibilityContext,
+  );
+  const listRef = React.useRef<React.ElementRef<typeof TabsPrimitive.List> | null>(
+    null,
+  );
   const [activeIndicatorLeft, setActiveIndicatorLeft] = React.useState(0);
   const [activeIndicatorWidth, setActiveIndicatorWidth] = React.useState(0);
   const [showActiveIndicator, setShowActiveIndicator] = React.useState(false);
@@ -51,7 +94,9 @@ const TabsNavigationList = React.forwardRef<
       return;
     }
 
-    const activeTriggerElement = listRef.current.querySelector<HTMLElement>('[role="tab"][data-state="active"]');
+    const activeTriggerElement = listRef.current.querySelector<HTMLElement>(
+      '[role="tab"][data-state="active"]',
+    );
 
     if (!activeTriggerElement) {
       setShowActiveIndicator(false);
@@ -101,8 +146,12 @@ const TabsNavigationList = React.forwardRef<
     return () => window.removeEventListener("resize", updateActiveIndicator);
   }, [updateActiveIndicator]);
 
+  if (navigationVisibility?.navigationHidden) {
+    return null;
+  }
+
   return (
-      <TabsPrimitive.List
+    <TabsPrimitive.List
       ref={setRefs}
       className={cn(
         "app-pill-container relative inline-flex h-10 items-center justify-center overflow-x-auto overflow-y-hidden rounded-xl p-0 text-muted-foreground",
@@ -170,4 +219,12 @@ const TabsContent = React.forwardRef<
 ));
 TabsContent.displayName = TabsPrimitive.Content.displayName;
 
-export { Tabs, TabsList, TabsNavigationList, TabsTrigger, TabsNavigationTrigger, TabsContent };
+export {
+  Tabs,
+  TabsList,
+  TabsNavigationList,
+  TabsTrigger,
+  TabsNavigationTrigger,
+  TabsContent,
+  useTabsNavigationVisibility,
+};
