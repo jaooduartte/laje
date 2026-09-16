@@ -8,7 +8,7 @@ import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useHomeDashboardMetrics } from "@/hooks/useHomeDashboardMetrics";
-import { ChampionshipCode } from "@/lib/enums";
+import { ChampionshipCode, MatchNaipe } from "@/lib/enums";
 import type { HomeDashboardMetrics } from "@/lib/types";
 import type { AppNavigationItem } from "@/lib/navigation";
 import {
@@ -37,6 +37,15 @@ const CHAMPIONSHIP_LABELS: Record<ChampionshipCode, string> = {
   [ChampionshipCode.CLV]: "Copa Laje de Verão",
   [ChampionshipCode.SOCIETY]: "Copa Laje Society",
   [ChampionshipCode.INTERLAJE]: "Interlaje",
+};
+const NAIPE_LABELS: Record<MatchNaipe, string> = {
+  [MatchNaipe.MASCULINO]: "Masculino",
+  [MatchNaipe.FEMININO]: "Feminino",
+  [MatchNaipe.MISTO]: "Misto",
+};
+
+type HomeDashboardSeasonInsight = HomeDashboardMetrics["season_insights"][number] & {
+  naipe?: MatchNaipe | null;
 };
 
 const chartConfig = {
@@ -150,7 +159,7 @@ export function HomePageView({ items: _items, maintenanceItems, metrics }: HomeP
   const topPerformance = topPerformanceMetrics?.top_performance ?? metrics?.top_performance ?? [];
   const mostMatches = mostMatchesMetrics?.most_matches ?? metrics?.most_matches ?? [];
   const seasonInsights = useMemo(() => {
-    return (metrics?.season_insights ?? []).filter(
+    return ((metrics?.season_insights ?? []) as HomeDashboardSeasonInsight[]).filter(
       (insight) =>
         insight.id != "MOST_MODALITIES" &&
         insight.team_name &&
@@ -282,6 +291,7 @@ export function HomePageView({ items: _items, maintenanceItems, metrics }: HomeP
                       <Badge variant="outline" className="mt-2 rounded-lg border-border/60 text-[11px]">
                         {insight.season_year} • {CHAMPIONSHIP_LABELS[insight.championship_code]}
                         {insight.sport_name ? ` • ${insight.sport_name}` : ""}
+                        {insight.naipe ? ` • ${NAIPE_LABELS[insight.naipe]}` : ""}
                       </Badge>
                     ) : null}
                     <p className="mt-2 text-sm text-muted-foreground">
