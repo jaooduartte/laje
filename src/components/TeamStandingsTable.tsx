@@ -9,6 +9,10 @@ import { TableSkeleton } from "@/components/skeletons/TableSkeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CircleAlert, Shuffle } from "lucide-react";
 import { type ModalidadeConfig, type StandingsColumnKey, STANDINGS_COLUMN_LABELS, STANDINGS_COLUMN_TOOLTIPS } from "@/lib/modalidadeConfig";
+import {
+  resolveInterlajePlacementVisualBadges,
+  type InterlajePlacementVisualBadge,
+} from "@/domain/interlaje/interlajePlacementBadges";
 
 export interface TeamStandingsBadge {
   key: string;
@@ -17,7 +21,11 @@ export interface TeamStandingsBadge {
   className: string;
 }
 
-type TeamStandingsTableStanding = Omit<TeamStandingAggregate, "team_city">;
+type TeamStandingsTableStanding = Omit<TeamStandingAggregate, "team_city"> & {
+  classification_policy?: Record<string, unknown>;
+  final_position?: number;
+  placement_status?: string;
+};
 
 interface Props {
   standings: TeamStandingsTableStanding[];
@@ -37,10 +45,73 @@ const MOBILE_BADGE_LEGEND_LABEL_BY_KEY: Record<string, string> = {
   "opening-bonus": "Bônus de abertura",
   "walkover-penalty": "Desconto por W.O.",
   "pending-tie-break": "Desempate pendente",
+  "pending-placement-tie-break": "Desempate pendente",
+  "interlaje-placement-stage": "Etapa que definiu a colocação",
+  "interlaje-placement-reason": "Origem da colocação",
 };
 
 const PENDING_TIE_BREAK_BADGE_CLASS_NAME =
   "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300";
+
+const INTERLAJE_BADGE_CLASS_NAME_BY_TONE: Record<
+  InterlajePlacementVisualBadge["tone"],
+  string
+> = {
+  neutral:
+    "border-muted-foreground/20 bg-secondary text-muted-foreground",
+  info: "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300",
+  warning:
+    "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+  success:
+    "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+};
+
+function resolveAutomaticInterlajeBadges(
+  standing: TeamStandingsTableStanding,
+): TeamStandingsBadge[] {
+  return resolveInterlajePlacementVisualBadges(
+    standing.classification_policy,
+  ).map((badge) => ({
+    key: badge.key,
+    label: badge.label,
+    mobileLabel: badge.mobileLabel,
+    className: INTERLAJE_BADGE_CLASS_NAME_BY_TONE[badge.tone],
+  }));
+}
+
+function mergeTeamBadges(
+  automaticBadges: TeamStandingsBadge[],
+  suppliedBadges: TeamStandingsBadge[],
+): TeamStandingsBadge[] {
+  const badgesByKey = new Map<string, TeamStandingsBadge>();
+
+  automaticBadges.forEach((badge) => badgesByKey.set(badge.key, badge));
+  suppliedBadges.forEach((badge) => badgesByKey.set(badge.key, badge));
+
+  return [...badgesByKey.values()];
+}
+
+function resolveOfficialPlacementOrder(
+  standings: TeamStandingsTableStanding[],
+): TeamStandingsTableStanding[] {
+  const hasOfficialFinalPositions =
+    standings.length > 0 &&
+    standings.every(
+      (standing) =>
+        standing.final_position != null &&
+        Number.isInteger(standing.final_position) &&
+        standing.final_position > 0,
+    );
+
+  if (!hasOfficialFinalPositions) {
+    return standings;
+  }
+
+  return [...standings].sort(
+    (firstStanding, secondStanding) =>
+      firstStanding.final_position! - secondStanding.final_position!,
+  );
+}
 
 function resolveTopPlacementRowClass(position: number): string {
   if (position == 1) {
@@ -117,12 +188,18 @@ export function TeamStandingsTable({
   }
 
   const isPublic = variant === "public";
-  const orderedStandings = moveDisqualifiedStandingsToBottom(standings, disqualifiedTeamKeys);
+  const orderedStandings = moveDisqualifiedStandingsToBottom(
+    resolveOfficialPlacementOrder(standings),
+    disqualifiedTeamKeys,
+  );
   const mobileBadgeLegendByKey = new Map<string, TeamStandingsBadge>();
 
   if (showMobileBadgeLegend) {
     orderedStandings.forEach((standing) => {
-      teamBadgesByTeamId?.get(standing.team_id)?.forEach((badge) => {
+      const automaticBadges = resolveAutomaticInterlajeBadges(standing);
+      const suppliedBadges = teamBadgesByTeamId?.get(standing.team_id) ?? [];
+
+      mergeTeamBadges(automaticBadges, suppliedBadges).forEach((badge) => {
         mobileBadgeLegendByKey.set(badge.key, badge);
       });
 
@@ -187,7 +264,10 @@ export function TeamStandingsTable({
             const isDisqualified = disqualifiedTeamKeys?.has(resolveTeamStandingAggregateKey(standing)) ?? false;
             const hasPendingTieBreak = pendingTieBreakTeamIds?.has(standing.team_id) ?? false;
             const groupLabel = groupLabelByTeamId?.get(standing.team_id);
-            const teamBadges = teamBadgesByTeamId?.get(standing.team_id) ?? [];
+            const teamBadges = mergeTeamBadges(
+              resolveAutomaticInterlajeBadges(standing),
+              teamBadgesByTeamId?.get(standing.team_id) ?? [],
+            );
 
             return (
               <TableRow

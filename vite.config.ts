@@ -31,6 +31,13 @@ export default defineConfig(({ mode }) => ({
         ),
       },
       {
+        find: "@/components/admin/AdminStandings",
+        replacement: path.resolve(
+          __dirname,
+          "./src/components/admin/AdminStandingsWithInterlajeSettlement.tsx",
+        ),
+      },
+      {
         find: "@",
         replacement: path.resolve(__dirname, "./src"),
       },
