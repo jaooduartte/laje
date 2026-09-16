@@ -7,6 +7,7 @@ import {
   TabsNavigationList,
   TabsNavigationTrigger,
 } from "@/components/ui/tabs";
+import { MatchNaipe } from "@/lib/enums";
 
 const repositoryMocks = vi.hoisted(() => ({
   events: vi.fn(),
@@ -25,7 +26,7 @@ const standings = [
     championship_id: "championship-1",
     season_year: 2026,
     sport_id: "swimming",
-    naipe: "MASCULINO" as const,
+    naipe: MatchNaipe.MASCULINO,
     team_id: "team-1",
     team_name: "Atlética 1",
     division: null,
@@ -38,7 +39,7 @@ const standings = [
     championship_id: "championship-1",
     season_year: 2026,
     sport_id: "swimming",
-    naipe: "MASCULINO" as const,
+    naipe: MatchNaipe.MASCULINO,
     team_id: "team-2",
     team_name: "Atlética 2",
     division: null,
