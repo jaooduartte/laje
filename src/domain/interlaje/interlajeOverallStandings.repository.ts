@@ -54,7 +54,7 @@ export interface InterlajeCompetitionStanding {
   final_position: number;
   placement_points: number;
   placement_status: "CONFIRMED" | "PROJECTED" | "PENDING_TIE_BREAK";
-  placement_basis: "GROUP_STAGE" | "KNOCKOUT";
+  placement_basis: "GROUP_STAGE" | "KNOCKOUT" | "INDIVIDUAL";
   sets_for?: number;
   sets_against?: number;
   rally_points_for?: number;
