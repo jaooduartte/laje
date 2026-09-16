@@ -22,8 +22,18 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
+    alias: [
+      {
+        find: "@/components/admin/AdminMatches",
+        replacement: path.resolve(
+          __dirname,
+          "./src/components/admin/AdminMatchesWithScheduleFilters.tsx",
+        ),
+      },
+      {
+        find: "@",
+        replacement: path.resolve(__dirname, "./src"),
+      },
+    ],
   },
 }));
