@@ -3,7 +3,7 @@ import {
   fetchChampionshipIndividualEventEntries,
   fetchChampionshipIndividualEvents,
 } from "@/domain/individual-events/championshipIndividualEvents.repository";
-import { ChampionshipIndividualEventKind, type MatchNaipe } from "@/lib/enums";
+import type { MatchNaipe } from "@/lib/enums";
 import {
   formatStandingsPoints,
   moveDisqualifiedStandingsToBottom,
@@ -69,7 +69,6 @@ type IndividualStandingRow = Pick<
 interface IndividualEventGroup {
   key: string;
   name: string;
-  kind: ChampionshipIndividualEventKind;
   displayOrder: number;
   events: ChampionshipIndividualEvent[];
 }
@@ -138,7 +137,9 @@ function resolvePlacementValue(standing: IndividualStandingRow, placement: numbe
   }
 }
 
-function resolvePlacementField(placement: number): keyof IndividualStandingRow | null {
+function resolvePlacementField(
+  placement: number,
+): keyof IndividualStandingRow | null {
   const fields: Array<keyof IndividualStandingRow> = [
     "first_places",
     "second_places",
@@ -184,7 +185,9 @@ function sortIndividualStandings(standings: IndividualStandingRow[]) {
 
     const firstName = firstStanding.teams?.name ?? firstStanding.team_name ?? "";
     const secondName = secondStanding.teams?.name ?? secondStanding.team_name ?? "";
-    return firstName.localeCompare(secondName, "pt-BR", { sensitivity: "base" });
+    return firstName.localeCompare(secondName, "pt-BR", {
+      sensitivity: "base",
+    });
   });
 }
 
@@ -244,7 +247,6 @@ function groupIndividualEvents(events: ChampionshipIndividualEvent[]) {
     groupsByKey.set(key, {
       key,
       name: event.name,
-      kind: event.kind,
       displayOrder: event.display_order,
       events: [event],
     });
@@ -274,38 +276,6 @@ function groupIndividualEvents(events: ChampionshipIndividualEvent[]) {
         sensitivity: "base",
       });
     });
-}
-
-function formatTime(milliseconds: number) {
-  const totalSeconds = Math.floor(milliseconds / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  const millis = milliseconds % 1000;
-
-  if (minutes > 0) {
-    return `${minutes}:${String(seconds).padStart(2, "0")}.${String(millis).padStart(3, "0")}`;
-  }
-
-  return `${seconds}.${String(millis).padStart(3, "0")} s`;
-}
-
-function formatEntryResult(entry: ChampionshipIndividualEventEntry) {
-  if (typeof entry.result_time_milliseconds == "number") {
-    return formatTime(entry.result_time_milliseconds);
-  }
-
-  if (typeof entry.result_mark_centimeters == "number") {
-    return `${(entry.result_mark_centimeters / 100).toLocaleString("pt-BR", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })} m`;
-  }
-
-  if (entry.final_position == null && entry.status) {
-    return String(entry.status).replaceAll("_", " ");
-  }
-
-  return "-";
 }
 
 function resolveNaipeLabel(naipe: MatchNaipe) {
@@ -348,6 +318,7 @@ export function IndividualSportStandingsTable({
     Record<string, ChampionshipIndividualEventEntry[]>
   >({});
   const [eventsLoading, setEventsLoading] = useState(false);
+  const [resolvedScopeKey, setResolvedScopeKey] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(OVERALL_TAB);
 
   const standingsScope = useMemo(() => {
@@ -381,10 +352,25 @@ export function IndividualSportStandingsTable({
     };
   }, [standings]);
 
-  useEffect(() => {
+  const currentScopeKey = useMemo(() => {
     if (!standingsScope) {
+      return null;
+    }
+
+    return [
+      standingsScope.championshipId,
+      standingsScope.seasonYear,
+      standingsScope.sportId,
+      standingsScope.naipe ?? "ALL_NAIPES",
+      standingsScope.division ?? "WITHOUT_DIVISION",
+    ].join(":");
+  }, [standingsScope]);
+
+  useEffect(() => {
+    if (!standingsScope || !currentScopeKey) {
       setEvents([]);
       setEntriesByEventId({});
+      setResolvedScopeKey(null);
       setActiveTab(OVERALL_TAB);
       return;
     }
@@ -404,6 +390,7 @@ export function IndividualSportStandingsTable({
       if (eventsResponse.error) {
         setEvents([]);
         setEntriesByEventId({});
+        setResolvedScopeKey(currentScopeKey);
         setEventsLoading(false);
         return;
       }
@@ -447,14 +434,16 @@ export function IndividualSportStandingsTable({
           ),
         );
       }
+
       setActiveTab(OVERALL_TAB);
+      setResolvedScopeKey(currentScopeKey);
       setEventsLoading(false);
     });
 
     return () => {
       isMounted = false;
     };
-  }, [standingsScope]);
+  }, [currentScopeKey, standingsScope]);
 
   const eventGroups = useMemo(() => groupIndividualEvents(events), [events]);
 
@@ -486,9 +475,10 @@ export function IndividualSportStandingsTable({
     return points;
   }, [entriesByEventId, eventGroups]);
 
-  const combinedLoading = isLoading || eventsLoading;
+  const scopeIsReady =
+    currentScopeKey != null && resolvedScopeKey == currentScopeKey;
 
-  if (combinedLoading && standings.length == 0) {
+  if (isLoading || eventsLoading || !scopeIsReady) {
     return <TableSkeleton rows={10} columns={8} />;
   }
 
@@ -619,14 +609,6 @@ export function IndividualSportStandingsTable({
                   <TableHead className="font-display font-bold">
                     Atlética
                   </TableHead>
-                  <TableHead className="font-display font-bold">
-                    {event.kind == ChampionshipIndividualEventKind.RELAY
-                      ? "Equipe"
-                      : "Atleta"}
-                  </TableHead>
-                  <TableHead className="w-32 text-center font-display font-bold">
-                    Resultado
-                  </TableHead>
                   <TableHead className="w-16 text-center font-display font-bold">
                     PTS
                   </TableHead>
@@ -663,14 +645,6 @@ export function IndividualSportStandingsTable({
                           ) : null}
                         </div>
                       </TableCell>
-                      <TableCell>
-                        {event.kind == ChampionshipIndividualEventKind.RELAY
-                          ? "Equipe"
-                          : entry.athlete_name ?? "-"}
-                      </TableCell>
-                      <TableCell className="text-center tabular-nums">
-                        {formatEntryResult(entry)}
-                      </TableCell>
                       <TableCell className="text-center font-display font-bold text-primary tabular-nums">
                         {formatStandingsPoints(Number(entry.points_awarded ?? 0))}
                       </TableCell>
@@ -695,12 +669,9 @@ export function IndividualSportStandingsTable({
 
   if (eventGroups.length == 0) {
     return (
-      <div className="space-y-3">
-        <p className="text-xs text-muted-foreground">
-          Nenhuma prova configurada foi encontrada para o recorte selecionado.
-        </p>
-        {renderOverallTable()}
-      </div>
+      <p className="py-8 text-center text-sm text-muted-foreground">
+        Nenhuma prova configurada foi encontrada para o recorte selecionado.
+      </p>
     );
   }
 
@@ -719,20 +690,10 @@ export function IndividualSportStandingsTable({
 
       {eventGroups.map((group) => (
         <TabsContent key={group.key} value={group.key}>
-          {combinedLoading ? (
-            <TableSkeleton rows={10} columns={5} />
-          ) : (
-            renderEventGroup(group)
-          )}
+          {renderEventGroup(group)}
         </TabsContent>
       ))}
-      <TabsContent value={OVERALL_TAB}>
-        {combinedLoading ? (
-          <TableSkeleton rows={10} columns={eventGroups.length + 3} />
-        ) : (
-          renderOverallTable()
-        )}
-      </TabsContent>
+      <TabsContent value={OVERALL_TAB}>{renderOverallTable()}</TabsContent>
     </Tabs>
   );
 }
