@@ -171,7 +171,10 @@ export function ChampionshipsPage() {
     standingsYearFilter == ALL_YEAR_FILTER
       ? selectedChampionshipSeasonYear
       : Number(standingsYearFilter);
-  const { removedSportIds } = useChampionshipSeasonSportRemovals({
+  const {
+    removedSportIds,
+    loading: removedSportRemovalsLoading,
+  } = useChampionshipSeasonSportRemovals({
     championshipId: selectedChampionshipId,
     seasonYear: selectedInterlajeOverallSeasonYear,
   });
@@ -182,11 +185,15 @@ export function ChampionshipsPage() {
     );
   }, [allChampionshipSports, removedSportIds]);
   const visibleSports = useMemo(() => {
+    if (removedSportRemovalsLoading) {
+      return [];
+    }
+
     const activeSportIds = new Set(
       championshipSports.map((championshipSport) => championshipSport.sport_id),
     );
     return sports.filter((sport) => activeSportIds.has(sport.id));
-  }, [championshipSports, sports]);
+  }, [championshipSports, removedSportRemovalsLoading, sports]);
   const {
     standings: interlajeOverallStandings,
     loading: interlajeOverallStandingsLoading,
