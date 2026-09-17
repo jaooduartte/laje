@@ -104,7 +104,10 @@ export function SchedulePage() {
     championshipId: selectedChampionshipId,
     realtimeEnabled: false,
   });
-  const { removedSportIds } = useChampionshipSeasonSportRemovals({
+  const {
+    removedSportIds,
+    loading: removedSportRemovalsLoading,
+  } = useChampionshipSeasonSportRemovals({
     championshipId: selectedChampionshipId,
     seasonYear: correctedYearFilter,
   });
@@ -115,11 +118,15 @@ export function SchedulePage() {
     );
   }, [allChampionshipSports, removedSportIds]);
   const visibleSports = useMemo(() => {
+    if (removedSportRemovalsLoading) {
+      return [];
+    }
+
     const activeSportIds = new Set(
       championshipSports.map((championshipSport) => championshipSport.sport_id),
     );
     return sports.filter((sport) => activeSportIds.has(sport.id));
-  }, [championshipSports, sports]);
+  }, [championshipSports, removedSportRemovalsLoading, sports]);
   const individualSportIds = useMemo(
     () => resolveIndividualSportIds(visibleSports),
     [visibleSports],
