@@ -104,7 +104,10 @@ export function SchedulePage() {
     championshipId: selectedChampionshipId,
     realtimeEnabled: false,
   });
-  const { removedSportIds } = useChampionshipSeasonSportRemovals({
+  const {
+    removedSportIds,
+    loading: removedSportRemovalsLoading,
+  } = useChampionshipSeasonSportRemovals({
     championshipId: selectedChampionshipId,
     seasonYear: correctedYearFilter,
   });
@@ -114,7 +117,20 @@ export function SchedulePage() {
       (championshipSport) => !removedSportIdsSet.has(championshipSport.sport_id),
     );
   }, [allChampionshipSports, removedSportIds]);
-  const individualSportIds = useMemo(() => resolveIndividualSportIds(sports), [sports]);
+  const visibleSports = useMemo(() => {
+    if (removedSportRemovalsLoading) {
+      return [];
+    }
+
+    const activeSportIds = new Set(
+      championshipSports.map((championshipSport) => championshipSport.sport_id),
+    );
+    return sports.filter((sport) => activeSportIds.has(sport.id));
+  }, [championshipSports, removedSportRemovalsLoading, sports]);
+  const individualSportIds = useMemo(
+    () => resolveIndividualSportIds(visibleSports),
+    [visibleSports],
+  );
   const { teams } = useTeams({ includeInactive: true });
   const visibleChampionshipBracketView = useMemo(() => {
     return championshipBracketView.competitions.length == 0 ? EMPTY_CHAMPIONSHIP_BRACKET_VIEW : championshipBracketView;
@@ -169,6 +185,14 @@ export function SchedulePage() {
     setMatchesCurrentPage(1);
     setMatchesItemsPerPage(DEFAULT_PAGINATION_ITEMS_PER_PAGE);
   }, [selectedChampionshipCode, selectedChampionshipSeasonYear]);
+
+  useEffect(() => {
+    if (sportFilter && !visibleSports.some((sport) => sport.id == sportFilter)) {
+      setSportFilter(null);
+      setNaipeFilter(null);
+      setGroupFilter(null);
+    }
+  }, [sportFilter, visibleSports]);
 
   useEffect(() => {
     if (naipeFilter && !availableNaipeOptions.includes(naipeFilter)) {
@@ -714,7 +738,7 @@ export function SchedulePage() {
       selectedChampionshipCode={selectedChampionshipCode}
       selectedChampionshipHasDivisions={selectedChampionshipHasDivisions}
       teams={teams}
-      sports={sports}
+      sports={visibleSports}
       sportFilter={sportFilter}
       availableNaipeOptions={availableNaipeOptions}
       naipeFilter={naipeFilter}

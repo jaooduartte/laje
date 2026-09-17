@@ -3,6 +3,7 @@ import { useMatches } from "@/hooks/useMatches";
 import { useSports } from "@/hooks/useSports";
 import { useChampionships } from "@/hooks/useChampionships";
 import { useChampionshipBracket } from "@/hooks/useChampionshipBracket";
+import { useChampionshipSeasonSportRemovals } from "@/hooks/useChampionshipSeasonSportRemovals";
 import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividualEvents";
 import { useLiveChampionshipRealtime } from "@/hooks/useLiveChampionshipRealtime";
 import {
@@ -69,14 +70,50 @@ export function LivePage() {
     setUpcomingMatchesCurrentPage(1);
   }, [sportFilter, upcomingMatchesItemsPerPage]);
 
-  const { sports } = useSports({
+  const { sports, championshipSports } = useSports({
     championshipId: selectedChampionshipId,
     realtimeEnabled: false,
   });
+  const {
+    removedSportIds,
+    loading: removedSportRemovalsLoading,
+  } = useChampionshipSeasonSportRemovals({
+    championshipId: selectedChampionshipId,
+    seasonYear: selectedChampionshipSeasonYear,
+  });
+  const visibleSports = useMemo(() => {
+    if (removedSportRemovalsLoading) {
+      return [];
+    }
+
+    const removedSportIdsSet = new Set(removedSportIds);
+    const activeSportIds = new Set(
+      championshipSports
+        .filter(
+          (championshipSport) =>
+            !removedSportIdsSet.has(championshipSport.sport_id),
+        )
+        .map((championshipSport) => championshipSport.sport_id),
+    );
+
+    return sports.filter((sport) => activeSportIds.has(sport.id));
+  }, [
+    championshipSports,
+    removedSportIds,
+    removedSportRemovalsLoading,
+    sports,
+  ]);
   const individualSportIds = useMemo(
-    () => resolveIndividualSportIds(sports),
-    [sports],
+    () => resolveIndividualSportIds(visibleSports),
+    [visibleSports],
   );
+
+  useEffect(() => {
+    if (sportFilter && !visibleSports.some((sport) => sport.id == sportFilter)) {
+      setSportFilter(null);
+    }
+  }, [sportFilter, visibleSports]);
+
   const {
     events: individualEvents,
     sessions: individualSessions,
@@ -252,7 +289,7 @@ export function LivePage() {
       upcomingMatchesCurrentPage={upcomingMatchesCurrentPage}
       upcomingMatchesItemsPerPage={upcomingMatchesItemsPerPage}
       upcomingMatchesTotalPages={upcomingMatchesTotalPages}
-      sports={sports}
+      sports={visibleSports}
       sportFilter={sportFilter}
       activeTab={activeTab}
       championshipBracketView={filteredChampionshipBracketView}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 type SupabaseSeasonSportRemovalsClient = {
@@ -14,6 +14,11 @@ type SupabaseSeasonSportRemovalsClient = {
   };
 };
 
+type SeasonSportRemovalsState = {
+  scopeKey: string | null;
+  removedSportIds: string[];
+};
+
 const supabaseSeasonSportRemovalsClient =
   supabase as unknown as SupabaseSeasonSportRemovalsClient;
 
@@ -24,11 +29,23 @@ export function useChampionshipSeasonSportRemovals({
   championshipId?: string | null;
   seasonYear?: number | null;
 }) {
-  const [removedSportIds, setRemovedSportIds] = useState<string[]>([]);
+  const scopeKey =
+    championshipId && seasonYear != null
+      ? `${championshipId}:${seasonYear}`
+      : null;
+  const scopeKeyRef = useRef(scopeKey);
+  scopeKeyRef.current = scopeKey;
+
+  const [state, setState] = useState<SeasonSportRemovalsState>({
+    scopeKey: null,
+    removedSportIds: [],
+  });
 
   const refetch = useCallback(async () => {
-    if (!championshipId || seasonYear == null) {
-      setRemovedSportIds([]);
+    const requestedScopeKey = scopeKey;
+
+    if (!championshipId || seasonYear == null || !requestedScopeKey) {
+      setState({ scopeKey: null, removedSportIds: [] });
       return;
     }
 
@@ -38,17 +55,34 @@ export function useChampionshipSeasonSportRemovals({
       .eq("championship_id", championshipId)
       .eq("season_year", seasonYear);
 
-    if (error) {
-      console.error("Erro ao carregar modalidades removidas da temporada:", error.message);
+    if (scopeKeyRef.current != requestedScopeKey) {
       return;
     }
 
-    setRemovedSportIds(data?.map((removal) => removal.sport_id) ?? []);
-  }, [championshipId, seasonYear]);
+    if (error) {
+      console.error(
+        "Erro ao carregar modalidades removidas da temporada:",
+        error.message,
+      );
+      setState({ scopeKey: requestedScopeKey, removedSportIds: [] });
+      return;
+    }
+
+    setState({
+      scopeKey: requestedScopeKey,
+      removedSportIds: data?.map((removal) => removal.sport_id) ?? [],
+    });
+  }, [championshipId, scopeKey, seasonYear]);
 
   useEffect(() => {
     void refetch();
   }, [refetch]);
 
-  return { removedSportIds, refetch };
+  const isCurrentScopeResolved = state.scopeKey == scopeKey;
+
+  return {
+    removedSportIds: isCurrentScopeResolved ? state.removedSportIds : [],
+    loading: scopeKey != null && !isCurrentScopeResolved,
+    refetch,
+  };
 }
