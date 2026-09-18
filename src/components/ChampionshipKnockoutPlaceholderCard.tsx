@@ -11,6 +11,9 @@ export function ChampionshipKnockoutPlaceholderCard({
 }: {
   placeholder: ScheduledKnockoutPlaceholder;
 }) {
+  const homeTeamName = placeholder.home_team_name ?? "A definir";
+  const awayTeamName = placeholder.away_team_name ?? "A definir";
+
   return (
     <div className="list-item-card list-item-card-hover flex h-full w-full flex-col p-4 dark:bg-[hsl(0_0%_12%)] dark:hover:bg-[hsl(0_0%_14%)]">
       <div className="mb-3 flex flex-col gap-1.5">
@@ -47,7 +50,7 @@ export function ChampionshipKnockoutPlaceholderCard({
         <div className="flex items-center justify-between">
           <div className="flex-1 text-right">
             <p className="font-display text-sm font-semibold text-muted-foreground">
-              A definir
+              {homeTeamName}
             </p>
           </div>
           <div className="mx-4 text-center">
@@ -57,7 +60,7 @@ export function ChampionshipKnockoutPlaceholderCard({
           </div>
           <div className="flex-1">
             <p className="font-display text-sm font-semibold text-muted-foreground">
-              A definir
+              {awayTeamName}
             </p>
           </div>
         </div>
