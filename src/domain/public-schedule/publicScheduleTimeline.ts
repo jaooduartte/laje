@@ -27,6 +27,8 @@ export interface ScheduledKnockoutPlaceholder {
   end_time: string | null;
   location: string | null;
   court_name: string | null;
+  home_team_name?: string | null;
+  away_team_name?: string | null;
   stage_label: string;
 }
 

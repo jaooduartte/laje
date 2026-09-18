@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Header } from "@/components/Header";
 import { ChampionshipIndividualSessionCard } from "@/components/ChampionshipIndividualSessionCard";
+import { ChampionshipKnockoutPlaceholderCard } from "@/components/ChampionshipKnockoutPlaceholderCard";
 import { LiveMatchBanner } from "@/components/LiveMatchBanner";
 import { MatchCard } from "@/components/MatchCard";
 import { SportFilter } from "@/components/SportFilter";
@@ -206,6 +207,11 @@ export function LivePageView({
                           estimatedStartTime={
                             estimatedStartTimeByMatchId[item.match.id]
                           }
+                        />
+                      ) : item.type == "KNOCKOUT_PLACEHOLDER" ? (
+                        <ChampionshipKnockoutPlaceholderCard
+                          key={item.id}
+                          placeholder={item.placeholder}
                         />
                       ) : item.type == "INDIVIDUAL_SESSION" ? (
                         <ChampionshipIndividualSessionCard

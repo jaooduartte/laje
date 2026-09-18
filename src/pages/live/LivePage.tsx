@@ -8,13 +8,21 @@ import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividu
 import { useLiveChampionshipRealtime } from "@/hooks/useLiveChampionshipRealtime";
 import {
   EMPTY_CHAMPIONSHIP_BRACKET_VIEW,
+  resolveKnockoutRoundLabel,
   resolveMatchBracketContextByMatchId,
 } from "@/lib/championship";
 import { ChampionshipStatus, MatchStatus } from "@/lib/enums";
 import { resolveIndividualSportIds } from "@/lib/individualEvents";
 import { LivePageView } from "@/pages/live/LivePageView";
 import { DEFAULT_PAGINATION_ITEMS_PER_PAGE } from "@/components/ui/app-pagination-controls";
-import { resolvePublicScheduleTimelineItems } from "@/domain/public-schedule/publicScheduleTimeline";
+import {
+  type ScheduledKnockoutPlaceholder,
+  resolvePublicScheduleTimelineItems,
+} from "@/domain/public-schedule/publicScheduleTimeline";
+import {
+  resolveChampionshipBracketMatchNumberingMode,
+  resolveKnockoutDisplayMatchNumberById,
+} from "@/domain/championship-brackets/championshipBracketDisplayMatchNumbers";
 
 export function LivePage() {
   const { championships, loading: championshipsLoading } = useChampionships();
@@ -160,6 +168,15 @@ export function LivePage() {
     includeRealtime: false,
   });
 
+  const { matches: storedScheduledMatchesForMatchNumbering } = useMatches({
+    championshipId: selectedChampionshipId,
+    seasonYear: selectedChampionshipSeasonYear,
+    statuses: [MatchStatus.SCHEDULED],
+    includePendingManualRelocation: true,
+    sortMode: "SCHEDULED",
+    includeRealtime: false,
+  });
+
   const {
     championshipBracketView,
     loading: championshipBracketLoading,
@@ -167,7 +184,6 @@ export function LivePage() {
   } = useChampionshipBracket({
     championshipId: selectedChampionshipId,
     seasonYear: selectedChampionshipSeasonYear,
-    enabled: activeTab == "knockout",
     realtimeEnabled: false,
   });
 
@@ -181,9 +197,7 @@ export function LivePage() {
       void refetchUpcomingMatches({ refreshOperationalContext: false });
     },
     onBracketChange: () => {
-      if (activeTab == "knockout") {
-        void refetchChampionshipBracket();
-      }
+      void refetchChampionshipBracket();
     },
   });
   const visibleChampionshipBracketView = useMemo(() => {
@@ -211,6 +225,73 @@ export function LivePage() {
     return resolveMatchBracketContextByMatchId(visibleChampionshipBracketView);
   }, [visibleChampionshipBracketView]);
 
+  const knockoutPlaceholders = useMemo(() => {
+    const knockoutDisplayMatchNumberById =
+      resolveKnockoutDisplayMatchNumberById(
+        visibleChampionshipBracketView,
+        storedScheduledMatchesForMatchNumbering,
+        resolveChampionshipBracketMatchNumberingMode(
+          visibleChampionshipBracketView.edition?.payload_snapshot,
+        ),
+      );
+
+    return visibleChampionshipBracketView.competitions.flatMap(
+      (competition) => {
+        if (sportFilter && competition.sport_id != sportFilter) {
+          return [] as ScheduledKnockoutPlaceholder[];
+        }
+
+        const totalRounds = competition.knockout_matches.reduce(
+          (currentMaxRound, knockoutMatch) => {
+            if (knockoutMatch.is_third_place) {
+              return currentMaxRound;
+            }
+
+            return Math.max(currentMaxRound, knockoutMatch.round_number);
+          },
+          0,
+        );
+
+        return competition.knockout_matches
+          .filter(
+            (knockoutMatch) =>
+              !knockoutMatch.match_id && Boolean(knockoutMatch.scheduled_date),
+          )
+          .map((knockoutMatch) => ({
+            id: knockoutMatch.id,
+            competition_id: competition.id,
+            sport_id: competition.sport_id,
+            sport_name: competition.sport_name,
+            naipe: competition.naipe,
+            division: competition.division,
+            round_number: knockoutMatch.round_number,
+            slot_number: knockoutMatch.slot_number,
+            is_third_place: knockoutMatch.is_third_place,
+            display_match_number:
+              knockoutDisplayMatchNumberById[knockoutMatch.id] ?? null,
+            scheduled_date: knockoutMatch.scheduled_date!,
+            queue_position: knockoutMatch.queue_position,
+            scheduled_slot: knockoutMatch.scheduled_slot ?? null,
+            start_time: knockoutMatch.start_time,
+            end_time: knockoutMatch.end_time,
+            location: knockoutMatch.location,
+            court_name: knockoutMatch.court_name,
+            home_team_name: knockoutMatch.home_team_name,
+            away_team_name: knockoutMatch.away_team_name,
+            stage_label: resolveKnockoutRoundLabel(
+              knockoutMatch.round_number,
+              Math.max(totalRounds, knockoutMatch.round_number),
+              knockoutMatch.is_third_place,
+            ),
+          }));
+      },
+    );
+  }, [
+    sportFilter,
+    storedScheduledMatchesForMatchNumbering,
+    visibleChampionshipBracketView,
+  ]);
+
   const individualEventCountBySessionId = useMemo(() => {
     return individualEvents.reduce<Record<string, number>>((carry, event) => {
       if (event.session_id) {
@@ -223,6 +304,7 @@ export function LivePage() {
   const upcomingScheduleItems = useMemo(() => {
     return resolvePublicScheduleTimelineItems({
       matches: upcomingMatches,
+      placeholders: knockoutPlaceholders,
       individualSessions: individualSessions.filter(
         (session) => session.status == "SCHEDULED",
       ),
@@ -232,6 +314,7 @@ export function LivePage() {
   }, [
     individualEventCountBySessionId,
     individualSessions,
+    knockoutPlaceholders,
     upcomingEstimatedStartTimeByMatchId,
     upcomingMatches,
   ]);
@@ -281,11 +364,21 @@ export function LivePage() {
 
   return (
     <LivePageView
-      isLoading={championshipsLoading || liveMatchesLoading || upcomingMatchesLoading}
+      isLoading={
+        championshipsLoading ||
+        liveMatchesLoading ||
+        upcomingMatchesLoading ||
+        championshipBracketLoading
+      }
       featuredChampionship={featuredChampionship}
       filteredLiveMatches={filteredLiveMatches}
       upcomingScheduleItems={paginatedUpcomingScheduleItems}
-      isUpcomingMatchesFetching={upcomingMatchesFetching || liveMatchesFetching || individualSessionsLoading}
+      isUpcomingMatchesFetching={
+        upcomingMatchesFetching ||
+        liveMatchesFetching ||
+        individualSessionsLoading ||
+        championshipBracketLoading
+      }
       upcomingMatchesCurrentPage={upcomingMatchesCurrentPage}
       upcomingMatchesItemsPerPage={upcomingMatchesItemsPerPage}
       upcomingMatchesTotalPages={upcomingMatchesTotalPages}
