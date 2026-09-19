@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ChampionshipSportTieBreakerRule, MatchNaipe, MatchStatus, TeamDivision } from "@/lib/enums";
 import { ChampionshipThirdPlaceSource } from "@/lib/championshipPodium";
 import type { Match, Standing } from "@/lib/types";
+import type { ChampionshipGroupStageStanding } from "@/domain/championship-brackets/championshipBracket.types";
 import {
   applyOfficialThirdPlacementToStandings,
   aggregateStandingsByTeam,
@@ -11,11 +12,86 @@ import {
   formatPointsAverageForStandings,
   formatStandingsPoints,
   moveDisqualifiedStandingsToBottom,
+  mapChampionshipGroupStageStandingToTeamStandingAggregate,
   resolveManualTieBreakWinnerTeamIdByPairKey,
   sortStandingRowsByRanking,
   sortTeamStandingAggregatesByRanking,
   type TeamStandingAggregate,
 } from "@/lib/standings";
+
+describe("mapChampionshipGroupStageStandingToTeamStandingAggregate", () => {
+  it("preserva as métricas brutas da fase de grupos, incluindo sets e rally do voleibol", () => {
+    const standing: ChampionshipGroupStageStanding = {
+      competition_id: "competition-volleyball",
+      sport_id: "sport-volleyball",
+      sport_name: "Voleibol",
+      naipe: MatchNaipe.MASCULINO,
+      division: null,
+      group_id: "group-a",
+      group_number: 1,
+      team_id: "team-volleyball",
+      team_name: "Atlética Vôlei",
+      played: 3,
+      wins: 2,
+      draws: 0,
+      losses: 1,
+      goals_for: 146,
+      goals_against: 91,
+      goal_diff: 55,
+      points: 6,
+      comparison_points: 9,
+      yellow_cards: 1,
+      red_cards: 0,
+      blue_cards: 0,
+      two_minute_penalties: 0,
+      sets_for: 4,
+      sets_against: 2,
+      rally_points_for: 146,
+      rally_points_against: 91,
+      group_rank: 2,
+      comparison_rank: 1,
+      comparison_goals_for: 219,
+      comparison_goals_against: 136.5,
+      comparison_goal_diff: 82.5,
+      comparison_yellow_cards: 1.5,
+      comparison_red_cards: 0,
+      comparison_blue_cards: 0,
+      comparison_two_minute_penalties: 0,
+      comparison_sets_for: 6,
+      comparison_sets_against: 3,
+      comparison_rally_points_for: 219,
+      comparison_rally_points_against: 136.5,
+      qualification_rank: 2,
+      qualification_pool_rank: 1,
+    };
+
+    const aggregate =
+      mapChampionshipGroupStageStandingToTeamStandingAggregate(standing);
+
+    expect(aggregate).toEqual({
+      team_id: "team-volleyball",
+      team_name: "Atlética Vôlei",
+      team_city: "",
+      division: null,
+      played: 3,
+      wins: 2,
+      draws: 0,
+      losses: 1,
+      goals_for: 146,
+      goals_against: 91,
+      goal_diff: 55,
+      points: 6,
+      yellow_cards: 1,
+      red_cards: 0,
+      blue_cards: 0,
+      two_minute_penalties: 0,
+      sets_for: 4,
+      sets_against: 2,
+      rally_points_for: 146,
+      rally_points_against: 91,
+    });
+  });
+});
 
 function buildStanding(overrides: Partial<Standing> & Pick<Standing, "id" | "team_id">): Standing {
   return {
