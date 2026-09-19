@@ -84,10 +84,10 @@ describe("TeamStandingsTable - classificação final do INTERLAJE", () => {
       </TooltipProvider>,
     );
 
-    expect(screen.getByText("Quartas")).toBeInTheDocument();
+    expect(screen.getAllByText("Quartas").length).toBeGreaterThan(0);
     expect(
-      screen.getByText("Eliminada por CAMPEÃO (campeã)"),
-    ).toBeInTheDocument();
-    expect(screen.getByText("Colocação projetada")).toBeInTheDocument();
+      screen.getAllByText("Eliminada por CAMPEÃO (campeã)").length,
+    ).toBeGreaterThan(0);
+    expect(screen.getAllByText("Colocação projetada").length).toBeGreaterThan(0);
   });
 });

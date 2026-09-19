@@ -130,7 +130,11 @@ function resolveTopPlacementRowClass(position: number): string {
   return "hover:bg-secondary/20";
 }
 
-function renderCell(col: StandingsColumnKey, standing: TeamStandingsTableStanding): React.ReactNode {
+function renderCell(
+  col: StandingsColumnKey,
+  standing: TeamStandingsTableStanding,
+  modalidadeConfig: ModalidadeConfig | undefined,
+): React.ReactNode {
   switch (col) {
     case "J": return standing.played;
     case "V": return standing.wins;
@@ -140,7 +144,12 @@ function renderCell(col: StandingsColumnKey, standing: TeamStandingsTableStandin
     case "GP": return standing.goals_for;
     case "GC": return standing.goals_against;
     case "SG": return standing.goal_diff;
-    case "PA": return formatPointsAverageForStandings(standing.goals_for, standing.goals_against);
+    case "PA": return modalidadeConfig?.sport_code == "VOLEIBOL"
+      ? formatPointsAverageForStandings(
+        standing.rally_points_for ?? 0,
+        standing.rally_points_against ?? 0,
+      )
+      : formatPointsAverageForStandings(standing.goals_for, standing.goals_against);
     case "SA": return formatPointsAverageForStandings(standing.sets_for ?? 0, standing.sets_against ?? 0);
     case "SV": return standing.sets_for ?? 0;
     case "SP": return standing.sets_against ?? 0;
@@ -151,6 +160,17 @@ function renderCell(col: StandingsColumnKey, standing: TeamStandingsTableStandin
     case "CAZ": return standing.blue_cards;
     case "2M": return standing.two_minute_penalties;
   }
+}
+
+function resolveColumnTooltip(
+  column: StandingsColumnKey,
+  modalidadeConfig: ModalidadeConfig | undefined,
+): string {
+  if (column == "PA" && modalidadeConfig?.sport_code == "VOLEIBOL") {
+    return "Pontos average (pontos de rally vencidos ÷ pontos de rally sofridos)";
+  }
+
+  return STANDINGS_COLUMN_TOOLTIPS[column];
 }
 
 // Colunas exibidas quando não há configuração de modalidade (legado/cross-sport).
@@ -257,7 +277,7 @@ export function TeamStandingsTable({
                 <TableHead
                   key={col}
                   className="w-10 text-center font-display font-bold"
-                  title={STANDINGS_COLUMN_TOOLTIPS[col]}
+                  title={resolveColumnTooltip(col, modalidadeConfig)}
                 >
                   {STANDINGS_COLUMN_LABELS[col]}
                 </TableHead>
@@ -355,7 +375,7 @@ export function TeamStandingsTable({
                           : ""
                       }`}
                     >
-                      {renderCell(col, standing)}
+                      {renderCell(col, standing, modalidadeConfig)}
                     </TableCell>
                   ))}
                 {hasStandalonePointsColumn ? (

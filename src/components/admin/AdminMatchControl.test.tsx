@@ -1106,7 +1106,9 @@ describe("AdminMatchControl", () => {
       screen.getByRole("heading", { name: "Registrar classificação - Atletismo" }),
     ).toBeInTheDocument();
     expect(screen.getByText("100 metros rasos")).toBeInTheDocument();
-    expect(screen.getByText("Carregando classificação da prova...")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Carregando classificação da prova"),
+    ).toBeInTheDocument();
   });
 
   it("mantém as sessões individuais após os jogos coletivos no filtro Todas", async () => {

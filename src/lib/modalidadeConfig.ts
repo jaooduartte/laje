@@ -189,6 +189,56 @@ export function resolveStandingsDisplayColumns(
   return ["J", "V", "E", "D", ...criteriaColumns.reverse()];
 }
 
+function resolveVolleyballDisplayColumns(
+  columns: StandingsColumnKey[],
+): StandingsColumnKey[] {
+  if (
+    !columns.includes("PR") ||
+    !columns.includes("SV") ||
+    !columns.includes("SA")
+  ) {
+    return columns;
+  }
+
+  const columnsWithoutRallyPointsForAndPointsAverage = columns.filter(
+    (column) => column != "PR" && column != "PA",
+  );
+  const setsForIndex =
+    columnsWithoutRallyPointsForAndPointsAverage.indexOf("SV");
+  const setsAverageIndex =
+    columnsWithoutRallyPointsForAndPointsAverage.indexOf("SA");
+  const rallyPointsForIndex = setsForIndex >= 0
+    ? setsForIndex + 1
+    : Math.max(setsAverageIndex, 0);
+
+  columnsWithoutRallyPointsForAndPointsAverage.splice(
+    rallyPointsForIndex,
+    0,
+    "PR",
+  );
+
+  const updatedSetsAverageIndex =
+    columnsWithoutRallyPointsForAndPointsAverage.indexOf("SA");
+  columnsWithoutRallyPointsForAndPointsAverage.splice(
+    Math.max(updatedSetsAverageIndex, 0),
+    0,
+    "PA",
+  );
+
+  return columnsWithoutRallyPointsForAndPointsAverage;
+}
+
+function resolveDisplayColumnsForSport(
+  sportCode: string,
+  cascade: readonly TieBreakCriterion[],
+): StandingsColumnKey[] {
+  const columns = resolveStandingsDisplayColumns(cascade);
+
+  return sportCode == "VOLEIBOL"
+    ? resolveVolleyballDisplayColumns(columns)
+    : columns;
+}
+
 function resolveInterlajePolicyCascade(
   classificationPolicy: Record<string, unknown> | null | undefined,
 ): TieBreakCriterion[] {
@@ -396,7 +446,10 @@ export function resolveModalidadeConfig(sportCode: string, naipe: MatchNaipe | n
   if (exactMatch) {
     return {
       ...exactMatch,
-      display_columns: resolveStandingsDisplayColumns(exactMatch.tie_breaker_cascade),
+      display_columns: resolveDisplayColumnsForSport(
+        exactMatch.sport_code,
+        exactMatch.tie_breaker_cascade,
+      ),
     };
   }
 
@@ -407,7 +460,10 @@ export function resolveModalidadeConfig(sportCode: string, naipe: MatchNaipe | n
   const resolvedConfig = fallbackMatch ?? DEFAULT_CONFIG;
   return {
     ...resolvedConfig,
-    display_columns: resolveStandingsDisplayColumns(resolvedConfig.tie_breaker_cascade),
+    display_columns: resolveDisplayColumnsForSport(
+      resolvedConfig.sport_code,
+      resolvedConfig.tie_breaker_cascade,
+    ),
   };
 }
 
@@ -463,6 +519,9 @@ export function resolveModalidadeConfigByChampionshipSport(
   return {
     ...modalidadeConfig,
     tie_breaker_cascade: tieBreakerCascade,
-    display_columns: resolveStandingsDisplayColumns(tieBreakerCascade),
+    display_columns: resolveDisplayColumnsForSport(
+      modalidadeConfig.sport_code,
+      tieBreakerCascade,
+    ),
   };
 }

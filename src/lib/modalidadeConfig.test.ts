@@ -65,8 +65,9 @@ describe("resolveModalidadeConfigByChampionshipSport", () => {
       "CV",
       "PC",
       "SP",
-      "PR",
       "SV",
+      "PR",
+      "PA",
       "SA",
       "PTS",
     ]);

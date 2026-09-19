@@ -839,6 +839,7 @@ describe("AdminMatches score sheet review", () => {
 
   it("ordena jogos encerrados por data e número do jogo em ordem crescente", async () => {
     renderAdminMatches({
+      viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
       matches: [
         buildMatch({
           id: "finished-slot-8",
@@ -1670,7 +1671,7 @@ describe("AdminMatches score sheet review", () => {
 
   it("exibe indicador visual de revisão no card do admin", async () => {
     renderAdminMatches({
-      viewMode: AdminMatchesViewMode.DEFAULT,
+      viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
       matches: [
         buildMatch({
           id: "reviewed-indicator",
@@ -1682,6 +1683,10 @@ describe("AdminMatches score sheet review", () => {
         }),
       ],
     });
+
+    fireEvent.click(
+      await screen.findByLabelText("Mostrar jogos revisados também"),
+    );
 
     await waitFor(() => {
       expect(screen.getByTitle("Conferido com súmula")).toBeInTheDocument();
@@ -2559,6 +2564,7 @@ describe("AdminMatches score sheet review", () => {
 
   it("altera a atlética que recebeu W.O. ao editar jogo encerrado", async () => {
     const { onRefetch, onRefetchChampionshipBracket } = renderAdminMatches({
+      viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
       matches: [
         buildMatch({
           id: "finished-walkover-edit-match",
@@ -2575,11 +2581,18 @@ describe("AdminMatches score sheet review", () => {
       ],
     });
 
+    fireEvent.click(
+      await screen.findByLabelText("Mostrar jogos revisados também"),
+    );
+
     fireEvent.pointerDown(
       await screen.findByLabelText("Ações do jogo W.O. CASA x W.O. VISITANTE"),
     );
     const matchCardContainer = getMatchCardContainerByTeamName("W.O. CASA");
     clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
+
+    onRefetch.mockClear();
+    onRefetchChampionshipBracket.mockClear();
 
     expect(screen.getByRole("combobox", { name: "W.O.?" })).toHaveTextContent(
       "W.O. CASA",
@@ -2609,6 +2622,7 @@ describe("AdminMatches score sheet review", () => {
 
   it("permite aplicar W.O. duplo ao editar jogo encerrado", async () => {
     renderAdminMatches({
+      viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
       matches: [
         buildMatch({
           id: "finished-double-walkover-edit-match",
@@ -2650,6 +2664,7 @@ describe("AdminMatches score sheet review", () => {
 
   it("bloqueia W.O. duplo ao editar jogo encerrado de mata-mata", async () => {
     renderAdminMatches({
+      viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
       matches: [
         buildMatch({
           id: "finished-knockout-walkover-edit-match",
@@ -2687,6 +2702,7 @@ describe("AdminMatches score sheet review", () => {
 
   it("remove o W.O. e dispensa a confirmação da súmula revisada", async () => {
     renderAdminMatches({
+      viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
       matches: [
         buildMatch({
           id: "finished-remove-walkover-edit-match",
@@ -2702,6 +2718,10 @@ describe("AdminMatches score sheet review", () => {
         }),
       ],
     });
+
+    fireEvent.click(
+      await screen.findByLabelText("Mostrar jogos revisados também"),
+    );
 
     fireEvent.pointerDown(
       await screen.findByLabelText(
@@ -2731,6 +2751,7 @@ describe("AdminMatches score sheet review", () => {
 
   it("permite controlar as penalidades de dois minutos ao editar um jogo encerrado de Handebol", async () => {
     renderAdminMatches({
+      viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
       matches: [
         buildMatch({
           id: "handball-two-minute-penalties-edit-match",
@@ -2795,6 +2816,7 @@ describe("AdminMatches score sheet review", () => {
 
   it("mostra o indicador de pênaltis no card admin quando o mata-mata da Society foi decidido nos pênaltis", async () => {
     renderAdminMatches({
+      viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
       selectedChampionship: buildChampionship({
         code: ChampionshipCode.SOCIETY,
         name: "Copa Laje Society",
@@ -2836,6 +2858,7 @@ describe("AdminMatches score sheet review", () => {
     });
 
     renderAdminMatches({
+      viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
       selectedChampionship: buildChampionship({
         code: ChampionshipCode.SOCIETY,
         name: "Copa Laje Society",
@@ -2906,6 +2929,7 @@ describe("AdminMatches score sheet review", () => {
     });
 
     renderAdminMatches({
+      viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
       selectedChampionship: buildChampionship({
         code: ChampionshipCode.SOCIETY,
         name: "Copa Laje Society",
@@ -2987,6 +3011,7 @@ describe("AdminMatches score sheet review", () => {
     });
 
     renderAdminMatches({
+      viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
       matches: [
         buildMatch({
           id: "finished-noop-match",
@@ -3067,6 +3092,7 @@ describe("AdminMatches score sheet review", () => {
     });
 
     renderAdminMatches({
+      viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
       matches: [
         buildMatch({
           id: "finished-live-reopen-match",
@@ -3090,6 +3116,10 @@ describe("AdminMatches score sheet review", () => {
         }),
       ],
     });
+
+    fireEvent.click(
+      await screen.findByLabelText("Mostrar jogos revisados também"),
+    );
 
     fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo REABRIR CASA x REABRIR VISITANTE"));
     const matchCardContainer = getMatchCardContainerByTeamName("REABRIR CASA");

@@ -58,6 +58,7 @@ import {
 import { resolveChampionshipChampionHistory } from "@/lib/championshipHistory";
 import { resolveChampionshipCompetitionPodiums } from "@/lib/championshipPodium";
 import { resolveChampionshipSeasonSettingsFromBracketPayload } from "@/lib/championshipSeason";
+import { toTeamStandingAggregate } from "@/domain/championship-brackets/championshipGroupStageStandings";
 import {
   applyOfficialThirdPlacementToStandings,
   applyCorrectedGroupPointsToStanding,
@@ -801,24 +802,7 @@ export function ChampionshipsPage() {
           standings: [],
         };
 
-        standingsGroup.standings.push({
-          team_id: standing.team_id,
-          team_name: standing.team_name,
-          team_city: "",
-          division: standing.division,
-          played: standing.played,
-          wins: standing.wins,
-          draws: standing.draws,
-          losses: standing.losses,
-          goals_for: standing.goals_for,
-          goals_against: standing.goals_against,
-          goal_diff: standing.goal_diff,
-          points: standing.points,
-          yellow_cards: standing.yellow_cards,
-          red_cards: standing.red_cards,
-          blue_cards: standing.blue_cards,
-          two_minute_penalties: standing.two_minute_penalties,
-        });
+        standingsGroup.standings.push(toTeamStandingAggregate(standing));
         standingsByGroupId.set(standing.group_id, standingsGroup);
       });
 

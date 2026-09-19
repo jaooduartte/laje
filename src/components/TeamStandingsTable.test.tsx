@@ -28,7 +28,7 @@ describe("TeamStandingsTable draw winner icon", () => {
     const modalidadeConfig: ModalidadeConfig = {
       sport_code: "VOLEIBOL",
       naipe: null,
-      display_columns: ["J", "V", "E", "D", "CA", "CV", "PC", "SP", "PR", "SV", "SA", "PTS"],
+      display_columns: ["J", "V", "E", "D", "CA", "CV", "PC", "SP", "SV", "PR", "PA", "SA", "PTS"],
       tie_breaker_cascade: [],
       uses_points_average: false,
       uses_cards: true,
@@ -54,9 +54,15 @@ describe("TeamStandingsTable draw winner icon", () => {
     );
 
     expect(screen.getByTitle("Sets average (sets vencidos ÷ sets perdidos)")).toBeInTheDocument();
+    expect(
+      screen.getByTitle(
+        "Pontos average (pontos de rally vencidos ÷ pontos de rally sofridos)",
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByText("102")).toBeInTheDocument();
     expect(screen.getByText("80")).toBeInTheDocument();
     expect(screen.getByText("2,00")).toBeInTheDocument();
+    expect(screen.getByText("1,28")).toBeInTheDocument();
     expect(screen.getAllByRole("columnheader", { name: "PTS" })).toHaveLength(1);
     expect(screen.getByText("6")).toHaveClass("text-primary");
   });
