@@ -2064,7 +2064,7 @@ describe("AdminMatchControl", () => {
     });
   });
 
-  it("restaura a disputa de pênaltis persistida ao recarregar o card ao vivo", () => {
+  it("finaliza a disputa de pênaltis persistida ao recarregar o card ao vivo", async () => {
     const match = buildMatch({
       id: "society-knockout-persisted-live-penalties",
       sport_id: "sport-society-persisted-live-penalties",
@@ -2123,6 +2123,30 @@ describe("AdminMatchControl", () => {
         name: "Pênaltis de Society Persistida Visitante",
       })[0],
     ).toHaveValue(2);
+
+    await act(async () => {
+      fireEvent.click(
+        within(matchCardElement).getByRole("button", { name: /finalizar/i }),
+      );
+    });
+    await act(async () => {
+      await confirmFinishDialog();
+      await Promise.resolve();
+    });
+
+    const finishUpdateCall = [...supabaseUpdateCalls]
+      .reverse()
+      .find((updateCall) => updateCall.payload.status == MatchStatus.FINISHED);
+
+    expect(toastErrorMock).not.toHaveBeenCalledWith(
+      "Marque que o jogo foi decidido nos pênaltis.",
+    );
+    expect(finishUpdateCall?.payload).toMatchObject({
+      status: MatchStatus.FINISHED,
+      home_penalty_score: 3,
+      away_penalty_score: 2,
+      resolved_tie_break_winner_team_id: match.home_team_id,
+    });
   });
 
   it("bloqueia a finalização sem pênaltis ou com disputa empatada", async () => {

@@ -531,6 +531,18 @@ function resolveInitialPenaltyShootoutDraft(
   };
 }
 
+function isPenaltyShootoutMarked(
+  match: Pick<Match, "home_penalty_score" | "away_penalty_score">,
+  enabled: boolean | undefined,
+): boolean {
+  return (
+    enabled == true ||
+    (enabled !== false &&
+      typeof match.home_penalty_score == "number" &&
+      typeof match.away_penalty_score == "number")
+  );
+}
+
 function resolveWalkoverWinnerPoints(
   match: Pick<Match, "sport_id">,
   championshipSports: ChampionshipSport[],
@@ -2936,13 +2948,18 @@ export function AdminMatchControl({
 
     if (
       shouldUsePenaltyShootout &&
-      !penaltyShootoutEnabledByMatchId[match.id]
+      !isPenaltyShootoutMarked(
+        match,
+        penaltyShootoutEnabledByMatchId[match.id],
+      )
     ) {
       toast.error("Marque que o jogo foi decidido nos pênaltis.");
       return;
     }
 
-    const penaltyShootoutDraft = penaltyShootoutDraftByMatchId[match.id];
+    const penaltyShootoutDraft =
+      penaltyShootoutDraftByMatchId[match.id] ??
+      resolveInitialPenaltyShootoutDraft(match);
     const homePenaltyScore = shouldUsePenaltyShootout
       ? resolvePenaltyShootoutScoreValue(
           penaltyShootoutDraft?.homePenaltyScore ?? "",
@@ -4308,15 +4325,12 @@ export function AdminMatchControl({
                   matchBracketContext,
                 ) &&
                 displayedHomeScore == displayedAwayScore;
-              const hasPersistedPenaltyShootoutScore =
-                typeof match.home_penalty_score == "number" &&
-                typeof match.away_penalty_score == "number";
               const penaltyShootoutEnabled =
                 penaltyShootoutEnabledByMatchId[match.id];
-              const isPenaltyShootoutEnabled =
-                penaltyShootoutEnabled == true ||
-                (penaltyShootoutEnabled !== false &&
-                  hasPersistedPenaltyShootoutScore);
+              const isPenaltyShootoutEnabled = isPenaltyShootoutMarked(
+                match,
+                penaltyShootoutEnabled,
+              );
               const penaltyShootoutDraft =
                 penaltyShootoutDraftByMatchId[match.id] ??
                 resolveInitialPenaltyShootoutDraft(match);
