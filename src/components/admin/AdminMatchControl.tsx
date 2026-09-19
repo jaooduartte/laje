@@ -602,13 +602,40 @@ function isInterlajeVolleyballMatch(
   );
 }
 
+function isInterlajeVolleyballFinalMatch(
+  match: Match,
+  championshipCode: ChampionshipCode | undefined,
+  matchBracketContext: MatchBracketContext | undefined,
+): boolean {
+  return (
+    isInterlajeVolleyballMatch(match, championshipCode) &&
+    matchBracketContext?.phase == BracketPhase.KNOCKOUT &&
+    matchBracketContext.badgeLabel == "Final"
+  );
+}
+
+function resolveInterlajeVolleyballSetsRequiredToWin(
+  match: Match,
+  championshipCode: ChampionshipCode | undefined,
+  matchBracketContext: MatchBracketContext | undefined,
+): number {
+  return isInterlajeVolleyballFinalMatch(
+    match,
+    championshipCode,
+    matchBracketContext,
+  )
+    ? 3
+    : 2;
+}
+
 function isRegulationInterlajeVolleyballScore(
   homeSets: number,
   awaySets: number,
+  setsRequiredToWin: number,
 ): boolean {
   return (
-    (homeSets == 2 && (awaySets == 0 || awaySets == 1)) ||
-    (awaySets == 2 && (homeSets == 0 || homeSets == 1))
+    (homeSets == setsRequiredToWin && awaySets < setsRequiredToWin) ||
+    (awaySets == setsRequiredToWin && homeSets < setsRequiredToWin)
   );
 }
 
@@ -2846,6 +2873,13 @@ export function AdminMatchControl({
     const supportsCards = doesMatchSupportCards(match);
     const handballMatch = isHandballMatch(match);
     const displayedSetWins = resolveDisplayedSetWins(match);
+    const matchBracketContext = matchBracketContextByMatchId[match.id];
+    const interlajeVolleyballSetsRequiredToWin =
+      resolveInterlajeVolleyballSetsRequiredToWin(
+        match,
+        championshipCode,
+        matchBracketContext,
+      );
 
     if (
       isSetMatch &&
@@ -2870,15 +2904,17 @@ export function AdminMatchControl({
       !isRegulationInterlajeVolleyballScore(
         displayedSetWins.home_sets,
         displayedSetWins.away_sets,
+        interlajeVolleyballSetsRequiredToWin,
       )
     ) {
       toast.error(
-        "No Voleibol do INTERLAJE, a partida deve terminar em 2 × 0 ou 2 × 1.",
+        interlajeVolleyballSetsRequiredToWin == 3
+          ? "Na final do Voleibol do INTERLAJE, a partida deve terminar em 3 × 0, 3 × 1 ou 3 × 2."
+          : "No Voleibol do INTERLAJE, a partida deve terminar em 2 × 0 ou 2 × 1.",
       );
       return;
     }
 
-    const matchBracketContext = matchBracketContextByMatchId[match.id];
     const resolvedHomeScore = isSetMatch
       ? displayedSetWins.home_sets
       : currentMatchDraft.homeScore;
@@ -4422,10 +4458,18 @@ export function AdminMatchControl({
               const hasCurrentSetScore =
                 Number(matchDraft.homeScore) > 0 ||
                 Number(matchDraft.awayScore) > 0;
+              const interlajeVolleyballSetsRequiredToWin =
+                resolveInterlajeVolleyballSetsRequiredToWin(
+                  match,
+                  championshipCode,
+                  matchBracketContext,
+                );
               const hasReachedInterlajeVolleyballSetLimit =
                 isInterlajeVolleyballMatch(match, championshipCode) &&
-                (displayedSetWins.home_sets >= 2 ||
-                  displayedSetWins.away_sets >= 2);
+                (displayedSetWins.home_sets >=
+                  interlajeVolleyballSetsRequiredToWin ||
+                  displayedSetWins.away_sets >=
+                    interlajeVolleyballSetsRequiredToWin);
               const isMatchCompletionLoading =
                 matchCompletionLoadingById[match.id] == true;
               const isSetFinalizationLoading =

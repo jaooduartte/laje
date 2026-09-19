@@ -3358,7 +3358,7 @@ describe("AdminMatchControl", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("limita o Voleibol do INTERLAJE a três sets", () => {
+  it("limita o Voleibol do INTERLAJE fora da final a dois sets ganhos", () => {
     const match = buildMatch({
       id: "interlaje-volleyball-complete-match",
       sport_id: "sport-interlaje-volleyball",
@@ -3398,6 +3398,70 @@ describe("AdminMatchControl", () => {
       within(matchCardElement).getByRole("button", { name: /fim do set/i }),
     ).toBeDisabled();
     expect(within(matchCardElement).getAllByText("Amarelos").length).toBeGreaterThan(0);
+  });
+
+  it("permite registrar o terceiro set na final do Voleibol do INTERLAJE", async () => {
+    const match = buildMatch({
+      id: "interlaje-volleyball-final-third-set-match",
+      sport_id: "sport-interlaje-volleyball-final-third-set",
+      status: MatchStatus.LIVE,
+      current_set_home_score: 16,
+      current_set_away_score: 25,
+      sports: buildSport({
+        id: "sport-interlaje-volleyball-final-third-set",
+        name: "Voleibol",
+      }),
+      home_team: buildTeam({
+        id: "interlaje-volleyball-final-third-set-home",
+        name: "Atlética Vôlei Final Casa",
+      }),
+      away_team: buildTeam({
+        id: "interlaje-volleyball-final-third-set-away",
+        name: "Atlética Vôlei Final Visitante",
+      }),
+      match_sets: [
+        { set_number: 1, home_points: 12, away_points: 25 },
+        { set_number: 2, home_points: 21, away_points: 25 },
+      ],
+    });
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-interlaje-volleyball-final-third-set",
+      sport_id: "sport-interlaje-volleyball-final-third-set",
+      result_rule: ChampionshipSportResultRule.SETS,
+      supports_cards: true,
+    });
+
+    renderAdminMatchControl({
+      matches: [match],
+      championshipSports: [championshipSport],
+      championshipCode: ChampionshipCode.INTERLAJE,
+      matchBracketContextByMatchId: {
+        [match.id]: {
+          badgeLabel: "Final",
+          phase: BracketPhase.KNOCKOUT,
+          stageLabel: "Voleibol • Masculino • Final",
+        },
+      },
+    });
+
+    const matchCardElement = resolveMatchCardElement("Atlética Vôlei Final Casa");
+    const finishSetButton = within(matchCardElement).getByRole("button", {
+      name: /fim do set/i,
+    });
+
+    expect(finishSetButton).toBeEnabled();
+
+    await act(async () => {
+      fireEvent.click(finishSetButton);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(saveMatchSetsMock).toHaveBeenCalledWith(match.id, [
+      { set_number: 1, home_points: 12, away_points: 25 },
+      { set_number: 2, home_points: 21, away_points: 25 },
+      { set_number: 3, home_points: 16, away_points: 25 },
+    ]);
   });
 
   it("não finaliza o Voleibol do INTERLAJE com resultado diferente de 2 × 0 ou 2 × 1", async () => {
@@ -3445,6 +3509,64 @@ describe("AdminMatchControl", () => {
         (updateCall) => updateCall.payload.status == MatchStatus.FINISHED,
       ),
     ).toBe(false);
+  });
+
+  it("finaliza a final do Voleibol do INTERLAJE em 3 × 2", async () => {
+    const match = buildMatch({
+      id: "interlaje-volleyball-final-finish-match",
+      sport_id: "sport-interlaje-volleyball-final-finish",
+      status: MatchStatus.LIVE,
+      sports: buildSport({
+        id: "sport-interlaje-volleyball-final-finish",
+        name: "Voleibol",
+      }),
+      home_team: buildTeam({
+        id: "interlaje-volleyball-final-finish-home",
+        name: "Atlética Vôlei Campeã",
+      }),
+      away_team: buildTeam({
+        id: "interlaje-volleyball-final-finish-away",
+        name: "Atlética Vôlei Vice",
+      }),
+      match_sets: [
+        { set_number: 1, home_points: 25, away_points: 20 },
+        { set_number: 2, home_points: 20, away_points: 25 },
+        { set_number: 3, home_points: 25, away_points: 21 },
+        { set_number: 4, home_points: 19, away_points: 25 },
+        { set_number: 5, home_points: 15, away_points: 12 },
+      ],
+    });
+    const championshipSport = buildChampionshipSport({
+      id: "championship-sport-interlaje-volleyball-final-finish",
+      sport_id: "sport-interlaje-volleyball-final-finish",
+      result_rule: ChampionshipSportResultRule.SETS,
+      supports_cards: true,
+    });
+
+    renderAdminMatchControl({
+      matches: [match],
+      championshipSports: [championshipSport],
+      championshipCode: ChampionshipCode.INTERLAJE,
+      matchBracketContextByMatchId: {
+        [match.id]: {
+          badgeLabel: "Final",
+          phase: BracketPhase.KNOCKOUT,
+          stageLabel: "Voleibol • Masculino • Final",
+        },
+      },
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /finalizar/i }));
+    });
+    await confirmFinishDialog();
+
+    expect(supabaseUpdateCalls.at(-1)?.payload).toMatchObject({
+      home_score: 3,
+      away_score: 2,
+      status: MatchStatus.FINISHED,
+    });
+    expect(toastErrorMock).not.toHaveBeenCalled();
   });
 
   it("rehydrates set-rule draft from backend when match updates and draft is not dirty", async () => {
