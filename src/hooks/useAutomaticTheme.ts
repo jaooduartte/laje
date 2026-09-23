@@ -4,9 +4,62 @@ import { ThemeMode } from "@/lib/enums";
 import { isThemeMode, resolveEffectiveThemeMode, type ResolvedThemeMode } from "@/lib/theme";
 
 const AUTO_THEME_REFRESH_INTERVAL_MS = 60_000;
+const THEME_PREFERENCE_CACHE_TTL_MS = 5_000;
+
+type ThemePreferenceResult = {
+  data: ThemeMode | null;
+  error: unknown;
+};
+
+let themePreferenceRequest: Promise<ThemePreferenceResult> | null = null;
+let themePreferenceCache: {
+  userId: string;
+  expiresAt: number;
+  result: ThemePreferenceResult;
+} | null = null;
 
 function resolveCurrentThemeMode(preferredThemeMode: ThemeMode): ResolvedThemeMode {
   return resolveEffectiveThemeMode(preferredThemeMode, new Date());
+}
+
+function fetchCurrentUserThemePreference(userId: string) {
+  if (
+    themePreferenceCache?.userId == userId &&
+    themePreferenceCache.expiresAt > Date.now()
+  ) {
+    return Promise.resolve(themePreferenceCache.result);
+  }
+
+  if (themePreferenceRequest) {
+    return themePreferenceRequest;
+  }
+
+  const request = supabase
+    .rpc("get_current_user_theme_mode_preference")
+    .then(({ data, error }) => {
+      const result: ThemePreferenceResult = {
+        data: isThemeMode(data) ? data : null,
+        error,
+      };
+
+      if (!error) {
+        themePreferenceCache = {
+          userId,
+          expiresAt: Date.now() + THEME_PREFERENCE_CACHE_TTL_MS,
+          result,
+        };
+      }
+
+      return result;
+    })
+    .finally(() => {
+      if (themePreferenceRequest === request) {
+        themePreferenceRequest = null;
+      }
+    });
+
+  themePreferenceRequest = request;
+  return request;
 }
 
 export function useAutomaticTheme() {
@@ -58,19 +111,20 @@ export function useAutomaticTheme() {
   useEffect(() => {
     let isMounted = true;
 
-    const applyCurrentUserThemeModePreference = async (hasAuthenticatedUser: boolean) => {
+    const applyCurrentUserThemeModePreference = async (userId: string | null) => {
       if (!isMounted) {
         return;
       }
 
-      if (!hasAuthenticatedUser) {
+      if (!userId) {
+        themePreferenceCache = null;
         setPreferredThemeMode(ThemeMode.AUTO);
         return;
       }
 
-      const { data, error } = await supabase.rpc("get_current_user_theme_mode_preference");
+      const { data, error } = await fetchCurrentUserThemePreference(userId);
 
-      if (!isMounted || error || !isThemeMode(data)) {
+      if (!isMounted || error || !data) {
         return;
       }
 
@@ -82,7 +136,7 @@ export function useAutomaticTheme() {
         data: { session },
       } = await supabase.auth.getSession();
 
-      await applyCurrentUserThemeModePreference(Boolean(session?.user));
+      await applyCurrentUserThemeModePreference(session?.user.id ?? null);
     };
 
     void initializeThemeModePreference();
@@ -91,7 +145,7 @@ export function useAutomaticTheme() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       window.setTimeout(() => {
-        void applyCurrentUserThemeModePreference(Boolean(session?.user));
+        void applyCurrentUserThemeModePreference(session?.user.id ?? null);
       }, 0);
     });
 
