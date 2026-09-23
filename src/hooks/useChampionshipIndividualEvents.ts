@@ -32,6 +32,158 @@ interface UseChampionshipIndividualEventsOptions {
   enabled?: boolean;
 }
 
+type BaseLoadResult = {
+  eventsResponse: Awaited<ReturnType<typeof fetchChampionshipIndividualEvents>>;
+  sessionsResponse: Awaited<ReturnType<typeof fetchChampionshipIndividualSessions>>;
+  athletesResponse: Awaited<ReturnType<typeof fetchChampionshipAthletes>>;
+  standingsResponse: Awaited<ReturnType<typeof fetchChampionshipIndividualTeamStandings>>;
+};
+
+type EntriesLoadResult = Awaited<ReturnType<typeof fetchChampionshipIndividualEventEntries>>;
+
+const SHARED_READ_CACHE_TTL_MS = 2_000;
+const baseRequestByKey = new Map<string, Promise<BaseLoadResult>>();
+const baseResultByKey = new Map<string, { expiresAt: number; result: BaseLoadResult }>();
+const entriesRequestByKey = new Map<string, Promise<EntriesLoadResult>>();
+const entriesResultByKey = new Map<string, { expiresAt: number; result: EntriesLoadResult }>();
+
+function fetchSharedBaseData(
+  input: {
+    championshipId: string;
+    seasonYear: number;
+    sportIds: string[];
+    sportId: string | null;
+    naipe: MatchNaipe | null | undefined;
+    division: TeamDivision | null | undefined;
+    sessionIds: string[] | undefined;
+    includeAthletes: boolean;
+    includeEvents: boolean;
+    includeStandings: boolean;
+  },
+  forceFresh: boolean,
+) {
+  const requestKey = JSON.stringify({
+    championshipId: input.championshipId,
+    seasonYear: input.seasonYear,
+    sportIds: [...input.sportIds].sort(),
+    sportId: input.sportId,
+    naipe: input.naipe,
+    division: input.division,
+    sessionIds: input.sessionIds ? [...input.sessionIds].sort() : null,
+    includeAthletes: input.includeAthletes,
+    includeEvents: input.includeEvents,
+    includeStandings: input.includeStandings,
+  });
+
+  const currentRequest = baseRequestByKey.get(requestKey);
+  if (currentRequest) {
+    return currentRequest;
+  }
+
+  const cachedResult = baseResultByKey.get(requestKey);
+  if (!forceFresh && cachedResult && cachedResult.expiresAt > Date.now()) {
+    return Promise.resolve(cachedResult.result);
+  }
+
+  const request = Promise.all([
+    input.includeEvents
+      ? fetchChampionshipIndividualEvents({
+          championshipId: input.championshipId,
+          seasonYear: input.seasonYear,
+          sportId: input.sportId,
+        })
+      : Promise.resolve({ data: [], error: null }),
+    fetchChampionshipIndividualSessions({
+      championshipId: input.championshipId,
+      seasonYear: input.seasonYear,
+      sportId: input.sportId,
+      sessionIds: input.sessionIds,
+    }),
+    input.includeAthletes
+      ? fetchChampionshipAthletes({
+          championshipId: input.championshipId,
+          seasonYear: input.seasonYear,
+          sportIds: input.sportIds,
+        })
+      : Promise.resolve({ data: [], error: null }),
+    input.includeStandings
+      ? fetchChampionshipIndividualTeamStandings({
+          championshipId: input.championshipId,
+          seasonYear: input.seasonYear,
+          sportId: input.sportId,
+          naipe: input.naipe,
+          division: input.division,
+        })
+      : Promise.resolve({ data: [], error: null }),
+  ])
+    .then(([eventsResponse, sessionsResponse, athletesResponse, standingsResponse]) => {
+      const result: BaseLoadResult = {
+        eventsResponse,
+        sessionsResponse,
+        athletesResponse,
+        standingsResponse,
+      };
+
+      if (
+        !eventsResponse.error &&
+        !sessionsResponse.error &&
+        !athletesResponse.error &&
+        !standingsResponse.error
+      ) {
+        baseResultByKey.set(requestKey, {
+          expiresAt: Date.now() + SHARED_READ_CACHE_TTL_MS,
+          result,
+        });
+      }
+
+      return result;
+    })
+    .finally(() => {
+      if (baseRequestByKey.get(requestKey) === request) {
+        baseRequestByKey.delete(requestKey);
+      }
+    });
+
+  baseRequestByKey.set(requestKey, request);
+  return request;
+}
+
+function fetchSharedEntries(eventIds: string[], forceFresh: boolean) {
+  const normalizedEventIds = [...new Set(eventIds)].sort();
+  const requestKey = normalizedEventIds.join(",");
+
+  const currentRequest = entriesRequestByKey.get(requestKey);
+  if (currentRequest) {
+    return currentRequest;
+  }
+
+  const cachedResult = entriesResultByKey.get(requestKey);
+  if (!forceFresh && cachedResult && cachedResult.expiresAt > Date.now()) {
+    return Promise.resolve(cachedResult.result);
+  }
+
+  const request = fetchChampionshipIndividualEventEntries({
+    eventIds: normalizedEventIds,
+  })
+    .then((result) => {
+      if (!result.error) {
+        entriesResultByKey.set(requestKey, {
+          expiresAt: Date.now() + SHARED_READ_CACHE_TTL_MS,
+          result,
+        });
+      }
+      return result;
+    })
+    .finally(() => {
+      if (entriesRequestByKey.get(requestKey) === request) {
+        entriesRequestByKey.delete(requestKey);
+      }
+    });
+
+  entriesRequestByKey.set(requestKey, request);
+  return request;
+}
+
 export function useChampionshipIndividualEvents({
   championshipId,
   seasonYear,
@@ -49,19 +201,16 @@ export function useChampionshipIndividualEvents({
 }: UseChampionshipIndividualEventsOptions = {}) {
   const normalizedSessionIdsKey =
     sessionIds == null ? null : [...new Set(sessionIds)].sort().join(",");
+  const normalizedSportIdsKey = [...new Set(sportIds)].sort().join(",");
   const hasExplicitSessionIds = sessionIds != null;
   const [events, setEvents] = useState<ChampionshipIndividualEvent[]>([]);
   const [sessions, setSessions] = useState<ChampionshipIndividualSession[]>([]);
   const [athletes, setAthletes] = useState<ChampionshipAthlete[]>([]);
-  const [entries, setEntries] = useState<ChampionshipIndividualEventEntry[]>(
-    [],
-  );
-  const [standings, setStandings] = useState<
-    ChampionshipIndividualTeamStanding[]
-  >([]);
+  const [entries, setEntries] = useState<ChampionshipIndividualEventEntry[]>([]);
+  const [standings, setStandings] = useState<ChampionshipIndividualTeamStanding[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchAll = useCallback(async () => {
+  const fetchAll = useCallback(async (forceFresh = false) => {
     if (!enabled) {
       setLoading(true);
       return;
@@ -83,39 +232,30 @@ export function useChampionshipIndividualEvents({
         ? normalizedSessionIdsKey.split(",")
         : []
       : undefined;
+    const normalizedSportIds = normalizedSportIdsKey
+      ? normalizedSportIdsKey.split(",")
+      : [];
 
-    const [eventsResponse, sessionsResponse, athletesResponse, standingsResponse] =
-      await Promise.all([
-      includeEvents
-        ? fetchChampionshipIndividualEvents({
-            championshipId,
-            seasonYear,
-            sportId: sportId ?? null,
-          })
-        : Promise.resolve({ data: [], error: null }),
-      fetchChampionshipIndividualSessions({
+    const {
+      eventsResponse,
+      sessionsResponse,
+      athletesResponse,
+      standingsResponse,
+    } = await fetchSharedBaseData(
+      {
         championshipId,
         seasonYear,
+        sportIds: normalizedSportIds,
         sportId: sportId ?? null,
+        naipe,
+        division,
         sessionIds: normalizedSessionIds,
-      }),
-      includeAthletes
-        ? fetchChampionshipAthletes({
-            championshipId,
-            seasonYear,
-            sportIds,
-          })
-        : Promise.resolve({ data: [], error: null }),
-      includeStandings
-        ? fetchChampionshipIndividualTeamStandings({
-            championshipId,
-            seasonYear,
-            sportId: sportId ?? null,
-            naipe,
-            division,
-          })
-        : Promise.resolve({ data: [], error: null }),
-    ]);
+        includeAthletes,
+        includeEvents,
+        includeStandings,
+      },
+      forceFresh,
+    );
 
     if (
       eventsResponse.error ||
@@ -143,9 +283,7 @@ export function useChampionshipIndividualEvents({
       ? await Promise.all(
           sessionsResponse.data.map(async (session) => ({
             sessionId: session.id,
-            response: await fetchChampionshipIndividualSessionParticipants(
-              session.id,
-            ),
+            response: await fetchChampionshipIndividualSessionParticipants(session.id),
           })),
         )
       : [];
@@ -187,8 +325,8 @@ export function useChampionshipIndividualEvents({
 
     const eventIds = visibleEvents.map((event) => event.id);
     const entriesResponse = includeEntries
-      ? await fetchChampionshipIndividualEventEntries({ eventIds })
-      : { data: [], error: null };
+      ? await fetchSharedEntries(eventIds, forceFresh)
+      : { data: [], membersByEntryId: {}, error: null };
 
     if (entriesResponse.error) {
       console.error(
@@ -223,8 +361,8 @@ export function useChampionshipIndividualEvents({
     seasonYear,
     hasExplicitSessionIds,
     normalizedSessionIdsKey,
+    normalizedSportIdsKey,
     sportId,
-    sportIds,
   ]);
 
   useEffect(() => {
@@ -233,7 +371,7 @@ export function useChampionshipIndividualEvents({
       return;
     }
 
-    void fetchAll();
+    void fetchAll(false);
   }, [enabled, fetchAll]);
 
   const entriesByEventId = useMemo(() => {
@@ -254,6 +392,6 @@ export function useChampionshipIndividualEvents({
     standings,
     entriesByEventId,
     loading,
-    refetch: fetchAll,
+    refetch: () => fetchAll(true),
   };
 }

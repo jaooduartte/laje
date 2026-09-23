@@ -1,21 +1,87 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { ChampionshipSeasonDivisionMovement, ChampionshipSeasonSettings } from "@/lib/types";
 
+const CHAMPIONSHIP_SEASON_SETTINGS_CACHE_TTL_MS = 3_000;
+
+type ChampionshipSeasonSettingsResult = {
+  data: ChampionshipSeasonSettings | null;
+  error: Error | null;
+};
+
+const championshipSeasonSettingsRequestByKey = new Map<
+  string,
+  Promise<ChampionshipSeasonSettingsResult>
+>();
+const championshipSeasonSettingsResultByKey = new Map<
+  string,
+  { expiresAt: number; result: ChampionshipSeasonSettingsResult }
+>();
+
+function resolveChampionshipSeasonSettingsKey(
+  championshipId: string,
+  seasonYear: number,
+) {
+  return `${championshipId}:${seasonYear}`;
+}
+
+function invalidateChampionshipSeasonSettings(
+  championshipId: string,
+  seasonYear: number,
+) {
+  championshipSeasonSettingsResultByKey.delete(
+    resolveChampionshipSeasonSettingsKey(championshipId, seasonYear),
+  );
+}
+
 export async function fetchChampionshipSeasonSettings(
   championshipId: string,
   seasonYear: number,
-): Promise<{ data: ChampionshipSeasonSettings | null; error: Error | null }> {
-  const response = await supabase
+): Promise<ChampionshipSeasonSettingsResult> {
+  const requestKey = resolveChampionshipSeasonSettingsKey(
+    championshipId,
+    seasonYear,
+  );
+  const currentRequest = championshipSeasonSettingsRequestByKey.get(requestKey);
+
+  if (currentRequest) {
+    return currentRequest;
+  }
+
+  const cachedResult = championshipSeasonSettingsResultByKey.get(requestKey);
+
+  if (cachedResult && cachedResult.expiresAt > Date.now()) {
+    return cachedResult.result;
+  }
+
+  const request = supabase
     .from("championship_season_settings")
     .select("*")
     .eq("championship_id", championshipId)
     .eq("season_year", seasonYear)
-    .maybeSingle();
+    .maybeSingle()
+    .then((response) => {
+      const result: ChampionshipSeasonSettingsResult = {
+        data: (response.data as ChampionshipSeasonSettings | null) ?? null,
+        error: response.error,
+      };
 
-  return {
-    data: (response.data as ChampionshipSeasonSettings | null) ?? null,
-    error: response.error,
-  };
+      if (!result.error) {
+        championshipSeasonSettingsResultByKey.set(requestKey, {
+          expiresAt: Date.now() + CHAMPIONSHIP_SEASON_SETTINGS_CACHE_TTL_MS,
+          result,
+        });
+      }
+
+      return result;
+    })
+    .finally(() => {
+      if (championshipSeasonSettingsRequestByKey.get(requestKey) === request) {
+        championshipSeasonSettingsRequestByKey.delete(requestKey);
+      }
+    });
+
+  championshipSeasonSettingsRequestByKey.set(requestKey, request);
+  return request;
 }
 
 export async function saveChampionshipSeasonSettings(
@@ -38,6 +104,11 @@ export async function saveChampionshipSeasonSettings(
     })
     .select("*")
     .single();
+
+  invalidateChampionshipSeasonSettings(
+    payload.championship_id,
+    payload.season_year,
+  );
 
   return {
     data: (response.data as ChampionshipSeasonSettings | null) ?? null,
