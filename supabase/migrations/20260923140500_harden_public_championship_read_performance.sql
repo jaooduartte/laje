@@ -1,0 +1,12 @@
+CREATE INDEX IF NOT EXISTS standings_championship_season_lookup_idx ON public.standings (championship_id, season_year, sport_id, naipe, division, team_id);
+CREATE INDEX IF NOT EXISTS matches_championship_season_home_team_idx ON public.matches (championship_id, season_year, home_team_id, sport_id, naipe, division);
+CREATE INDEX IF NOT EXISTS matches_championship_season_away_team_idx ON public.matches (championship_id, season_year, away_team_id, sport_id, naipe, division);
+ALTER FUNCTION public.get_interlaje_overall_standings(UUID, INTEGER) SET statement_timeout = '4s';
+ALTER FUNCTION public.get_championship_yellow_card_discipline(UUID, INTEGER) SET statement_timeout = '4s';
+ALTER FUNCTION public.get_championship_bracket_view(UUID, INTEGER) SET statement_timeout = '4s';
+ALTER FUNCTION public.get_championship_bracket_pending_tie_breaks(UUID, UUID) SET statement_timeout = '4s';
+ANALYZE public.standings;
+ANALYZE public.matches;
+ANALYZE public.championship_bracket_matches;
+ANALYZE public.championship_bracket_competitions;
+ANALYZE public.championship_bracket_editions;
