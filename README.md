@@ -31,6 +31,31 @@ O sistema foi desenvolvido para apoiar a operação da LAJE, concentrando em um 
 - agenda e calendário da liga
 - administração do sistema
 
+## Desenvolvimento local
+
+Use Node.js 22 para manter o mesmo runtime adotado pelo CI.
+
+```bash
+npm ci
+cp .env.example .env
+npm run dev
+```
+
+As variáveis públicas do frontend ficam documentadas em `.env.example` e são lidas de forma centralizada em `src/config/environment.ts`. Durante a migração, `VITE_API_URL` é opcional; as variáveis públicas do Supabase continuam obrigatórias enquanto o frontend ainda utiliza esses serviços.
+
+Principais comandos de qualidade:
+
+```bash
+npm run typecheck
+npm run lint
+npm run format
+npm run format:check
+npm test
+npm run build
+```
+
+`npm run format:check` valida com Prettier apenas os arquivos alterados em relação à `main`, permitindo adoção incremental da padronização sem gerar uma reformatação massiva do código legado. O workflow `.github/workflows/ci.yml` executa automaticamente typecheck, lint, formatação, testes e build em pushes e pull requests.
+
 ## Observação
 
 Este `README` funciona como uma porta de entrada rápida.  
