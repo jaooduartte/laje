@@ -19,14 +19,7 @@ function runGit(args, options = {}) {
 function runPrettier(mode, files) {
   return spawnSync(
     "npx",
-    [
-      "--yes",
-      "prettier@3.9.9",
-      mode,
-      "--ignore-path",
-      ".prettierignore",
-      ...files,
-    ],
+    ["--yes", "prettier@3.9.9", mode, "--ignore-path", ".prettierignore", ...files],
     {
       cwd: repositoryRoot,
       encoding: "utf8",
