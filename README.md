@@ -55,11 +55,15 @@ npm test
 npm run build
 ```
 
-Para aplicar a formatação automaticamente:
+Para aplicar a formatação automaticamente nos arquivos alterados em relação à `main`:
 
 ```bash
 npm run format
 ```
+
+O repositório possui dívida TypeScript anterior à adoção deste quality gate. O `npm run typecheck` usa `scripts/typecheck-baseline.json` para registrar somente esses diagnósticos legados: qualquer diagnóstico novo ou alteração não registrada reprova o gate. Conforme a dívida for corrigida, o baseline deve apenas diminuir até chegar a zero.
+
+A formatação também é incremental nesta etapa: o Prettier valida os arquivos modificados pela branch/PR sem exigir a reformatação massiva do código legado em uma única entrega.
 
 O GitHub Actions executa o mesmo quality gate automaticamente em `push` e `pull_request`.
 
