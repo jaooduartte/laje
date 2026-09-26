@@ -2,12 +2,7 @@ import { frontendEnvironment } from "@/config/environment";
 import type { ChampionshipIndividualSession, Match, Team } from "@/lib/types";
 
 export type CalendarSubscriptionScope =
-  | "MATCH"
-  | "SESSION"
-  | "SPORT_NAIPE"
-  | "TEAM"
-  | "TEAM_MATCHES"
-  | "TEAM_SPORT_NAIPE";
+  "MATCH" | "SESSION" | "SPORT_NAIPE" | "TEAM" | "TEAM_MATCHES" | "TEAM_SPORT_NAIPE";
 
 export interface CalendarSubscriptionOption {
   id: string;
