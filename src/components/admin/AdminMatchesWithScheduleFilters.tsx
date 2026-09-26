@@ -88,6 +88,8 @@ function createFilteredMatchesWithScheduleMetadata(
   });
 }
 
+// Exportado para testes/utilitários; não representa um componente React.
+// eslint-disable-next-line react-refresh/only-export-components
 export function createMatchesWithSchedulePlaceholderFilterMetadata(
   realMatches: Match[],
   placeholderMatches: Match[],
@@ -191,14 +193,7 @@ function resolveSchedulePlaceholderMatches(
 export function AdminMatchesWithScheduleFilters(props: AdminMatchesProps) {
   const schedulePlaceholderMatches = useMemo(
     () => resolveSchedulePlaceholderMatches(props),
-    [
-      props.championshipBracketView,
-      props.matches,
-      props.selectedChampionship.id,
-      props.selectedChampionship.current_season_year,
-      props.selectedSeasonYear,
-      props.viewMode,
-    ],
+    [props],
   );
 
   const matchesWithFilterMetadata = useMemo(
