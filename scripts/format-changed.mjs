@@ -16,6 +16,26 @@ function runGit(args, options = {}) {
   });
 }
 
+function runPrettier(mode, files) {
+  return spawnSync(
+    "npx",
+    [
+      "--yes",
+      "prettier@3.9.9",
+      mode,
+      "--ignore-path",
+      ".prettierignore",
+      ...files,
+    ],
+    {
+      cwd: repositoryRoot,
+      encoding: "utf8",
+      env: process.env,
+      stdio: "inherit",
+    },
+  );
+}
+
 function resolveDiffRange() {
   const githubBaseRef = process.env.GITHUB_BASE_REF;
   if (githubBaseRef) {
@@ -64,20 +84,21 @@ console.log(
   `${writeMode ? "Formatando" : "Verificando formatação de"} ${changedFiles.length} arquivo(s) alterado(s) em ${diffRange}.`,
 );
 
-const prettierArgs = [
-  "--yes",
-  "prettier@3.9.9",
-  writeMode ? "--write" : "--check",
-  "--ignore-path",
-  ".prettierignore",
-  ...changedFiles,
-];
+if (writeMode) {
+  const prettier = runPrettier("--write", changedFiles);
+  process.exit(prettier.status ?? 1);
+}
 
-const prettier = spawnSync("npx", prettierArgs, {
-  cwd: repositoryRoot,
-  encoding: "utf8",
-  env: process.env,
-  stdio: "inherit",
-});
+const prettier = runPrettier("--check", changedFiles);
+if (prettier.status === 0) {
+  process.exit(0);
+}
+
+console.error("\nSugestão automática de correção:\n");
+const writer = runPrettier("--write", changedFiles);
+if (writer.status === 0) {
+  const formattedDiff = runGit(["diff", "--", ...changedFiles]);
+  process.stderr.write(formattedDiff.stdout ?? "");
+}
 
 process.exit(prettier.status ?? 1);
