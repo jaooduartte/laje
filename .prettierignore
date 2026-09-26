@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+package-lock.json
+bun.lockb
+.codex_tmp/
+.playwright-cli/
+src/integrations/supabase/types.ts
+supabase/migrations/
