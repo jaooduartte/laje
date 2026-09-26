@@ -36,27 +36,17 @@ export const frontendEnvironment = Object.freeze({
   supabasePublishableKey: parsedEnvironment.data.VITE_SUPABASE_PUBLISHABLE_KEY,
 });
 
-const requiredSupabaseEnvironmentSchema = z.object({
-  supabaseUrl: z.string().url(),
-  supabasePublishableKey: z.string().min(1),
-});
-
 export function requireSupabaseEnvironment(): {
   supabaseUrl: string;
   supabasePublishableKey: string;
 } {
-  const result = requiredSupabaseEnvironmentSchema.safeParse(frontendEnvironment);
+  const { supabaseUrl, supabasePublishableKey } = frontendEnvironment;
 
-  if (!result.success) {
-    const missingFields = result.error.issues
-      .map((issue) => issue.path.join("."))
-      .filter(Boolean)
-      .join(", ");
-
+  if (!supabaseUrl || !supabasePublishableKey) {
     throw new Error(
-      `Configuração do Supabase ausente ou inválida. Verifique: ${missingFields || "VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY"}.`,
+      "Configuração do Supabase ausente. Verifique VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY.",
     );
   }
 
-  return result.data;
+  return { supabaseUrl, supabasePublishableKey };
 }
