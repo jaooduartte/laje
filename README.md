@@ -31,6 +31,38 @@ O sistema foi desenvolvido para apoiar a operação da LAJE, concentrando em um 
 - agenda e calendário da liga
 - administração do sistema
 
+## Desenvolvimento local
+
+Requer Node.js 22 ou superior.
+
+```bash
+npm ci
+cp .env.example .env.local
+npm run dev
+```
+
+As variáveis `VITE_*` são públicas no bundle do navegador e não devem receber segredos. Durante a migração, o frontend ainda usa Supabase em fluxos existentes e pode receber `VITE_API_URL` para integração progressiva com a `laje-api`.
+
+## Quality gate
+
+Antes de abrir ou atualizar uma PR, execute:
+
+```bash
+npm run typecheck
+npm run lint
+npm run format:check
+npm test
+npm run build
+```
+
+Para aplicar a formatação automaticamente:
+
+```bash
+npm run format
+```
+
+O GitHub Actions executa o mesmo quality gate automaticamente em `push` e `pull_request`.
+
 ## Observação
 
 Este `README` funciona como uma porta de entrada rápida.  
