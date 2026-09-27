@@ -1,12 +1,8 @@
+import { frontendEnvironment } from "@/config/environment";
 import type { ChampionshipIndividualSession, Match, Team } from "@/lib/types";
 
 export type CalendarSubscriptionScope =
-  | "MATCH"
-  | "SESSION"
-  | "SPORT_NAIPE"
-  | "TEAM"
-  | "TEAM_MATCHES"
-  | "TEAM_SPORT_NAIPE";
+  "MATCH" | "SESSION" | "SPORT_NAIPE" | "TEAM" | "TEAM_MATCHES" | "TEAM_SPORT_NAIPE";
 
 export interface CalendarSubscriptionOption {
   id: string;
@@ -136,16 +132,13 @@ export function canSubscribeToCalendar(startTime: string | null): boolean {
 
 export function resolveCalendarSubscriptionUrls(
   option: CalendarSubscriptionOption,
-  supabaseUrl = import.meta.env.VITE_SUPABASE_URL,
+  supabaseUrl = frontendEnvironment.supabaseUrl,
 ): CalendarSubscriptionUrls | null {
   if (!supabaseUrl) {
     return null;
   }
 
-  const feedUrl = new URL(
-    "/functions/v1/calendar-subscription-feed",
-    supabaseUrl,
-  );
+  const feedUrl = new URL("/functions/v1/calendar-subscription-feed", supabaseUrl);
   feedUrl.searchParams.set("scope", option.scope);
   feedUrl.searchParams.set("championship_id", option.championshipId);
   feedUrl.searchParams.set("season_year", String(option.seasonYear));

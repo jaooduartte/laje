@@ -8,10 +8,7 @@ import type { Match } from "@/lib/types";
 type AdminMatchesProps = ComponentProps<typeof AdminMatchesBase>;
 
 const UNSUPPORTED_PLACEHOLDER_ACCESS = Symbol("unsupported-placeholder-access");
-const FILTER_METADATA_PROPERTIES = new Set<PropertyKey>([
-  "location",
-  "court_name",
-]);
+const FILTER_METADATA_PROPERTIES = new Set<PropertyKey>(["location", "court_name"]);
 
 function createFilterMetadataProbe(match: Match): Match {
   return new Proxy(match, {
@@ -88,6 +85,8 @@ function createFilteredMatchesWithScheduleMetadata(
   });
 }
 
+// Exportado para testes/utilitários; não representa um componente React.
+// eslint-disable-next-line react-refresh/only-export-components
 export function createMatchesWithSchedulePlaceholderFilterMetadata(
   realMatches: Match[],
   placeholderMatches: Match[],
@@ -107,12 +106,7 @@ export function createMatchesWithSchedulePlaceholderFilterMetadata(
           const filteredPlaceholderMatches = placeholderMatches.filter(
             (placeholderMatch, placeholderIndex) =>
               Boolean(
-                predicate.call(
-                  thisArg,
-                  placeholderMatch,
-                  target.length + placeholderIndex,
-                  target,
-                ),
+                predicate.call(thisArg, placeholderMatch, target.length + placeholderIndex, target),
               ),
           );
 
@@ -128,13 +122,8 @@ export function createMatchesWithSchedulePlaceholderFilterMetadata(
   });
 }
 
-function resolveSchedulePlaceholderMatches(
-  props: AdminMatchesProps,
-): Match[] {
-  if (
-    props.viewMode != null &&
-    props.viewMode != AdminMatchesViewMode.DEFAULT
-  ) {
+function resolveSchedulePlaceholderMatches(props: AdminMatchesProps): Match[] {
+  if (props.viewMode != null && props.viewMode != AdminMatchesViewMode.DEFAULT) {
     return [];
   }
 
@@ -156,9 +145,7 @@ function resolveSchedulePlaceholderMatches(
       ({
         id: `schedule-placeholder:${placeholder.id}`,
         championship_id: props.selectedChampionship.id,
-        season_year:
-          props.selectedSeasonYear ??
-          props.selectedChampionship.current_season_year,
+        season_year: props.selectedSeasonYear ?? props.selectedChampionship.current_season_year,
         division: placeholder.division,
         naipe: placeholder.naipe,
         supports_cards: false,
@@ -182,8 +169,7 @@ function resolveSchedulePlaceholderMatches(
         away_score: 0,
         away_yellow_cards: 0,
         away_red_cards: 0,
-        created_at:
-          placeholder.start_time ?? `${placeholder.scheduled_date}T00:00:00-03:00`,
+        created_at: placeholder.start_time ?? `${placeholder.scheduled_date}T00:00:00-03:00`,
       }) as Match,
   );
 }
@@ -191,22 +177,12 @@ function resolveSchedulePlaceholderMatches(
 export function AdminMatchesWithScheduleFilters(props: AdminMatchesProps) {
   const schedulePlaceholderMatches = useMemo(
     () => resolveSchedulePlaceholderMatches(props),
-    [
-      props.championshipBracketView,
-      props.matches,
-      props.selectedChampionship.id,
-      props.selectedChampionship.current_season_year,
-      props.selectedSeasonYear,
-      props.viewMode,
-    ],
+    [props],
   );
 
   const matchesWithFilterMetadata = useMemo(
     () =>
-      createMatchesWithSchedulePlaceholderFilterMetadata(
-        props.matches,
-        schedulePlaceholderMatches,
-      ),
+      createMatchesWithSchedulePlaceholderFilterMetadata(props.matches, schedulePlaceholderMatches),
     [props.matches, schedulePlaceholderMatches],
   );
 

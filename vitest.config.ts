@@ -6,6 +6,10 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: "jsdom",
+    env: {
+      VITE_SUPABASE_URL: "https://example.supabase.co",
+      VITE_SUPABASE_PUBLISHABLE_KEY: "test-publishable-key",
+    },
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
