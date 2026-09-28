@@ -1,11 +1,6 @@
 import { frontendEnvironment } from "@/config/environment";
 import type { MatchSetInput } from "@/domain/championship-brackets/championshipBracket.types";
-import type {
-  Championship,
-  ChampionshipSeasonSettings,
-  Match,
-  Standing,
-} from "@/lib/types";
+import type { Championship, ChampionshipSeasonSettings, Match, Standing } from "@/lib/types";
 import { lajeApiRequest } from "./client";
 
 interface DataResponse<DataType> {
@@ -454,8 +449,7 @@ export async function getSportsCoreSeason(
     division_format: row.divisionFormat as ChampionshipSeasonSettings["division_format"],
     division_settlement_mode:
       row.divisionSettlementMode as ChampionshipSeasonSettings["division_settlement_mode"],
-    principal_slots_count:
-      row.principalSlotsCount == null ? null : Number(row.principalSlotsCount),
+    principal_slots_count: row.principalSlotsCount == null ? null : Number(row.principalSlotsCount),
     principal_relegation_count:
       row.principalRelegationCount == null ? null : Number(row.principalRelegationCount),
     access_promotion_count:
