@@ -1,0 +1,143 @@
+name: LAJE-86 Patch
+
+on:
+  push:
+    branches:
+      - LAJE-86
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: laje-86-patch
+  cancel-in-progress: true
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Patch useMatches to prefer laje-api
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/hooks/useMatches.ts")
+          text = path.read_text()
+
+          import_anchor = 'import { supabase } from "@/integrations/supabase/client";'
+          api_import = '''import {
+            isDedicatedSportsCoreEnabled,
+            listSportsCoreMatches,
+          } from "@/integrations/laje-api/sports-core";
+          import { supabase } from "@/integrations/supabase/client";'''
+          if 'listSportsCoreMatches' not in text:
+              if import_anchor not in text:
+                  raise SystemExit("Supabase import anchor not found")
+              text = text.replace(import_anchor, api_import, 1)
+
+          branch_anchor = '''        let matchRows: Match[] = [];
+                  let resolvedOperationalContextMatches: MatchRepresentationSource[] = [];
+                  let resolvedTotalCount = 0;
+
+                  if (
+          '''
+          branch_replacement = '''        let matchRows: Match[] = [];
+                  let resolvedOperationalContextMatches: MatchRepresentationSource[] = [];
+                  let resolvedTotalCount = 0;
+                  const shouldUseDedicatedSportsCore = isDedicatedSportsCoreEnabled();
+
+                  if (shouldUseDedicatedSportsCore) {
+                    const apiOrder = sortMode == "SCHEDULED" ? "asc" : "desc";
+                    const apiSort = sortMode == "SCHEDULED" ? "queuePosition" : "scheduledDate";
+                    const apiResult = await listSportsCoreMatches({
+                      ...(championshipId ? { championshipId } : {}),
+                      ...(typeof seasonYear == "number" ? { seasonYear } : {}),
+                      ...(normalizedStatuses.length > 0 ? { statuses: normalizedStatuses } : {}),
+                      ...(sportId ? { sportId } : {}),
+                      ...(teamId ? { teamId } : {}),
+                      ...(naipe ? { naipe } : {}),
+                      ...(division !== undefined ? { division } : {}),
+                      ...(typeof groupNumber == "number" ? { groupNumber } : {}),
+                      ...(location ? { location } : {}),
+                      ...(courtName ? { courtName } : {}),
+                      ...(hasExplicitMatchIds ? { matchIds: normalizedMatchIds } : {}),
+                      page: typeof page == "number" && page > 0 ? page : 1,
+                      pageSize:
+                        typeof itemsPerPage == "number" && itemsPerPage > 0 ? itemsPerPage : 100,
+                      sort: apiSort,
+                      order: apiOrder,
+                    });
+                    matchRows = includePendingManualRelocation
+                      ? apiResult.matches
+                      : apiResult.matches.filter((match) => !match.is_pending_manual_relocation);
+                    resolvedTotalCount = includePendingManualRelocation
+                      ? apiResult.total
+                      : matchRows.length;
+
+                    if (includeOperationalContext && refreshOperationalContext) {
+                      const operationalContextResult = await listSportsCoreMatches({
+                        ...(championshipId ? { championshipId } : {}),
+                        ...(typeof seasonYear == "number" ? { seasonYear } : {}),
+                        ...(sportId ? { sportId } : {}),
+                        page: 1,
+                        pageSize: 100,
+                        sort: "queuePosition",
+                        order: "asc",
+                      });
+                      resolvedOperationalContextMatches = operationalContextResult.matches.filter(
+                        (match) => !match.is_pending_manual_relocation,
+                      );
+                    }
+                  } else if (
+          '''
+          if 'const shouldUseDedicatedSportsCore = isDedicatedSportsCoreEnabled();' not in text:
+              if branch_anchor not in text:
+                  raise SystemExit("Match branch anchor not found")
+              text = text.replace(branch_anchor, branch_replacement, 1)
+
+          operational = '        if (includeOperationalContext && refreshOperationalContext) {'
+          operational_replacement = '''        if (
+                    !shouldUseDedicatedSportsCore &&
+                    includeOperationalContext &&
+                    refreshOperationalContext
+                  ) {'''
+          if operational in text:
+              text = text.replace(operational, operational_replacement, 1)
+
+          result_rule_anchor = '''              result_rule:
+                            resultRuleByChampionshipAndSportKey[
+                              `${match.championship_id}:${match.sport_id}`
+                            ] ?? null,
+                          match_sets: matchSetsByMatchId[match.id] ?? [],'''
+          result_rule_replacement = '''              result_rule:
+                            resultRuleByChampionshipAndSportKey[
+                              `${match.championship_id}:${match.sport_id}`
+                            ] ?? match.result_rule ?? null,
+                          match_sets: matchSetsByMatchId[match.id] ?? match.match_sets ?? [],'''
+          if result_rule_anchor in text:
+              text = text.replace(result_rule_anchor, result_rule_replacement, 1)
+
+          path.write_text(text)
+          PY
+          npx prettier src/hooks/useMatches.ts src/integrations/laje-api/sports-core.ts src/integrations/laje-api/sports-core.test.ts --write
+      - name: Commit patch
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/hooks/useMatches.ts src/integrations/laje-api/sports-core.ts src/integrations/laje-api/sports-core.test.ts
+          git commit -m "LAJE-86 prefer laje-api for match reads"
+          git push origin HEAD:LAJE-86
