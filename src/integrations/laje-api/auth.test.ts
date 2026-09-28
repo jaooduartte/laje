@@ -1,74 +1,90 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/config/environment", () => ({
-  frontendEnvironment: { apiUrl: "https://api.example.com/api/v1" },
+  frontendEnvironment: {
+    apiUrl: "https://api.example.com/api/v1",
+  },
 }));
 
 import {
   createDedicatedSession,
-  deleteDedicatedSession,
-  getDedicatedAccessToken,
   resolveDedicatedLoginState,
 } from "@/integrations/laje-api/auth";
 
 const fetchMock = vi.fn();
 
-beforeEach(() => {
-  fetchMock.mockReset();
-  vi.stubGlobal("fetch", fetchMock);
-});
+function jsonResponse(body: unknown, status = 200): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body,
+  } as Response;
+}
 
-describe("laje-api auth client", () => {
-  it("resolves login state without exposing a Supabase auth email", async () => {
+describe("laje-api auth integration", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  it("normaliza o contrato de resolução do login administrativo", async () => {
     fetchMock.mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          data: { loginIdentifier: "admin", passwordStatus: "ACTIVE" },
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      ),
+      jsonResponse({
+        data: {
+          loginIdentifier: "admin",
+          passwordStatus: "ACTIVE",
+        },
+      }),
     );
 
-    await expect(resolveDedicatedLoginState("admin")).resolves.toEqual({
-      loginIdentifier: "admin",
-      passwordStatus: "ACTIVE",
+    const state = await resolveDedicatedLoginState("admin");
+
+    expect(state).toEqual({
+      auth_email: "",
+      login_identifier: "admin",
+      password_status: "ACTIVE",
     });
     expect(fetchMock).toHaveBeenCalledWith(
       "https://api.example.com/api/v1/auth/login-state",
-      expect.objectContaining({ method: "POST", credentials: "include" }),
+      expect.objectContaining({
+        method: "POST",
+        credentials: "include",
+      }),
     );
   });
 
-  it("keeps access token in memory and sends it only as Bearer on protected logout", async () => {
-    fetchMock
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            data: {
-              accessToken: "access-token",
-              tokenType: "Bearer",
-              expiresAt: "2026-09-28T20:00:00.000Z",
-              user: {
-                id: "user-id",
-                email: null,
-                role: "admin",
-                profile: { id: "profile-id", name: "Administrador" },
-                permissions: [{ scope: "control", level: "EDIT" }],
-                canAccessAdminPanel: true,
-              },
+  it("mantém o access token em resposta e o refresh token restrito ao cookie HTTP", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        data: {
+          accessToken: "access-token",
+          tokenType: "Bearer",
+          expiresAt: "2026-09-28T19:00:00.000Z",
+          user: {
+            id: "00000000-0000-0000-0000-000000000001",
+            email: "admin@example.com",
+            role: "admin",
+            profile: {
+              id: "00000000-0000-0000-0000-000000000002",
+              name: "Administrador",
             },
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        ),
-      )
-      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+            permissions: [{ scope: "control", level: "EDIT" }],
+            canAccessAdminPanel: true,
+          },
+        },
+      }),
+    );
 
-    await createDedicatedSession("admin", "password");
-    expect(getDedicatedAccessToken()).toBe("access-token");
-    await deleteDedicatedSession();
-    expect(getDedicatedAccessToken()).toBeNull();
+    const session = await createDedicatedSession("admin", "secret-password");
 
-    const logoutOptions = fetchMock.mock.calls[1]?.[1] as RequestInit;
-    expect(new Headers(logoutOptions.headers).get("Authorization")).toBe("Bearer access-token");
+    expect(session.accessToken).toBe("access-token");
+    expect(session).not.toHaveProperty("refreshToken");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.example.com/api/v1/auth/sessions",
+      expect.objectContaining({
+        method: "POST",
+        credentials: "include",
+      }),
+    );
   });
 });
