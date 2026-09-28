@@ -18,6 +18,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: LAJE-85
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
