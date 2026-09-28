@@ -61,7 +61,8 @@ export async function lajeApiRequest<ResponseType>(
     return undefined as ResponseType;
   }
 
-  const payload = (await response.json().catch(() => null)) as ApiErrorPayload | ResponseType | null;
+  const payload = (await response.json().catch(() => null)) as
+    ApiErrorPayload | ResponseType | null;
 
   if (!response.ok) {
     const errorPayload = payload as ApiErrorPayload | null;

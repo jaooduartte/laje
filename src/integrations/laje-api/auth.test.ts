@@ -6,10 +6,7 @@ vi.mock("@/config/environment", () => ({
   },
 }));
 
-import {
-  createDedicatedSession,
-  resolveDedicatedLoginState,
-} from "@/integrations/laje-api/auth";
+import { createDedicatedSession, resolveDedicatedLoginState } from "@/integrations/laje-api/auth";
 
 const fetchMock = vi.fn();
 

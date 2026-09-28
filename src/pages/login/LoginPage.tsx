@@ -53,9 +53,8 @@ export function LoginPage() {
     setSubmitting(true);
     setError("");
 
-    const { data: nextLoginState, error: loginStateError } = await resolveLoginState(
-      normalizedLoginIdentifier,
-    );
+    const { data: nextLoginState, error: loginStateError } =
+      await resolveLoginState(normalizedLoginIdentifier);
 
     setSubmitting(false);
 
@@ -95,10 +94,7 @@ export function LoginPage() {
     setSubmitting(true);
     setError("");
 
-    const { error: signInError } = await signIn(
-      resolvedLoginState.login_identifier,
-      password,
-    );
+    const { error: signInError } = await signIn(resolvedLoginState.login_identifier, password);
 
     setSubmitting(false);
 

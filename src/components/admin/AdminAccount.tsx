@@ -40,16 +40,13 @@ export function AdminAccount({ canManageAccount = false }: Props) {
   const { setPreferredThemeMode } = useAutomaticThemeContext();
   const { authSource, user, profileName, changePassword } = useAuth();
   const usesDedicatedAuth = authSource === "laje-api";
-  const [currentAdminAccount, setCurrentAdminAccount] =
-    useState<CurrentAdminAccount | null>(null);
+  const [currentAdminAccount, setCurrentAdminAccount] = useState<CurrentAdminAccount | null>(null);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
   const [loginIdentifier, setLoginIdentifier] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [themeModePreference, setThemeModePreference] = useState<ThemeMode>(
-    ThemeMode.AUTO,
-  );
+  const [themeModePreference, setThemeModePreference] = useState<ThemeMode>(ThemeMode.AUTO);
   const [savingAccount, setSavingAccount] = useState(false);
 
   const fetchCurrentAdminAccount = useCallback(async () => {
@@ -80,9 +77,8 @@ export function AdminAccount({ canManageAccount = false }: Props) {
       return;
     }
 
-    const normalizedCurrentAdminAccount = CurrentAdminAccountDTO.fromResponse(
-      currentAdminAccountRow,
-    ).bindToRead();
+    const normalizedCurrentAdminAccount =
+      CurrentAdminAccountDTO.fromResponse(currentAdminAccountRow).bindToRead();
 
     setCurrentAdminAccount(normalizedCurrentAdminAccount);
     setName(normalizedCurrentAdminAccount.name);
@@ -177,10 +173,7 @@ export function AdminAccount({ canManageAccount = false }: Props) {
       setSavingAccount(true);
 
       if (namePayload) {
-        const { error } = await supabase.rpc(
-          "admin_update_user_name",
-          namePayload,
-        );
+        const { error } = await supabase.rpc("admin_update_user_name", namePayload);
 
         if (error) {
           setSavingAccount(false);
@@ -205,10 +198,7 @@ export function AdminAccount({ canManageAccount = false }: Props) {
       }
 
       if (passwordPayload) {
-        const { error } = await supabase.rpc(
-          "admin_update_user_password",
-          passwordPayload,
-        );
+        const { error } = await supabase.rpc("admin_update_user_password", passwordPayload);
 
         if (error) {
           setSavingAccount(false);
@@ -240,9 +230,7 @@ export function AdminAccount({ canManageAccount = false }: Props) {
     } catch (error) {
       setSavingAccount(false);
       toast.error(
-        error instanceof Error
-          ? error.message
-          : "Não foi possível salvar as alterações.",
+        error instanceof Error ? error.message : "Não foi possível salvar as alterações.",
       );
     }
   };
@@ -369,10 +357,7 @@ export function AdminAccount({ canManageAccount = false }: Props) {
   const hasThemeModePreferenceChanged =
     themeModePreference != currentAdminAccount.theme_mode_preference;
   const hasPendingChanges =
-    hasNameChanged ||
-    hasLoginIdentifierChanged ||
-    hasNewPassword ||
-    hasThemeModePreferenceChanged;
+    hasNameChanged || hasLoginIdentifierChanged || hasNewPassword || hasThemeModePreferenceChanged;
 
   return (
     <div className="space-y-4">
@@ -381,32 +366,22 @@ export function AdminAccount({ canManageAccount = false }: Props) {
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-lg font-semibold">Minha conta</h2>
             <AppBadge
-              tone={resolveAdminUserPasswordStatusBadgeTone(
-                currentAdminAccount.password_status,
-              )}
+              tone={resolveAdminUserPasswordStatusBadgeTone(currentAdminAccount.password_status)}
             >
-              {resolveAdminUserPasswordStatusLabel(
-                currentAdminAccount.password_status,
-              )}
+              {resolveAdminUserPasswordStatusLabel(currentAdminAccount.password_status)}
             </AppBadge>
             <AppBadge tone={AppBadgeTone.PRIMARY}>você</AppBadge>
           </div>
 
           <div className="space-y-1 text-sm text-muted-foreground">
-            <p>
-              Perfil atual: {currentAdminAccount.profile_name ?? "Sem perfil"}
-            </p>
+            <p>Perfil atual: {currentAdminAccount.profile_name ?? "Sem perfil"}</p>
             {resolveShouldDisplayInternalAdminUserEmail(
               currentAdminAccount.email,
               currentAdminAccount.login_identifier,
             ) ? (
-              <p className="truncate">
-                E-mail técnico: {currentAdminAccount.email}
-              </p>
+              <p className="truncate">E-mail técnico: {currentAdminAccount.email}</p>
             ) : null}
-            {!canManageAccount ? (
-              <p>Seu perfil possui apenas visualização para esta aba.</p>
-            ) : null}
+            {!canManageAccount ? <p>Seu perfil possui apenas visualização para esta aba.</p> : null}
           </div>
         </div>
 
@@ -452,20 +427,13 @@ export function AdminAccount({ canManageAccount = false }: Props) {
           </div>
 
           <div className="space-y-2 rounded-2xl app-card-muted p-3">
-            <Label htmlFor="admin-account-theme-mode-select">
-              Tema do sistema
-            </Label>
+            <Label htmlFor="admin-account-theme-mode-select">Tema do sistema</Label>
             <Select
               value={themeModePreference}
-              onValueChange={(value) =>
-                setThemeModePreference(value as ThemeMode)
-              }
+              onValueChange={(value) => setThemeModePreference(value as ThemeMode)}
               disabled={!canManageAccount}
             >
-              <SelectTrigger
-                id="admin-account-theme-mode-select"
-                className="app-input-field"
-              >
+              <SelectTrigger id="admin-account-theme-mode-select" className="app-input-field">
                 <SelectValue placeholder="Selecione um tema" />
               </SelectTrigger>
               <SelectContent>

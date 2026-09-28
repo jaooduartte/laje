@@ -60,9 +60,7 @@ const INHERITED_MATCHES_TABS = new Set<AdminPanelTab>([
 
 function isAdminPanelRole(value: string | null): value is AdminPanelRole {
   return (
-    value == AdminPanelRole.ADMIN ||
-    value == AdminPanelRole.EVENTOS ||
-    value == AdminPanelRole.MESA
+    value == AdminPanelRole.ADMIN || value == AdminPanelRole.EVENTOS || value == AdminPanelRole.MESA
   );
 }
 
@@ -190,8 +188,7 @@ function resolveCurrentUserAdminContext(
 
 function canAccessAdminWithPermissions(adminTabPermissions: AdminTabPermissionByTab): boolean {
   return Object.values(adminTabPermissions).some(
-    (adminPanelPermissionLevel) =>
-      adminPanelPermissionLevel != AdminPanelPermissionLevel.NONE,
+    (adminPanelPermissionLevel) => adminPanelPermissionLevel != AdminPanelPermissionLevel.NONE,
   );
 }
 
@@ -520,7 +517,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return {
           data: null,
           error: {
-            message: error instanceof Error ? error.message : "Não foi possível localizar o usuário.",
+            message:
+              error instanceof Error ? error.message : "Não foi possível localizar o usuário.",
           },
         };
       }
@@ -562,7 +560,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         console.error("Erro inesperado no login:", error);
         return {
           error: {
-            message: error instanceof Error ? error.message : "Erro de conexão ao tentar autenticar.",
+            message:
+              error instanceof Error ? error.message : "Erro de conexão ao tentar autenticar.",
           },
         };
       }
@@ -604,7 +603,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return {
           error: {
             message:
-              error instanceof Error ? error.message : "Não foi possível concluir a criação da senha.",
+              error instanceof Error
+                ? error.message
+                : "Não foi possível concluir a criação da senha.",
           },
         };
       }
@@ -616,7 +617,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     async (currentPassword: string, newPassword: string) => {
       try {
         if (!usesDedicatedApi || !accessToken) {
-          return { error: { message: "A troca de senha dedicada não está disponível nesta sessão." } };
+          return {
+            error: { message: "A troca de senha dedicada não está disponível nesta sessão." },
+          };
         }
 
         await changeDedicatedPassword(accessToken, currentPassword, newPassword);

@@ -1,9 +1,5 @@
 import type { AdminLoginState } from "@/domain/admin-users/adminUser.types";
-import {
-  AdminPanelPermissionLevel,
-  AdminPanelRole,
-  AdminUserPasswordStatus,
-} from "@/lib/enums";
+import { AdminPanelPermissionLevel, AdminPanelRole, AdminUserPasswordStatus } from "@/lib/enums";
 import { lajeApiRequest } from "./client";
 
 export interface DedicatedAuthPermission {
@@ -39,7 +35,9 @@ interface LoginStateResponse {
   passwordStatus: AdminUserPasswordStatus;
 }
 
-export async function resolveDedicatedLoginState(loginIdentifier: string): Promise<AdminLoginState> {
+export async function resolveDedicatedLoginState(
+  loginIdentifier: string,
+): Promise<AdminLoginState> {
   const response = await lajeApiRequest<DataResponse<LoginStateResponse>>("/auth/login-state", {
     method: "POST",
     body: JSON.stringify({ loginIdentifier }),
