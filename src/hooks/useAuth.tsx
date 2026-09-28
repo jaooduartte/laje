@@ -1,12 +1,37 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { frontendEnvironment } from "@/config/environment";
+import { AdminLoginStateDTO } from "@/domain/admin-users/AdminUserDTO";
+import type { AdminLoginState } from "@/domain/admin-users/adminUser.types";
+import {
+  changeDedicatedPassword,
+  createDedicatedSession,
+  deleteDedicatedSession,
+  refreshDedicatedSession,
+  resolveDedicatedLoginState,
+  setupDedicatedPassword,
+  type DedicatedAuthSession,
+  type DedicatedAuthUser,
+} from "@/integrations/laje-api/auth";
+import { LajeApiError } from "@/integrations/laje-api/client";
 import { supabase } from "@/integrations/supabase/client";
-import type { User } from "@supabase/supabase-js";
 import { AdminPanelPermissionLevel, AdminPanelRole, AdminPanelTab } from "@/lib/enums";
 import type { AdminTabPermissionByTab, CurrentUserAdminContext } from "@/lib/types";
+import type { User } from "@supabase/supabase-js";
 
 const ROLE_REQUEST_TIMEOUT_IN_MILLISECONDS = 10000;
+const DEDICATED_SESSION_REFRESH_INTERVAL_IN_MILLISECONDS = 15 * 60 * 1000;
 
 const DEFAULT_ADMIN_TAB_PERMISSIONS: AdminTabPermissionByTab = {
+  [AdminPanelTab.BRACKET_SETUP]: AdminPanelPermissionLevel.NONE,
   [AdminPanelTab.MATCHES]: AdminPanelPermissionLevel.NONE,
   [AdminPanelTab.CONTROL]: AdminPanelPermissionLevel.NONE,
   [AdminPanelTab.INDIVIDUAL_EVENTS]: AdminPanelPermissionLevel.NONE,
@@ -26,8 +51,17 @@ const DEFAULT_ADMIN_TAB_PERMISSIONS: AdminTabPermissionByTab = {
   [AdminPanelTab.OPENING_CEREMONY_BONUS]: AdminPanelPermissionLevel.NONE,
 };
 
+const INHERITED_MATCHES_TABS = new Set<AdminPanelTab>([
+  AdminPanelTab.BRACKET_SETUP,
+  AdminPanelTab.INDIVIDUAL_EVENTS,
+  AdminPanelTab.STANDINGS,
+  AdminPanelTab.CHAMPIONSHIP_SCHEDULE,
+]);
+
 function isAdminPanelRole(value: string | null): value is AdminPanelRole {
-  return value == AdminPanelRole.ADMIN || value == AdminPanelRole.EVENTOS || value == AdminPanelRole.MESA;
+  return (
+    value == AdminPanelRole.ADMIN || value == AdminPanelRole.EVENTOS || value == AdminPanelRole.MESA
+  );
 }
 
 function isAdminPanelPermissionLevel(value: string | null): value is AdminPanelPermissionLevel {
@@ -38,12 +72,16 @@ function isAdminPanelPermissionLevel(value: string | null): value is AdminPanelP
   );
 }
 
-function resolveAdminTabPermissionsFromContext(context: CurrentUserAdminContext | null): AdminTabPermissionByTab {
+function resolveAdminTabPermissionsFromContext(
+  context: CurrentUserAdminContext | null,
+): AdminTabPermissionByTab {
   if (!context) {
     return DEFAULT_ADMIN_TAB_PERMISSIONS;
   }
 
-  const fallbackChampionshipStatusPermission = isAdminPanelPermissionLevel(context.championship_status_permission)
+  const fallbackChampionshipStatusPermission = isAdminPanelPermissionLevel(
+    context.championship_status_permission,
+  )
     ? context.championship_status_permission
     : isAdminPanelPermissionLevel(context.settings_permission)
       ? context.settings_permission
@@ -53,11 +91,14 @@ function resolveAdminTabPermissionsFromContext(context: CurrentUserAdminContext 
     : AdminPanelPermissionLevel.NONE;
 
   return {
+    [AdminPanelTab.BRACKET_SETUP]: fallbackMatchesPermission,
     [AdminPanelTab.MATCHES]: fallbackMatchesPermission,
     [AdminPanelTab.CONTROL]: isAdminPanelPermissionLevel(context.control_permission)
       ? context.control_permission
       : AdminPanelPermissionLevel.NONE,
-    [AdminPanelTab.INDIVIDUAL_EVENTS]: isAdminPanelPermissionLevel(context.individual_events_permission ?? null)
+    [AdminPanelTab.INDIVIDUAL_EVENTS]: isAdminPanelPermissionLevel(
+      context.individual_events_permission ?? null,
+    )
       ? context.individual_events_permission!
       : fallbackMatchesPermission,
     [AdminPanelTab.TEAMS]: isAdminPanelPermissionLevel(context.teams_permission)
@@ -88,19 +129,51 @@ function resolveAdminTabPermissionsFromContext(context: CurrentUserAdminContext 
     [AdminPanelTab.SETTINGS]: isAdminPanelPermissionLevel(context.settings_permission)
       ? context.settings_permission
       : AdminPanelPermissionLevel.NONE,
-    [AdminPanelTab.SCORE_SHEET_REVIEW]: isAdminPanelPermissionLevel(context.score_sheet_review_permission)
+    [AdminPanelTab.SCORE_SHEET_REVIEW]: isAdminPanelPermissionLevel(
+      context.score_sheet_review_permission,
+    )
       ? context.score_sheet_review_permission
       : AdminPanelPermissionLevel.NONE,
     [AdminPanelTab.TIE_BREAKS]: isAdminPanelPermissionLevel(context.tie_breaks_permission)
       ? context.tie_breaks_permission
       : AdminPanelPermissionLevel.NONE,
-    [AdminPanelTab.CHAMPIONSHIP_SCHEDULE]: isAdminPanelPermissionLevel(context.championship_schedule_permission ?? null)
+    [AdminPanelTab.CHAMPIONSHIP_SCHEDULE]: isAdminPanelPermissionLevel(
+      context.championship_schedule_permission ?? null,
+    )
       ? context.championship_schedule_permission!
       : fallbackMatchesPermission,
-    [AdminPanelTab.OPENING_CEREMONY_BONUS]: isAdminPanelPermissionLevel(context.opening_ceremony_bonus_permission ?? null)
+    [AdminPanelTab.OPENING_CEREMONY_BONUS]: isAdminPanelPermissionLevel(
+      context.opening_ceremony_bonus_permission ?? null,
+    )
       ? context.opening_ceremony_bonus_permission!
       : AdminPanelPermissionLevel.NONE,
   };
+}
+
+function resolveAdminTabPermissionsFromDedicatedUser(
+  user: DedicatedAuthUser,
+): AdminTabPermissionByTab {
+  const nextPermissions = { ...DEFAULT_ADMIN_TAB_PERMISSIONS };
+  const permissionsByScope = new Map(user.permissions.map(({ scope, level }) => [scope, level]));
+  const matchesPermission = permissionsByScope.get(AdminPanelTab.MATCHES);
+  const fallbackMatchesPermission = isAdminPanelPermissionLevel(matchesPermission ?? null)
+    ? matchesPermission
+    : AdminPanelPermissionLevel.NONE;
+
+  Object.values(AdminPanelTab).forEach((adminPanelTab) => {
+    const permission = permissionsByScope.get(adminPanelTab);
+
+    if (isAdminPanelPermissionLevel(permission ?? null)) {
+      nextPermissions[adminPanelTab] = permission;
+      return;
+    }
+
+    if (INHERITED_MATCHES_TABS.has(adminPanelTab)) {
+      nextPermissions[adminPanelTab] = fallbackMatchesPermission;
+    }
+  });
+
+  return nextPermissions;
 }
 
 function resolveCurrentUserAdminContext(
@@ -141,8 +214,17 @@ async function resolveWithTimeout<ResultType>(
   }
 }
 
+export interface AuthenticatedAdminUser {
+  id: string;
+  email: string | null;
+}
+
+interface AuthOperationError {
+  message: string;
+}
+
 interface AuthContextValue {
-  user: User | null;
+  user: AuthenticatedAdminUser | null;
   role: AdminPanelRole | null;
   profileId: string | null;
   profileName: string | null;
@@ -157,7 +239,23 @@ interface AuthContextValue {
   canEditAdminTab: (adminPanelTab: AdminPanelTab) => boolean;
   loading: boolean;
   roleLoading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: { message: string } | null }>;
+  accessToken: string | null;
+  authSource: "laje-api" | "supabase";
+  resolveLoginState: (
+    loginIdentifier: string,
+  ) => Promise<{ data: AdminLoginState | null; error: AuthOperationError | null }>;
+  setupPassword: (
+    loginIdentifier: string,
+    newPassword: string,
+  ) => Promise<{ error: AuthOperationError | null }>;
+  changePassword: (
+    currentPassword: string,
+    newPassword: string,
+  ) => Promise<{ error: AuthOperationError | null }>;
+  signIn: (
+    loginIdentifier: string,
+    password: string,
+  ) => Promise<{ error: AuthOperationError | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -168,26 +266,85 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const [user, setUser] = useState<User | null>(null);
+  const usesDedicatedApi = Boolean(frontendEnvironment.apiUrl);
+  const [user, setUser] = useState<AuthenticatedAdminUser | null>(null);
   const [role, setRole] = useState<AdminPanelRole | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
   const [profileName, setProfileName] = useState<string | null>(null);
-  const [adminTabPermissions, setAdminTabPermissions] = useState<AdminTabPermissionByTab>(DEFAULT_ADMIN_TAB_PERMISSIONS);
+  const [adminTabPermissions, setAdminTabPermissions] = useState<AdminTabPermissionByTab>(
+    DEFAULT_ADMIN_TAB_PERMISSIONS,
+  );
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [roleLoading, setRoleLoading] = useState(false);
   const lastResolvedRoleUserIdRef = useRef<string | null>(null);
   const resolvingRoleUserIdRef = useRef<string | null>(null);
   const roleResolutionTimeoutReference = useRef<number | null>(null);
 
+  const clearAuthenticationState = useCallback(() => {
+    setUser(null);
+    setRole(null);
+    setProfileId(null);
+    setProfileName(null);
+    setAdminTabPermissions(DEFAULT_ADMIN_TAB_PERMISSIONS);
+    setAccessToken(null);
+  }, []);
+
+  const applyDedicatedSession = useCallback((session: DedicatedAuthSession) => {
+    setUser({ id: session.user.id, email: session.user.email });
+    setRole(isAdminPanelRole(session.user.role) ? session.user.role : null);
+    setProfileId(session.user.profile?.id ?? null);
+    setProfileName(session.user.profile?.name ?? null);
+    setAdminTabPermissions(resolveAdminTabPermissionsFromDedicatedUser(session.user));
+    setAccessToken(session.accessToken);
+  }, []);
+
   useEffect(() => {
+    if (usesDedicatedApi) {
+      let isMounted = true;
+
+      const refreshSession = async () => {
+        try {
+          const session = await refreshDedicatedSession();
+          if (isMounted) {
+            applyDedicatedSession(session);
+          }
+        } catch (error) {
+          if (isMounted) {
+            clearAuthenticationState();
+          }
+
+          if (!(error instanceof LajeApiError && error.statusCode === 401)) {
+            console.error("Erro ao restaurar sessão administrativa pela laje-api:", error);
+          }
+        } finally {
+          if (isMounted) {
+            setLoading(false);
+            setRoleLoading(false);
+          }
+        }
+      };
+
+      setLoading(true);
+      setRoleLoading(true);
+      void refreshSession();
+
+      const refreshInterval = window.setInterval(
+        () => void refreshSession(),
+        DEDICATED_SESSION_REFRESH_INTERVAL_IN_MILLISECONDS,
+      );
+
+      return () => {
+        isMounted = false;
+        window.clearInterval(refreshInterval);
+      };
+    }
+
     const resolveUserRole = async (currentUser: User | null) => {
       if (!currentUser) {
         lastResolvedRoleUserIdRef.current = null;
         resolvingRoleUserIdRef.current = null;
-        setRole(null);
-        setProfileId(null);
-        setProfileName(null);
-        setAdminTabPermissions(DEFAULT_ADMIN_TAB_PERMISSIONS);
+        clearAuthenticationState();
         setRoleLoading(false);
         return;
       }
@@ -238,7 +395,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setProfileId(currentUserAdminContext?.profile_id ?? null);
         setProfileName(currentUserAdminContext?.profile_name ?? null);
         setAdminTabPermissions(resolveAdminTabPermissionsFromContext(currentUserAdminContext));
-
         lastResolvedRoleUserIdRef.current = currentUser.id;
       } catch (error) {
         console.error("Erro inesperado ao verificar perfil de acesso:", error);
@@ -284,9 +440,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }, 0);
     };
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
       const currentUser = session?.user ?? null;
-      setUser(currentUser);
+      setUser(currentUser ? { id: currentUser.id, email: currentUser.email ?? null } : null);
 
       if (!currentUser) {
         scheduleUserRoleResolution(null);
@@ -308,26 +466,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
       .then(({ data: { session }, error }) => {
         if (error) {
           console.error("Erro ao carregar sessão:", error.message);
-          setUser(null);
-          setRole(null);
-          setProfileId(null);
-          setProfileName(null);
-          setAdminTabPermissions(DEFAULT_ADMIN_TAB_PERMISSIONS);
+          clearAuthenticationState();
           setRoleLoading(false);
           return;
         }
 
         const currentUser = session?.user ?? null;
-        setUser(currentUser);
+        setUser(currentUser ? { id: currentUser.id, email: currentUser.email ?? null } : null);
         void resolveUserRole(currentUser);
       })
       .catch((error) => {
         console.error("Erro inesperado ao carregar sessão:", error);
-        setUser(null);
-        setRole(null);
-        setProfileId(null);
-        setProfileName(null);
-        setAdminTabPermissions(DEFAULT_ADMIN_TAB_PERMISSIONS);
+        clearAuthenticationState();
         setRoleLoading(false);
       })
       .finally(() => {
@@ -338,29 +488,175 @@ export function AuthProvider({ children }: AuthProviderProps) {
       clearScheduledRoleResolution();
       subscription.unsubscribe();
     };
-  }, []);
+  }, [applyDedicatedSession, clearAuthenticationState, usesDedicatedApi]);
 
-  const signIn = async (email: string, password: string) => {
-    try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      return { error };
-    } catch (error) {
-      console.error("Erro inesperado no login:", error);
-      return {
-        error: {
-          message: "Erro de conexão ao tentar autenticar.",
-        },
-      };
+  const resolveLoginState = useCallback(
+    async (loginIdentifier: string) => {
+      try {
+        if (usesDedicatedApi) {
+          return {
+            data: await resolveDedicatedLoginState(loginIdentifier),
+            error: null,
+          };
+        }
+
+        const { data, error } = await supabase.rpc("resolve_admin_login_state", {
+          _login_identifier: loginIdentifier.trim().toLowerCase(),
+        });
+
+        if (error) {
+          return { data: null, error: { message: error.message } };
+        }
+
+        const loginStateRow = data?.[0] ?? null;
+        return {
+          data: loginStateRow ? AdminLoginStateDTO.fromResponse(loginStateRow).bindToRead() : null,
+          error: null,
+        };
+      } catch (error) {
+        return {
+          data: null,
+          error: {
+            message:
+              error instanceof Error ? error.message : "Não foi possível localizar o usuário.",
+          },
+        };
+      }
+    },
+    [usesDedicatedApi],
+  );
+
+  const signIn = useCallback(
+    async (loginIdentifier: string, password: string) => {
+      try {
+        if (usesDedicatedApi) {
+          applyDedicatedSession(await createDedicatedSession(loginIdentifier, password));
+          return { error: null };
+        }
+
+        const { data, error: loginStateError } = await supabase.rpc("resolve_admin_login_state", {
+          _login_identifier: loginIdentifier.trim().toLowerCase(),
+        });
+        const authEmail = data?.[0]?.auth_email;
+
+        if (loginStateError || !authEmail) {
+          return { error: { message: loginStateError?.message ?? "Usuário não encontrado." } };
+        }
+
+        const { error } = await supabase.auth.signInWithPassword({
+          email: authEmail,
+          password,
+        });
+
+        if (!error) {
+          const { error: loginActionError } = await supabase.rpc("register_admin_login_action");
+          if (loginActionError) {
+            console.error("Erro ao registrar login administrativo:", loginActionError.message);
+          }
+        }
+
+        return { error: error ? { message: error.message } : null };
+      } catch (error) {
+        console.error("Erro inesperado no login:", error);
+        return {
+          error: {
+            message:
+              error instanceof Error ? error.message : "Erro de conexão ao tentar autenticar.",
+          },
+        };
+      }
+    },
+    [applyDedicatedSession, usesDedicatedApi],
+  );
+
+  const setupPassword = useCallback(
+    async (loginIdentifier: string, newPassword: string) => {
+      try {
+        if (usesDedicatedApi) {
+          applyDedicatedSession(await setupDedicatedPassword(loginIdentifier, newPassword));
+          return { error: null };
+        }
+
+        const { data, error: passwordSetupError } = await supabase.rpc(
+          "complete_admin_user_password_setup",
+          {
+            _login_identifier: loginIdentifier.trim().toLowerCase(),
+            _new_password: newPassword,
+          },
+        );
+
+        if (passwordSetupError || !data) {
+          return {
+            error: {
+              message:
+                passwordSetupError?.message ?? "Não foi possível concluir a criação da senha.",
+            },
+          };
+        }
+
+        const { error } = await supabase.auth.signInWithPassword({
+          email: data,
+          password: newPassword,
+        });
+        return { error: error ? { message: error.message } : null };
+      } catch (error) {
+        return {
+          error: {
+            message:
+              error instanceof Error
+                ? error.message
+                : "Não foi possível concluir a criação da senha.",
+          },
+        };
+      }
+    },
+    [applyDedicatedSession, usesDedicatedApi],
+  );
+
+  const changePassword = useCallback(
+    async (currentPassword: string, newPassword: string) => {
+      try {
+        if (!usesDedicatedApi || !accessToken) {
+          return {
+            error: { message: "A troca de senha dedicada não está disponível nesta sessão." },
+          };
+        }
+
+        await changeDedicatedPassword(accessToken, currentPassword, newPassword);
+        return { error: null };
+      } catch (error) {
+        return {
+          error: {
+            message: error instanceof Error ? error.message : "Não foi possível alterar a senha.",
+          },
+        };
+      }
+    },
+    [accessToken, usesDedicatedApi],
+  );
+
+  const signOut = useCallback(async () => {
+    if (usesDedicatedApi) {
+      try {
+        if (accessToken) {
+          await deleteDedicatedSession(accessToken);
+        }
+      } catch (error) {
+        console.error("Erro ao encerrar sessão administrativa pela laje-api:", error);
+      } finally {
+        clearAuthenticationState();
+      }
+      return;
     }
-  };
 
-  const signOut = async () => {
     try {
       await supabase.auth.signOut();
     } catch (error) {
       console.error("Erro inesperado no logout:", error);
+    } finally {
+      clearAuthenticationState();
     }
-  };
+  }, [accessToken, clearAuthenticationState, usesDedicatedApi]);
 
   const canViewAdminTab = useCallback(
     (adminPanelTab: AdminPanelTab) => {
@@ -383,7 +679,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const canAccessAdminPanel = canAccessAdminWithPermissions(adminTabPermissions);
   const canManageScoreboard = canEditAdminTab(AdminPanelTab.CONTROL);
 
-  const value = useMemo(
+  const value = useMemo<AuthContextValue>(
     () => ({
       user,
       role,
@@ -400,6 +696,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       canEditAdminTab,
       loading,
       roleLoading,
+      accessToken,
+      authSource: usesDedicatedApi ? "laje-api" : "supabase",
+      resolveLoginState,
+      setupPassword,
+      changePassword,
       signIn,
       signOut,
     }),
@@ -419,6 +720,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       canEditAdminTab,
       loading,
       roleLoading,
+      accessToken,
+      usesDedicatedApi,
+      resolveLoginState,
+      setupPassword,
+      changePassword,
+      signIn,
+      signOut,
     ],
   );
 

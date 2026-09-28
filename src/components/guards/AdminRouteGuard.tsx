@@ -1,10 +1,9 @@
-import { useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { AdminShellSkeleton } from "@/components/skeletons/AdminShellSkeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { AppRoutePath } from "@/lib/enums";
-import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   children: ReactNode;
@@ -12,45 +11,8 @@ interface Props {
 
 export function AdminRouteGuard({ children }: Props) {
   const { user, canAccessAdminPanel, loading, roleLoading } = useAuth();
-  const [hasBackendAccess, setHasBackendAccess] = useState<boolean | null>(null);
-  const userId = user?.id ?? null;
 
-  useEffect(() => {
-    let isMounted = true;
-
-    const verifyBackendAccess = async () => {
-      if (!userId || !canAccessAdminPanel) {
-        setHasBackendAccess(false);
-        return;
-      }
-
-      setHasBackendAccess(null);
-
-      const { data, error } = await supabase.rpc("can_access_admin_panel");
-
-      if (!isMounted) {
-        return;
-      }
-
-      if (error) {
-        console.error("Erro ao validar acesso ao admin:", error.message);
-        setHasBackendAccess(false);
-        return;
-      }
-
-      setHasBackendAccess(data == true);
-    };
-
-    verifyBackendAccess();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [canAccessAdminPanel, userId]);
-
-  const shouldShowLoading = loading || roleLoading || (userId && canAccessAdminPanel && hasBackendAccess === null);
-
-  if (shouldShowLoading) {
+  if (loading || roleLoading) {
     return (
       <div className="app-page">
         <Header />
@@ -62,7 +24,7 @@ export function AdminRouteGuard({ children }: Props) {
     );
   }
 
-  if (!userId || !canAccessAdminPanel || hasBackendAccess != true) {
+  if (!user?.id || !canAccessAdminPanel) {
     return <Navigate to={AppRoutePath.LOGIN} replace />;
   }
 
