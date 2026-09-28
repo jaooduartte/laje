@@ -666,7 +666,11 @@ export function useMatches({
           resolvedTotalCount = count ?? matchRows.length;
         }
 
-        if (includeOperationalContext && refreshOperationalContext) {
+        if (
+          !shouldUseDedicatedSportsCore &&
+          includeOperationalContext &&
+          refreshOperationalContext
+        ) {
           let operationalContextQuery = supabaseLoose
             .from("matches")
             .select(
