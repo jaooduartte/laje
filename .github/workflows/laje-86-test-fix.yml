@@ -27,45 +27,27 @@ jobs:
           path = Path("src/components/admin/AdminMatches.scoreSheetReview.test.tsx")
           content = path.read_text()
 
-          test_start_marker = '  it("altera a atlética que recebeu W.O. ao editar jogo encerrado", async () => {'
-          test_end_marker = '  it("permite aplicar W.O. duplo ao editar jogo encerrado", async () => {'
+          replacements = [
+              (
+                  "    onRefetch.mockClear();\n    onRefetchChampionshipBracket.mockClear();\n\n    expect(screen.getByRole(\"combobox\", { name: \"W.O.?\" })).toHaveTextContent(",
+                  "    expect(screen.getByRole(\"combobox\", { name: \"W.O.?\" })).toHaveTextContent(",
+              ),
+              (
+                  "    fireEvent.click(await screen.findByRole(\"option\", { name: \"W.O. VISITANTE\" }));\n    fireEvent.click(screen.getByRole(\"button\", { name: \"Salvar alterações\" }));",
+                  "    fireEvent.click(await screen.findByRole(\"option\", { name: \"W.O. VISITANTE\" }));\n\n    onRefetch.mockClear();\n    onRefetchChampionshipBracket.mockClear();\n\n    fireEvent.click(screen.getByRole(\"button\", { name: \"Salvar alterações\" }));",
+              ),
+              (
+                  "    expect(onRefetch).toHaveBeenCalledTimes(1);\n    expect(onRefetchChampionshipBracket).toHaveBeenCalled();",
+                  "    expect(onRefetch).toHaveBeenCalledTimes(1);\n    expect(onRefetchChampionshipBracket).toHaveBeenCalledTimes(1);",
+              ),
+          ]
 
-          start = content.find(test_start_marker)
-          end = content.find(test_end_marker, start)
-          if start < 0 or end < 0:
-              raise SystemExit("Target W.O. test block was not found")
+          for old, new in replacements:
+              if old not in content:
+                  raise SystemExit(f"Expected target was not found: {old!r}")
+              content = content.replace(old, new, 1)
 
-          block = content[start:end]
-
-          early_clear = '''    onRefetch.mockClear();
-    onRefetchChampionshipBracket.mockClear();
-
-'''
-          option_and_save = '''    fireEvent.click(await screen.findByRole("option", { name: "W.O. VISITANTE" }));
-    fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
-'''
-          isolated_save = '''    fireEvent.click(await screen.findByRole("option", { name: "W.O. VISITANTE" }));
-
-    onRefetch.mockClear();
-    onRefetchChampionshipBracket.mockClear();
-
-    fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
-'''
-          weak_assertion = '    expect(onRefetchChampionshipBracket).toHaveBeenCalled();'
-          exact_assertion = '    expect(onRefetchChampionshipBracket).toHaveBeenCalledTimes(1);'
-
-          if early_clear not in block:
-              raise SystemExit("Early refetch mock reset was not found in target test")
-          if option_and_save not in block:
-              raise SystemExit("W.O. option/save sequence was not found in target test")
-          if weak_assertion not in block and exact_assertion not in block:
-              raise SystemExit("Bracket refetch assertion was not found in target test")
-
-          block = block.replace(early_clear, "", 1)
-          block = block.replace(option_and_save, isolated_save, 1)
-          block = block.replace(weak_assertion, exact_assertion, 1)
-
-          path.write_text(content[:start] + block + content[end:])
+          path.write_text(content)
           PY
 
       - name: Commit test fix
