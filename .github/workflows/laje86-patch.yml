@@ -33,17 +33,10 @@ jobs:
 
           path = Path("src/hooks/useMatches.ts")
           text = path.read_text()
-          old = '''          if (
-            !shouldUseDedicatedSportsCore &&
-            includeOperationalContext &&
-            refreshOperationalContext
-          ) {
-            const operationalContextResult = await listSportsCoreMatches({'''
-          new = '''          if (includeOperationalContext && refreshOperationalContext) {
-            const operationalContextResult = await listSportsCoreMatches({'''
-          if old not in text:
-              raise SystemExit("Dedicated operational-context block not found")
-          text = text.replace(old, new, 1)
+          marker = "!shouldUseDedicatedSportsCore &&\n            includeOperationalContext"
+          if marker not in text:
+              raise SystemExit("Dedicated operational-context condition not found")
+          text = text.replace(marker, "includeOperationalContext", 1)
           path.write_text(text)
           PY
           npx prettier \
