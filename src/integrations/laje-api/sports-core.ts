@@ -25,8 +25,8 @@ interface ApiChampionshipDto {
   status: Championship["status"];
   currentSeasonYear: number;
   usesDivisions: boolean;
-  defaultLocation: string | null;
-  createdAt?: string;
+  defaultLocation?: string | null;
+  createdAt?: string | null;
 }
 
 interface ApiTeamSummary {
@@ -95,11 +95,11 @@ interface ApiMatchDto {
   isScoreSheetReviewed?: boolean;
   createdAt: string;
   groupNumber?: number | null;
-  championship?: ApiChampionshipDto;
-  sport?: ApiSportSummary;
-  homeTeam?: ApiTeamSummary;
-  awayTeam?: ApiTeamSummary;
-  matchSets?: ApiMatchSet[];
+  championship?: ApiChampionshipDto | null;
+  sport?: ApiSportSummary | null;
+  homeTeam?: ApiTeamSummary | null;
+  awayTeam?: ApiTeamSummary | null;
+  matchSets?: ApiMatchSet[] | null;
 }
 
 export interface SportsCoreMatchFilters {
@@ -114,6 +114,7 @@ export interface SportsCoreMatchFilters {
   location?: string | null;
   courtName?: string | null;
   matchIds?: string[];
+  includePendingManualRelocation?: boolean;
   page?: number;
   pageSize?: number;
   sort?: "scheduledDate" | "queuePosition" | "createdAt";
@@ -157,6 +158,8 @@ export interface SportsCoreChampionshipWriteInput {
   defaultLocation?: string | null;
 }
 
+const SPORTS_CORE_PAGE_SIZE = 100;
+
 function appendQueryValue(search: URLSearchParams, key: string, value: unknown): void {
   if (value == null || value === "") return;
   search.append(key, String(value));
@@ -170,7 +173,7 @@ function toChampionship(dto: ApiChampionshipDto): Championship {
     status: dto.status,
     current_season_year: dto.currentSeasonYear,
     uses_divisions: dto.usesDivisions,
-    default_location: dto.defaultLocation,
+    default_location: dto.defaultLocation ?? null,
     created_at: dto.createdAt ?? "",
   };
 }
@@ -271,9 +274,11 @@ export function isDedicatedSportsCoreEnabled(): boolean {
   return Boolean(frontendEnvironment.apiUrl);
 }
 
-export async function listSportsCoreMatches(
-  filters: SportsCoreMatchFilters = {},
-): Promise<{ matches: Match[]; total: number }> {
+function createMatchesSearch(
+  filters: SportsCoreMatchFilters,
+  page: number,
+  pageSize: number,
+): URLSearchParams {
   const search = new URLSearchParams();
   appendQueryValue(search, "championshipId", filters.championshipId);
   appendQueryValue(search, "seasonYear", filters.seasonYear);
@@ -286,19 +291,67 @@ export async function listSportsCoreMatches(
   appendQueryValue(search, "location", filters.location);
   appendQueryValue(search, "courtName", filters.courtName);
   filters.matchIds?.forEach((matchId) => appendQueryValue(search, "matchId", matchId));
-  appendQueryValue(search, "page", filters.page);
-  appendQueryValue(search, "pageSize", filters.pageSize);
+  appendQueryValue(search, "page", page);
+  appendQueryValue(search, "pageSize", pageSize);
   appendQueryValue(search, "sort", filters.sort);
   appendQueryValue(search, "order", filters.order);
+  return search;
+}
 
-  const response = await lajeApiRequest<CollectionResponse<ApiMatchDto>>(
-    `/matches${search.size > 0 ? `?${search.toString()}` : ""}`,
-  );
+async function fetchSportsCoreMatchPage(
+  filters: SportsCoreMatchFilters,
+  page: number,
+  pageSize: number,
+): Promise<CollectionResponse<ApiMatchDto>> {
+  const search = createMatchesSearch(filters, page, pageSize);
+  return lajeApiRequest<CollectionResponse<ApiMatchDto>>(`/matches?${search.toString()}`);
+}
 
-  return {
-    matches: response.data.map(toLegacyMatch),
-    total: response.meta?.total ?? response.meta?.totalItems ?? response.data.length,
-  };
+export async function listSportsCoreMatches(
+  filters: SportsCoreMatchFilters = {},
+): Promise<{ matches: Match[]; total: number }> {
+  const requestedPage = typeof filters.page === "number" && filters.page > 0 ? filters.page : null;
+  const requestedPageSize =
+    typeof filters.pageSize === "number" && filters.pageSize > 0 ? filters.pageSize : null;
+  const includePendingManualRelocation = filters.includePendingManualRelocation ?? true;
+
+  if (
+    includePendingManualRelocation &&
+    requestedPage != null &&
+    requestedPageSize != null &&
+    requestedPageSize <= SPORTS_CORE_PAGE_SIZE
+  ) {
+    const response = await fetchSportsCoreMatchPage(filters, requestedPage, requestedPageSize);
+    return {
+      matches: response.data.map(toLegacyMatch),
+      total: response.meta?.total ?? response.meta?.totalItems ?? response.data.length,
+    };
+  }
+
+  const allMatches: Match[] = [];
+  let currentPage = 1;
+  let totalPages = 1;
+
+  do {
+    const response = await fetchSportsCoreMatchPage(filters, currentPage, SPORTS_CORE_PAGE_SIZE);
+    allMatches.push(...response.data.map(toLegacyMatch));
+    totalPages = Math.max(1, response.meta?.totalPages ?? 1);
+    currentPage += 1;
+  } while (currentPage <= totalPages);
+
+  const filteredMatches = includePendingManualRelocation
+    ? allMatches
+    : allMatches.filter((match) => !match.is_pending_manual_relocation);
+
+  if (requestedPage != null && requestedPageSize != null) {
+    const start = (requestedPage - 1) * requestedPageSize;
+    return {
+      matches: filteredMatches.slice(start, start + requestedPageSize),
+      total: filteredMatches.length,
+    };
+  }
+
+  return { matches: filteredMatches, total: filteredMatches.length };
 }
 
 export async function getSportsCoreMatch(matchId: string): Promise<Match> {
@@ -366,16 +419,8 @@ export async function updateSportsCoreChampionship(
   return toChampionship(response.data);
 }
 
-export async function getSportsCoreStandings(
-  championshipId: string,
-  seasonYear: number,
-): Promise<Standing[]> {
-  const search = new URLSearchParams({ seasonYear: String(seasonYear) });
-  const response = await lajeApiRequest<CollectionResponse<Record<string, unknown>>>(
-    `/championships/${championshipId}/standings?${search.toString()}`,
-  );
-
-  return response.data.map((row) => ({
+function mapSportsCoreStanding(row: Record<string, unknown>): Standing {
+  return {
     id: String(row.id),
     championship_id: String(row.championshipId),
     season_year: Number(row.seasonYear),
@@ -405,6 +450,23 @@ export async function getSportsCoreStandings(
     first_places: Number(row.firstPlaces ?? 0),
     second_places: Number(row.secondPlaces ?? 0),
     third_places: Number(row.thirdPlaces ?? 0),
+    fourth_places: Number(row.fourthPlaces ?? 0),
+    fifth_places: Number(row.fifthPlaces ?? 0),
+    sixth_places: Number(row.sixthPlaces ?? 0),
+    seventh_places: Number(row.seventhPlaces ?? 0),
+    eighth_places: Number(row.eighthPlaces ?? 0),
+    ninth_places: Number(row.ninthPlaces ?? 0),
+    tenth_places: Number(row.tenthPlaces ?? 0),
+    eleventh_places: Number(row.eleventhPlaces ?? 0),
+    twelfth_places: Number(row.twelfthPlaces ?? 0),
+    thirteenth_places: Number(row.thirteenthPlaces ?? 0),
+    fourteenth_places: Number(row.fourteenthPlaces ?? 0),
+    fifteenth_places: Number(row.fifteenthPlaces ?? 0),
+    sixteenth_places: Number(row.sixteenthPlaces ?? 0),
+    seventeenth_places: Number(row.seventeenthPlaces ?? 0),
+    eighteenth_places: Number(row.eighteenthPlaces ?? 0),
+    nineteenth_places: Number(row.nineteenthPlaces ?? 0),
+    twentieth_places: Number(row.twentiethPlaces ?? 0),
     relay_points_total: Number(row.relayPointsTotal ?? 0),
     teams: {
       id: String(row.teamId),
@@ -419,7 +481,32 @@ export async function getSportsCoreStandings(
       code: typeof row.sportCode === "string" ? row.sportCode : null,
       created_at: "",
     },
-  }));
+  };
+}
+
+export async function getSportsCoreStandings(
+  championshipId: string,
+  seasonYear: number,
+): Promise<Standing[]> {
+  const standings: Standing[] = [];
+  let page = 1;
+  let totalPages = 1;
+
+  do {
+    const search = new URLSearchParams({
+      seasonYear: String(seasonYear),
+      page: String(page),
+      pageSize: String(SPORTS_CORE_PAGE_SIZE),
+    });
+    const response = await lajeApiRequest<CollectionResponse<Record<string, unknown>>>(
+      `/championships/${championshipId}/standings?${search.toString()}`,
+    );
+    standings.push(...response.data.map(mapSportsCoreStanding));
+    totalPages = Math.max(1, response.meta?.totalPages ?? 1);
+    page += 1;
+  } while (page <= totalPages);
+
+  return standings;
 }
 
 export async function getSportsCoreBracket(
