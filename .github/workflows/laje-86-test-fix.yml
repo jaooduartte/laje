@@ -19,24 +19,53 @@ jobs:
         with:
           ref: LAJE-86
 
-      - name: Apply W.O. refetch assertion fix
+      - name: Isolate W.O. save refetch assertion
         run: |
           python - <<'PY'
           from pathlib import Path
 
           path = Path("src/components/admin/AdminMatches.scoreSheetReview.test.tsx")
           content = path.read_text()
-          old = "    expect(onRefetchChampionshipBracket).toHaveBeenCalledTimes(1);"
-          new = "    expect(onRefetchChampionshipBracket).toHaveBeenCalled();"
 
-          if old in content:
-              if content.count(old) != 1:
-                  raise SystemExit(
-                      f"Expected exactly one target assertion, found {content.count(old)}"
-                  )
-              path.write_text(content.replace(old, new, 1))
-          elif new not in content:
-              raise SystemExit("Target W.O. refetch assertion was not found")
+          test_start_marker = '  it("altera a atlética que recebeu W.O. ao editar jogo encerrado", async () => {'
+          test_end_marker = '  it("permite aplicar W.O. duplo ao editar jogo encerrado", async () => {'
+
+          start = content.find(test_start_marker)
+          end = content.find(test_end_marker, start)
+          if start < 0 or end < 0:
+              raise SystemExit("Target W.O. test block was not found")
+
+          block = content[start:end]
+
+          early_clear = '''    onRefetch.mockClear();
+    onRefetchChampionshipBracket.mockClear();
+
+'''
+          option_and_save = '''    fireEvent.click(await screen.findByRole("option", { name: "W.O. VISITANTE" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
+'''
+          isolated_save = '''    fireEvent.click(await screen.findByRole("option", { name: "W.O. VISITANTE" }));
+
+    onRefetch.mockClear();
+    onRefetchChampionshipBracket.mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
+'''
+          weak_assertion = '    expect(onRefetchChampionshipBracket).toHaveBeenCalled();'
+          exact_assertion = '    expect(onRefetchChampionshipBracket).toHaveBeenCalledTimes(1);'
+
+          if early_clear not in block:
+              raise SystemExit("Early refetch mock reset was not found in target test")
+          if option_and_save not in block:
+              raise SystemExit("W.O. option/save sequence was not found in target test")
+          if weak_assertion not in block and exact_assertion not in block:
+              raise SystemExit("Bracket refetch assertion was not found in target test")
+
+          block = block.replace(early_clear, "", 1)
+          block = block.replace(option_and_save, isolated_save, 1)
+          block = block.replace(weak_assertion, exact_assertion, 1)
+
+          path.write_text(content[:start] + block + content[end:])
           PY
 
       - name: Commit test fix
@@ -47,5 +76,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src/components/admin/AdminMatches.scoreSheetReview.test.tsx
-          git commit -m "LAJE-86: estabilizar teste de atualização de W.O."
+          git commit -m "LAJE-86: isolar refetch no teste de W.O."
           git push origin HEAD:LAJE-86
