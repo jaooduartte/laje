@@ -23,10 +23,7 @@ interface ChampionshipBracketFetchResult {
   error: { message: string } | null;
 }
 
-const championshipBracketRequestByKey = new Map<
-  string,
-  Promise<ChampionshipBracketFetchResult>
->();
+const championshipBracketRequestByKey = new Map<string, Promise<ChampionshipBracketFetchResult>>();
 const championshipBracketResultByKey = new Map<
   string,
   {
@@ -57,7 +54,8 @@ async function fetchBracketSource(
       return {
         data: null,
         error: {
-          message: error instanceof Error ? error.message : "Falha ao carregar chaveamento pela API.",
+          message:
+            error instanceof Error ? error.message : "Falha ao carregar chaveamento pela API.",
         },
       };
     }
@@ -116,9 +114,7 @@ function invalidateChampionshipBracketView(
   );
 }
 
-function isChampionshipScopedRealtimeRow(
-  value: unknown,
-): value is ChampionshipScopedRealtimeRow {
+function isChampionshipScopedRealtimeRow(value: unknown): value is ChampionshipScopedRealtimeRow {
   return value != null && typeof value == "object";
 }
 
@@ -128,8 +124,9 @@ export function useChampionshipBracket({
   enabled = true,
   realtimeEnabled = true,
 }: UseChampionshipBracketOptions = {}) {
-  const [championshipBracketView, setChampionshipBracketView] =
-    useState<ChampionshipBracketView>(EMPTY_CHAMPIONSHIP_BRACKET_VIEW);
+  const [championshipBracketView, setChampionshipBracketView] = useState<ChampionshipBracketView>(
+    EMPTY_CHAMPIONSHIP_BRACKET_VIEW,
+  );
   const [loading, setLoading] = useState(true);
   const hasLoadedBracketRef = useRef(false);
   const isFetchingBracketRef = useRef(false);
