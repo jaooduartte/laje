@@ -125,11 +125,7 @@ export function useStandings({
     setLoading(true);
 
     try {
-      if (
-        isDedicatedSportsCoreEnabled() &&
-        championshipId &&
-        typeof seasonYear === "number"
-      ) {
+      if (isDedicatedSportsCoreEnabled() && championshipId && typeof seasonYear === "number") {
         const data = await getSportsCoreStandings(championshipId, seasonYear);
         setStandings(data.filter((standing) => matchesStandingFilters(standing, division, naipe)));
         return;
