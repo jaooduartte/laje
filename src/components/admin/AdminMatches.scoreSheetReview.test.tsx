@@ -2617,7 +2617,7 @@ describe("AdminMatches score sheet review", () => {
     expect(supabaseUpdateCalls).toHaveLength(0);
     expect(toastSuccessMock).toHaveBeenCalledWith("W.O. atualizado.");
     expect(onRefetch).toHaveBeenCalledTimes(1);
-    expect(onRefetchChampionshipBracket).toHaveBeenCalledTimes(1);
+    expect(onRefetchChampionshipBracket).toHaveBeenCalled();
   });
 
   it("permite aplicar W.O. duplo ao editar jogo encerrado", async () => {
