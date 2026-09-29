@@ -2591,15 +2591,16 @@ describe("AdminMatches score sheet review", () => {
     const matchCardContainer = getMatchCardContainerByTeamName("W.O. CASA");
     clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
 
-    onRefetch.mockClear();
-    onRefetchChampionshipBracket.mockClear();
-
     expect(screen.getByRole("combobox", { name: "W.O.?" })).toHaveTextContent(
       "W.O. CASA",
     );
 
     fireEvent.click(screen.getByRole("combobox", { name: "W.O.?" }));
     fireEvent.click(await screen.findByRole("option", { name: "W.O. VISITANTE" }));
+
+    onRefetch.mockClear();
+    onRefetchChampionshipBracket.mockClear();
+
     fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
 
     await waitFor(() => {
@@ -2617,7 +2618,7 @@ describe("AdminMatches score sheet review", () => {
     expect(supabaseUpdateCalls).toHaveLength(0);
     expect(toastSuccessMock).toHaveBeenCalledWith("W.O. atualizado.");
     expect(onRefetch).toHaveBeenCalledTimes(1);
-    expect(onRefetchChampionshipBracket).toHaveBeenCalled();
+    expect(onRefetchChampionshipBracket).toHaveBeenCalledTimes(1);
   });
 
   it("permite aplicar W.O. duplo ao editar jogo encerrado", async () => {
