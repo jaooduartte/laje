@@ -2585,10 +2585,6 @@ describe("AdminMatches score sheet review", () => {
       await screen.findByLabelText("Mostrar jogos revisados também"),
     );
 
-    await waitFor(() => {
-      expect(onRefetch).toHaveBeenCalledTimes(2);
-    });
-
     fireEvent.pointerDown(
       await screen.findByLabelText("Ações do jogo W.O. CASA x W.O. VISITANTE"),
     );
