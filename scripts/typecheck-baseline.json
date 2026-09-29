@@ -16,7 +16,6 @@
   "src/hooks/useChampionshipYellowCardDiscipline.ts|TS2339": 1,
   "src/hooks/useMatches.ts|TS2345": 1,
   "src/hooks/usePublicAccessSettings.ts|TS2352": 1,
-  "src/hooks/useStandings.ts|TS2339": 10,
   "src/lib/announcement.ts|TS2322": 1,
   "src/lib/championshipSeason.ts|TS2322": 2,
   "src/lib/modalidadeConfig.ts|TS2345": 2,
