@@ -466,33 +466,25 @@ export function useMatches({
             ...(location ? { location } : {}),
             ...(courtName ? { courtName } : {}),
             ...(hasExplicitMatchIds ? { matchIds: normalizedMatchIds } : {}),
-            page: typeof page == "number" && page > 0 ? page : 1,
-            pageSize: typeof itemsPerPage == "number" && itemsPerPage > 0 ? itemsPerPage : 100,
+            includePendingManualRelocation,
+            ...(isPaginated && typeof page == "number" ? { page } : {}),
+            ...(isPaginated && typeof itemsPerPage == "number" ? { pageSize: itemsPerPage } : {}),
             sort: apiSort,
             order: apiOrder,
           });
-          matchRows = includePendingManualRelocation
-            ? apiResult.matches
-            : apiResult.matches.filter((match) => !match.is_pending_manual_relocation);
-          resolvedTotalCount = includePendingManualRelocation ? apiResult.total : matchRows.length;
+          matchRows = apiResult.matches;
+          resolvedTotalCount = apiResult.total;
 
-          if (
-            !shouldUseDedicatedSportsCore &&
-            includeOperationalContext &&
-            refreshOperationalContext
-          ) {
+          if (includeOperationalContext && refreshOperationalContext) {
             const operationalContextResult = await listSportsCoreMatches({
               ...(championshipId ? { championshipId } : {}),
               ...(typeof seasonYear == "number" ? { seasonYear } : {}),
               ...(sportId ? { sportId } : {}),
-              page: 1,
-              pageSize: 100,
+              includePendingManualRelocation: false,
               sort: "queuePosition",
               order: "asc",
             });
-            resolvedOperationalContextMatches = operationalContextResult.matches.filter(
-              (match) => !match.is_pending_manual_relocation,
-            );
+            resolvedOperationalContextMatches = operationalContextResult.matches;
           }
         } else if (
           (sortMode == "SCHEDULED" || sortMode == "FINISHED") &&
