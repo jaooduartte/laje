@@ -70,7 +70,10 @@ const {
 } = vi.hoisted(() => ({
   supabaseUpdateCalls: [] as SupabaseUpdateCall[],
   supabaseRpcCalls: [] as SupabaseRpcCall[],
-  supabaseRpcResponses: [] as Array<{ data: unknown; error: { code?: string; message: string } | null }>,
+  supabaseRpcResponses: [] as Array<{
+    data: unknown;
+    error: { code?: string; message: string } | null;
+  }>,
   shouldDelaySupabaseUpdate: { value: false },
   resolveDelayedSupabaseUpdate: { current: null as (() => void) | null },
   toastSuccessMock: vi.fn(),
@@ -132,7 +135,11 @@ vi.mock("@/components/ui/app-pagination-controls", () => ({
       <button type="button" data-testid="admin-matches-next-page" onClick={() => onPageChange(2)}>
         próxima página
       </button>
-      <button type="button" data-testid="admin-matches-items-per-page" onClick={() => onItemsPerPageChange(30)}>
+      <button
+        type="button"
+        data-testid="admin-matches-items-per-page"
+        onClick={() => onItemsPerPageChange(30)}
+      >
         itens por página
       </button>
     </div>
@@ -140,9 +147,13 @@ vi.mock("@/components/ui/app-pagination-controls", () => ({
 }));
 
 vi.mock("@/components/ui/dropdown-menu", () => ({
-  DropdownMenu: ({ children }: { children: ReactNode }) => <div data-testid="dropdown-menu-root-mock">{children}</div>,
+  DropdownMenu: ({ children }: { children: ReactNode }) => (
+    <div data-testid="dropdown-menu-root-mock">{children}</div>
+  ),
   DropdownMenuTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
-  DropdownMenuContent: ({ children }: { children: ReactNode }) => <div data-testid="dropdown-menu-content-mock">{children}</div>,
+  DropdownMenuContent: ({ children }: { children: ReactNode }) => (
+    <div data-testid="dropdown-menu-content-mock">{children}</div>
+  ),
   DropdownMenuSeparator: () => <hr data-testid="dropdown-menu-separator-mock" />,
   DropdownMenuItem: ({
     children,
@@ -167,15 +178,20 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
 }));
 
 vi.mock("@/domain/championship-brackets/championshipBracket.repository", () => ({
-  fetchChampionshipBracketLocationTemplates: (...args: unknown[]) => fetchLocationTemplatesMock(...args),
+  fetchChampionshipBracketLocationTemplates: (...args: unknown[]) =>
+    fetchLocationTemplatesMock(...args),
   getBracketCourtSports: (...args: unknown[]) => getBracketCourtSportsMock(...args),
   getBracketDaySchedules: (...args: unknown[]) => getBracketDaySchedulesMock(...args),
-  listEditableMatchScheduleSlots: (...args: unknown[]) => listEditableMatchScheduleSlotsMock(...args),
-  fetchChampionshipBracketPendingTieBreaks: (...args: unknown[]) => fetchPendingTieBreaksMock(...args),
-  fetchChampionshipCorrectedGroupStandings: (...args: unknown[]) => fetchCorrectedGroupStandingsMock(...args),
+  listEditableMatchScheduleSlots: (...args: unknown[]) =>
+    listEditableMatchScheduleSlotsMock(...args),
+  fetchChampionshipBracketPendingTieBreaks: (...args: unknown[]) =>
+    fetchPendingTieBreaksMock(...args),
+  fetchChampionshipCorrectedGroupStandings: (...args: unknown[]) =>
+    fetchCorrectedGroupStandingsMock(...args),
   generateChampionshipKnockout: (...args: unknown[]) => generateChampionshipKnockoutMock(...args),
   saveMatchSets: (...args: unknown[]) => saveMatchSetsMock(...args),
-  saveChampionshipBracketTieBreakResolution: (...args: unknown[]) => saveTieBreakResolutionMock(...args),
+  saveChampionshipBracketTieBreakResolution: (...args: unknown[]) =>
+    saveTieBreakResolutionMock(...args),
   updateBracketDaySchedule: (...args: unknown[]) => updateBracketDayScheduleMock(...args),
   updateScheduledMatchLogistics: (...args: unknown[]) => updateScheduledMatchLogisticsMock(...args),
 }));
@@ -273,14 +289,18 @@ function buildSport(overrides: Partial<Sport> & Pick<Sport, "id" | "name">): Spo
 }
 
 function buildMatch(overrides: Partial<Match> & Pick<Match, "id" | "sport_id" | "status">): Match {
-  const homeTeam = overrides.home_team ?? buildTeam({ id: `${overrides.id}-home`, name: `${overrides.id}-Casa` });
-  const awayTeam = overrides.away_team ?? buildTeam({ id: `${overrides.id}-away`, name: `${overrides.id}-Visitante` });
+  const homeTeam =
+    overrides.home_team ?? buildTeam({ id: `${overrides.id}-home`, name: `${overrides.id}-Casa` });
+  const awayTeam =
+    overrides.away_team ??
+    buildTeam({ id: `${overrides.id}-away`, name: `${overrides.id}-Visitante` });
 
   return {
     id: overrides.id,
     championship_id: overrides.championship_id ?? "championship-1",
     season_year: overrides.season_year ?? 2026,
-    division: overrides.division === undefined ? TeamDivision.DIVISAO_PRINCIPAL : overrides.division,
+    division:
+      overrides.division === undefined ? TeamDivision.DIVISAO_PRINCIPAL : overrides.division,
     naipe: overrides.naipe ?? MatchNaipe.MASCULINO,
     supports_cards: overrides.supports_cards ?? false,
     result_rule: overrides.result_rule ?? ChampionshipSportResultRule.POINTS,
@@ -289,26 +309,21 @@ function buildMatch(overrides: Partial<Match> & Pick<Match, "id" | "sport_id" | 
     away_team_id: overrides.away_team_id ?? awayTeam.id,
     location: overrides.location ?? "Praia de Piçarras",
     court_name: overrides.court_name ?? null,
-    manual_representation_mode: overrides.manual_representation_mode ?? MatchManualRepresentationMode.AUTO,
+    manual_representation_mode:
+      overrides.manual_representation_mode ?? MatchManualRepresentationMode.AUTO,
     scheduled_date: overrides.scheduled_date ?? "2026-04-11",
     queue_position: overrides.queue_position ?? 1,
     scheduled_slot: overrides.scheduled_slot ?? null,
-    is_manual_schedule_override:
-      overrides.is_manual_schedule_override ?? false,
-    is_pending_manual_relocation:
-      overrides.is_pending_manual_relocation ?? false,
-    pending_manual_relocation_reason:
-      overrides.pending_manual_relocation_reason ?? null,
-    pending_manual_relocation_notes:
-      overrides.pending_manual_relocation_notes ?? null,
+    is_manual_schedule_override: overrides.is_manual_schedule_override ?? false,
+    is_pending_manual_relocation: overrides.is_pending_manual_relocation ?? false,
+    pending_manual_relocation_reason: overrides.pending_manual_relocation_reason ?? null,
+    pending_manual_relocation_notes: overrides.pending_manual_relocation_notes ?? null,
     pending_manual_relocation_previous_schedule:
       overrides.pending_manual_relocation_previous_schedule ?? null,
     pending_manual_relocation_previous_label:
       overrides.pending_manual_relocation_previous_label ?? null,
-    pending_manual_relocation_created_by:
-      overrides.pending_manual_relocation_created_by ?? null,
-    pending_manual_relocation_at:
-      overrides.pending_manual_relocation_at ?? null,
+    pending_manual_relocation_created_by: overrides.pending_manual_relocation_created_by ?? null,
+    pending_manual_relocation_at: overrides.pending_manual_relocation_at ?? null,
     current_set_home_score: overrides.current_set_home_score ?? null,
     current_set_away_score: overrides.current_set_away_score ?? null,
     is_walkover: overrides.is_walkover ?? false,
@@ -341,7 +356,9 @@ function buildMatch(overrides: Partial<Match> & Pick<Match, "id" | "sport_id" | 
   };
 }
 
-function buildChampionshipSport(overrides: Partial<ChampionshipSport> & Pick<ChampionshipSport, "id" | "sport_id">): ChampionshipSport {
+function buildChampionshipSport(
+  overrides: Partial<ChampionshipSport> & Pick<ChampionshipSport, "id" | "sport_id">,
+): ChampionshipSport {
   return {
     id: overrides.id,
     championship_id: overrides.championship_id ?? "championship-1",
@@ -375,14 +392,18 @@ function buildChampionship(overrides: Partial<Championship> = {}): Championship 
   };
 }
 
-function buildBracketView(overrides: Partial<ChampionshipBracketView> = {}): ChampionshipBracketView {
+function buildBracketView(
+  overrides: Partial<ChampionshipBracketView> = {},
+): ChampionshipBracketView {
   return {
     edition: overrides.edition ?? null,
     competitions: overrides.competitions ?? [],
   };
 }
 
-function buildBracketEdition(overrides: Partial<ChampionshipBracketEdition> = {}): ChampionshipBracketEdition {
+function buildBracketEdition(
+  overrides: Partial<ChampionshipBracketEdition> = {},
+): ChampionshipBracketEdition {
   return {
     id: overrides.id ?? "edition-1",
     championship_id: overrides.championship_id ?? "championship-1",
@@ -396,7 +417,10 @@ function buildBracketEdition(overrides: Partial<ChampionshipBracketEdition> = {}
 
 function buildCorrectedGroupStanding(
   overrides: Partial<ChampionshipCorrectedGroupStanding> &
-    Pick<ChampionshipCorrectedGroupStanding, "competition_id" | "group_id" | "group_number" | "team_id" | "team_name">,
+    Pick<
+      ChampionshipCorrectedGroupStanding,
+      "competition_id" | "group_id" | "group_number" | "team_id" | "team_name"
+    >,
 ): ChampionshipCorrectedGroupStanding {
   return {
     competition_id: overrides.competition_id,
@@ -428,7 +452,16 @@ function renderAdminMatches(params: {
   bracketView?: ChampionshipBracketView;
   visualQueuePositionByMatchId?: Record<string, number>;
   estimatedStartTimeByMatchId?: Record<string, string>;
-  matchBracketContextByMatchId?: Record<string, { badgeLabel: string; phase: BracketPhase; stageLabel: string; groupFilterValue?: string; groupLabel?: string }>;
+  matchBracketContextByMatchId?: Record<
+    string,
+    {
+      badgeLabel: string;
+      phase: BracketPhase;
+      stageLabel: string;
+      groupFilterValue?: string;
+      groupLabel?: string;
+    }
+  >;
   selectedChampionship?: Championship;
   championshipSports?: ChampionshipSport[];
   canManageMatches?: boolean;
@@ -444,7 +477,11 @@ function renderAdminMatches(params: {
       <AdminMatches
         matches={params.matches}
         teams={params.matches.flatMap((match) => [match.home_team!, match.away_team!])}
-        championshipSports={params.championshipSports ?? [buildChampionshipSport({ id: "championship-sport-1", sport_id: "sport-1" })]}
+        championshipSports={
+          params.championshipSports ?? [
+            buildChampionshipSport({ id: "championship-sport-1", sport_id: "sport-1" }),
+          ]
+        }
         selectedChampionship={params.selectedChampionship ?? buildChampionship()}
         championshipBracketView={params.bracketView ?? buildBracketView()}
         loadingChampionshipBracket={false}
@@ -715,23 +752,17 @@ describe("AdminMatches score sheet review", () => {
       ],
     });
 
-    expect(
-      screen.getByRole("tab", { name: /Aguardando realocação 1/ }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Aguardando realocação 1/ })).toBeInTheDocument();
     expect(screen.queryByText(/PENDENTE CASA/)).not.toBeInTheDocument();
 
-    fireEvent.click(
-      screen.getByRole("tab", { name: /Aguardando realocação 1/ }),
-    );
+    fireEvent.click(screen.getByRole("tab", { name: /Aguardando realocação 1/ }));
 
     await screen.findByText("Jogos aguardando realocação");
 
     expect(screen.getByText(/PENDENTE CASA/)).toBeInTheDocument();
     expect(screen.getByText("Jogo 27")).toBeInTheDocument();
     expect(screen.getByText("Condições climáticas")).toBeInTheDocument();
-    expect(
-      screen.getByText("1 item(ns) de programação encontrado(s)"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("1 item(ns) de programação encontrado(s)")).toBeInTheDocument();
   });
 
   it("mostra sessões individuais configuradas na aba Jogos", async () => {
@@ -772,9 +803,7 @@ describe("AdminMatches score sheet review", () => {
     await waitFor(() => {
       expect(screen.getByText("Sessões Individuais")).toBeInTheDocument();
     });
-    const sessionCard = screen
-      .getByText("Sessão de provas")
-      .closest(".list-item-card");
+    const sessionCard = screen.getByText("Sessão de provas").closest(".list-item-card");
 
     expect(sessionCard).not.toBeNull();
     expect(screen.getByText("Atletismo")).toBeInTheDocument();
@@ -783,9 +812,7 @@ describe("AdminMatches score sheet review", () => {
     expect(
       within(sessionCard as HTMLElement).getByText(/Pista de Atletismo.*Raia 1/),
     ).toBeInTheDocument();
-    expect(
-      within(sessionCard as HTMLElement).getByText("Data: 11/04/2026"),
-    ).toBeInTheDocument();
+    expect(within(sessionCard as HTMLElement).getByText("Data: 11/04/2026")).toBeInTheDocument();
   });
 
   it("exibe somente jogos encerrados na aba de conferência", async () => {
@@ -879,8 +906,12 @@ describe("AdminMatches score sheet review", () => {
     });
 
     const renderedMarkup = document.body.innerHTML;
-    expect(renderedMarkup.indexOf("TIME JOGO 5")).toBeLessThan(renderedMarkup.indexOf("TIME JOGO 7"));
-    expect(renderedMarkup.indexOf("TIME JOGO 7")).toBeLessThan(renderedMarkup.indexOf("TIME JOGO 8"));
+    expect(renderedMarkup.indexOf("TIME JOGO 5")).toBeLessThan(
+      renderedMarkup.indexOf("TIME JOGO 7"),
+    );
+    expect(renderedMarkup.indexOf("TIME JOGO 7")).toBeLessThan(
+      renderedMarkup.indexOf("TIME JOGO 8"),
+    );
   });
 
   it("abre ocultando jogos revisados por padrão e permite exibi-los novamente", async () => {
@@ -991,12 +1022,16 @@ describe("AdminMatches score sheet review", () => {
     fireEvent.click(screen.getByRole("button", { name: "Salvar revisão" }));
 
     await waitFor(() => {
-      expect(supabaseRpcCalls.some((rpcCall) => rpcCall.functionName == "save_match_score_sheet_awards")).toBe(true);
+      expect(
+        supabaseRpcCalls.some((rpcCall) => rpcCall.functionName == "save_match_score_sheet_awards"),
+      ).toBe(true);
     });
 
     expect(
       supabaseRpcCalls.find(
-        (rpcCall) => rpcCall.functionName == "save_match_score_sheet_awards" && rpcCall.payload._match_id == "match-1",
+        (rpcCall) =>
+          rpcCall.functionName == "save_match_score_sheet_awards" &&
+          rpcCall.payload._match_id == "match-1",
       )?.payload,
     ).toMatchObject({
       _match_id: "match-1",
@@ -1094,10 +1129,15 @@ describe("AdminMatches score sheet review", () => {
       ],
     });
 
-    fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo AMARELO CASA x AMARELO VISITANTE"));
-    clickFirstMenuItemInMatchCard(getMatchCardContainerByTeamName("AMARELO CASA"), "Revisar súmula e premiações");
+    fireEvent.pointerDown(
+      await screen.findByLabelText("Ações do jogo AMARELO CASA x AMARELO VISITANTE"),
+    );
+    clickFirstMenuItemInMatchCard(
+      getMatchCardContainerByTeamName("AMARELO CASA"),
+      "Revisar súmula e premiações",
+    );
 
-    expect((await screen.findAllByText("Cartões amarelos"))).toHaveLength(2);
+    expect(await screen.findAllByText("Cartões amarelos")).toHaveLength(2);
     fireEvent.click(screen.getByRole("combobox", { name: "AMARELO CASA cartão amarelo 1" }));
     fireEvent.click(await screen.findByRole("option", { name: "Atleta Casa" }));
     fireEvent.click(screen.getByRole("combobox", { name: "AMARELO CASA cartão amarelo 2" }));
@@ -1170,8 +1210,13 @@ describe("AdminMatches score sheet review", () => {
       ],
     });
 
-    fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo VERMELHO CASA x VERMELHO VISITANTE"));
-    clickFirstMenuItemInMatchCard(getMatchCardContainerByTeamName("VERMELHO CASA"), "Revisar súmula e premiações");
+    fireEvent.pointerDown(
+      await screen.findByLabelText("Ações do jogo VERMELHO CASA x VERMELHO VISITANTE"),
+    );
+    clickFirstMenuItemInMatchCard(
+      getMatchCardContainerByTeamName("VERMELHO CASA"),
+      "Revisar súmula e premiações",
+    );
 
     expect(await screen.findAllByText("Cartões vermelhos")).toHaveLength(1);
     expect(screen.getAllByText("Cadastrar atleta")).toHaveLength(1);
@@ -1253,9 +1298,7 @@ describe("AdminMatches score sheet review", () => {
     });
 
     fireEvent.pointerDown(
-      await screen.findByLabelText(
-        "Ações do jogo HANDEBOL CASA x HANDEBOL VISITANTE",
-      ),
+      await screen.findByLabelText("Ações do jogo HANDEBOL CASA x HANDEBOL VISITANTE"),
     );
     clickFirstMenuItemInMatchCard(
       getMatchCardContainerByTeamName("HANDEBOL CASA"),
@@ -1325,9 +1368,7 @@ describe("AdminMatches score sheet review", () => {
     });
 
     fireEvent.pointerDown(
-      await screen.findByLabelText(
-        "Ações do jogo HANDEBOL CASA x HANDEBOL VISITANTE",
-      ),
+      await screen.findByLabelText("Ações do jogo HANDEBOL CASA x HANDEBOL VISITANTE"),
     );
     clickFirstMenuItemInMatchCard(
       getMatchCardContainerByTeamName("HANDEBOL CASA"),
@@ -1367,24 +1408,17 @@ describe("AdminMatches score sheet review", () => {
     });
 
     fireEvent.pointerDown(
-      await screen.findByLabelText(
-        "Ações do jogo LOADING CASA x LOADING VISITANTE",
-      ),
+      await screen.findByLabelText("Ações do jogo LOADING CASA x LOADING VISITANTE"),
     );
     const matchCardContainer = getMatchCardContainerByTeamName("LOADING CASA");
-    clickFirstMenuItemInMatchCard(
-      matchCardContainer,
-      "Revisar súmula e premiações",
-    );
+    clickFirstMenuItemInMatchCard(matchCardContainer, "Revisar súmula e premiações");
 
     expect(
       await within(matchCardContainer).findByRole("status", {
         name: "Salvando revisão da súmula",
       }),
     ).toBeInTheDocument();
-    expect(
-      within(matchCardContainer).queryByTitle("Conferido com súmula"),
-    ).not.toBeInTheDocument();
+    expect(within(matchCardContainer).queryByTitle("Conferido com súmula")).not.toBeInTheDocument();
 
     await act(async () => {
       resolveDelayedSupabaseUpdate.current?.();
@@ -1449,7 +1483,9 @@ describe("AdminMatches score sheet review", () => {
       ],
     });
 
-    fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo PENALTY CASA x PENALTY VISITANTE"));
+    fireEvent.pointerDown(
+      await screen.findByLabelText("Ações do jogo PENALTY CASA x PENALTY VISITANTE"),
+    );
     const matchCardContainer = getMatchCardContainerByTeamName("PENALTY CASA");
     clickFirstMenuItemInMatchCard(matchCardContainer, "Revisar súmula e premiações");
 
@@ -1498,7 +1534,8 @@ describe("AdminMatches score sheet review", () => {
     fireEvent.click(screen.getByTestId("sport-filter-mock"));
 
     const selectAllLabel = screen.getByText("Selecionar todos os jogos filtrados");
-    const selectAllCheckboxButton = selectAllLabel.parentElement?.querySelector<HTMLElement>('[role="checkbox"]');
+    const selectAllCheckboxButton =
+      selectAllLabel.parentElement?.querySelector<HTMLElement>('[role="checkbox"]');
     expect(selectAllCheckboxButton).not.toBeNull();
     fireEvent.click(selectAllCheckboxButton as HTMLElement);
 
@@ -1545,9 +1582,8 @@ describe("AdminMatches score sheet review", () => {
     });
 
     const selectAllLabel = screen.getByText("Selecionar todos os jogos filtrados");
-    const selectAllCheckboxButton = selectAllLabel.parentElement?.querySelector<HTMLElement>(
-      '[role="checkbox"]',
-    );
+    const selectAllCheckboxButton =
+      selectAllLabel.parentElement?.querySelector<HTMLElement>('[role="checkbox"]');
     expect(selectAllCheckboxButton).not.toBeNull();
     fireEvent.click(selectAllCheckboxButton as HTMLElement);
 
@@ -1599,9 +1635,8 @@ describe("AdminMatches score sheet review", () => {
     });
 
     const selectAllLabel = screen.getByText("Selecionar todos os jogos filtrados");
-    const selectAllCheckboxButton = selectAllLabel.parentElement?.querySelector<HTMLElement>(
-      '[role="checkbox"]',
-    );
+    const selectAllCheckboxButton =
+      selectAllLabel.parentElement?.querySelector<HTMLElement>('[role="checkbox"]');
     expect(selectAllCheckboxButton).not.toBeNull();
     fireEvent.click(selectAllCheckboxButton as HTMLElement);
 
@@ -1684,9 +1719,7 @@ describe("AdminMatches score sheet review", () => {
       ],
     });
 
-    fireEvent.click(
-      await screen.findByLabelText("Mostrar jogos revisados também"),
-    );
+    fireEvent.click(await screen.findByLabelText("Mostrar jogos revisados também"));
 
     await waitFor(() => {
       expect(screen.getByTitle("Conferido com súmula")).toBeInTheDocument();
@@ -1699,13 +1732,8 @@ describe("AdminMatches score sheet review", () => {
       matches: [],
     });
 
-    expect(screen.getByTestId("admin-matches-filters")).toHaveClass(
-      "flex",
-      "flex-wrap",
-    );
-    expect(
-      screen.queryByRole("button", { name: "Criar jogo" }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("admin-matches-filters")).toHaveClass("flex", "flex-wrap");
+    expect(screen.queryByRole("button", { name: "Criar jogo" })).not.toBeInTheDocument();
   });
 
   it("centraliza o badge mobile de naipe e mantém altura padronizada", async () => {
@@ -1754,12 +1782,12 @@ describe("AdminMatches score sheet review", () => {
 
     const matchCardContainer = getMatchCardContainerByTeamName("AZUL CASA");
 
-    expect(
-      within(matchCardContainer).getByTestId("admin-match-home-blue-cards"),
-    ).toHaveTextContent("1");
-    expect(
-      within(matchCardContainer).getByTestId("admin-match-away-blue-cards"),
-    ).toHaveTextContent("2");
+    expect(within(matchCardContainer).getByTestId("admin-match-home-blue-cards")).toHaveTextContent(
+      "1",
+    );
+    expect(within(matchCardContainer).getByTestId("admin-match-away-blue-cards")).toHaveTextContent(
+      "2",
+    );
     expect(within(matchCardContainer).queryByText(/CAZ:/)).not.toBeInTheDocument();
     expect(within(matchCardContainer).queryByText(/2M:/)).not.toBeInTheDocument();
   });
@@ -1781,9 +1809,15 @@ describe("AdminMatches score sheet review", () => {
     fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo MENU CASA x MENU VISITANTE"));
 
     const matchCardContainer = getMatchCardContainerByTeamName("MENU CASA");
-    expect(within(matchCardContainer).getAllByRole("menuitem", { name: "Editar" }).length).toBeGreaterThan(0);
-    expect(within(matchCardContainer).getAllByRole("menuitem", { name: "Trocar jogo" }).length).toBeGreaterThan(0);
-    expect(within(matchCardContainer).getAllByRole("menuitem", { name: "Apagar" }).length).toBeGreaterThan(0);
+    expect(
+      within(matchCardContainer).getAllByRole("menuitem", { name: "Editar" }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(matchCardContainer).getAllByRole("menuitem", { name: "Trocar jogo" }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(matchCardContainer).getAllByRole("menuitem", { name: "Apagar" }).length,
+    ).toBeGreaterThan(0);
   });
 
   it("mantém a ordem por horário e apenas troca a numeração visual da quadra nos cards agendados", () => {
@@ -1856,7 +1890,9 @@ describe("AdminMatches score sheet review", () => {
     const gameThreeCard = getMatchCardContainerByTeamName("CAMALEÃO B");
     const gameFourCard = getMatchCardContainerByTeamName("GARRUDOS");
 
-    expect(gameFourCard.compareDocumentPosition(gameThreeCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      gameFourCard.compareDocumentPosition(gameThreeCard) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(gameFourCard).toHaveTextContent("Jogo 3");
     expect(gameFourCard).toHaveTextContent("Horário previsto: 09:20");
     expect(gameThreeCard).toHaveTextContent("Jogo 4");
@@ -1909,12 +1945,20 @@ describe("AdminMatches score sheet review", () => {
       ],
     });
 
-    fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo REVIEW CASA x REVIEW VISITANTE"));
+    fireEvent.pointerDown(
+      await screen.findByLabelText("Ações do jogo REVIEW CASA x REVIEW VISITANTE"),
+    );
 
     const matchCardContainer = getMatchCardContainerByTeamName("REVIEW CASA");
-    expect(within(matchCardContainer).getAllByRole("menuitem", { name: "Editar" }).length).toBeGreaterThan(0);
-    expect(within(matchCardContainer).queryAllByRole("menuitem", { name: "Trocar jogo" })).toHaveLength(0);
-    expect(within(matchCardContainer).queryAllByRole("menuitem", { name: "Apagar" })).toHaveLength(0);
+    expect(
+      within(matchCardContainer).getAllByRole("menuitem", { name: "Editar" }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(matchCardContainer).queryAllByRole("menuitem", { name: "Trocar jogo" }),
+    ).toHaveLength(0);
+    expect(within(matchCardContainer).queryAllByRole("menuitem", { name: "Apagar" })).toHaveLength(
+      0,
+    );
   });
 
   it("mantém as atléticas vinculadas ao editar jogo sem divisão", async () => {
@@ -1942,26 +1986,21 @@ describe("AdminMatches score sheet review", () => {
     });
 
     fireEvent.pointerDown(
-      await screen.findByLabelText(
-        "Ações do jogo CASA ACESSO x VISITANTE PRINCIPAL",
-      ),
+      await screen.findByLabelText("Ações do jogo CASA ACESSO x VISITANTE PRINCIPAL"),
     );
-    clickFirstMenuItemInMatchCard(
-      getMatchCardContainerByTeamName("CASA ACESSO"),
-      "Editar",
-    );
+    clickFirstMenuItemInMatchCard(getMatchCardContainerByTeamName("CASA ACESSO"), "Editar");
 
     const dialog = await screen.findByRole("dialog");
 
-    expect(
-      within(dialog).getByRole("combobox", { name: "Divisão do jogo" }),
-    ).toHaveTextContent("Sem divisão");
-    expect(
-      within(dialog).getByRole("combobox", { name: "Atlética da casa" }),
-    ).toHaveTextContent("CASA ACESSO");
-    expect(
-      within(dialog).getByRole("combobox", { name: "Atlética visitante" }),
-    ).toHaveTextContent("VISITANTE PRINCIPAL");
+    expect(within(dialog).getByRole("combobox", { name: "Divisão do jogo" })).toHaveTextContent(
+      "Sem divisão",
+    );
+    expect(within(dialog).getByRole("combobox", { name: "Atlética da casa" })).toHaveTextContent(
+      "CASA ACESSO",
+    );
+    expect(within(dialog).getByRole("combobox", { name: "Atlética visitante" })).toHaveTextContent(
+      "VISITANTE PRINCIPAL",
+    );
   });
 
   it("encerra o carregamento de horários quando a consulta falha", async () => {
@@ -1983,14 +2022,9 @@ describe("AdminMatches score sheet review", () => {
     });
 
     fireEvent.pointerDown(
-      await screen.findByLabelText(
-        "Ações do jogo CASA HORÁRIO x VISITANTE HORÁRIO",
-      ),
+      await screen.findByLabelText("Ações do jogo CASA HORÁRIO x VISITANTE HORÁRIO"),
     );
-    clickFirstMenuItemInMatchCard(
-      getMatchCardContainerByTeamName("CASA HORÁRIO"),
-      "Editar",
-    );
+    clickFirstMenuItemInMatchCard(getMatchCardContainerByTeamName("CASA HORÁRIO"), "Editar");
 
     await waitFor(() => {
       expect(toastErrorMock).toHaveBeenCalledWith("Falha ao carregar horários");
@@ -2109,21 +2143,15 @@ describe("AdminMatches score sheet review", () => {
       error: null,
     });
 
-    const slotCard = screen
-      .getByText("Representação: Final")
-      .closest(".list-item-card");
+    const slotCard = screen.getByText("Representação: Final").closest(".list-item-card");
 
     if (!slotCard) {
       throw new Error("Card do slot de mata-mata não encontrado.");
     }
 
-    fireEvent.click(
-      within(slotCard).getByRole("menuitem", { name: "Trocar jogo" }),
-    );
+    fireEvent.click(within(slotCard).getByRole("menuitem", { name: "Trocar jogo" }));
 
-    expect(
-      await screen.findByText("Trocar jogo eliminatório"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Trocar jogo eliminatório")).toBeInTheDocument();
     expect(screen.getByText(/Jogo 1.*Posição 3 na fila/)).toBeInTheDocument();
     await waitFor(() => {
       expect(supabaseRpcCalls[0]).toMatchObject({
@@ -2139,9 +2167,7 @@ describe("AdminMatches score sheet review", () => {
         name: "Selecionar jogo eliminatório para troca",
       }),
     );
-    const targetOption = await screen.findByText(
-      /CANDIDATO CASA x CANDIDATO VISITANTE/,
-    );
+    const targetOption = await screen.findByText(/CANDIDATO CASA x CANDIDATO VISITANTE/);
     expect(targetOption).toHaveTextContent("Jogo 2");
     expect(targetOption).toHaveTextContent("Posição 4 na fila");
     expect(targetOption).not.toHaveTextContent("Jogo 4");
@@ -2273,20 +2299,14 @@ describe("AdminMatches score sheet review", () => {
 
     supabaseRpcResponses.push({ data: [], error: null });
 
-    const sourceCardContainer = getMatchCardContainerByTeamName(
-      "SEMIFINAL CASA",
-    );
+    const sourceCardContainer = getMatchCardContainerByTeamName("SEMIFINAL CASA");
 
     fireEvent.pointerDown(
-      await screen.findByLabelText(
-        "Ações do jogo SEMIFINAL CASA x SEMIFINAL VISITANTE",
-      ),
+      await screen.findByLabelText("Ações do jogo SEMIFINAL CASA x SEMIFINAL VISITANTE"),
     );
     clickFirstMenuItemInMatchCard(sourceCardContainer, "Trocar jogo");
 
-    expect(
-      await screen.findByText("Trocar jogo eliminatório"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Trocar jogo eliminatório")).toBeInTheDocument();
     await waitFor(() => {
       expect(supabaseRpcCalls[0]).toMatchObject({
         functionName: "list_knockout_schedule_swap_candidates",
@@ -2296,9 +2316,7 @@ describe("AdminMatches score sheet review", () => {
       });
     });
     expect(
-      supabaseRpcCalls.some(
-        (call) => call.functionName == "list_match_queue_swap_candidates",
-      ),
+      supabaseRpcCalls.some((call) => call.functionName == "list_match_queue_swap_candidates"),
     ).toBe(false);
   });
 
@@ -2374,11 +2392,15 @@ describe("AdminMatches score sheet review", () => {
 
     const sourceCardContainer = getMatchCardContainerByTeamName("ORIGEM CASA");
 
-    fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo ORIGEM CASA x ORIGEM VISITANTE"));
+    fireEvent.pointerDown(
+      await screen.findByLabelText("Ações do jogo ORIGEM CASA x ORIGEM VISITANTE"),
+    );
     clickFirstMenuItemInMatchCard(sourceCardContainer, "Trocar jogo");
 
     expect(await screen.findByText("Trocar jogo na fila")).toBeInTheDocument();
-    expect(await screen.findByText("12/04 • 05:00 • Jogo 18 • ORIGEM CASA x ORIGEM VISITANTE")).toBeInTheDocument();
+    expect(
+      await screen.findByText("12/04 • 05:00 • Jogo 18 • ORIGEM CASA x ORIGEM VISITANTE"),
+    ).toBeInTheDocument();
     await waitFor(() => {
       expect(supabaseRpcCalls[0]).toMatchObject({
         functionName: "list_match_queue_swap_candidates",
@@ -2389,11 +2411,20 @@ describe("AdminMatches score sheet review", () => {
     });
 
     fireEvent.click(screen.getByRole("combobox", { name: "Selecionar jogo para troca de fila" }));
-    expect((await screen.findAllByText("13/04 • 05:40 • Jogo 20 • CANDIDATO CASA x CANDIDATO VISITANTE")).length).toBeGreaterThan(0);
+    expect(
+      (await screen.findAllByText("13/04 • 05:40 • Jogo 20 • CANDIDATO CASA x CANDIDATO VISITANTE"))
+        .length,
+    ).toBeGreaterThan(0);
     expect(await screen.findByText("Descanso reduzido: outra modalidade")).toBeInTheDocument();
-    expect(screen.queryByText("12/04 • Jogo 3 • OUTRO CASA x OUTRO VISITANTE")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("12/04 • Jogo 3 • OUTRO CASA x OUTRO VISITANTE"),
+    ).not.toBeInTheDocument();
 
-    fireEvent.click((await screen.findAllByText("13/04 • 05:40 • Jogo 20 • CANDIDATO CASA x CANDIDATO VISITANTE"))[0]);
+    fireEvent.click(
+      (
+        await screen.findAllByText("13/04 • 05:40 • Jogo 20 • CANDIDATO CASA x CANDIDATO VISITANTE")
+      )[0],
+    );
 
     onRefetch.mockClear();
     onRefetchChampionshipBracket.mockClear();
@@ -2542,9 +2573,7 @@ describe("AdminMatches score sheet review", () => {
     expect(await screen.findByText("Jogo 6")).toBeInTheDocument();
 
     Array.from({ length: 5 }).forEach(() => {
-      fireEvent.click(
-        screen.getByRole("button", { name: "Aumentar placar de AFA" }),
-      );
+      fireEvent.click(screen.getByRole("button", { name: "Aumentar placar de AFA" }));
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
@@ -2581,19 +2610,13 @@ describe("AdminMatches score sheet review", () => {
       ],
     });
 
-    fireEvent.click(
-      await screen.findByLabelText("Mostrar jogos revisados também"),
-    );
+    fireEvent.click(await screen.findByLabelText("Mostrar jogos revisados também"));
 
-    fireEvent.pointerDown(
-      await screen.findByLabelText("Ações do jogo W.O. CASA x W.O. VISITANTE"),
-    );
+    fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo W.O. CASA x W.O. VISITANTE"));
     const matchCardContainer = getMatchCardContainerByTeamName("W.O. CASA");
     clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
 
-    expect(screen.getByRole("combobox", { name: "W.O.?" })).toHaveTextContent(
-      "W.O. CASA",
-    );
+    expect(screen.getByRole("combobox", { name: "W.O.?" })).toHaveTextContent("W.O. CASA");
 
     fireEvent.click(screen.getByRole("combobox", { name: "W.O.?" }));
     fireEvent.click(await screen.findByRole("option", { name: "W.O. VISITANTE" }));
@@ -2605,9 +2628,8 @@ describe("AdminMatches score sheet review", () => {
 
     await waitFor(() => {
       expect(
-        supabaseRpcCalls.find(
-          (rpcCall) => rpcCall.functionName == "save_finished_match_walkover",
-        )?.payload,
+        supabaseRpcCalls.find((rpcCall) => rpcCall.functionName == "save_finished_match_walkover")
+          ?.payload,
       ).toEqual({
         _match_id: "finished-walkover-edit-match",
         _walkover_mode: "AWAY_LOST",
@@ -2653,9 +2675,8 @@ describe("AdminMatches score sheet review", () => {
 
     await waitFor(() => {
       expect(
-        supabaseRpcCalls.find(
-          (rpcCall) => rpcCall.functionName == "save_finished_match_walkover",
-        )?.payload,
+        supabaseRpcCalls.find((rpcCall) => rpcCall.functionName == "save_finished_match_walkover")
+          ?.payload,
       ).toEqual({
         _match_id: "finished-double-walkover-edit-match",
         _walkover_mode: "DOUBLE",
@@ -2686,9 +2707,7 @@ describe("AdminMatches score sheet review", () => {
       },
     });
 
-    fireEvent.pointerDown(
-      await screen.findByLabelText("Ações do jogo MATA CASA x MATA VISITANTE"),
-    );
+    fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo MATA CASA x MATA VISITANTE"));
     const matchCardContainer = getMatchCardContainerByTeamName("MATA CASA");
     clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
 
@@ -2720,14 +2739,10 @@ describe("AdminMatches score sheet review", () => {
       ],
     });
 
-    fireEvent.click(
-      await screen.findByLabelText("Mostrar jogos revisados também"),
-    );
+    fireEvent.click(await screen.findByLabelText("Mostrar jogos revisados também"));
 
     fireEvent.pointerDown(
-      await screen.findByLabelText(
-        "Ações do jogo REMOVER CASA x REMOVER VISITANTE",
-      ),
+      await screen.findByLabelText("Ações do jogo REMOVER CASA x REMOVER VISITANTE"),
     );
     const matchCardContainer = getMatchCardContainerByTeamName("REMOVER CASA");
     clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
@@ -2738,9 +2753,8 @@ describe("AdminMatches score sheet review", () => {
 
     await waitFor(() => {
       expect(
-        supabaseRpcCalls.find(
-          (rpcCall) => rpcCall.functionName == "save_finished_match_walkover",
-        )?.payload,
+        supabaseRpcCalls.find((rpcCall) => rpcCall.functionName == "save_finished_match_walkover")
+          ?.payload,
       ).toEqual({
         _match_id: "finished-remove-walkover-edit-match",
         _walkover_mode: "NONE",
@@ -2775,14 +2789,9 @@ describe("AdminMatches score sheet review", () => {
     });
 
     fireEvent.pointerDown(
-      await screen.findByLabelText(
-        "Ações do jogo HANDBOL CASA x HANDBOL VISITANTE",
-      ),
+      await screen.findByLabelText("Ações do jogo HANDBOL CASA x HANDBOL VISITANTE"),
     );
-    clickFirstMenuItemInMatchCard(
-      getMatchCardContainerByTeamName("HANDBOL CASA"),
-      "Editar",
-    );
+    clickFirstMenuItemInMatchCard(getMatchCardContainerByTeamName("HANDBOL CASA"), "Editar");
 
     await screen.findByText("Disciplina do Handebol");
     fireEvent.click(
@@ -2796,9 +2805,9 @@ describe("AdminMatches score sheet review", () => {
       }),
     );
 
-    expect(
-      screen.getByLabelText("penalidades de 2 minutos de HANDBOL CASA"),
-    ).toHaveTextContent("1");
+    expect(screen.getByLabelText("penalidades de 2 minutos de HANDBOL CASA")).toHaveTextContent(
+      "1",
+    );
     expect(
       screen.getByLabelText("penalidades de 2 minutos de HANDBOL VISITANTE"),
     ).toHaveTextContent("1");
@@ -2898,7 +2907,9 @@ describe("AdminMatches score sheet review", () => {
       ],
     });
 
-    fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo EDIT PEN CASA x EDIT PEN VISITANTE"));
+    fireEvent.pointerDown(
+      await screen.findByLabelText("Ações do jogo EDIT PEN CASA x EDIT PEN VISITANTE"),
+    );
     const matchCardContainer = getMatchCardContainerByTeamName("EDIT PEN CASA");
     clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
 
@@ -2973,7 +2984,9 @@ describe("AdminMatches score sheet review", () => {
       ],
     });
 
-    fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo CLEAR PEN CASA x CLEAR PEN VISITANTE"));
+    fireEvent.pointerDown(
+      await screen.findByLabelText("Ações do jogo CLEAR PEN CASA x CLEAR PEN VISITANTE"),
+    );
     const matchCardContainer = getMatchCardContainerByTeamName("CLEAR PEN CASA");
     clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
 
@@ -2986,7 +2999,9 @@ describe("AdminMatches score sheet review", () => {
     );
 
     await waitFor(() => {
-      expect(screen.queryByRole("spinbutton", { name: "Pênaltis da casa" })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("spinbutton", { name: "Pênaltis da casa" }),
+      ).not.toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
@@ -3028,7 +3043,9 @@ describe("AdminMatches score sheet review", () => {
       ],
     });
 
-    fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo SEM MUDANCA CASA x SEM MUDANCA VISITANTE"));
+    fireEvent.pointerDown(
+      await screen.findByLabelText("Ações do jogo SEM MUDANCA CASA x SEM MUDANCA VISITANTE"),
+    );
     const matchCardContainer = getMatchCardContainerByTeamName("SEM MUDANCA CASA");
     clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
 
@@ -3118,11 +3135,11 @@ describe("AdminMatches score sheet review", () => {
       ],
     });
 
-    fireEvent.click(
-      await screen.findByLabelText("Mostrar jogos revisados também"),
-    );
+    fireEvent.click(await screen.findByLabelText("Mostrar jogos revisados também"));
 
-    fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo REABRIR CASA x REABRIR VISITANTE"));
+    fireEvent.pointerDown(
+      await screen.findByLabelText("Ações do jogo REABRIR CASA x REABRIR VISITANTE"),
+    );
     const matchCardContainer = getMatchCardContainerByTeamName("REABRIR CASA");
     clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
 
@@ -3168,24 +3185,22 @@ describe("AdminMatches score sheet review", () => {
   });
 
   it("mantém o salvar desabilitado até preencher autores dos gols pendentes", async () => {
-    supabaseRpcResponses.push(
-      {
-        data: {
-          match_id: "review-loader-match",
-          home_team_id: "team-review-loader-home",
-          away_team_id: "team-review-loader-away",
-          required_home_goals: 1,
-          required_away_goals: 0,
-          requires_goal_scorers: true,
-          is_walkover: false,
-          home_players: [{ id: "home-player-2", name: "Atacante Casa" }],
-          away_players: [{ id: "away-player-2", name: "Atleta Visitante" }],
-          home_goals: [],
-          away_goals: [],
-        },
-        error: null,
+    supabaseRpcResponses.push({
+      data: {
+        match_id: "review-loader-match",
+        home_team_id: "team-review-loader-home",
+        away_team_id: "team-review-loader-away",
+        required_home_goals: 1,
+        required_away_goals: 0,
+        requires_goal_scorers: true,
+        is_walkover: false,
+        home_players: [{ id: "home-player-2", name: "Atacante Casa" }],
+        away_players: [{ id: "away-player-2", name: "Atleta Visitante" }],
+        home_goals: [],
+        away_goals: [],
       },
-    );
+      error: null,
+    });
 
     renderAdminMatches({
       viewMode: AdminMatchesViewMode.SCORE_SHEET_REVIEW,
@@ -3222,14 +3237,18 @@ describe("AdminMatches score sheet review", () => {
 
     const cardContainer = getMatchCardContainerByTeamName("LOADER CASA");
 
-    fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo LOADER CASA x LOADER VISITANTE"));
+    fireEvent.pointerDown(
+      await screen.findByLabelText("Ações do jogo LOADER CASA x LOADER VISITANTE"),
+    );
     clickFirstMenuItemInMatchCard(cardContainer, "Revisar súmula e premiações");
 
     expect(await screen.findByText("Revisão de súmula e premiações")).toBeInTheDocument();
     const saveButton = screen.getByRole("button", { name: "Salvar revisão" });
 
     expect(saveButton).toBeDisabled();
-    expect(screen.getByText("Faltam 1 autor de gol para liberar o salvamento.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Faltam 1 autor de gol para liberar o salvamento."),
+    ).toBeInTheDocument();
     expect(screen.getByText("0 de 1 gols preenchidos nesta revisão.")).toBeInTheDocument();
     expect(screen.getByText("0 de 1 gols vinculados • faltam 1")).toBeInTheDocument();
 
@@ -3245,7 +3264,11 @@ describe("AdminMatches score sheet review", () => {
 
     await waitFor(() => {
       expect(
-        supabaseRpcCalls.some((rpcCall) => rpcCall.functionName == "save_match_score_sheet_awards" && rpcCall.payload._match_id == "review-loader-match"),
+        supabaseRpcCalls.some(
+          (rpcCall) =>
+            rpcCall.functionName == "save_match_score_sheet_awards" &&
+            rpcCall.payload._match_id == "review-loader-match",
+        ),
       ).toBe(true);
     });
   });
@@ -3430,7 +3453,9 @@ describe("AdminMatches score sheet review", () => {
 
     expect(screen.queryByText("Tabela auditável de pontuação corrigida")).not.toBeInTheDocument();
     expect(within(contextCard).getByText("Resultado atual do empate")).toBeInTheDocument();
-    expect(within(contextCard).getByRole("columnheader", { name: "PTS (corr.)" })).toBeInTheDocument();
+    expect(
+      within(contextCard).getByRole("columnheader", { name: "PTS (corr.)" }),
+    ).toBeInTheDocument();
     expect(within(contextCard).getByRole("columnheader", { name: "PA" })).toBeInTheDocument();
     expect(within(contextCard).getByRole("columnheader", { name: "SG" })).toBeInTheDocument();
     expect(within(contextCard).getByRole("columnheader", { name: "CAZ" })).toBeInTheDocument();
@@ -3659,7 +3684,9 @@ describe("AdminMatches score sheet review", () => {
     }
 
     fireEvent.click(within(secondContextCard).getByRole("button", { name: "Sortear ordem" }));
-    expect(within(secondContextCard).getByRole("button", { name: "Refazer sorteio" })).toBeInTheDocument();
+    expect(
+      within(secondContextCard).getByRole("button", { name: "Refazer sorteio" }),
+    ).toBeInTheDocument();
 
     const firstContextCardTitle = screen.getByText("Sorteio manual do Grupo D");
     const firstContextCard = firstContextCardTitle.closest("div.glass-card");
@@ -3676,7 +3703,9 @@ describe("AdminMatches score sheet review", () => {
     });
 
     expect(screen.getByText("Sorteio manual do Grupo E")).toBeInTheDocument();
-    expect(within(secondContextCard).getByRole("button", { name: "Refazer sorteio" })).toBeInTheDocument();
+    expect(
+      within(secondContextCard).getByRole("button", { name: "Refazer sorteio" }),
+    ).toBeInTheDocument();
   });
 
   it("exibe o horário persistido de uma realocação manual fora da grade regular", async () => {
@@ -3709,9 +3738,7 @@ describe("AdminMatches score sheet review", () => {
     });
 
     fireEvent.pointerDown(
-      await screen.findByLabelText(
-        "Ações do jogo CASA MANUAL x VISITANTE MANUAL",
-      ),
+      await screen.findByLabelText("Ações do jogo CASA MANUAL x VISITANTE MANUAL"),
     );
     const matchCardContainer = getMatchCardContainerByTeamName("CASA MANUAL");
     clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
@@ -3793,9 +3820,9 @@ describe("AdminMatches score sheet review", () => {
     clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
 
     expect(await screen.findByText("Jogo 17")).toBeInTheDocument();
-    expect(
-      screen.getByRole("combobox", { name: "Horário estimado do jogo" }),
-    ).toHaveTextContent("10:40");
+    expect(screen.getByRole("combobox", { name: "Horário estimado do jogo" })).toHaveTextContent(
+      "10:40",
+    );
 
     fireEvent.click(screen.getByRole("combobox", { name: "Horário estimado do jogo" }));
     fireEvent.click(await screen.findByText("09:20"));
@@ -3904,13 +3931,9 @@ describe("AdminMatches score sheet review", () => {
     });
 
     fireEvent.pointerDown(
-      await screen.findByLabelText(
-        "Ações do jogo CASA MANUAL CO x VISITANTE MANUAL CO",
-      ),
+      await screen.findByLabelText("Ações do jogo CASA MANUAL CO x VISITANTE MANUAL CO"),
     );
-    const matchCardContainer = getMatchCardContainerByTeamName(
-      "CASA MANUAL CO",
-    );
+    const matchCardContainer = getMatchCardContainerByTeamName("CASA MANUAL CO");
     clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");
 
     fireEvent.click(
