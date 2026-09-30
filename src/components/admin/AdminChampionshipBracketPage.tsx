@@ -123,6 +123,7 @@ import {
   syncChampionshipIndividualSessionsFromSetup,
 } from "@/domain/individual-events/championshipIndividualEvents.repository";
 import { useChampionshipSeasonSettings } from "@/hooks/useChampionshipSeasonSettings";
+import { useAuth } from "@/hooks/useAuth";
 import type {
   ChampionshipBracketCompetitionMatchTargetRecommendationSummary,
   ChampionshipBracketCompetitionConfigDraft,
@@ -1986,6 +1987,7 @@ export function AdminChampionshipBracketPage({
   championshipSports,
   onGenerated,
 }: Props) {
+  const { accessToken } = useAuth();
   const defaultEnabledSportIds = useMemo(
     () =>
       championshipSports.map((championshipSport) => championshipSport.sport_id),
@@ -7494,17 +7496,20 @@ export function AdminChampionshipBracketPage({
       }
 
       await persistBeachSoccerEstimatedStartTimeSetting();
-      const seasonSettingsSaveResponse = await saveChampionshipSeasonSettings({
-        championship_id: selectedChampionship.id,
-        season_year: selectedChampionship.current_season_year,
-        division_format: seasonSettings.division_format,
-        division_settlement_mode: seasonSettings.division_settlement_mode,
-        principal_slots_count: seasonSettings.principal_slots_count,
-        principal_relegation_count: seasonSettings.principal_relegation_count,
-        access_promotion_count: seasonSettings.access_promotion_count,
-        yellow_card_reset_phase:
-          seasonSettings.yellow_card_reset_phase ?? YellowCardResetPhase.NONE,
-      });
+      const seasonSettingsSaveResponse = await saveChampionshipSeasonSettings(
+        {
+          championship_id: selectedChampionship.id,
+          season_year: selectedChampionship.current_season_year,
+          division_format: seasonSettings.division_format,
+          division_settlement_mode: seasonSettings.division_settlement_mode,
+          principal_slots_count: seasonSettings.principal_slots_count,
+          principal_relegation_count: seasonSettings.principal_relegation_count,
+          access_promotion_count: seasonSettings.access_promotion_count,
+          yellow_card_reset_phase:
+            seasonSettings.yellow_card_reset_phase ?? YellowCardResetPhase.NONE,
+        },
+        accessToken,
+      );
 
       if (seasonSettingsSaveResponse.error) {
         throw new Error(

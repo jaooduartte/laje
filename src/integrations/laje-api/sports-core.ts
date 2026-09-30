@@ -147,6 +147,8 @@ export interface SportsCoreFinishMatchInput extends SportsCoreScoreboardPatch {
   isWalkover?: boolean;
   isDoubleWalkover?: boolean;
   walkoverLoserTeamId?: string | null;
+  resolvedTieBreakerRule?: Match["resolved_tie_breaker_rule"];
+  resolvedTieBreakWinnerTeamId?: string | null;
 }
 
 export interface SportsCoreChampionshipWriteInput {
@@ -157,6 +159,16 @@ export interface SportsCoreChampionshipWriteInput {
   usesDivisions?: boolean;
   defaultLocation?: string | null;
 }
+
+export type SportsCoreSeasonWriteInput = Pick<
+  ChampionshipSeasonSettings,
+  | "division_format"
+  | "division_settlement_mode"
+  | "principal_slots_count"
+  | "principal_relegation_count"
+  | "access_promotion_count"
+  | "yellow_card_reset_phase"
+>;
 
 const SPORTS_CORE_PAGE_SIZE = 100;
 
@@ -394,6 +406,18 @@ export async function finishSportsCoreMatch(
   return toLegacyMatch(response.data);
 }
 
+export async function returnSportsCoreMatchToScheduled(
+  matchId: string,
+  accessToken: string,
+): Promise<Match> {
+  const response = await lajeApiRequest<DataResponse<ApiMatchDto>>(
+    `/matches/${matchId}/return-to-scheduled`,
+    { method: "POST" },
+    accessToken,
+  );
+  return toLegacyMatch(response.data);
+}
+
 export async function listSportsCoreChampionships(): Promise<Championship[]> {
   const response = await lajeApiRequest<CollectionResponse<ApiChampionshipDto>>("/championships");
   return response.data.map(toChampionship);
@@ -417,6 +441,50 @@ export async function updateSportsCoreChampionship(
     accessToken,
   );
   return toChampionship(response.data);
+}
+
+export async function advanceSportsCoreChampionshipSeason(
+  championshipId: string,
+  accessToken: string,
+): Promise<Championship> {
+  const response = await lajeApiRequest<DataResponse<ApiChampionshipDto>>(
+    `/championships/${championshipId}/seasons/advance`,
+    { method: "POST" },
+    accessToken,
+  );
+  return toChampionship(response.data);
+}
+
+export async function resetSportsCoreChampionshipSeason(
+  championshipId: string,
+  seasonYear: number,
+  accessToken: string,
+): Promise<void> {
+  await lajeApiRequest<void>(
+    `/championships/${championshipId}/seasons/${seasonYear}/reset`,
+    { method: "POST" },
+    accessToken,
+  );
+}
+
+function toChampionshipSeasonSettings(row: Record<string, unknown>): ChampionshipSeasonSettings {
+  return {
+    id: String(row.id),
+    championship_id: String(row.championshipId),
+    season_year: Number(row.seasonYear),
+    division_format: row.divisionFormat as ChampionshipSeasonSettings["division_format"],
+    division_settlement_mode:
+      row.divisionSettlementMode as ChampionshipSeasonSettings["division_settlement_mode"],
+    principal_slots_count: row.principalSlotsCount == null ? null : Number(row.principalSlotsCount),
+    principal_relegation_count:
+      row.principalRelegationCount == null ? null : Number(row.principalRelegationCount),
+    access_promotion_count:
+      row.accessPromotionCount == null ? null : Number(row.accessPromotionCount),
+    yellow_card_reset_phase:
+      row.yellowCardResetPhase as ChampionshipSeasonSettings["yellow_card_reset_phase"],
+    created_at: String(row.createdAt ?? ""),
+    updated_at: String(row.updatedAt ?? ""),
+  };
 }
 
 function mapSportsCoreStanding(row: Record<string, unknown>): Standing {
@@ -528,22 +596,29 @@ export async function getSportsCoreSeason(
     `/championships/${championshipId}/seasons/${seasonYear}`,
   );
   if (!response.data) return null;
-  const row = response.data;
-  return {
-    id: String(row.id),
-    championship_id: String(row.championshipId),
-    season_year: Number(row.seasonYear),
-    division_format: row.divisionFormat as ChampionshipSeasonSettings["division_format"],
-    division_settlement_mode:
-      row.divisionSettlementMode as ChampionshipSeasonSettings["division_settlement_mode"],
-    principal_slots_count: row.principalSlotsCount == null ? null : Number(row.principalSlotsCount),
-    principal_relegation_count:
-      row.principalRelegationCount == null ? null : Number(row.principalRelegationCount),
-    access_promotion_count:
-      row.accessPromotionCount == null ? null : Number(row.accessPromotionCount),
-    yellow_card_reset_phase:
-      row.yellowCardResetPhase as ChampionshipSeasonSettings["yellow_card_reset_phase"],
-    created_at: String(row.createdAt ?? ""),
-    updated_at: String(row.updatedAt ?? ""),
-  };
+  return toChampionshipSeasonSettings(response.data);
+}
+
+export async function updateSportsCoreSeason(
+  championshipId: string,
+  seasonYear: number,
+  input: SportsCoreSeasonWriteInput,
+  accessToken: string,
+): Promise<ChampionshipSeasonSettings> {
+  const response = await lajeApiRequest<DataResponse<Record<string, unknown>>>(
+    `/championships/${championshipId}/seasons/${seasonYear}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        divisionFormat: input.division_format,
+        divisionSettlementMode: input.division_settlement_mode,
+        principalSlotsCount: input.principal_slots_count,
+        principalRelegationCount: input.principal_relegation_count,
+        accessPromotionCount: input.access_promotion_count,
+        yellowCardResetPhase: input.yellow_card_reset_phase,
+      }),
+    },
+    accessToken,
+  );
+  return toChampionshipSeasonSettings(response.data);
 }

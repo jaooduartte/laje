@@ -48,6 +48,7 @@ import { AdminChampionshipCourtPrioritySection } from "@/components/admin/AdminC
 import { AdminChampionshipKnockoutPrioritySection } from "@/components/admin/AdminChampionshipKnockoutPrioritySection";
 import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividualEvents";
 import { useChampionshipSeasonSettings } from "@/hooks/useChampionshipSeasonSettings";
+import { useAuth } from "@/hooks/useAuth";
 import { saveChampionshipSeasonSettings } from "@/domain/championship-seasons/championshipSeason.repository";
 import {
   resolveDivisionOptionsBySportId,
@@ -348,6 +349,7 @@ export function AdminChampionshipSchedule({
   onRefetchMatches,
   onRefetchChampionshipBracket,
 }: Props) {
+  const { accessToken } = useAuth();
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState<DayScheduleDraft[]>([]);
   const [locationGroups, setLocationGroups] = useState<LocationGroupDraft[]>(
@@ -418,16 +420,19 @@ export function AdminChampionshipSchedule({
     }
 
     setSavingYellowCardResetPhase(true);
-    const { error } = await saveChampionshipSeasonSettings({
-      championship_id: championshipId,
-      season_year: seasonYear,
-      division_format: seasonSettings.division_format,
-      division_settlement_mode: seasonSettings.division_settlement_mode,
-      principal_slots_count: seasonSettings.principal_slots_count,
-      principal_relegation_count: seasonSettings.principal_relegation_count,
-      access_promotion_count: seasonSettings.access_promotion_count,
-      yellow_card_reset_phase: yellowCardResetPhase,
-    });
+    const { error } = await saveChampionshipSeasonSettings(
+      {
+        championship_id: championshipId,
+        season_year: seasonYear,
+        division_format: seasonSettings.division_format,
+        division_settlement_mode: seasonSettings.division_settlement_mode,
+        principal_slots_count: seasonSettings.principal_slots_count,
+        principal_relegation_count: seasonSettings.principal_relegation_count,
+        access_promotion_count: seasonSettings.access_promotion_count,
+        yellow_card_reset_phase: yellowCardResetPhase,
+      },
+      accessToken,
+    );
     setSavingYellowCardResetPhase(false);
 
     if (error) {

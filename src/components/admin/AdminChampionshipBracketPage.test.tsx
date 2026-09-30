@@ -61,6 +61,10 @@ vi.mock("@/hooks/useChampionshipSeasonSettings", () => ({
   }),
 }));
 
+vi.mock("@/hooks/useAuth", () => ({
+  useAuth: () => ({ accessToken: "dedicated-access-token" }),
+}));
+
 vi.mock("@/domain/championship-brackets/championshipBracketDraft.repository", () => ({
   clearChampionshipBracketWizardDraft: vi.fn().mockResolvedValue(undefined),
   fetchChampionshipBracketWizardDraft: (...args: unknown[]) =>

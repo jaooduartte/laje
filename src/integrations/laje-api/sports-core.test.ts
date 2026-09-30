@@ -7,8 +7,12 @@ vi.mock("@/config/environment", () => ({
 }));
 
 import {
+  advanceSportsCoreChampionshipSeason,
   listSportsCoreMatches,
+  resetSportsCoreChampionshipSeason,
+  updateSportsCoreChampionship,
   updateSportsCoreScoreboard,
+  updateSportsCoreSeason,
 } from "@/integrations/laje-api/sports-core";
 
 const fetchMock = vi.fn();
@@ -123,5 +127,56 @@ describe("laje-api sports core integration", () => {
 
     const requestOptions = fetchMock.mock.calls[0]?.[1] as RequestInit;
     expect(new Headers(requestOptions.headers).get("authorization")).toBe("Bearer access-token");
+  });
+
+  it("envia uma única chamada administrativa para campeonato e temporada", async () => {
+    const apiChampionship = {
+      id: apiMatch.championshipId,
+      code: "INTERLAJE",
+      name: "INTERLAJE 2026",
+      status: "FINISHED",
+      currentSeasonYear: 2026,
+      usesDivisions: true,
+      defaultLocation: null,
+    };
+    const apiSeason = {
+      id: "00000000-0000-0000-0000-000000000106",
+      championshipId: apiMatch.championshipId,
+      seasonYear: 2026,
+      divisionFormat: "SEPARATED",
+      divisionSettlementMode: "PROMOTION_RELEGATION",
+      principalSlotsCount: 8,
+      principalRelegationCount: 2,
+      accessPromotionCount: 2,
+      yellowCardResetPhase: "NONE",
+    };
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ data: apiChampionship }))
+      .mockResolvedValueOnce(jsonResponse({ data: apiChampionship }))
+      .mockResolvedValueOnce(jsonResponse({ data: apiSeason }))
+      .mockResolvedValueOnce({ ok: true, status: 204, json: async () => null } as Response);
+
+    await updateSportsCoreChampionship(apiChampionship.id, { status: "PLANNING" }, "access-token");
+    await advanceSportsCoreChampionshipSeason(apiChampionship.id, "access-token");
+    await updateSportsCoreSeason(
+      apiChampionship.id,
+      2026,
+      {
+        division_format: "SEPARATED",
+        division_settlement_mode: "PROMOTION_RELEGATION",
+        principal_slots_count: 8,
+        principal_relegation_count: 2,
+        access_promotion_count: 2,
+        yellow_card_reset_phase: "NONE",
+      },
+      "access-token",
+    );
+    await resetSportsCoreChampionshipSeason(apiChampionship.id, 2026, "access-token");
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain(`/championships/${apiChampionship.id}`);
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain("/seasons/advance");
+    expect(String(fetchMock.mock.calls[2]?.[0])).toContain("/seasons/2026");
+    expect(String(fetchMock.mock.calls[3]?.[0])).toContain("/seasons/2026/reset");
   });
 });

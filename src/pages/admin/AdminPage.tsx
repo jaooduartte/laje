@@ -4,6 +4,12 @@ import { AdminShellSkeleton } from "@/components/skeletons/AdminShellSkeleton";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  advanceSportsCoreChampionshipSeason,
+  isDedicatedSportsCoreEnabled,
+  resetSportsCoreChampionshipSeason,
+  updateSportsCoreChampionship,
+} from "@/integrations/laje-api/sports-core";
 import { useAuth } from "@/hooks/useAuth";
 import { useMatches } from "@/hooks/useMatches";
 import { useSports } from "@/hooks/useSports";
@@ -77,61 +83,44 @@ export function AdminPage() {
     loading,
     roleLoading,
     signOut,
+    accessToken,
   } = useAuth();
   const {
     championships,
     loading: championshipsLoading,
     refetch: refetchChampionships,
   } = useChampionships();
-  const { selectedChampionshipCode, setSelectedChampionshipCode } =
-    useSelectedChampionship();
-  const [updatingChampionshipStatus, setUpdatingChampionshipStatus] =
+  const { selectedChampionshipCode, setSelectedChampionshipCode } = useSelectedChampionship();
+  const [updatingChampionshipStatus, setUpdatingChampionshipStatus] = useState(false);
+  const [advancingChampionshipSeason, setAdvancingChampionshipSeason] = useState(false);
+  const [processingChampionshipStatusFlowAction, setProcessingChampionshipStatusFlowAction] =
     useState(false);
-  const [advancingChampionshipSeason, setAdvancingChampionshipSeason] =
-    useState(false);
-  const [
-    processingChampionshipStatusFlowAction,
-    setProcessingChampionshipStatusFlowAction,
-  ] = useState(false);
   const [_activeTab, setActiveTab] = useState<string>("");
-  const [matchesSeasonYear, setMatchesSeasonYear] = useState<number | null>(
-    null,
-  );
-  const [isControlFullQueueVisible, setIsControlFullQueueVisible] =
-    useState(false);
-  const [interlajeOverallStandingsRefreshKey, setInterlajeOverallStandingsRefreshKey] =
-    useState(0);
+  const [matchesSeasonYear, setMatchesSeasonYear] = useState<number | null>(null);
+  const [isControlFullQueueVisible, setIsControlFullQueueVisible] = useState(false);
+  const [interlajeOverallStandingsRefreshKey, setInterlajeOverallStandingsRefreshKey] = useState(0);
   const [championshipStatusFlowDialog, setChampionshipStatusFlowDialog] =
     useState<ChampionshipStatusFlowDialog>(ChampionshipStatusFlowDialog.NONE);
   const hasAppliedInitialAdminChampionshipSelectionRef = useRef(false);
   const lastChampionshipSelectionSignatureRef = useRef<string | null>(null);
 
-  const {
-    selectedChampionship,
-    selectedChampionshipId,
-    handleChampionshipCodeChange,
-  } = useChampionshipSelection({
-    championships,
-    selectedChampionshipCode,
-    setSelectedChampionshipCode,
-  });
-  const selectedChampionshipSeasonYear =
-    selectedChampionship?.current_season_year ?? null;
-  const { seasonYears: availableMatchSeasonYears } = useChampionshipSeasonYears(
-    {
-      championshipId: selectedChampionshipId,
-      currentSeasonYear: selectedChampionshipSeasonYear,
-    },
-  );
-  const resolvedMatchesSeasonYear =
-    matchesSeasonYear ?? selectedChampionshipSeasonYear;
-  const {
-    removedSportIds,
-    refetch: refetchSeasonSportRemovals,
-  } = useChampionshipSeasonSportRemovals({
+  const { selectedChampionship, selectedChampionshipId, handleChampionshipCodeChange } =
+    useChampionshipSelection({
+      championships,
+      selectedChampionshipCode,
+      setSelectedChampionshipCode,
+    });
+  const selectedChampionshipSeasonYear = selectedChampionship?.current_season_year ?? null;
+  const { seasonYears: availableMatchSeasonYears } = useChampionshipSeasonYears({
     championshipId: selectedChampionshipId,
-    seasonYear: selectedChampionshipSeasonYear,
+    currentSeasonYear: selectedChampionshipSeasonYear,
   });
+  const resolvedMatchesSeasonYear = matchesSeasonYear ?? selectedChampionshipSeasonYear;
+  const { removedSportIds, refetch: refetchSeasonSportRemovals } =
+    useChampionshipSeasonSportRemovals({
+      championshipId: selectedChampionshipId,
+      seasonYear: selectedChampionshipSeasonYear,
+    });
   const {
     matchIds: operationalQueueMatchIds,
     individualSessionIds: operationalIndividualSessionIds,
@@ -177,24 +166,21 @@ export function AdminPage() {
     operationalChampionshipBracketView.edition?.status ?? null;
 
   const canViewBracketSetupTab = resolveCanViewBracketSetupTab({
-    championshipStatus:
-      selectedChampionship?.status ?? ChampionshipStatus.PLANNING,
+    championshipStatus: selectedChampionship?.status ?? ChampionshipStatus.PLANNING,
     hasFinishedLoadingOperationalState,
     matchesCount: operationalMatches.length,
     bracketEditionStatus: operationalBracketEditionStatus,
   });
 
   const canViewOperationalAdminTabs = resolveCanViewOperationalAdminTabs({
-    championshipStatus:
-      selectedChampionship?.status ?? ChampionshipStatus.PLANNING,
+    championshipStatus: selectedChampionship?.status ?? ChampionshipStatus.PLANNING,
     hasFinishedLoadingOperationalState,
     matchesCount: operationalMatches.length,
     bracketEditionStatus: operationalBracketEditionStatus,
   });
 
   const canViewReviewAdminTabs = resolveCanViewReviewAdminTabs({
-    championshipStatus:
-      selectedChampionship?.status ?? ChampionshipStatus.PLANNING,
+    championshipStatus: selectedChampionship?.status ?? ChampionshipStatus.PLANNING,
     hasFinishedLoadingOperationalState,
     matchesCount: operationalMatches.length,
     bracketEditionStatus: operationalBracketEditionStatus,
@@ -227,9 +213,7 @@ export function AdminPage() {
 
   const canViewSettingsTab = canViewAdminTab(AdminPanelTab.SETTINGS);
 
-  const canViewChampionshipStatus = canViewAdminTab(
-    AdminPanelTab.CHAMPIONSHIP_STATUS,
-  );
+  const canViewChampionshipStatus = canViewAdminTab(AdminPanelTab.CHAMPIONSHIP_STATUS);
 
   const canViewScoreSheetReviewTab =
     (canViewOperationalAdminTabs || canViewReviewAdminTabs) &&
@@ -261,9 +245,7 @@ export function AdminPage() {
       canViewAccountTab ? AdminPanelTab.ACCOUNT : null,
       canViewScheduleTab ? AdminPanelTab.CHAMPIONSHIP_SCHEDULE : null,
       canViewSettingsTab ? AdminPanelTab.SETTINGS : null,
-    ].find(
-      (adminPanelTab): adminPanelTab is AdminPanelTab => adminPanelTab != null,
-    ) ?? "";
+    ].find((adminPanelTab): adminPanelTab is AdminPanelTab => adminPanelTab != null) ?? "";
 
   const activeTab = _activeTab || defaultTabValue;
 
@@ -279,12 +261,10 @@ export function AdminPage() {
   const lazyActiveTab = shouldDeferInitialLazyAdminTab ? "" : activeTab;
 
   const shouldLoadMatchesTab =
-    lazyActiveTab == AdminPanelTab.MATCHES ||
-    lazyActiveTab == AdminPanelTab.SCORE_SHEET_REVIEW;
+    lazyActiveTab == AdminPanelTab.MATCHES || lazyActiveTab == AdminPanelTab.SCORE_SHEET_REVIEW;
 
   const shouldLoadAllTeams =
-    lazyActiveTab == AdminPanelTab.TEAMS ||
-    lazyActiveTab == AdminPanelTab.OPENING_CEREMONY_BONUS;
+    lazyActiveTab == AdminPanelTab.TEAMS || lazyActiveTab == AdminPanelTab.OPENING_CEREMONY_BONUS;
 
   const shouldLoadGlobalSports =
     lazyActiveTab == AdminPanelTab.SPORTS ||
@@ -343,20 +323,16 @@ export function AdminPage() {
       (championshipSport) => !removedSportIdsSet.has(championshipSport.sport_id),
     );
   }, [championshipSports, removedSportIds]);
-  const liveMatches = operationalMatches.filter(
-    (match) => match.status == MatchStatus.LIVE,
-  );
+  const liveMatches = operationalMatches.filter((match) => match.status == MatchStatus.LIVE);
   const liveAndScheduledMatches = operationalMatches.filter(
-    (match) =>
-      match.status == MatchStatus.LIVE || match.status == MatchStatus.SCHEDULED,
+    (match) => match.status == MatchStatus.LIVE || match.status == MatchStatus.SCHEDULED,
   );
   const { count: pendingLeagueEventReservationRequestsCount } =
     usePendingLeagueEventReservationRequests();
-  const { count: pendingScoreSheetReviewCount } =
-    usePendingScoreSheetReviewCount({
-      championshipId: selectedChampionshipId,
-      seasonYear: resolvedMatchesSeasonYear,
-    });
+  const { count: pendingScoreSheetReviewCount } = usePendingScoreSheetReviewCount({
+    championshipId: selectedChampionshipId,
+    seasonYear: resolvedMatchesSeasonYear,
+  });
   const {
     pendingContexts: pendingTieBreakContexts,
     count: pendingTieBreaksCount,
@@ -383,9 +359,7 @@ export function AdminPage() {
     return operationalChampionshipBracketView;
   }, [operationalChampionshipBracketView, operationalMatches.length]);
   const operationalMatchBracketContextByMatchId = useMemo(() => {
-    return resolveMatchBracketContextByMatchId(
-      visibleOperationalChampionshipBracketView,
-    );
+    return resolveMatchBracketContextByMatchId(visibleOperationalChampionshipBracketView);
   }, [visibleOperationalChampionshipBracketView]);
   const visibleMatchesTabChampionshipBracketView = useMemo(() => {
     if (matchesTabChampionshipBracketView.competitions.length == 0) {
@@ -395,9 +369,7 @@ export function AdminPage() {
     return matchesTabChampionshipBracketView;
   }, [matchesTabChampionshipBracketView]);
   const matchesTabMatchBracketContextByMatchId = useMemo(() => {
-    return resolveMatchBracketContextByMatchId(
-      visibleMatchesTabChampionshipBracketView,
-    );
+    return resolveMatchBracketContextByMatchId(visibleMatchesTabChampionshipBracketView);
   }, [visibleMatchesTabChampionshipBracketView]);
 
   const handleRefetchMatches = useCallback(
@@ -484,8 +456,7 @@ export function AdminPage() {
       return;
     }
 
-    const preferredChampionshipCode =
-      resolvePreferredAdminChampionshipCode(championships);
+    const preferredChampionshipCode = resolvePreferredAdminChampionshipCode(championships);
     const championshipSelectionSignature = championships
       .map(
         (championship) =>
@@ -503,8 +474,7 @@ export function AdminPage() {
     }
 
     hasAppliedInitialAdminChampionshipSelectionRef.current = true;
-    lastChampionshipSelectionSignatureRef.current =
-      championshipSelectionSignature;
+    lastChampionshipSelectionSignatureRef.current = championshipSelectionSignature;
   }, [championships, selectedChampionshipCode, setSelectedChampionshipCode]);
 
   const resolveIsMobileViewport = () => {
@@ -516,9 +486,7 @@ export function AdminPage() {
   };
 
   const handleOpenMobileChampionshipConfigurationWarning = () => {
-    setChampionshipStatusFlowDialog(
-      ChampionshipStatusFlowDialog.MOBILE_CONFIGURATION_WARNING,
-    );
+    setChampionshipStatusFlowDialog(ChampionshipStatusFlowDialog.MOBILE_CONFIGURATION_WARNING);
   };
 
   const updateChampionshipStatus = async (nextStatus: ChampionshipStatus) => {
@@ -528,10 +496,20 @@ export function AdminPage() {
 
     setUpdatingChampionshipStatus(true);
 
-    const { error } = await supabase
-      .from("championships")
-      .update({ status: nextStatus })
-      .eq("id", selectedChampionship.id);
+    const error = isDedicatedSportsCoreEnabled()
+      ? await updateSportsCoreChampionship(
+          selectedChampionship.id,
+          { status: nextStatus },
+          accessToken ?? "",
+        )
+          .then(() => null)
+          .catch((requestError) => requestError as Error)
+      : (
+          await supabase
+            .from("championships")
+            .update({ status: nextStatus })
+            .eq("id", selectedChampionship.id)
+        ).error;
 
     setUpdatingChampionshipStatus(false);
 
@@ -552,9 +530,15 @@ export function AdminPage() {
 
     setAdvancingChampionshipSeason(true);
 
-    const { error } = await supabase.rpc("advance_championship_season", {
-      _championship_id: selectedChampionship.id,
-    });
+    const error = isDedicatedSportsCoreEnabled()
+      ? await advanceSportsCoreChampionshipSeason(selectedChampionship.id, accessToken ?? "")
+          .then(() => null)
+          .catch((requestError) => requestError as Error)
+      : (
+          await supabase.rpc("advance_championship_season", {
+            _championship_id: selectedChampionship.id,
+          })
+        ).error;
 
     setAdvancingChampionshipSeason(false);
 
@@ -575,26 +559,39 @@ export function AdminPage() {
       return false;
     }
 
-    const { error: matchesError } = await supabase
-      .from("matches")
-      .delete()
-      .eq("championship_id", selectedChampionship.id)
-      .eq("season_year", selectedChampionship.current_season_year);
+    if (isDedicatedSportsCoreEnabled()) {
+      try {
+        await resetSportsCoreChampionshipSeason(
+          selectedChampionship.id,
+          selectedChampionship.current_season_year,
+          accessToken ?? "",
+        );
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Erro ao remover os jogos.");
+        return false;
+      }
+    } else {
+      const { error: matchesError } = await supabase
+        .from("matches")
+        .delete()
+        .eq("championship_id", selectedChampionship.id)
+        .eq("season_year", selectedChampionship.current_season_year);
 
-    if (matchesError) {
-      toast.error(matchesError.message);
-      return false;
-    }
+      if (matchesError) {
+        toast.error(matchesError.message);
+        return false;
+      }
 
-    const { error: bracketEditionsError } = await supabase
-      .from("championship_bracket_editions")
-      .delete()
-      .eq("championship_id", selectedChampionship.id)
-      .eq("season_year", selectedChampionship.current_season_year);
+      const { error: bracketEditionsError } = await supabase
+        .from("championship_bracket_editions")
+        .delete()
+        .eq("championship_id", selectedChampionship.id)
+        .eq("season_year", selectedChampionship.current_season_year);
 
-    if (bracketEditionsError) {
-      toast.error(bracketEditionsError.message);
-      return false;
+      if (bracketEditionsError) {
+        toast.error(bracketEditionsError.message);
+        return false;
+      }
     }
 
     await Promise.all([
@@ -610,9 +607,7 @@ export function AdminPage() {
   const handleKeepCurrentGamesAndReturnToPlanning = async () => {
     setProcessingChampionshipStatusFlowAction(true);
 
-    const hasUpdatedStatus = await updateChampionshipStatus(
-      ChampionshipStatus.PLANNING,
-    );
+    const hasUpdatedStatus = await updateChampionshipStatus(ChampionshipStatus.PLANNING);
 
     setProcessingChampionshipStatusFlowAction(false);
 
@@ -631,9 +626,7 @@ export function AdminPage() {
       return;
     }
 
-    const hasUpdatedStatus = await updateChampionshipStatus(
-      ChampionshipStatus.PLANNING,
-    );
+    const hasUpdatedStatus = await updateChampionshipStatus(ChampionshipStatus.PLANNING);
 
     setProcessingChampionshipStatusFlowAction(false);
 
@@ -645,9 +638,7 @@ export function AdminPage() {
   const handleKeepCurrentGamesAndMoveToUpcoming = async () => {
     setProcessingChampionshipStatusFlowAction(true);
 
-    const hasUpdatedStatus = await updateChampionshipStatus(
-      ChampionshipStatus.REVIEW,
-    );
+    const hasUpdatedStatus = await updateChampionshipStatus(ChampionshipStatus.REVIEW);
 
     setProcessingChampionshipStatusFlowAction(false);
 
@@ -698,9 +689,7 @@ export function AdminPage() {
     }
 
     if (value == ChampionshipStatus.PLANNING && operationalMatches.length > 0) {
-      setChampionshipStatusFlowDialog(
-        ChampionshipStatusFlowDialog.RETURN_TO_PLANNING_WITH_GAMES,
-      );
+      setChampionshipStatusFlowDialog(ChampionshipStatusFlowDialog.RETURN_TO_PLANNING_WITH_GAMES);
       return;
     }
 
@@ -709,9 +698,7 @@ export function AdminPage() {
       value == ChampionshipStatus.UPCOMING
     ) {
       if (operationalMatches.length > 0) {
-        setChampionshipStatusFlowDialog(
-          ChampionshipStatusFlowDialog.MOVE_TO_UPCOMING_WITH_GAMES,
-        );
+        setChampionshipStatusFlowDialog(ChampionshipStatusFlowDialog.MOVE_TO_UPCOMING_WITH_GAMES);
         return;
       }
 
@@ -768,16 +755,10 @@ export function AdminPage() {
   }
 
   const isInitialOperationalLoading =
-    operationalQueueLoading ||
-    operationalMatchesLoading ||
-    loadingOperationalChampionshipBracket;
+    operationalQueueLoading || operationalMatchesLoading || loadingOperationalChampionshipBracket;
   const canManageMatches = canEditAdminTab(AdminPanelTab.MATCHES);
-  const canManageSchedule = canEditAdminTab(
-    AdminPanelTab.CHAMPIONSHIP_SCHEDULE,
-  );
-  const canManageChampionshipStatus = canEditAdminTab(
-    AdminPanelTab.CHAMPIONSHIP_STATUS,
-  );
+  const canManageSchedule = canEditAdminTab(AdminPanelTab.CHAMPIONSHIP_SCHEDULE);
+  const canManageChampionshipStatus = canEditAdminTab(AdminPanelTab.CHAMPIONSHIP_STATUS);
   const canManageTeams = canEditAdminTab(AdminPanelTab.TEAMS);
   const canManageSports = canEditAdminTab(AdminPanelTab.SPORTS);
   const canManageLeagueEvents = canEditAdminTab(AdminPanelTab.EVENTS);
@@ -795,9 +776,7 @@ export function AdminPage() {
       ChampionshipStatus.IN_PROGRESS,
       ChampionshipStatus.FINISHED,
     ].includes(selectedChampionship.status);
-  const canManageOpeningCeremonyBonus = canEditAdminTab(
-    AdminPanelTab.OPENING_CEREMONY_BONUS,
-  );
+  const canManageOpeningCeremonyBonus = canEditAdminTab(AdminPanelTab.OPENING_CEREMONY_BONUS);
 
   return (
     <>
@@ -818,29 +797,17 @@ export function AdminPage() {
         liveAndScheduledMatches={liveAndScheduledMatches}
         championshipBracketView={visibleOperationalChampionshipBracketView}
         standingsChampionshipBracketView={operationalChampionshipBracketView}
-        matchesTabChampionshipBracketView={
-          visibleMatchesTabChampionshipBracketView
-        }
+        matchesTabChampionshipBracketView={visibleMatchesTabChampionshipBracketView}
         loadingChampionshipBracket={loadingOperationalChampionshipBracket}
-        loadingMatchesTabChampionshipBracket={
-          loadingMatchesTabChampionshipBracket
-        }
+        loadingMatchesTabChampionshipBracket={loadingMatchesTabChampionshipBracket}
         matchBracketContextByMatchId={operationalMatchBracketContextByMatchId}
-        matchesTabMatchBracketContextByMatchId={
-          matchesTabMatchBracketContextByMatchId
-        }
+        matchesTabMatchBracketContextByMatchId={matchesTabMatchBracketContextByMatchId}
         matchRepresentationByMatchId={operationalMatchRepresentationByMatchId}
-        matchesTabMatchRepresentationByMatchId={
-          matchesTabMatchRepresentationByMatchId
-        }
+        matchesTabMatchRepresentationByMatchId={matchesTabMatchRepresentationByMatchId}
         visualQueuePositionByMatchId={operationalVisualQueuePositionByMatchId}
-        matchesTabVisualQueuePositionByMatchId={
-          matchesTabVisualQueuePositionByMatchId
-        }
+        matchesTabVisualQueuePositionByMatchId={matchesTabVisualQueuePositionByMatchId}
         estimatedStartTimeByMatchId={operationalEstimatedStartTimeByMatchId}
-        matchesTabEstimatedStartTimeByMatchId={
-          matchesTabEstimatedStartTimeByMatchId
-        }
+        matchesTabEstimatedStartTimeByMatchId={matchesTabEstimatedStartTimeByMatchId}
         matchesFetching={operationalMatchesFetching || operationalQueueFetching}
         isControlFullQueueVisible={isControlFullQueueVisible}
         operationalIndividualSessionIds={operationalIndividualSessionIds}
@@ -891,9 +858,7 @@ export function AdminPage() {
         onChampionshipCodeChange={handleChampionshipCodeChange}
         onChampionshipStatusChange={handleChampionshipStatusChange}
         onAdvanceChampionshipSeason={() =>
-          setChampionshipStatusFlowDialog(
-            ChampionshipStatusFlowDialog.ADVANCE_SEASON,
-          )
+          setChampionshipStatusFlowDialog(ChampionshipStatusFlowDialog.ADVANCE_SEASON)
         }
         onSelectedMatchesSeasonYearChange={setMatchesSeasonYear}
         onSignOut={signOut}
@@ -910,15 +875,11 @@ export function AdminPage() {
         interlajeOverallStandingsRefreshKey={interlajeOverallStandingsRefreshKey}
         onBracketGenerated={handleBracketGenerated}
         liveMatchesCount={liveMatches.length}
-        pendingLeagueEventReservationsCount={
-          pendingLeagueEventReservationRequestsCount
-        }
+        pendingLeagueEventReservationsCount={pendingLeagueEventReservationRequestsCount}
         pendingScoreSheetReviewCount={pendingScoreSheetReviewCount}
         pendingTieBreaksCount={pendingTieBreaksCount}
         pendingTieBreakContexts={pendingTieBreakContexts}
-        pendingTieBreakEditionId={
-          operationalChampionshipBracketView.edition?.id ?? null
-        }
+        pendingTieBreakEditionId={operationalChampionshipBracketView.edition?.id ?? null}
         loadingPendingTieBreaks={loadingPendingTieBreaks}
         refetchPendingTieBreaks={refetchPendingTieBreaks}
         pendingAwardDrawContexts={pendingAwardDrawContexts}
@@ -928,8 +889,7 @@ export function AdminPage() {
 
       <Dialog
         open={
-          championshipStatusFlowDialog ==
-          ChampionshipStatusFlowDialog.RETURN_TO_PLANNING_WITH_GAMES
+          championshipStatusFlowDialog == ChampionshipStatusFlowDialog.RETURN_TO_PLANNING_WITH_GAMES
         }
         onOpenChange={(isOpen) => {
           if (!isOpen) {
@@ -939,12 +899,10 @@ export function AdminPage() {
       >
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle className="text-center">
-              Voltar campeonato para Em breve?
-            </DialogTitle>
+            <DialogTitle className="text-center">Voltar campeonato para Em breve?</DialogTitle>
             <DialogDescription className="text-center">
-              Este campeonato já possui jogos cadastrados. Escolha se eles devem
-              ser mantidos ao voltar o status para Em breve.
+              Este campeonato já possui jogos cadastrados. Escolha se eles devem ser mantidos ao
+              voltar o status para Em breve.
             </DialogDescription>
           </DialogHeader>
 
@@ -985,8 +943,7 @@ export function AdminPage() {
 
       <Dialog
         open={
-          championshipStatusFlowDialog ==
-          ChampionshipStatusFlowDialog.MOVE_TO_UPCOMING_WITH_GAMES
+          championshipStatusFlowDialog == ChampionshipStatusFlowDialog.MOVE_TO_UPCOMING_WITH_GAMES
         }
         onOpenChange={(isOpen) => {
           if (!isOpen) {
@@ -996,13 +953,10 @@ export function AdminPage() {
       >
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle className="text-center">
-              Jogos atuais já existem
-            </DialogTitle>
+            <DialogTitle className="text-center">Jogos atuais já existem</DialogTitle>
             <DialogDescription className="text-center">
-              O campeonato está em Em breve, mas já possui jogos cadastrados.
-              Você pode manter os jogos atuais ou limpar tudo para montar uma
-              nova configuração de campeonato.
+              O campeonato está em Em breve, mas já possui jogos cadastrados. Você pode manter os
+              jogos atuais ou limpar tudo para montar uma nova configuração de campeonato.
             </DialogDescription>
           </DialogHeader>
 
@@ -1042,8 +996,7 @@ export function AdminPage() {
 
       <AlertDialog
         open={
-          championshipStatusFlowDialog ==
-          ChampionshipStatusFlowDialog.MOBILE_CONFIGURATION_WARNING
+          championshipStatusFlowDialog == ChampionshipStatusFlowDialog.MOBILE_CONFIGURATION_WARNING
         }
         onOpenChange={(isOpen) => {
           if (!isOpen) {
@@ -1053,12 +1006,10 @@ export function AdminPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              Configuração disponível apenas no computador
-            </AlertDialogTitle>
+            <AlertDialogTitle>Configuração disponível apenas no computador</AlertDialogTitle>
             <AlertDialogDescription>
-              A configuração do campeonato deve ser feita somente no computador,
-              porque na visão de celular os componentes não cabem na tela.
+              A configuração do campeonato deve ser feita somente no computador, porque na visão de
+              celular os componentes não cabem na tela.
             </AlertDialogDescription>
           </AlertDialogHeader>
 
@@ -1074,10 +1025,7 @@ export function AdminPage() {
       </AlertDialog>
 
       <Dialog
-        open={
-          championshipStatusFlowDialog ==
-          ChampionshipStatusFlowDialog.ADVANCE_SEASON
-        }
+        open={championshipStatusFlowDialog == ChampionshipStatusFlowDialog.ADVANCE_SEASON}
         onOpenChange={(isOpen) => {
           if (!isOpen) {
             closeChampionshipStatusFlowDialog();
@@ -1086,14 +1034,12 @@ export function AdminPage() {
       >
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle className="text-center">
-              Abrir nova temporada?
-            </DialogTitle>
+            <DialogTitle className="text-center">Abrir nova temporada?</DialogTitle>
             <DialogDescription className="text-center">
               Essa ação muda o campeonato para Em breve e avança a temporada de{" "}
               {selectedChampionship.current_season_year} para{" "}
-              {selectedChampionship.current_season_year + 1}. Ela não acontece
-              mais automaticamente ao abrir as telas.
+              {selectedChampionship.current_season_year + 1}. Ela não acontece mais automaticamente
+              ao abrir as telas.
             </DialogDescription>
           </DialogHeader>
 
@@ -1111,9 +1057,7 @@ export function AdminPage() {
               onClick={handleAdvanceChampionshipSeason}
               disabled={advancingChampionshipSeason}
             >
-              {advancingChampionshipSeason ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : null}
+              {advancingChampionshipSeason ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               Abrir temporada {selectedChampionship.current_season_year + 1}
             </Button>
           </DialogFooter>

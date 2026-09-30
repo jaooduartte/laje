@@ -1,4 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
+import {
+  isDedicatedSportsCoreEnabled,
+  updateSportsCoreSeason,
+} from "@/integrations/laje-api/sports-core";
 import type { ChampionshipSeasonDivisionMovement, ChampionshipSeasonSettings } from "@/lib/types";
 
 const CHAMPIONSHIP_SEASON_SETTINGS_CACHE_TTL_MS = 3_000;
@@ -17,17 +21,11 @@ const championshipSeasonSettingsResultByKey = new Map<
   { expiresAt: number; result: ChampionshipSeasonSettingsResult }
 >();
 
-function resolveChampionshipSeasonSettingsKey(
-  championshipId: string,
-  seasonYear: number,
-) {
+function resolveChampionshipSeasonSettingsKey(championshipId: string, seasonYear: number) {
   return `${championshipId}:${seasonYear}`;
 }
 
-function invalidateChampionshipSeasonSettings(
-  championshipId: string,
-  seasonYear: number,
-) {
+function invalidateChampionshipSeasonSettings(championshipId: string, seasonYear: number) {
   championshipSeasonSettingsResultByKey.delete(
     resolveChampionshipSeasonSettingsKey(championshipId, seasonYear),
   );
@@ -37,10 +35,7 @@ export async function fetchChampionshipSeasonSettings(
   championshipId: string,
   seasonYear: number,
 ): Promise<ChampionshipSeasonSettingsResult> {
-  const requestKey = resolveChampionshipSeasonSettingsKey(
-    championshipId,
-    seasonYear,
-  );
+  const requestKey = resolveChampionshipSeasonSettingsKey(championshipId, seasonYear);
   const currentRequest = championshipSeasonSettingsRequestByKey.get(requestKey);
 
   if (currentRequest) {
@@ -96,7 +91,26 @@ export async function saveChampionshipSeasonSettings(
     | "access_promotion_count"
     | "yellow_card_reset_phase"
   >,
+  accessToken?: string | null,
 ): Promise<{ data: ChampionshipSeasonSettings | null; error: Error | null }> {
+  if (isDedicatedSportsCoreEnabled()) {
+    try {
+      const data = await updateSportsCoreSeason(
+        payload.championship_id,
+        payload.season_year,
+        payload,
+        accessToken ?? "",
+      );
+      invalidateChampionshipSeasonSettings(payload.championship_id, payload.season_year);
+      return { data, error: null };
+    } catch (error) {
+      return {
+        data: null,
+        error: error instanceof Error ? error : new Error("Não foi possível salvar a temporada."),
+      };
+    }
+  }
+
   const response = await supabase
     .from("championship_season_settings")
     .upsert(payload, {
@@ -105,10 +119,7 @@ export async function saveChampionshipSeasonSettings(
     .select("*")
     .single();
 
-  invalidateChampionshipSeasonSettings(
-    payload.championship_id,
-    payload.season_year,
-  );
+  invalidateChampionshipSeasonSettings(payload.championship_id, payload.season_year);
 
   return {
     data: (response.data as ChampionshipSeasonSettings | null) ?? null,
