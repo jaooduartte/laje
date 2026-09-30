@@ -1,11 +1,4 @@
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AdminChampionshipBracketPage } from "@/components/admin/AdminChampionshipBracketPage";
 import { ChampionshipBracketSetupDTO } from "@/domain/championship-brackets/ChampionshipBracketSetupDTO";
@@ -186,8 +179,7 @@ function buildDraft(
     current_step_index: 12,
     season_settings: {
       division_format: ChampionshipSeasonDivisionFormat.SEPARATED,
-      division_settlement_mode:
-        ChampionshipSeasonDivisionSettlementMode.PROMOTION_RELEGATION,
+      division_settlement_mode: ChampionshipSeasonDivisionSettlementMode.PROMOTION_RELEGATION,
       principal_slots_count: null,
       principal_relegation_count: 2,
       access_promotion_count: 2,
@@ -374,10 +366,8 @@ function buildSetupPayloadFromDraft(draft: ChampionshipBracketWizardDraftFormVal
         ],
       },
     ],
-    competition_date_availability:
-      sanitizedDraft.competition_date_availability ?? [],
-    team_competition_date_availability:
-      sanitizedDraft.team_competition_date_availability ?? [],
+    competition_date_availability: sanitizedDraft.competition_date_availability ?? [],
+    team_competition_date_availability: sanitizedDraft.team_competition_date_availability ?? [],
     individual_event_configs: [],
     individual_session_configs: [],
     resource_locks: [],
@@ -386,9 +376,7 @@ function buildSetupPayloadFromDraft(draft: ChampionshipBracketWizardDraftFormVal
   }).bindToSave();
 }
 
-function buildExactPreviewPayloadFromDraft(
-  draft: ChampionshipBracketWizardDraftFormValues,
-) {
+function buildExactPreviewPayloadFromDraft(draft: ChampionshipBracketWizardDraftFormValues) {
   const payload = buildSetupPayloadFromDraft(draft);
   const review = resolveChampionshipBracketStructuralReview({
     payload,
@@ -398,8 +386,7 @@ function buildExactPreviewPayloadFromDraft(
 
   return {
     ...payload,
-    structural_schedule_slots:
-      resolveChampionshipBracketStructuralScheduleSlots(review),
+    structural_schedule_slots: resolveChampionshipBracketStructuralScheduleSlots(review),
   };
 }
 
@@ -793,15 +780,9 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
     renderPage();
 
     expect(await screen.findByText("Revisão Final")).toBeInTheDocument();
-    expect(
-      screen.queryByText("Jogos coletivos previstos"),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText("Sessões das modalidades individuais"),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText("Jogos planejados nas metas"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Jogos coletivos previstos")).not.toBeInTheDocument();
+    expect(screen.queryByText("Sessões das modalidades individuais")).not.toBeInTheDocument();
+    expect(screen.queryByText("Jogos planejados nas metas")).not.toBeInTheDocument();
     expect(startChampionshipBracketPreviewJobMock).not.toHaveBeenCalled();
   });
 
@@ -819,9 +800,7 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
     });
     expect(createButton).toBeDisabled();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Calcular programação exata" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Calcular programação exata" }));
 
     await waitFor(() => expect(createButton).toBeEnabled());
     expect(createChampionshipBracketFromPreviewJobMock).not.toHaveBeenCalled();
@@ -842,13 +821,10 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
       }),
     );
 
-    await waitFor(() =>
-      expect(startChampionshipBracketPreviewJobMock).toHaveBeenCalledTimes(1),
-    );
+    await waitFor(() => expect(startChampionshipBracketPreviewJobMock).toHaveBeenCalledTimes(1));
 
     const payload = startChampionshipBracketPreviewJobMock.mock.calls[0]?.[1] as
-      | ChampionshipBracketSetupFormValues
-      | undefined;
+      ChampionshipBracketSetupFormValues | undefined;
 
     expect(payload?.structural_schedule_slots).toEqual(
       expect.arrayContaining([
@@ -880,9 +856,7 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
       }),
     );
 
-    await waitFor(() =>
-      expect(saveChampionshipBracketWizardDraftMock).toHaveBeenCalled(),
-    );
+    await waitFor(() => expect(saveChampionshipBracketWizardDraftMock).toHaveBeenCalled());
 
     expect(saveChampionshipBracketWizardDraftMock).toHaveBeenLastCalledWith(
       expect.any(String),
@@ -960,9 +934,7 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
     );
 
     expect(await screen.findByText(/Duração total: 30 s/)).toBeInTheDocument();
-    expect(
-      screen.getByText("Histórico do job (3 registro(s))"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Histórico do job (3 registro(s))")).toBeInTheDocument();
     expect(screen.getByText("Programando fase de grupos")).toBeInTheDocument();
     expect(screen.getByText("Pendências reduzidas: 4 → 3")).toBeInTheDocument();
     expect(screen.getByText("Falha após cinco tentativas")).toBeInTheDocument();
@@ -1029,9 +1001,7 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
     });
 
     await waitFor(() =>
-      expect(
-        screen.queryByRole("button", { name: "Cancelar cálculo" }),
-      ).not.toBeInTheDocument(),
+      expect(screen.queryByRole("button", { name: "Cancelar cálculo" })).not.toBeInTheDocument(),
     );
   });
 
@@ -1066,18 +1036,12 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
       }),
     );
 
-    expect(
-      await screen.findByText("Prévia exata em processamento"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Programando fase de grupos"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Prévia exata em processamento")).toBeInTheDocument();
+    expect(screen.getByText("Programando fase de grupos")).toBeInTheDocument();
     expect(screen.queryByText("SCHEDULING_GROUPS")).not.toBeInTheDocument();
     expect(screen.getByText(/Iniciado em/)).toBeInTheDocument();
     expect(screen.getByText(/Em andamento há/)).toBeInTheDocument();
-    expect(
-      screen.queryByText("Prévia exata com pendências impeditivas"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Prévia exata com pendências impeditivas")).not.toBeInTheDocument();
   });
 
   it("traduz o estágio técnico de fila da prévia exata", async () => {
@@ -1139,8 +1103,7 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
         status: "FAILED",
         stage: "Falha",
         progress_percentage: 100,
-        error_message:
-          "Não foi possível encaixar 1 jogo na grade configurada.",
+        error_message: "Não foi possível encaixar 1 jogo na grade configurada.",
         summary: null,
         diagnostics: [
           {
@@ -1181,15 +1144,11 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
       }),
     );
 
-    expect(
-      await screen.findByText("Falha ao calcular a prévia exata"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Falha ao calcular a prévia exata")).toBeInTheDocument();
     expect(screen.getByText("Atlética A × Atlética B")).toBeInTheDocument();
     expect(screen.getByText(/Grupo 1/)).toBeInTheDocument();
     expect(screen.getByText(/Rodada 3/)).toBeInTheDocument();
-    expect(
-      screen.getByText(/todos os horários físicos compatíveis/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/todos os horários físicos compatíveis/i)).toBeInTheDocument();
     expect(screen.queryByText("Jogos totais")).not.toBeInTheDocument();
   });
 
@@ -1220,37 +1179,24 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
       }),
     );
 
-    expect(
-      await screen.findByText("Prévia exata validada"),
-    ).toBeInTheDocument();
-    expect(fetchChampionshipBracketPreviewJobStatusMock).toHaveBeenCalledWith(
-      "preview-job-1",
-    );
+    expect(await screen.findByText("Prévia exata validada")).toBeInTheDocument();
+    expect(fetchChampionshipBracketPreviewJobStatusMock).toHaveBeenCalledWith("preview-job-1");
     expect(fetchChampionshipBracketPreviewJobDayMock).not.toHaveBeenCalled();
 
     const collapsedExactPreviewDayButton = screen.getByRole("button", {
       name: "Expandir programação de 29/08/2026",
     });
-    const collapsedExactPreviewDayCard =
-      collapsedExactPreviewDayButton.closest("section");
+    const collapsedExactPreviewDayCard = collapsedExactPreviewDayButton.closest("section");
 
     expect(collapsedExactPreviewDayCard).not.toBeNull();
 
     const collapsedExactPreviewDay = within(collapsedExactPreviewDayCard!);
 
-    expect(
-      collapsedExactPreviewDay.getByText("08:00 até 18:00"),
-    ).toBeInTheDocument();
-    expect(
-      collapsedExactPreviewDay.getByText("1 local(is)"),
-    ).toBeInTheDocument();
-    expect(
-      collapsedExactPreviewDay.getByText("1 quadra(s)"),
-    ).toBeInTheDocument();
+    expect(collapsedExactPreviewDay.getByText("08:00 até 18:00")).toBeInTheDocument();
+    expect(collapsedExactPreviewDay.getByText("1 local(is)")).toBeInTheDocument();
+    expect(collapsedExactPreviewDay.getByText("1 quadra(s)")).toBeInTheDocument();
 
-    fireEvent.click(
-      collapsedExactPreviewDayButton,
-    );
+    fireEvent.click(collapsedExactPreviewDayButton);
 
     await waitFor(() =>
       expect(fetchChampionshipBracketPreviewJobDayMock).toHaveBeenCalledWith(
@@ -1270,17 +1216,13 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
     expect(exactPreviewDay.getByText("1 local(is)")).toBeInTheDocument();
     expect(exactPreviewDay.getAllByText("1 quadra(s)")).toHaveLength(2);
     expect(exactPreviewDay.getByText("Quadra Interna")).toBeInTheDocument();
-    expect(
-      exactPreviewDay.getByText("Sequência cronológica da quadra"),
-    ).toBeInTheDocument();
+    expect(exactPreviewDay.getByText("Sequência cronológica da quadra")).toBeInTheDocument();
     expect(exactPreviewDay.getByText("Programação exata")).toBeInTheDocument();
     expect(exactPreviewDay.getByText("Jogo 1")).toBeInTheDocument();
     expect(exactPreviewDay.getByText("Masculino")).toBeInTheDocument();
     expect(exactPreviewDay.getByText("Fase de grupos")).toBeInTheDocument();
     expect(exactPreviewDay.queryByText("Grupo A")).not.toBeInTheDocument();
-    expect(
-      exactPreviewDay.getByText("Atlética A × Atlética B"),
-    ).toBeInTheDocument();
+    expect(exactPreviewDay.getByText("Atlética A × Atlética B")).toBeInTheDocument();
     expect(exactPreviewDay.getByText("Futsal")).toBeInTheDocument();
     expect(exactPreviewDay.getByText("Reserva fixa")).toBeInTheDocument();
     expect(exactPreviewDay.getAllByText("Janela livre")).toHaveLength(1);
@@ -1289,8 +1231,7 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
   });
 
   it("oculta janelas livres entre partidas eliminatórias e traduz seus dados", async () => {
-    const projectedKnockoutPreview =
-      buildExactPreviewResultWithProjectedKnockout();
+    const projectedKnockoutPreview = buildExactPreviewResultWithProjectedKnockout();
 
     fetchChampionshipBracketWizardDraftMock.mockResolvedValue({
       draft_form_values: buildDraft(),
@@ -1333,19 +1274,11 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
     expect(exactPreviewDay.getByText("Jogo 2")).toBeInTheDocument();
     expect(exactPreviewDay.getByText("Jogo 3")).toBeInTheDocument();
     expect(exactPreviewDay.queryByText("Jogo —")).not.toBeInTheDocument();
-    expect(exactPreviewDay.getAllByText("Quartas de final")[0]).toHaveClass(
-      "leading-none",
-    );
+    expect(exactPreviewDay.getAllByText("Quartas de final")[0]).toHaveClass("leading-none");
+    expect(exactPreviewDay.getByText("1º do Grupo A × 3º melhor 2º")).toBeInTheDocument();
+    expect(exactPreviewDay.getByText("1º do Grupo B × 1º do Grupo C")).toBeInTheDocument();
     expect(
-      exactPreviewDay.getByText("1º do Grupo A × 3º melhor 2º"),
-    ).toBeInTheDocument();
-    expect(
-      exactPreviewDay.getByText("1º do Grupo B × 1º do Grupo C"),
-    ).toBeInTheDocument();
-    expect(
-      exactPreviewDay.getByText(
-        "Vencedor do jogo 2 × Vencedor do jogo 3",
-      ),
+      exactPreviewDay.getByText("Vencedor do jogo 2 × Vencedor do jogo 3"),
     ).toBeInTheDocument();
     expect(
       exactPreviewDay.getByText("Vencedor do jogo 4 × Vencedor do jogo 5"),
@@ -1362,9 +1295,7 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
     expect(
       exactPreviewDay.queryByText("Horário previsto do mata-mata automático."),
     ).not.toBeInTheDocument();
-    expect(
-      exactPreviewDay.queryByText("Programação manual de final."),
-    ).not.toBeInTheDocument();
+    expect(exactPreviewDay.queryByText("Programação manual de final.")).not.toBeInTheDocument();
   });
 
   it("mantém todos os schedule_days da prévia exata, inclusive o dia sem jogos de grupos", () => {
@@ -1389,10 +1320,7 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
       scheduleDays,
     });
 
-    expect(cache.result?.days.map((day) => day.date)).toEqual([
-      "2026-08-29",
-      "2026-09-19",
-    ]);
+    expect(cache.result?.days.map((day) => day.date)).toEqual(["2026-08-29", "2026-09-19"]);
     expect(cache.result?.days[1]).toMatchObject({
       start_time: "09:00",
       end_time: "12:00",
@@ -1419,12 +1347,8 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
 
     fireEvent.click(expandButton);
 
-    expect(
-      await screen.findByText("Sequência cronológica da quadra"),
-    ).toBeInTheDocument();
-    expect(
-      container.querySelectorAll(".structural-review-timeline-entry"),
-    ).not.toHaveLength(0);
+    expect(await screen.findByText("Sequência cronológica da quadra")).toBeInTheDocument();
+    expect(container.querySelectorAll(".structural-review-timeline-entry")).not.toHaveLength(0);
     expect(
       screen.getByRole("button", {
         name: "Recolher prévia de 29/08/2026",
@@ -1446,9 +1370,7 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
     renderPage();
 
     expect(await screen.findByText("Numeração dos jogos")).toBeInTheDocument();
-    expect(
-      screen.getByRole("radio", { name: /incluindo todos os naipes/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /incluindo todos os naipes/i })).toBeInTheDocument();
   });
 
   it("mantém os cards de dia da etapa 11 recolhidos até o admin expandir", async () => {
@@ -1468,19 +1390,13 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
       name: "Expandir programação de Dia 1",
     });
 
-    expect(
-      screen.getByText(/Tudo certo neste dia|pendência.*para revisar/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Tudo certo neste dia|pendência.*para revisar/i)).toBeInTheDocument();
     expect(screen.getByText("Futsal: 3 jogos")).toBeInTheDocument();
-    expect(
-      screen.queryByText("Jogos planejados por modalidade"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Jogos planejados por modalidade")).not.toBeInTheDocument();
 
     fireEvent.click(expandButton);
 
-    expect(
-      await screen.findByText("Jogos planejados por modalidade"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Jogos planejados por modalidade")).toBeInTheDocument();
     expect(
       screen.getByRole("button", {
         name: "Recolher programação de Dia 1",
@@ -1505,17 +1421,13 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
       name: "Expandir Dia 1",
     });
 
-    expect(
-      screen.getByRole("button", { name: "Adicionar dia" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Adicionar dia" })).toBeInTheDocument();
     expect(screen.queryByText("Locais do dia")).not.toBeInTheDocument();
 
     fireEvent.click(expandButton);
 
     expect(await screen.findByText("Locais do dia")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Recolher Dia 1" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Recolher Dia 1" })).toBeInTheDocument();
   });
 
   it("recolhe as modalidades na etapa 5 até o admin expandir", async () => {
@@ -1535,18 +1447,12 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
       name: "Expandir Futsal",
     });
 
-    expect(
-      screen.queryByTestId("naipe-card-sport-1-tab-MASCULINO"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("naipe-card-sport-1-tab-MASCULINO")).not.toBeInTheDocument();
 
     fireEvent.click(expandButton);
 
-    expect(
-      await screen.findByTestId("naipe-card-sport-1-tab-MASCULINO"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Recolher Futsal" }),
-    ).toBeInTheDocument();
+    expect(await screen.findByTestId("naipe-card-sport-1-tab-MASCULINO")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Recolher Futsal" })).toBeInTheDocument();
   });
 
   it("recolhe as modalidades e suas atléticas na etapa 4", async () => {
@@ -1566,18 +1472,12 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
       name: "Expandir Futsal",
     });
 
-    expect(
-      screen.queryByTestId("modality-card-sport-1-team-team-1"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("modality-card-sport-1-team-team-1")).not.toBeInTheDocument();
 
     fireEvent.click(expandButton);
 
-    expect(
-      await screen.findByTestId("modality-card-sport-1-team-team-1"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Recolher Futsal" }),
-    ).toBeInTheDocument();
+    expect(await screen.findByTestId("modality-card-sport-1-team-team-1")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Recolher Futsal" })).toBeInTheDocument();
   });
 
   it("recolhe as atléticas e suas modalidades na etapa 10", async () => {
@@ -1609,15 +1509,11 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
       name: "Expandir disponibilidade de Futsal da Atlética A",
     });
 
-    expect(
-      screen.queryByRole("button", { name: "Disponível em todos" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Disponível em todos" })).not.toBeInTheDocument();
 
     fireEvent.click(expandSportButton);
 
-    expect(
-      await screen.findByRole("button", { name: "Disponível em todos" }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Disponível em todos" })).toBeInTheDocument();
     expect(
       screen.getByRole("button", {
         name: "Recolher disponibilidade de Futsal da Atlética A",
@@ -1642,15 +1538,11 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
       name: /Expandir disponibilidade de Futsal.*Masculino/i,
     });
 
-    expect(
-      screen.queryByRole("button", { name: "Todos os dias" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Todos os dias" })).not.toBeInTheDocument();
 
     fireEvent.click(expandButton);
 
-    expect(
-      await screen.findByRole("button", { name: "Todos os dias" }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Todos os dias" })).toBeInTheDocument();
     expect(
       screen.getByRole("button", {
         name: /Recolher disponibilidade de Futsal.*Masculino/i,
@@ -1676,17 +1568,13 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
     });
 
     expect(
-      screen.queryByTestId(
-        "sport-1::MASCULINO::DIVISAO_PRINCIPAL-group-1-column",
-      ),
+      screen.queryByTestId("sport-1::MASCULINO::DIVISAO_PRINCIPAL-group-1-column"),
     ).not.toBeInTheDocument();
 
     fireEvent.click(expandButton);
 
     expect(
-      await screen.findByTestId(
-        "sport-1::MASCULINO::DIVISAO_PRINCIPAL-group-1-column",
-      ),
+      await screen.findByTestId("sport-1::MASCULINO::DIVISAO_PRINCIPAL-group-1-column"),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", {
@@ -1717,9 +1605,7 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
 
     await screen.findByText("Revisão Final");
 
-    expect(toastInfoMock).toHaveBeenCalledWith(
-      expect.stringContaining("1 meta de jogos"),
-    );
+    expect(toastInfoMock).toHaveBeenCalledWith(expect.stringContaining("1 meta de jogos"));
   });
 
   it("dispara a prévia exata manual apenas uma vez por carregamento", async () => {
@@ -1747,9 +1633,7 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
 
     fireEvent.click(actionButton);
     fireEvent.click(actionButton);
-    await waitFor(() =>
-      expect(startChampionshipBracketPreviewJobMock).toHaveBeenCalledTimes(1),
-    );
+    await waitFor(() => expect(startChampionshipBracketPreviewJobMock).toHaveBeenCalledTimes(1));
 
     expect(screen.getByRole("button", { name: /Calculando/i })).toBeDisabled();
 
@@ -1800,12 +1684,8 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
 
     renderPage();
 
-    expect(
-      await screen.findByText("Última simulação exata desatualizada"),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByText("Prévia exata desatualizada"),
-    ).not.toBeInTheDocument();
+    expect(await screen.findByText("Última simulação exata desatualizada")).toBeInTheDocument();
+    expect(screen.queryByText("Prévia exata desatualizada")).not.toBeInTheDocument();
     expect(screen.queryByText(/Fonte: job durável/i)).not.toBeInTheDocument();
   });
 
@@ -1829,9 +1709,7 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
 
     renderPage();
 
-    expect(
-      await screen.findByText("Última simulação exata desatualizada"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Última simulação exata desatualizada")).toBeInTheDocument();
     expect(screen.queryByText("Prévia exata validada")).not.toBeInTheDocument();
   });
 });
