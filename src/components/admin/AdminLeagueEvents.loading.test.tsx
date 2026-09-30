@@ -162,9 +162,8 @@ function buildTeam(overrides: Partial<Team> & Pick<Team, "id" | "name">): Team {
 function buildLeagueEvent(
   overrides: Partial<LeagueEvent> & Pick<LeagueEvent, "id" | "name">,
 ): LeagueEvent {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const defaultEventDate = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
+  const today = new Date();
+  const defaultEventDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
   return {
     id: overrides.id,
