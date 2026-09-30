@@ -1,19 +1,8 @@
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AdminLeagueEvents } from "@/components/admin/AdminLeagueEvents";
-import {
-  LeagueEventOrganizerType,
-  LeagueEventType,
-  TeamDivision,
-} from "@/lib/enums";
+import { LeagueEventOrganizerType, LeagueEventType, TeamDivision } from "@/lib/enums";
 import type { LeagueEvent, Team } from "@/lib/types";
 
 const {
@@ -64,25 +53,15 @@ vi.mock("@/components/ui/select", () => ({
       {children}
     </button>
   ),
-  SelectValue: ({ placeholder }: { placeholder?: string }) => (
-    <span>{placeholder}</span>
-  ),
-  SelectContent: ({ children }: { children: ReactNode }) => (
-    <div>{children}</div>
-  ),
+  SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
+  SelectContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   SelectItem: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
 vi.mock("@/components/ui/dropdown-menu", () => ({
-  DropdownMenu: ({ children }: { children: ReactNode }) => (
-    <div>{children}</div>
-  ),
-  DropdownMenuTrigger: ({ children }: { children: ReactNode }) => (
-    <>{children}</>
-  ),
-  DropdownMenuContent: ({ children }: { children: ReactNode }) => (
-    <div>{children}</div>
-  ),
+  DropdownMenu: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DropdownMenuTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
+  DropdownMenuContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DropdownMenuItem: ({
     children,
     onSelect,
@@ -116,14 +95,11 @@ vi.mock("@/domain/league-events/leagueEvent.repository", () => ({
   createLeagueEvent: (...args: unknown[]) => createLeagueEventMock(...args),
   updateLeagueEvent: (...args: unknown[]) => updateLeagueEventMock(...args),
   deleteLeagueEvent: (...args: unknown[]) => deleteLeagueEventMock(...args),
-  fetchLeagueEventsByDateRange: (...args: unknown[]) =>
-    fetchLeagueEventsByDateRangeMock(...args),
+  fetchLeagueEventsByDateRange: (...args: unknown[]) => fetchLeagueEventsByDateRangeMock(...args),
 }));
 
 vi.mock("@/domain/league-events/leagueEventReservation.repository", () => ({
-  fetchLeagueEventReservationRequests: vi
-    .fn()
-    .mockResolvedValue({ data: [], error: null }),
+  fetchLeagueEventReservationRequests: vi.fn().mockResolvedValue({ data: [], error: null }),
   reviewLeagueEventReservationRequest: vi.fn(),
 }));
 
@@ -205,9 +181,7 @@ describe("AdminLeagueEvents loading states", () => {
     updateResolver.current = null;
     deleteResolver.current = null;
 
-    mockedLeagueEvents.current = [
-      buildLeagueEvent({ id: "league-event-1", name: "Evento 1" }),
-    ];
+    mockedLeagueEvents.current = [buildLeagueEvent({ id: "league-event-1", name: "Evento 1" })];
 
     fetchLeagueEventsByDateRangeMock.mockResolvedValue({
       data: [],
@@ -277,9 +251,7 @@ describe("AdminLeagueEvents loading states", () => {
 
     await waitFor(() => {
       expect(createSubmitButton).toBeDisabled();
-      expect(
-        createSubmitButton.querySelector("svg.animate-spin"),
-      ).not.toBeNull();
+      expect(createSubmitButton.querySelector("svg.animate-spin")).not.toBeNull();
     });
 
     await act(async () => {
@@ -300,9 +272,7 @@ describe("AdminLeagueEvents loading states", () => {
     updateDelay.value = true;
     renderAdminLeagueEvents();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Ações do evento Evento 1" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Ações do evento Evento 1" }));
     fireEvent.click(await screen.findByText("Editar"));
 
     const saveButton = await screen.findByRole("button", {
@@ -318,9 +288,7 @@ describe("AdminLeagueEvents loading states", () => {
     });
 
     await waitFor(() => {
-      expect(
-        screen.queryByRole("button", { name: "Salvar alterações" }),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Salvar alterações" })).not.toBeInTheDocument();
       expect(upsertLeagueEventMock).toHaveBeenCalled();
     });
   });
@@ -342,9 +310,7 @@ describe("AdminLeagueEvents loading states", () => {
     fireEvent.click(confirmDeleteButton);
 
     expect(confirmDeleteButton).toBeDisabled();
-    expect(
-      confirmDeleteButton.querySelector("svg.animate-spin"),
-    ).not.toBeNull();
+    expect(confirmDeleteButton.querySelector("svg.animate-spin")).not.toBeNull();
 
     await act(async () => {
       deleteResolver.current?.();
@@ -384,9 +350,7 @@ describe("AdminLeagueEvents loading states", () => {
     fireEvent.click(confirmCreateButton);
 
     expect(confirmCreateButton).toBeDisabled();
-    expect(
-      confirmCreateButton.querySelector("svg.animate-spin"),
-    ).not.toBeNull();
+    expect(confirmCreateButton.querySelector("svg.animate-spin")).not.toBeNull();
 
     await act(async () => {
       createResolver.current?.();
@@ -436,21 +400,13 @@ describe("AdminLeagueEvents loading states", () => {
     expect(screen.queryByText("Evento passado")).not.toBeInTheDocument();
     expect(screen.getByText("Evento futuro")).toBeInTheDocument();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Exibir 1 evento(s) passado(s)" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Exibir 1 evento(s) passado(s)" }));
 
-    const pastEventCard = screen
-      .getByText("Evento passado")
-      .closest(".list-item-card");
-    const futureEventCard = screen
-      .getByText("Evento futuro")
-      .closest(".list-item-card");
+    const pastEventCard = screen.getByText("Evento passado").closest(".list-item-card");
+    const futureEventCard = screen.getByText("Evento futuro").closest(".list-item-card");
 
     expect(pastEventCard).toHaveClass("opacity-70");
     expect(futureEventCard).not.toHaveClass("opacity-70");
-    expect(
-      screen.getByRole("button", { name: "Ocultar eventos passados" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ocultar eventos passados" })).toBeInTheDocument();
   });
 });
