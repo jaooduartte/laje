@@ -1,12 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -123,6 +116,7 @@ import {
   syncChampionshipIndividualSessionsFromSetup,
 } from "@/domain/individual-events/championshipIndividualEvents.repository";
 import { useChampionshipSeasonSettings } from "@/hooks/useChampionshipSeasonSettings";
+import { useAuth } from "@/hooks/useAuth";
 import type {
   ChampionshipBracketCompetitionMatchTargetRecommendationSummary,
   ChampionshipBracketCompetitionConfigDraft,
@@ -180,12 +174,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { TimeInput } from "@/components/ui/time-input";
 import { Progress } from "@/components/ui/progress";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { AdminBracketDrawModal } from "@/components/admin/AdminBracketDrawModal";
 import {
   resolveLocationCatalogSportOptions,
@@ -379,11 +368,7 @@ function resolveColumnFirstOrderedItems<T>(items: T[], columns: number): T[] {
   const orderedItems: T[] = [];
 
   for (let rowIndex = 0; rowIndex < rowsPerColumn; rowIndex += 1) {
-    for (
-      let columnIndex = 0;
-      columnIndex < itemColumns.length;
-      columnIndex += 1
-    ) {
+    for (let columnIndex = 0; columnIndex < itemColumns.length; columnIndex += 1) {
       const item = itemColumns[columnIndex]?.[rowIndex];
 
       if (item !== undefined) {
@@ -400,11 +385,7 @@ function resolveCompetitionKey(
   naipe: MatchNaipe,
   division: TeamDivision | null,
 ): string {
-  return [
-    sport_id,
-    naipe,
-    division ?? COMPETITION_DIVISION_WITHOUT_DIVISION,
-  ].join("::");
+  return [sport_id, naipe, division ?? COMPETITION_DIVISION_WITHOUT_DIVISION].join("::");
 }
 
 function parseCompetitionKey(competition_key: string): {
@@ -417,16 +398,11 @@ function parseCompetitionKey(competition_key: string): {
   return {
     sport_id,
     naipe: naipe as MatchNaipe,
-    division:
-      division == COMPETITION_DIVISION_WITHOUT_DIVISION
-        ? null
-        : (division as TeamDivision),
+    division: division == COMPETITION_DIVISION_WITHOUT_DIVISION ? null : (division as TeamDivision),
   };
 }
 
-function resolveSupportedNaipesByMode(
-  naipe_mode: ChampionshipSportNaipeMode,
-): MatchNaipe[] {
+function resolveSupportedNaipesByMode(naipe_mode: ChampionshipSportNaipeMode): MatchNaipe[] {
   if (naipe_mode == ChampionshipSportNaipeMode.MISTO) {
     return [MatchNaipe.MISTO];
   }
@@ -474,20 +450,13 @@ function resolveCheckboxCheckedState(
   return "indeterminate";
 }
 
-function resolveDefaultWizardNaipeTabValue(
-  naipes: MatchNaipe[],
-): MatchNaipe | null {
-  return (
-    WIZARD_NAIPE_TAB_DEFAULT_ORDER.find((naipe) => naipes.includes(naipe)) ??
-    null
-  );
+function resolveDefaultWizardNaipeTabValue(naipes: MatchNaipe[]): MatchNaipe | null {
+  return WIZARD_NAIPE_TAB_DEFAULT_ORDER.find((naipe) => naipes.includes(naipe)) ?? null;
 }
 
 function AnimatedTabBar({ items, value, onValueChange }: AnimatedTabBarProps) {
   const containerReference = useRef<HTMLDivElement | null>(null);
-  const buttonByValueReference = useRef<
-    Record<string, HTMLButtonElement | null>
-  >({});
+  const buttonByValueReference = useRef<Record<string, HTMLButtonElement | null>>({});
   const [activeIndicatorLeft, setActiveIndicatorLeft] = useState(0);
   const [activeIndicatorWidth, setActiveIndicatorWidth] = useState(0);
   const [showActiveIndicator, setShowActiveIndicator] = useState(false);
@@ -670,11 +639,9 @@ function resolveScheduleCourtClone(
           ...schedule_court.sport_preference,
         }
       : null,
-    sport_match_targets: (schedule_court.sport_match_targets ?? []).map(
-      (target) => ({
-        ...target,
-      }),
-    ),
+    sport_match_targets: (schedule_court.sport_match_targets ?? []).map((target) => ({
+      ...target,
+    })),
   };
 }
 
@@ -714,8 +681,7 @@ function resolveDefaultSeasonSettings(
   if (championshipCode == ChampionshipCode.INTERLAJE) {
     return {
       division_format: ChampionshipSeasonDivisionFormat.SEPARATED,
-      division_settlement_mode:
-        ChampionshipSeasonDivisionSettlementMode.PROMOTION_RELEGATION,
+      division_settlement_mode: ChampionshipSeasonDivisionSettlementMode.PROMOTION_RELEGATION,
       principal_slots_count: null,
       principal_relegation_count: 2,
       access_promotion_count: 2,
@@ -733,12 +699,8 @@ function resolveDefaultSeasonSettings(
   };
 }
 
-function resolveUsesSeasonDivisions(
-  seasonSettings: ChampionshipSeasonSettingsInput,
-) {
-  return (
-    seasonSettings.division_format == ChampionshipSeasonDivisionFormat.SEPARATED
-  );
+function resolveUsesSeasonDivisions(seasonSettings: ChampionshipSeasonSettingsInput) {
+  return seasonSettings.division_format == ChampionshipSeasonDivisionFormat.SEPARATED;
 }
 
 function resolveInitialWizardDraftFormValues(
@@ -829,9 +791,7 @@ function resolveResourceLockFromIndividualSession(
   };
 }
 
-function isGenericManualCourtResourceLock(
-  resourceLock: ChampionshipBracketResourceLockInput,
-) {
+function isGenericManualCourtResourceLock(resourceLock: ChampionshipBracketResourceLockInput) {
   return (
     resourceLock.lock_mode == "HARD" &&
     !resourceLock.sport_id &&
@@ -965,28 +925,17 @@ function resolveDefaultCompetitionConfig(
 function resolveTextHashValue(text_value: string): number {
   let hash_value = 0;
 
-  for (
-    let character_index = 0;
-    character_index < text_value.length;
-    character_index += 1
-  ) {
+  for (let character_index = 0; character_index < text_value.length; character_index += 1) {
     hash_value = (hash_value * 31 + text_value.charCodeAt(character_index)) | 0;
   }
 
   return Math.abs(hash_value);
 }
 
-function resolveShuffledTeamIds(
-  team_ids: string[],
-  competition_key: string,
-): string[] {
+function resolveShuffledTeamIds(team_ids: string[], competition_key: string): string[] {
   return [...team_ids].sort((left_team_id, right_team_id) => {
-    const left_hash_value = resolveTextHashValue(
-      `${competition_key}::${left_team_id}`,
-    );
-    const right_hash_value = resolveTextHashValue(
-      `${competition_key}::${right_team_id}`,
-    );
+    const left_hash_value = resolveTextHashValue(`${competition_key}::${left_team_id}`);
+    const right_hash_value = resolveTextHashValue(`${competition_key}::${right_team_id}`);
 
     if (left_hash_value == right_hash_value) {
       return left_team_id.localeCompare(right_team_id);
@@ -1048,9 +997,7 @@ function resolveScheduleDayDateTimeValue(
     return null;
   }
 
-  const [year_value, month_value, day_value] = schedule_day.date
-    .split("-")
-    .map(Number);
+  const [year_value, month_value, day_value] = schedule_day.date.split("-").map(Number);
   const [hour_value, minute_value] = time_value.split(":").map(Number);
 
   if (
@@ -1124,18 +1071,11 @@ function resolveMinuteSummaryLabel(minutes: number): string {
   return `${minutes} min (${resolveMinutesWithHourLabel(minutes)})`;
 }
 
-function resolveTimeRangeDurationMinutes(
-  startTime: string,
-  endTime: string,
-): number | null {
+function resolveTimeRangeDurationMinutes(startTime: string, endTime: string): number | null {
   const startMinutes = resolveTimeValueToMinutes(startTime);
   const endMinutes = resolveTimeValueToMinutes(endTime);
 
-  if (
-    startMinutes == null ||
-    endMinutes == null ||
-    endMinutes <= startMinutes
-  ) {
+  if (startMinutes == null || endMinutes == null || endMinutes <= startMinutes) {
     return null;
   }
 
@@ -1196,27 +1136,22 @@ function resolveStructuralReviewCourtDisplayEntries(
   reviewDay: ChampionshipBracketStructuralReviewResult["days"][number],
   court: ChampionshipBracketStructuralReviewResult["days"][number]["locations"][number]["courts"][number],
 ): StructuralReviewCourtDisplayEntry[] {
-  const estimatedEntries = [...court.estimated_match_entries].sort(
-    (left, right) => {
-      const leftStartMinutes = resolveTimeValueToMinutes(left.start_time) ?? 0;
-      const rightStartMinutes =
-        resolveTimeValueToMinutes(right.start_time) ?? 0;
+  const estimatedEntries = [...court.estimated_match_entries].sort((left, right) => {
+    const leftStartMinutes = resolveTimeValueToMinutes(left.start_time) ?? 0;
+    const rightStartMinutes = resolveTimeValueToMinutes(right.start_time) ?? 0;
 
-      if (leftStartMinutes != rightStartMinutes) {
-        return leftStartMinutes - rightStartMinutes;
-      }
+    if (leftStartMinutes != rightStartMinutes) {
+      return leftStartMinutes - rightStartMinutes;
+    }
 
-      return left.match_number - right.match_number;
-    },
-  );
+    return left.match_number - right.match_number;
+  });
   const consumedEstimatedEntryKeySet = new Set<string>();
   const displayEntries: StructuralReviewCourtDisplayEntry[] = [];
 
   court.timeline_entries.forEach((timelineEntry, timelineEntryIndex) => {
-    const timelineStartMinutes =
-      resolveTimeValueToMinutes(timelineEntry.start_time) ?? 0;
-    const timelineEndMinutes =
-      resolveTimeValueToMinutes(timelineEntry.end_time) ?? 0;
+    const timelineStartMinutes = resolveTimeValueToMinutes(timelineEntry.start_time) ?? 0;
+    const timelineEndMinutes = resolveTimeValueToMinutes(timelineEntry.end_time) ?? 0;
 
     if (timelineEntry.type != "FREE_WINDOW") {
       displayEntries.push({
@@ -1229,75 +1164,66 @@ function resolveStructuralReviewCourtDisplayEntries(
       return;
     }
 
-    const freeWindowEstimatedEntries = estimatedEntries.filter(
-      (estimatedEntry) => {
-        const estimatedEntryKey = [
-          estimatedEntry.match_number,
-          estimatedEntry.sport_id,
-          estimatedEntry.naipe,
-          estimatedEntry.phase_label,
-          estimatedEntry.start_time,
-        ].join("::");
-        const estimatedStartMinutes =
-          resolveTimeValueToMinutes(estimatedEntry.start_time) ?? 0;
-        const estimatedEndMinutes =
-          resolveTimeValueToMinutes(estimatedEntry.end_time) ?? 0;
+    const freeWindowEstimatedEntries = estimatedEntries.filter((estimatedEntry) => {
+      const estimatedEntryKey = [
+        estimatedEntry.match_number,
+        estimatedEntry.sport_id,
+        estimatedEntry.naipe,
+        estimatedEntry.phase_label,
+        estimatedEntry.start_time,
+      ].join("::");
+      const estimatedStartMinutes = resolveTimeValueToMinutes(estimatedEntry.start_time) ?? 0;
+      const estimatedEndMinutes = resolveTimeValueToMinutes(estimatedEntry.end_time) ?? 0;
 
-        if (consumedEstimatedEntryKeySet.has(estimatedEntryKey)) {
-          return false;
-        }
+      if (consumedEstimatedEntryKeySet.has(estimatedEntryKey)) {
+        return false;
+      }
 
-        return (
-          estimatedStartMinutes >= timelineStartMinutes &&
-          estimatedEndMinutes <= timelineEndMinutes
-        );
-      },
-    );
+      return (
+        estimatedStartMinutes >= timelineStartMinutes && estimatedEndMinutes <= timelineEndMinutes
+      );
+    });
 
     let currentCursorMinutes = timelineStartMinutes;
 
-    freeWindowEstimatedEntries.forEach(
-      (estimatedEntry, estimatedEntryIndex) => {
-        const estimatedEntryKey = [
-          estimatedEntry.match_number,
-          estimatedEntry.sport_id,
-          estimatedEntry.naipe,
-          estimatedEntry.phase_label,
-          estimatedEntry.start_time,
-        ].join("::");
-        const estimatedStartMinutes =
-          resolveTimeValueToMinutes(estimatedEntry.start_time) ??
-          currentCursorMinutes;
-        const estimatedEndMinutes =
-          resolveTimeValueToMinutes(estimatedEntry.end_time) ??
-          estimatedStartMinutes;
+    freeWindowEstimatedEntries.forEach((estimatedEntry, estimatedEntryIndex) => {
+      const estimatedEntryKey = [
+        estimatedEntry.match_number,
+        estimatedEntry.sport_id,
+        estimatedEntry.naipe,
+        estimatedEntry.phase_label,
+        estimatedEntry.start_time,
+      ].join("::");
+      const estimatedStartMinutes =
+        resolveTimeValueToMinutes(estimatedEntry.start_time) ?? currentCursorMinutes;
+      const estimatedEndMinutes =
+        resolveTimeValueToMinutes(estimatedEntry.end_time) ?? estimatedStartMinutes;
 
-        if (estimatedStartMinutes > currentCursorMinutes) {
-          displayEntries.push({
-            kind: "TIMELINE",
-            key: `free-window-segment-${reviewDay.date}-${court.court_key}-${timelineEntryIndex}-${estimatedEntryIndex}`,
-            start_minutes: currentCursorMinutes,
-            end_minutes: estimatedStartMinutes,
-            entry: {
-              ...timelineEntry,
-              start_time: resolveMinutesToTimeValue(currentCursorMinutes),
-              end_time: resolveMinutesToTimeValue(estimatedStartMinutes),
-              duration_minutes: estimatedStartMinutes - currentCursorMinutes,
-            },
-          });
-        }
-
+      if (estimatedStartMinutes > currentCursorMinutes) {
         displayEntries.push({
-          kind: "ESTIMATED",
-          key: `estimated-entry-${reviewDay.date}-${court.court_key}-${estimatedEntryKey}`,
-          start_minutes: estimatedStartMinutes,
-          end_minutes: estimatedEndMinutes,
-          entry: estimatedEntry,
+          kind: "TIMELINE",
+          key: `free-window-segment-${reviewDay.date}-${court.court_key}-${timelineEntryIndex}-${estimatedEntryIndex}`,
+          start_minutes: currentCursorMinutes,
+          end_minutes: estimatedStartMinutes,
+          entry: {
+            ...timelineEntry,
+            start_time: resolveMinutesToTimeValue(currentCursorMinutes),
+            end_time: resolveMinutesToTimeValue(estimatedStartMinutes),
+            duration_minutes: estimatedStartMinutes - currentCursorMinutes,
+          },
         });
-        consumedEstimatedEntryKeySet.add(estimatedEntryKey);
-        currentCursorMinutes = estimatedEndMinutes;
-      },
-    );
+      }
+
+      displayEntries.push({
+        kind: "ESTIMATED",
+        key: `estimated-entry-${reviewDay.date}-${court.court_key}-${estimatedEntryKey}`,
+        start_minutes: estimatedStartMinutes,
+        end_minutes: estimatedEndMinutes,
+        entry: estimatedEntry,
+      });
+      consumedEstimatedEntryKeySet.add(estimatedEntryKey);
+      currentCursorMinutes = estimatedEndMinutes;
+    });
 
     if (currentCursorMinutes < timelineEndMinutes) {
       displayEntries.push({
@@ -1458,17 +1384,13 @@ function resolveOperationalPreviewMatchSourceLabel({
     return `${position}º do ${resolveChampionshipGroupLabel(groupNumber)}`;
   }
 
-  const bestSecondPoolPositionMatch = source.match(
-    /^BEST_SECOND_POOL_POSITION_(\d+)$/,
-  );
+  const bestSecondPoolPositionMatch = source.match(/^BEST_SECOND_POOL_POSITION_(\d+)$/);
 
   if (bestSecondPoolPositionMatch) {
     return `${bestSecondPoolPositionMatch[1]}º melhor 2º`;
   }
 
-  const bestThirdPoolPositionMatch = source.match(
-    /^BEST_THIRD_POOL_POSITION_(\d+)$/,
-  );
+  const bestThirdPoolPositionMatch = source.match(/^BEST_THIRD_POOL_POSITION_(\d+)$/);
 
   if (bestThirdPoolPositionMatch) {
     return `${bestThirdPoolPositionMatch[1]}º melhor 3º`;
@@ -1501,8 +1423,7 @@ function resolveOperationalPreviewMatchReason({
         source,
         phase,
         phaseLabel,
-        sourceMatchNumber:
-          sourceIndex == 0 ? homeSourceMatchNumber : awaySourceMatchNumber,
+        sourceMatchNumber: sourceIndex == 0 ? homeSourceMatchNumber : awaySourceMatchNumber,
       }),
     )
     .join(" × ");
@@ -1581,10 +1502,7 @@ function resolveOperationalPreviewMatchNumberByEntryKey(
     const previousMatchNumber = latestMatchNumberByScope.get(numberingKey) ?? 0;
     const matchNumber = entry.match_number ?? previousMatchNumber + 1;
 
-    latestMatchNumberByScope.set(
-      numberingKey,
-      Math.max(previousMatchNumber, matchNumber),
-    );
+    latestMatchNumberByScope.set(numberingKey, Math.max(previousMatchNumber, matchNumber));
     matchNumberByEntryKey.set(
       resolveOperationalPreviewEntryKey({
         date,
@@ -1737,17 +1655,12 @@ function resolveExactPreviewJobStatusLabel(
     FAILED: "Falhou",
     CANCELLED: "Cancelado",
     CONSUMED: "Utilizado para criar o campeonato",
-  } satisfies Record<
-    NonNullable<ChampionshipBracketPreviewJobEvent["status"]>,
-    string
-  >;
+  } satisfies Record<NonNullable<ChampionshipBracketPreviewJobEvent["status"]>, string>;
 
   return status ? statusLabels[status] : null;
 }
 
-function resolveExactPreviewJobEventLabel(
-  event: ChampionshipBracketPreviewJobEvent,
-): string {
+function resolveExactPreviewJobEventLabel(event: ChampionshipBracketPreviewJobEvent): string {
   if (event.event_type == "STAGE_CHANGED") {
     return event.stage
       ? resolveExactPreviewJobStageLabel(event.stage)
@@ -1757,10 +1670,7 @@ function resolveExactPreviewJobEventLabel(
   if (event.event_type == "PENDING_MATCH_COUNT_DECREASED") {
     const { pending_matches_after, pending_matches_before } = event.details;
 
-    if (
-      typeof pending_matches_before == "number" &&
-      typeof pending_matches_after == "number"
-    ) {
+    if (typeof pending_matches_before == "number" && typeof pending_matches_after == "number") {
       return `Pendências reduzidas: ${pending_matches_before} → ${pending_matches_after}`;
     }
 
@@ -1781,9 +1691,7 @@ function resolveExactPreviewJobEventLabel(
   const matchContext = [
     event.details.sport_name,
     phaseLabel,
-    event.details.group_number != null
-      ? `Grupo ${event.details.group_number}`
-      : null,
+    event.details.group_number != null ? `Grupo ${event.details.group_number}` : null,
     event.details.logical_key,
   ].filter((value): value is string => value != null && value != "");
 
@@ -1820,10 +1728,7 @@ function resolveExactPreviewJobElapsedTimeLabel(
     return null;
   }
 
-  const elapsedSeconds = Math.max(
-    0,
-    Math.floor((currentTime - startedAtTime) / 1_000),
-  );
+  const elapsedSeconds = Math.max(0, Math.floor((currentTime - startedAtTime) / 1_000));
   const elapsedMinutes = Math.floor(elapsedSeconds / 60);
   const elapsedHours = Math.floor(elapsedMinutes / 60);
   const remainingMinutes = elapsedMinutes % 60;
@@ -1844,9 +1749,7 @@ function resolveEditableDraftSnapshot(
   draft_form_values: ChampionshipBracketWizardDraftFormValues,
 ): string {
   const normalized_draft =
-    ChampionshipBracketWizardDraftDTO.fromFormValues(
-      draft_form_values,
-    ).bindToSave();
+    ChampionshipBracketWizardDraftDTO.fromFormValues(draft_form_values).bindToSave();
 
   return JSON.stringify({
     ...normalized_draft,
@@ -1888,8 +1791,7 @@ function resolveWizardDraftSanitizationToastMessage({
           (locationTotal, location) =>
             locationTotal +
             location.courts.reduce(
-              (courtTotal, court) =>
-                courtTotal + (court.sport_match_targets?.length ?? 0),
+              (courtTotal, court) => courtTotal + (court.sport_match_targets?.length ?? 0),
               0,
             ),
           0,
@@ -1906,30 +1808,27 @@ function resolveWizardDraftSanitizationToastMessage({
       ),
     ),
   );
-  const clearedCourtPreferenceCount =
-    previousDraftFormValues.schedule_days.flatMap((scheduleDay) =>
-      scheduleDay.locations.flatMap((location) =>
-        location.courts.filter((court) => {
-          if (!court.sport_preference) {
-            return false;
-          }
+  const clearedCourtPreferenceCount = previousDraftFormValues.schedule_days.flatMap((scheduleDay) =>
+    scheduleDay.locations.flatMap((location) =>
+      location.courts.filter((court) => {
+        if (!court.sport_preference) {
+          return false;
+        }
 
-          return (
-            nextCourtPreferenceByKey.get(
-              [scheduleDay.id, location.id, court.id].join("::"),
-            ) == null
-          );
-        }),
-      ),
-    ).length;
+        return (
+          nextCourtPreferenceByKey.get([scheduleDay.id, location.id, court.id].join("::")) == null
+        );
+      }),
+    ),
+  ).length;
   const nextFinalBlockByKey = new Map(
     nextDraftFormValues.knockout_program_blocks.map((programBlock) => [
       resolveKnockoutProgramBlockKey(programBlock),
       programBlock,
     ]),
   );
-  const adjustedFinalBlockCount =
-    previousDraftFormValues.knockout_program_blocks.filter((programBlock) => {
+  const adjustedFinalBlockCount = previousDraftFormValues.knockout_program_blocks.filter(
+    (programBlock) => {
       const nextProgramBlock = nextFinalBlockByKey.get(
         resolveKnockoutProgramBlockKey(programBlock),
       );
@@ -1939,7 +1838,8 @@ function resolveWizardDraftSanitizationToastMessage({
         JSON.stringify(nextProgramBlock.naipe_sequence) !=
           JSON.stringify(programBlock.naipe_sequence)
       );
-    }).length;
+    },
+  ).length;
   const removedSportMatchTargetCount = Math.max(
     0,
     resolveSportMatchTargetCount(previousDraftFormValues) -
@@ -1957,9 +1857,7 @@ function resolveWizardDraftSanitizationToastMessage({
         } de quadra`
       : null,
     adjustedFinalBlockCount > 0
-      ? `${adjustedFinalBlockCount} bloco${
-          adjustedFinalBlockCount == 1 ? "" : "s"
-        } de final`
+      ? `${adjustedFinalBlockCount} bloco${adjustedFinalBlockCount == 1 ? "" : "s"} de final`
       : null,
   ].filter((messagePart): messagePart is string => messagePart != null);
 
@@ -1986,22 +1884,20 @@ export function AdminChampionshipBracketPage({
   championshipSports,
   onGenerated,
 }: Props) {
+  const { accessToken } = useAuth();
   const defaultEnabledSportIds = useMemo(
-    () =>
-      championshipSports.map((championshipSport) => championshipSport.sport_id),
+    () => championshipSports.map((championshipSport) => championshipSport.sport_id),
     [championshipSports],
   );
   const defaultSeasonSettings = useMemo(
     () => resolveDefaultSeasonSettings(selectedChampionship.code),
     [selectedChampionship.code],
   );
-  const {
-    seasonSettings: persistedSeasonSettings,
-    loading: seasonSettingsLoading,
-  } = useChampionshipSeasonSettings({
-    championshipId: selectedChampionship.id,
-    seasonYear: selectedChampionship.current_season_year,
-  });
+  const { seasonSettings: persistedSeasonSettings, loading: seasonSettingsLoading } =
+    useChampionshipSeasonSettings({
+      championshipId: selectedChampionship.id,
+      seasonYear: selectedChampionship.current_season_year,
+    });
   const resolvedDefaultSeasonSettings = useMemo(() => {
     if (!persistedSeasonSettings) {
       return defaultSeasonSettings;
@@ -2009,52 +1905,47 @@ export function AdminChampionshipBracketPage({
 
     return {
       division_format: persistedSeasonSettings.division_format,
-      division_settlement_mode:
-        persistedSeasonSettings.division_settlement_mode,
+      division_settlement_mode: persistedSeasonSettings.division_settlement_mode,
       principal_slots_count: persistedSeasonSettings.principal_slots_count,
-      principal_relegation_count:
-        persistedSeasonSettings.principal_relegation_count,
+      principal_relegation_count: persistedSeasonSettings.principal_relegation_count,
       access_promotion_count: persistedSeasonSettings.access_promotion_count,
       yellow_card_reset_phase: persistedSeasonSettings.yellow_card_reset_phase,
     } satisfies ChampionshipSeasonSettingsInput;
   }, [defaultSeasonSettings, persistedSeasonSettings]);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [highestUnlockedStepIndex, setHighestUnlockedStepIndex] = useState(0);
-  const [seasonSettings, setSeasonSettings] =
-    useState<ChampionshipSeasonSettingsInput>(resolvedDefaultSeasonSettings);
+  const [seasonSettings, setSeasonSettings] = useState<ChampionshipSeasonSettingsInput>(
+    resolvedDefaultSeasonSettings,
+  );
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
   const [enabledSportIds, setEnabledSportIds] = useState<string[]>([]);
   const [selectedSportIdsByTeamId, setSelectedSportIdsByTeamId] = useState<
     Record<string, string[]>
   >({});
-  const [
-    showEstimatedStartTimeOnCardsBySportId,
-    setShowEstimatedStartTimeOnCardsBySportId,
-  ] = useState<Record<string, boolean>>({});
-  const [selectedCompetitionKeysByTeamId, setSelectedCompetitionKeysByTeamId] =
-    useState<Record<string, string[]>>({});
-  const [shouldApplyModalitiesToAllTeams, setShouldApplyModalitiesToAllTeams] =
-    useState(true);
-  const [shouldApplyNaipesToAllTeams, setShouldApplyNaipesToAllTeams] =
-    useState(true);
-  const [
-    shouldReplicatePreviousScheduleDay,
-    setShouldReplicatePreviousScheduleDay,
-  ] = useState(false);
+  const [showEstimatedStartTimeOnCardsBySportId, setShowEstimatedStartTimeOnCardsBySportId] =
+    useState<Record<string, boolean>>({});
+  const [selectedCompetitionKeysByTeamId, setSelectedCompetitionKeysByTeamId] = useState<
+    Record<string, string[]>
+  >({});
+  const [shouldApplyModalitiesToAllTeams, setShouldApplyModalitiesToAllTeams] = useState(true);
+  const [shouldApplyNaipesToAllTeams, setShouldApplyNaipesToAllTeams] = useState(true);
+  const [shouldReplicatePreviousScheduleDay, setShouldReplicatePreviousScheduleDay] =
+    useState(false);
   const [competitionConfigByKey, setCompetitionConfigByKey] = useState<
     Record<string, CompetitionConfig>
   >({});
-  const [groupCountInputByCompetitionKey, setGroupCountInputByCompetitionKey] =
-    useState<Record<string, string>>({});
-  const [
-    groupAssignmentsByCompetitionKey,
-    setGroupAssignmentsByCompetitionKey,
-  ] = useState<Record<string, Record<string, number>>>({});
+  const [groupCountInputByCompetitionKey, setGroupCountInputByCompetitionKey] = useState<
+    Record<string, string>
+  >({});
+  const [groupAssignmentsByCompetitionKey, setGroupAssignmentsByCompetitionKey] = useState<
+    Record<string, Record<string, number>>
+  >({});
   const [groupOrderByCompetitionKey, setGroupOrderByCompetitionKey] = useState<
     Record<string, ChampionshipBracketGroupOrderedTeamIdsByGroupNumber>
   >({});
-  const [autoOpenCompetitionGroupSlotKey, setAutoOpenCompetitionGroupSlotKey] =
-    useState<string | null>(null);
+  const [autoOpenCompetitionGroupSlotKey, setAutoOpenCompetitionGroupSlotKey] = useState<
+    string | null
+  >(null);
   const [activeNaipeTabBySportId, setActiveNaipeTabBySportId] = useState<
     Record<string, MatchNaipe>
   >({});
@@ -2062,33 +1953,20 @@ export function AdminChampionshipBracketPage({
     activeTeamAvailabilityNaipeTabByTeamSportKey,
     setActiveTeamAvailabilityNaipeTabByTeamSportKey,
   ] = useState<Record<string, MatchNaipe>>({});
-  const [teamAvailabilitySearchTerm, setTeamAvailabilitySearchTerm] =
-    useState("");
-  const [
-    selectedTeamAvailabilityFilterValue,
-    setSelectedTeamAvailabilityFilterValue,
-  ] = useState(ALL_TEAMS_FILTER_VALUE);
-  const [
-    transientGroupSlotIdsByCompetitionKey,
-    setTransientGroupSlotIdsByCompetitionKey,
-  ] = useState<
-    Record<string, ChampionshipBracketGroupEditorTransientSlotIdsByGroupNumber>
-  >({});
+  const [teamAvailabilitySearchTerm, setTeamAvailabilitySearchTerm] = useState("");
+  const [selectedTeamAvailabilityFilterValue, setSelectedTeamAvailabilityFilterValue] =
+    useState(ALL_TEAMS_FILTER_VALUE);
+  const [transientGroupSlotIdsByCompetitionKey, setTransientGroupSlotIdsByCompetitionKey] =
+    useState<Record<string, ChampionshipBracketGroupEditorTransientSlotIdsByGroupNumber>>({});
   const [scheduleDays, setScheduleDays] = useState<ScheduleDayFormValue[]>([
     resolveInitialScheduleDay(),
   ]);
-  const [competitionDateAvailability, setCompetitionDateAvailability] =
-    useState<
-      NonNullable<
-        ChampionshipBracketWizardDraftFormValues["competition_date_availability"]
-      >
-    >([]);
-  const [teamCompetitionDateAvailability, setTeamCompetitionDateAvailability] =
-    useState<
-      NonNullable<
-        ChampionshipBracketWizardDraftFormValues["team_competition_date_availability"]
-      >
-    >([]);
+  const [competitionDateAvailability, setCompetitionDateAvailability] = useState<
+    NonNullable<ChampionshipBracketWizardDraftFormValues["competition_date_availability"]>
+  >([]);
+  const [teamCompetitionDateAvailability, setTeamCompetitionDateAvailability] = useState<
+    NonNullable<ChampionshipBracketWizardDraftFormValues["team_competition_date_availability"]>
+  >([]);
   const [individualEventConfigs, setIndividualEventConfigs] = useState<
     ChampionshipBracketIndividualEventConfigInput[]
   >([]);
@@ -2103,88 +1981,75 @@ export function AdminChampionshipBracketPage({
   const [knockoutProgramBlocks, setKnockoutProgramBlocks] = useState<
     ChampionshipBracketWizardDraftFormValues["knockout_program_blocks"]
   >([]);
-  const [locationTemplates, setLocationTemplates] = useState<
-    ChampionshipBracketLocationTemplate[]
-  >([]);
-  const [locationTemplatesLoading, setLocationTemplatesLoading] =
-    useState(false);
-  const [locationTemplateSelectionDayId, setLocationTemplateSelectionDayId] =
-    useState<string | null>(null);
-  const [locationTemplateModalOpen, setLocationTemplateModalOpen] =
-    useState(false);
+  const [locationTemplates, setLocationTemplates] = useState<ChampionshipBracketLocationTemplate[]>(
+    [],
+  );
+  const [locationTemplatesLoading, setLocationTemplatesLoading] = useState(false);
+  const [locationTemplateSelectionDayId, setLocationTemplateSelectionDayId] = useState<
+    string | null
+  >(null);
+  const [locationTemplateModalOpen, setLocationTemplateModalOpen] = useState(false);
   const [locationTemplateModalTarget, setLocationTemplateModalTarget] =
     useState<LocationTemplateModalTarget | null>(null);
   const [locationTemplateModalFormValues, setLocationTemplateModalFormValues] =
-    useState<LocationTemplateModalFormValue>(
-      resolveInitialLocationTemplateModalFormValue(),
-    );
+    useState<LocationTemplateModalFormValue>(resolveInitialLocationTemplateModalFormValue());
   const [locationTemplateDeletionTarget, setLocationTemplateDeletionTarget] =
     useState<LocationTemplateDeletionTarget | null>(null);
   const [savingLocationTemplate, setSavingLocationTemplate] = useState(false);
-  const [deletingLocationTemplate, setDeletingLocationTemplate] =
-    useState(false);
+  const [deletingLocationTemplate, setDeletingLocationTemplate] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [saveErrorBannerData, setSaveErrorBannerData] =
-    useState<SaveErrorBannerData | null>(null);
+  const [saveErrorBannerData, setSaveErrorBannerData] = useState<SaveErrorBannerData | null>(null);
 
   const [exactPreviewCache, setExactPreviewCache] =
     useState<ChampionshipBracketExactPreviewCache | null>(null);
-  const [cancellingOperationalPreview, setCancellingOperationalPreview] =
-    useState(false);
+  const [cancellingOperationalPreview, setCancellingOperationalPreview] = useState(false);
 
-  const [loadingOperationalPreview, setLoadingOperationalPreview] =
-    useState(false);
+  const [loadingOperationalPreview, setLoadingOperationalPreview] = useState(false);
   const operationalPreviewRequestInFlightReference = useRef(false);
-  const [expandedOperationalPreviewDates, setExpandedOperationalPreviewDates] =
-    useState<Set<string>>(new Set());
-  const [loadingOperationalPreviewDate, setLoadingOperationalPreviewDate] =
-    useState<string | null>(null);
+  const [expandedOperationalPreviewDates, setExpandedOperationalPreviewDates] = useState<
+    Set<string>
+  >(new Set());
+  const [loadingOperationalPreviewDate, setLoadingOperationalPreviewDate] = useState<string | null>(
+    null,
+  );
 
-  const [operationalPreviewError, setOperationalPreviewError] = useState<
-    string | null
-  >(null);
-  const [
-    expandedStructuralReviewDayByDate,
-    setExpandedStructuralReviewDayByDate,
-  ] = useState<Record<string, boolean>>({});
-  const [expandedCourtPreferenceDayByKey, setExpandedCourtPreferenceDayByKey] =
-    useState<Record<string, boolean>>({});
-  const [
-    expandedTeamAvailabilityByTeamId,
-    setExpandedTeamAvailabilityByTeamId,
-  ] = useState<Record<string, boolean>>({});
-  const [
-    expandedTeamAvailabilitySportByKey,
-    setExpandedTeamAvailabilitySportByKey,
-  ] = useState<Record<string, boolean>>({});
-  const [
-    expandedCompetitionAvailabilityByKey,
-    setExpandedCompetitionAvailabilityByKey,
-  ] = useState<Record<string, boolean>>({});
-  const [expandedModalityCardBySportId, setExpandedModalityCardBySportId] =
-    useState<Record<string, boolean>>({});
+  const [operationalPreviewError, setOperationalPreviewError] = useState<string | null>(null);
+  const [expandedStructuralReviewDayByDate, setExpandedStructuralReviewDayByDate] = useState<
+    Record<string, boolean>
+  >({});
+  const [expandedCourtPreferenceDayByKey, setExpandedCourtPreferenceDayByKey] = useState<
+    Record<string, boolean>
+  >({});
+  const [expandedTeamAvailabilityByTeamId, setExpandedTeamAvailabilityByTeamId] = useState<
+    Record<string, boolean>
+  >({});
+  const [expandedTeamAvailabilitySportByKey, setExpandedTeamAvailabilitySportByKey] = useState<
+    Record<string, boolean>
+  >({});
+  const [expandedCompetitionAvailabilityByKey, setExpandedCompetitionAvailabilityByKey] = useState<
+    Record<string, boolean>
+  >({});
+  const [expandedModalityCardBySportId, setExpandedModalityCardBySportId] = useState<
+    Record<string, boolean>
+  >({});
   const [expandedNaipeCardBySportId, setExpandedNaipeCardBySportId] = useState<
     Record<string, boolean>
   >({});
-  const [expandedScheduleDayById, setExpandedScheduleDayById] = useState<
-    Record<string, boolean>
-  >({});
+  const [expandedScheduleDayById, setExpandedScheduleDayById] = useState<Record<string, boolean>>(
+    {},
+  );
   const [isCompactViewport, setIsCompactViewport] = useState(false);
-  const [hasShownRemoteDraftWarning, setHasShownRemoteDraftWarning] =
-    useState(false);
+  const [hasShownRemoteDraftWarning, setHasShownRemoteDraftWarning] = useState(false);
   const [remoteDraftMetadata, setRemoteDraftMetadata] =
     useState<ChampionshipBracketRemoteDraftMetadata | null>(null);
-  const [hasResolvedInitialDraftSnapshot, setHasResolvedInitialDraftSnapshot] =
-    useState(false);
-  const [lastSavedEditableDraftSnapshot, setLastSavedEditableDraftSnapshot] =
-    useState<string>(() => {
+  const [hasResolvedInitialDraftSnapshot, setHasResolvedInitialDraftSnapshot] = useState(false);
+  const [lastSavedEditableDraftSnapshot, setLastSavedEditableDraftSnapshot] = useState<string>(
+    () => {
       return resolveEditableDraftSnapshot(
-        resolveInitialWizardDraftFormValues(
-          resolvedDefaultSeasonSettings,
-          defaultEnabledSportIds,
-        ),
+        resolveInitialWizardDraftFormValues(resolvedDefaultSeasonSettings, defaultEnabledSportIds),
       );
-    });
+    },
+  );
   const saveErrorBannerReference = useRef<HTMLDivElement | null>(null);
   const applyWizardDraftReference = useRef<
     | ((
@@ -2198,19 +2063,16 @@ export function AdminChampionshipBracketPage({
   >(null);
   const resetWizardStateReference = useRef<(() => void) | null>(null);
   const lastAutoSanitizedSnapshotReference = useRef<string | null>(null);
-  const [drawingCompetitionKey, setDrawingCompetitionKey] = useState<
-    string | null
-  >(null);
+  const [drawingCompetitionKey, setDrawingCompetitionKey] = useState<string | null>(null);
   const [showDrawModal, setShowDrawModal] = useState(false);
   const [pendingDrawResult, setPendingDrawResult] = useState<{
     teamId: string;
     groupNumber: number;
     slotId: string;
   } | null>(null);
-  const [
-    expandedCompetitionGroupEditorByKey,
-    setExpandedCompetitionGroupEditorByKey,
-  ] = useState<Record<string, boolean>>({});
+  const [expandedCompetitionGroupEditorByKey, setExpandedCompetitionGroupEditorByKey] = useState<
+    Record<string, boolean>
+  >({});
 
   const sanitizeDraftFormValues = useCallback(
     (draftFormValues: ChampionshipBracketWizardDraftFormValues) => {
@@ -2218,8 +2080,7 @@ export function AdminChampionshipBracketPage({
         draftFormValues,
         teams,
         championshipSports,
-        seasonSettings:
-          draftFormValues.season_settings ?? resolvedDefaultSeasonSettings,
+        seasonSettings: draftFormValues.season_settings ?? resolvedDefaultSeasonSettings,
       });
     },
     [championshipSports, resolvedDefaultSeasonSettings, teams],
@@ -2233,28 +2094,20 @@ export function AdminChampionshipBracketPage({
         resetVisualState?: boolean;
       } = {},
     ) => {
-      const sanitizedDraftFormValues =
-        sanitizeDraftFormValues(draft_form_values);
-      const sanitizationToastMessage =
-        resolveWizardDraftSanitizationToastMessage({
-          previousDraftFormValues: draft_form_values,
-          nextDraftFormValues: sanitizedDraftFormValues,
-        });
-      const defaultShowEstimatedStartTimeOnCardsBySportId =
-        championshipSports.reduce<Record<string, boolean>>(
-          (carry, championshipSport) => {
-            carry[championshipSport.sport_id] =
-              championshipSport.show_estimated_start_time_on_cards;
-            return carry;
-          },
-          {},
-        );
+      const sanitizedDraftFormValues = sanitizeDraftFormValues(draft_form_values);
+      const sanitizationToastMessage = resolveWizardDraftSanitizationToastMessage({
+        previousDraftFormValues: draft_form_values,
+        nextDraftFormValues: sanitizedDraftFormValues,
+      });
+      const defaultShowEstimatedStartTimeOnCardsBySportId = championshipSports.reduce<
+        Record<string, boolean>
+      >((carry, championshipSport) => {
+        carry[championshipSport.sport_id] = championshipSport.show_estimated_start_time_on_cards;
+        return carry;
+      }, {});
       const nextCurrentStepIndex = Math.max(
         0,
-        Math.min(
-          sanitizedDraftFormValues.current_step_index,
-          WIZARD_STEP_LABELS.length - 1,
-        ),
+        Math.min(sanitizedDraftFormValues.current_step_index, WIZARD_STEP_LABELS.length - 1),
       );
       const resolvedScheduleDays =
         sanitizedDraftFormValues.schedule_days.length > 0
@@ -2267,8 +2120,7 @@ export function AdminChampionshipBracketPage({
         current_step_index: nextCurrentStepIndex,
         highest_unlocked_step_index: Math.max(
           nextCurrentStepIndex,
-          sanitizedDraftFormValues.highest_unlocked_step_index ??
-            nextCurrentStepIndex,
+          sanitizedDraftFormValues.highest_unlocked_step_index ?? nextCurrentStepIndex,
         ),
         schedule_days: resolvedScheduleDays.map((schedule_day) =>
           resolveScheduleDayClone(schedule_day),
@@ -2277,15 +2129,12 @@ export function AdminChampionshipBracketPage({
 
       setCurrentStepIndex(nextCurrentStepIndex);
       setHighestUnlockedStepIndex(
-        appliedDraftFormValues.highest_unlocked_step_index ??
-          nextCurrentStepIndex,
+        appliedDraftFormValues.highest_unlocked_step_index ?? nextCurrentStepIndex,
       );
       setSeasonSettings(appliedDraftFormValues.season_settings);
       setEnabledSportIds(appliedDraftFormValues.enabled_sport_ids);
       setSelectedTeamIds(appliedDraftFormValues.selected_team_ids);
-      setSelectedSportIdsByTeamId(
-        appliedDraftFormValues.selected_sport_ids_by_team_id,
-      );
+      setSelectedSportIdsByTeamId(appliedDraftFormValues.selected_sport_ids_by_team_id);
       setShowEstimatedStartTimeOnCardsBySportId({
         ...defaultShowEstimatedStartTimeOnCardsBySportId,
         ...appliedDraftFormValues.show_estimated_start_time_on_cards_by_sport_id,
@@ -2296,34 +2145,22 @@ export function AdminChampionshipBracketPage({
       setShouldApplyModalitiesToAllTeams(
         appliedDraftFormValues.should_apply_modalities_to_all_teams,
       );
-      setShouldApplyNaipesToAllTeams(
-        appliedDraftFormValues.should_apply_naipes_to_all_teams,
-      );
+      setShouldApplyNaipesToAllTeams(appliedDraftFormValues.should_apply_naipes_to_all_teams);
       setShouldReplicatePreviousScheduleDay(
         appliedDraftFormValues.should_replicate_previous_schedule_day,
       );
-      setCompetitionConfigByKey(
-        appliedDraftFormValues.competition_config_by_key,
-      );
+      setCompetitionConfigByKey(appliedDraftFormValues.competition_config_by_key);
       setGroupAssignmentsByCompetitionKey(
         appliedDraftFormValues.group_assignments_by_competition_key,
       );
-      setGroupOrderByCompetitionKey(
-        appliedDraftFormValues.group_order_by_competition_key,
-      );
+      setGroupOrderByCompetitionKey(appliedDraftFormValues.group_order_by_competition_key);
       setScheduleDays(resolvedScheduleDays);
-      setCompetitionDateAvailability(
-        appliedDraftFormValues.competition_date_availability ?? [],
-      );
+      setCompetitionDateAvailability(appliedDraftFormValues.competition_date_availability ?? []);
       setTeamCompetitionDateAvailability(
         appliedDraftFormValues.team_competition_date_availability ?? [],
       );
-      setIndividualEventConfigs(
-        appliedDraftFormValues.individual_event_configs,
-      );
-      setIndividualSessionConfigs(
-        appliedDraftFormValues.individual_session_configs,
-      );
+      setIndividualEventConfigs(appliedDraftFormValues.individual_event_configs);
+      setIndividualSessionConfigs(appliedDraftFormValues.individual_session_configs);
       setResourceLocks(appliedDraftFormValues.resource_locks);
       setMatchNumberingMode(appliedDraftFormValues.match_numbering_mode);
       setKnockoutProgramBlocks(appliedDraftFormValues.knockout_program_blocks);
@@ -2340,16 +2177,12 @@ export function AdminChampionshipBracketPage({
         setLocationTemplateSelectionDayId(null);
         setLocationTemplateModalOpen(false);
         setLocationTemplateModalTarget(null);
-        setLocationTemplateModalFormValues(
-          resolveInitialLocationTemplateModalFormValue(),
-        );
+        setLocationTemplateModalFormValues(resolveInitialLocationTemplateModalFormValue());
         setLocationTemplateDeletionTarget(null);
       }
 
       if (options.persistAsSavedSnapshot !== false) {
-        setLastSavedEditableDraftSnapshot(
-          resolveEditableDraftSnapshot(appliedDraftFormValues),
-        );
+        setLastSavedEditableDraftSnapshot(resolveEditableDraftSnapshot(appliedDraftFormValues));
       }
 
       if (sanitizationToastMessage) {
@@ -2365,10 +2198,7 @@ export function AdminChampionshipBracketPage({
 
   const resetWizardState = useCallback(() => {
     applyWizardDraft(
-      resolveInitialWizardDraftFormValues(
-        resolvedDefaultSeasonSettings,
-        defaultEnabledSportIds,
-      ),
+      resolveInitialWizardDraftFormValues(resolvedDefaultSeasonSettings, defaultEnabledSportIds),
       { resetVisualState: true },
     );
   }, [applyWizardDraft, defaultEnabledSportIds, resolvedDefaultSeasonSettings]);
@@ -2381,10 +2211,7 @@ export function AdminChampionshipBracketPage({
     const response = await fetchChampionshipBracketLocationTemplates();
 
     if (response.error) {
-      toast.error(
-        response.error.message ||
-          "Não foi possível carregar os locais cadastrados.",
-      );
+      toast.error(response.error.message || "Não foi possível carregar os locais cadastrados.");
       setLocationTemplatesLoading(false);
       return;
     }
@@ -2393,188 +2220,160 @@ export function AdminChampionshipBracketPage({
     setLocationTemplatesLoading(false);
   }, []);
 
-  const resolveWizardDraftFormValues =
-    useCallback((): ChampionshipBracketWizardDraftFormValues => {
-      return {
-        current_step_index: currentStepIndex,
-        highest_unlocked_step_index: Math.max(
-          currentStepIndex,
-          highestUnlockedStepIndex,
-        ),
-        season_settings: seasonSettings,
-        enabled_sport_ids: [...enabledSportIds],
-        selected_team_ids: [...selectedTeamIds],
-        selected_sport_ids_by_team_id: Object.entries(
-          selectedSportIdsByTeamId,
-        ).reduce<Record<string, string[]>>(
-          (carry, [team_id, selected_sport_ids]) => {
-            carry[team_id] = [...selected_sport_ids];
-            return carry;
-          },
-          {},
-        ),
-        show_estimated_start_time_on_cards_by_sport_id: Object.entries(
-          showEstimatedStartTimeOnCardsBySportId,
-        ).reduce<Record<string, boolean>>(
-          (carry, [sport_id, shouldShowEstimatedStartTimeOnCards]) => {
-            carry[sport_id] = shouldShowEstimatedStartTimeOnCards;
-            return carry;
-          },
-          {},
-        ),
-        selected_competition_keys_by_team_id: Object.entries(
-          selectedCompetitionKeysByTeamId,
-        ).reduce<Record<string, string[]>>(
-          (carry, [team_id, selected_competition_keys]) => {
-            carry[team_id] = [...selected_competition_keys];
-            return carry;
-          },
-          {},
-        ),
-        should_apply_modalities_to_all_teams: shouldApplyModalitiesToAllTeams,
-        should_apply_naipes_to_all_teams: shouldApplyNaipesToAllTeams,
-        should_replicate_previous_schedule_day:
-          shouldReplicatePreviousScheduleDay,
-        competition_config_by_key: Object.entries(
-          competitionConfigByKey,
-        ).reduce<Record<string, CompetitionConfig>>(
-          (carry, [competition_key, competition_config]) => {
-            carry[competition_key] = {
-              groups_count: competition_config.groups_count,
-              qualifiers_per_group: competition_config.qualifiers_per_group,
-              should_complete_knockout_with_best_second_placed_teams:
-                competition_config.should_complete_knockout_with_best_second_placed_teams,
-              knockout_pairing_mode: competition_config.knockout_pairing_mode,
-            };
-            return carry;
-          },
-          {},
-        ),
-        group_assignments_by_competition_key: Object.entries(
-          groupAssignmentsByCompetitionKey,
-        ).reduce<Record<string, Record<string, number>>>(
-          (carry, [competition_key, team_group_map]) => {
-            carry[competition_key] = { ...team_group_map };
-            return carry;
-          },
-          {},
-        ),
-        group_order_by_competition_key: Object.entries(
-          groupOrderByCompetitionKey,
-        ).reduce<
-          Record<string, ChampionshipBracketGroupOrderedTeamIdsByGroupNumber>
-        >((carry, [competition_key, ordered_team_ids_by_group_number]) => {
-          carry[competition_key] = Object.entries(
-            ordered_team_ids_by_group_number,
-          ).reduce<ChampionshipBracketGroupOrderedTeamIdsByGroupNumber>(
-            (groupCarry, [group_number, team_ids]) => {
-              groupCarry[group_number] = [...team_ids];
-              return groupCarry;
-            },
-            {},
-          );
+  const resolveWizardDraftFormValues = useCallback((): ChampionshipBracketWizardDraftFormValues => {
+    return {
+      current_step_index: currentStepIndex,
+      highest_unlocked_step_index: Math.max(currentStepIndex, highestUnlockedStepIndex),
+      season_settings: seasonSettings,
+      enabled_sport_ids: [...enabledSportIds],
+      selected_team_ids: [...selectedTeamIds],
+      selected_sport_ids_by_team_id: Object.entries(selectedSportIdsByTeamId).reduce<
+        Record<string, string[]>
+      >((carry, [team_id, selected_sport_ids]) => {
+        carry[team_id] = [...selected_sport_ids];
+        return carry;
+      }, {}),
+      show_estimated_start_time_on_cards_by_sport_id: Object.entries(
+        showEstimatedStartTimeOnCardsBySportId,
+      ).reduce<Record<string, boolean>>(
+        (carry, [sport_id, shouldShowEstimatedStartTimeOnCards]) => {
+          carry[sport_id] = shouldShowEstimatedStartTimeOnCards;
           return carry;
-        }, {}),
-        schedule_days: scheduleDays.map((schedule_day) =>
-          resolveScheduleDayClone(schedule_day),
-        ),
-        competition_date_availability: competitionDateAvailability.map(
-          (availabilityItem) => ({
-            competition_key: availabilityItem.competition_key,
-            date: availabilityItem.date,
-            mode: availabilityItem.mode,
-            windows: availabilityItem.windows.map((window) => ({
-              start_time: window.start_time,
-              end_time: window.end_time,
-            })),
-          }),
-        ),
-        team_competition_date_availability: teamCompetitionDateAvailability.map(
-          (availabilityItem) => ({
-            team_id: availabilityItem.team_id,
-            competition_key: availabilityItem.competition_key,
-            date: availabilityItem.date,
-            mode: availabilityItem.mode,
-            windows: availabilityItem.windows.map((window) => ({
-              start_time: window.start_time,
-              end_time: window.end_time,
-            })),
-          }),
-        ),
-        individual_event_configs: individualEventConfigs.map((configItem) => ({
-          sport_id: configItem.sport_id,
-          placements_count: configItem.placements_count,
-          placement_points: configItem.placement_points.map(
-            (placementPoint) => ({
-              placement: placementPoint.placement,
-              points: placementPoint.points,
-            }),
-          ),
-          relay_multiplier: configItem.relay_multiplier,
+        },
+        {},
+      ),
+      selected_competition_keys_by_team_id: Object.entries(selectedCompetitionKeysByTeamId).reduce<
+        Record<string, string[]>
+      >((carry, [team_id, selected_competition_keys]) => {
+        carry[team_id] = [...selected_competition_keys];
+        return carry;
+      }, {}),
+      should_apply_modalities_to_all_teams: shouldApplyModalitiesToAllTeams,
+      should_apply_naipes_to_all_teams: shouldApplyNaipesToAllTeams,
+      should_replicate_previous_schedule_day: shouldReplicatePreviousScheduleDay,
+      competition_config_by_key: Object.entries(competitionConfigByKey).reduce<
+        Record<string, CompetitionConfig>
+      >((carry, [competition_key, competition_config]) => {
+        carry[competition_key] = {
+          groups_count: competition_config.groups_count,
+          qualifiers_per_group: competition_config.qualifiers_per_group,
+          should_complete_knockout_with_best_second_placed_teams:
+            competition_config.should_complete_knockout_with_best_second_placed_teams,
+          knockout_pairing_mode: competition_config.knockout_pairing_mode,
+        };
+        return carry;
+      }, {}),
+      group_assignments_by_competition_key: Object.entries(groupAssignmentsByCompetitionKey).reduce<
+        Record<string, Record<string, number>>
+      >((carry, [competition_key, team_group_map]) => {
+        carry[competition_key] = { ...team_group_map };
+        return carry;
+      }, {}),
+      group_order_by_competition_key: Object.entries(groupOrderByCompetitionKey).reduce<
+        Record<string, ChampionshipBracketGroupOrderedTeamIdsByGroupNumber>
+      >((carry, [competition_key, ordered_team_ids_by_group_number]) => {
+        carry[competition_key] = Object.entries(
+          ordered_team_ids_by_group_number,
+        ).reduce<ChampionshipBracketGroupOrderedTeamIdsByGroupNumber>(
+          (groupCarry, [group_number, team_ids]) => {
+            groupCarry[group_number] = [...team_ids];
+            return groupCarry;
+          },
+          {},
+        );
+        return carry;
+      }, {}),
+      schedule_days: scheduleDays.map((schedule_day) => resolveScheduleDayClone(schedule_day)),
+      competition_date_availability: competitionDateAvailability.map((availabilityItem) => ({
+        competition_key: availabilityItem.competition_key,
+        date: availabilityItem.date,
+        mode: availabilityItem.mode,
+        windows: availabilityItem.windows.map((window) => ({
+          start_time: window.start_time,
+          end_time: window.end_time,
         })),
-        individual_session_configs: individualSessionConfigs.map(
-          (sessionConfig) => ({
-            ...sessionConfig,
-          }),
-        ),
-        resource_locks: resourceLocks.map((resourceLock) => ({
-          ...resourceLock,
+      })),
+      team_competition_date_availability: teamCompetitionDateAvailability.map(
+        (availabilityItem) => ({
+          team_id: availabilityItem.team_id,
+          competition_key: availabilityItem.competition_key,
+          date: availabilityItem.date,
+          mode: availabilityItem.mode,
+          windows: availabilityItem.windows.map((window) => ({
+            start_time: window.start_time,
+            end_time: window.end_time,
+          })),
+        }),
+      ),
+      individual_event_configs: individualEventConfigs.map((configItem) => ({
+        sport_id: configItem.sport_id,
+        placements_count: configItem.placements_count,
+        placement_points: configItem.placement_points.map((placementPoint) => ({
+          placement: placementPoint.placement,
+          points: placementPoint.points,
         })),
-        match_numbering_mode: matchNumberingMode,
-        knockout_program_blocks: knockoutProgramBlocks.map((programBlock) => ({
-          ...programBlock,
-          naipe_sequence: [...programBlock.naipe_sequence],
-        })),
-        exact_preview_cache: exactPreviewCache
-          ? {
-              job_id: exactPreviewCache.job_id,
-              payload_signature: exactPreviewCache.payload_signature,
-              server_payload_signature:
-                exactPreviewCache.server_payload_signature,
-              generation_signature: exactPreviewCache.generation_signature,
-              dependency_signature: exactPreviewCache.dependency_signature,
-              algorithm_version: exactPreviewCache.algorithm_version,
-              status: exactPreviewCache.status,
-              stage: exactPreviewCache.stage,
-              current_date: exactPreviewCache.current_date,
-              progress_percentage: exactPreviewCache.progress_percentage,
-              processed_slots: exactPreviewCache.processed_slots,
-              total_slots: exactPreviewCache.total_slots,
-              expires_at: exactPreviewCache.expires_at,
-              started_at: exactPreviewCache.started_at,
-              completed_at: exactPreviewCache.completed_at,
-              is_valid_for_creation: exactPreviewCache.is_valid_for_creation,
-              generated_at: exactPreviewCache.generated_at,
-              // A lista de jogos da prévia não deve aumentar o rascunho salvo.
-              result: null,
-            }
-          : null,
-      };
-    }, [
-      exactPreviewCache,
-      competitionDateAvailability,
-      competitionConfigByKey,
-      currentStepIndex,
-      highestUnlockedStepIndex,
-      enabledSportIds,
-      groupAssignmentsByCompetitionKey,
-      groupOrderByCompetitionKey,
-      individualEventConfigs,
-      individualSessionConfigs,
-      knockoutProgramBlocks,
-      matchNumberingMode,
-      resourceLocks,
-      scheduleDays,
-      seasonSettings,
-      showEstimatedStartTimeOnCardsBySportId,
-      selectedCompetitionKeysByTeamId,
-      selectedSportIdsByTeamId,
-      selectedTeamIds,
-      teamCompetitionDateAvailability,
-      shouldApplyModalitiesToAllTeams,
-      shouldApplyNaipesToAllTeams,
-      shouldReplicatePreviousScheduleDay,
-    ]);
+        relay_multiplier: configItem.relay_multiplier,
+      })),
+      individual_session_configs: individualSessionConfigs.map((sessionConfig) => ({
+        ...sessionConfig,
+      })),
+      resource_locks: resourceLocks.map((resourceLock) => ({
+        ...resourceLock,
+      })),
+      match_numbering_mode: matchNumberingMode,
+      knockout_program_blocks: knockoutProgramBlocks.map((programBlock) => ({
+        ...programBlock,
+        naipe_sequence: [...programBlock.naipe_sequence],
+      })),
+      exact_preview_cache: exactPreviewCache
+        ? {
+            job_id: exactPreviewCache.job_id,
+            payload_signature: exactPreviewCache.payload_signature,
+            server_payload_signature: exactPreviewCache.server_payload_signature,
+            generation_signature: exactPreviewCache.generation_signature,
+            dependency_signature: exactPreviewCache.dependency_signature,
+            algorithm_version: exactPreviewCache.algorithm_version,
+            status: exactPreviewCache.status,
+            stage: exactPreviewCache.stage,
+            current_date: exactPreviewCache.current_date,
+            progress_percentage: exactPreviewCache.progress_percentage,
+            processed_slots: exactPreviewCache.processed_slots,
+            total_slots: exactPreviewCache.total_slots,
+            expires_at: exactPreviewCache.expires_at,
+            started_at: exactPreviewCache.started_at,
+            completed_at: exactPreviewCache.completed_at,
+            is_valid_for_creation: exactPreviewCache.is_valid_for_creation,
+            generated_at: exactPreviewCache.generated_at,
+            // A lista de jogos da prévia não deve aumentar o rascunho salvo.
+            result: null,
+          }
+        : null,
+    };
+  }, [
+    exactPreviewCache,
+    competitionDateAvailability,
+    competitionConfigByKey,
+    currentStepIndex,
+    highestUnlockedStepIndex,
+    enabledSportIds,
+    groupAssignmentsByCompetitionKey,
+    groupOrderByCompetitionKey,
+    individualEventConfigs,
+    individualSessionConfigs,
+    knockoutProgramBlocks,
+    matchNumberingMode,
+    resourceLocks,
+    scheduleDays,
+    seasonSettings,
+    showEstimatedStartTimeOnCardsBySportId,
+    selectedCompetitionKeysByTeamId,
+    selectedSportIdsByTeamId,
+    selectedTeamIds,
+    teamCompetitionDateAvailability,
+    shouldApplyModalitiesToAllTeams,
+    shouldApplyNaipesToAllTeams,
+    shouldReplicatePreviousScheduleDay,
+  ]);
 
   const currentWizardDraftFormValues = useMemo(() => {
     return resolveWizardDraftFormValues();
@@ -2643,26 +2442,20 @@ export function AdminChampionshipBracketPage({
       workflowAction: string;
       changedFields?: string[];
     }) => {
-      const { error } = await supabase.rpc(
-        "write_championship_bracket_workflow_log",
-        {
-          _action_type: actionType,
-          _step: WIZARD_STEP_LABELS[stepIndex] ?? "Fluxo de configuração",
-          _description: description,
-          _metadata: {
-            workflow_action: workflowAction,
-            championship_id: selectedChampionship.id,
-            season_year: selectedChampionship.current_season_year,
-            changed_fields: changedFields ?? [],
-          },
+      const { error } = await supabase.rpc("write_championship_bracket_workflow_log", {
+        _action_type: actionType,
+        _step: WIZARD_STEP_LABELS[stepIndex] ?? "Fluxo de configuração",
+        _description: description,
+        _metadata: {
+          workflow_action: workflowAction,
+          championship_id: selectedChampionship.id,
+          season_year: selectedChampionship.current_season_year,
+          changed_fields: changedFields ?? [],
         },
-      );
+      });
 
       if (error) {
-        console.error(
-          "Erro ao registrar log do fluxo de configuração:",
-          error.message,
-        );
+        console.error("Erro ao registrar log do fluxo de configuração:", error.message);
       }
     },
     [selectedChampionship.current_season_year, selectedChampionship.id],
@@ -2674,50 +2467,39 @@ export function AdminChampionshipBracketPage({
       nextDraftFormValues: ChampionshipBracketWizardDraftFormValues,
       stepIndex: number,
     ): string[] => {
-      const previousDraftFormValues =
-        resolveSnapshotDraftFormValues(previousSnapshot);
+      const previousDraftFormValues = resolveSnapshotDraftFormValues(previousSnapshot);
 
       if (!previousDraftFormValues) {
         return [];
       }
 
       if (stepIndex == 1) {
-        const previousEnabledSports =
-          previousDraftFormValues.enabled_sport_ids.length;
+        const previousEnabledSports = previousDraftFormValues.enabled_sport_ids.length;
         const nextEnabledSports = nextDraftFormValues.enabled_sport_ids.length;
 
         if (previousEnabledSports != nextEnabledSports) {
-          return [
-            `Modalidades habilitadas: ${previousEnabledSports} para ${nextEnabledSports}`,
-          ];
+          return [`Modalidades habilitadas: ${previousEnabledSports} para ${nextEnabledSports}`];
         }
 
         return [];
       }
 
       if (stepIndex == 2) {
-        const previousSelectedTeams =
-          previousDraftFormValues.selected_team_ids.length;
+        const previousSelectedTeams = previousDraftFormValues.selected_team_ids.length;
         const nextSelectedTeams = nextDraftFormValues.selected_team_ids.length;
 
         if (previousSelectedTeams != nextSelectedTeams) {
-          return [
-            `Participantes selecionados: ${previousSelectedTeams} para ${nextSelectedTeams}`,
-          ];
+          return [`Participantes selecionados: ${previousSelectedTeams} para ${nextSelectedTeams}`];
         }
 
         return [];
       }
 
       if (stepIndex == 5) {
-        const previousConfigByKey =
-          previousDraftFormValues.competition_config_by_key;
+        const previousConfigByKey = previousDraftFormValues.competition_config_by_key;
         const nextConfigByKey = nextDraftFormValues.competition_config_by_key;
         const competitionKeys = [
-          ...new Set([
-            ...Object.keys(previousConfigByKey),
-            ...Object.keys(nextConfigByKey),
-          ]),
+          ...new Set([...Object.keys(previousConfigByKey), ...Object.keys(nextConfigByKey)]),
         ];
         const changeLines: string[] = [];
 
@@ -2727,8 +2509,7 @@ export function AdminChampionshipBracketPage({
           const parsedCompetitionKey = parseCompetitionKey(competitionKey);
           const sportName =
             championshipSports.find(
-              (championshipSport) =>
-                championshipSport.sport_id == parsedCompetitionKey.sport_id,
+              (championshipSport) => championshipSport.sport_id == parsedCompetitionKey.sport_id,
             )?.sports?.name ?? "Modalidade";
           const competitionLabel = `${sportName} • ${
             MATCH_NAIPE_LABELS[parsedCompetitionKey.naipe]
@@ -2748,10 +2529,7 @@ export function AdminChampionshipBracketPage({
             );
           }
 
-          if (
-            previousConfig.qualifiers_per_group !=
-            nextConfig.qualifiers_per_group
-          ) {
+          if (previousConfig.qualifiers_per_group != nextConfig.qualifiers_per_group) {
             changeLines.push(
               `${competitionLabel}: classificados por grupo de ${previousConfig.qualifiers_per_group} para ${nextConfig.qualifiers_per_group}`,
             );
@@ -2775,14 +2553,11 @@ export function AdminChampionshipBracketPage({
       }
 
       if (stepIndex == 6) {
-        const previousScheduleDays =
-          previousDraftFormValues.schedule_days.length;
+        const previousScheduleDays = previousDraftFormValues.schedule_days.length;
         const nextScheduleDays = nextDraftFormValues.schedule_days.length;
 
         if (previousScheduleDays != nextScheduleDays) {
-          return [
-            `Dias de agenda: ${previousScheduleDays} para ${nextScheduleDays}`,
-          ];
+          return [`Dias de agenda: ${previousScheduleDays} para ${nextScheduleDays}`];
         }
       }
 
@@ -2802,30 +2577,22 @@ export function AdminChampionshipBracketPage({
     let isMounted = true;
 
     const loadDraft = async () => {
-      const storedDraftResult = await fetchChampionshipBracketWizardDraft(
-        selectedChampionship.id,
-      );
+      const storedDraftResult = await fetchChampionshipBracketWizardDraft(selectedChampionship.id);
 
       if (!isMounted) {
         return;
       }
 
       setRemoteDraftMetadata((currentRemoteDraftMetadata) =>
-        areRemoteDraftMetadataEqual(
-          currentRemoteDraftMetadata,
-          storedDraftResult.metadata,
-        )
+        areRemoteDraftMetadataEqual(currentRemoteDraftMetadata, storedDraftResult.metadata)
           ? currentRemoteDraftMetadata
           : storedDraftResult.metadata,
       );
 
       if (storedDraftResult.draft_form_values) {
-        applyWizardDraftReference.current?.(
-          storedDraftResult.draft_form_values,
-          {
-            resetVisualState: true,
-          },
-        );
+        applyWizardDraftReference.current?.(storedDraftResult.draft_form_values, {
+          resetVisualState: true,
+        });
         toast.success(
           storedDraftResult.source == "local"
             ? "Rascunho local restaurado e sincronizado com sucesso."
@@ -2875,12 +2642,8 @@ export function AdminChampionshipBracketPage({
       return;
     }
 
-    const currentSnapshot = resolveEditableDraftSnapshot(
-      currentWizardDraftFormValues,
-    );
-    const sanitizedSnapshot = resolveEditableDraftSnapshot(
-      sanitizedCurrentWizardDraftFormValues,
-    );
+    const currentSnapshot = resolveEditableDraftSnapshot(currentWizardDraftFormValues);
+    const sanitizedSnapshot = resolveEditableDraftSnapshot(sanitizedCurrentWizardDraftFormValues);
 
     if (currentSnapshot == sanitizedSnapshot) {
       lastAutoSanitizedSnapshotReference.current = null;
@@ -2904,23 +2667,19 @@ export function AdminChampionshipBracketPage({
     sanitizedCurrentWizardDraftFormValues,
   ]);
 
-  const resolveSaveErrorSuggestion = useCallback(
-    (errorMessage: string): string => {
-      if (errorMessage.includes("local compatível")) {
-        return "Sugestão: Revise os locais da etapa de agenda e confirme se cada modalidade tem ao menos um local compatível.";
-      }
+  const resolveSaveErrorSuggestion = useCallback((errorMessage: string): string => {
+    if (errorMessage.includes("local compatível")) {
+      return "Sugestão: Revise os locais da etapa de agenda e confirme se cada modalidade tem ao menos um local compatível.";
+    }
 
-      return "Sugestão: Revise as configurações das etapas anteriores e tente novamente.";
-    },
-    [],
-  );
+    return "Sugestão: Revise as configurações das etapas anteriores e tente novamente.";
+  }, []);
 
   const selectableTeams = useMemo(() => {
-    return resolveSelectableChampionshipTeams(teams, seasonSettings).sort(
-      (firstTeam, secondTeam) =>
-        firstTeam.name.localeCompare(secondTeam.name, "pt-BR", {
-          sensitivity: "base",
-        }),
+    return resolveSelectableChampionshipTeams(teams, seasonSettings).sort((firstTeam, secondTeam) =>
+      firstTeam.name.localeCompare(secondTeam.name, "pt-BR", {
+        sensitivity: "base",
+      }),
     );
   }, [seasonSettings, teams]);
 
@@ -2944,11 +2703,7 @@ export function AdminChampionshipBracketPage({
   }, [teams]);
 
   const selectedSportIdSet = useMemo(() => {
-    return new Set(
-      selectedTeamIds.flatMap(
-        (teamId) => selectedSportIdsByTeamId[teamId] ?? [],
-      ),
-    );
+    return new Set(selectedTeamIds.flatMap((teamId) => selectedSportIdsByTeamId[teamId] ?? []));
   }, [selectedSportIdsByTeamId, selectedTeamIds]);
 
   const enabledSportIdSet = useMemo(() => {
@@ -2962,13 +2717,12 @@ export function AdminChampionshipBracketPage({
   }, [championshipSports, enabledSportIdSet]);
 
   const championshipSportCards = useMemo(() => {
-    return [...championshipSports].sort(
-      (leftChampionshipSport, rightChampionshipSport) =>
-        (leftChampionshipSport.sports?.name ?? "Modalidade").localeCompare(
-          rightChampionshipSport.sports?.name ?? "Modalidade",
-          "pt-BR",
-          { sensitivity: "base" },
-        ),
+    return [...championshipSports].sort((leftChampionshipSport, rightChampionshipSport) =>
+      (leftChampionshipSport.sports?.name ?? "Modalidade").localeCompare(
+        rightChampionshipSport.sports?.name ?? "Modalidade",
+        "pt-BR",
+        { sensitivity: "base" },
+      ),
     );
   }, [championshipSports]);
 
@@ -3006,19 +2760,16 @@ export function AdminChampionshipBracketPage({
     });
 
     setSelectedSportIdsByTeamId((currentSelectedSportIdsByTeamId) => {
-      const nextSelectedSportIdsByTeamId = Object.entries(
-        currentSelectedSportIdsByTeamId,
-      ).reduce<Record<string, string[]>>(
-        (carry, [team_id, selectedSportIds]) => {
-          if (!selectableTeamIdSet.has(team_id)) {
-            return carry;
-          }
-
-          carry[team_id] = selectedSportIds;
+      const nextSelectedSportIdsByTeamId = Object.entries(currentSelectedSportIdsByTeamId).reduce<
+        Record<string, string[]>
+      >((carry, [team_id, selectedSportIds]) => {
+        if (!selectableTeamIdSet.has(team_id)) {
           return carry;
-        },
-        {},
-      );
+        }
+
+        carry[team_id] = selectedSportIds;
+        return carry;
+      }, {});
 
       if (
         Object.keys(nextSelectedSportIdsByTeamId).length ==
@@ -3030,32 +2781,27 @@ export function AdminChampionshipBracketPage({
       return nextSelectedSportIdsByTeamId;
     });
 
-    setSelectedCompetitionKeysByTeamId(
-      (currentSelectedCompetitionKeysByTeamId) => {
-        const nextSelectedCompetitionKeysByTeamId = Object.entries(
-          currentSelectedCompetitionKeysByTeamId,
-        ).reduce<Record<string, string[]>>(
-          (carry, [team_id, selectedCompetitionKeys]) => {
-            if (!selectableTeamIdSet.has(team_id)) {
-              return carry;
-            }
-
-            carry[team_id] = selectedCompetitionKeys;
-            return carry;
-          },
-          {},
-        );
-
-        if (
-          Object.keys(nextSelectedCompetitionKeysByTeamId).length ==
-          Object.keys(currentSelectedCompetitionKeysByTeamId).length
-        ) {
-          return currentSelectedCompetitionKeysByTeamId;
+    setSelectedCompetitionKeysByTeamId((currentSelectedCompetitionKeysByTeamId) => {
+      const nextSelectedCompetitionKeysByTeamId = Object.entries(
+        currentSelectedCompetitionKeysByTeamId,
+      ).reduce<Record<string, string[]>>((carry, [team_id, selectedCompetitionKeys]) => {
+        if (!selectableTeamIdSet.has(team_id)) {
+          return carry;
         }
 
-        return nextSelectedCompetitionKeysByTeamId;
-      },
-    );
+        carry[team_id] = selectedCompetitionKeys;
+        return carry;
+      }, {});
+
+      if (
+        Object.keys(nextSelectedCompetitionKeysByTeamId).length ==
+        Object.keys(currentSelectedCompetitionKeysByTeamId).length
+      ) {
+        return currentSelectedCompetitionKeysByTeamId;
+      }
+
+      return nextSelectedCompetitionKeysByTeamId;
+    });
   }, [hasResolvedInitialDraftSnapshot, selectableTeamIds]);
 
   const competitionOptionsByTeamId = useMemo(() => {
@@ -3065,41 +2811,29 @@ export function AdminChampionshipBracketPage({
     > = {};
 
     selectedTeams.forEach((team) => {
-      const teamDivision = resolveUsesSeasonDivisions(seasonSettings)
-        ? team.division
-        : null;
+      const teamDivision = resolveUsesSeasonDivisions(seasonSettings) ? team.division : null;
 
       if (resolveUsesSeasonDivisions(seasonSettings) && teamDivision == null) {
         nextCompetitionOptionsByTeamId[team.id] = [];
         return;
       }
 
-      nextCompetitionOptionsByTeamId[team.id] = championshipSports.flatMap(
-        (championshipSport) => {
-          const supportedNaipes = resolveSupportedNaipesByMode(
-            championshipSport.naipe_mode,
-          );
-          const sportName = championshipSport.sports?.name ?? "Modalidade";
+      nextCompetitionOptionsByTeamId[team.id] = championshipSports.flatMap((championshipSport) => {
+        const supportedNaipes = resolveSupportedNaipesByMode(championshipSport.naipe_mode);
+        const sportName = championshipSport.sports?.name ?? "Modalidade";
 
-          return supportedNaipes.map((naipe) => {
-            const optionDivision = resolveUsesSeasonDivisions(seasonSettings)
-              ? teamDivision
-              : null;
+        return supportedNaipes.map((naipe) => {
+          const optionDivision = resolveUsesSeasonDivisions(seasonSettings) ? teamDivision : null;
 
-            return {
-              key: resolveCompetitionKey(
-                championshipSport.sport_id,
-                naipe,
-                optionDivision,
-              ),
-              sport_id: championshipSport.sport_id,
-              sport_name: sportName,
-              naipe,
-              division: optionDivision,
-            } as ChampionshipBracketWizardCompetitionOption;
-          });
-        },
-      );
+          return {
+            key: resolveCompetitionKey(championshipSport.sport_id, naipe, optionDivision),
+            sport_id: championshipSport.sport_id,
+            sport_name: sportName,
+            naipe,
+            division: optionDivision,
+          } as ChampionshipBracketWizardCompetitionOption;
+        });
+      });
     });
 
     return nextCompetitionOptionsByTeamId;
@@ -3120,17 +2854,15 @@ export function AdminChampionshipBracketPage({
   const teamIdsByCompetitionKey = useMemo(() => {
     const nextTeamIdsByCompetitionKey: Record<string, string[]> = {};
 
-    Object.entries(selectedCompetitionKeysByTeamId).forEach(
-      ([teamId, selectedCompetitionKeys]) => {
-        selectedCompetitionKeys.forEach((competitionKey) => {
-          if (!nextTeamIdsByCompetitionKey[competitionKey]) {
-            nextTeamIdsByCompetitionKey[competitionKey] = [];
-          }
+    Object.entries(selectedCompetitionKeysByTeamId).forEach(([teamId, selectedCompetitionKeys]) => {
+      selectedCompetitionKeys.forEach((competitionKey) => {
+        if (!nextTeamIdsByCompetitionKey[competitionKey]) {
+          nextTeamIdsByCompetitionKey[competitionKey] = [];
+        }
 
-          nextTeamIdsByCompetitionKey[competitionKey].push(teamId);
-        });
-      },
-    );
+        nextTeamIdsByCompetitionKey[competitionKey].push(teamId);
+      });
+    });
 
     return nextTeamIdsByCompetitionKey;
   }, [selectedCompetitionKeysByTeamId]);
@@ -3167,21 +2899,13 @@ export function AdminChampionshipBracketPage({
       ...new Map(
         Object.values(selectedCompetitionKeysByTeamId)
           .flat()
-          .map(
-            (competitionKey) =>
-              competitionOptionsByKey.get(competitionKey) ?? null,
-          )
+          .map((competitionKey) => competitionOptionsByKey.get(competitionKey) ?? null)
           .filter(
-            (
-              competitionOption,
-            ): competitionOption is ChampionshipBracketWizardCompetitionOption =>
+            (competitionOption): competitionOption is ChampionshipBracketWizardCompetitionOption =>
               competitionOption != null &&
               resolveIsIndividualSportName(competitionOption.sport_name),
           )
-          .map((competitionOption) => [
-            competitionOption.key,
-            competitionOption,
-          ]),
+          .map((competitionOption) => [competitionOption.key, competitionOption]),
       ).values(),
     ].sort((leftCompetitionOption, rightCompetitionOption) =>
       resolveSortedChampionshipBracketCompetitionKeys(
@@ -3197,11 +2921,7 @@ export function AdminChampionshipBracketPage({
   }, [competitionOptionsByKey, selectedCompetitionKeysByTeamId]);
 
   const scheduleDayDates = useMemo(() => {
-    return [
-      ...new Set(
-        scheduleDays.map((scheduleDay) => scheduleDay.date).filter(Boolean),
-      ),
-    ];
+    return [...new Set(scheduleDays.map((scheduleDay) => scheduleDay.date).filter(Boolean))];
   }, [scheduleDays]);
 
   const scheduleDayByDate = useMemo(() => {
@@ -3213,10 +2933,7 @@ export function AdminChampionshipBracketPage({
   }, [scheduleDays]);
 
   const scheduleDayDatesOrderedByColumn = useMemo(() => {
-    return resolveColumnFirstOrderedItems(
-      scheduleDayDates,
-      PERIOD_AVAILABILITY_CARD_COLUMNS,
-    );
+    return resolveColumnFirstOrderedItems(scheduleDayDates, PERIOD_AVAILABILITY_CARD_COLUMNS);
   }, [scheduleDayDates]);
 
   const scheduleResourcesByDate = useMemo(() => {
@@ -3251,19 +2968,20 @@ export function AdminChampionshipBracketPage({
   }, [scheduleDays]);
 
   const teamCompetitionKeysByTeamId = useMemo(() => {
-    return Object.entries(selectedCompetitionKeysByTeamId).reduce<
-      Record<string, string[]>
-    >((carry, [teamId, competitionKeys]) => {
-      const filteredCompetitionKeys = competitionKeys.filter((competitionKey) =>
-        activeCompetitionKeySet.has(competitionKey),
-      );
+    return Object.entries(selectedCompetitionKeysByTeamId).reduce<Record<string, string[]>>(
+      (carry, [teamId, competitionKeys]) => {
+        const filteredCompetitionKeys = competitionKeys.filter((competitionKey) =>
+          activeCompetitionKeySet.has(competitionKey),
+        );
 
-      if (filteredCompetitionKeys.length > 0) {
-        carry[teamId] = filteredCompetitionKeys;
-      }
+        if (filteredCompetitionKeys.length > 0) {
+          carry[teamId] = filteredCompetitionKeys;
+        }
 
-      return carry;
-    }, {});
+        return carry;
+      },
+      {},
+    );
   }, [activeCompetitionKeySet, selectedCompetitionKeysByTeamId]);
 
   const teamCompetitionDateAvailabilityByKey = useMemo(() => {
@@ -3285,16 +3003,11 @@ export function AdminChampionshipBracketPage({
   }, [competitionDateAvailability]);
 
   const updateCompetitionDateAvailabilityMode = useCallback(
-    (
-      competitionKey: string,
-      date: string,
-      mode: "UNAVAILABLE" | "FULL_DAY" | "CUSTOM",
-    ) => {
+    (competitionKey: string, date: string, mode: "UNAVAILABLE" | "FULL_DAY" | "CUSTOM") => {
       setCompetitionDateAvailability((currentAvailability) => {
         const availabilityIndex = currentAvailability.findIndex(
           (availabilityItem) =>
-            availabilityItem.competition_key == competitionKey &&
-            availabilityItem.date == date,
+            availabilityItem.competition_key == competitionKey && availabilityItem.date == date,
         );
 
         if (availabilityIndex < 0) {
@@ -3311,10 +3024,7 @@ export function AdminChampionshipBracketPage({
 
         if (mode != "CUSTOM") {
           windows = [];
-        } else if (
-          currentItem.mode != "CUSTOM" ||
-          currentItem.windows.length == 0
-        ) {
+        } else if (currentItem.mode != "CUSTOM" || currentItem.windows.length == 0) {
           const scheduleDay = scheduleDays.find(
             (currentScheduleDay) => currentScheduleDay.date == date,
           );
@@ -3322,23 +3032,13 @@ export function AdminChampionshipBracketPage({
           if (!scheduleDay) {
             windows = [];
           } else {
-            const dayStartMinutes = resolveTimeValueToMinutes(
-              scheduleDay.start_time,
-            );
-            const dayEndMinutes = resolveTimeValueToMinutes(
-              scheduleDay.end_time,
-            );
-            const breakStartMinutes = resolveTimeValueToMinutes(
-              scheduleDay.break_start_time,
-            );
-            const breakEndMinutes = resolveTimeValueToMinutes(
-              scheduleDay.break_end_time,
-            );
+            const dayStartMinutes = resolveTimeValueToMinutes(scheduleDay.start_time);
+            const dayEndMinutes = resolveTimeValueToMinutes(scheduleDay.end_time);
+            const breakStartMinutes = resolveTimeValueToMinutes(scheduleDay.break_start_time);
+            const breakEndMinutes = resolveTimeValueToMinutes(scheduleDay.break_end_time);
 
             const hasValidDay =
-              dayStartMinutes != null &&
-              dayEndMinutes != null &&
-              dayEndMinutes > dayStartMinutes;
+              dayStartMinutes != null && dayEndMinutes != null && dayEndMinutes > dayStartMinutes;
 
             const hasValidBreak =
               hasValidDay &&
@@ -3410,14 +3110,13 @@ export function AdminChampionshipBracketPage({
 
           return {
             ...availabilityItem,
-            windows: availabilityItem.windows.map(
-              (window, currentWindowIndex) =>
-                currentWindowIndex == windowIndex
-                  ? {
-                      ...window,
-                      [field]: value,
-                    }
-                  : window,
+            windows: availabilityItem.windows.map((window, currentWindowIndex) =>
+              currentWindowIndex == windowIndex
+                ? {
+                    ...window,
+                    [field]: value,
+                  }
+                : window,
             ),
           };
         }),
@@ -3534,18 +3233,13 @@ export function AdminChampionshipBracketPage({
 
         if (mode != "CUSTOM") {
           windows = [];
-        } else if (
-          currentItem.mode != "CUSTOM" ||
-          currentItem.windows.length == 0
-        ) {
+        } else if (currentItem.mode != "CUSTOM" || currentItem.windows.length == 0) {
           const competitionAvailability = competitionDateAvailabilityByKey.get(
             `${competitionKey}::${date}`,
           );
 
           const scheduleDay =
-            scheduleDays.find(
-              (currentScheduleDay) => currentScheduleDay.date == date,
-            ) ?? null;
+            scheduleDays.find((currentScheduleDay) => currentScheduleDay.date == date) ?? null;
 
           if (
             competitionAvailability?.mode == "CUSTOM" &&
@@ -3555,27 +3249,14 @@ export function AdminChampionshipBracketPage({
               start_time: window.start_time,
               end_time: window.end_time,
             }));
-          } else if (
-            competitionAvailability?.mode == "FULL_DAY" &&
-            scheduleDay
-          ) {
-            const dayStartMinutes = resolveTimeValueToMinutes(
-              scheduleDay.start_time,
-            );
-            const dayEndMinutes = resolveTimeValueToMinutes(
-              scheduleDay.end_time,
-            );
-            const breakStartMinutes = resolveTimeValueToMinutes(
-              scheduleDay.break_start_time,
-            );
-            const breakEndMinutes = resolveTimeValueToMinutes(
-              scheduleDay.break_end_time,
-            );
+          } else if (competitionAvailability?.mode == "FULL_DAY" && scheduleDay) {
+            const dayStartMinutes = resolveTimeValueToMinutes(scheduleDay.start_time);
+            const dayEndMinutes = resolveTimeValueToMinutes(scheduleDay.end_time);
+            const breakStartMinutes = resolveTimeValueToMinutes(scheduleDay.break_start_time);
+            const breakEndMinutes = resolveTimeValueToMinutes(scheduleDay.break_end_time);
 
             const hasValidDay =
-              dayStartMinutes != null &&
-              dayEndMinutes != null &&
-              dayEndMinutes > dayStartMinutes;
+              dayStartMinutes != null && dayEndMinutes != null && dayEndMinutes > dayStartMinutes;
 
             const hasValidBreak =
               hasValidDay &&
@@ -3651,14 +3332,13 @@ export function AdminChampionshipBracketPage({
 
           return {
             ...availabilityItem,
-            windows: availabilityItem.windows.map(
-              (window, currentWindowIndex) =>
-                currentWindowIndex == windowIndex
-                  ? {
-                      ...window,
-                      [field]: value,
-                    }
-                  : window,
+            windows: availabilityItem.windows.map((window, currentWindowIndex) =>
+              currentWindowIndex == windowIndex
+                ? {
+                    ...window,
+                    [field]: value,
+                  }
+                : window,
             ),
           };
         }),
@@ -3674,19 +3354,14 @@ export function AdminChampionshipBracketPage({
       );
 
       const scheduleDay =
-        scheduleDays.find(
-          (currentScheduleDay) => currentScheduleDay.date == date,
-        ) ?? null;
+        scheduleDays.find((currentScheduleDay) => currentScheduleDay.date == date) ?? null;
 
       let nextWindow: {
         start_time: string;
         end_time: string;
       } | null = null;
 
-      if (
-        competitionAvailability?.mode == "CUSTOM" &&
-        competitionAvailability.windows.length > 0
-      ) {
+      if (competitionAvailability?.mode == "CUSTOM" && competitionAvailability.windows.length > 0) {
         const firstCompetitionWindow = competitionAvailability.windows[0];
 
         if (firstCompetitionWindow) {
@@ -3737,12 +3412,7 @@ export function AdminChampionshipBracketPage({
   );
 
   const removeTeamCompetitionDateAvailabilityWindow = useCallback(
-    (
-      teamId: string,
-      competitionKey: string,
-      date: string,
-      windowIndex: number,
-    ) => {
+    (teamId: string, competitionKey: string, date: string, windowIndex: number) => {
       setTeamCompetitionDateAvailability((currentAvailability) =>
         currentAvailability.map((availabilityItem) => {
           if (
@@ -3767,21 +3437,14 @@ export function AdminChampionshipBracketPage({
   );
 
   const updateTeamCompetitionDateAvailabilityForAllDates = useCallback(
-    (
-      teamId: string,
-      competitionKey: string,
-      mode: "FULL_DAY" | "UNAVAILABLE",
-    ) => {
+    (teamId: string, competitionKey: string, mode: "FULL_DAY" | "UNAVAILABLE") => {
       const eligibleDateSet = new Set(
         scheduleDayDates.filter((scheduleDate) => {
           const competitionAvailability = competitionDateAvailabilityByKey.get(
             `${competitionKey}::${scheduleDate}`,
           );
 
-          return (
-            competitionAvailability != null &&
-            competitionAvailability.mode != "UNAVAILABLE"
-          );
+          return competitionAvailability != null && competitionAvailability.mode != "UNAVAILABLE";
         }),
       );
 
@@ -3815,22 +3478,20 @@ export function AdminChampionshipBracketPage({
       const nextCompetitionConfigByKey: Record<string, CompetitionConfig> = {};
 
       activeCompetitionKeys.forEach((competitionKey) => {
-        const previousCompetitionConfig =
-          previousCompetitionConfigByKey[competitionKey];
+        const previousCompetitionConfig = previousCompetitionConfigByKey[competitionKey];
 
         if (previousCompetitionConfig) {
-          nextCompetitionConfigByKey[competitionKey] =
-            previousCompetitionConfig;
+          nextCompetitionConfigByKey[competitionKey] = previousCompetitionConfig;
           return;
         }
 
-        const participantCount =
-          teamIdsByCompetitionKey[competitionKey]?.length ?? 2;
-        const competitionOption =
-          competitionOptionsByKey.get(competitionKey) ?? null;
+        const participantCount = teamIdsByCompetitionKey[competitionKey]?.length ?? 2;
+        const competitionOption = competitionOptionsByKey.get(competitionKey) ?? null;
 
-        nextCompetitionConfigByKey[competitionKey] =
-          resolveDefaultCompetitionConfig(participantCount, competitionOption);
+        nextCompetitionConfigByKey[competitionKey] = resolveDefaultCompetitionConfig(
+          participantCount,
+          competitionOption,
+        );
       });
 
       return nextCompetitionConfigByKey;
@@ -3848,12 +3509,11 @@ export function AdminChampionshipBracketPage({
     }
 
     setCompetitionDateAvailability((currentCompetitionDateAvailability) => {
-      const nextCompetitionDateAvailability =
-        sanitizeCompetitionDateAvailabilityValues({
-          scheduleDays,
-          competitionKeys: sortedActiveCompetitionKeys,
-          competitionDateAvailability: currentCompetitionDateAvailability,
-        });
+      const nextCompetitionDateAvailability = sanitizeCompetitionDateAvailabilityValues({
+        scheduleDays,
+        competitionKeys: sortedActiveCompetitionKeys,
+        competitionDateAvailability: currentCompetitionDateAvailability,
+      });
 
       if (
         JSON.stringify(nextCompetitionDateAvailability) ==
@@ -3864,42 +3524,30 @@ export function AdminChampionshipBracketPage({
 
       return nextCompetitionDateAvailability;
     });
-  }, [
-    hasResolvedInitialDraftSnapshot,
-    scheduleDays,
-    sortedActiveCompetitionKeys,
-  ]);
+  }, [hasResolvedInitialDraftSnapshot, scheduleDays, sortedActiveCompetitionKeys]);
 
   useEffect(() => {
     if (!hasResolvedInitialDraftSnapshot) {
       return;
     }
 
-    setTeamCompetitionDateAvailability(
-      (currentTeamCompetitionDateAvailability) => {
-        const nextTeamCompetitionDateAvailability =
-          sanitizeTeamCompetitionDateAvailabilityValues({
-            scheduleDays,
-            teamCompetitionKeysByTeamId,
-            teamCompetitionDateAvailability:
-              currentTeamCompetitionDateAvailability,
-          });
+    setTeamCompetitionDateAvailability((currentTeamCompetitionDateAvailability) => {
+      const nextTeamCompetitionDateAvailability = sanitizeTeamCompetitionDateAvailabilityValues({
+        scheduleDays,
+        teamCompetitionKeysByTeamId,
+        teamCompetitionDateAvailability: currentTeamCompetitionDateAvailability,
+      });
 
-        if (
-          JSON.stringify(nextTeamCompetitionDateAvailability) ==
-          JSON.stringify(currentTeamCompetitionDateAvailability)
-        ) {
-          return currentTeamCompetitionDateAvailability;
-        }
+      if (
+        JSON.stringify(nextTeamCompetitionDateAvailability) ==
+        JSON.stringify(currentTeamCompetitionDateAvailability)
+      ) {
+        return currentTeamCompetitionDateAvailability;
+      }
 
-        return nextTeamCompetitionDateAvailability;
-      },
-    );
-  }, [
-    hasResolvedInitialDraftSnapshot,
-    scheduleDays,
-    teamCompetitionKeysByTeamId,
-  ]);
+      return nextTeamCompetitionDateAvailability;
+    });
+  }, [hasResolvedInitialDraftSnapshot, scheduleDays, teamCompetitionKeysByTeamId]);
 
   useEffect(() => {
     if (!hasResolvedInitialDraftSnapshot) {
@@ -3913,8 +3561,7 @@ export function AdminChampionshipBracketPage({
       });
 
       if (
-        JSON.stringify(nextIndividualEventConfigs) ==
-        JSON.stringify(currentIndividualEventConfigs)
+        JSON.stringify(nextIndividualEventConfigs) == JSON.stringify(currentIndividualEventConfigs)
       ) {
         return currentIndividualEventConfigs;
       }
@@ -3929,12 +3576,11 @@ export function AdminChampionshipBracketPage({
     }
 
     setIndividualSessionConfigs((currentIndividualSessionConfigs) => {
-      const nextIndividualSessionConfigs =
-        sanitizeIndividualSessionConfigsValues({
-          scheduleDays,
-          individualCompetitionOptions: selectedIndividualCompetitionOptions,
-          individualSessionConfigs: currentIndividualSessionConfigs,
-        });
+      const nextIndividualSessionConfigs = sanitizeIndividualSessionConfigsValues({
+        scheduleDays,
+        individualCompetitionOptions: selectedIndividualCompetitionOptions,
+        individualSessionConfigs: currentIndividualSessionConfigs,
+      });
 
       if (
         JSON.stringify(nextIndividualSessionConfigs) ==
@@ -3945,11 +3591,7 @@ export function AdminChampionshipBracketPage({
 
       return nextIndividualSessionConfigs;
     });
-  }, [
-    hasResolvedInitialDraftSnapshot,
-    scheduleDays,
-    selectedIndividualCompetitionOptions,
-  ]);
+  }, [hasResolvedInitialDraftSnapshot, scheduleDays, selectedIndividualCompetitionOptions]);
 
   useEffect(() => {
     if (!hasResolvedInitialDraftSnapshot) {
@@ -3962,31 +3604,27 @@ export function AdminChampionshipBracketPage({
           resolveIndividualSessionConfigKey(competitionOption),
         ),
       );
-      const preservedManualLocks = currentResourceLocks.filter(
-        (resourceLock) => {
-          if (
-            resourceLock.lock_mode != "HARD" ||
-            !resourceLock.sport_id ||
-            resourceLock.naipe == null
-          ) {
-            return true;
-          }
+      const preservedManualLocks = currentResourceLocks.filter((resourceLock) => {
+        if (
+          resourceLock.lock_mode != "HARD" ||
+          !resourceLock.sport_id ||
+          resourceLock.naipe == null
+        ) {
+          return true;
+        }
 
-          return !individualSessionKeySet.has(
-            resolveIndividualSessionConfigKey({
-              sport_id: resourceLock.sport_id,
-              naipe: resourceLock.naipe,
-              division: resourceLock.division ?? null,
-            }),
-          );
-        },
-      );
+        return !individualSessionKeySet.has(
+          resolveIndividualSessionConfigKey({
+            sport_id: resourceLock.sport_id,
+            naipe: resourceLock.naipe,
+            division: resourceLock.division ?? null,
+          }),
+        );
+      });
       const derivedSessionLocks = [
         ...new Map(
           individualSessionConfigs
-            .map((sessionConfig) =>
-              resolveResourceLockFromIndividualSession(sessionConfig),
-            )
+            .map((sessionConfig) => resolveResourceLockFromIndividualSession(sessionConfig))
             .filter(
               (
                 resourceLock,
@@ -4014,10 +3652,7 @@ export function AdminChampionshipBracketPage({
         resourceLocks: [...preservedManualLocks, ...derivedSessionLocks],
       });
 
-      if (
-        JSON.stringify(nextResourceLocks) ==
-        JSON.stringify(currentResourceLocks)
-      ) {
+      if (JSON.stringify(nextResourceLocks) == JSON.stringify(currentResourceLocks)) {
         return currentResourceLocks;
       }
 
@@ -4068,10 +3703,7 @@ export function AdminChampionshipBracketPage({
         }),
       });
 
-      if (
-        JSON.stringify(nextResourceLocks) ==
-        JSON.stringify(currentResourceLocks)
-      ) {
+      if (JSON.stringify(nextResourceLocks) == JSON.stringify(currentResourceLocks)) {
         return currentResourceLocks;
       }
 
@@ -4084,31 +3716,23 @@ export function AdminChampionshipBracketPage({
       return;
     }
 
-    setGroupAssignmentsByCompetitionKey(
-      (previousGroupAssignmentsByCompetitionKey) => {
-        const nextGroupAssignmentsByCompetitionKey: Record<
-          string,
-          Record<string, number>
-        > = {};
+    setGroupAssignmentsByCompetitionKey((previousGroupAssignmentsByCompetitionKey) => {
+      const nextGroupAssignmentsByCompetitionKey: Record<string, Record<string, number>> = {};
 
-        activeCompetitionKeys.forEach((competitionKey) => {
-          const teamIds = teamIdsByCompetitionKey[competitionKey] ?? [];
-          const groupCount =
-            competitionConfigByKey[competitionKey]?.groups_count ?? 1;
-          const previousAssignments =
-            previousGroupAssignmentsByCompetitionKey[competitionKey] ?? {};
+      activeCompetitionKeys.forEach((competitionKey) => {
+        const teamIds = teamIdsByCompetitionKey[competitionKey] ?? [];
+        const groupCount = competitionConfigByKey[competitionKey]?.groups_count ?? 1;
+        const previousAssignments = previousGroupAssignmentsByCompetitionKey[competitionKey] ?? {};
 
-          nextGroupAssignmentsByCompetitionKey[competitionKey] =
-            sanitizeGroupAssignments({
-              participant_team_ids: teamIds,
-              group_assignments: previousAssignments,
-              groups_count: groupCount,
-            });
+        nextGroupAssignmentsByCompetitionKey[competitionKey] = sanitizeGroupAssignments({
+          participant_team_ids: teamIds,
+          group_assignments: previousAssignments,
+          groups_count: groupCount,
         });
+      });
 
-        return nextGroupAssignmentsByCompetitionKey;
-      },
-    );
+      return nextGroupAssignmentsByCompetitionKey;
+    });
   }, [
     activeCompetitionKeys,
     competitionConfigByKey,
@@ -4128,23 +3752,18 @@ export function AdminChampionshipBracketPage({
       > = {};
 
       activeCompetitionKeys.forEach((competitionKey) => {
-        const nextOrderedTeamIdsByGroupNumber =
-          sanitizeGroupOrderedTeamIdsByGroupNumber({
-            participant_team_ids: teamIdsByCompetitionKey[competitionKey] ?? [],
-            group_assignments:
-              groupAssignmentsByCompetitionKey[competitionKey] ?? {},
-            groups_count:
-              competitionConfigByKey[competitionKey]?.groups_count ?? 1,
-            ordered_team_ids_by_group_number:
-              currentGroupOrderByCompetitionKey[competitionKey] ?? {},
-          });
+        const nextOrderedTeamIdsByGroupNumber = sanitizeGroupOrderedTeamIdsByGroupNumber({
+          participant_team_ids: teamIdsByCompetitionKey[competitionKey] ?? [],
+          group_assignments: groupAssignmentsByCompetitionKey[competitionKey] ?? {},
+          groups_count: competitionConfigByKey[competitionKey]?.groups_count ?? 1,
+          ordered_team_ids_by_group_number: currentGroupOrderByCompetitionKey[competitionKey] ?? {},
+        });
 
         if (Object.keys(nextOrderedTeamIdsByGroupNumber).length == 0) {
           return;
         }
 
-        nextGroupOrderByCompetitionKey[competitionKey] =
-          nextOrderedTeamIdsByGroupNumber;
+        nextGroupOrderByCompetitionKey[competitionKey] = nextOrderedTeamIdsByGroupNumber;
       });
 
       return nextGroupOrderByCompetitionKey;
@@ -4162,95 +3781,77 @@ export function AdminChampionshipBracketPage({
       return;
     }
 
-    setTransientGroupSlotIdsByCompetitionKey(
-      (currentTransientGroupSlotIdsByCompetitionKey) => {
-        const nextTransientGroupSlotIdsByCompetitionKey: Record<
-          string,
-          ChampionshipBracketGroupEditorTransientSlotIdsByGroupNumber
-        > = {};
+    setTransientGroupSlotIdsByCompetitionKey((currentTransientGroupSlotIdsByCompetitionKey) => {
+      const nextTransientGroupSlotIdsByCompetitionKey: Record<
+        string,
+        ChampionshipBracketGroupEditorTransientSlotIdsByGroupNumber
+      > = {};
 
-        activeCompetitionKeys.forEach((competitionKey) => {
-          const groupsCount =
-            competitionConfigByKey[competitionKey]?.groups_count ?? 1;
-          const currentTransientSlotIdsByGroupNumber =
-            currentTransientGroupSlotIdsByCompetitionKey[competitionKey] ?? {};
-          const nextTransientSlotIdsByGroupNumber = Array.from(
-            { length: groupsCount },
-            (_, groupIndex) => {
-              const groupNumber = groupIndex + 1;
-              const slotIds =
-                currentTransientSlotIdsByGroupNumber[String(groupNumber)] ?? [];
+      activeCompetitionKeys.forEach((competitionKey) => {
+        const groupsCount = competitionConfigByKey[competitionKey]?.groups_count ?? 1;
+        const currentTransientSlotIdsByGroupNumber =
+          currentTransientGroupSlotIdsByCompetitionKey[competitionKey] ?? {};
+        const nextTransientSlotIdsByGroupNumber = Array.from(
+          { length: groupsCount },
+          (_, groupIndex) => {
+            const groupNumber = groupIndex + 1;
+            const slotIds = currentTransientSlotIdsByGroupNumber[String(groupNumber)] ?? [];
 
-              return [String(groupNumber), slotIds] as const;
-            },
-          ).reduce<ChampionshipBracketGroupEditorTransientSlotIdsByGroupNumber>(
-            (carry, [groupNumber, slotIds]) => {
-              if (slotIds.length == 0) {
-                return carry;
-              }
-
-              carry[groupNumber] = slotIds;
+            return [String(groupNumber), slotIds] as const;
+          },
+        ).reduce<ChampionshipBracketGroupEditorTransientSlotIdsByGroupNumber>(
+          (carry, [groupNumber, slotIds]) => {
+            if (slotIds.length == 0) {
               return carry;
-            },
-            {},
-          );
+            }
 
-          if (Object.keys(nextTransientSlotIdsByGroupNumber).length == 0) {
-            return;
-          }
+            carry[groupNumber] = slotIds;
+            return carry;
+          },
+          {},
+        );
 
-          nextTransientGroupSlotIdsByCompetitionKey[competitionKey] =
-            nextTransientSlotIdsByGroupNumber;
-        });
+        if (Object.keys(nextTransientSlotIdsByGroupNumber).length == 0) {
+          return;
+        }
 
-        return nextTransientGroupSlotIdsByCompetitionKey;
-      },
-    );
-  }, [
-    activeCompetitionKeys,
-    competitionConfigByKey,
-    hasResolvedInitialDraftSnapshot,
-  ]);
+        nextTransientGroupSlotIdsByCompetitionKey[competitionKey] =
+          nextTransientSlotIdsByGroupNumber;
+      });
+
+      return nextTransientGroupSlotIdsByCompetitionKey;
+    });
+  }, [activeCompetitionKeys, competitionConfigByKey, hasResolvedInitialDraftSnapshot]);
 
   const selectedSportOptions = useMemo(() => {
-    return resolveLocationCatalogSportOptions(
-      championshipSports,
-      enabledSportIdSet,
-    );
+    return resolveLocationCatalogSportOptions(championshipSports, enabledSportIdSet);
   }, [championshipSports, enabledSportIdSet]);
 
   const locationTemplateById = useMemo(() => {
-    return locationTemplates.reduce<
-      Record<string, ChampionshipBracketLocationTemplate>
-    >((carry, locationTemplate) => {
-      carry[locationTemplate.id] = locationTemplate;
-      return carry;
-    }, {});
+    return locationTemplates.reduce<Record<string, ChampionshipBracketLocationTemplate>>(
+      (carry, locationTemplate) => {
+        carry[locationTemplate.id] = locationTemplate;
+        return carry;
+      },
+      {},
+    );
   }, [locationTemplates]);
 
   const sportOptionsByTeamId = useMemo(() => {
-    const nextSportOptionsByTeamId: Record<
-      string,
-      { id: string; name: string }[]
-    > = {};
+    const nextSportOptionsByTeamId: Record<string, { id: string; name: string }[]> = {};
 
-    Object.entries(competitionOptionsByTeamId).forEach(
-      ([team_id, competitionOptions]) => {
-        const teamSportOptionsById = new Map<
-          string,
-          { id: string; name: string }
-        >();
+    Object.entries(competitionOptionsByTeamId).forEach(([team_id, competitionOptions]) => {
+      const teamSportOptionsById = new Map<string, { id: string; name: string }>();
 
-        competitionOptions.forEach((competitionOption) => {
-          teamSportOptionsById.set(competitionOption.sport_id, {
-            id: competitionOption.sport_id,
-            name: competitionOption.sport_name,
-          });
+      competitionOptions.forEach((competitionOption) => {
+        teamSportOptionsById.set(competitionOption.sport_id, {
+          id: competitionOption.sport_id,
+          name: competitionOption.sport_name,
         });
+      });
 
-        nextSportOptionsByTeamId[team_id] = [...teamSportOptionsById.values()];
-      },
-    );
+      nextSportOptionsByTeamId[team_id] = [...teamSportOptionsById.values()];
+    });
 
     return nextSportOptionsByTeamId;
   }, [competitionOptionsByTeamId]);
@@ -4287,41 +3888,35 @@ export function AdminChampionshipBracketPage({
 
   useEffect(() => {
     setActiveNaipeTabBySportId((currentActiveNaipeTabBySportId) => {
-      const nextActiveNaipeTabBySportId = naipeCards.reduce<
-        Record<string, MatchNaipe>
-      >((carry, naipeCard) => {
-        const supportedNaipes = naipeCard.tabs.map((tab) => tab.naipe);
-        const currentActiveNaipe =
-          currentActiveNaipeTabBySportId[naipeCard.sport_id];
+      const nextActiveNaipeTabBySportId = naipeCards.reduce<Record<string, MatchNaipe>>(
+        (carry, naipeCard) => {
+          const supportedNaipes = naipeCard.tabs.map((tab) => tab.naipe);
+          const currentActiveNaipe = currentActiveNaipeTabBySportId[naipeCard.sport_id];
 
-        if (
-          currentActiveNaipe &&
-          supportedNaipes.includes(currentActiveNaipe)
-        ) {
-          carry[naipeCard.sport_id] = currentActiveNaipe;
+          if (currentActiveNaipe && supportedNaipes.includes(currentActiveNaipe)) {
+            carry[naipeCard.sport_id] = currentActiveNaipe;
+            return carry;
+          }
+
+          const defaultNaipe = resolveDefaultWizardNaipeTabValue(supportedNaipes);
+
+          if (defaultNaipe) {
+            carry[naipeCard.sport_id] = defaultNaipe;
+          }
+
           return carry;
-        }
-
-        const defaultNaipe = resolveDefaultWizardNaipeTabValue(supportedNaipes);
-
-        if (defaultNaipe) {
-          carry[naipeCard.sport_id] = defaultNaipe;
-        }
-
-        return carry;
-      }, {});
-
-      const currentActiveNaipeKeys = Object.keys(
-        currentActiveNaipeTabBySportId,
+        },
+        {},
       );
+
+      const currentActiveNaipeKeys = Object.keys(currentActiveNaipeTabBySportId);
       const nextActiveNaipeKeys = Object.keys(nextActiveNaipeTabBySportId);
 
       if (
         currentActiveNaipeKeys.length == nextActiveNaipeKeys.length &&
         nextActiveNaipeKeys.every(
           (sportId) =>
-            currentActiveNaipeTabBySportId[sportId] ==
-            nextActiveNaipeTabBySportId[sportId],
+            currentActiveNaipeTabBySportId[sportId] == nextActiveNaipeTabBySportId[sportId],
         )
       ) {
         return currentActiveNaipeTabBySportId;
@@ -4353,9 +3948,7 @@ export function AdminChampionshipBracketPage({
         return [...currentSelectedTeamIds, team_id];
       }
 
-      return currentSelectedTeamIds.filter(
-        (selectedTeamId) => selectedTeamId != team_id,
-      );
+      return currentSelectedTeamIds.filter((selectedTeamId) => selectedTeamId != team_id);
     });
 
     if (!checked) {
@@ -4367,15 +3960,13 @@ export function AdminChampionshipBracketPage({
         return nextSelectedSportIdsByTeamId;
       });
 
-      setSelectedCompetitionKeysByTeamId(
-        (currentSelectedCompetitionKeysByTeamId) => {
-          const nextSelectedCompetitionKeysByTeamId = {
-            ...currentSelectedCompetitionKeysByTeamId,
-          };
-          delete nextSelectedCompetitionKeysByTeamId[team_id];
-          return nextSelectedCompetitionKeysByTeamId;
-        },
-      );
+      setSelectedCompetitionKeysByTeamId((currentSelectedCompetitionKeysByTeamId) => {
+        const nextSelectedCompetitionKeysByTeamId = {
+          ...currentSelectedCompetitionKeysByTeamId,
+        };
+        delete nextSelectedCompetitionKeysByTeamId[team_id];
+        return nextSelectedCompetitionKeysByTeamId;
+      });
     }
   };
 
@@ -4392,31 +3983,30 @@ export function AdminChampionshipBracketPage({
 
     setSelectedTeamIds(nextSelectedTeamIds);
     setSelectedSportIdsByTeamId((currentSelectedSportIdsByTeamId) => {
-      return Object.entries(currentSelectedSportIdsByTeamId).reduce<
-        Record<string, string[]>
-      >((carry, [team_id, selectedSportIds]) => {
-        if (!selectableTeamIdSet.has(team_id)) {
-          return carry;
-        }
-
-        carry[team_id] = selectedSportIds;
-        return carry;
-      }, {});
-    });
-    setSelectedCompetitionKeysByTeamId(
-      (currentSelectedCompetitionKeysByTeamId) => {
-        return Object.entries(currentSelectedCompetitionKeysByTeamId).reduce<
-          Record<string, string[]>
-        >((carry, [team_id, selectedCompetitionKeys]) => {
+      return Object.entries(currentSelectedSportIdsByTeamId).reduce<Record<string, string[]>>(
+        (carry, [team_id, selectedSportIds]) => {
           if (!selectableTeamIdSet.has(team_id)) {
             return carry;
           }
 
-          carry[team_id] = selectedCompetitionKeys;
+          carry[team_id] = selectedSportIds;
           return carry;
-        }, {});
-      },
-    );
+        },
+        {},
+      );
+    });
+    setSelectedCompetitionKeysByTeamId((currentSelectedCompetitionKeysByTeamId) => {
+      return Object.entries(currentSelectedCompetitionKeysByTeamId).reduce<
+        Record<string, string[]>
+      >((carry, [team_id, selectedCompetitionKeys]) => {
+        if (!selectableTeamIdSet.has(team_id)) {
+          return carry;
+        }
+
+        carry[team_id] = selectedCompetitionKeys;
+        return carry;
+      }, {});
+    });
   };
 
   const enabledSportsSummary = useMemo(() => {
@@ -4451,16 +4041,10 @@ export function AdminChampionshipBracketPage({
       return;
     }
 
-    setEnabledSportIds(
-      championshipSports.map((championshipSport) => championshipSport.sport_id),
-    );
+    setEnabledSportIds(championshipSports.map((championshipSport) => championshipSport.sport_id));
   };
 
-  const handleToggleTeamSport = (
-    team_id: string,
-    sport_id: string,
-    checked: boolean,
-  ) => {
+  const handleToggleTeamSport = (team_id: string, sport_id: string, checked: boolean) => {
     setSelectedSportIdsByTeamId((currentSelectedSportIdsByTeamId) => {
       const selectedSportIds = currentSelectedSportIdsByTeamId[team_id] ?? [];
 
@@ -4477,27 +4061,22 @@ export function AdminChampionshipBracketPage({
 
       return {
         ...currentSelectedSportIdsByTeamId,
-        [team_id]: selectedSportIds.filter(
-          (selectedSportId) => selectedSportId != sport_id,
-        ),
+        [team_id]: selectedSportIds.filter((selectedSportId) => selectedSportId != sport_id),
       };
     });
 
     if (!checked) {
-      setSelectedCompetitionKeysByTeamId(
-        (currentSelectedCompetitionKeysByTeamId) => {
-          const selectedCompetitionKeys =
-            currentSelectedCompetitionKeysByTeamId[team_id] ?? [];
+      setSelectedCompetitionKeysByTeamId((currentSelectedCompetitionKeysByTeamId) => {
+        const selectedCompetitionKeys = currentSelectedCompetitionKeysByTeamId[team_id] ?? [];
 
-          return {
-            ...currentSelectedCompetitionKeysByTeamId,
-            [team_id]: selectedCompetitionKeys.filter((competitionKey) => {
-              const parsedCompetitionKey = parseCompetitionKey(competitionKey);
-              return parsedCompetitionKey.sport_id != sport_id;
-            }),
-          };
-        },
-      );
+        return {
+          ...currentSelectedCompetitionKeysByTeamId,
+          [team_id]: selectedCompetitionKeys.filter((competitionKey) => {
+            const parsedCompetitionKey = parseCompetitionKey(competitionKey);
+            return parsedCompetitionKey.sport_id != sport_id;
+          }),
+        };
+      });
     }
   };
 
@@ -4506,30 +4085,25 @@ export function AdminChampionshipBracketPage({
     competition_key: string,
     checked: boolean,
   ) => {
-    setSelectedCompetitionKeysByTeamId(
-      (currentSelectedCompetitionKeysByTeamId) => {
-        const selectedCompetitionKeys =
-          currentSelectedCompetitionKeysByTeamId[team_id] ?? [];
+    setSelectedCompetitionKeysByTeamId((currentSelectedCompetitionKeysByTeamId) => {
+      const selectedCompetitionKeys = currentSelectedCompetitionKeysByTeamId[team_id] ?? [];
 
-        if (checked) {
-          if (selectedCompetitionKeys.includes(competition_key)) {
-            return currentSelectedCompetitionKeysByTeamId;
-          }
-
-          return {
-            ...currentSelectedCompetitionKeysByTeamId,
-            [team_id]: [...selectedCompetitionKeys, competition_key],
-          };
+      if (checked) {
+        if (selectedCompetitionKeys.includes(competition_key)) {
+          return currentSelectedCompetitionKeysByTeamId;
         }
 
         return {
           ...currentSelectedCompetitionKeysByTeamId,
-          [team_id]: selectedCompetitionKeys.filter(
-            (key) => key != competition_key,
-          ),
+          [team_id]: [...selectedCompetitionKeys, competition_key],
         };
-      },
-    );
+      }
+
+      return {
+        ...currentSelectedCompetitionKeysByTeamId,
+        [team_id]: selectedCompetitionKeys.filter((key) => key != competition_key),
+      };
+    });
   };
 
   const modalitySelectionSummary = useMemo(() => {
@@ -4546,8 +4120,7 @@ export function AdminChampionshipBracketPage({
       eligible_modalities_count: eligibleModalitiesCount,
       selected_modalities_count: selectedModalitiesCount,
       are_all_selected:
-        eligibleModalitiesCount > 0 &&
-        selectedModalitiesCount == eligibleModalitiesCount,
+        eligibleModalitiesCount > 0 && selectedModalitiesCount == eligibleModalitiesCount,
       has_at_least_one_selected: selectedModalitiesCount > 0,
     };
   }, [modalityCards]);
@@ -4566,19 +4139,17 @@ export function AdminChampionshipBracketPage({
         return nextSelectedSportIdsByTeamId;
       });
 
-      setSelectedCompetitionKeysByTeamId(
-        (currentSelectedCompetitionKeysByTeamId) => {
-          const nextSelectedCompetitionKeysByTeamId = {
-            ...currentSelectedCompetitionKeysByTeamId,
-          };
+      setSelectedCompetitionKeysByTeamId((currentSelectedCompetitionKeysByTeamId) => {
+        const nextSelectedCompetitionKeysByTeamId = {
+          ...currentSelectedCompetitionKeysByTeamId,
+        };
 
-          selectedTeamIds.forEach((team_id) => {
-            nextSelectedCompetitionKeysByTeamId[team_id] = [];
-          });
+        selectedTeamIds.forEach((team_id) => {
+          nextSelectedCompetitionKeysByTeamId[team_id] = [];
+        });
 
-          return nextSelectedCompetitionKeysByTeamId;
-        },
-      );
+        return nextSelectedCompetitionKeysByTeamId;
+      });
 
       return;
     }
@@ -4599,10 +4170,7 @@ export function AdminChampionshipBracketPage({
     });
   };
 
-  const handleToggleModalityCardSelection = (
-    sport_id: string,
-    checked: boolean,
-  ) => {
+  const handleToggleModalityCardSelection = (sport_id: string, checked: boolean) => {
     setSelectedSportIdsByTeamId((currentSelectedSportIdsByTeamId) => {
       const nextSelectedSportIdsByTeamId = {
         ...currentSelectedSportIdsByTeamId,
@@ -4621,10 +4189,7 @@ export function AdminChampionshipBracketPage({
 
         if (checked) {
           if (!selectedSportIds.includes(sport_id)) {
-            nextSelectedSportIdsByTeamId[team_id] = [
-              ...selectedSportIds,
-              sport_id,
-            ];
+            nextSelectedSportIdsByTeamId[team_id] = [...selectedSportIds, sport_id];
           }
 
           return;
@@ -4639,183 +4204,149 @@ export function AdminChampionshipBracketPage({
     });
 
     if (!checked) {
-      setSelectedCompetitionKeysByTeamId(
-        (currentSelectedCompetitionKeysByTeamId) => {
-          const nextSelectedCompetitionKeysByTeamId = {
-            ...currentSelectedCompetitionKeysByTeamId,
-          };
+      setSelectedCompetitionKeysByTeamId((currentSelectedCompetitionKeysByTeamId) => {
+        const nextSelectedCompetitionKeysByTeamId = {
+          ...currentSelectedCompetitionKeysByTeamId,
+        };
 
-          selectedTeamIds.forEach((team_id) => {
-            const selectedCompetitionKeys =
-              nextSelectedCompetitionKeysByTeamId[team_id] ?? [];
-            nextSelectedCompetitionKeysByTeamId[team_id] =
-              selectedCompetitionKeys.filter((competitionKey) => {
-                const parsedCompetitionKey =
-                  parseCompetitionKey(competitionKey);
-                return parsedCompetitionKey.sport_id != sport_id;
-              });
-          });
+        selectedTeamIds.forEach((team_id) => {
+          const selectedCompetitionKeys = nextSelectedCompetitionKeysByTeamId[team_id] ?? [];
+          nextSelectedCompetitionKeysByTeamId[team_id] = selectedCompetitionKeys.filter(
+            (competitionKey) => {
+              const parsedCompetitionKey = parseCompetitionKey(competitionKey);
+              return parsedCompetitionKey.sport_id != sport_id;
+            },
+          );
+        });
 
-          return nextSelectedCompetitionKeysByTeamId;
-        },
-      );
+        return nextSelectedCompetitionKeysByTeamId;
+      });
     }
   };
 
   const naipeSelectionSummary = useMemo(() => {
     const eligibleNaipesCount = naipeCards.reduce((total, naipeCard) => {
       return (
-        total +
-        naipeCard.tabs.reduce(
-          (tabTotal, tab) => tabTotal + tab.eligible_team_count,
-          0,
-        )
+        total + naipeCard.tabs.reduce((tabTotal, tab) => tabTotal + tab.eligible_team_count, 0)
       );
     }, 0);
     const selectedNaipesCount = naipeCards.reduce((total, naipeCard) => {
       return (
-        total +
-        naipeCard.tabs.reduce(
-          (tabTotal, tab) => tabTotal + tab.selected_team_count,
-          0,
-        )
+        total + naipeCard.tabs.reduce((tabTotal, tab) => tabTotal + tab.selected_team_count, 0)
       );
     }, 0);
 
     return {
       eligible_naipes_count: eligibleNaipesCount,
       selected_naipes_count: selectedNaipesCount,
-      are_all_selected:
-        eligibleNaipesCount > 0 && selectedNaipesCount == eligibleNaipesCount,
+      are_all_selected: eligibleNaipesCount > 0 && selectedNaipesCount == eligibleNaipesCount,
       has_at_least_one_selected: selectedNaipesCount > 0,
     };
   }, [naipeCards]);
 
   const handleToggleAllNaipesSelection = (checked: boolean) => {
-    setSelectedCompetitionKeysByTeamId(
-      (currentSelectedCompetitionKeysByTeamId) => {
-        const nextSelectedCompetitionKeysByTeamId = {
-          ...currentSelectedCompetitionKeysByTeamId,
-        };
+    setSelectedCompetitionKeysByTeamId((currentSelectedCompetitionKeysByTeamId) => {
+      const nextSelectedCompetitionKeysByTeamId = {
+        ...currentSelectedCompetitionKeysByTeamId,
+      };
 
-        selectedTeamIds.forEach((team_id) => {
-          const selectedSportIds = selectedSportIdsByTeamId[team_id] ?? [];
-          const selectedSportIdSet = new Set(selectedSportIds);
-          const teamCompetitionOptions = (
-            competitionOptionsByTeamId[team_id] ?? []
-          ).filter((competitionOption) => {
+      selectedTeamIds.forEach((team_id) => {
+        const selectedSportIds = selectedSportIdsByTeamId[team_id] ?? [];
+        const selectedSportIdSet = new Set(selectedSportIds);
+        const teamCompetitionOptions = (competitionOptionsByTeamId[team_id] ?? []).filter(
+          (competitionOption) => {
             return selectedSportIdSet.has(competitionOption.sport_id);
-          });
+          },
+        );
 
-          if (!checked) {
-            const teamCompetitionKeySet = new Set(
-              teamCompetitionOptions.map(
-                (competitionOption) => competitionOption.key,
-              ),
-            );
-            const selectedCompetitionKeys =
-              nextSelectedCompetitionKeysByTeamId[team_id] ?? [];
-            nextSelectedCompetitionKeysByTeamId[team_id] =
-              selectedCompetitionKeys.filter(
-                (competitionKey) => !teamCompetitionKeySet.has(competitionKey),
-              );
-            return;
-          }
+        if (!checked) {
+          const teamCompetitionKeySet = new Set(
+            teamCompetitionOptions.map((competitionOption) => competitionOption.key),
+          );
+          const selectedCompetitionKeys = nextSelectedCompetitionKeysByTeamId[team_id] ?? [];
+          nextSelectedCompetitionKeysByTeamId[team_id] = selectedCompetitionKeys.filter(
+            (competitionKey) => !teamCompetitionKeySet.has(competitionKey),
+          );
+          return;
+        }
 
-          const selectedCompetitionKeys =
-            nextSelectedCompetitionKeysByTeamId[team_id] ?? [];
-          const selectedCompetitionKeySet = new Set(selectedCompetitionKeys);
-          teamCompetitionOptions.forEach((competitionOption) => {
-            selectedCompetitionKeySet.add(competitionOption.key);
-          });
-          nextSelectedCompetitionKeysByTeamId[team_id] = [
-            ...selectedCompetitionKeySet,
-          ];
+        const selectedCompetitionKeys = nextSelectedCompetitionKeysByTeamId[team_id] ?? [];
+        const selectedCompetitionKeySet = new Set(selectedCompetitionKeys);
+        teamCompetitionOptions.forEach((competitionOption) => {
+          selectedCompetitionKeySet.add(competitionOption.key);
         });
+        nextSelectedCompetitionKeysByTeamId[team_id] = [...selectedCompetitionKeySet];
+      });
 
-        return nextSelectedCompetitionKeysByTeamId;
-      },
-    );
+      return nextSelectedCompetitionKeysByTeamId;
+    });
   };
 
-  const handleToggleNaipeTabSelection = (
-    sport_id: string,
-    naipe: MatchNaipe,
-    checked: boolean,
-  ) => {
-    setSelectedCompetitionKeysByTeamId(
-      (currentSelectedCompetitionKeysByTeamId) => {
-        const nextSelectedCompetitionKeysByTeamId = {
-          ...currentSelectedCompetitionKeysByTeamId,
-        };
+  const handleToggleNaipeTabSelection = (sport_id: string, naipe: MatchNaipe, checked: boolean) => {
+    setSelectedCompetitionKeysByTeamId((currentSelectedCompetitionKeysByTeamId) => {
+      const nextSelectedCompetitionKeysByTeamId = {
+        ...currentSelectedCompetitionKeysByTeamId,
+      };
 
-        selectedTeamIds.forEach((team_id) => {
-          const selectedSportIds = selectedSportIdsByTeamId[team_id] ?? [];
+      selectedTeamIds.forEach((team_id) => {
+        const selectedSportIds = selectedSportIdsByTeamId[team_id] ?? [];
 
-          if (!selectedSportIds.includes(sport_id)) {
+        if (!selectedSportIds.includes(sport_id)) {
+          return;
+        }
+
+        const teamCompetitionOption = (competitionOptionsByTeamId[team_id] ?? []).find(
+          (competitionOption) => {
+            return competitionOption.sport_id == sport_id && competitionOption.naipe == naipe;
+          },
+        );
+
+        if (!teamCompetitionOption) {
+          return;
+        }
+
+        const selectedCompetitionKeys = nextSelectedCompetitionKeysByTeamId[team_id] ?? [];
+
+        if (checked) {
+          if (selectedCompetitionKeys.includes(teamCompetitionOption.key)) {
             return;
           }
 
-          const teamCompetitionOption = (
-            competitionOptionsByTeamId[team_id] ?? []
-          ).find((competitionOption) => {
-            return (
-              competitionOption.sport_id == sport_id &&
-              competitionOption.naipe == naipe
-            );
-          });
+          nextSelectedCompetitionKeysByTeamId[team_id] = [
+            ...selectedCompetitionKeys,
+            teamCompetitionOption.key,
+          ];
+          return;
+        }
 
-          if (!teamCompetitionOption) {
-            return;
-          }
+        nextSelectedCompetitionKeysByTeamId[team_id] = selectedCompetitionKeys.filter(
+          (competitionKey) => competitionKey != teamCompetitionOption.key,
+        );
+      });
 
-          const selectedCompetitionKeys =
-            nextSelectedCompetitionKeysByTeamId[team_id] ?? [];
-
-          if (checked) {
-            if (selectedCompetitionKeys.includes(teamCompetitionOption.key)) {
-              return;
-            }
-
-            nextSelectedCompetitionKeysByTeamId[team_id] = [
-              ...selectedCompetitionKeys,
-              teamCompetitionOption.key,
-            ];
-            return;
-          }
-
-          nextSelectedCompetitionKeysByTeamId[team_id] =
-            selectedCompetitionKeys.filter(
-              (competitionKey) => competitionKey != teamCompetitionOption.key,
-            );
-        });
-
-        return nextSelectedCompetitionKeysByTeamId;
-      },
-    );
+      return nextSelectedCompetitionKeysByTeamId;
+    });
   };
 
   const competitionGroupEditorColumnsByCompetitionKey = useMemo(() => {
-    return activeCompetitionKeys.reduce<
-      Record<string, ChampionshipBracketGroupEditorColumn[]>
-    >((carry, competitionKey) => {
-      const participantTeamIds = teamIdsByCompetitionKey[competitionKey] ?? [];
-      const groupsCount =
-        competitionConfigByKey[competitionKey]?.groups_count ?? 1;
+    return activeCompetitionKeys.reduce<Record<string, ChampionshipBracketGroupEditorColumn[]>>(
+      (carry, competitionKey) => {
+        const participantTeamIds = teamIdsByCompetitionKey[competitionKey] ?? [];
+        const groupsCount = competitionConfigByKey[competitionKey]?.groups_count ?? 1;
 
-      carry[competitionKey] = resolveGroupEditorColumns({
-        participant_team_ids: participantTeamIds,
-        group_assignments:
-          groupAssignmentsByCompetitionKey[competitionKey] ?? {},
-        groups_count: groupsCount,
-        ordered_team_ids_by_group_number:
-          groupOrderByCompetitionKey[competitionKey] ?? {},
-        transient_slot_ids_by_group_number:
-          transientGroupSlotIdsByCompetitionKey[competitionKey] ?? {},
-      });
+        carry[competitionKey] = resolveGroupEditorColumns({
+          participant_team_ids: participantTeamIds,
+          group_assignments: groupAssignmentsByCompetitionKey[competitionKey] ?? {},
+          groups_count: groupsCount,
+          ordered_team_ids_by_group_number: groupOrderByCompetitionKey[competitionKey] ?? {},
+          transient_slot_ids_by_group_number:
+            transientGroupSlotIdsByCompetitionKey[competitionKey] ?? {},
+        });
 
-      return carry;
-    }, {});
+        return carry;
+      },
+      {},
+    );
   }, [
     activeCompetitionKeys,
     competitionConfigByKey,
@@ -4829,51 +4360,35 @@ export function AdminChampionshipBracketPage({
     (
       competitionKey: string,
       groupNumber: number,
-      orderedTeamIdsByGroupNumber = groupOrderByCompetitionKey[
-        competitionKey
-      ] ?? {},
+      orderedTeamIdsByGroupNumber = groupOrderByCompetitionKey[competitionKey] ?? {},
     ): string[] => {
       return resolveOrderedAssignedTeamIds({
         participant_team_ids: teamIdsByCompetitionKey[competitionKey] ?? [],
-        group_assignments:
-          groupAssignmentsByCompetitionKey[competitionKey] ?? {},
+        group_assignments: groupAssignmentsByCompetitionKey[competitionKey] ?? {},
         ordered_team_ids_by_group_number: orderedTeamIdsByGroupNumber,
         group_number: groupNumber,
       });
     },
-    [
-      groupAssignmentsByCompetitionKey,
-      groupOrderByCompetitionKey,
-      teamIdsByCompetitionKey,
-    ],
+    [groupAssignmentsByCompetitionKey, groupOrderByCompetitionKey, teamIdsByCompetitionKey],
   );
 
-  const handleAddCompetitionGroupSlot = (
-    competitionKey: string,
-    groupNumber: number,
-  ) => {
+  const handleAddCompetitionGroupSlot = (competitionKey: string, groupNumber: number) => {
     const nextSlotId = resolveRandomUuid();
 
-    setTransientGroupSlotIdsByCompetitionKey(
-      (currentTransientGroupSlotIdsByCompetitionKey) => ({
-        ...currentTransientGroupSlotIdsByCompetitionKey,
-        [competitionKey]: {
-          ...(currentTransientGroupSlotIdsByCompetitionKey[competitionKey] ??
-            {}),
-          [String(groupNumber)]: [
-            ...((currentTransientGroupSlotIdsByCompetitionKey[competitionKey] ??
-              {})[String(groupNumber)] ?? []),
-            nextSlotId,
-          ],
-        },
-      }),
-    );
+    setTransientGroupSlotIdsByCompetitionKey((currentTransientGroupSlotIdsByCompetitionKey) => ({
+      ...currentTransientGroupSlotIdsByCompetitionKey,
+      [competitionKey]: {
+        ...(currentTransientGroupSlotIdsByCompetitionKey[competitionKey] ?? {}),
+        [String(groupNumber)]: [
+          ...((currentTransientGroupSlotIdsByCompetitionKey[competitionKey] ?? {})[
+            String(groupNumber)
+          ] ?? []),
+          nextSlotId,
+        ],
+      },
+    }));
     setAutoOpenCompetitionGroupSlotKey(
-      resolveCompetitionGroupSlotSelectionKey(
-        competitionKey,
-        groupNumber,
-        nextSlotId,
-      ),
+      resolveCompetitionGroupSlotSelectionKey(competitionKey, groupNumber, nextSlotId),
     );
   };
 
@@ -4888,56 +4403,48 @@ export function AdminChampionshipBracketPage({
       slotId,
     );
 
-    setTransientGroupSlotIdsByCompetitionKey(
-      (currentTransientGroupSlotIdsByCompetitionKey) => {
-        const currentTransientSlotIdsByGroupNumber =
-          currentTransientGroupSlotIdsByCompetitionKey[competitionKey] ?? {};
-        const nextTransientSlotIds = (
-          currentTransientSlotIdsByGroupNumber[String(groupNumber)] ?? []
-        ).filter((currentSlotId) => currentSlotId != slotId);
-        const nextTransientSlotIdsByGroupNumber = Object.entries(
-          currentTransientSlotIdsByGroupNumber,
-        ).reduce<ChampionshipBracketGroupEditorTransientSlotIdsByGroupNumber>(
-          (carry, [currentGroupNumber, currentSlotIds]) => {
-            if (
-              currentGroupNumber != String(groupNumber) &&
-              currentSlotIds.length > 0
-            ) {
-              carry[currentGroupNumber] = currentSlotIds;
-            }
+    setTransientGroupSlotIdsByCompetitionKey((currentTransientGroupSlotIdsByCompetitionKey) => {
+      const currentTransientSlotIdsByGroupNumber =
+        currentTransientGroupSlotIdsByCompetitionKey[competitionKey] ?? {};
+      const nextTransientSlotIds = (
+        currentTransientSlotIdsByGroupNumber[String(groupNumber)] ?? []
+      ).filter((currentSlotId) => currentSlotId != slotId);
+      const nextTransientSlotIdsByGroupNumber = Object.entries(
+        currentTransientSlotIdsByGroupNumber,
+      ).reduce<ChampionshipBracketGroupEditorTransientSlotIdsByGroupNumber>(
+        (carry, [currentGroupNumber, currentSlotIds]) => {
+          if (currentGroupNumber != String(groupNumber) && currentSlotIds.length > 0) {
+            carry[currentGroupNumber] = currentSlotIds;
+          }
 
-            return carry;
-          },
-          {},
-        );
+          return carry;
+        },
+        {},
+      );
 
-        if (nextTransientSlotIds.length > 0) {
-          nextTransientSlotIdsByGroupNumber[String(groupNumber)] =
-            nextTransientSlotIds;
-        }
+      if (nextTransientSlotIds.length > 0) {
+        nextTransientSlotIdsByGroupNumber[String(groupNumber)] = nextTransientSlotIds;
+      }
 
-        if (Object.keys(nextTransientSlotIdsByGroupNumber).length == 0) {
-          const {
-            [competitionKey]: _removedCompetitionKey,
-            ...remainingTransientGroupSlotIdsByCompetitionKey
-          } = currentTransientGroupSlotIdsByCompetitionKey;
+      if (Object.keys(nextTransientSlotIdsByGroupNumber).length == 0) {
+        const {
+          [competitionKey]: _removedCompetitionKey,
+          ...remainingTransientGroupSlotIdsByCompetitionKey
+        } = currentTransientGroupSlotIdsByCompetitionKey;
 
-          return remainingTransientGroupSlotIdsByCompetitionKey;
-        }
+        return remainingTransientGroupSlotIdsByCompetitionKey;
+      }
 
-        return {
-          ...currentTransientGroupSlotIdsByCompetitionKey,
-          [competitionKey]: nextTransientSlotIdsByGroupNumber,
-        };
-      },
-    );
-    setAutoOpenCompetitionGroupSlotKey(
-      (currentAutoOpenCompetitionGroupSlotKey) => {
-        return currentAutoOpenCompetitionGroupSlotKey == slotSelectionKey
-          ? null
-          : currentAutoOpenCompetitionGroupSlotKey;
-      },
-    );
+      return {
+        ...currentTransientGroupSlotIdsByCompetitionKey,
+        [competitionKey]: nextTransientSlotIdsByGroupNumber,
+      };
+    });
+    setAutoOpenCompetitionGroupSlotKey((currentAutoOpenCompetitionGroupSlotKey) => {
+      return currentAutoOpenCompetitionGroupSlotKey == slotSelectionKey
+        ? null
+        : currentAutoOpenCompetitionGroupSlotKey;
+    });
   };
 
   const handleSelectCompetitionGroupTeam = (
@@ -4947,37 +4454,33 @@ export function AdminChampionshipBracketPage({
     currentTeamId: string | null,
     slotId: string,
   ) => {
-    setAutoOpenCompetitionGroupSlotKey(
-      (currentAutoOpenCompetitionGroupSlotKey) => {
-        const slotSelectionKey = resolveCompetitionGroupSlotSelectionKey(
-          competitionKey,
-          groupNumber,
-          slotId,
-        );
-        return currentAutoOpenCompetitionGroupSlotKey == slotSelectionKey
-          ? null
-          : currentAutoOpenCompetitionGroupSlotKey;
-      },
-    );
+    setAutoOpenCompetitionGroupSlotKey((currentAutoOpenCompetitionGroupSlotKey) => {
+      const slotSelectionKey = resolveCompetitionGroupSlotSelectionKey(
+        competitionKey,
+        groupNumber,
+        slotId,
+      );
+      return currentAutoOpenCompetitionGroupSlotKey == slotSelectionKey
+        ? null
+        : currentAutoOpenCompetitionGroupSlotKey;
+    });
 
-    setGroupAssignmentsByCompetitionKey(
-      (currentGroupAssignmentsByCompetitionKey) => {
-        const nextAssignments = {
-          ...(currentGroupAssignmentsByCompetitionKey[competitionKey] ?? {}),
-        };
+    setGroupAssignmentsByCompetitionKey((currentGroupAssignmentsByCompetitionKey) => {
+      const nextAssignments = {
+        ...(currentGroupAssignmentsByCompetitionKey[competitionKey] ?? {}),
+      };
 
-        if (currentTeamId) {
-          delete nextAssignments[currentTeamId];
-        }
+      if (currentTeamId) {
+        delete nextAssignments[currentTeamId];
+      }
 
-        nextAssignments[nextTeamId] = groupNumber;
+      nextAssignments[nextTeamId] = groupNumber;
 
-        return {
-          ...currentGroupAssignmentsByCompetitionKey,
-          [competitionKey]: nextAssignments,
-        };
-      },
-    );
+      return {
+        ...currentGroupAssignmentsByCompetitionKey,
+        [competitionKey]: nextAssignments,
+      };
+    });
 
     setGroupOrderByCompetitionKey((currentGroupOrderByCompetitionKey) => {
       const currentOrderedTeamIdsByGroupNumber =
@@ -4989,9 +4492,7 @@ export function AdminChampionshipBracketPage({
       );
       const nextOrderedTeamIds = currentTeamId
         ? currentOrderedTeamIds.includes(currentTeamId)
-          ? currentOrderedTeamIds.map((teamId) =>
-              teamId == currentTeamId ? nextTeamId : teamId,
-            )
+          ? currentOrderedTeamIds.map((teamId) => (teamId == currentTeamId ? nextTeamId : teamId))
           : [...currentOrderedTeamIds, nextTeamId]
         : [...currentOrderedTeamIds, nextTeamId];
       const deduplicatedOrderedTeamIds = nextOrderedTeamIds.filter(
@@ -5014,33 +4515,27 @@ export function AdminChampionshipBracketPage({
     }
   };
 
-  const handleRemoveCompetitionGroupTeam = (
-    competitionKey: string,
-    teamId: string,
-  ) => {
-    const currentGroupNumber =
-      groupAssignmentsByCompetitionKey[competitionKey]?.[teamId] ?? null;
+  const handleRemoveCompetitionGroupTeam = (competitionKey: string, teamId: string) => {
+    const currentGroupNumber = groupAssignmentsByCompetitionKey[competitionKey]?.[teamId] ?? null;
 
-    setGroupAssignmentsByCompetitionKey(
-      (currentGroupAssignmentsByCompetitionKey) => {
-        const currentAssignments =
-          currentGroupAssignmentsByCompetitionKey[competitionKey] ?? {};
-        const nextAssignments = Object.entries(currentAssignments).reduce<
-          Record<string, number>
-        >((carry, [currentTeamId, groupNumber]) => {
+    setGroupAssignmentsByCompetitionKey((currentGroupAssignmentsByCompetitionKey) => {
+      const currentAssignments = currentGroupAssignmentsByCompetitionKey[competitionKey] ?? {};
+      const nextAssignments = Object.entries(currentAssignments).reduce<Record<string, number>>(
+        (carry, [currentTeamId, groupNumber]) => {
           if (currentTeamId != teamId) {
             carry[currentTeamId] = groupNumber;
           }
 
           return carry;
-        }, {});
+        },
+        {},
+      );
 
-        return {
-          ...currentGroupAssignmentsByCompetitionKey,
-          [competitionKey]: nextAssignments,
-        };
-      },
-    );
+      return {
+        ...currentGroupAssignmentsByCompetitionKey,
+        [competitionKey]: nextAssignments,
+      };
+    });
 
     if (currentGroupNumber != null) {
       setGroupOrderByCompetitionKey((currentGroupOrderByCompetitionKey) => {
@@ -5088,57 +4583,46 @@ export function AdminChampionshipBracketPage({
 
   const handleAutoAssignCompetitionGroups = (competitionKey: string) => {
     const teamIds = teamIdsByCompetitionKey[competitionKey] ?? [];
-    const groupCount =
-      competitionConfigByKey[competitionKey]?.groups_count ?? 1;
+    const groupCount = competitionConfigByKey[competitionKey]?.groups_count ?? 1;
 
-    setGroupAssignmentsByCompetitionKey(
-      (currentGroupAssignmentsByCompetitionKey) => ({
-        ...currentGroupAssignmentsByCompetitionKey,
-        [competitionKey]: resolveBalancedAssignments(
-          teamIds,
-          groupCount,
-          competitionKey,
-        ),
-      }),
-    );
-    setTransientGroupSlotIdsByCompetitionKey(
-      (currentTransientGroupSlotIdsByCompetitionKey) => {
-        const {
-          [competitionKey]: _removedCompetitionKey,
-          ...remainingTransientGroupSlotIdsByCompetitionKey
-        } = currentTransientGroupSlotIdsByCompetitionKey;
-
-        return remainingTransientGroupSlotIdsByCompetitionKey;
-      },
-    );
-    setGroupOrderByCompetitionKey((currentGroupOrderByCompetitionKey) => {
+    setGroupAssignmentsByCompetitionKey((currentGroupAssignmentsByCompetitionKey) => ({
+      ...currentGroupAssignmentsByCompetitionKey,
+      [competitionKey]: resolveBalancedAssignments(teamIds, groupCount, competitionKey),
+    }));
+    setTransientGroupSlotIdsByCompetitionKey((currentTransientGroupSlotIdsByCompetitionKey) => {
       const {
         [competitionKey]: _removedCompetitionKey,
-        ...remainingGroupOrderByCompetitionKey
-      } = currentGroupOrderByCompetitionKey;
+        ...remainingTransientGroupSlotIdsByCompetitionKey
+      } = currentTransientGroupSlotIdsByCompetitionKey;
+
+      return remainingTransientGroupSlotIdsByCompetitionKey;
+    });
+    setGroupOrderByCompetitionKey((currentGroupOrderByCompetitionKey) => {
+      const { [competitionKey]: _removedCompetitionKey, ...remainingGroupOrderByCompetitionKey } =
+        currentGroupOrderByCompetitionKey;
       return remainingGroupOrderByCompetitionKey;
     });
     setAutoOpenCompetitionGroupSlotKey(null);
   };
 
   const handleAutoAssignAllCompetitionGroups = () => {
-    setGroupAssignmentsByCompetitionKey(
-      (currentGroupAssignmentsByCompetitionKey) => {
-        const nextGroupAssignmentsByCompetitionKey = {
-          ...currentGroupAssignmentsByCompetitionKey,
-        };
+    setGroupAssignmentsByCompetitionKey((currentGroupAssignmentsByCompetitionKey) => {
+      const nextGroupAssignmentsByCompetitionKey = {
+        ...currentGroupAssignmentsByCompetitionKey,
+      };
 
-        activeCompetitionKeys.forEach((competitionKey) => {
-          const teamIds = teamIdsByCompetitionKey[competitionKey] ?? [];
-          const groupCount =
-            competitionConfigByKey[competitionKey]?.groups_count ?? 1;
-          nextGroupAssignmentsByCompetitionKey[competitionKey] =
-            resolveBalancedAssignments(teamIds, groupCount, competitionKey);
-        });
+      activeCompetitionKeys.forEach((competitionKey) => {
+        const teamIds = teamIdsByCompetitionKey[competitionKey] ?? [];
+        const groupCount = competitionConfigByKey[competitionKey]?.groups_count ?? 1;
+        nextGroupAssignmentsByCompetitionKey[competitionKey] = resolveBalancedAssignments(
+          teamIds,
+          groupCount,
+          competitionKey,
+        );
+      });
 
-        return nextGroupAssignmentsByCompetitionKey;
-      },
-    );
+      return nextGroupAssignmentsByCompetitionKey;
+    });
     setTransientGroupSlotIdsByCompetitionKey({});
     setGroupOrderByCompetitionKey({});
     setAutoOpenCompetitionGroupSlotKey(null);
@@ -5148,19 +4632,15 @@ export function AdminChampionshipBracketPage({
     const allTeamIds = teamIdsByCompetitionKey[competitionKey] ?? [];
     const assignments = groupAssignmentsByCompetitionKey[competitionKey] ?? {};
     const assignedTeamIds = new Set(Object.keys(assignments));
-    const availableTeamIds = allTeamIds.filter(
-      (id) => !assignedTeamIds.has(id),
-    );
+    const availableTeamIds = allTeamIds.filter((id) => !assignedTeamIds.has(id));
 
     if (availableTeamIds.length === 0) {
       return;
     }
 
-    const groupsCount =
-      competitionConfigByKey[competitionKey]?.groups_count ?? 2;
+    const groupsCount = competitionConfigByKey[competitionKey]?.groups_count ?? 2;
     const nextSlot = resolveNextDrawSlot(groupsCount, assignments);
-    const drawnTeamId =
-      availableTeamIds[Math.floor(Math.random() * availableTeamIds.length)];
+    const drawnTeamId = availableTeamIds[Math.floor(Math.random() * availableTeamIds.length)];
     const newSlotId = resolveRandomUuid();
 
     setPendingDrawResult({
@@ -5191,17 +4671,11 @@ export function AdminChampionshipBracketPage({
 
     const allTeamIds = teamIdsByCompetitionKey[drawingCompetitionKey] ?? [];
     const assignedIds = new Set(
-      Object.keys(
-        groupAssignmentsByCompetitionKey[drawingCompetitionKey] ?? {},
-      ),
+      Object.keys(groupAssignmentsByCompetitionKey[drawingCompetitionKey] ?? {}),
     );
 
     return allTeamIds.filter((id) => !assignedIds.has(id));
-  }, [
-    drawingCompetitionKey,
-    groupAssignmentsByCompetitionKey,
-    teamIdsByCompetitionKey,
-  ]);
+  }, [drawingCompetitionKey, groupAssignmentsByCompetitionKey, teamIdsByCompetitionKey]);
 
   const drawingCompetitionOption = useMemo(() => {
     if (!drawingCompetitionKey) {
@@ -5218,17 +4692,14 @@ export function AdminChampionshipBracketPage({
 
     // Auto-save silencioso para garantir persistência dos resultados do sorteio
     const currentDraft = resolveWizardDraftFormValues();
-    void saveChampionshipBracketWizardDraft(
-      selectedChampionship.id,
-      currentDraft,
-    ).then((response) => {
-      if (!response.error && response.metadata) {
-        setRemoteDraftMetadata(response.metadata);
-      }
-    });
-    setLastSavedEditableDraftSnapshot(
-      resolveEditableDraftSnapshot(currentDraft),
+    void saveChampionshipBracketWizardDraft(selectedChampionship.id, currentDraft).then(
+      (response) => {
+        if (!response.error && response.metadata) {
+          setRemoteDraftMetadata(response.metadata);
+        }
+      },
     );
+    setLastSavedEditableDraftSnapshot(resolveEditableDraftSnapshot(currentDraft));
   };
 
   const handleDrawConfirm = () => {
@@ -5238,22 +4709,18 @@ export function AdminChampionshipBracketPage({
   const validateCurrentStep = () => {
     if (currentStepIndex == 0) {
       if (
-        seasonSettings.division_format ==
-          ChampionshipSeasonDivisionFormat.SEPARATED &&
+        seasonSettings.division_format == ChampionshipSeasonDivisionFormat.SEPARATED &&
         seasonSettings.division_settlement_mode ==
           ChampionshipSeasonDivisionSettlementMode.PROMOTION_RELEGATION &&
         ((seasonSettings.principal_relegation_count ?? 0) <= 0 ||
           (seasonSettings.access_promotion_count ?? 0) <= 0)
       ) {
-        toast.error(
-          "Informe quantas atléticas sobem e caem na temporada separada.",
-        );
+        toast.error("Informe quantas atléticas sobem e caem na temporada separada.");
         return false;
       }
 
       if (
-        seasonSettings.division_format ==
-          ChampionshipSeasonDivisionFormat.UNIFIED &&
+        seasonSettings.division_format == ChampionshipSeasonDivisionFormat.UNIFIED &&
         seasonSettings.division_settlement_mode ==
           ChampionshipSeasonDivisionSettlementMode.TOP_N_TO_PRINCIPAL &&
         (seasonSettings.principal_slots_count ?? 0) <= 0
@@ -5267,9 +4734,7 @@ export function AdminChampionshipBracketPage({
 
     if (currentStepIndex == 1) {
       if (enabledSportIds.length == 0) {
-        toast.error(
-          "Selecione ao menos uma modalidade ativa para a temporada.",
-        );
+        toast.error("Selecione ao menos uma modalidade ativa para a temporada.");
         return false;
       }
     }
@@ -5287,77 +4752,63 @@ export function AdminChampionshipBracketPage({
       });
 
       if (hasSelectedTeamWithoutSport) {
-        toast.error(
-          "Todas as atléticas selecionadas precisam ter ao menos uma modalidade.",
-        );
+        toast.error("Todas as atléticas selecionadas precisam ter ao menos uma modalidade.");
         return false;
       }
     }
 
     if (currentStepIndex == 4) {
-      const hasSelectedTeamSportWithoutNaipe = selectedTeamIds.some(
-        (team_id) => {
-          const selectedSportIds = selectedSportIdsByTeamId[team_id] ?? [];
-          const selectedCompetitionKeys =
-            selectedCompetitionKeysByTeamId[team_id] ?? [];
+      const hasSelectedTeamSportWithoutNaipe = selectedTeamIds.some((team_id) => {
+        const selectedSportIds = selectedSportIdsByTeamId[team_id] ?? [];
+        const selectedCompetitionKeys = selectedCompetitionKeysByTeamId[team_id] ?? [];
 
-          return selectedSportIds.some((sport_id) => {
-            return !selectedCompetitionKeys.some((competitionKey) => {
-              const parsedCompetitionKey = parseCompetitionKey(competitionKey);
-              return parsedCompetitionKey.sport_id == sport_id;
-            });
+        return selectedSportIds.some((sport_id) => {
+          return !selectedCompetitionKeys.some((competitionKey) => {
+            const parsedCompetitionKey = parseCompetitionKey(competitionKey);
+            return parsedCompetitionKey.sport_id == sport_id;
           });
-        },
-      );
+        });
+      });
 
       if (hasSelectedTeamSportWithoutNaipe) {
-        toast.error(
-          "Selecione ao menos um naipe para cada modalidade de cada atlética.",
-        );
+        toast.error("Selecione ao menos um naipe para cada modalidade de cada atlética.");
         return false;
       }
 
-      const selectedCompetitionCount = Object.values(
-        selectedCompetitionKeysByTeamId,
-      ).reduce((total, selectedCompetitionKeys) => {
-        return total + selectedCompetitionKeys.length;
-      }, 0);
+      const selectedCompetitionCount = Object.values(selectedCompetitionKeysByTeamId).reduce(
+        (total, selectedCompetitionKeys) => {
+          return total + selectedCompetitionKeys.length;
+        },
+        0,
+      );
 
       if (selectedCompetitionCount == 0) {
-        toast.error(
-          "Selecione ao menos uma modalidade/naipe para as atléticas participantes.",
-        );
+        toast.error("Selecione ao menos uma modalidade/naipe para as atléticas participantes.");
         return false;
       }
 
       if (activeCompetitionKeys.length == 0) {
-        toast.error(
-          "É necessário ao menos uma competição com duas atléticas para gerar grupos.",
-        );
+        toast.error("É necessário ao menos uma competição com duas atléticas para gerar grupos.");
         return false;
       }
     }
 
     if (currentStepIndex == 5) {
-      const hasInvalidCompetition = activeCompetitionKeys.some(
-        (competitionKey) => {
-          const competitionConfig = competitionConfigByKey[competitionKey];
-          if (!competitionConfig) {
-            return true;
-          }
+      const hasInvalidCompetition = activeCompetitionKeys.some((competitionKey) => {
+        const competitionConfig = competitionConfigByKey[competitionKey];
+        if (!competitionConfig) {
+          return true;
+        }
 
-          return (
-            competitionConfig.groups_count < 1 ||
-            competitionConfig.qualifiers_per_group < 1 ||
-            competitionConfig.qualifiers_per_group > 2
-          );
-        },
-      );
+        return (
+          competitionConfig.groups_count < 1 ||
+          competitionConfig.qualifiers_per_group < 1 ||
+          competitionConfig.qualifiers_per_group > 2
+        );
+      });
 
       if (hasInvalidCompetition) {
-        toast.error(
-          "Revise a configuração de grupos. Classificados por grupo deve ser 1 ou 2.",
-        );
+        toast.error("Revise a configuração de grupos. Classificados por grupo deve ser 1 ou 2.");
         return false;
       }
     }
@@ -5365,10 +4816,8 @@ export function AdminChampionshipBracketPage({
     if (currentStepIndex == 11) {
       for (const competitionKey of activeCompetitionKeys) {
         const teamIds = teamIdsByCompetitionKey[competitionKey] ?? [];
-        const assignments =
-          groupAssignmentsByCompetitionKey[competitionKey] ?? {};
-        const groupCount =
-          competitionConfigByKey[competitionKey]?.groups_count ?? 1;
+        const assignments = groupAssignmentsByCompetitionKey[competitionKey] ?? {};
+        const groupCount = competitionConfigByKey[competitionKey]?.groups_count ?? 1;
         const competitionOption = competitionOptionsByKey.get(competitionKey);
         const groupSizes = Array.from({ length: groupCount }, () => 0);
         const competitionDisplayLabel = competitionOption
@@ -5382,11 +4831,7 @@ export function AdminChampionshipBracketPage({
         for (const teamId of teamIds) {
           const assignedGroup = assignments[teamId];
 
-          if (
-            !assignedGroup ||
-            assignedGroup < 1 ||
-            assignedGroup > groupCount
-          ) {
+          if (!assignedGroup || assignedGroup < 1 || assignedGroup > groupCount) {
             toast.error(
               `A distribuição de ${competitionDisplayLabel} possui atléticas sem grupo válido.`,
             );
@@ -5422,28 +4867,16 @@ export function AdminChampionshipBracketPage({
       }
 
       for (const scheduleDay of scheduleDays) {
-        if (
-          !scheduleDay.date ||
-          !scheduleDay.start_time ||
-          !scheduleDay.end_time
-        ) {
-          toast.error(
-            "Preencha data, início e fim de todos os dias da agenda.",
-          );
+        if (!scheduleDay.date || !scheduleDay.start_time || !scheduleDay.end_time) {
+          toast.error("Preencha data, início e fim de todos os dias da agenda.");
           return false;
         }
 
         const startMinutes = resolveTimeValueToMinutes(scheduleDay.start_time);
         const endMinutes = resolveTimeValueToMinutes(scheduleDay.end_time);
 
-        if (
-          startMinutes == null ||
-          endMinutes == null ||
-          endMinutes <= startMinutes
-        ) {
-          toast.error(
-            "Horário do dia inválido: fim deve ser maior que início.",
-          );
+        if (startMinutes == null || endMinutes == null || endMinutes <= startMinutes) {
+          toast.error("Horário do dia inválido: fim deve ser maior que início.");
           return false;
         }
 
@@ -5453,15 +4886,12 @@ export function AdminChampionshipBracketPage({
         const hasBreakEndTime = breakEndTimeValue.length > 0;
 
         if (hasBreakStartTime != hasBreakEndTime) {
-          toast.error(
-            "Preencha início e fim do intervalo ou deixe os dois vazios.",
-          );
+          toast.error("Preencha início e fim do intervalo ou deixe os dois vazios.");
           return false;
         }
 
         if (hasBreakStartTime && hasBreakEndTime) {
-          const breakStartMinutes =
-            resolveTimeValueToMinutes(breakStartTimeValue);
+          const breakStartMinutes = resolveTimeValueToMinutes(breakStartTimeValue);
           const breakEndMinutes = resolveTimeValueToMinutes(breakEndTimeValue);
 
           if (
@@ -5473,13 +4903,8 @@ export function AdminChampionshipBracketPage({
             return false;
           }
 
-          if (
-            breakStartMinutes < startMinutes ||
-            breakEndMinutes > endMinutes
-          ) {
-            toast.error(
-              "Intervalo inválido: precisa estar dentro da janela do dia.",
-            );
+          if (breakStartMinutes < startMinutes || breakEndMinutes > endMinutes) {
+            toast.error("Intervalo inválido: precisa estar dentro da janela do dia.");
             return false;
           }
         }
@@ -5507,9 +4932,7 @@ export function AdminChampionshipBracketPage({
             }
 
             if (court.sport_ids.length == 0) {
-              toast.error(
-                "Todo recurso/quadra precisa ter ao menos uma modalidade vinculada.",
-              );
+              toast.error("Todo recurso/quadra precisa ter ao menos uma modalidade vinculada.");
               return false;
             }
           }
@@ -5520,8 +4943,8 @@ export function AdminChampionshipBracketPage({
         isGenericManualCourtResourceLock,
       );
 
-      const hasInvalidGenericManualCourtResourceLock =
-        genericManualCourtResourceLocks.some((resourceLock) => {
+      const hasInvalidGenericManualCourtResourceLock = genericManualCourtResourceLocks.some(
+        (resourceLock) => {
           const scheduleDay = scheduleDayByDate.get(resourceLock.date) ?? null;
 
           return (
@@ -5537,7 +4960,8 @@ export function AdminChampionshipBracketPage({
               end_time: resourceLock.end_time,
             })
           );
-        });
+        },
+      );
 
       if (hasInvalidGenericManualCourtResourceLock) {
         toast.error(
@@ -5546,63 +4970,56 @@ export function AdminChampionshipBracketPage({
         return false;
       }
 
-      const hasOverlappingGenericManualCourtResourceLock =
-        genericManualCourtResourceLocks.some(
-          (resourceLock, resourceLockIndex) => {
-            const scheduleDay =
-              scheduleDayByDate.get(resourceLock.date) ?? null;
+      const hasOverlappingGenericManualCourtResourceLock = genericManualCourtResourceLocks.some(
+        (resourceLock, resourceLockIndex) => {
+          const scheduleDay = scheduleDayByDate.get(resourceLock.date) ?? null;
 
-            if (!scheduleDay) {
-              return false;
-            }
+          if (!scheduleDay) {
+            return false;
+          }
 
-            const interval = resolveFixedTimeRangeInterval({
-              scheduleDay,
-              start_time: resourceLock.start_time,
-              end_time: resourceLock.end_time,
-            });
+          const interval = resolveFixedTimeRangeInterval({
+            scheduleDay,
+            start_time: resourceLock.start_time,
+            end_time: resourceLock.end_time,
+          });
 
-            if (!interval) {
-              return false;
-            }
+          if (!interval) {
+            return false;
+          }
 
-            return genericManualCourtResourceLocks.some(
-              (otherResourceLock, otherResourceLockIndex) => {
-                if (otherResourceLockIndex <= resourceLockIndex) {
-                  return false;
-                }
+          return genericManualCourtResourceLocks.some(
+            (otherResourceLock, otherResourceLockIndex) => {
+              if (otherResourceLockIndex <= resourceLockIndex) {
+                return false;
+              }
 
-                if (
-                  otherResourceLock.date != resourceLock.date ||
-                  otherResourceLock.location_key != resourceLock.location_key ||
-                  otherResourceLock.court_key != resourceLock.court_key
-                ) {
-                  return false;
-                }
+              if (
+                otherResourceLock.date != resourceLock.date ||
+                otherResourceLock.location_key != resourceLock.location_key ||
+                otherResourceLock.court_key != resourceLock.court_key
+              ) {
+                return false;
+              }
 
-                const otherInterval = resolveFixedTimeRangeInterval({
-                  scheduleDay,
-                  start_time: otherResourceLock.start_time,
-                  end_time: otherResourceLock.end_time,
-                });
+              const otherInterval = resolveFixedTimeRangeInterval({
+                scheduleDay,
+                start_time: otherResourceLock.start_time,
+                end_time: otherResourceLock.end_time,
+              });
 
-                if (!otherInterval) {
-                  return false;
-                }
+              if (!otherInterval) {
+                return false;
+              }
 
-                return (
-                  interval.start < otherInterval.end &&
-                  otherInterval.start < interval.end
-                );
-              },
-            );
-          },
-        );
+              return interval.start < otherInterval.end && otherInterval.start < interval.end;
+            },
+          );
+        },
+      );
 
       if (hasOverlappingGenericManualCourtResourceLock) {
-        toast.error(
-          "Existem bloqueios personalizados sobrepostos na mesma quadra e no mesmo dia.",
-        );
+        toast.error("Existem bloqueios personalizados sobrepostos na mesma quadra e no mesmo dia.");
         return false;
       }
     }
@@ -5639,8 +5056,8 @@ export function AdminChampionshipBracketPage({
           return false;
         }
 
-        const hasSessionWithInvalidTimeRange =
-          selectedIndividualCompetitionOptions.some((competitionOption) => {
+        const hasSessionWithInvalidTimeRange = selectedIndividualCompetitionOptions.some(
+          (competitionOption) => {
             const sessionConfig = sessionConfigByKey.get(
               resolveIndividualSessionConfigKey(competitionOption),
             );
@@ -5653,8 +5070,7 @@ export function AdminChampionshipBracketPage({
               return false;
             }
 
-            const scheduleDay =
-              scheduleDayByDate.get(sessionConfig.scheduled_date) ?? null;
+            const scheduleDay = scheduleDayByDate.get(sessionConfig.scheduled_date) ?? null;
 
             return (
               !scheduleDay ||
@@ -5664,7 +5080,8 @@ export function AdminChampionshipBracketPage({
                 end_time: sessionConfig.end_time,
               })
             );
-          });
+          },
+        );
 
         if (hasSessionWithInvalidTimeRange) {
           toast.error(
@@ -5722,9 +5139,7 @@ export function AdminChampionshipBracketPage({
             return false;
           }
 
-          const dayStartMinutes = resolveTimeValueToMinutes(
-            scheduleDay.start_time,
-          );
+          const dayStartMinutes = resolveTimeValueToMinutes(scheduleDay.start_time);
           const dayEndMinutes = resolveTimeValueToMinutes(scheduleDay.end_time);
 
           if (
@@ -5733,9 +5148,7 @@ export function AdminChampionshipBracketPage({
             dayEndMinutes <= dayStartMinutes
           ) {
             toast.error(
-              `Revise o horário da agenda em ${resolveBrazilianDateString(
-                scheduleDate,
-              )}.`,
+              `Revise o horário da agenda em ${resolveBrazilianDateString(scheduleDate)}.`,
             );
             return false;
           }
@@ -5745,11 +5158,7 @@ export function AdminChampionshipBracketPage({
               const startMinutes = resolveTimeValueToMinutes(window.start_time);
               const endMinutes = resolveTimeValueToMinutes(window.end_time);
 
-              if (
-                startMinutes == null ||
-                endMinutes == null ||
-                endMinutes <= startMinutes
-              ) {
+              if (startMinutes == null || endMinutes == null || endMinutes <= startMinutes) {
                 return null;
               }
 
@@ -5778,8 +5187,7 @@ export function AdminChampionshipBracketPage({
           }
 
           const hasWindowOutsideDay = resolvedWindows.some(
-            (window) =>
-              window.start < dayStartMinutes || window.end > dayEndMinutes,
+            (window) => window.start < dayStartMinutes || window.end > dayEndMinutes,
           );
 
           if (hasWindowOutsideDay) {
@@ -5793,19 +5201,11 @@ export function AdminChampionshipBracketPage({
             return false;
           }
 
-          for (
-            let windowIndex = 1;
-            windowIndex < resolvedWindows.length;
-            windowIndex += 1
-          ) {
+          for (let windowIndex = 1; windowIndex < resolvedWindows.length; windowIndex += 1) {
             const previousWindow = resolvedWindows[windowIndex - 1];
             const currentWindow = resolvedWindows[windowIndex];
 
-            if (
-              previousWindow &&
-              currentWindow &&
-              currentWindow.start < previousWindow.end
-            ) {
+            if (previousWindow && currentWindow && currentWindow.start < previousWindow.end) {
               toast.error(
                 `Existem janelas sobrepostas em ${
                   competitionLabelByKey[competitionKey] ?? "uma competição"
@@ -5831,9 +5231,7 @@ export function AdminChampionshipBracketPage({
               return true;
             }
 
-            return (
-              window.start < breakStartMinutes || window.end > breakEndMinutes
-            );
+            return window.start < breakStartMinutes || window.end > breakEndMinutes;
           });
 
           if (!hasUsableWindow) {
@@ -5879,16 +5277,10 @@ export function AdminChampionshipBracketPage({
           end_time: string;
         }>;
       }): AvailabilityInterval[] | null => {
-        const dayStartMinutes = resolveTimeValueToMinutes(
-          scheduleDay.start_time,
-        );
+        const dayStartMinutes = resolveTimeValueToMinutes(scheduleDay.start_time);
         const dayEndMinutes = resolveTimeValueToMinutes(scheduleDay.end_time);
 
-        if (
-          dayStartMinutes == null ||
-          dayEndMinutes == null ||
-          dayEndMinutes <= dayStartMinutes
-        ) {
+        if (dayStartMinutes == null || dayEndMinutes == null || dayEndMinutes <= dayStartMinutes) {
           return null;
         }
 
@@ -5914,11 +5306,7 @@ export function AdminChampionshipBracketPage({
             const startMinutes = resolveTimeValueToMinutes(window.start_time);
             const endMinutes = resolveTimeValueToMinutes(window.end_time);
 
-            if (
-              startMinutes == null ||
-              endMinutes == null ||
-              endMinutes <= startMinutes
-            ) {
+            if (startMinutes == null || endMinutes == null || endMinutes <= startMinutes) {
               return null;
             }
 
@@ -5940,11 +5328,7 @@ export function AdminChampionshipBracketPage({
             (left, right) => left.start - right.start,
           );
 
-          for (
-            let intervalIndex = 1;
-            intervalIndex < intervals.length;
-            intervalIndex += 1
-          ) {
+          for (let intervalIndex = 1; intervalIndex < intervals.length; intervalIndex += 1) {
             const previousInterval = intervals[intervalIndex - 1];
             const currentInterval = intervals[intervalIndex];
 
@@ -5969,12 +5353,8 @@ export function AdminChampionshipBracketPage({
           return null;
         }
 
-        const breakStartMinutes = resolveTimeValueToMinutes(
-          scheduleDay.break_start_time,
-        );
-        const breakEndMinutes = resolveTimeValueToMinutes(
-          scheduleDay.break_end_time,
-        );
+        const breakStartMinutes = resolveTimeValueToMinutes(scheduleDay.break_start_time);
+        const breakEndMinutes = resolveTimeValueToMinutes(scheduleDay.break_end_time);
 
         if (
           breakStartMinutes == null ||
@@ -5987,10 +5367,7 @@ export function AdminChampionshipBracketPage({
         }
 
         return intervals.flatMap((interval) => {
-          if (
-            interval.end <= breakStartMinutes ||
-            interval.start >= breakEndMinutes
-          ) {
+          if (interval.end <= breakStartMinutes || interval.start >= breakEndMinutes) {
             return [interval];
           }
 
@@ -6014,9 +5391,7 @@ export function AdminChampionshipBracketPage({
         });
       };
 
-      for (const [teamId, competitionKeys] of Object.entries(
-        teamCompetitionKeysByTeamId,
-      )) {
+      for (const [teamId, competitionKeys] of Object.entries(teamCompetitionKeysByTeamId)) {
         for (const competitionKey of competitionKeys) {
           let hasPlayableIntersection = false;
 
@@ -6032,10 +5407,9 @@ export function AdminChampionshipBracketPage({
               return false;
             }
 
-            const competitionAvailability =
-              competitionDateAvailabilityByKey.get(
-                `${competitionKey}::${scheduleDate}`,
-              );
+            const competitionAvailability = competitionDateAvailabilityByKey.get(
+              `${competitionKey}::${scheduleDate}`,
+            );
 
             if (!competitionAvailability) {
               toast.error(
@@ -6054,9 +5428,7 @@ export function AdminChampionshipBracketPage({
               toast.error(
                 `A disponibilidade de ${
                   teamNameById[teamId] ?? "uma atlética"
-                } está incompleta em ${
-                  competitionLabelByKey[competitionKey] ?? "uma competição"
-                }.`,
+                } está incompleta em ${competitionLabelByKey[competitionKey] ?? "uma competição"}.`,
               );
               return false;
             }
@@ -6088,29 +5460,20 @@ export function AdminChampionshipBracketPage({
 
             if (teamIntervals == null) {
               toast.error(
-                `Revise as janelas de ${
-                  teamNameById[teamId] ?? "uma atlética"
-                } em ${
+                `Revise as janelas de ${teamNameById[teamId] ?? "uma atlética"} em ${
                   competitionLabelByKey[competitionKey] ?? "uma competição"
                 } no dia ${resolveBrazilianDateString(scheduleDate)}.`,
               );
               return false;
             }
 
-            const hasIntersectionOnDate = competitionIntervals.some(
-              (competitionInterval) =>
-                teamIntervals.some((teamInterval) => {
-                  const intersectionStart = Math.max(
-                    competitionInterval.start,
-                    teamInterval.start,
-                  );
-                  const intersectionEnd = Math.min(
-                    competitionInterval.end,
-                    teamInterval.end,
-                  );
+            const hasIntersectionOnDate = competitionIntervals.some((competitionInterval) =>
+              teamIntervals.some((teamInterval) => {
+                const intersectionStart = Math.max(competitionInterval.start, teamInterval.start);
+                const intersectionEnd = Math.min(competitionInterval.end, teamInterval.end);
 
-                  return intersectionEnd > intersectionStart;
-                }),
+                return intersectionEnd > intersectionStart;
+              }),
             );
 
             if (hasIntersectionOnDate) {
@@ -6121,8 +5484,7 @@ export function AdminChampionshipBracketPage({
           if (!hasPlayableIntersection) {
             toast.error(
               `${teamNameById[teamId] ?? "A atlética"} precisa ter ao menos uma janela jogável em ${
-                competitionLabelByKey[competitionKey] ??
-                "cada competição selecionada"
+                competitionLabelByKey[competitionKey] ?? "cada competição selecionada"
               }.`,
             );
             return false;
@@ -6133,9 +5495,7 @@ export function AdminChampionshipBracketPage({
 
     if (currentStepIndex == 10) {
       const activeCollectiveSportIdSet = new Set(
-        activeCompetitionOptions.map(
-          (competitionOption) => competitionOption.sport_id,
-        ),
+        activeCompetitionOptions.map((competitionOption) => competitionOption.sport_id),
       );
       const plannedCollectiveSportIdSet = new Set<string>();
 
@@ -6145,9 +5505,7 @@ export function AdminChampionshipBracketPage({
             const courtDisplayLabel = `${court.name || "Quadra sem nome"} • ${
               scheduleLocation.name || "Local sem nome"
             } • ${
-              scheduleDay.date
-                ? resolveBrazilianDateString(scheduleDay.date)
-                : "Data não informada"
+              scheduleDay.date ? resolveBrazilianDateString(scheduleDay.date) : "Data não informada"
             }`;
 
             for (const target of court.sport_match_targets) {
@@ -6189,8 +5547,7 @@ export function AdminChampionshipBracketPage({
 
             const preferredSportOptions = activeCompetitionOptions.filter(
               (competitionOption) =>
-                competitionOption.sport_id ==
-                sportPreference.preferred_sport_id,
+                competitionOption.sport_id == sportPreference.preferred_sport_id,
             );
 
             if (preferredSportOptions.length == 0) {
@@ -6203,8 +5560,7 @@ export function AdminChampionshipBracketPage({
             if (
               sportPreference.preferred_naipe != null &&
               !preferredSportOptions.some(
-                (competitionOption) =>
-                  competitionOption.naipe == sportPreference.preferred_naipe,
+                (competitionOption) => competitionOption.naipe == sportPreference.preferred_naipe,
               )
             ) {
               toast.error(
@@ -6214,8 +5570,7 @@ export function AdminChampionshipBracketPage({
             }
 
             if (
-              seasonSettings.division_format !=
-                ChampionshipSeasonDivisionFormat.SEPARATED &&
+              seasonSettings.division_format != ChampionshipSeasonDivisionFormat.SEPARATED &&
               sportPreference.preferred_division != null
             ) {
               toast.error(
@@ -6228,8 +5583,7 @@ export function AdminChampionshipBracketPage({
               sportPreference.preferred_division != null &&
               !preferredSportOptions.some(
                 (competitionOption) =>
-                  competitionOption.division ==
-                  sportPreference.preferred_division,
+                  competitionOption.division == sportPreference.preferred_division,
               )
             ) {
               toast.error(
@@ -6244,8 +5598,7 @@ export function AdminChampionshipBracketPage({
               !preferredSportOptions.some(
                 (competitionOption) =>
                   competitionOption.naipe == sportPreference.preferred_naipe &&
-                  competitionOption.division ==
-                    sportPreference.preferred_division,
+                  competitionOption.division == sportPreference.preferred_division,
               )
             ) {
               toast.error(
@@ -6258,8 +5611,7 @@ export function AdminChampionshipBracketPage({
       }
 
       const collectiveSportWithoutPlan = activeCompetitionOptions.find(
-        (competitionOption) =>
-          !plannedCollectiveSportIdSet.has(competitionOption.sport_id),
+        (competitionOption) => !plannedCollectiveSportIdSet.has(competitionOption.sport_id),
       );
 
       if (collectiveSportWithoutPlan) {
@@ -6287,19 +5639,18 @@ export function AdminChampionshipBracketPage({
         return false;
       }
 
-      const hasInvalidKnockoutProgramBlockTimeRange =
-        knockoutProgramBlocks.some((programBlock) => {
-          const scheduleDay = scheduleDayByDate.get(programBlock.date) ?? null;
+      const hasInvalidKnockoutProgramBlockTimeRange = knockoutProgramBlocks.some((programBlock) => {
+        const scheduleDay = scheduleDayByDate.get(programBlock.date) ?? null;
 
-          return (
-            !scheduleDay ||
-            !resolveFixedTimeRangeInterval({
-              scheduleDay,
-              start_time: programBlock.start_time,
-              end_time: programBlock.end_time,
-            })
-          );
-        });
+        return (
+          !scheduleDay ||
+          !resolveFixedTimeRangeInterval({
+            scheduleDay,
+            start_time: programBlock.start_time,
+            end_time: programBlock.end_time,
+          })
+        );
+      });
 
       if (hasInvalidKnockoutProgramBlockTimeRange) {
         toast.error(
@@ -6308,15 +5659,11 @@ export function AdminChampionshipBracketPage({
         return false;
       }
 
-      const hasInvalidKnockoutProgramBlockDuration = knockoutProgramBlocks.some(
-        (programBlock) => {
-          const duration = programBlock.match_duration_minutes_override;
+      const hasInvalidKnockoutProgramBlockDuration = knockoutProgramBlocks.some((programBlock) => {
+        const duration = programBlock.match_duration_minutes_override;
 
-          return (
-            duration != null && (!Number.isInteger(duration) || duration <= 0)
-          );
-        },
-      );
+        return duration != null && (!Number.isInteger(duration) || duration <= 0);
+      });
 
       if (hasInvalidKnockoutProgramBlockDuration) {
         toast.error(
@@ -6326,11 +5673,8 @@ export function AdminChampionshipBracketPage({
       }
 
       const hasDuplicatedKnockoutProgramBlock =
-        new Set(
-          knockoutProgramBlocks.map(
-            resolveKnockoutProgramBlockConfigurationKey,
-          ),
-        ).size != knockoutProgramBlocks.length;
+        new Set(knockoutProgramBlocks.map(resolveKnockoutProgramBlockConfigurationKey)).size !=
+        knockoutProgramBlocks.length;
 
       if (hasDuplicatedKnockoutProgramBlock) {
         toast.error(
@@ -6376,8 +5720,7 @@ export function AdminChampionshipBracketPage({
             return [];
           }
 
-          const scheduleDay =
-            scheduleDayByDate.get(sessionConfig.scheduled_date) ?? null;
+          const scheduleDay = scheduleDayByDate.get(sessionConfig.scheduled_date) ?? null;
           const interval = scheduleDay
             ? resolveFixedTimeRangeInterval({
                 scheduleDay,
@@ -6487,29 +5830,25 @@ export function AdminChampionshipBracketPage({
         }),
       ];
 
-      const hasFixedBlockOverlap = fixedBlocks.some(
-        (fixedBlock, fixedBlockIndex) =>
-          fixedBlocks.slice(fixedBlockIndex + 1).some((otherFixedBlock) => {
-            const canShareIndividualSessionSlot =
-              fixedBlock.type == "INDIVIDUAL_SESSION" &&
-              otherFixedBlock.type == "INDIVIDUAL_SESSION" &&
-              fixedBlock.shared_slot_key != null &&
-              fixedBlock.shared_slot_key == otherFixedBlock.shared_slot_key &&
-              fixedBlock.naipe != null &&
-              otherFixedBlock.naipe != null &&
-              fixedBlock.naipe != otherFixedBlock.naipe;
+      const hasFixedBlockOverlap = fixedBlocks.some((fixedBlock, fixedBlockIndex) =>
+        fixedBlocks.slice(fixedBlockIndex + 1).some((otherFixedBlock) => {
+          const canShareIndividualSessionSlot =
+            fixedBlock.type == "INDIVIDUAL_SESSION" &&
+            otherFixedBlock.type == "INDIVIDUAL_SESSION" &&
+            fixedBlock.shared_slot_key != null &&
+            fixedBlock.shared_slot_key == otherFixedBlock.shared_slot_key &&
+            fixedBlock.naipe != null &&
+            otherFixedBlock.naipe != null &&
+            fixedBlock.naipe != otherFixedBlock.naipe;
 
-            return (
-              fixedBlock.date == otherFixedBlock.date &&
-              fixedBlock.location_key == otherFixedBlock.location_key &&
-              fixedBlock.court_key == otherFixedBlock.court_key &&
-              !canShareIndividualSessionSlot &&
-              resolveTimeIntervalsOverlap(
-                fixedBlock.interval,
-                otherFixedBlock.interval,
-              )
-            );
-          }),
+          return (
+            fixedBlock.date == otherFixedBlock.date &&
+            fixedBlock.location_key == otherFixedBlock.location_key &&
+            fixedBlock.court_key == otherFixedBlock.court_key &&
+            !canShareIndividualSessionSlot &&
+            resolveTimeIntervalsOverlap(fixedBlock.interval, otherFixedBlock.interval)
+          );
+        }),
       );
 
       if (hasFixedBlockOverlap) {
@@ -6528,14 +5867,8 @@ export function AdminChampionshipBracketPage({
       return;
     }
 
-    const next_step_index = Math.min(
-      currentStepIndex + 1,
-      WIZARD_STEP_LABELS.length - 1,
-    );
-    const nextHighestUnlockedStepIndex = Math.max(
-      highestUnlockedStepIndex,
-      next_step_index,
-    );
+    const next_step_index = Math.min(currentStepIndex + 1, WIZARD_STEP_LABELS.length - 1);
+    const nextHighestUnlockedStepIndex = Math.max(highestUnlockedStepIndex, next_step_index);
     const next_draft_form_values = sanitizeDraftFormValues({
       ...sanitizedCurrentWizardDraftFormValues,
       current_step_index: next_step_index,
@@ -6577,10 +5910,7 @@ export function AdminChampionshipBracketPage({
       );
 
       if (draftSaveResponse.error) {
-        if (
-          options.showRemoteWarningToast !== false &&
-          !hasShownRemoteDraftWarning
-        ) {
+        if (options.showRemoteWarningToast !== false && !hasShownRemoteDraftWarning) {
           toast.warning(
             "Rascunho salvo localmente. A sincronização com o banco falhou nesta tentativa.",
           );
@@ -6594,9 +5924,7 @@ export function AdminChampionshipBracketPage({
         setRemoteDraftMetadata(draftSaveResponse.metadata);
       }
 
-      setLastSavedEditableDraftSnapshot(
-        resolveEditableDraftSnapshot(nextDraftFormValues),
-      );
+      setLastSavedEditableDraftSnapshot(resolveEditableDraftSnapshot(nextDraftFormValues));
 
       return draftSaveResponse;
     },
@@ -6605,11 +5933,7 @@ export function AdminChampionshipBracketPage({
 
   const handleStepNavigation = useCallback(
     async (stepIndex: number) => {
-      if (
-        saving ||
-        stepIndex == currentStepIndex ||
-        stepIndex > highestUnlockedStepIndex
-      ) {
+      if (saving || stepIndex == currentStepIndex || stepIndex > highestUnlockedStepIndex) {
         return;
       }
 
@@ -6618,8 +5942,7 @@ export function AdminChampionshipBracketPage({
         current_step_index: stepIndex,
         highest_unlocked_step_index: Math.max(
           highestUnlockedStepIndex,
-          sanitizedCurrentWizardDraftFormValues.highest_unlocked_step_index ??
-            currentStepIndex,
+          sanitizedCurrentWizardDraftFormValues.highest_unlocked_step_index ?? currentStepIndex,
         ),
       });
 
@@ -6637,9 +5960,7 @@ export function AdminChampionshipBracketPage({
   );
 
   const handleSaveDraft = useCallback(async () => {
-    const nextDraftFormValues = sanitizeDraftFormValues(
-      sanitizedCurrentWizardDraftFormValues,
-    );
+    const nextDraftFormValues = sanitizeDraftFormValues(sanitizedCurrentWizardDraftFormValues);
 
     const draftSaveResponse = await persistWizardDraft(nextDraftFormValues);
 
@@ -6675,79 +5996,69 @@ export function AdminChampionshipBracketPage({
     writeWorkflowLog,
   ]);
 
-  const resolveParticipantsPayload =
-    useCallback((): ChampionshipBracketParticipantInput[] => {
-      return selectedTeamIds.map((team_id) => {
-        const selectedCompetitionKeys =
-          selectedCompetitionKeysByTeamId[team_id] ?? [];
+  const resolveParticipantsPayload = useCallback((): ChampionshipBracketParticipantInput[] => {
+    return selectedTeamIds.map((team_id) => {
+      const selectedCompetitionKeys = selectedCompetitionKeysByTeamId[team_id] ?? [];
 
-        return {
-          team_id,
-          modalities: selectedCompetitionKeys.map((competitionKey) => {
-            const parsedCompetitionKey = parseCompetitionKey(competitionKey);
+      return {
+        team_id,
+        modalities: selectedCompetitionKeys.map((competitionKey) => {
+          const parsedCompetitionKey = parseCompetitionKey(competitionKey);
 
-            return {
-              sport_id: parsedCompetitionKey.sport_id,
-              naipe: parsedCompetitionKey.naipe,
-              division: parsedCompetitionKey.division,
-            };
-          }),
-        };
-      });
-    }, [selectedCompetitionKeysByTeamId, selectedTeamIds]);
+          return {
+            sport_id: parsedCompetitionKey.sport_id,
+            naipe: parsedCompetitionKey.naipe,
+            division: parsedCompetitionKey.division,
+          };
+        }),
+      };
+    });
+  }, [selectedCompetitionKeysByTeamId, selectedTeamIds]);
 
-  const resolveCompetitionsPayload =
-    useCallback((): ChampionshipBracketCompetitionInput[] => {
-      return sortedActiveCompetitionKeys.map((competitionKey) => {
-        const parsedCompetitionKey = parseCompetitionKey(competitionKey);
-        const competitionOption =
-          competitionOptionsByKey.get(competitionKey) ?? null;
-        const competitionConfig =
-          competitionConfigByKey[competitionKey] ??
-          resolveDefaultCompetitionConfig(2, competitionOption);
-        const assignments =
-          groupAssignmentsByCompetitionKey[competitionKey] ?? {};
-        const orderedTeamIdsByGroupNumber =
-          groupOrderByCompetitionKey[competitionKey] ?? {};
-        const groups: { group_number: number; team_ids: string[] }[] = [];
+  const resolveCompetitionsPayload = useCallback((): ChampionshipBracketCompetitionInput[] => {
+    return sortedActiveCompetitionKeys.map((competitionKey) => {
+      const parsedCompetitionKey = parseCompetitionKey(competitionKey);
+      const competitionOption = competitionOptionsByKey.get(competitionKey) ?? null;
+      const competitionConfig =
+        competitionConfigByKey[competitionKey] ??
+        resolveDefaultCompetitionConfig(2, competitionOption);
+      const assignments = groupAssignmentsByCompetitionKey[competitionKey] ?? {};
+      const orderedTeamIdsByGroupNumber = groupOrderByCompetitionKey[competitionKey] ?? {};
+      const groups: { group_number: number; team_ids: string[] }[] = [];
 
-        for (
-          let groupNumber = 1;
-          groupNumber <= competitionConfig.groups_count;
-          groupNumber += 1
-        ) {
-          groups.push({
+      for (let groupNumber = 1; groupNumber <= competitionConfig.groups_count; groupNumber += 1) {
+        groups.push({
+          group_number: groupNumber,
+          team_ids: resolveOrderedAssignedTeamIds({
+            participant_team_ids: teamIdsByCompetitionKey[competitionKey],
+            group_assignments: assignments,
+            ordered_team_ids_by_group_number: orderedTeamIdsByGroupNumber,
             group_number: groupNumber,
-            team_ids: resolveOrderedAssignedTeamIds({
-              participant_team_ids: teamIdsByCompetitionKey[competitionKey],
-              group_assignments: assignments,
-              ordered_team_ids_by_group_number: orderedTeamIdsByGroupNumber,
-              group_number: groupNumber,
-            }),
-          });
-        }
+          }),
+        });
+      }
 
-        return {
-          sport_id: parsedCompetitionKey.sport_id,
-          naipe: parsedCompetitionKey.naipe,
-          division: parsedCompetitionKey.division,
-          groups_count: competitionConfig.groups_count,
-          qualifiers_per_group: competitionConfig.qualifiers_per_group,
-          should_complete_knockout_with_best_second_placed_teams:
-            competitionConfig.should_complete_knockout_with_best_second_placed_teams,
-          knockout_pairing_mode: competitionConfig.knockout_pairing_mode,
-          third_place_mode: BracketThirdPlaceMode.CHAMPION_SEMIFINAL_LOSER,
-          groups,
-        };
-      });
-    }, [
-      competitionOptionsByKey,
-      competitionConfigByKey,
-      groupAssignmentsByCompetitionKey,
-      groupOrderByCompetitionKey,
-      sortedActiveCompetitionKeys,
-      teamIdsByCompetitionKey,
-    ]);
+      return {
+        sport_id: parsedCompetitionKey.sport_id,
+        naipe: parsedCompetitionKey.naipe,
+        division: parsedCompetitionKey.division,
+        groups_count: competitionConfig.groups_count,
+        qualifiers_per_group: competitionConfig.qualifiers_per_group,
+        should_complete_knockout_with_best_second_placed_teams:
+          competitionConfig.should_complete_knockout_with_best_second_placed_teams,
+        knockout_pairing_mode: competitionConfig.knockout_pairing_mode,
+        third_place_mode: BracketThirdPlaceMode.CHAMPION_SEMIFINAL_LOSER,
+        groups,
+      };
+    });
+  }, [
+    competitionOptionsByKey,
+    competitionConfigByKey,
+    groupAssignmentsByCompetitionKey,
+    groupOrderByCompetitionKey,
+    sortedActiveCompetitionKeys,
+    teamIdsByCompetitionKey,
+  ]);
 
   const sportMatchTargetRecommendationState = useMemo(() => {
     try {
@@ -6788,194 +6099,156 @@ export function AdminChampionshipBracketPage({
   ]);
 
   const sportMatchTargetRecommendationByKey = useMemo(() => {
-    return new Map<
-      string,
-      ChampionshipBracketSportMatchTargetRecommendationLine
-    >(
-      (
-        sportMatchTargetRecommendationState.result?.line_recommendations ?? []
-      ).map((recommendationLine) => [
-        recommendationLine.key,
-        recommendationLine,
-      ]),
-    );
-  }, [sportMatchTargetRecommendationState.result]);
-
-  const sportMatchTargetSummaryBySportId = useMemo(() => {
-    return new Map<
-      string,
-      ChampionshipBracketSportMatchTargetRecommendationSummary
-    >(
-      (sportMatchTargetRecommendationState.result?.sport_summaries ?? []).map(
-        (sportSummary) => [sportSummary.sport_id, sportSummary],
+    return new Map<string, ChampionshipBracketSportMatchTargetRecommendationLine>(
+      (sportMatchTargetRecommendationState.result?.line_recommendations ?? []).map(
+        (recommendationLine) => [recommendationLine.key, recommendationLine],
       ),
     );
   }, [sportMatchTargetRecommendationState.result]);
 
-  const competitionMatchTargetSummaryByCompetitionKey = useMemo(() => {
-    return new Map<
-      string,
-      ChampionshipBracketCompetitionMatchTargetRecommendationSummary
-    >(
-      (
-        sportMatchTargetRecommendationState.result?.competition_summaries ?? []
-      ).map((competitionSummary) => [
-        competitionSummary.competition_key,
-        competitionSummary,
+  const sportMatchTargetSummaryBySportId = useMemo(() => {
+    return new Map<string, ChampionshipBracketSportMatchTargetRecommendationSummary>(
+      (sportMatchTargetRecommendationState.result?.sport_summaries ?? []).map((sportSummary) => [
+        sportSummary.sport_id,
+        sportSummary,
       ]),
     );
   }, [sportMatchTargetRecommendationState.result]);
 
-  const resolveScheduleDaysPayload =
-    useCallback((): ChampionshipBracketScheduleDayInput[] => {
-      return scheduleDays.map((scheduleDay) => ({
-        date: scheduleDay.date,
-        start_time: scheduleDay.start_time,
-        end_time: scheduleDay.end_time,
-        break_start_time: scheduleDay.break_start_time.trim() || null,
-        break_end_time: scheduleDay.break_end_time.trim() || null,
-        locations: scheduleDay.locations.map(
-          (location, locationIndex): ChampionshipBracketLocationInput => ({
-            location_key: location.id,
-            name: location.name,
-            position: locationIndex + 1,
-            courts: location.courts.map((court, courtIndex) => {
-              const resolvedSportMatchTargets = court.sport_match_targets
-                .map((target) => {
-                  const recommendationLine =
-                    sportMatchTargetRecommendationByKey.get(
-                      [
-                        scheduleDay.id,
-                        location.id,
-                        court.id,
-                        target.sport_id,
-                      ].join("::"),
-                    ) ?? null;
-                  const resolvedMatchCount =
-                    (target.planning_mode ?? "MANUAL") == "AUTO"
-                      ? (recommendationLine?.recommended_match_count ?? 0)
-                      : target.planned_match_count;
+  const competitionMatchTargetSummaryByCompetitionKey = useMemo(() => {
+    return new Map<string, ChampionshipBracketCompetitionMatchTargetRecommendationSummary>(
+      (sportMatchTargetRecommendationState.result?.competition_summaries ?? []).map(
+        (competitionSummary) => [competitionSummary.competition_key, competitionSummary],
+      ),
+    );
+  }, [sportMatchTargetRecommendationState.result]);
 
-                  if (
-                    !Number.isInteger(resolvedMatchCount) ||
-                    resolvedMatchCount <= 0
-                  ) {
-                    return null;
-                  }
+  const resolveScheduleDaysPayload = useCallback((): ChampionshipBracketScheduleDayInput[] => {
+    return scheduleDays.map((scheduleDay) => ({
+      date: scheduleDay.date,
+      start_time: scheduleDay.start_time,
+      end_time: scheduleDay.end_time,
+      break_start_time: scheduleDay.break_start_time.trim() || null,
+      break_end_time: scheduleDay.break_end_time.trim() || null,
+      locations: scheduleDay.locations.map(
+        (location, locationIndex): ChampionshipBracketLocationInput => ({
+          location_key: location.id,
+          name: location.name,
+          position: locationIndex + 1,
+          courts: location.courts.map((court, courtIndex) => {
+            const resolvedSportMatchTargets = court.sport_match_targets
+              .map((target) => {
+                const recommendationLine =
+                  sportMatchTargetRecommendationByKey.get(
+                    [scheduleDay.id, location.id, court.id, target.sport_id].join("::"),
+                  ) ?? null;
+                const resolvedMatchCount =
+                  (target.planning_mode ?? "MANUAL") == "AUTO"
+                    ? (recommendationLine?.recommended_match_count ?? 0)
+                    : target.planned_match_count;
 
-                  return {
-                    sport_id: target.sport_id,
-                    planned_match_count: resolvedMatchCount,
-                  };
-                })
-                .filter(
-                  (
-                    target,
-                  ): target is {
-                    sport_id: string;
-                    planned_match_count: number;
-                  } => target != null,
-                );
+                if (!Number.isInteger(resolvedMatchCount) || resolvedMatchCount <= 0) {
+                  return null;
+                }
 
-              return {
-                court_key: court.id,
-                name: court.name,
-                position: courtIndex + 1,
-                sport_ids: court.sport_ids,
-                sport_match_targets: resolvedSportMatchTargets,
-                sport_preference:
-                  court.sport_preference != null &&
-                  court.sport_ids.includes(
-                    court.sport_preference.preferred_sport_id,
-                  )
-                    ? {
-                        preferred_sport_id:
-                          court.sport_preference.preferred_sport_id,
+                return {
+                  sport_id: target.sport_id,
+                  planned_match_count: resolvedMatchCount,
+                };
+              })
+              .filter(
+                (
+                  target,
+                ): target is {
+                  sport_id: string;
+                  planned_match_count: number;
+                } => target != null,
+              );
 
-                        preferred_naipe: court.sport_preference.preferred_naipe,
+            return {
+              court_key: court.id,
+              name: court.name,
+              position: courtIndex + 1,
+              sport_ids: court.sport_ids,
+              sport_match_targets: resolvedSportMatchTargets,
+              sport_preference:
+                court.sport_preference != null &&
+                court.sport_ids.includes(court.sport_preference.preferred_sport_id)
+                  ? {
+                      preferred_sport_id: court.sport_preference.preferred_sport_id,
 
-                        preferred_division:
-                          seasonSettings.division_format ==
-                          ChampionshipSeasonDivisionFormat.SEPARATED
-                            ? court.sport_preference.preferred_division
-                            : null,
+                      preferred_naipe: court.sport_preference.preferred_naipe,
 
-                        sequence_mode:
-                          court.sport_preference.sequence_mode ?? "FLEXIBLE",
+                      preferred_division:
+                        seasonSettings.division_format == ChampionshipSeasonDivisionFormat.SEPARATED
+                          ? court.sport_preference.preferred_division
+                          : null,
 
-                        alternate_naipe_after_exclusive_knockout_phase:
-                          court.sport_preference
-                            .alternate_naipe_after_exclusive_knockout_phase ===
-                          true,
-                      }
-                    : null,
-              };
-            }),
+                      sequence_mode: court.sport_preference.sequence_mode ?? "FLEXIBLE",
+
+                      alternate_naipe_after_exclusive_knockout_phase:
+                        court.sport_preference.alternate_naipe_after_exclusive_knockout_phase ===
+                        true,
+                    }
+                  : null,
+            };
           }),
-        ),
-      }));
-    }, [
-      scheduleDays,
-      seasonSettings.division_format,
-      sportMatchTargetRecommendationByKey,
-    ]);
+        }),
+      ),
+    }));
+  }, [scheduleDays, seasonSettings.division_format, sportMatchTargetRecommendationByKey]);
 
-  const resolveSetupPayload =
-    useCallback((): ChampionshipBracketSetupFormValues => {
-      return ChampionshipBracketSetupDTO.fromFormValues({
-        season_settings: seasonSettings,
-        enabled_sport_ids: enabledSportIds,
-        participants: resolveParticipantsPayload(),
-        competitions: resolveCompetitionsPayload(),
-        schedule_days: resolveScheduleDaysPayload(),
-        competition_date_availability: competitionDateAvailability.map(
-          (availabilityItem) => ({
-            competition_key: availabilityItem.competition_key,
-            date: availabilityItem.date,
-            mode: availabilityItem.mode,
-            windows: availabilityItem.windows.map((window) => ({
-              start_time: window.start_time,
-              end_time: window.end_time,
-            })),
-          }),
-        ),
-        team_competition_date_availability: teamCompetitionDateAvailability.map(
-          (availabilityItem) => ({
-            team_id: availabilityItem.team_id,
-            competition_key: availabilityItem.competition_key,
-            date: availabilityItem.date,
-            mode: availabilityItem.mode,
-            windows: availabilityItem.windows.map((window) => ({
-              start_time: window.start_time,
-              end_time: window.end_time,
-            })),
-          }),
-        ),
-        individual_event_configs: individualEventConfigs,
-        individual_session_configs: individualSessionConfigs,
-        resource_locks: resourceLocks,
-        match_numbering_mode: matchNumberingMode,
-        knockout_program_blocks: knockoutProgramBlocks.map(
-          (programBlock, programBlockIndex) => ({
-            ...programBlock,
-            display_order: programBlockIndex + 1,
-          }),
-        ),
-      }).bindToSave();
-    }, [
-      competitionDateAvailability,
-      enabledSportIds,
-      individualEventConfigs,
-      individualSessionConfigs,
-      knockoutProgramBlocks,
-      matchNumberingMode,
-      resourceLocks,
-      seasonSettings,
-      resolveCompetitionsPayload,
-      resolveParticipantsPayload,
-      resolveScheduleDaysPayload,
-      teamCompetitionDateAvailability,
-    ]);
+  const resolveSetupPayload = useCallback((): ChampionshipBracketSetupFormValues => {
+    return ChampionshipBracketSetupDTO.fromFormValues({
+      season_settings: seasonSettings,
+      enabled_sport_ids: enabledSportIds,
+      participants: resolveParticipantsPayload(),
+      competitions: resolveCompetitionsPayload(),
+      schedule_days: resolveScheduleDaysPayload(),
+      competition_date_availability: competitionDateAvailability.map((availabilityItem) => ({
+        competition_key: availabilityItem.competition_key,
+        date: availabilityItem.date,
+        mode: availabilityItem.mode,
+        windows: availabilityItem.windows.map((window) => ({
+          start_time: window.start_time,
+          end_time: window.end_time,
+        })),
+      })),
+      team_competition_date_availability: teamCompetitionDateAvailability.map(
+        (availabilityItem) => ({
+          team_id: availabilityItem.team_id,
+          competition_key: availabilityItem.competition_key,
+          date: availabilityItem.date,
+          mode: availabilityItem.mode,
+          windows: availabilityItem.windows.map((window) => ({
+            start_time: window.start_time,
+            end_time: window.end_time,
+          })),
+        }),
+      ),
+      individual_event_configs: individualEventConfigs,
+      individual_session_configs: individualSessionConfigs,
+      resource_locks: resourceLocks,
+      match_numbering_mode: matchNumberingMode,
+      knockout_program_blocks: knockoutProgramBlocks.map((programBlock, programBlockIndex) => ({
+        ...programBlock,
+        display_order: programBlockIndex + 1,
+      })),
+    }).bindToSave();
+  }, [
+    competitionDateAvailability,
+    enabledSportIds,
+    individualEventConfigs,
+    individualSessionConfigs,
+    knockoutProgramBlocks,
+    matchNumberingMode,
+    resourceLocks,
+    seasonSettings,
+    resolveCompetitionsPayload,
+    resolveParticipantsPayload,
+    resolveScheduleDaysPayload,
+    teamCompetitionDateAvailability,
+  ]);
 
   const structuralReviewState = useMemo(() => {
     try {
@@ -6987,11 +6260,9 @@ export function AdminChampionshipBracketPage({
       });
       const payload = {
         ...basePayload,
-        structural_schedule_slots:
-          resolveChampionshipBracketStructuralScheduleSlots(review),
+        structural_schedule_slots: resolveChampionshipBracketStructuralScheduleSlots(review),
       };
-      const payloadSignature =
-        resolveChampionshipBracketExactPreviewPayloadSignature(payload);
+      const payloadSignature = resolveChampionshipBracketExactPreviewPayloadSignature(payload);
 
       return {
         payload,
@@ -7029,15 +6300,10 @@ export function AdminChampionshipBracketPage({
       ),
     [exactPreviewCache?.events],
   );
-  const isExactPreviewJobRunning = [
-    "QUEUED",
-    "INITIALIZING",
-    "SCHEDULING",
-    "FINALIZING",
-  ].includes(exactPreviewCache?.status ?? "");
-  const [exactPreviewJobCurrentTime, setExactPreviewJobCurrentTime] = useState(
-    () => Date.now(),
+  const isExactPreviewJobRunning = ["QUEUED", "INITIALIZING", "SCHEDULING", "FINALIZING"].includes(
+    exactPreviewCache?.status ?? "",
   );
+  const [exactPreviewJobCurrentTime, setExactPreviewJobCurrentTime] = useState(() => Date.now());
   const exactPreviewJobStartedAtLabel = useMemo(() => {
     if (!exactPreviewCache?.started_at) {
       return null;
@@ -7064,11 +6330,7 @@ export function AdminChampionshipBracketPage({
               : exactPreviewJobCurrentTime,
           )
         : null,
-    [
-      exactPreviewCache?.completed_at,
-      exactPreviewCache?.started_at,
-      exactPreviewJobCurrentTime,
-    ],
+    [exactPreviewCache?.completed_at, exactPreviewCache?.started_at, exactPreviewJobCurrentTime],
   );
   const exactPreviewJobCompletedAtLabel = useMemo(
     () =>
@@ -7088,9 +6350,8 @@ export function AdminChampionshipBracketPage({
     hasValidExactPreviewCache &&
     (exactPreviewCache.is_valid_for_creation === false ||
       (operationalPreview?.summary?.conflict_count ?? 0) > 0 ||
-      operationalPreview?.diagnostics.some(
-        (diagnostic) => diagnostic.severity == "ERROR",
-      ) === true);
+      operationalPreview?.diagnostics.some((diagnostic) => diagnostic.severity == "ERROR") ===
+        true);
   const exactPreviewGeneratedAtLabel = useMemo(() => {
     if (!exactPreviewCache?.generated_at) {
       return null;
@@ -7105,19 +6366,13 @@ export function AdminChampionshipBracketPage({
     }
 
     setExactPreviewJobCurrentTime(Date.now());
-    const intervalId = window.setInterval(
-      () => setExactPreviewJobCurrentTime(Date.now()),
-      1_000,
-    );
+    const intervalId = window.setInterval(() => setExactPreviewJobCurrentTime(Date.now()), 1_000);
 
     return () => window.clearInterval(intervalId);
   }, [isExactPreviewJobRunning]);
 
   const scheduleDayDateById = useMemo(
-    () =>
-      new Map(
-        scheduleDays.map((scheduleDay) => [scheduleDay.id, scheduleDay.date]),
-      ),
+    () => new Map(scheduleDays.map((scheduleDay) => [scheduleDay.id, scheduleDay.date])),
     [scheduleDays],
   );
 
@@ -7133,10 +6388,7 @@ export function AdminChampionshipBracketPage({
     review.days.forEach((reviewDay) => {
       reviewDay.locations.forEach((location) => {
         location.courts.forEach((court) => {
-          nextMap.set(
-            [reviewDay.date, location.location_key, court.court_key].join("::"),
-            court,
-          );
+          nextMap.set([reviewDay.date, location.location_key, court.court_key].join("::"), court);
         });
       });
     });
@@ -7211,21 +6463,20 @@ export function AdminChampionshipBracketPage({
         },
       } satisfies ChampionshipBracketWizardDraftFormValues;
 
-      void saveChampionshipBracketWizardDraft(
-        selectedChampionship.id,
-        nextDraftFormValues,
-      ).then((draftSaveResponse) => {
-        if (draftSaveResponse.error) {
-          toast.info(
-            "O cálculo foi iniciado, mas não foi possível sincronizar o identificador do job no rascunho.",
-          );
-          return;
-        }
+      void saveChampionshipBracketWizardDraft(selectedChampionship.id, nextDraftFormValues).then(
+        (draftSaveResponse) => {
+          if (draftSaveResponse.error) {
+            toast.info(
+              "O cálculo foi iniciado, mas não foi possível sincronizar o identificador do job no rascunho.",
+            );
+            return;
+          }
 
-        if (draftSaveResponse.metadata) {
-          setRemoteDraftMetadata(draftSaveResponse.metadata);
-        }
-      });
+          if (draftSaveResponse.metadata) {
+            setRemoteDraftMetadata(draftSaveResponse.metadata);
+          }
+        },
+      );
     } catch (error) {
       setOperationalPreviewError(
         error instanceof Error
@@ -7253,8 +6504,7 @@ export function AdminChampionshipBracketPage({
       !jobStatus ||
       exactPreviewCache?.algorithm_version != "async-exact-v8" ||
       !structuralReviewState.payloadSignature ||
-      exactPreviewCache?.payload_signature !=
-        structuralReviewState.payloadSignature
+      exactPreviewCache?.payload_signature != structuralReviewState.payloadSignature
     ) {
       return;
     }
@@ -7268,12 +6518,8 @@ export function AdminChampionshipBracketPage({
       setExactPreviewCache((currentCache) => {
         if (!currentCache || currentCache.job_id != jobId) return currentCache;
         if (
-          ["COMPLETED", "FAILED", "CANCELLED", "CONSUMED"].includes(
-            currentCache.status,
-          ) &&
-          ["QUEUED", "INITIALIZING", "SCHEDULING", "FINALIZING"].includes(
-            previewJob.status,
-          )
+          ["COMPLETED", "FAILED", "CANCELLED", "CONSUMED"].includes(currentCache.status) &&
+          ["QUEUED", "INITIALIZING", "SCHEDULING", "FINALIZING"].includes(previewJob.status)
         ) {
           return currentCache;
         }
@@ -7290,11 +6536,7 @@ export function AdminChampionshipBracketPage({
 
     void pollJob();
 
-    if (
-      !["QUEUED", "INITIALIZING", "SCHEDULING", "FINALIZING"].includes(
-        jobStatus,
-      )
-    ) {
+    if (!["QUEUED", "INITIALIZING", "SCHEDULING", "FINALIZING"].includes(jobStatus)) {
       return () => {
         cancelled = true;
       };
@@ -7327,21 +6569,15 @@ export function AdminChampionshipBracketPage({
         return;
       }
 
-      setExpandedOperationalPreviewDates((currentDates) =>
-        new Set(currentDates).add(date),
-      );
+      setExpandedOperationalPreviewDates((currentDates) => new Set(currentDates).add(date));
 
       const cachedDay = exactPreviewCache?.result?.days.find(
-        (previewDay) =>
-          previewDay.date == date && previewDay.locations.length > 0,
+        (previewDay) => previewDay.date == date && previewDay.locations.length > 0,
       );
       if (cachedDay || !exactPreviewCache?.job_id) return;
 
       setLoadingOperationalPreviewDate(date);
-      const response = await fetchChampionshipBracketPreviewJobDay(
-        exactPreviewCache.job_id,
-        date,
-      );
+      const response = await fetchChampionshipBracketPreviewJobDay(exactPreviewCache.job_id, date);
       setLoadingOperationalPreviewDate(null);
 
       if (response.error || !response.data) {
@@ -7373,9 +6609,7 @@ export function AdminChampionshipBracketPage({
     setCancellingOperationalPreview(true);
 
     try {
-      const response = await cancelChampionshipBracketPreviewJob(
-        exactPreviewCache.job_id,
-      );
+      const response = await cancelChampionshipBracketPreviewJob(exactPreviewCache.job_id);
 
       if (response.error) {
         throw response.error;
@@ -7393,11 +6627,7 @@ export function AdminChampionshipBracketPage({
         );
       }
     } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Não foi possível cancelar o cálculo.",
-      );
+      toast.error(error instanceof Error ? error.message : "Não foi possível cancelar o cálculo.");
     } finally {
       setCancellingOperationalPreview(false);
     }
@@ -7445,8 +6675,7 @@ export function AdminChampionshipBracketPage({
     if (!hasValidExactPreviewCache || !exactPreviewCache) {
       setSaveErrorBannerData({
         title: "Calcule a programação exata antes de criar o campeonato",
-        message:
-          "A criação só é liberada após uma prévia exata válida para a configuração atual.",
+        message: "A criação só é liberada após uma prévia exata válida para a configuração atual.",
         suggestion:
           "Use o botão Calcular programação exata na revisão final e tente criar novamente.",
       });
@@ -7488,23 +6717,25 @@ export function AdminChampionshipBracketPage({
 
       if (response.error || !response.data) {
         throw new Error(
-          response.error?.message ??
-            "Não foi possível gerar os grupos automaticamente.",
+          response.error?.message ?? "Não foi possível gerar os grupos automaticamente.",
         );
       }
 
       await persistBeachSoccerEstimatedStartTimeSetting();
-      const seasonSettingsSaveResponse = await saveChampionshipSeasonSettings({
-        championship_id: selectedChampionship.id,
-        season_year: selectedChampionship.current_season_year,
-        division_format: seasonSettings.division_format,
-        division_settlement_mode: seasonSettings.division_settlement_mode,
-        principal_slots_count: seasonSettings.principal_slots_count,
-        principal_relegation_count: seasonSettings.principal_relegation_count,
-        access_promotion_count: seasonSettings.access_promotion_count,
-        yellow_card_reset_phase:
-          seasonSettings.yellow_card_reset_phase ?? YellowCardResetPhase.NONE,
-      });
+      const seasonSettingsSaveResponse = await saveChampionshipSeasonSettings(
+        {
+          championship_id: selectedChampionship.id,
+          season_year: selectedChampionship.current_season_year,
+          division_format: seasonSettings.division_format,
+          division_settlement_mode: seasonSettings.division_settlement_mode,
+          principal_slots_count: seasonSettings.principal_slots_count,
+          principal_relegation_count: seasonSettings.principal_relegation_count,
+          access_promotion_count: seasonSettings.access_promotion_count,
+          yellow_card_reset_phase:
+            seasonSettings.yellow_card_reset_phase ?? YellowCardResetPhase.NONE,
+        },
+        accessToken,
+      );
 
       if (seasonSettingsSaveResponse.error) {
         throw new Error(
@@ -7545,9 +6776,7 @@ export function AdminChampionshipBracketPage({
       toast.success("Grupos e jogos da fase de grupos gerados com sucesso.");
     } catch (error) {
       const resolvedMessage =
-        error instanceof Error
-          ? error.message
-          : "Erro inesperado ao criar campeonato.";
+        error instanceof Error ? error.message : "Erro inesperado ao criar campeonato.";
       const hasCalculatedSuggestion = resolvedMessage.includes("Sugestão:");
       const normalizedMessage = hasCalculatedSuggestion
         ? resolvedMessage.split("Sugestão:")[0].trim()
@@ -7569,9 +6798,7 @@ export function AdminChampionshipBracketPage({
       updater: (scheduleDay: ScheduleDayFormValue) => ScheduleDayFormValue,
     ) => {
       setScheduleDays((currentScheduleDays) => {
-        const scheduleDayIndex = currentScheduleDays.findIndex(
-          (item) => item.id == scheduleDayId,
-        );
+        const scheduleDayIndex = currentScheduleDays.findIndex((item) => item.id == scheduleDayId);
 
         if (scheduleDayIndex < 0) {
           return currentScheduleDays;
@@ -7734,50 +6961,39 @@ export function AdminChampionshipBracketPage({
           ],
         };
       });
-      setLocationTemplateSelectionDayId(
-        (currentLocationTemplateSelectionDayId) => {
-          return currentLocationTemplateSelectionDayId == scheduleDayId
-            ? null
-            : currentLocationTemplateSelectionDayId;
-        },
-      );
+      setLocationTemplateSelectionDayId((currentLocationTemplateSelectionDayId) => {
+        return currentLocationTemplateSelectionDayId == scheduleDayId
+          ? null
+          : currentLocationTemplateSelectionDayId;
+      });
     },
     [locationTemplateById, updateScheduleDay],
   );
 
-  const handleOpenLocationTemplateSelectionModal = useCallback(
-    (scheduleDayId: string) => {
-      setLocationTemplateSelectionDayId(scheduleDayId);
-    },
-    [],
-  );
+  const handleOpenLocationTemplateSelectionModal = useCallback((scheduleDayId: string) => {
+    setLocationTemplateSelectionDayId(scheduleDayId);
+  }, []);
 
   const handleCloseLocationTemplateSelectionModal = useCallback(() => {
     setLocationTemplateSelectionDayId(null);
   }, []);
 
-  const handleOpenCreateLocationTemplateModal = useCallback(
-    (scheduleDayId: string) => {
-      setLocationTemplateSelectionDayId(null);
-      setLocationTemplateModalTarget({
-        schedule_day_id: scheduleDayId,
-        location_id: null,
-        location_template_id: null,
-      });
-      setLocationTemplateModalFormValues(
-        resolveInitialLocationTemplateModalFormValue(),
-      );
-      setLocationTemplateModalOpen(true);
-    },
-    [],
-  );
+  const handleOpenCreateLocationTemplateModal = useCallback((scheduleDayId: string) => {
+    setLocationTemplateSelectionDayId(null);
+    setLocationTemplateModalTarget({
+      schedule_day_id: scheduleDayId,
+      location_id: null,
+      location_template_id: null,
+    });
+    setLocationTemplateModalFormValues(resolveInitialLocationTemplateModalFormValue());
+    setLocationTemplateModalOpen(true);
+  }, []);
 
   const handleOpenEditLocationTemplateModal = useCallback(
     (scheduleDayId: string, scheduleLocation: ScheduleLocationFormValue) => {
       const locationTemplate =
         scheduleLocation.location_template_id != null
-          ? (locationTemplateById[scheduleLocation.location_template_id] ??
-            null)
+          ? (locationTemplateById[scheduleLocation.location_template_id] ?? null)
           : null;
 
       setLocationTemplateModalTarget({
@@ -7788,9 +7004,7 @@ export function AdminChampionshipBracketPage({
       setLocationTemplateModalFormValues(
         locationTemplate
           ? resolveLocationTemplateModalFormValueFromTemplate(locationTemplate)
-          : resolveLocationTemplateModalFormValueFromScheduleLocation(
-              scheduleLocation,
-            ),
+          : resolveLocationTemplateModalFormValueFromScheduleLocation(scheduleLocation),
       );
       setLocationTemplateModalOpen(true);
     },
@@ -7804,9 +7018,7 @@ export function AdminChampionshipBracketPage({
 
     setLocationTemplateModalOpen(false);
     setLocationTemplateModalTarget(null);
-    setLocationTemplateModalFormValues(
-      resolveInitialLocationTemplateModalFormValue(),
-    );
+    setLocationTemplateModalFormValues(resolveInitialLocationTemplateModalFormValue());
   }, [savingLocationTemplate]);
 
   const handleSaveLocationTemplate = useCallback(async () => {
@@ -7829,9 +7041,7 @@ export function AdminChampionshipBracketPage({
       }
 
       if (court.sport_ids.length == 0) {
-        toast.error(
-          "Todo recurso/quadra precisa ter ao menos uma modalidade vinculada.",
-        );
+        toast.error("Todo recurso/quadra precisa ter ao menos uma modalidade vinculada.");
         return;
       }
     }
@@ -7841,28 +7051,22 @@ export function AdminChampionshipBracketPage({
     const payload: ChampionshipBracketLocationTemplateSaveInput = {
       id: locationTemplateModalFormValues.id,
       name: normalizedLocationName,
-      courts: locationTemplateModalFormValues.courts.map(
-        (court, courtIndex) => ({
-          id: court.id,
-          name: court.name.trim(),
-          position: courtIndex + 1,
-          sport_ids: [...new Set(court.sport_ids)],
-        }),
-      ),
+      courts: locationTemplateModalFormValues.courts.map((court, courtIndex) => ({
+        id: court.id,
+        name: court.name.trim(),
+        position: courtIndex + 1,
+        sport_ids: [...new Set(court.sport_ids)],
+      })),
     };
     const saveResponse = await saveChampionshipBracketLocationTemplate(payload);
 
     if (saveResponse.error || !saveResponse.data) {
-      toast.error(
-        saveResponse.error?.message ??
-          "Não foi possível salvar o local no catálogo.",
-      );
+      toast.error(saveResponse.error?.message ?? "Não foi possível salvar o local no catálogo.");
       setSavingLocationTemplate(false);
       return;
     }
 
-    const locationTemplatesResponse =
-      await fetchChampionshipBracketLocationTemplates();
+    const locationTemplatesResponse = await fetchChampionshipBracketLocationTemplates();
 
     if (locationTemplatesResponse.error) {
       toast.error(
@@ -7875,14 +7079,11 @@ export function AdminChampionshipBracketPage({
 
     const savedLocationTemplates = locationTemplatesResponse.data;
     const savedLocationTemplate =
-      savedLocationTemplates.find(
-        (locationTemplate) => locationTemplate.id == saveResponse.data,
-      ) ?? null;
+      savedLocationTemplates.find((locationTemplate) => locationTemplate.id == saveResponse.data) ??
+      null;
 
     if (!savedLocationTemplate) {
-      toast.error(
-        "O local foi salvo, mas não foi possível encontrá-lo no catálogo.",
-      );
+      toast.error("O local foi salvo, mas não foi possível encontrá-lo no catálogo.");
       setSavingLocationTemplate(false);
       return;
     }
@@ -7890,41 +7091,34 @@ export function AdminChampionshipBracketPage({
     setLocationTemplates(savedLocationTemplates);
     setScheduleDays((currentScheduleDays) => {
       return currentScheduleDays.map((scheduleDay) => {
-        const nextLocations = scheduleDay.locations.map(
-          (scheduleLocation, locationIndex) => {
-            const shouldSyncByTemplateId =
-              locationTemplateModalTarget?.location_template_id != null &&
-              scheduleLocation.location_template_id ==
-                locationTemplateModalTarget.location_template_id;
-            const shouldSyncBySavedTemplateId =
-              scheduleLocation.location_template_id == savedLocationTemplate.id;
-            const isTargetLocation =
-              locationTemplateModalTarget?.schedule_day_id == scheduleDay.id &&
-              locationTemplateModalTarget.location_id != null &&
-              scheduleLocation.id == locationTemplateModalTarget.location_id;
+        const nextLocations = scheduleDay.locations.map((scheduleLocation, locationIndex) => {
+          const shouldSyncByTemplateId =
+            locationTemplateModalTarget?.location_template_id != null &&
+            scheduleLocation.location_template_id ==
+              locationTemplateModalTarget.location_template_id;
+          const shouldSyncBySavedTemplateId =
+            scheduleLocation.location_template_id == savedLocationTemplate.id;
+          const isTargetLocation =
+            locationTemplateModalTarget?.schedule_day_id == scheduleDay.id &&
+            locationTemplateModalTarget.location_id != null &&
+            scheduleLocation.id == locationTemplateModalTarget.location_id;
 
-            if (
-              !shouldSyncByTemplateId &&
-              !shouldSyncBySavedTemplateId &&
-              !isTargetLocation
-            ) {
-              return scheduleLocation;
-            }
+          if (!shouldSyncByTemplateId && !shouldSyncBySavedTemplateId && !isTargetLocation) {
+            return scheduleLocation;
+          }
 
-            return resolveScheduleLocationFromTemplate(
-              savedLocationTemplate,
-              scheduleLocation.id,
-              locationIndex + 1,
-            );
-          },
-        );
+          return resolveScheduleLocationFromTemplate(
+            savedLocationTemplate,
+            scheduleLocation.id,
+            locationIndex + 1,
+          );
+        });
 
         if (
           locationTemplateModalTarget?.schedule_day_id == scheduleDay.id &&
           locationTemplateModalTarget.location_id == null &&
           !nextLocations.some(
-            (scheduleLocation) =>
-              scheduleLocation.location_template_id == savedLocationTemplate.id,
+            (scheduleLocation) => scheduleLocation.location_template_id == savedLocationTemplate.id,
           )
         ) {
           nextLocations.push(
@@ -7949,9 +7143,7 @@ export function AdminChampionshipBracketPage({
     setSavingLocationTemplate(false);
     setLocationTemplateModalOpen(false);
     setLocationTemplateModalTarget(null);
-    setLocationTemplateModalFormValues(
-      resolveInitialLocationTemplateModalFormValue(),
-    );
+    setLocationTemplateModalFormValues(resolveInitialLocationTemplateModalFormValue());
     setLocationTemplateSelectionDayId(null);
     toast.success("Local salvo no catálogo.");
   }, [locationTemplateModalFormValues, locationTemplateModalTarget]);
@@ -7959,85 +7151,68 @@ export function AdminChampionshipBracketPage({
   const updateLocationTemplateModalCourt = useCallback(
     (
       courtId: string,
-      updater: (
-        court: ScheduleCourtFormValue,
-        courtIndex: number,
-      ) => ScheduleCourtFormValue,
+      updater: (court: ScheduleCourtFormValue, courtIndex: number) => ScheduleCourtFormValue,
     ) => {
-      setLocationTemplateModalFormValues(
-        (currentLocationTemplateModalFormValues) => {
-          const courtIndex =
-            currentLocationTemplateModalFormValues.courts.findIndex(
-              (court) => court.id == courtId,
-            );
+      setLocationTemplateModalFormValues((currentLocationTemplateModalFormValues) => {
+        const courtIndex = currentLocationTemplateModalFormValues.courts.findIndex(
+          (court) => court.id == courtId,
+        );
 
-          if (courtIndex < 0) {
-            return currentLocationTemplateModalFormValues;
-          }
+        if (courtIndex < 0) {
+          return currentLocationTemplateModalFormValues;
+        }
 
-          const currentCourt =
-            currentLocationTemplateModalFormValues.courts[courtIndex];
-          const nextCourt = updater(currentCourt, courtIndex);
+        const currentCourt = currentLocationTemplateModalFormValues.courts[courtIndex];
+        const nextCourt = updater(currentCourt, courtIndex);
 
-          if (nextCourt == currentCourt) {
-            return currentLocationTemplateModalFormValues;
-          }
+        if (nextCourt == currentCourt) {
+          return currentLocationTemplateModalFormValues;
+        }
 
-          const nextCourts = [...currentLocationTemplateModalFormValues.courts];
-          nextCourts[courtIndex] = nextCourt;
+        const nextCourts = [...currentLocationTemplateModalFormValues.courts];
+        nextCourts[courtIndex] = nextCourt;
 
-          return {
-            ...currentLocationTemplateModalFormValues,
-            courts: nextCourts,
-          };
-        },
-      );
+        return {
+          ...currentLocationTemplateModalFormValues,
+          courts: nextCourts,
+        };
+      });
     },
     [],
   );
 
   const handleAddLocationTemplateModalCourt = useCallback(() => {
-    setLocationTemplateModalFormValues(
-      (currentLocationTemplateModalFormValues) => ({
-        ...currentLocationTemplateModalFormValues,
-        courts: [
-          ...currentLocationTemplateModalFormValues.courts,
-          {
-            ...resolveInitialScheduleCourt(),
-            position: currentLocationTemplateModalFormValues.courts.length + 1,
-          },
-        ],
-      }),
-    );
+    setLocationTemplateModalFormValues((currentLocationTemplateModalFormValues) => ({
+      ...currentLocationTemplateModalFormValues,
+      courts: [
+        ...currentLocationTemplateModalFormValues.courts,
+        {
+          ...resolveInitialScheduleCourt(),
+          position: currentLocationTemplateModalFormValues.courts.length + 1,
+        },
+      ],
+    }));
   }, []);
 
-  const handleRemoveLocationTemplateModalCourt = useCallback(
-    (courtId: string) => {
-      setLocationTemplateModalFormValues(
-        (currentLocationTemplateModalFormValues) => {
-          const nextCourts = currentLocationTemplateModalFormValues.courts
-            .filter((court) => court.id != courtId)
-            .map((court, courtIndex) => ({
-              ...court,
-              position: courtIndex + 1,
-            }));
+  const handleRemoveLocationTemplateModalCourt = useCallback((courtId: string) => {
+    setLocationTemplateModalFormValues((currentLocationTemplateModalFormValues) => {
+      const nextCourts = currentLocationTemplateModalFormValues.courts
+        .filter((court) => court.id != courtId)
+        .map((court, courtIndex) => ({
+          ...court,
+          position: courtIndex + 1,
+        }));
 
-          if (
-            nextCourts.length ==
-            currentLocationTemplateModalFormValues.courts.length
-          ) {
-            return currentLocationTemplateModalFormValues;
-          }
+      if (nextCourts.length == currentLocationTemplateModalFormValues.courts.length) {
+        return currentLocationTemplateModalFormValues;
+      }
 
-          return {
-            ...currentLocationTemplateModalFormValues,
-            courts: nextCourts,
-          };
-        },
-      );
-    },
-    [],
-  );
+      return {
+        ...currentLocationTemplateModalFormValues,
+        courts: nextCourts,
+      };
+    });
+  }, []);
 
   const removeScheduleDay = useCallback((scheduleDayId: string) => {
     setScheduleDays((currentScheduleDays) => {
@@ -8050,10 +7225,7 @@ export function AdminChampionshipBracketPage({
   }, []);
 
   const updateManualCourtResourceLock = useCallback(
-    (
-      resourceLockIndex: number,
-      changes: Partial<ChampionshipBracketResourceLockInput>,
-    ) => {
+    (resourceLockIndex: number, changes: Partial<ChampionshipBracketResourceLockInput>) => {
       setResourceLocks((currentResourceLocks) =>
         sanitizeResourceLocksValues({
           scheduleDays,
@@ -8076,9 +7248,7 @@ export function AdminChampionshipBracketPage({
       setResourceLocks((currentResourceLocks) =>
         sanitizeResourceLocksValues({
           scheduleDays,
-          resourceLocks: currentResourceLocks.filter(
-            (_, index) => index != resourceLockIndex,
-          ),
+          resourceLocks: currentResourceLocks.filter((_, index) => index != resourceLockIndex),
         }),
       );
     },
@@ -8119,14 +7289,10 @@ export function AdminChampionshipBracketPage({
 
   const handleAddScheduleDay = useCallback(() => {
     setScheduleDays((currentScheduleDays) => {
-      const previousScheduleDay =
-        currentScheduleDays[currentScheduleDays.length - 1];
+      const previousScheduleDay = currentScheduleDays[currentScheduleDays.length - 1];
 
       if (shouldReplicatePreviousScheduleDay && previousScheduleDay) {
-        return [
-          ...currentScheduleDays,
-          resolveReplicatedScheduleDay(previousScheduleDay),
-        ];
+        return [...currentScheduleDays, resolveReplicatedScheduleDay(previousScheduleDay)];
       }
 
       return [...currentScheduleDays, resolveInitialScheduleDay()];
@@ -8134,22 +7300,23 @@ export function AdminChampionshipBracketPage({
   }, [shouldReplicatePreviousScheduleDay]);
 
   const availableLocationTemplatesByScheduleDayId = useMemo(() => {
-    return scheduleDays.reduce<
-      Record<string, ChampionshipBracketLocationTemplate[]>
-    >((carry, scheduleDay) => {
-      const selectedTemplateIdSet = new Set(
-        scheduleDay.locations
-          .map((location) => location.location_template_id)
-          .filter((locationTemplateId): locationTemplateId is string =>
-            Boolean(locationTemplateId),
-          ),
-      );
+    return scheduleDays.reduce<Record<string, ChampionshipBracketLocationTemplate[]>>(
+      (carry, scheduleDay) => {
+        const selectedTemplateIdSet = new Set(
+          scheduleDay.locations
+            .map((location) => location.location_template_id)
+            .filter((locationTemplateId): locationTemplateId is string =>
+              Boolean(locationTemplateId),
+            ),
+        );
 
-      carry[scheduleDay.id] = locationTemplates.filter(
-        (locationTemplate) => !selectedTemplateIdSet.has(locationTemplate.id),
-      );
-      return carry;
-    }, {});
+        carry[scheduleDay.id] = locationTemplates.filter(
+          (locationTemplate) => !selectedTemplateIdSet.has(locationTemplate.id),
+        );
+        return carry;
+      },
+      {},
+    );
   }, [locationTemplates, scheduleDays]);
 
   const selectedLocationTemplateScheduleDay = useMemo(() => {
@@ -8158,9 +7325,7 @@ export function AdminChampionshipBracketPage({
     }
 
     return (
-      scheduleDays.find(
-        (scheduleDay) => scheduleDay.id == locationTemplateSelectionDayId,
-      ) ?? null
+      scheduleDays.find((scheduleDay) => scheduleDay.id == locationTemplateSelectionDayId) ?? null
     );
   }, [locationTemplateSelectionDayId, scheduleDays]);
 
@@ -8196,15 +7361,8 @@ export function AdminChampionshipBracketPage({
       return [];
     }
 
-    return (
-      availableLocationTemplatesByScheduleDayId[
-        locationTemplateSelectionDayId
-      ] ?? []
-    );
-  }, [
-    availableLocationTemplatesByScheduleDayId,
-    locationTemplateSelectionDayId,
-  ]);
+    return availableLocationTemplatesByScheduleDayId[locationTemplateSelectionDayId] ?? [];
+  }, [availableLocationTemplatesByScheduleDayId, locationTemplateSelectionDayId]);
 
   const activeErrorBannerData = saveErrorBannerData;
   const shouldAllowDismissActiveErrorBanner = true;
@@ -8215,30 +7373,23 @@ export function AdminChampionshipBracketPage({
     locationTemplateModalTarget?.location_id != null;
   const activeCompetitionOptions = useMemo(() => {
     return sortedActiveCompetitionKeys
-      .map(
-        (competitionKey) => competitionOptionsByKey.get(competitionKey) ?? null,
-      )
+      .map((competitionKey) => competitionOptionsByKey.get(competitionKey) ?? null)
       .filter(
-        (
-          competitionOption,
-        ): competitionOption is ChampionshipBracketWizardCompetitionOption =>
+        (competitionOption): competitionOption is ChampionshipBracketWizardCompetitionOption =>
           competitionOption != null,
       );
   }, [competitionOptionsByKey, sortedActiveCompetitionKeys]);
 
   const competitionLabelByKey = useMemo(() => {
-    return activeCompetitionOptions.reduce<Record<string, string>>(
-      (carry, competitionOption) => {
-        const divisionSuffix = competitionOption.division
-          ? ` • ${TEAM_DIVISION_LABELS[competitionOption.division]}`
-          : "";
+    return activeCompetitionOptions.reduce<Record<string, string>>((carry, competitionOption) => {
+      const divisionSuffix = competitionOption.division
+        ? ` • ${TEAM_DIVISION_LABELS[competitionOption.division]}`
+        : "";
 
-        carry[competitionOption.key] =
-          `${competitionOption.sport_name} • ${MATCH_NAIPE_LABELS[competitionOption.naipe]}${divisionSuffix}`;
-        return carry;
-      },
-      {},
-    );
+      carry[competitionOption.key] =
+        `${competitionOption.sport_name} • ${MATCH_NAIPE_LABELS[competitionOption.naipe]}${divisionSuffix}`;
+      return carry;
+    }, {});
   }, [activeCompetitionOptions]);
 
   const teamAvailabilityFilterOptions = useMemo(() => {
@@ -8294,46 +7445,37 @@ export function AdminChampionshipBracketPage({
             return;
           }
 
-          const visibleDateCards = scheduleDayDatesOrderedByColumn.flatMap(
-            (scheduleDate) => {
-              const competitionAvailability =
-                competitionDateAvailabilityByKey.get(
-                  `${competitionKey}::${scheduleDate}`,
-                );
+          const visibleDateCards = scheduleDayDatesOrderedByColumn.flatMap((scheduleDate) => {
+            const competitionAvailability = competitionDateAvailabilityByKey.get(
+              `${competitionKey}::${scheduleDate}`,
+            );
 
-              if (
-                !competitionAvailability ||
-                competitionAvailability.mode == "UNAVAILABLE"
-              ) {
-                return [];
-              }
+            if (!competitionAvailability || competitionAvailability.mode == "UNAVAILABLE") {
+              return [];
+            }
 
-              const availabilityKey = `${teamId}::${competitionKey}::${scheduleDate}`;
+            const availabilityKey = `${teamId}::${competitionKey}::${scheduleDate}`;
 
-              const teamAvailability =
-                teamCompetitionDateAvailabilityByKey.get(availabilityKey);
+            const teamAvailability = teamCompetitionDateAvailabilityByKey.get(availabilityKey);
 
-              return [
-                {
-                  date: scheduleDate,
-                  availability_key: availabilityKey,
-                  competition_mode: competitionAvailability.mode,
-                  competition_windows: competitionAvailability.windows.map(
-                    (window) => ({
-                      start_time: window.start_time,
-                      end_time: window.end_time,
-                    }),
-                  ),
-                  team_mode: teamAvailability?.mode ?? "FULL_DAY",
-                  team_windows:
-                    teamAvailability?.windows.map((window) => ({
-                      start_time: window.start_time,
-                      end_time: window.end_time,
-                    })) ?? [],
-                },
-              ];
-            },
-          );
+            return [
+              {
+                date: scheduleDate,
+                availability_key: availabilityKey,
+                competition_mode: competitionAvailability.mode,
+                competition_windows: competitionAvailability.windows.map((window) => ({
+                  start_time: window.start_time,
+                  end_time: window.end_time,
+                })),
+                team_mode: teamAvailability?.mode ?? "FULL_DAY",
+                team_windows:
+                  teamAvailability?.windows.map((window) => ({
+                    start_time: window.start_time,
+                    end_time: window.end_time,
+                  })) ?? [],
+              },
+            ];
+          });
 
           const eligibleDateCount = visibleDateCards.length;
           const availableDateCount = visibleDateCards.filter(
@@ -8358,14 +7500,10 @@ export function AdminChampionshipBracketPage({
             unavailable_date_count: unavailableDateCount,
             all_dates_full_day:
               eligibleDateCount > 0 &&
-              visibleDateCards.every(
-                (dateCard) => dateCard.team_mode == "FULL_DAY",
-              ),
+              visibleDateCards.every((dateCard) => dateCard.team_mode == "FULL_DAY"),
             all_dates_unavailable:
               eligibleDateCount > 0 &&
-              visibleDateCards.every(
-                (dateCard) => dateCard.team_mode == "UNAVAILABLE",
-              ),
+              visibleDateCards.every((dateCard) => dateCard.team_mode == "UNAVAILABLE"),
             visible_date_cards: visibleDateCards,
           };
 
@@ -8403,9 +7541,7 @@ export function AdminChampionshipBracketPage({
           sport_cards: sportCards,
         };
       })
-      .filter(
-        (teamAvailabilityCard) => teamAvailabilityCard.sport_cards.length > 0,
-      )
+      .filter((teamAvailabilityCard) => teamAvailabilityCard.sport_cards.length > 0)
       .sort((left, right) =>
         left.team_name.localeCompare(right.team_name, "pt-BR", {
           sensitivity: "base",
@@ -8421,9 +7557,7 @@ export function AdminChampionshipBracketPage({
   ]);
 
   const filteredTeamDateAvailabilityCards = useMemo(() => {
-    const normalizedSearchTerm = teamAvailabilitySearchTerm
-      .trim()
-      .toLocaleLowerCase();
+    const normalizedSearchTerm = teamAvailabilitySearchTerm.trim().toLocaleLowerCase();
 
     return teamDateAvailabilityCards.filter((teamAvailabilityCard) => {
       if (
@@ -8437,64 +7571,44 @@ export function AdminChampionshipBracketPage({
         return true;
       }
 
-      return teamAvailabilityCard.team_name
-        .toLocaleLowerCase()
-        .includes(normalizedSearchTerm);
+      return teamAvailabilityCard.team_name.toLocaleLowerCase().includes(normalizedSearchTerm);
     });
-  }, [
-    selectedTeamAvailabilityFilterValue,
-    teamAvailabilitySearchTerm,
-    teamDateAvailabilityCards,
-  ]);
+  }, [selectedTeamAvailabilityFilterValue, teamAvailabilitySearchTerm, teamDateAvailabilityCards]);
 
   useEffect(() => {
     setActiveTeamAvailabilityNaipeTabByTeamSportKey(
       (currentActiveTeamAvailabilityNaipeTabByTeamSportKey) => {
-        const nextActiveTeamAvailabilityNaipeTabByTeamSportKey =
-          teamDateAvailabilityCards.reduce<Record<string, MatchNaipe>>(
-            (carry, teamAvailabilityCard) => {
-              teamAvailabilityCard.sport_cards.forEach((sportCard) => {
-                const supportedNaipes = sportCard.tabs.map((tab) => tab.naipe);
-                const currentActiveNaipe =
-                  currentActiveTeamAvailabilityNaipeTabByTeamSportKey[
-                    sportCard.team_sport_key
-                  ];
+        const nextActiveTeamAvailabilityNaipeTabByTeamSportKey = teamDateAvailabilityCards.reduce<
+          Record<string, MatchNaipe>
+        >((carry, teamAvailabilityCard) => {
+          teamAvailabilityCard.sport_cards.forEach((sportCard) => {
+            const supportedNaipes = sportCard.tabs.map((tab) => tab.naipe);
+            const currentActiveNaipe =
+              currentActiveTeamAvailabilityNaipeTabByTeamSportKey[sportCard.team_sport_key];
 
-                if (
-                  currentActiveNaipe &&
-                  supportedNaipes.includes(currentActiveNaipe)
-                ) {
-                  carry[sportCard.team_sport_key] = currentActiveNaipe;
-                  return;
-                }
+            if (currentActiveNaipe && supportedNaipes.includes(currentActiveNaipe)) {
+              carry[sportCard.team_sport_key] = currentActiveNaipe;
+              return;
+            }
 
-                const defaultNaipe =
-                  resolveDefaultWizardNaipeTabValue(supportedNaipes);
+            const defaultNaipe = resolveDefaultWizardNaipeTabValue(supportedNaipes);
 
-                if (defaultNaipe) {
-                  carry[sportCard.team_sport_key] = defaultNaipe;
-                }
-              });
+            if (defaultNaipe) {
+              carry[sportCard.team_sport_key] = defaultNaipe;
+            }
+          });
 
-              return carry;
-            },
-            {},
-          );
+          return carry;
+        }, {});
 
-        const currentKeys = Object.keys(
-          currentActiveTeamAvailabilityNaipeTabByTeamSportKey,
-        );
-        const nextKeys = Object.keys(
-          nextActiveTeamAvailabilityNaipeTabByTeamSportKey,
-        );
+        const currentKeys = Object.keys(currentActiveTeamAvailabilityNaipeTabByTeamSportKey);
+        const nextKeys = Object.keys(nextActiveTeamAvailabilityNaipeTabByTeamSportKey);
 
         if (
           currentKeys.length == nextKeys.length &&
           nextKeys.every(
             (teamSportKey) =>
-              currentActiveTeamAvailabilityNaipeTabByTeamSportKey[
-                teamSportKey
-              ] ==
+              currentActiveTeamAvailabilityNaipeTabByTeamSportKey[teamSportKey] ==
               nextActiveTeamAvailabilityNaipeTabByTeamSportKey[teamSportKey],
           )
         ) {
@@ -8520,20 +7634,14 @@ export function AdminChampionshipBracketPage({
       });
 
       if (
-        JSON.stringify(nextKnockoutProgramBlocks) ==
-        JSON.stringify(currentKnockoutProgramBlocks)
+        JSON.stringify(nextKnockoutProgramBlocks) == JSON.stringify(currentKnockoutProgramBlocks)
       ) {
         return currentKnockoutProgramBlocks;
       }
 
       return nextKnockoutProgramBlocks;
     });
-  }, [
-    activeCompetitionOptions,
-    hasResolvedInitialDraftSnapshot,
-    scheduleDays,
-    seasonSettings,
-  ]);
+  }, [activeCompetitionOptions, hasResolvedInitialDraftSnapshot, scheduleDays, seasonSettings]);
 
   const individualSessionConfigByKey = useMemo(() => {
     return new Map(
@@ -8564,10 +7672,7 @@ export function AdminChampionshipBracketPage({
           sport_id: competitionOption.sport_id,
           sport_name: competitionOption.sport_name,
           naipe_options: [competitionOption.naipe],
-          division_options:
-            competitionOption.division != null
-              ? [competitionOption.division]
-              : [],
+          division_options: competitionOption.division != null ? [competitionOption.division] : [],
           competition_keys: [
             resolveCompetitionKey(
               competitionOption.sport_id,
@@ -8580,11 +7685,7 @@ export function AdminChampionshipBracketPage({
         return carry;
       }
 
-      if (
-        !currentSportConfiguration.naipe_options.includes(
-          competitionOption.naipe,
-        )
-      ) {
+      if (!currentSportConfiguration.naipe_options.includes(competitionOption.naipe)) {
         currentSportConfiguration.naipe_options = [
           ...currentSportConfiguration.naipe_options,
           competitionOption.naipe,
@@ -8593,9 +7694,7 @@ export function AdminChampionshipBracketPage({
 
       if (
         competitionOption.division != null &&
-        !currentSportConfiguration.division_options.includes(
-          competitionOption.division,
-        )
+        !currentSportConfiguration.division_options.includes(competitionOption.division)
       ) {
         currentSportConfiguration.division_options = [
           ...currentSportConfiguration.division_options,
@@ -8609,9 +7708,7 @@ export function AdminChampionshipBracketPage({
         competitionOption.division,
       );
 
-      if (
-        !currentSportConfiguration.competition_keys.includes(competitionKey)
-      ) {
+      if (!currentSportConfiguration.competition_keys.includes(competitionKey)) {
         currentSportConfiguration.competition_keys = [
           ...currentSportConfiguration.competition_keys,
           competitionKey,
@@ -8653,9 +7750,7 @@ export function AdminChampionshipBracketPage({
         return false;
       }
 
-      return availabilityItem.windows.some(
-        (window) => window.start_time < window.end_time,
-      );
+      return availabilityItem.windows.some((window) => window.start_time < window.end_time);
     };
 
     return scheduleDays.flatMap((scheduleDay, scheduleDayIndex) => {
@@ -8664,21 +7759,14 @@ export function AdminChampionshipBracketPage({
           const sportOptions = court.sport_ids
             .flatMap((sportId) => {
               const sportConfiguration = sportConfigurationById[sportId];
-              const sportCompetitionOptions =
-                competitionOptionsBySportId[sportId] ?? [];
+              const sportCompetitionOptions = competitionOptionsBySportId[sportId] ?? [];
               const playableCompetitionOptions = scheduleDay.date
                 ? sportCompetitionOptions.filter((competitionOption) =>
-                    isCompetitionPlayableOnScheduleDate(
-                      competitionOption,
-                      scheduleDay.date,
-                    ),
+                    isCompetitionPlayableOnScheduleDate(competitionOption, scheduleDay.date),
                   )
                 : sportCompetitionOptions;
 
-              if (
-                !sportConfiguration ||
-                playableCompetitionOptions.length == 0
-              ) {
+              if (!sportConfiguration || playableCompetitionOptions.length == 0) {
                 return [];
               }
 
@@ -8686,27 +7774,23 @@ export function AdminChampionshipBracketPage({
                 {
                   ...sportConfiguration,
 
-                  naipe_options: sportConfiguration.naipe_options.filter(
-                    (naipe) =>
-                      playableCompetitionOptions.some(
-                        (competitionOption) => competitionOption.naipe == naipe,
-                      ),
+                  naipe_options: sportConfiguration.naipe_options.filter((naipe) =>
+                    playableCompetitionOptions.some(
+                      (competitionOption) => competitionOption.naipe == naipe,
+                    ),
                   ),
 
-                  division_options: sportConfiguration.division_options.filter(
-                    (division) =>
-                      playableCompetitionOptions.some(
-                        (competitionOption) =>
-                          competitionOption.division == division,
-                      ),
+                  division_options: sportConfiguration.division_options.filter((division) =>
+                    playableCompetitionOptions.some(
+                      (competitionOption) => competitionOption.division == division,
+                    ),
                   ),
-                  competition_keys: playableCompetitionOptions.map(
-                    (competitionOption) =>
-                      resolveCompetitionKey(
-                        competitionOption.sport_id,
-                        competitionOption.naipe,
-                        competitionOption.division,
-                      ),
+                  competition_keys: playableCompetitionOptions.map((competitionOption) =>
+                    resolveCompetitionKey(
+                      competitionOption.sport_id,
+                      competitionOption.naipe,
+                      competitionOption.division,
+                    ),
                   ),
                 },
               ];
@@ -8740,12 +7824,9 @@ export function AdminChampionshipBracketPage({
                   );
                   const recommendationLine =
                     sportMatchTargetRecommendationByKey.get(
-                      [
-                        scheduleDay.id,
-                        scheduleLocation.id,
-                        court.id,
-                        sportOption.sport_id,
-                      ].join("::"),
+                      [scheduleDay.id, scheduleLocation.id, court.id, sportOption.sport_id].join(
+                        "::",
+                      ),
                     ) ?? null;
                   const plannedMatchCount = Math.max(
                     0,
@@ -8761,26 +7842,18 @@ export function AdminChampionshipBracketPage({
                   };
                 })
                 .filter((summary) => summary.planned_match_count > 0),
-              planned_match_count: court.sport_match_targets.reduce(
-                (total, target) => {
-                  const recommendationLine =
-                    sportMatchTargetRecommendationByKey.get(
-                      [
-                        scheduleDay.id,
-                        scheduleLocation.id,
-                        court.id,
-                        target.sport_id,
-                      ].join("::"),
-                    ) ?? null;
-                  const effectiveMatchCount =
-                    (target.planning_mode ?? "MANUAL") == "AUTO"
-                      ? (recommendationLine?.recommended_match_count ?? 0)
-                      : target.planned_match_count;
+              planned_match_count: court.sport_match_targets.reduce((total, target) => {
+                const recommendationLine =
+                  sportMatchTargetRecommendationByKey.get(
+                    [scheduleDay.id, scheduleLocation.id, court.id, target.sport_id].join("::"),
+                  ) ?? null;
+                const effectiveMatchCount =
+                  (target.planning_mode ?? "MANUAL") == "AUTO"
+                    ? (recommendationLine?.recommended_match_count ?? 0)
+                    : target.planned_match_count;
 
-                  return total + Math.max(0, effectiveMatchCount);
-                },
-                0,
-              ),
+                return total + Math.max(0, effectiveMatchCount);
+              }, 0),
             },
           ];
         }),
@@ -8910,10 +7983,7 @@ export function AdminChampionshipBracketPage({
   const removeKnockoutProgramBlock = useCallback((targetKey: string) => {
     setKnockoutProgramBlocks((currentKnockoutProgramBlocks) =>
       currentKnockoutProgramBlocks
-        .filter(
-          (programBlock) =>
-            resolveKnockoutProgramBlockKey(programBlock) != targetKey,
-        )
+        .filter((programBlock) => resolveKnockoutProgramBlockKey(programBlock) != targetKey)
         .map((programBlock, programBlockIndex) => ({
           ...programBlock,
           display_order: programBlockIndex + 1,
@@ -8924,8 +7994,7 @@ export function AdminChampionshipBracketPage({
   const duplicateKnockoutProgramBlock = useCallback((targetKey: string) => {
     setKnockoutProgramBlocks((currentKnockoutProgramBlocks) => {
       const sourceProgramBlock = currentKnockoutProgramBlocks.find(
-        (programBlock) =>
-          resolveKnockoutProgramBlockKey(programBlock) == targetKey,
+        (programBlock) => resolveKnockoutProgramBlockKey(programBlock) == targetKey,
       );
 
       if (!sourceProgramBlock) {
@@ -8943,53 +8012,43 @@ export function AdminChampionshipBracketPage({
     });
   }, []);
 
-  const moveKnockoutProgramBlock = useCallback(
-    (targetKey: string, direction: -1 | 1) => {
-      setKnockoutProgramBlocks((currentKnockoutProgramBlocks) => {
-        const currentIndex = currentKnockoutProgramBlocks.findIndex(
-          (programBlock) =>
-            resolveKnockoutProgramBlockKey(programBlock) == targetKey,
-        );
+  const moveKnockoutProgramBlock = useCallback((targetKey: string, direction: -1 | 1) => {
+    setKnockoutProgramBlocks((currentKnockoutProgramBlocks) => {
+      const currentIndex = currentKnockoutProgramBlocks.findIndex(
+        (programBlock) => resolveKnockoutProgramBlockKey(programBlock) == targetKey,
+      );
 
-        if (currentIndex < 0) {
-          return currentKnockoutProgramBlocks;
-        }
+      if (currentIndex < 0) {
+        return currentKnockoutProgramBlocks;
+      }
 
-        const nextIndex = currentIndex + direction;
+      const nextIndex = currentIndex + direction;
 
-        if (nextIndex < 0 || nextIndex >= currentKnockoutProgramBlocks.length) {
-          return currentKnockoutProgramBlocks;
-        }
+      if (nextIndex < 0 || nextIndex >= currentKnockoutProgramBlocks.length) {
+        return currentKnockoutProgramBlocks;
+      }
 
-        const nextKnockoutProgramBlocks = [...currentKnockoutProgramBlocks];
+      const nextKnockoutProgramBlocks = [...currentKnockoutProgramBlocks];
 
-        const [movedProgramBlock] = nextKnockoutProgramBlocks.splice(
-          currentIndex,
-          1,
-        );
+      const [movedProgramBlock] = nextKnockoutProgramBlocks.splice(currentIndex, 1);
 
-        if (!movedProgramBlock) {
-          return currentKnockoutProgramBlocks;
-        }
+      if (!movedProgramBlock) {
+        return currentKnockoutProgramBlocks;
+      }
 
-        nextKnockoutProgramBlocks.splice(nextIndex, 0, movedProgramBlock);
+      nextKnockoutProgramBlocks.splice(nextIndex, 0, movedProgramBlock);
 
-        return nextKnockoutProgramBlocks.map(
-          (programBlock, programBlockIndex) => ({
-            ...programBlock,
-            display_order: programBlockIndex + 1,
-          }),
-        );
-      });
-    },
-    [],
-  );
+      return nextKnockoutProgramBlocks.map((programBlock, programBlockIndex) => ({
+        ...programBlock,
+        display_order: programBlockIndex + 1,
+      }));
+    });
+  }, []);
 
   const addKnockoutProgramBlock = useCallback(() => {
     const firstScheduleDay =
       scheduleDays.find(
-        (scheduleDay) =>
-          scheduleDay.date && scheduleDay.start_time && scheduleDay.end_time,
+        (scheduleDay) => scheduleDay.date && scheduleDay.start_time && scheduleDay.end_time,
       ) ??
       scheduleDays[0] ??
       null;
@@ -9002,8 +8061,7 @@ export function AdminChampionshipBracketPage({
       return;
     }
 
-    const firstLocationOption =
-      scheduleLocationOptionsByDate[firstScheduleDay.date]?.[0] ?? null;
+    const firstLocationOption = scheduleLocationOptionsByDate[firstScheduleDay.date]?.[0] ?? null;
     const firstCourtOption = firstLocationOption
       ? (resolveKnockoutProgramCourtOptions(
           firstScheduleDay.date,
@@ -9015,14 +8073,12 @@ export function AdminChampionshipBracketPage({
     const defaultDivisionScope =
       seasonSettings.division_format == ChampionshipSeasonDivisionFormat.UNIFIED
         ? "ALL"
-        : (availableCompetitionOptions[0]?.division ??
-          TeamDivision.DIVISAO_PRINCIPAL);
-    const defaultNaipeSequence =
-      resolveAutomaticKnockoutProgramBlockNaipeSequence({
-        competitionOptions: availableCompetitionOptions,
-        divisionScope: defaultDivisionScope,
-        divisionFormat: seasonSettings.division_format,
-      });
+        : (availableCompetitionOptions[0]?.division ?? TeamDivision.DIVISAO_PRINCIPAL);
+    const defaultNaipeSequence = resolveAutomaticKnockoutProgramBlockNaipeSequence({
+      competitionOptions: availableCompetitionOptions,
+      divisionScope: defaultDivisionScope,
+      divisionFormat: seasonSettings.division_format,
+    });
 
     setKnockoutProgramBlocks((currentKnockoutProgramBlocks) => [
       ...currentKnockoutProgramBlocks,
@@ -9057,9 +8113,7 @@ export function AdminChampionshipBracketPage({
       locationId: string,
       courtId: string,
       preferredSportId: string | null,
-      patch: Partial<
-        Omit<ChampionshipBracketCourtSportPreferenceInput, "preferred_sport_id">
-      > = {},
+      patch: Partial<Omit<ChampionshipBracketCourtSportPreferenceInput, "preferred_sport_id">> = {},
     ) => {
       updateScheduleDay(scheduleDayId, (scheduleDay) => ({
         ...scheduleDay,
@@ -9090,9 +8144,7 @@ export function AdminChampionshipBracketPage({
                   : null;
 
               const nextSequenceMode =
-                patch.sequence_mode ??
-                currentPreference?.sequence_mode ??
-                "FLEXIBLE";
+                patch.sequence_mode ?? currentPreference?.sequence_mode ?? "FLEXIBLE";
 
               let nextPreferredNaipe =
                 patch.preferred_naipe !== undefined
@@ -9126,8 +8178,7 @@ export function AdminChampionshipBracketPage({
                   preferred_naipe: nextPreferredNaipe,
 
                   preferred_division:
-                    seasonSettings.division_format ==
-                    ChampionshipSeasonDivisionFormat.SEPARATED
+                    seasonSettings.division_format == ChampionshipSeasonDivisionFormat.SEPARATED
                       ? nextPreferredDivision
                       : null,
 
@@ -9154,8 +8205,7 @@ export function AdminChampionshipBracketPage({
           court.sport_match_targets
             .filter(
               (target) =>
-                target.planned_match_count > 0 ||
-                (target.planning_mode ?? "MANUAL") == "AUTO",
+                target.planned_match_count > 0 || (target.planning_mode ?? "MANUAL") == "AUTO",
             )
             .map((target) => target.sport_id),
         ),
@@ -9193,9 +8243,7 @@ export function AdminChampionshipBracketPage({
 
       if (
         court.sport_preference != null &&
-        !activeTargetSportIds.includes(
-          court.sport_preference.preferred_sport_id,
-        )
+        !activeTargetSportIds.includes(court.sport_preference.preferred_sport_id)
       ) {
         return {
           ...court,
@@ -9231,9 +8279,7 @@ export function AdminChampionshipBracketPage({
               }
 
               const existingTarget =
-                court.sport_match_targets.find(
-                  (target) => target.sport_id == sportId,
-                ) ?? null;
+                court.sport_match_targets.find((target) => target.sport_id == sportId) ?? null;
               const remainingTargets = court.sport_match_targets.filter(
                 (target) => target.sport_id != sportId,
               );
@@ -9305,9 +8351,7 @@ export function AdminChampionshipBracketPage({
               }
 
               const existingTarget =
-                court.sport_match_targets.find(
-                  (target) => target.sport_id == sportId,
-                ) ?? null;
+                court.sport_match_targets.find((target) => target.sport_id == sportId) ?? null;
               const remainingTargets = court.sport_match_targets.filter(
                 (target) => target.sport_id != sportId,
               );
@@ -9322,8 +8366,7 @@ export function AdminChampionshipBracketPage({
                   ...remainingTargets,
                   {
                     sport_id: sportId,
-                    planned_match_count:
-                      existingTarget?.planned_match_count ?? 0,
+                    planned_match_count: existingTarget?.planned_match_count ?? 0,
                     planning_mode: planningMode,
                   },
                 ],
@@ -9348,10 +8391,7 @@ export function AdminChampionshipBracketPage({
     );
 
     if (response.error) {
-      toast.error(
-        response.error.message ||
-          "Não foi possível excluir o local do catálogo.",
-      );
+      toast.error(response.error.message || "Não foi possível excluir o local do catálogo.");
       setDeletingLocationTemplate(false);
       return;
     }
@@ -9359,8 +8399,7 @@ export function AdminChampionshipBracketPage({
     setLocationTemplates((currentLocationTemplates) =>
       currentLocationTemplates.filter(
         (locationTemplate) =>
-          locationTemplate.id !=
-          locationTemplateDeletionTarget.location_template_id,
+          locationTemplate.id != locationTemplateDeletionTarget.location_template_id,
       ),
     );
     setScheduleDays((currentScheduleDays) =>
@@ -9369,8 +8408,7 @@ export function AdminChampionshipBracketPage({
         locations: scheduleDay.locations
           .filter(
             (location) =>
-              location.location_template_id !=
-              locationTemplateDeletionTarget.location_template_id,
+              location.location_template_id != locationTemplateDeletionTarget.location_template_id,
           )
           .map((location, locationIndex) => ({
             ...location,
@@ -9385,19 +8423,13 @@ export function AdminChampionshipBracketPage({
     ) {
       setLocationTemplateModalOpen(false);
       setLocationTemplateModalTarget(null);
-      setLocationTemplateModalFormValues(
-        resolveInitialLocationTemplateModalFormValue(),
-      );
+      setLocationTemplateModalFormValues(resolveInitialLocationTemplateModalFormValue());
     }
 
     setLocationTemplateDeletionTarget(null);
     setDeletingLocationTemplate(false);
     toast.success("Local removido do catálogo.");
-  }, [
-    deletingLocationTemplate,
-    locationTemplateDeletionTarget,
-    locationTemplateModalTarget,
-  ]);
+  }, [deletingLocationTemplate, locationTemplateDeletionTarget, locationTemplateModalTarget]);
 
   if (isCompactViewport) {
     return (
@@ -9408,12 +8440,9 @@ export function AdminChampionshipBracketPage({
               <Laptop2 className="h-4 w-4" />
             </div>
             <div className="space-y-1">
-              <AlertTitle>
-                Configuração disponível apenas em telas maiores
-              </AlertTitle>
+              <AlertTitle>Configuração disponível apenas em telas maiores</AlertTitle>
               <AlertDescription>
-                Para configurar o campeonato, acesse esta área em desktop ou
-                tablet.
+                Para configurar o campeonato, acesse esta área em desktop ou tablet.
               </AlertDescription>
             </div>
           </div>
@@ -9431,8 +8460,8 @@ export function AdminChampionshipBracketPage({
           </h2>
 
           <p className="mt-1 text-sm text-muted-foreground">
-            Configure participantes, grupos e agenda para criar os jogos
-            automaticamente em fila por dia.
+            Configure participantes, grupos e agenda para criar os jogos automaticamente em fila por
+            dia.
           </p>
         </div>
 
@@ -9501,8 +8530,8 @@ export function AdminChampionshipBracketPage({
             Hora de configurar o campeonato {selectedChampionship.name}!
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Configure participantes, grupos e agenda para criar os jogos
-            automaticamente em fila por dia.
+            Configure participantes, grupos e agenda para criar os jogos automaticamente em fila por
+            dia.
           </p>
         </div>
 
@@ -9552,8 +8581,7 @@ export function AdminChampionshipBracketPage({
                   >
                     {stepLabels.map((label, stepOffset) => {
                       const stepIndex = startIndex + stepOffset;
-                      const isStepUnlocked =
-                        stepIndex <= highestUnlockedStepIndex;
+                      const isStepUnlocked = stepIndex <= highestUnlockedStepIndex;
                       const isCurrentStep = stepIndex == currentStepIndex;
 
                       return (
@@ -9599,9 +8627,7 @@ export function AdminChampionshipBracketPage({
                   Salvar rascunho
                 </Button>
                 {draftLastUpdatedLabel ? (
-                  <p className="text-[11px] text-muted-foreground">
-                    {draftLastUpdatedLabel}
-                  </p>
+                  <p className="text-[11px] text-muted-foreground">{draftLastUpdatedLabel}</p>
                 ) : null}
               </div>
 
@@ -9634,9 +8660,7 @@ export function AdminChampionshipBracketPage({
                     onClick={handleSave}
                     disabled={isCreateButtonDisabled}
                   >
-                    {saving ? (
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    ) : null}
+                    {saving ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
                     Criar campeonato
                   </Button>
                 )}
@@ -9651,10 +8675,9 @@ export function AdminChampionshipBracketPage({
                   <div className="border-b border-border/50 pb-4 mb-6">
                     <p className="text-lg font-bold">Formato da temporada</p>
                     <p className="text-sm text-muted-foreground">
-                      Defina como a temporada{" "}
-                      {selectedChampionship.current_season_year} será disputada.
-                      O formato escolhido passa a dirigir participantes,
-                      competições e o fechamento sazonal.
+                      Defina como a temporada {selectedChampionship.current_season_year} será
+                      disputada. O formato escolhido passa a dirigir participantes, competições e o
+                      fechamento sazonal.
                     </p>
                   </div>
 
@@ -9665,13 +8688,9 @@ export function AdminChampionshipBracketPage({
                         value={seasonSettings.division_format}
                         onValueChange={(value) =>
                           setSeasonSettings((currentSeasonSettings) => {
-                            const nextDivisionFormat =
-                              value as ChampionshipSeasonDivisionFormat;
+                            const nextDivisionFormat = value as ChampionshipSeasonDivisionFormat;
 
-                            if (
-                              nextDivisionFormat ==
-                              ChampionshipSeasonDivisionFormat.SEPARATED
-                            ) {
+                            if (nextDivisionFormat == ChampionshipSeasonDivisionFormat.SEPARATED) {
                               return {
                                 ...currentSeasonSettings,
                                 division_format: nextDivisionFormat,
@@ -9679,11 +8698,9 @@ export function AdminChampionshipBracketPage({
                                   ChampionshipSeasonDivisionSettlementMode.PROMOTION_RELEGATION,
                                 principal_slots_count: null,
                                 principal_relegation_count:
-                                  currentSeasonSettings.principal_relegation_count ??
-                                  2,
+                                  currentSeasonSettings.principal_relegation_count ?? 2,
                                 access_promotion_count:
-                                  currentSeasonSettings.access_promotion_count ??
-                                  2,
+                                  currentSeasonSettings.access_promotion_count ?? 2,
                               };
                             }
 
@@ -9694,8 +8711,7 @@ export function AdminChampionshipBracketPage({
                                 ChampionshipSeasonDivisionSettlementMode.TOP_N_TO_PRINCIPAL,
                               principal_slots_count:
                                 currentSeasonSettings.principal_slots_count ??
-                                (selectedChampionship.code ==
-                                ChampionshipCode.INTERLAJE
+                                (selectedChampionship.code == ChampionshipCode.INTERLAJE
                                   ? 12
                                   : null),
                             };
@@ -9703,31 +8719,23 @@ export function AdminChampionshipBracketPage({
                         }
                       >
                         <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/40 bg-background/40 p-3">
-                          <RadioGroupItem
-                            value={ChampionshipSeasonDivisionFormat.SEPARATED}
-                          />
+                          <RadioGroupItem value={ChampionshipSeasonDivisionFormat.SEPARATED} />
                           <div className="space-y-1">
-                            <p className="text-sm font-semibold">
-                              Divisões separadas
-                            </p>
+                            <p className="text-sm font-semibold">Divisões separadas</p>
                             <p className="text-xs text-muted-foreground">
-                              A divisão principal e a divisão de acesso seguem
-                              em trilhas independentes.
+                              A divisão principal e a divisão de acesso seguem em trilhas
+                              independentes.
                             </p>
                           </div>
                         </label>
 
                         <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/40 bg-background/40 p-3">
-                          <RadioGroupItem
-                            value={ChampionshipSeasonDivisionFormat.UNIFIED}
-                          />
+                          <RadioGroupItem value={ChampionshipSeasonDivisionFormat.UNIFIED} />
                           <div className="space-y-1">
-                            <p className="text-sm font-semibold">
-                              Divisão unificada
-                            </p>
+                            <p className="text-sm font-semibold">Divisão unificada</p>
                             <p className="text-xs text-muted-foreground">
-                              Todas as atléticas jogam juntas na temporada atual
-                              e a divisão futura é definida no encerramento.
+                              Todas as atléticas jogam juntas na temporada atual e a divisão futura
+                              é definida no encerramento.
                             </p>
                           </div>
                         </label>
@@ -9736,12 +8744,10 @@ export function AdminChampionshipBracketPage({
 
                     <div className="space-y-4 rounded-xl border border-border/40 bg-background/30 p-4">
                       <div className="space-y-1">
-                        <p className="text-sm font-bold">
-                          Fechamento da temporada
-                        </p>
+                        <p className="text-sm font-bold">Fechamento da temporada</p>
                         <p className="text-xs text-muted-foreground">
-                          A movimentação de divisões é gerada como prévia e
-                          aplicada só após confirmação administrativa.
+                          A movimentação de divisões é gerada como prévia e aplicada só após
+                          confirmação administrativa.
                         </p>
                       </div>
 
@@ -9755,9 +8761,7 @@ export function AdminChampionshipBracketPage({
                             <Input
                               type="number"
                               min={1}
-                              value={
-                                seasonSettings.principal_relegation_count ?? ""
-                              }
+                              value={seasonSettings.principal_relegation_count ?? ""}
                               onChange={(event) =>
                                 setSeasonSettings((currentSeasonSettings) => ({
                                   ...currentSeasonSettings,
@@ -9776,9 +8780,7 @@ export function AdminChampionshipBracketPage({
                             <Input
                               type="number"
                               min={1}
-                              value={
-                                seasonSettings.access_promotion_count ?? ""
-                              }
+                              value={seasonSettings.access_promotion_count ?? ""}
                               onChange={(event) =>
                                 setSeasonSettings((currentSeasonSettings) => ({
                                   ...currentSeasonSettings,
@@ -9824,16 +8826,12 @@ export function AdminChampionshipBracketPage({
                     <div className="space-y-1">
                       <p className="text-sm font-bold">Cartões amarelos</p>
                       <p className="text-xs text-muted-foreground">
-                        Dois cartões amarelos deixam o atleta suspenso apenas
-                        de forma informativa para a próxima partida. O histórico
-                        continua disponível mesmo após o reset.
+                        Dois cartões amarelos deixam o atleta suspenso apenas de forma informativa
+                        para a próxima partida. O histórico continua disponível mesmo após o reset.
                       </p>
                     </div>
                     <Select
-                      value={
-                        seasonSettings.yellow_card_reset_phase ??
-                        YellowCardResetPhase.NONE
-                      }
+                      value={seasonSettings.yellow_card_reset_phase ?? YellowCardResetPhase.NONE}
                       onValueChange={(value) =>
                         setSeasonSettings((currentSeasonSettings) => ({
                           ...currentSeasonSettings,
@@ -9845,9 +8843,7 @@ export function AdminChampionshipBracketPage({
                         <SelectValue placeholder="Reset dos cartões" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={YellowCardResetPhase.NONE}>
-                          Sem reset
-                        </SelectItem>
+                        <SelectItem value={YellowCardResetPhase.NONE}>Sem reset</SelectItem>
                         <SelectItem value={YellowCardResetPhase.QUARTERFINAL}>
                           Reset nas quartas de final
                         </SelectItem>
@@ -9867,17 +8863,15 @@ export function AdminChampionshipBracketPage({
                   <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/50 pb-4 mb-4">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <p className="text-lg font-bold">
-                          Modalidades do Campeonato
-                        </p>
+                        <p className="text-lg font-bold">Modalidades do Campeonato</p>
                         <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
                           {enabledSportsSummary.selected_sports_count}/
                           {enabledSportsSummary.eligible_sports_count} ativas
                         </span>
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        Escolha quais modalidades entram na temporada atual
-                        antes de selecionar participantes e naipes.
+                        Escolha quais modalidades entram na temporada atual antes de selecionar
+                        participantes e naipes.
                       </p>
                     </div>
                     <label className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium cursor-pointer transition-colors">
@@ -9887,9 +8881,7 @@ export function AdminChampionshipBracketPage({
                           enabledSportsSummary.selected_sports_count,
                           enabledSportsSummary.eligible_sports_count,
                         )}
-                        onCheckedChange={(checked) =>
-                          handleToggleAllEnabledSports(checked == true)
-                        }
+                        onCheckedChange={(checked) => handleToggleAllEnabledSports(checked == true)}
                       />
                       Selecionar todas
                     </label>
@@ -9897,13 +8889,9 @@ export function AdminChampionshipBracketPage({
 
                   <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     {championshipSportCards.map((championshipSport) => {
-                      const isEnabled = enabledSportIdSet.has(
-                        championshipSport.sport_id,
-                      );
-                      const sportName =
-                        championshipSport.sports?.name ?? "Modalidade";
-                      const isIndividualSport =
-                        resolveIsIndividualSportName(sportName);
+                      const isEnabled = enabledSportIdSet.has(championshipSport.sport_id);
+                      const sportName = championshipSport.sports?.name ?? "Modalidade";
+                      const isIndividualSport = resolveIsIndividualSportName(sportName);
 
                       return (
                         <label
@@ -9919,31 +8907,21 @@ export function AdminChampionshipBracketPage({
                             className={SQUARE_CHECKBOX_CLASS_NAME}
                             checked={isEnabled}
                             onCheckedChange={(checked) =>
-                              handleToggleEnabledSport(
-                                championshipSport.sport_id,
-                                checked == true,
-                              )
+                              handleToggleEnabledSport(championshipSport.sport_id, checked == true)
                             }
                           />
                           <div className="min-w-0 space-y-1">
                             <div className="flex flex-wrap items-center gap-2">
-                              <p className="text-sm font-semibold">
-                                {sportName}
-                              </p>
+                              <p className="text-sm font-semibold">{sportName}</p>
                               <AppBadge
-                                tone={
-                                  isIndividualSport
-                                    ? AppBadgeTone.SKY
-                                    : AppBadgeTone.NEUTRAL
-                                }
+                                tone={isIndividualSport ? AppBadgeTone.SKY : AppBadgeTone.NEUTRAL}
                                 className="shrink-0"
                               >
                                 {isIndividualSport ? "Individual" : "Coletiva"}
                               </AppBadge>
                             </div>
                             <p className="text-xs text-muted-foreground">
-                              {championshipSport.naipe_mode ==
-                              ChampionshipSportNaipeMode.MISTO
+                              {championshipSport.naipe_mode == ChampionshipSportNaipeMode.MISTO
                                 ? "Naipe misto."
                                 : "Naipes masculino e feminino."}
                             </p>
@@ -9961,12 +8939,9 @@ export function AdminChampionshipBracketPage({
                 <div className="glass-card rounded-xl border border-border/50 p-6 shadow-sm">
                   <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/50 pb-4 mb-4">
                     <div className="flex items-center gap-2">
-                      <p className="text-lg font-bold">
-                        Selecione as atléticas participantes
-                      </p>
+                      <p className="text-lg font-bold">Selecione as atléticas participantes</p>
                       <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-                        {selectedTeamIds.length}/{selectableTeams.length}{" "}
-                        selecionadas
+                        {selectedTeamIds.length}/{selectableTeams.length} selecionadas
                       </span>
                     </div>
                     <label className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium cursor-pointer transition-colors">
@@ -9979,9 +8954,7 @@ export function AdminChampionshipBracketPage({
                               ? "indeterminate"
                               : false
                         }
-                        onCheckedChange={(checked) =>
-                          handleToggleAllTeamSelection(checked == true)
-                        }
+                        onCheckedChange={(checked) => handleToggleAllTeamSelection(checked == true)}
                       />
                       Selecionar todas
                     </label>
@@ -10004,15 +8977,10 @@ export function AdminChampionshipBracketPage({
                             className={SQUARE_CHECKBOX_CLASS_NAME}
                             checked={isSelected}
                             onCheckedChange={(checked) =>
-                              handleToggleTeamSelection(
-                                team.id,
-                                checked == true,
-                              )
+                              handleToggleTeamSelection(team.id, checked == true)
                             }
                           />
-                          <span className="text-sm font-semibold">
-                            {team.name}
-                          </span>
+                          <span className="text-sm font-semibold">{team.name}</span>
                           {team.division ? (
                             <AppBadge
                               tone={TEAM_DIVISION_BADGE_TONES[team.division]}
@@ -10027,8 +8995,7 @@ export function AdminChampionshipBracketPage({
                   </div>
                   {selectableTeams.length == 0 ? (
                     <p className="mt-3 text-sm text-muted-foreground text-center py-8">
-                      Nenhuma atlética elegível foi encontrada para o formato
-                      sazonal selecionado.
+                      Nenhuma atlética elegível foi encontrada para o formato sazonal selecionado.
                     </p>
                   ) : null}
                 </div>
@@ -10041,18 +9008,15 @@ export function AdminChampionshipBracketPage({
                   <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/50 pb-4 mb-4">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <p className="text-lg font-bold">
-                          Atléticas por modalidade
-                        </p>
+                        <p className="text-lg font-bold">Atléticas por modalidade</p>
                         <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
                           {modalitySelectionSummary.selected_modalities_count}/
-                          {modalitySelectionSummary.eligible_modalities_count}{" "}
-                          selecionadas
+                          {modalitySelectionSummary.eligible_modalities_count} selecionadas
                         </span>
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        Cada card representa uma modalidade. Selecione as
-                        atléticas que participarão de cada uma.
+                        Cada card representa uma modalidade. Selecione as atléticas que participarão
+                        de cada uma.
                       </p>
                     </div>
                     <label className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium cursor-pointer transition-colors">
@@ -10077,12 +9041,9 @@ export function AdminChampionshipBracketPage({
                         resolveNormalizedSportName(modalityCard.sport_name) ==
                         NORMALIZED_BEACH_SOCCER_NAME;
                       const shouldShowEstimatedStartTimeOnCards =
-                        showEstimatedStartTimeOnCardsBySportId[
-                          modalityCard.sport_id
-                        ] ?? false;
+                        showEstimatedStartTimeOnCardsBySportId[modalityCard.sport_id] ?? false;
                       const isModalityCardExpanded =
-                        expandedModalityCardBySportId[modalityCard.sport_id] ===
-                        true;
+                        expandedModalityCardBySportId[modalityCard.sport_id] === true;
                       const modalityCardContentId = `modality-card-content-${modalityCard.sport_id}`;
 
                       return (
@@ -10093,13 +9054,10 @@ export function AdminChampionshipBracketPage({
                         >
                           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/40 bg-background/40 p-4">
                             <div className="space-y-0.5">
-                              <p className="text-base font-bold">
-                                {modalityCard.sport_name}
-                              </p>
+                              <p className="text-base font-bold">{modalityCard.sport_name}</p>
                               <p className="text-xs text-muted-foreground">
                                 {modalityCard.selected_team_count}/
-                                {modalityCard.eligible_team_count} atléticas
-                                selecionadas
+                                {modalityCard.eligible_team_count} atléticas selecionadas
                               </p>
                             </div>
 
@@ -10126,21 +9084,16 @@ export function AdminChampionshipBracketPage({
                                 variant="ghost"
                                 size="icon"
                                 aria-label={`${
-                                  isModalityCardExpanded
-                                    ? "Recolher"
-                                    : "Expandir"
+                                  isModalityCardExpanded ? "Recolher" : "Expandir"
                                 } ${modalityCard.sport_name}`}
                                 aria-expanded={isModalityCardExpanded}
                                 aria-controls={modalityCardContentId}
                                 className="h-8 w-8 text-muted-foreground hover:text-foreground"
                                 onClick={() => {
-                                  setExpandedModalityCardBySportId(
-                                    (currentValue) => ({
-                                      ...currentValue,
-                                      [modalityCard.sport_id]:
-                                        !isModalityCardExpanded,
-                                    }),
-                                  );
+                                  setExpandedModalityCardBySportId((currentValue) => ({
+                                    ...currentValue,
+                                    [modalityCard.sport_id]: !isModalityCardExpanded,
+                                  }));
                                 }}
                               >
                                 {isModalityCardExpanded ? (
@@ -10153,35 +9106,25 @@ export function AdminChampionshipBracketPage({
                           </div>
 
                           {isModalityCardExpanded ? (
-                            <div
-                              id={modalityCardContentId}
-                              className="space-y-3 p-4"
-                            >
+                            <div id={modalityCardContentId} className="space-y-3 p-4">
                               {isBeachSoccerCard ? (
                                 <div className="rounded-md border border-border/60 bg-background/45 p-3">
                                   <p className="text-xs font-semibold text-foreground">
                                     Exibir horário estimado nos cards
                                   </p>
                                   <p className="mt-0.5 text-[11px] text-muted-foreground">
-                                    Mantém a fila normal e adiciona apenas o
-                                    horário estimado para jogos agendados.
+                                    Mantém a fila normal e adiciona apenas o horário estimado para
+                                    jogos agendados.
                                   </p>
 
                                   <RadioGroup
                                     className="mt-2 flex items-center gap-4"
-                                    value={
-                                      shouldShowEstimatedStartTimeOnCards
-                                        ? "YES"
-                                        : "NO"
-                                    }
+                                    value={shouldShowEstimatedStartTimeOnCards ? "YES" : "NO"}
                                     onValueChange={(value) => {
                                       setShowEstimatedStartTimeOnCardsBySportId(
-                                        (
-                                          currentShowEstimatedStartTimeOnCardsBySportId,
-                                        ) => ({
+                                        (currentShowEstimatedStartTimeOnCardsBySportId) => ({
                                           ...currentShowEstimatedStartTimeOnCardsBySportId,
-                                          [modalityCard.sport_id]:
-                                            value == "YES",
+                                          [modalityCard.sport_id]: value == "YES",
                                         }),
                                       );
                                     }}
@@ -10200,8 +9143,7 @@ export function AdminChampionshipBracketPage({
 
                               {modalityCard.teams.length == 0 ? (
                                 <p className="text-xs text-muted-foreground">
-                                  Nenhuma atlética elegível para esta
-                                  modalidade.
+                                  Nenhuma atlética elegível para esta modalidade.
                                 </p>
                               ) : (
                                 <div className="columns-1 gap-3 sm:columns-2 lg:columns-3">
@@ -10228,23 +9170,13 @@ export function AdminChampionshipBracketPage({
                                             )
                                           }
                                         />
-                                        <span className="font-semibold">
-                                          {team.team_name}
-                                        </span>
+                                        <span className="font-semibold">{team.team_name}</span>
                                         {team.division ? (
                                           <AppBadge
-                                            tone={
-                                              TEAM_DIVISION_BADGE_TONES[
-                                                team.division
-                                              ]
-                                            }
+                                            tone={TEAM_DIVISION_BADGE_TONES[team.division]}
                                             className="ml-auto shrink-0 whitespace-nowrap scale-90"
                                           >
-                                            {
-                                              TEAM_DIVISION_LABELS[
-                                                team.division
-                                              ]
-                                            }
+                                            {TEAM_DIVISION_LABELS[team.division]}
                                           </AppBadge>
                                         ) : null}
                                       </label>
@@ -10262,8 +9194,8 @@ export function AdminChampionshipBracketPage({
 
                 {selectedTeams.length == 0 ? (
                   <p className="text-xs text-muted-foreground">
-                    Nenhuma atlética selecionada. Volte para a etapa anterior e
-                    selecione participantes.
+                    Nenhuma atlética selecionada. Volte para a etapa anterior e selecione
+                    participantes.
                   </p>
                 ) : null}
               </div>
@@ -10275,18 +9207,15 @@ export function AdminChampionshipBracketPage({
                   <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/50 pb-4 mb-4">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <p className="text-lg font-bold">
-                          Naipes por modalidade
-                        </p>
+                        <p className="text-lg font-bold">Naipes por modalidade</p>
                         <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
                           {naipeSelectionSummary.selected_naipes_count}/
-                          {naipeSelectionSummary.eligible_naipes_count}{" "}
-                          selecionadas
+                          {naipeSelectionSummary.eligible_naipes_count} selecionadas
                         </span>
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        Cada card representa uma modalidade. Em cada aba,
-                        selecione as atléticas do naipe correspondente.
+                        Cada card representa uma modalidade. Em cada aba, selecione as atléticas do
+                        naipe correspondente.
                       </p>
                     </div>
                     <label className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium cursor-pointer transition-colors">
@@ -10306,8 +9235,7 @@ export function AdminChampionshipBracketPage({
 
                   <div className="grid gap-6">
                     {naipeCards.map((naipeCard) => {
-                      const activeNaipeTabValue =
-                        activeNaipeTabBySportId[naipeCard.sport_id];
+                      const activeNaipeTabValue = activeNaipeTabBySportId[naipeCard.sport_id];
                       const activeNaipeTab = naipeCard.tabs.find(
                         (tab) => tab.naipe == activeNaipeTabValue,
                       );
@@ -10319,9 +9247,7 @@ export function AdminChampionshipBracketPage({
                         MatchNaipe.MASCULINO,
                         MatchNaipe.MISTO,
                       ]
-                        .map((naipe) =>
-                          naipeCard.tabs.find((tab) => tab.naipe == naipe),
-                        )
+                        .map((naipe) => naipeCard.tabs.find((tab) => tab.naipe == naipe))
                         .filter((tab) => tab != null);
 
                       return (
@@ -10332,9 +9258,7 @@ export function AdminChampionshipBracketPage({
                           <div className="bg-background/40 p-4 border-b border-border/40">
                             <div className="flex flex-wrap items-center justify-between gap-3">
                               <div>
-                                <p className="text-base font-bold">
-                                  {naipeCard.sport_name}
-                                </p>
+                                <p className="text-base font-bold">{naipeCard.sport_name}</p>
                               </div>
 
                               <div className="flex items-center gap-4">
@@ -10343,8 +9267,7 @@ export function AdminChampionshipBracketPage({
                                     <p key={tab.naipe}>
                                       {MATCH_NAIPE_LABELS[tab.naipe]}:{" "}
                                       <span className="font-semibold text-foreground">
-                                        {tab.selected_team_count}/
-                                        {tab.eligible_team_count}
+                                        {tab.selected_team_count}/{tab.eligible_team_count}
                                       </span>
                                     </p>
                                   ))}
@@ -10355,21 +9278,16 @@ export function AdminChampionshipBracketPage({
                                   variant="ghost"
                                   size="icon"
                                   aria-label={`${
-                                    isNaipeCardExpanded
-                                      ? "Recolher"
-                                      : "Expandir"
+                                    isNaipeCardExpanded ? "Recolher" : "Expandir"
                                   } ${naipeCard.sport_name}`}
                                   aria-expanded={isNaipeCardExpanded}
                                   aria-controls={naipeCardContentId}
                                   className="h-8 w-8 text-muted-foreground hover:text-foreground"
                                   onClick={() => {
-                                    setExpandedNaipeCardBySportId(
-                                      (currentValue) => ({
-                                        ...currentValue,
-                                        [naipeCard.sport_id]:
-                                          !isNaipeCardExpanded,
-                                      }),
-                                    );
+                                    setExpandedNaipeCardBySportId((currentValue) => ({
+                                      ...currentValue,
+                                      [naipeCard.sport_id]: !isNaipeCardExpanded,
+                                    }));
                                   }}
                                 >
                                   {isNaipeCardExpanded ? (
@@ -10383,10 +9301,7 @@ export function AdminChampionshipBracketPage({
                           </div>
 
                           {isNaipeCardExpanded && activeNaipeTab ? (
-                            <div
-                              id={naipeCardContentId}
-                              className="space-y-4 p-4"
-                            >
+                            <div id={naipeCardContentId} className="space-y-4 p-4">
                               <AnimatedTabBar
                                 items={naipeCard.tabs.map((tab) => ({
                                   value: tab.naipe,
@@ -10395,20 +9310,17 @@ export function AdminChampionshipBracketPage({
                                 }))}
                                 value={activeNaipeTab.naipe}
                                 onValueChange={(value) =>
-                                  setActiveNaipeTabBySportId(
-                                    (currentActiveNaipeTabBySportId) => ({
-                                      ...currentActiveNaipeTabBySportId,
-                                      [naipeCard.sport_id]: value as MatchNaipe,
-                                    }),
-                                  )
+                                  setActiveNaipeTabBySportId((currentActiveNaipeTabBySportId) => ({
+                                    ...currentActiveNaipeTabBySportId,
+                                    [naipeCard.sport_id]: value as MatchNaipe,
+                                  }))
                                 }
                               />
 
                               <div className="flex flex-wrap items-center justify-between gap-2">
                                 <p className="text-xs font-medium text-muted-foreground">
                                   {activeNaipeTab.selected_team_count}/
-                                  {activeNaipeTab.eligible_team_count} atléticas
-                                  selecionadas em{" "}
+                                  {activeNaipeTab.eligible_team_count} atléticas selecionadas em{" "}
                                   {activeNaipeTab.label.toLowerCase()}
                                 </p>
                                 <label className="flex items-center gap-2 rounded-md px-2 py-1 text-xs font-medium cursor-pointer transition-colors">
@@ -10459,16 +9371,10 @@ export function AdminChampionshipBracketPage({
                                           )
                                         }
                                       />
-                                      <span className="font-semibold">
-                                        {team.team_name}
-                                      </span>
+                                      <span className="font-semibold">{team.team_name}</span>
                                       {team.division ? (
                                         <AppBadge
-                                          tone={
-                                            TEAM_DIVISION_BADGE_TONES[
-                                              team.division
-                                            ]
-                                          }
+                                          tone={TEAM_DIVISION_BADGE_TONES[team.division]}
                                           className="ml-auto shrink-0 whitespace-nowrap scale-90"
                                         >
                                           {TEAM_DIVISION_LABELS[team.division]}
@@ -10487,13 +9393,13 @@ export function AdminChampionshipBracketPage({
 
                   {selectedTeams.length == 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-12">
-                      Nenhuma atlética selecionada. Volte para a etapa anterior
-                      e selecione participantes.
+                      Nenhuma atlética selecionada. Volte para a etapa anterior e selecione
+                      participantes.
                     </p>
                   ) : naipeCards.length == 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-12">
-                      Selecione modalidades na etapa anterior para habilitar a
-                      configuração de naipes.
+                      Selecione modalidades na etapa anterior para habilitar a configuração de
+                      naipes.
                     </p>
                   ) : null}
                 </div>
@@ -10506,17 +9412,14 @@ export function AdminChampionshipBracketPage({
                   <div className="border-b border-border/50 pb-4 mb-6">
                     <p className="text-lg font-bold">Configuração de Grupos</p>
                     <p className="text-sm text-muted-foreground">
-                      Defina a quantidade de grupos e classificados por grupo
-                      para cada competição.
+                      Defina a quantidade de grupos e classificados por grupo para cada competição.
                     </p>
                   </div>
 
                   <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                     {sortedActiveCompetitionKeys.map((competitionKey) => {
-                      const competitionOption =
-                        competitionOptionsByKey.get(competitionKey);
-                      const competitionConfig =
-                        competitionConfigByKey[competitionKey];
+                      const competitionOption = competitionOptionsByKey.get(competitionKey);
+                      const competitionConfig = competitionConfigByKey[competitionKey];
 
                       if (!competitionOption || !competitionConfig) {
                         return null;
@@ -10534,29 +9437,19 @@ export function AdminChampionshipBracketPage({
                             </p>
                             {competitionOption.division ? (
                               <p className="text-xs font-medium text-muted-foreground mt-1">
-                                {
-                                  TEAM_DIVISION_LABELS[
-                                    competitionOption.division
-                                  ]
-                                }
+                                {TEAM_DIVISION_LABELS[competitionOption.division]}
                               </p>
                             ) : null}
                             <div className="mt-2 flex flex-col gap-0.5 text-xs text-muted-foreground">
                               <span>
                                 Participantes:{" "}
                                 <strong>
-                                  {teamIdsByCompetitionKey[competitionKey]
-                                    ?.length ?? 0}
+                                  {teamIdsByCompetitionKey[competitionKey]?.length ?? 0}
                                 </strong>
                               </span>
                               {(() => {
-                                const pc =
-                                  teamIdsByCompetitionKey[competitionKey]
-                                    ?.length ?? 0;
-                                const gc = Math.max(
-                                  1,
-                                  competitionConfig.groups_count,
-                                );
+                                const pc = teamIdsByCompetitionKey[competitionKey]?.length ?? 0;
+                                const gc = Math.max(1, competitionConfig.groups_count);
                                 if (pc === 0) return null;
                                 const base = Math.floor(pc / gc);
                                 const extra = pc % gc;
@@ -10569,16 +9462,12 @@ export function AdminChampionshipBracketPage({
                                 return <span>{text}</span>;
                               })()}
                               <span className="font-medium text-foreground/70">
-                                {resolveChampionshipBracketQualificationSummary(
-                                  {
-                                    groups_count:
-                                      competitionConfig.groups_count,
-                                    qualifiers_per_group:
-                                      competitionConfig.qualifiers_per_group,
-                                    should_complete_knockout_with_best_second_placed_teams:
-                                      competitionConfig.should_complete_knockout_with_best_second_placed_teams,
-                                  },
-                                )}
+                                {resolveChampionshipBracketQualificationSummary({
+                                  groups_count: competitionConfig.groups_count,
+                                  qualifiers_per_group: competitionConfig.qualifiers_per_group,
+                                  should_complete_knockout_with_best_second_placed_teams:
+                                    competitionConfig.should_complete_knockout_with_best_second_placed_teams,
+                                })}
                               </span>
                             </div>
                           </div>
@@ -10594,28 +9483,22 @@ export function AdminChampionshipBracketPage({
                                 max={16}
                                 className="h-10 bg-background/50 border-border/40 focus:border-primary/40 focus:ring-primary/20"
                                 value={
-                                  groupCountInputByCompetitionKey[
-                                    competitionKey
-                                  ] ?? String(competitionConfig.groups_count)
+                                  groupCountInputByCompetitionKey[competitionKey] ??
+                                  String(competitionConfig.groups_count)
                                 }
                                 onChange={(e) => {
                                   const nextRawValue = e.target.value;
 
-                                  setGroupCountInputByCompetitionKey(
-                                    (previousInputs) => ({
-                                      ...previousInputs,
-                                      [competitionKey]: nextRawValue,
-                                    }),
-                                  );
+                                  setGroupCountInputByCompetitionKey((previousInputs) => ({
+                                    ...previousInputs,
+                                    [competitionKey]: nextRawValue,
+                                  }));
 
                                   if (nextRawValue.trim() == "") {
                                     return;
                                   }
 
-                                  const parsedValue = parseInt(
-                                    nextRawValue,
-                                    10,
-                                  );
+                                  const parsedValue = parseInt(nextRawValue, 10);
 
                                   if (isNaN(parsedValue)) {
                                     return;
@@ -10630,40 +9513,33 @@ export function AdminChampionshipBracketPage({
                                   }));
                                 }}
                                 onBlur={() => {
-                                  const rawValue =
-                                    groupCountInputByCompetitionKey[
-                                      competitionKey
-                                    ];
+                                  const rawValue = groupCountInputByCompetitionKey[competitionKey];
 
                                   if (rawValue == null) {
                                     return;
                                   }
 
                                   if (rawValue.trim() == "") {
-                                    setGroupCountInputByCompetitionKey(
-                                      (previousInputs) => {
-                                        const nextInputs = {
-                                          ...previousInputs,
-                                        };
-                                        delete nextInputs[competitionKey];
-                                        return nextInputs;
-                                      },
-                                    );
+                                    setGroupCountInputByCompetitionKey((previousInputs) => {
+                                      const nextInputs = {
+                                        ...previousInputs,
+                                      };
+                                      delete nextInputs[competitionKey];
+                                      return nextInputs;
+                                    });
                                     return;
                                   }
 
                                   const parsedValue = parseInt(rawValue, 10);
 
-                                  setGroupCountInputByCompetitionKey(
-                                    (previousInputs) => ({
-                                      ...previousInputs,
-                                      [competitionKey]: String(
-                                        isNaN(parsedValue)
-                                          ? competitionConfig.groups_count
-                                          : parsedValue,
-                                      ),
-                                    }),
-                                  );
+                                  setGroupCountInputByCompetitionKey((previousInputs) => ({
+                                    ...previousInputs,
+                                    [competitionKey]: String(
+                                      isNaN(parsedValue)
+                                        ? competitionConfig.groups_count
+                                        : parsedValue,
+                                    ),
+                                  }));
                                 }}
                               />
                             </div>
@@ -10673,21 +9549,15 @@ export function AdminChampionshipBracketPage({
                                 Classificados por grupo
                               </Label>
                               <RadioGroup
-                                value={resolveQualificationModeOption(
-                                  competitionConfig,
-                                )}
+                                value={resolveQualificationModeOption(competitionConfig)}
                                 onValueChange={(value) =>
                                   setCompetitionConfigByKey((prev) => ({
                                     ...prev,
-                                    [competitionKey]:
-                                      resolveCompetitionConfigByQualificationMode(
-                                        prev[competitionKey] ??
-                                          resolveDefaultCompetitionConfig(
-                                            2,
-                                            competitionOption,
-                                          ),
-                                        value as QualificationModeOption,
-                                      ),
+                                    [competitionKey]: resolveCompetitionConfigByQualificationMode(
+                                      prev[competitionKey] ??
+                                        resolveDefaultCompetitionConfig(2, competitionOption),
+                                      value as QualificationModeOption,
+                                    ),
                                   }))
                                 }
                                 className="flex flex-col gap-2"
@@ -10697,9 +9567,8 @@ export function AdminChampionshipBracketPage({
                                     key={option.value}
                                     className={cn(
                                       "flex items-start gap-3 rounded-lg border p-2.5 transition-all cursor-pointer",
-                                      resolveQualificationModeOption(
-                                        competitionConfig,
-                                      ) == option.value
+                                      resolveQualificationModeOption(competitionConfig) ==
+                                        option.value
                                         ? "border-primary/40 bg-primary/5 ring-1 ring-primary/10"
                                         : "border-border/40 bg-background/20 hover:bg-background/40",
                                     )}
@@ -10709,9 +9578,7 @@ export function AdminChampionshipBracketPage({
                                       id={`qpg-${competitionKey}-${option.value}`}
                                     />
                                     <div className="space-y-1">
-                                      <p className="text-xs font-semibold">
-                                        {option.label}
-                                      </p>
+                                      <p className="text-xs font-semibold">{option.label}</p>
                                       <p className="text-[11px] leading-relaxed text-muted-foreground">
                                         {option.helper}
                                       </p>
@@ -10730,8 +9597,7 @@ export function AdminChampionshipBracketPage({
                                   setCompetitionConfigByKey((prev) => ({
                                     ...prev,
                                     [competitionKey]: {
-                                      ...(prev[competitionKey] ??
-                                        competitionConfig),
+                                      ...(prev[competitionKey] ?? competitionConfig),
                                       knockout_pairing_mode:
                                         value as ChampionshipKnockoutPairingMode,
                                     },
@@ -10744,8 +9610,7 @@ export function AdminChampionshipBracketPage({
                                     key={option.value}
                                     className={cn(
                                       "flex items-start gap-3 rounded-lg border p-2.5 transition-all cursor-pointer",
-                                      competitionConfig.knockout_pairing_mode ==
-                                        option.value
+                                      competitionConfig.knockout_pairing_mode == option.value
                                         ? "border-primary/40 bg-primary/5 ring-1 ring-primary/10"
                                         : "border-border/40 bg-background/20 hover:bg-background/40",
                                     )}
@@ -10755,9 +9620,7 @@ export function AdminChampionshipBracketPage({
                                       id={`knockout-pairing-${competitionKey}-${option.value}`}
                                     />
                                     <div className="space-y-1">
-                                      <p className="text-xs font-semibold">
-                                        {option.label}
-                                      </p>
+                                      <p className="text-xs font-semibold">{option.label}</p>
                                       <p className="text-[11px] leading-relaxed text-muted-foreground">
                                         {option.helper}
                                       </p>
@@ -10780,12 +9643,10 @@ export function AdminChampionshipBracketPage({
                 <div className="glass-card rounded-xl border border-border/50 p-6 shadow-sm">
                   <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/50 pb-4 mb-6">
                     <div className="space-y-1">
-                      <p className="text-lg font-bold">
-                        Monte os grupos por modalidade
-                      </p>
+                      <p className="text-lg font-bold">Monte os grupos por modalidade</p>
                       <p className="text-sm text-muted-foreground">
-                        Cada coluna representa um grupo. Adicione selects extras
-                        com o botão + quando precisar incluir mais atléticas.
+                        Cada coluna representa um grupo. Adicione selects extras com o botão +
+                        quando precisar incluir mais atléticas.
                       </p>
                     </div>
 
@@ -10801,26 +9662,19 @@ export function AdminChampionshipBracketPage({
                 </div>
 
                 {sortedActiveCompetitionKeys.map((competitionKey) => {
-                  const competitionOption =
-                    competitionOptionsByKey.get(competitionKey);
-                  const competitionConfig =
-                    competitionConfigByKey[competitionKey];
+                  const competitionOption = competitionOptionsByKey.get(competitionKey);
+                  const competitionConfig = competitionConfigByKey[competitionKey];
 
                   if (!competitionOption || !competitionConfig) {
                     return null;
                   }
 
-                  const assignments =
-                    groupAssignmentsByCompetitionKey[competitionKey] ?? {};
+                  const assignments = groupAssignmentsByCompetitionKey[competitionKey] ?? {};
                   const groupEditorColumns =
-                    competitionGroupEditorColumnsByCompetitionKey[
-                      competitionKey
-                    ] ?? [];
-                  const participantCount =
-                    teamIdsByCompetitionKey[competitionKey]?.length ?? 0;
+                    competitionGroupEditorColumnsByCompetitionKey[competitionKey] ?? [];
+                  const participantCount = teamIdsByCompetitionKey[competitionKey]?.length ?? 0;
                   const isCompetitionGroupEditorExpanded =
-                    expandedCompetitionGroupEditorByKey[competitionKey] ===
-                    true;
+                    expandedCompetitionGroupEditorByKey[competitionKey] === true;
                   const competitionGroupEditorContentId = `competition-group-editor-${competitionKey}`;
 
                   return (
@@ -10831,8 +9685,7 @@ export function AdminChampionshipBracketPage({
                       <div
                         className={cn(
                           "flex flex-wrap items-center justify-between gap-4 bg-background/40 p-4",
-                          isCompetitionGroupEditorExpanded &&
-                            "border-b border-border/50",
+                          isCompetitionGroupEditorExpanded && "border-b border-border/50",
                         )}
                       >
                         <div className="space-y-1">
@@ -10859,19 +9712,11 @@ export function AdminChampionshipBracketPage({
                             className="h-12 px-8 text-base font-bold shadow-lg shadow-primary/20"
                             onClick={() => handleDrawNextTeam(competitionKey)}
                             disabled={(() => {
-                              const allTeamIds =
-                                teamIdsByCompetitionKey[competitionKey] ?? [];
+                              const allTeamIds = teamIdsByCompetitionKey[competitionKey] ?? [];
                               const assignedIds = new Set(
-                                Object.keys(
-                                  groupAssignmentsByCompetitionKey[
-                                    competitionKey
-                                  ] ?? {},
-                                ),
+                                Object.keys(groupAssignmentsByCompetitionKey[competitionKey] ?? {}),
                               );
-                              return (
-                                allTeamIds.filter((id) => !assignedIds.has(id))
-                                  .length === 0
-                              );
+                              return allTeamIds.filter((id) => !assignedIds.has(id)).length === 0;
                             })()}
                           >
                             Sortear
@@ -10885,13 +9730,10 @@ export function AdminChampionshipBracketPage({
                             aria-controls={competitionGroupEditorContentId}
                             className="h-12 w-12 border-border/40 bg-background/40 hover:bg-background/60"
                             onClick={() =>
-                              setExpandedCompetitionGroupEditorByKey(
-                                (currentValue) => ({
-                                  ...currentValue,
-                                  [competitionKey]:
-                                    !isCompetitionGroupEditorExpanded,
-                                }),
-                              )
+                              setExpandedCompetitionGroupEditorByKey((currentValue) => ({
+                                ...currentValue,
+                                [competitionKey]: !isCompetitionGroupEditorExpanded,
+                              }))
                             }
                           >
                             {isCompetitionGroupEditorExpanded ? (
@@ -10904,19 +9746,13 @@ export function AdminChampionshipBracketPage({
                       </div>
 
                       {isCompetitionGroupEditorExpanded ? (
-                        <div
-                          id={competitionGroupEditorContentId}
-                          className="p-4"
-                        >
+                        <div id={competitionGroupEditorContentId} className="p-4">
                           {groupEditorColumns.length == 0 ? null : (
                             <div className="mt-3 overflow-x-auto pb-1">
                               <div className="flex min-w-max gap-3">
                                 {groupEditorColumns.map((groupColumn) => {
-                                  const assignedTeamCount = Object.values(
-                                    assignments,
-                                  ).filter(
-                                    (groupNumber) =>
-                                      groupNumber == groupColumn.group_number,
+                                  const assignedTeamCount = Object.values(assignments).filter(
+                                    (groupNumber) => groupNumber == groupColumn.group_number,
                                   ).length;
 
                                   return (
@@ -10927,9 +9763,7 @@ export function AdminChampionshipBracketPage({
                                     >
                                       <div className="flex items-center justify-between gap-2 border-b border-border/30 pb-3 mb-4">
                                         <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                                          {resolveChampionshipGroupLabel(
-                                            groupColumn.group_number,
-                                          )}
+                                          {resolveChampionshipGroupLabel(groupColumn.group_number)}
                                         </p>
                                         <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
                                           {assignedTeamCount} atlética
@@ -10938,137 +9772,112 @@ export function AdminChampionshipBracketPage({
                                       </div>
 
                                       <div className="space-y-3">
-                                        {groupColumn.slots.map(
-                                          (slot, slotIndex) => {
-                                            const slotSelectionKey =
-                                              resolveCompetitionGroupSlotSelectionKey(
-                                                competitionKey,
-                                                groupColumn.group_number,
-                                                slot.slot_id,
-                                              );
-                                            const shouldAutoOpenSlot =
-                                              autoOpenCompetitionGroupSlotKey ==
-                                              slotSelectionKey;
-                                            const sortedAvailableTeamIds = [
-                                              ...slot.available_team_ids,
-                                            ].sort(
-                                              (firstTeamId, secondTeamId) => {
-                                                return (
-                                                  teamNameById[firstTeamId] ??
-                                                  "Atlética"
-                                                ).localeCompare(
-                                                  teamNameById[secondTeamId] ??
-                                                    "Atlética",
-                                                  "pt-BR",
-                                                  { sensitivity: "base" },
-                                                );
-                                              },
+                                        {groupColumn.slots.map((slot, slotIndex) => {
+                                          const slotSelectionKey =
+                                            resolveCompetitionGroupSlotSelectionKey(
+                                              competitionKey,
+                                              groupColumn.group_number,
+                                              slot.slot_id,
                                             );
-
+                                          const shouldAutoOpenSlot =
+                                            autoOpenCompetitionGroupSlotKey == slotSelectionKey;
+                                          const sortedAvailableTeamIds = [
+                                            ...slot.available_team_ids,
+                                          ].sort((firstTeamId, secondTeamId) => {
                                             return (
-                                              <div
-                                                key={`${competitionKey}-group-${groupColumn.group_number}-slot-${slot.slot_id}`}
-                                                className="flex items-center gap-2 group/slot"
-                                              >
-                                                <div className="flex-1">
-                                                  <Select
-                                                    open={
-                                                      shouldAutoOpenSlot
-                                                        ? true
-                                                        : undefined
-                                                    }
-                                                    onOpenChange={(open) => {
-                                                      if (
-                                                        !open &&
-                                                        shouldAutoOpenSlot
-                                                      ) {
-                                                        setAutoOpenCompetitionGroupSlotKey(
-                                                          null,
-                                                        );
-                                                      }
-                                                    }}
-                                                    value={
-                                                      slot.team_id ?? undefined
-                                                    }
-                                                    onValueChange={(value) =>
-                                                      handleSelectCompetitionGroupTeam(
-                                                        competitionKey,
-                                                        groupColumn.group_number,
-                                                        value,
-                                                        slot.team_id,
-                                                        slot.slot_id,
-                                                      )
-                                                    }
-                                                    disabled={
-                                                      slot.team_id == null &&
-                                                      slot.available_team_ids
-                                                        .length == 0
-                                                    }
-                                                  >
-                                                    <SelectTrigger
-                                                      data-testid={`${competitionKey}-group-${groupColumn.group_number}-slot-${slotIndex}-trigger`}
-                                                      aria-label={`${resolveChampionshipGroupLabel(groupColumn.group_number)} atlética ${slotIndex + 1}`}
-                                                      className="h-10 bg-background/50 border-border/40 text-xs font-medium focus:ring-primary/20"
-                                                    >
-                                                      <SelectValue
-                                                        placeholder={
-                                                          slot
-                                                            .available_team_ids
-                                                            .length == 0
-                                                            ? "Nenhuma disponível"
-                                                            : "Selecione..."
-                                                        }
-                                                      />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                      {sortedAvailableTeamIds.map(
-                                                        (teamId) => (
-                                                          <SelectItem
-                                                            key={`${competitionKey}-group-${groupColumn.group_number}-team-${teamId}`}
-                                                            value={teamId}
-                                                          >
-                                                            {teamNameById[
-                                                              teamId
-                                                            ] ?? "Atlética"}
-                                                          </SelectItem>
-                                                        ),
-                                                      )}
-                                                    </SelectContent>
-                                                  </Select>
-                                                </div>
-
-                                                {slot.is_removable ? (
-                                                  <Button
-                                                    type="button"
-                                                    size="icon"
-                                                    variant="ghost"
-                                                    data-testid={`${competitionKey}-group-${groupColumn.group_number}-slot-${slotIndex}-remove`}
-                                                    className="h-10 w-9 shrink-0 text-destructive/75 hover:text-destructive hover:bg-destructive/10 opacity-100 dark:text-destructive/85"
-                                                    onClick={() => {
-                                                      if (slot.team_id) {
-                                                        handleRemoveCompetitionGroupTeam(
-                                                          competitionKey,
-                                                          slot.team_id,
-                                                        );
-                                                        return;
-                                                      }
-
-                                                      handleRemoveCompetitionGroupSlot(
-                                                        competitionKey,
-                                                        groupColumn.group_number,
-                                                        slot.slot_id,
-                                                      );
-                                                    }}
-                                                  >
-                                                    <Trash2 className="h-4 w-4" />
-                                                  </Button>
-                                                ) : (
-                                                  <div className="w-9 shrink-0" />
-                                                )}
-                                              </div>
+                                              teamNameById[firstTeamId] ?? "Atlética"
+                                            ).localeCompare(
+                                              teamNameById[secondTeamId] ?? "Atlética",
+                                              "pt-BR",
+                                              { sensitivity: "base" },
                                             );
-                                          },
-                                        )}
+                                          });
+
+                                          return (
+                                            <div
+                                              key={`${competitionKey}-group-${groupColumn.group_number}-slot-${slot.slot_id}`}
+                                              className="flex items-center gap-2 group/slot"
+                                            >
+                                              <div className="flex-1">
+                                                <Select
+                                                  open={shouldAutoOpenSlot ? true : undefined}
+                                                  onOpenChange={(open) => {
+                                                    if (!open && shouldAutoOpenSlot) {
+                                                      setAutoOpenCompetitionGroupSlotKey(null);
+                                                    }
+                                                  }}
+                                                  value={slot.team_id ?? undefined}
+                                                  onValueChange={(value) =>
+                                                    handleSelectCompetitionGroupTeam(
+                                                      competitionKey,
+                                                      groupColumn.group_number,
+                                                      value,
+                                                      slot.team_id,
+                                                      slot.slot_id,
+                                                    )
+                                                  }
+                                                  disabled={
+                                                    slot.team_id == null &&
+                                                    slot.available_team_ids.length == 0
+                                                  }
+                                                >
+                                                  <SelectTrigger
+                                                    data-testid={`${competitionKey}-group-${groupColumn.group_number}-slot-${slotIndex}-trigger`}
+                                                    aria-label={`${resolveChampionshipGroupLabel(groupColumn.group_number)} atlética ${slotIndex + 1}`}
+                                                    className="h-10 bg-background/50 border-border/40 text-xs font-medium focus:ring-primary/20"
+                                                  >
+                                                    <SelectValue
+                                                      placeholder={
+                                                        slot.available_team_ids.length == 0
+                                                          ? "Nenhuma disponível"
+                                                          : "Selecione..."
+                                                      }
+                                                    />
+                                                  </SelectTrigger>
+                                                  <SelectContent>
+                                                    {sortedAvailableTeamIds.map((teamId) => (
+                                                      <SelectItem
+                                                        key={`${competitionKey}-group-${groupColumn.group_number}-team-${teamId}`}
+                                                        value={teamId}
+                                                      >
+                                                        {teamNameById[teamId] ?? "Atlética"}
+                                                      </SelectItem>
+                                                    ))}
+                                                  </SelectContent>
+                                                </Select>
+                                              </div>
+
+                                              {slot.is_removable ? (
+                                                <Button
+                                                  type="button"
+                                                  size="icon"
+                                                  variant="ghost"
+                                                  data-testid={`${competitionKey}-group-${groupColumn.group_number}-slot-${slotIndex}-remove`}
+                                                  className="h-10 w-9 shrink-0 text-destructive/75 hover:text-destructive hover:bg-destructive/10 opacity-100 dark:text-destructive/85"
+                                                  onClick={() => {
+                                                    if (slot.team_id) {
+                                                      handleRemoveCompetitionGroupTeam(
+                                                        competitionKey,
+                                                        slot.team_id,
+                                                      );
+                                                      return;
+                                                    }
+
+                                                    handleRemoveCompetitionGroupSlot(
+                                                      competitionKey,
+                                                      groupColumn.group_number,
+                                                      slot.slot_id,
+                                                    );
+                                                  }}
+                                                >
+                                                  <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                              ) : (
+                                                <div className="w-9 shrink-0" />
+                                              )}
+                                            </div>
+                                          );
+                                        })}
                                       </div>
 
                                       <Button
@@ -11083,13 +9892,9 @@ export function AdminChampionshipBracketPage({
                                             groupColumn.group_number,
                                           )
                                         }
-                                        disabled={
-                                          groupColumn.available_team_ids
-                                            .length == 0
-                                        }
+                                        disabled={groupColumn.available_team_ids.length == 0}
                                       >
-                                        <Plus className="h-4 w-4 mr-2" />{" "}
-                                        Adicionar vaga
+                                        <Plus className="h-4 w-4 mr-2" /> Adicionar vaga
                                       </Button>
                                     </div>
                                   );
@@ -11112,8 +9917,7 @@ export function AdminChampionshipBracketPage({
                     <div className="space-y-1">
                       <p className="text-lg font-bold">Agenda</p>
                       <p className="text-sm text-muted-foreground">
-                        Configure os dias, horários e locais disponíveis para os
-                        jogos.
+                        Configure os dias, horários e locais disponíveis para os jogos.
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center justify-end gap-2">
@@ -11122,9 +9926,7 @@ export function AdminChampionshipBracketPage({
                           className={SQUARE_CHECKBOX_CLASS_NAME}
                           checked={shouldReplicatePreviousScheduleDay}
                           onCheckedChange={(checked) =>
-                            setShouldReplicatePreviousScheduleDay(
-                              checked == true,
-                            )
+                            setShouldReplicatePreviousScheduleDay(checked == true)
                           }
                         />
                         Replicar locais e horários do dia anterior
@@ -11155,14 +9957,11 @@ export function AdminChampionshipBracketPage({
                         >
                           <div className="bg-background/40 px-4 py-3 border-b border-border/40 flex items-center justify-between">
                             <div>
-                              <p className="text-sm font-bold">
-                                Dia {scheduleDayIndex + 1}
-                              </p>
+                              <p className="text-sm font-bold">Dia {scheduleDayIndex + 1}</p>
                               {scheduleDay.date ? (
                                 <p className="mt-1 text-xs text-muted-foreground">
                                   {resolveBrazilianDateString(scheduleDay.date)}
-                                  {scheduleDay.start_time &&
-                                  scheduleDay.end_time
+                                  {scheduleDay.start_time && scheduleDay.end_time
                                     ? ` • ${scheduleDay.start_time} às ${scheduleDay.end_time}`
                                     : ""}
                                 </p>
@@ -11174,9 +9973,7 @@ export function AdminChampionshipBracketPage({
                                   variant="ghost"
                                   size="icon"
                                   className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                  onClick={() =>
-                                    removeScheduleDay(scheduleDay.id)
-                                  }
+                                  onClick={() => removeScheduleDay(scheduleDay.id)}
                                   aria-label={`Remover Dia ${scheduleDayIndex + 1}`}
                                 >
                                   <Trash2 className="h-4 w-4" />
@@ -11187,20 +9984,16 @@ export function AdminChampionshipBracketPage({
                                 variant="ghost"
                                 size="icon"
                                 aria-label={`${
-                                  isScheduleDayExpanded
-                                    ? "Recolher"
-                                    : "Expandir"
+                                  isScheduleDayExpanded ? "Recolher" : "Expandir"
                                 } Dia ${scheduleDayIndex + 1}`}
                                 aria-expanded={isScheduleDayExpanded}
                                 aria-controls={scheduleDayContentId}
                                 className="h-8 w-8 text-muted-foreground hover:text-foreground"
                                 onClick={() => {
-                                  setExpandedScheduleDayById(
-                                    (currentValue) => ({
-                                      ...currentValue,
-                                      [scheduleDay.id]: !isScheduleDayExpanded,
-                                    }),
-                                  );
+                                  setExpandedScheduleDayById((currentValue) => ({
+                                    ...currentValue,
+                                    [scheduleDay.id]: !isScheduleDayExpanded,
+                                  }));
                                 }}
                               >
                                 {isScheduleDayExpanded ? (
@@ -11230,22 +10023,14 @@ export function AdminChampionshipBracketPage({
                                       )}
                                       onChange={(nextStartDateTime) => {
                                         if (!nextStartDateTime) return;
-                                        const nextDate =
-                                          resolveDatePartAsString(
-                                            nextStartDateTime,
-                                          );
+                                        const nextDate = resolveDatePartAsString(nextStartDateTime);
                                         const nextStartTime =
-                                          resolveTimePartAsString(
-                                            nextStartDateTime,
-                                          );
-                                        updateScheduleDay(
-                                          scheduleDay.id,
-                                          (prev) => ({
-                                            ...prev,
-                                            date: nextDate,
-                                            start_time: nextStartTime,
-                                          }),
-                                        );
+                                          resolveTimePartAsString(nextStartDateTime);
+                                        updateScheduleDay(scheduleDay.id, (prev) => ({
+                                          ...prev,
+                                          date: nextDate,
+                                          start_time: nextStartTime,
+                                        }));
                                       }}
                                       placeholder="Início"
                                       defaultTime="08:00"
@@ -11264,22 +10049,14 @@ export function AdminChampionshipBracketPage({
                                       )}
                                       onChange={(nextEndDateTime) => {
                                         if (!nextEndDateTime) return;
-                                        const nextDate =
-                                          resolveDatePartAsString(
-                                            nextEndDateTime,
-                                          );
+                                        const nextDate = resolveDatePartAsString(nextEndDateTime);
                                         const nextEndTime =
-                                          resolveTimePartAsString(
-                                            nextEndDateTime,
-                                          );
-                                        updateScheduleDay(
-                                          scheduleDay.id,
-                                          (prev) => ({
-                                            ...prev,
-                                            date: nextDate,
-                                            end_time: nextEndTime,
-                                          }),
-                                        );
+                                          resolveTimePartAsString(nextEndDateTime);
+                                        updateScheduleDay(scheduleDay.id, (prev) => ({
+                                          ...prev,
+                                          date: nextDate,
+                                          end_time: nextEndTime,
+                                        }));
                                       }}
                                       placeholder="Fim"
                                       defaultTime="18:00"
@@ -11296,13 +10073,10 @@ export function AdminChampionshipBracketPage({
                                     <TimeInput
                                       value={scheduleDay.break_start_time}
                                       onChange={(value) =>
-                                        updateScheduleDay(
-                                          scheduleDay.id,
-                                          (prev) => ({
-                                            ...prev,
-                                            break_start_time: value,
-                                          }),
-                                        )
+                                        updateScheduleDay(scheduleDay.id, (prev) => ({
+                                          ...prev,
+                                          break_start_time: value,
+                                        }))
                                       }
                                       className="sm:max-w-[220px]"
                                     />
@@ -11314,13 +10088,10 @@ export function AdminChampionshipBracketPage({
                                     <TimeInput
                                       value={scheduleDay.break_end_time}
                                       onChange={(value) =>
-                                        updateScheduleDay(
-                                          scheduleDay.id,
-                                          (prev) => ({
-                                            ...prev,
-                                            break_end_time: value,
-                                          }),
-                                        )
+                                        updateScheduleDay(scheduleDay.id, (prev) => ({
+                                          ...prev,
+                                          break_end_time: value,
+                                        }))
                                       }
                                       className="sm:max-w-[220px]"
                                     />
@@ -11339,23 +10110,18 @@ export function AdminChampionshipBracketPage({
                                       variant="outline"
                                       className="h-7 text-[10px] font-bold bg-background/40 border-border/40"
                                       onClick={() =>
-                                        handleOpenLocationTemplateSelectionModal(
-                                          scheduleDay.id,
-                                        )
+                                        handleOpenLocationTemplateSelectionModal(scheduleDay.id)
                                       }
                                       disabled={locationTemplatesLoading}
                                     >
-                                      <Plus className="mr-1 h-3 w-3" />{" "}
-                                      Adicionar local
+                                      <Plus className="mr-1 h-3 w-3" /> Adicionar local
                                     </Button>
                                     <Button
                                       size="sm"
                                       variant="outline"
                                       className="h-7 text-[10px] font-bold bg-background/40 border-border/40"
                                       onClick={() =>
-                                        handleOpenCreateLocationTemplateModal(
-                                          scheduleDay.id,
-                                        )
+                                        handleOpenCreateLocationTemplateModal(scheduleDay.id)
                                       }
                                     >
                                       Cadastrar local
@@ -11371,9 +10137,7 @@ export function AdminChampionshipBracketPage({
                                     >
                                       <div className="flex items-start justify-between gap-3">
                                         <div className="space-y-1">
-                                          <p className="text-sm font-bold">
-                                            {location.name}
-                                          </p>
+                                          <p className="text-sm font-bold">{location.name}</p>
                                           <p className="text-xs text-muted-foreground">
                                             {resolveLocationCatalogSupportSummary(
                                               location,
@@ -11400,10 +10164,7 @@ export function AdminChampionshipBracketPage({
                                             size="icon"
                                             className="h-7 w-7 text-muted-foreground hover:text-destructive"
                                             onClick={() =>
-                                              removeScheduleLocation(
-                                                scheduleDay.id,
-                                                location.id,
-                                              )
+                                              removeScheduleLocation(scheduleDay.id, location.id)
                                             }
                                           >
                                             <X className="h-3 w-3" />
@@ -11432,9 +10193,7 @@ export function AdminChampionshipBracketPage({
                                                   <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                                                     {court.name}
                                                   </p>
-                                                  <TooltipProvider
-                                                    delayDuration={100}
-                                                  >
+                                                  <TooltipProvider delayDuration={100}>
                                                     <Tooltip>
                                                       <TooltipTrigger asChild>
                                                         <button
@@ -11447,14 +10206,10 @@ export function AdminChampionshipBracketPage({
                                                       </TooltipTrigger>
 
                                                       <TooltipContent className="max-w-xs text-xs leading-relaxed">
-                                                        Intervalos
-                                                        personalizados e
-                                                        bloqueios desta quadra
-                                                        neste dia. Use para
-                                                        ocupações de terceiros,
-                                                        manutenção, limpeza ou
-                                                        para deixar esta quadra
-                                                        com uma janela menor que
+                                                        Intervalos personalizados e bloqueios desta
+                                                        quadra neste dia. Use para ocupações de
+                                                        terceiros, manutenção, limpeza ou para
+                                                        deixar esta quadra com uma janela menor que
                                                         a agenda geral.
                                                       </TooltipContent>
                                                     </Tooltip>
@@ -11480,11 +10235,10 @@ export function AdminChampionshipBracketPage({
                                               </div>
 
                                               <div className="mt-3 space-y-2">
-                                                {courtResourceLocks.length ==
-                                                0 ? (
+                                                {courtResourceLocks.length == 0 ? (
                                                   <p className="rounded-md border border-dashed border-border/30 px-3 py-2 text-[11px] italic text-muted-foreground">
-                                                    Nenhum bloqueio específico
-                                                    nesta quadra neste dia.
+                                                    Nenhum bloqueio específico nesta quadra neste
+                                                    dia.
                                                   </p>
                                                 ) : (
                                                   courtResourceLocks.map(
@@ -11500,21 +10254,15 @@ export function AdminChampionshipBracketPage({
                                                           <div className="min-w-0 flex-1 space-y-3">
                                                             <div className="space-y-1.5">
                                                               <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                                                Início do
-                                                                bloqueio
+                                                                Início do bloqueio
                                                               </Label>
                                                               <TimeInput
-                                                                value={
-                                                                  resourceLock.start_time
-                                                                }
-                                                                onChange={(
-                                                                  value,
-                                                                ) =>
+                                                                value={resourceLock.start_time}
+                                                                onChange={(value) =>
                                                                   updateManualCourtResourceLock(
                                                                     resourceLockIndex,
                                                                     {
-                                                                      start_time:
-                                                                        value,
+                                                                      start_time: value,
                                                                     },
                                                                   )
                                                                 }
@@ -11526,17 +10274,12 @@ export function AdminChampionshipBracketPage({
                                                                 Fim do bloqueio
                                                               </Label>
                                                               <TimeInput
-                                                                value={
-                                                                  resourceLock.end_time
-                                                                }
-                                                                onChange={(
-                                                                  value,
-                                                                ) =>
+                                                                value={resourceLock.end_time}
+                                                                onChange={(value) =>
                                                                   updateManualCourtResourceLock(
                                                                     resourceLockIndex,
                                                                     {
-                                                                      end_time:
-                                                                        value,
+                                                                      end_time: value,
                                                                     },
                                                                   )
                                                                 }
@@ -11561,11 +10304,7 @@ export function AdminChampionshipBracketPage({
                                                         </div>
 
                                                         <p className="mt-2 text-[10px] text-muted-foreground">
-                                                          Agenda do dia:{" "}
-                                                          {
-                                                            scheduleDay.start_time
-                                                          }{" "}
-                                                          às{" "}
+                                                          Agenda do dia: {scheduleDay.start_time} às{" "}
                                                           {scheduleDay.end_time}
                                                           {scheduleDay.break_start_time &&
                                                           scheduleDay.break_end_time
@@ -11605,27 +10344,22 @@ export function AdminChampionshipBracketPage({
               <div className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
                 <div className="glass-card rounded-xl border border-border/50 p-6 shadow-sm">
                   <div className="border-b border-border/50 pb-4 mb-6">
-                    <p className="text-lg font-bold">
-                      Sessões das Modalidades Individuais
-                    </p>
+                    <p className="text-lg font-bold">Sessões das Modalidades Individuais</p>
                     <p className="text-sm text-muted-foreground">
-                      Defina o slot oficial de cada sessão de atletismo e
-                      natação por modalidade, naipe e divisão. Esse slot passa a
-                      ser a reserva operacional da sessão ao vivo.
+                      Defina o slot oficial de cada sessão de atletismo e natação por modalidade,
+                      naipe e divisão. Esse slot passa a ser a reserva operacional da sessão ao
+                      vivo.
                     </p>
                   </div>
 
                   <div className="space-y-6">
                     <div className="rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm">
                       <div className="mb-4">
-                        <p className="text-sm font-bold">
-                          Pontuação por colocação
-                        </p>
+                        <p className="text-sm font-bold">Pontuação por colocação</p>
                         <p className="text-xs text-muted-foreground">
-                          Defina quantas colocações pontuam e quantos pontos
-                          cada posição recebe em cada modalidade individual.
-                          Essa regra será aplicada na consolidação oficial das
-                          provas.
+                          Defina quantas colocações pontuam e quantos pontos cada posição recebe em
+                          cada modalidade individual. Essa regra será aplicada na consolidação
+                          oficial das provas.
                         </p>
                       </div>
 
@@ -11638,9 +10372,7 @@ export function AdminChampionshipBracketPage({
                           {selectedIndividualSports.map((individualSport) => {
                             const individualConfig =
                               individualEventConfigs.find(
-                                (configItem) =>
-                                  configItem.sport_id ==
-                                  individualSport.sport_id,
+                                (configItem) => configItem.sport_id == individualSport.sport_id,
                               ) ?? null;
 
                             return (
@@ -11648,12 +10380,9 @@ export function AdminChampionshipBracketPage({
                                 key={`individual-sport-${individualSport.sport_id}`}
                                 className="rounded-lg border border-border/30 bg-background/40 p-4"
                               >
-                                <p className="text-sm font-bold">
-                                  {individualSport.sport_name}
-                                </p>
+                                <p className="text-sm font-bold">{individualSport.sport_name}</p>
                                 <p className="mt-1 text-xs text-muted-foreground">
-                                  A regra vale para todos os naipes da
-                                  modalidade nesta temporada.
+                                  A regra vale para todos os naipes da modalidade nesta temporada.
                                 </p>
 
                                 <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,220px)_minmax(0,220px)]">
@@ -11665,16 +10394,11 @@ export function AdminChampionshipBracketPage({
                                       type="number"
                                       min={1}
                                       step={1}
-                                      value={
-                                        individualConfig?.placements_count ?? 20
-                                      }
+                                      value={individualConfig?.placements_count ?? 20}
                                       onChange={(event) =>
                                         updateIndividualEventPlacementsCount(
                                           individualSport.sport_id,
-                                          Math.max(
-                                            1,
-                                            Number(event.target.value) || 1,
-                                          ),
+                                          Math.max(1, Number(event.target.value) || 1),
                                         )
                                       }
                                       className="h-10 bg-background/50 border-border/40"
@@ -11688,16 +10412,11 @@ export function AdminChampionshipBracketPage({
                                       type="number"
                                       min={1}
                                       step={1}
-                                      value={
-                                        individualConfig?.relay_multiplier ?? 2
-                                      }
+                                      value={individualConfig?.relay_multiplier ?? 2}
                                       onChange={(event) =>
                                         updateIndividualEventRelayMultiplier(
                                           individualSport.sport_id,
-                                          Math.max(
-                                            1,
-                                            Number(event.target.value) || 1,
-                                          ),
+                                          Math.max(1, Number(event.target.value) || 1),
                                         )
                                       }
                                       className="h-10 bg-background/50 border-border/40"
@@ -11713,57 +10432,49 @@ export function AdminChampionshipBracketPage({
                                       </p>
                                       <p className="mt-1 text-[11px] text-muted-foreground">
                                         Preencha da 1ª até a{" "}
-                                        {individualConfig?.placements_count ??
-                                          0}
-                                        ª colocação.
+                                        {individualConfig?.placements_count ?? 0}ª colocação.
                                       </p>
                                     </div>
                                     <p className="text-[11px] text-muted-foreground">
-                                      Deslize horizontalmente para revisar todas
-                                      as posições.
+                                      Deslize horizontalmente para revisar todas as posições.
                                     </p>
                                   </div>
 
                                   <div className="overflow-x-auto pb-1">
                                     <div className="flex min-w-max gap-3">
-                                      {(
-                                        individualConfig?.placement_points ?? []
-                                      ).map((placementPoint) => (
-                                        <div
-                                          key={`${individualSport.sport_id}-placement-${placementPoint.placement}`}
-                                          className="w-48 shrink-0 rounded-lg border border-border/30 bg-background/40 p-3"
-                                        >
-                                          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                                            {placementPoint.placement}º lugar
-                                          </Label>
-                                          <Input
-                                            type="number"
-                                            min={0}
-                                            step={1}
-                                            value={placementPoint.points ?? ""}
-                                            onChange={(event) =>
-                                              updateIndividualEventPlacementPoints(
-                                                individualSport.sport_id,
-                                                placementPoint.placement,
-                                                event.target.value.trim() === ""
-                                                  ? null
-                                                  : Math.max(
-                                                      0,
-                                                      Number(
-                                                        event.target.value,
-                                                      ) || 0,
-                                                    ),
-                                              )
-                                            }
-                                            className={cn(
-                                              "mt-2 h-10 bg-background/50 border-border/40",
-                                              placementPoint.points == null
-                                                ? "border-rose-500/40 focus-visible:ring-rose-500/30"
-                                                : "",
-                                            )}
-                                          />
-                                        </div>
-                                      ))}
+                                      {(individualConfig?.placement_points ?? []).map(
+                                        (placementPoint) => (
+                                          <div
+                                            key={`${individualSport.sport_id}-placement-${placementPoint.placement}`}
+                                            className="w-48 shrink-0 rounded-lg border border-border/30 bg-background/40 p-3"
+                                          >
+                                            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                              {placementPoint.placement}º lugar
+                                            </Label>
+                                            <Input
+                                              type="number"
+                                              min={0}
+                                              step={1}
+                                              value={placementPoint.points ?? ""}
+                                              onChange={(event) =>
+                                                updateIndividualEventPlacementPoints(
+                                                  individualSport.sport_id,
+                                                  placementPoint.placement,
+                                                  event.target.value.trim() === ""
+                                                    ? null
+                                                    : Math.max(0, Number(event.target.value) || 0),
+                                                )
+                                              }
+                                              className={cn(
+                                                "mt-2 h-10 bg-background/50 border-border/40",
+                                                placementPoint.points == null
+                                                  ? "border-rose-500/40 focus-visible:ring-rose-500/30"
+                                                  : "",
+                                              )}
+                                            />
+                                          </div>
+                                        ),
+                                      )}
                                     </div>
                                   </div>
                                 </div>
@@ -11778,298 +10489,232 @@ export function AdminChampionshipBracketPage({
                       <div className="mb-4">
                         <p className="text-sm font-bold">Sessões oficiais</p>
                         <p className="text-xs text-muted-foreground">
-                          Cada sessão individual precisa de um único dia,
-                          horário e recurso oficial. Se marcar "Reserva
-                          exclusiva do recurso", o recurso fica reservado
+                          Cada sessão individual precisa de um único dia, horário e recurso oficial.
+                          Se marcar "Reserva exclusiva do recurso", o recurso fica reservado
                           exclusivamente para a sessão.
                         </p>
                       </div>
 
                       {selectedIndividualCompetitionOptions.length == 0 ? (
                         <div className="rounded-lg border border-dashed border-border/40 bg-background/20 p-6 text-center text-sm text-muted-foreground">
-                          Nenhuma sessão individual foi gerada com a seleção
-                          atual de modalidades, naipes e divisões.
+                          Nenhuma sessão individual foi gerada com a seleção atual de modalidades,
+                          naipes e divisões.
                         </div>
                       ) : (
                         <div className="grid gap-4 xl:grid-cols-2">
-                          {selectedIndividualCompetitionOptions.map(
-                            (competitionOption) => {
-                              const sessionKey =
-                                resolveIndividualSessionConfigKey(
-                                  competitionOption,
-                                );
-                              const sessionConfig =
-                                individualSessionConfigByKey.get(sessionKey) ??
-                                null;
-                              const divisionSuffix = competitionOption.division
-                                ? ` • ${TEAM_DIVISION_LABELS[competitionOption.division]}`
-                                : "";
-                              const selectedDate =
-                                sessionConfig?.scheduled_date ?? null;
-                              const selectedScheduleDay = selectedDate
-                                ? (scheduleDayByDate.get(selectedDate) ?? null)
-                                : null;
-                              const availableResources = selectedDate
-                                ? (
-                                    scheduleResourcesByDate[selectedDate] ?? []
-                                  ).filter((resource) =>
-                                    resource.sport_ids.includes(
-                                      competitionOption.sport_id,
-                                    ),
-                                  )
-                                : [];
-                              const selectedResourceValue =
-                                sessionConfig?.location_key &&
-                                sessionConfig?.court_key
-                                  ? `${sessionConfig.location_key}::${sessionConfig.court_key}`
-                                  : "UNSELECTED";
-                              const hasConfiguredSlot =
-                                Boolean(sessionConfig?.scheduled_date) &&
-                                Boolean(sessionConfig?.start_time) &&
-                                Boolean(sessionConfig?.end_time) &&
-                                Boolean(sessionConfig?.location_key) &&
-                                Boolean(sessionConfig?.court_key);
-                              return (
-                                <div
-                                  key={`individual-session-${sessionKey}`}
-                                  className="rounded-lg border border-border/30 bg-background/40 p-4"
-                                >
-                                  <div className="mb-4 space-y-3">
-                                    <div className="flex flex-wrap items-center justify-between gap-3">
-                                      <p className="text-sm font-bold">
-                                        {competitionOption.sport_name} •{" "}
-                                        {
-                                          MATCH_NAIPE_LABELS[
-                                            competitionOption.naipe
-                                          ]
+                          {selectedIndividualCompetitionOptions.map((competitionOption) => {
+                            const sessionKey = resolveIndividualSessionConfigKey(competitionOption);
+                            const sessionConfig =
+                              individualSessionConfigByKey.get(sessionKey) ?? null;
+                            const divisionSuffix = competitionOption.division
+                              ? ` • ${TEAM_DIVISION_LABELS[competitionOption.division]}`
+                              : "";
+                            const selectedDate = sessionConfig?.scheduled_date ?? null;
+                            const selectedScheduleDay = selectedDate
+                              ? (scheduleDayByDate.get(selectedDate) ?? null)
+                              : null;
+                            const availableResources = selectedDate
+                              ? (scheduleResourcesByDate[selectedDate] ?? []).filter((resource) =>
+                                  resource.sport_ids.includes(competitionOption.sport_id),
+                                )
+                              : [];
+                            const selectedResourceValue =
+                              sessionConfig?.location_key && sessionConfig?.court_key
+                                ? `${sessionConfig.location_key}::${sessionConfig.court_key}`
+                                : "UNSELECTED";
+                            const hasConfiguredSlot =
+                              Boolean(sessionConfig?.scheduled_date) &&
+                              Boolean(sessionConfig?.start_time) &&
+                              Boolean(sessionConfig?.end_time) &&
+                              Boolean(sessionConfig?.location_key) &&
+                              Boolean(sessionConfig?.court_key);
+                            return (
+                              <div
+                                key={`individual-session-${sessionKey}`}
+                                className="rounded-lg border border-border/30 bg-background/40 p-4"
+                              >
+                                <div className="mb-4 space-y-3">
+                                  <div className="flex flex-wrap items-center justify-between gap-3">
+                                    <p className="text-sm font-bold">
+                                      {competitionOption.sport_name} •{" "}
+                                      {MATCH_NAIPE_LABELS[competitionOption.naipe]}
+                                      {divisionSuffix}
+                                    </p>
+                                    <AppBadge
+                                      tone={
+                                        hasConfiguredSlot
+                                          ? AppBadgeTone.EMERALD
+                                          : AppBadgeTone.AMBER
+                                      }
+                                      className="shrink-0"
+                                    >
+                                      {hasConfiguredSlot ? "Configurado" : "Pendente"}
+                                    </AppBadge>
+                                  </div>
+                                  <div className="flex flex-wrap items-center justify-between gap-3">
+                                    <p className="text-xs text-muted-foreground">
+                                      Sessão única que aparecerá no controle ao vivo e na agenda
+                                      pública.
+                                    </p>
+                                    <label className="flex items-center gap-2 rounded-md border border-border/40 bg-background/40 px-3 py-2 text-xs font-medium">
+                                      <Checkbox
+                                        className={SQUARE_CHECKBOX_CLASS_NAME}
+                                        checked={sessionConfig?.exclusive_lock_enabled == true}
+                                        onCheckedChange={(checked) =>
+                                          updateIndividualSessionConfig(sessionKey, {
+                                            exclusive_lock_enabled: checked == true,
+                                          })
                                         }
-                                        {divisionSuffix}
-                                      </p>
-                                      <AppBadge
-                                        tone={
-                                          hasConfiguredSlot
-                                            ? AppBadgeTone.EMERALD
-                                            : AppBadgeTone.AMBER
-                                        }
-                                        className="shrink-0"
-                                      >
-                                        {hasConfiguredSlot
-                                          ? "Configurado"
-                                          : "Pendente"}
-                                      </AppBadge>
-                                    </div>
-                                    <div className="flex flex-wrap items-center justify-between gap-3">
-                                      <p className="text-xs text-muted-foreground">
-                                        Sessão única que aparecerá no controle
-                                        ao vivo e na agenda pública.
-                                      </p>
-                                      <label className="flex items-center gap-2 rounded-md border border-border/40 bg-background/40 px-3 py-2 text-xs font-medium">
-                                        <Checkbox
-                                          className={SQUARE_CHECKBOX_CLASS_NAME}
-                                          checked={
-                                            sessionConfig?.exclusive_lock_enabled ==
-                                            true
-                                          }
-                                          onCheckedChange={(checked) =>
-                                            updateIndividualSessionConfig(
-                                              sessionKey,
-                                              {
-                                                exclusive_lock_enabled:
-                                                  checked == true,
-                                              },
-                                            )
-                                          }
-                                        />
-                                        Reserva exclusiva do recurso
-                                      </label>
-                                    </div>
+                                      />
+                                      Reserva exclusiva do recurso
+                                    </label>
+                                  </div>
+                                </div>
+
+                                <div className="grid gap-4 sm:grid-cols-4">
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                      Dia oficial
+                                    </Label>
+                                    <Select
+                                      value={selectedDate ?? "UNSELECTED"}
+                                      onValueChange={(value) => {
+                                        const nextDate = value == "UNSELECTED" ? null : value;
+
+                                        updateIndividualSessionConfig(sessionKey, {
+                                          scheduled_date: nextDate,
+                                          start_time: null,
+                                          end_time: null,
+                                          location_key: null,
+                                          court_key: null,
+                                          location_name: null,
+                                          court_name: null,
+                                        });
+                                      }}
+                                    >
+                                      <SelectTrigger className="h-10 bg-background/50 border-border/40">
+                                        <SelectValue placeholder="Selecione o dia" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="UNSELECTED">Selecione</SelectItem>
+                                        {scheduleDayDates.map((scheduleDate) => (
+                                          <SelectItem
+                                            key={`${sessionKey}-date-${scheduleDate}`}
+                                            value={scheduleDate}
+                                          >
+                                            {resolveBrazilianDateString(scheduleDate)}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
                                   </div>
 
-                                  <div className="grid gap-4 sm:grid-cols-4">
-                                    <div className="space-y-1.5">
-                                      <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                                        Dia oficial
-                                      </Label>
-                                      <Select
-                                        value={selectedDate ?? "UNSELECTED"}
-                                        onValueChange={(value) => {
-                                          const nextDate =
-                                            value == "UNSELECTED"
-                                              ? null
-                                              : value;
-
-                                          updateIndividualSessionConfig(
-                                            sessionKey,
-                                            {
-                                              scheduled_date: nextDate,
-                                              start_time: null,
-                                              end_time: null,
-                                              location_key: null,
-                                              court_key: null,
-                                              location_name: null,
-                                              court_name: null,
-                                            },
-                                          );
-                                        }}
-                                      >
-                                        <SelectTrigger className="h-10 bg-background/50 border-border/40">
-                                          <SelectValue placeholder="Selecione o dia" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          <SelectItem value="UNSELECTED">
-                                            Selecione
-                                          </SelectItem>
-                                          {scheduleDayDates.map(
-                                            (scheduleDate) => (
-                                              <SelectItem
-                                                key={`${sessionKey}-date-${scheduleDate}`}
-                                                value={scheduleDate}
-                                              >
-                                                {resolveBrazilianDateString(
-                                                  scheduleDate,
-                                                )}
-                                              </SelectItem>
-                                            ),
-                                          )}
-                                        </SelectContent>
-                                      </Select>
-                                    </div>
-
-                                    <div className="space-y-1.5 sm:col-span-2">
-                                      <div className="grid gap-3 sm:grid-cols-2">
-                                        <div className="space-y-1.5">
-                                          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                                            Início
-                                          </Label>
-                                          <TimeInput
-                                            value={
-                                              sessionConfig?.start_time ?? ""
-                                            }
-                                            onChange={(value) =>
-                                              updateIndividualSessionConfig(
-                                                sessionKey,
-                                                {
-                                                  start_time: value || null,
-                                                },
-                                              )
-                                            }
-                                            disabled={!selectedDate}
-                                            className="bg-background/50 border-border/40"
-                                          />
-                                        </div>
-
-                                        <div className="space-y-1.5">
-                                          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                                            Fim
-                                          </Label>
-                                          <TimeInput
-                                            value={
-                                              sessionConfig?.end_time ?? ""
-                                            }
-                                            onChange={(value) =>
-                                              updateIndividualSessionConfig(
-                                                sessionKey,
-                                                {
-                                                  end_time: value || null,
-                                                },
-                                              )
-                                            }
-                                            disabled={!selectedDate}
-                                            className="bg-background/50 border-border/40"
-                                          />
-                                        </div>
+                                  <div className="space-y-1.5 sm:col-span-2">
+                                    <div className="grid gap-3 sm:grid-cols-2">
+                                      <div className="space-y-1.5">
+                                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                          Início
+                                        </Label>
+                                        <TimeInput
+                                          value={sessionConfig?.start_time ?? ""}
+                                          onChange={(value) =>
+                                            updateIndividualSessionConfig(sessionKey, {
+                                              start_time: value || null,
+                                            })
+                                          }
+                                          disabled={!selectedDate}
+                                          className="bg-background/50 border-border/40"
+                                        />
                                       </div>
 
-                                      {selectedScheduleDay ? (
-                                        <p className="pt-0.5 text-center text-[11px] text-muted-foreground">
-                                          Agenda:{" "}
-                                          {selectedScheduleDay.start_time} às{" "}
-                                          {selectedScheduleDay.end_time}
-                                        </p>
-                                      ) : null}
+                                      <div className="space-y-1.5">
+                                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                          Fim
+                                        </Label>
+                                        <TimeInput
+                                          value={sessionConfig?.end_time ?? ""}
+                                          onChange={(value) =>
+                                            updateIndividualSessionConfig(sessionKey, {
+                                              end_time: value || null,
+                                            })
+                                          }
+                                          disabled={!selectedDate}
+                                          className="bg-background/50 border-border/40"
+                                        />
+                                      </div>
                                     </div>
 
-                                    <div className="space-y-1.5">
-                                      <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                                        Recurso
-                                      </Label>
-                                      <Select
-                                        value={selectedResourceValue}
-                                        onValueChange={(value) => {
-                                          if (value == "UNSELECTED") {
-                                            updateIndividualSessionConfig(
-                                              sessionKey,
-                                              {
-                                                location_key: null,
-                                                court_key: null,
-                                                location_name: null,
-                                                court_name: null,
-                                              },
-                                            );
-                                            return;
-                                          }
-
-                                          const nextResource =
-                                            availableResources.find(
-                                              (resource) =>
-                                                `${resource.location_key}::${resource.court_key}` ==
-                                                value,
-                                            );
-
-                                          if (!nextResource) {
-                                            return;
-                                          }
-
-                                          updateIndividualSessionConfig(
-                                            sessionKey,
-                                            {
-                                              location_key:
-                                                nextResource.location_key,
-                                              court_key: nextResource.court_key,
-                                              location_name:
-                                                nextResource.location_name,
-                                              court_name:
-                                                nextResource.court_name,
-                                            },
-                                          );
-                                        }}
-                                        disabled={!selectedDate}
-                                      >
-                                        <SelectTrigger className="h-10 bg-background/50 border-border/40">
-                                          <SelectValue placeholder="Selecione o recurso" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          <SelectItem value="UNSELECTED">
-                                            Selecione
-                                          </SelectItem>
-                                          {availableResources.map(
-                                            (resource) => (
-                                              <SelectItem
-                                                key={`${sessionKey}-resource-${resource.location_key}-${resource.court_key}`}
-                                                value={`${resource.location_key}::${resource.court_key}`}
-                                              >
-                                                {resource.location_name} •{" "}
-                                                {resource.court_name}
-                                              </SelectItem>
-                                            ),
-                                          )}
-                                        </SelectContent>
-                                      </Select>
-                                    </div>
+                                    {selectedScheduleDay ? (
+                                      <p className="pt-0.5 text-center text-[11px] text-muted-foreground">
+                                        Agenda: {selectedScheduleDay.start_time} às{" "}
+                                        {selectedScheduleDay.end_time}
+                                      </p>
+                                    ) : null}
                                   </div>
 
-                                  {selectedDate &&
-                                  availableResources.length == 0 ? (
-                                    <div className="mt-4 rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-100">
-                                      Nenhum recurso compatível com{" "}
-                                      {competitionOption.sport_name} foi
-                                      encontrado no dia selecionado.
-                                    </div>
-                                  ) : null}
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                      Recurso
+                                    </Label>
+                                    <Select
+                                      value={selectedResourceValue}
+                                      onValueChange={(value) => {
+                                        if (value == "UNSELECTED") {
+                                          updateIndividualSessionConfig(sessionKey, {
+                                            location_key: null,
+                                            court_key: null,
+                                            location_name: null,
+                                            court_name: null,
+                                          });
+                                          return;
+                                        }
+
+                                        const nextResource = availableResources.find(
+                                          (resource) =>
+                                            `${resource.location_key}::${resource.court_key}` ==
+                                            value,
+                                        );
+
+                                        if (!nextResource) {
+                                          return;
+                                        }
+
+                                        updateIndividualSessionConfig(sessionKey, {
+                                          location_key: nextResource.location_key,
+                                          court_key: nextResource.court_key,
+                                          location_name: nextResource.location_name,
+                                          court_name: nextResource.court_name,
+                                        });
+                                      }}
+                                      disabled={!selectedDate}
+                                    >
+                                      <SelectTrigger className="h-10 bg-background/50 border-border/40">
+                                        <SelectValue placeholder="Selecione o recurso" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="UNSELECTED">Selecione</SelectItem>
+                                        {availableResources.map((resource) => (
+                                          <SelectItem
+                                            key={`${sessionKey}-resource-${resource.location_key}-${resource.court_key}`}
+                                            value={`${resource.location_key}::${resource.court_key}`}
+                                          >
+                                            {resource.location_name} • {resource.court_name}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
                                 </div>
-                              );
-                            },
-                          )}
+
+                                {selectedDate && availableResources.length == 0 ? (
+                                  <div className="mt-4 rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-100">
+                                    Nenhum recurso compatível com {competitionOption.sport_name} foi
+                                    encontrado no dia selecionado.
+                                  </div>
+                                ) : null}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -12082,59 +10727,47 @@ export function AdminChampionshipBracketPage({
               <div className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
                 <div className="glass-card rounded-xl border border-border/50 p-6 shadow-sm">
                   <div className="border-b border-border/50 pb-4 mb-6">
-                    <p className="text-lg font-bold">
-                      Disponibilidade por Modalidade
-                    </p>
+                    <p className="text-lg font-bold">Disponibilidade por Modalidade</p>
                     <p className="text-sm text-muted-foreground">
-                      Defina em quais dias e horários cada competição coletiva
-                      poderá receber jogos. As modalidades individuais continuam
-                      utilizando o slot oficial configurado na etapa anterior.
+                      Defina em quais dias e horários cada competição coletiva poderá receber jogos.
+                      As modalidades individuais continuam utilizando o slot oficial configurado na
+                      etapa anterior.
                     </p>
                   </div>
 
                   {activeCompetitionOptions.length == 0 ? (
                     <div className="rounded-lg border border-dashed border-border/40 bg-background/20 p-6 text-center text-sm text-muted-foreground">
-                      Nenhuma competição coletiva ativa para configurar nesta
-                      etapa.
+                      Nenhuma competição coletiva ativa para configurar nesta etapa.
                     </div>
                   ) : (
                     <div className="space-y-5">
                       {activeCompetitionOptions.map((competitionOption) => {
-                        const competitionAvailabilityItems =
-                          scheduleDayDatesOrderedByColumn.map(
-                            (scheduleDate) =>
-                              competitionDateAvailabilityByKey.get(
-                                `${competitionOption.key}::${scheduleDate}`,
-                              ) ?? null,
-                          );
+                        const competitionAvailabilityItems = scheduleDayDatesOrderedByColumn.map(
+                          (scheduleDate) =>
+                            competitionDateAvailabilityByKey.get(
+                              `${competitionOption.key}::${scheduleDate}`,
+                            ) ?? null,
+                        );
 
                         const allDaysFullDay =
                           competitionAvailabilityItems.length > 0 &&
                           competitionAvailabilityItems.every(
-                            (availabilityItem) =>
-                              availabilityItem?.mode == "FULL_DAY",
+                            (availabilityItem) => availabilityItem?.mode == "FULL_DAY",
                           );
 
                         const allDaysUnavailable =
                           competitionAvailabilityItems.length > 0 &&
                           competitionAvailabilityItems.every(
-                            (availabilityItem) =>
-                              availabilityItem?.mode == "UNAVAILABLE",
+                            (availabilityItem) => availabilityItem?.mode == "UNAVAILABLE",
                           );
-                        const availableDayCount =
-                          competitionAvailabilityItems.filter(
-                            (availabilityItem) =>
-                              availabilityItem?.mode != "UNAVAILABLE",
-                          ).length;
-                        const customDayCount =
-                          competitionAvailabilityItems.filter(
-                            (availabilityItem) =>
-                              availabilityItem?.mode == "CUSTOM",
-                          ).length;
+                        const availableDayCount = competitionAvailabilityItems.filter(
+                          (availabilityItem) => availabilityItem?.mode != "UNAVAILABLE",
+                        ).length;
+                        const customDayCount = competitionAvailabilityItems.filter(
+                          (availabilityItem) => availabilityItem?.mode == "CUSTOM",
+                        ).length;
                         const isCompetitionAvailabilityExpanded =
-                          expandedCompetitionAvailabilityByKey[
-                            competitionOption.key
-                          ] === true;
+                          expandedCompetitionAvailabilityByKey[competitionOption.key] === true;
                         const competitionAvailabilityContentId = `competition-date-availability-content-${competitionOption.key}`;
 
                         return (
@@ -12147,45 +10780,35 @@ export function AdminChampionshipBracketPage({
                               aria-expanded={isCompetitionAvailabilityExpanded}
                               aria-controls={competitionAvailabilityContentId}
                               aria-label={`${
-                                isCompetitionAvailabilityExpanded
-                                  ? "Recolher"
-                                  : "Expandir"
+                                isCompetitionAvailabilityExpanded ? "Recolher" : "Expandir"
                               } disponibilidade de ${
-                                competitionLabelByKey[competitionOption.key] ??
-                                "Competição"
+                                competitionLabelByKey[competitionOption.key] ?? "Competição"
                               }`}
                               onClick={() => {
-                                setExpandedCompetitionAvailabilityByKey(
-                                  (currentValue) => ({
-                                    ...currentValue,
-                                    [competitionOption.key]:
-                                      !isCompetitionAvailabilityExpanded,
-                                  }),
-                                );
+                                setExpandedCompetitionAvailabilityByKey((currentValue) => ({
+                                  ...currentValue,
+                                  [competitionOption.key]: !isCompetitionAvailabilityExpanded,
+                                }));
                               }}
                               className={cn(
                                 "flex w-full items-start justify-between gap-4 p-5 text-left transition-colors hover:text-foreground",
-                                isCompetitionAvailabilityExpanded &&
-                                  "border-b border-border/40",
+                                isCompetitionAvailabilityExpanded && "border-b border-border/40",
                               )}
                             >
                               <div>
                                 <p className="text-sm font-bold">
-                                  {competitionLabelByKey[
-                                    competitionOption.key
-                                  ] ?? "Competição"}
+                                  {competitionLabelByKey[competitionOption.key] ?? "Competição"}
                                 </p>
                                 <p className="mt-1 text-xs text-muted-foreground">
-                                  Configure o dia inteiro ou restrinja a
-                                  modalidade a horários específicos.
+                                  Configure o dia inteiro ou restrinja a modalidade a horários
+                                  específicos.
                                 </p>
                               </div>
 
                               <div className="flex items-center gap-3 text-right text-xs font-medium text-muted-foreground">
                                 <div>
                                   <p>
-                                    {availableDayCount}/
-                                    {competitionAvailabilityItems.length} dias
+                                    {availableDayCount}/{competitionAvailabilityItems.length} dias
                                     disponíveis
                                   </p>
                                   {customDayCount > 0 ? (
@@ -12204,18 +10827,13 @@ export function AdminChampionshipBracketPage({
                             </button>
 
                             {isCompetitionAvailabilityExpanded ? (
-                              <div
-                                id={competitionAvailabilityContentId}
-                                className="p-5"
-                              >
+                              <div id={competitionAvailabilityContentId} className="p-5">
                                 <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
                                   <div className="flex flex-wrap gap-2">
                                     <Button
                                       type="button"
                                       size="sm"
-                                      variant={
-                                        allDaysFullDay ? "default" : "secondary"
-                                      }
+                                      variant={allDaysFullDay ? "default" : "secondary"}
                                       onClick={() =>
                                         updateCompetitionDateAvailabilityForAllDates(
                                           competitionOption.key,
@@ -12229,11 +10847,7 @@ export function AdminChampionshipBracketPage({
                                     <Button
                                       type="button"
                                       size="sm"
-                                      variant={
-                                        allDaysUnavailable
-                                          ? "default"
-                                          : "secondary"
-                                      }
+                                      variant={allDaysUnavailable ? "default" : "secondary"}
                                       onClick={() =>
                                         updateCompetitionDateAvailabilityForAllDates(
                                           competitionOption.key,
@@ -12247,242 +10861,213 @@ export function AdminChampionshipBracketPage({
                                 </div>
 
                                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                                  {scheduleDayDatesOrderedByColumn.map(
-                                    (scheduleDate) => {
-                                      const availabilityKey = `${competitionOption.key}::${scheduleDate}`;
-                                      const availabilityItem =
-                                        competitionDateAvailabilityByKey.get(
-                                          availabilityKey,
-                                        );
-                                      const availabilityMode =
-                                        availabilityItem?.mode ?? "FULL_DAY";
-                                      const availabilityWindows =
-                                        availabilityItem?.windows ?? [];
-                                      const scheduleDay =
-                                        scheduleDays.find(
-                                          (currentScheduleDay) =>
-                                            currentScheduleDay.date ==
-                                            scheduleDate,
-                                        ) ?? null;
-                                      const hasBreak =
-                                        Boolean(
-                                          scheduleDay?.break_start_time,
-                                        ) &&
-                                        Boolean(scheduleDay?.break_end_time);
+                                  {scheduleDayDatesOrderedByColumn.map((scheduleDate) => {
+                                    const availabilityKey = `${competitionOption.key}::${scheduleDate}`;
+                                    const availabilityItem =
+                                      competitionDateAvailabilityByKey.get(availabilityKey);
+                                    const availabilityMode = availabilityItem?.mode ?? "FULL_DAY";
+                                    const availabilityWindows = availabilityItem?.windows ?? [];
+                                    const scheduleDay =
+                                      scheduleDays.find(
+                                        (currentScheduleDay) =>
+                                          currentScheduleDay.date == scheduleDate,
+                                      ) ?? null;
+                                    const hasBreak =
+                                      Boolean(scheduleDay?.break_start_time) &&
+                                      Boolean(scheduleDay?.break_end_time);
 
-                                      return (
-                                        <div
-                                          key={availabilityKey}
-                                          className={cn(
-                                            "rounded-xl border p-4 transition-colors",
-                                            availabilityMode == "UNAVAILABLE"
-                                              ? "border-border/30 bg-background/20 opacity-75"
-                                              : "border-border/40 bg-background/40",
-                                          )}
-                                        >
-                                          <div className="mb-4">
-                                            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                                              {resolveBrazilianDateString(
-                                                scheduleDate,
-                                              )}
+                                    return (
+                                      <div
+                                        key={availabilityKey}
+                                        className={cn(
+                                          "rounded-xl border p-4 transition-colors",
+                                          availabilityMode == "UNAVAILABLE"
+                                            ? "border-border/30 bg-background/20 opacity-75"
+                                            : "border-border/40 bg-background/40",
+                                        )}
+                                      >
+                                        <div className="mb-4">
+                                          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                            {resolveBrazilianDateString(scheduleDate)}
+                                          </p>
+
+                                          {scheduleDay ? (
+                                            <p className="mt-1 text-[11px] text-muted-foreground">
+                                              Agenda: {scheduleDay.start_time} às{" "}
+                                              {scheduleDay.end_time}
+                                              {hasBreak
+                                                ? ` • intervalo ${scheduleDay.break_start_time} às ${scheduleDay.break_end_time}`
+                                                : ""}
                                             </p>
+                                          ) : null}
+                                        </div>
 
-                                            {scheduleDay ? (
-                                              <p className="mt-1 text-[11px] text-muted-foreground">
-                                                Agenda: {scheduleDay.start_time}{" "}
-                                                às {scheduleDay.end_time}
-                                                {hasBreak
-                                                  ? ` • intervalo ${scheduleDay.break_start_time} às ${scheduleDay.break_end_time}`
-                                                  : ""}
-                                              </p>
-                                            ) : null}
-                                          </div>
+                                        <RadioGroup
+                                          value={availabilityMode}
+                                          className="grid gap-2"
+                                          onValueChange={(value) => {
+                                            const nextMode = value as
+                                              "FULL_DAY" | "UNAVAILABLE" | "CUSTOM";
 
-                                          <RadioGroup
-                                            value={availabilityMode}
-                                            className="grid gap-2"
-                                            onValueChange={(value) => {
-                                              const nextMode = value as
-                                                | "FULL_DAY"
-                                                | "UNAVAILABLE"
-                                                | "CUSTOM";
-
-                                              updateCompetitionDateAvailabilityMode(
-                                                competitionOption.key,
-                                                scheduleDate,
-                                                nextMode,
-                                              );
-                                            }}
+                                            updateCompetitionDateAvailabilityMode(
+                                              competitionOption.key,
+                                              scheduleDate,
+                                              nextMode,
+                                            );
+                                          }}
+                                        >
+                                          <label
+                                            className={cn(
+                                              "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors",
+                                              availabilityMode == "FULL_DAY"
+                                                ? "border-primary/30 bg-primary/5"
+                                                : "border-border/30 bg-background/30",
+                                            )}
                                           >
-                                            <label
-                                              className={cn(
-                                                "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors",
-                                                availabilityMode == "FULL_DAY"
-                                                  ? "border-primary/30 bg-primary/5"
-                                                  : "border-border/30 bg-background/30",
-                                              )}
-                                            >
-                                              <RadioGroupItem value="FULL_DAY" />
-                                              Dia inteiro
-                                            </label>
+                                            <RadioGroupItem value="FULL_DAY" />
+                                            Dia inteiro
+                                          </label>
 
-                                            <label
-                                              className={cn(
-                                                "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors",
-                                                availabilityMode == "CUSTOM"
-                                                  ? "border-primary/30 bg-primary/5"
-                                                  : "border-border/30 bg-background/30",
-                                              )}
-                                            >
-                                              <RadioGroupItem value="CUSTOM" />
-                                              Horário personalizado
-                                            </label>
+                                          <label
+                                            className={cn(
+                                              "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors",
+                                              availabilityMode == "CUSTOM"
+                                                ? "border-primary/30 bg-primary/5"
+                                                : "border-border/30 bg-background/30",
+                                            )}
+                                          >
+                                            <RadioGroupItem value="CUSTOM" />
+                                            Horário personalizado
+                                          </label>
 
-                                            <label
-                                              className={cn(
-                                                "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors",
-                                                availabilityMode ==
-                                                  "UNAVAILABLE"
-                                                  ? "border-primary/30 bg-primary/5"
-                                                  : "border-border/30 bg-background/30",
-                                              )}
-                                            >
-                                              <RadioGroupItem value="UNAVAILABLE" />
-                                              Indisponível
-                                            </label>
-                                          </RadioGroup>
+                                          <label
+                                            className={cn(
+                                              "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors",
+                                              availabilityMode == "UNAVAILABLE"
+                                                ? "border-primary/30 bg-primary/5"
+                                                : "border-border/30 bg-background/30",
+                                            )}
+                                          >
+                                            <RadioGroupItem value="UNAVAILABLE" />
+                                            Indisponível
+                                          </label>
+                                        </RadioGroup>
 
-                                          {availabilityMode == "CUSTOM" ? (
-                                            <div className="mt-4 space-y-3 border-t border-border/30 pt-4">
-                                              <div className="flex items-center justify-between gap-3">
-                                                <p className="text-xs font-semibold">
-                                                  Janelas disponíveis
-                                                </p>
+                                        {availabilityMode == "CUSTOM" ? (
+                                          <div className="mt-4 space-y-3 border-t border-border/30 pt-4">
+                                            <div className="flex items-center justify-between gap-3">
+                                              <p className="text-xs font-semibold">
+                                                Janelas disponíveis
+                                              </p>
 
-                                                <Button
-                                                  type="button"
-                                                  size="sm"
-                                                  variant="secondary"
-                                                  onClick={() =>
-                                                    addCompetitionDateAvailabilityWindow(
-                                                      competitionOption.key,
-                                                      scheduleDate,
-                                                    )
-                                                  }
-                                                >
-                                                  <Plus className="mr-1.5 h-3.5 w-3.5" />
-                                                  Adicionar
-                                                </Button>
+                                              <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="secondary"
+                                                onClick={() =>
+                                                  addCompetitionDateAvailabilityWindow(
+                                                    competitionOption.key,
+                                                    scheduleDate,
+                                                  )
+                                                }
+                                              >
+                                                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                                                Adicionar
+                                              </Button>
+                                            </div>
+
+                                            {availabilityWindows.length == 0 ? (
+                                              <div className="rounded-lg border border-dashed border-border/40 p-3 text-center text-xs text-muted-foreground">
+                                                Adicione ao menos uma janela de horário.
                                               </div>
-
-                                              {availabilityWindows.length ==
-                                              0 ? (
-                                                <div className="rounded-lg border border-dashed border-border/40 p-3 text-center text-xs text-muted-foreground">
-                                                  Adicione ao menos uma janela
-                                                  de horário.
-                                                </div>
-                                              ) : (
-                                                <div className="space-y-3">
-                                                  {availabilityWindows.map(
-                                                    (
-                                                      availabilityWindow,
-                                                      windowIndex,
-                                                    ) => (
-                                                      <div
-                                                        key={`${availabilityKey}-window-${windowIndex}`}
-                                                        className="rounded-lg border border-border/30 bg-background/30 p-3"
-                                                      >
-                                                        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] items-end gap-2">
-                                                          <div className="space-y-1.5">
-                                                            <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                                              Início
-                                                            </Label>
-                                                            <TimeInput
-                                                              value={
-                                                                availabilityWindow.start_time
-                                                              }
-                                                              onChange={(
-                                                                value,
-                                                              ) =>
-                                                                updateCompetitionDateAvailabilityWindow(
-                                                                  competitionOption.key,
-                                                                  scheduleDate,
-                                                                  windowIndex,
-                                                                  "start_time",
-                                                                  value,
-                                                                )
-                                                              }
-                                                              className="h-9"
-                                                            />
-                                                          </div>
-
-                                                          <span className="pb-2 text-xs text-muted-foreground">
-                                                            até
-                                                          </span>
-
-                                                          <div className="space-y-1.5">
-                                                            <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                                              Fim
-                                                            </Label>
-                                                            <TimeInput
-                                                              value={
-                                                                availabilityWindow.end_time
-                                                              }
-                                                              onChange={(
-                                                                value,
-                                                              ) =>
-                                                                updateCompetitionDateAvailabilityWindow(
-                                                                  competitionOption.key,
-                                                                  scheduleDate,
-                                                                  windowIndex,
-                                                                  "end_time",
-                                                                  value,
-                                                                )
-                                                              }
-                                                              className="h-9"
-                                                            />
-                                                          </div>
-
-                                                          <Button
-                                                            type="button"
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            onClick={() =>
-                                                              removeCompetitionDateAvailabilityWindow(
+                                            ) : (
+                                              <div className="space-y-3">
+                                                {availabilityWindows.map(
+                                                  (availabilityWindow, windowIndex) => (
+                                                    <div
+                                                      key={`${availabilityKey}-window-${windowIndex}`}
+                                                      className="rounded-lg border border-border/30 bg-background/30 p-3"
+                                                    >
+                                                      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] items-end gap-2">
+                                                        <div className="space-y-1.5">
+                                                          <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                            Início
+                                                          </Label>
+                                                          <TimeInput
+                                                            value={availabilityWindow.start_time}
+                                                            onChange={(value) =>
+                                                              updateCompetitionDateAvailabilityWindow(
                                                                 competitionOption.key,
                                                                 scheduleDate,
                                                                 windowIndex,
+                                                                "start_time",
+                                                                value,
                                                               )
                                                             }
-                                                            aria-label={`Remover janela ${windowIndex + 1}`}
-                                                            title="Remover janela"
-                                                          >
-                                                            <Trash2 className="h-4 w-4" />
-                                                          </Button>
+                                                            className="h-9"
+                                                          />
                                                         </div>
+
+                                                        <span className="pb-2 text-xs text-muted-foreground">
+                                                          até
+                                                        </span>
+
+                                                        <div className="space-y-1.5">
+                                                          <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                            Fim
+                                                          </Label>
+                                                          <TimeInput
+                                                            value={availabilityWindow.end_time}
+                                                            onChange={(value) =>
+                                                              updateCompetitionDateAvailabilityWindow(
+                                                                competitionOption.key,
+                                                                scheduleDate,
+                                                                windowIndex,
+                                                                "end_time",
+                                                                value,
+                                                              )
+                                                            }
+                                                            className="h-9"
+                                                          />
+                                                        </div>
+
+                                                        <Button
+                                                          type="button"
+                                                          variant="ghost"
+                                                          size="icon"
+                                                          onClick={() =>
+                                                            removeCompetitionDateAvailabilityWindow(
+                                                              competitionOption.key,
+                                                              scheduleDate,
+                                                              windowIndex,
+                                                            )
+                                                          }
+                                                          aria-label={`Remover janela ${windowIndex + 1}`}
+                                                          title="Remover janela"
+                                                        >
+                                                          <Trash2 className="h-4 w-4" />
+                                                        </Button>
                                                       </div>
-                                                    ),
-                                                  )}
-                                                </div>
-                                              )}
-                                            </div>
-                                          ) : availabilityMode == "FULL_DAY" ? (
-                                            <p className="mt-3 text-[11px] text-muted-foreground">
-                                              A competição poderá ser programada
-                                              em toda a janela da agenda deste
-                                              dia, respeitando os intervalos
-                                              configurados.
-                                            </p>
-                                          ) : (
-                                            <p className="mt-3 text-[11px] text-muted-foreground">
-                                              Nenhum jogo desta competição será
-                                              programado neste dia.
-                                            </p>
-                                          )}
-                                        </div>
-                                      );
-                                    },
-                                  )}
+                                                    </div>
+                                                  ),
+                                                )}
+                                              </div>
+                                            )}
+                                          </div>
+                                        ) : availabilityMode == "FULL_DAY" ? (
+                                          <p className="mt-3 text-[11px] text-muted-foreground">
+                                            A competição poderá ser programada em toda a janela da
+                                            agenda deste dia, respeitando os intervalos
+                                            configurados.
+                                          </p>
+                                        ) : (
+                                          <p className="mt-3 text-[11px] text-muted-foreground">
+                                            Nenhum jogo desta competição será programado neste dia.
+                                          </p>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               </div>
                             ) : null}
@@ -12499,30 +11084,24 @@ export function AdminChampionshipBracketPage({
               <div className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
                 <div className="glass-card rounded-xl border border-border/50 p-6 shadow-sm">
                   <div className="border-b border-border/50 pb-4 mb-6">
-                    <p className="text-lg font-bold">
-                      Disponibilidade das Atléticas
-                    </p>
+                    <p className="text-lg font-bold">Disponibilidade das Atléticas</p>
                     <p className="text-sm text-muted-foreground">
-                      Defina os dias e horários em que cada atlética poderá
-                      jogar durante a fase de grupos. A disponibilidade efetiva
-                      será sempre a interseção entre a janela da modalidade e a
-                      janela da atlética.
+                      Defina os dias e horários em que cada atlética poderá jogar durante a fase de
+                      grupos. A disponibilidade efetiva será sempre a interseção entre a janela da
+                      modalidade e a janela da atlética.
                     </p>
                   </div>
 
                   {Object.keys(teamCompetitionKeysByTeamId).length == 0 ? (
                     <div className="rounded-xl border border-dashed border-border/40 bg-background/20 p-8 text-center text-sm text-muted-foreground">
-                      Nenhuma combinação válida de atlética e competição
-                      coletiva para configurar.
+                      Nenhuma combinação válida de atlética e competição coletiva para configurar.
                     </div>
                   ) : (
                     <div className="space-y-6">
                       <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_260px]">
                         <Input
                           value={teamAvailabilitySearchTerm}
-                          onChange={(event) =>
-                            setTeamAvailabilitySearchTerm(event.target.value)
-                          }
+                          onChange={(event) => setTeamAvailabilitySearchTerm(event.target.value)}
                           placeholder="Buscar atlética"
                           className="h-10"
                         />
@@ -12557,591 +11136,474 @@ export function AdminChampionshipBracketPage({
                           Nenhuma atlética encontrada para os filtros aplicados.
                         </div>
                       ) : (
-                        filteredTeamDateAvailabilityCards.map(
-                          (teamAvailabilityCard) => {
-                            const isTeamAvailabilityExpanded =
-                              expandedTeamAvailabilityByTeamId[
-                                teamAvailabilityCard.team_id
-                              ] === true;
-                            const teamAvailabilityContentId = `team-date-availability-content-${teamAvailabilityCard.team_id}`;
+                        filteredTeamDateAvailabilityCards.map((teamAvailabilityCard) => {
+                          const isTeamAvailabilityExpanded =
+                            expandedTeamAvailabilityByTeamId[teamAvailabilityCard.team_id] === true;
+                          const teamAvailabilityContentId = `team-date-availability-content-${teamAvailabilityCard.team_id}`;
 
-                            return (
-                              <div
-                                key={`team-date-availability-${teamAvailabilityCard.team_id}`}
-                                className="overflow-hidden rounded-xl border border-border/40 bg-background/30 shadow-sm"
+                          return (
+                            <div
+                              key={`team-date-availability-${teamAvailabilityCard.team_id}`}
+                              className="overflow-hidden rounded-xl border border-border/40 bg-background/30 shadow-sm"
+                            >
+                              <button
+                                type="button"
+                                aria-expanded={isTeamAvailabilityExpanded}
+                                aria-controls={teamAvailabilityContentId}
+                                aria-label={`${
+                                  isTeamAvailabilityExpanded ? "Recolher" : "Expandir"
+                                } modalidades de ${teamAvailabilityCard.team_name}`}
+                                onClick={() => {
+                                  setExpandedTeamAvailabilityByTeamId((currentValue) => ({
+                                    ...currentValue,
+                                    [teamAvailabilityCard.team_id]: !isTeamAvailabilityExpanded,
+                                  }));
+                                }}
+                                className={cn(
+                                  "flex w-full items-center justify-between gap-4 p-5 text-left transition-colors hover:text-foreground",
+                                  isTeamAvailabilityExpanded && "border-b border-border/40",
+                                )}
                               >
-                                <button
-                                  type="button"
-                                  aria-expanded={isTeamAvailabilityExpanded}
-                                  aria-controls={teamAvailabilityContentId}
-                                  aria-label={`${
-                                    isTeamAvailabilityExpanded
-                                      ? "Recolher"
-                                      : "Expandir"
-                                  } modalidades de ${teamAvailabilityCard.team_name}`}
-                                  onClick={() => {
-                                    setExpandedTeamAvailabilityByTeamId(
-                                      (currentValue) => ({
-                                        ...currentValue,
-                                        [teamAvailabilityCard.team_id]:
-                                          !isTeamAvailabilityExpanded,
-                                      }),
-                                    );
-                                  }}
-                                  className={cn(
-                                    "flex w-full items-center justify-between gap-4 p-5 text-left transition-colors hover:text-foreground",
-                                    isTeamAvailabilityExpanded &&
-                                      "border-b border-border/40",
+                                <div>
+                                  <p className="text-base font-bold">
+                                    {teamAvailabilityCard.team_name}
+                                  </p>
+                                  <p className="mt-1 text-xs text-muted-foreground">
+                                    Estas restrições são aplicadas somente aos jogos da fase de
+                                    grupos.
+                                  </p>
+                                </div>
+
+                                <div className="flex items-center gap-3 text-right text-xs font-medium text-muted-foreground">
+                                  <span>
+                                    {teamAvailabilityCard.sport_cards.length}{" "}
+                                    {teamAvailabilityCard.sport_cards.length == 1
+                                      ? "modalidade"
+                                      : "modalidades"}
+                                  </span>
+                                  {isTeamAvailabilityExpanded ? (
+                                    <ChevronUp className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronDown className="h-4 w-4" />
                                   )}
-                                >
-                                  <div>
-                                    <p className="text-base font-bold">
-                                      {teamAvailabilityCard.team_name}
-                                    </p>
-                                    <p className="mt-1 text-xs text-muted-foreground">
-                                      Estas restrições são aplicadas somente aos
-                                      jogos da fase de grupos.
-                                    </p>
-                                  </div>
+                                </div>
+                              </button>
 
-                                  <div className="flex items-center gap-3 text-right text-xs font-medium text-muted-foreground">
-                                    <span>
-                                      {teamAvailabilityCard.sport_cards.length}{" "}
-                                      {teamAvailabilityCard.sport_cards
-                                        .length == 1
-                                        ? "modalidade"
-                                        : "modalidades"}
-                                    </span>
-                                    {isTeamAvailabilityExpanded ? (
-                                      <ChevronUp className="h-4 w-4" />
-                                    ) : (
-                                      <ChevronDown className="h-4 w-4" />
-                                    )}
-                                  </div>
-                                </button>
+                              {isTeamAvailabilityExpanded ? (
+                                <div id={teamAvailabilityContentId} className="space-y-4 p-5">
+                                  {teamAvailabilityCard.sport_cards.map((sportCard) => {
+                                    const supportedNaipes = sportCard.tabs.map((tab) => tab.naipe);
 
-                                {isTeamAvailabilityExpanded ? (
-                                  <div
-                                    id={teamAvailabilityContentId}
-                                    className="space-y-4 p-5"
-                                  >
-                                    {teamAvailabilityCard.sport_cards.map(
-                                      (sportCard) => {
-                                        const supportedNaipes =
-                                          sportCard.tabs.map(
-                                            (tab) => tab.naipe,
-                                          );
+                                    const activeNaipe =
+                                      activeTeamAvailabilityNaipeTabByTeamSportKey[
+                                        sportCard.team_sport_key
+                                      ] ?? resolveDefaultWizardNaipeTabValue(supportedNaipes);
 
-                                        const activeNaipe =
-                                          activeTeamAvailabilityNaipeTabByTeamSportKey[
-                                            sportCard.team_sport_key
-                                          ] ??
-                                          resolveDefaultWizardNaipeTabValue(
-                                            supportedNaipes,
-                                          );
+                                    const activeTab =
+                                      sportCard.tabs.find((tab) => tab.naipe == activeNaipe) ??
+                                      sportCard.tabs[0] ??
+                                      null;
 
-                                        const activeTab =
-                                          sportCard.tabs.find(
-                                            (tab) => tab.naipe == activeNaipe,
-                                          ) ??
-                                          sportCard.tabs[0] ??
-                                          null;
+                                    if (!activeTab) {
+                                      return null;
+                                    }
 
-                                        if (!activeTab) {
-                                          return null;
-                                        }
+                                    const isTeamAvailabilitySportExpanded =
+                                      expandedTeamAvailabilitySportByKey[
+                                        sportCard.team_sport_key
+                                      ] === true;
+                                    const teamAvailabilitySportContentId = `team-date-availability-sport-content-${sportCard.team_sport_key}`;
 
-                                        const isTeamAvailabilitySportExpanded =
-                                          expandedTeamAvailabilitySportByKey[
-                                            sportCard.team_sport_key
-                                          ] === true;
-                                        const teamAvailabilitySportContentId = `team-date-availability-sport-content-${sportCard.team_sport_key}`;
+                                    return (
+                                      <div
+                                        key={`team-date-sport-${sportCard.team_sport_key}`}
+                                        className="rounded-xl border border-border/30 bg-background/20 p-4 shadow-sm dark:bg-transparent dark:shadow-none"
+                                      >
+                                        <button
+                                          type="button"
+                                          aria-expanded={isTeamAvailabilitySportExpanded}
+                                          aria-controls={teamAvailabilitySportContentId}
+                                          aria-label={`${
+                                            isTeamAvailabilitySportExpanded
+                                              ? "Recolher"
+                                              : "Expandir"
+                                          } disponibilidade de ${sportCard.sport_name} da ${teamAvailabilityCard.team_name}`}
+                                          onClick={() => {
+                                            setExpandedTeamAvailabilitySportByKey(
+                                              (currentValue) => ({
+                                                ...currentValue,
+                                                [sportCard.team_sport_key]:
+                                                  !isTeamAvailabilitySportExpanded,
+                                              }),
+                                            );
+                                          }}
+                                          className={cn(
+                                            "flex w-full items-start justify-between gap-4 text-left transition-colors hover:text-foreground",
+                                            isTeamAvailabilitySportExpanded &&
+                                              "border-b border-border/30 pb-4",
+                                          )}
+                                        >
+                                          <div>
+                                            <p className="text-sm font-bold">
+                                              {sportCard.sport_name}
+                                            </p>
+                                            <p className="mt-1 text-xs text-muted-foreground">
+                                              {sportCard.tabs.length}{" "}
+                                              {sportCard.tabs.length == 1
+                                                ? "naipe configurado"
+                                                : "naipes configurados"}
+                                            </p>
+                                          </div>
 
-                                        return (
-                                          <div
-                                            key={`team-date-sport-${sportCard.team_sport_key}`}
-                                            className="rounded-xl border border-border/30 bg-background/20 p-4 shadow-sm dark:bg-transparent dark:shadow-none"
-                                          >
-                                            <button
-                                              type="button"
-                                              aria-expanded={
-                                                isTeamAvailabilitySportExpanded
-                                              }
-                                              aria-controls={
-                                                teamAvailabilitySportContentId
-                                              }
-                                              aria-label={`${
-                                                isTeamAvailabilitySportExpanded
-                                                  ? "Recolher"
-                                                  : "Expandir"
-                                              } disponibilidade de ${sportCard.sport_name} da ${teamAvailabilityCard.team_name}`}
-                                              onClick={() => {
-                                                setExpandedTeamAvailabilitySportByKey(
-                                                  (currentValue) => ({
-                                                    ...currentValue,
-                                                    [sportCard.team_sport_key]:
-                                                      !isTeamAvailabilitySportExpanded,
-                                                  }),
-                                                );
-                                              }}
-                                              className={cn(
-                                                "flex w-full items-start justify-between gap-4 text-left transition-colors hover:text-foreground",
-                                                isTeamAvailabilitySportExpanded &&
-                                                  "border-b border-border/30 pb-4",
-                                              )}
-                                            >
+                                          {isTeamAvailabilitySportExpanded ? (
+                                            <ChevronUp className="h-4 w-4" />
+                                          ) : (
+                                            <ChevronDown className="h-4 w-4" />
+                                          )}
+                                        </button>
+
+                                        {isTeamAvailabilitySportExpanded ? (
+                                          <div id={teamAvailabilitySportContentId} className="mt-4">
+                                            <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
                                               <div>
                                                 <p className="text-sm font-bold">
-                                                  {sportCard.sport_name}
+                                                  {competitionLabelByKey[
+                                                    activeTab.competition_key
+                                                  ] ?? "Competição"}
                                                 </p>
+
                                                 <p className="mt-1 text-xs text-muted-foreground">
-                                                  {sportCard.tabs.length}{" "}
-                                                  {sportCard.tabs.length == 1
-                                                    ? "naipe configurado"
-                                                    : "naipes configurados"}
+                                                  {activeTab.available_date_count}/
+                                                  {activeTab.eligible_date_count} dias disponíveis
+                                                  {activeTab.custom_date_count > 0
+                                                    ? ` • ${activeTab.custom_date_count} personalizados`
+                                                    : ""}
+                                                  {activeTab.unavailable_date_count > 0
+                                                    ? ` • ${activeTab.unavailable_date_count} indisponíveis`
+                                                    : ""}
                                                 </p>
                                               </div>
 
-                                              {isTeamAvailabilitySportExpanded ? (
-                                                <ChevronUp className="h-4 w-4" />
-                                              ) : (
-                                                <ChevronDown className="h-4 w-4" />
-                                              )}
-                                            </button>
+                                              <div className="flex flex-wrap items-center justify-end gap-3">
+                                                <div className="flex flex-wrap gap-2">
+                                                  <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant={
+                                                      activeTab.all_dates_full_day
+                                                        ? "default"
+                                                        : "secondary"
+                                                    }
+                                                    disabled={activeTab.eligible_date_count == 0}
+                                                    onClick={() =>
+                                                      updateTeamCompetitionDateAvailabilityForAllDates(
+                                                        teamAvailabilityCard.team_id,
+                                                        activeTab.competition_key,
+                                                        "FULL_DAY",
+                                                      )
+                                                    }
+                                                  >
+                                                    Disponível em todos
+                                                  </Button>
 
-                                            {isTeamAvailabilitySportExpanded ? (
-                                              <div
-                                                id={
-                                                  teamAvailabilitySportContentId
-                                                }
-                                                className="mt-4"
-                                              >
-                                                <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
-                                                  <div>
-                                                    <p className="text-sm font-bold">
-                                                      {competitionLabelByKey[
-                                                        activeTab
-                                                          .competition_key
-                                                      ] ?? "Competição"}
-                                                    </p>
-
-                                                    <p className="mt-1 text-xs text-muted-foreground">
-                                                      {
-                                                        activeTab.available_date_count
-                                                      }
-                                                      /
-                                                      {
-                                                        activeTab.eligible_date_count
-                                                      }{" "}
-                                                      dias disponíveis
-                                                      {activeTab.custom_date_count >
-                                                      0
-                                                        ? ` • ${activeTab.custom_date_count} personalizados`
-                                                        : ""}
-                                                      {activeTab.unavailable_date_count >
-                                                      0
-                                                        ? ` • ${activeTab.unavailable_date_count} indisponíveis`
-                                                        : ""}
-                                                    </p>
-                                                  </div>
-
-                                                  <div className="flex flex-wrap items-center justify-end gap-3">
-                                                    <div className="flex flex-wrap gap-2">
-                                                      <Button
-                                                        type="button"
-                                                        size="sm"
-                                                        variant={
-                                                          activeTab.all_dates_full_day
-                                                            ? "default"
-                                                            : "secondary"
-                                                        }
-                                                        disabled={
-                                                          activeTab.eligible_date_count ==
-                                                          0
-                                                        }
-                                                        onClick={() =>
-                                                          updateTeamCompetitionDateAvailabilityForAllDates(
-                                                            teamAvailabilityCard.team_id,
-                                                            activeTab.competition_key,
-                                                            "FULL_DAY",
-                                                          )
-                                                        }
-                                                      >
-                                                        Disponível em todos
-                                                      </Button>
-
-                                                      <Button
-                                                        type="button"
-                                                        size="sm"
-                                                        variant={
-                                                          activeTab.all_dates_unavailable
-                                                            ? "default"
-                                                            : "secondary"
-                                                        }
-                                                        disabled={
-                                                          activeTab.eligible_date_count ==
-                                                          0
-                                                        }
-                                                        onClick={() =>
-                                                          updateTeamCompetitionDateAvailabilityForAllDates(
-                                                            teamAvailabilityCard.team_id,
-                                                            activeTab.competition_key,
-                                                            "UNAVAILABLE",
-                                                          )
-                                                        }
-                                                      >
-                                                        Indisponível em todos
-                                                      </Button>
-                                                    </div>
-
-                                                    {sportCard.tabs.length >
-                                                    1 ? (
-                                                      <AnimatedTabBar
-                                                        items={sportCard.tabs.map(
-                                                          (tab) => ({
-                                                            value: tab.naipe,
-                                                            label: tab.label,
-                                                            test_id: `team-date-availability-naipe-${teamAvailabilityCard.team_id}-${sportCard.sport_id}-${tab.naipe}`,
-                                                          }),
-                                                        )}
-                                                        value={activeTab.naipe}
-                                                        onValueChange={(
-                                                          nextValue,
-                                                        ) =>
-                                                          setActiveTeamAvailabilityNaipeTabByTeamSportKey(
-                                                            (
-                                                              currentActiveTeamAvailabilityNaipeTabByTeamSportKey,
-                                                            ) => ({
-                                                              ...currentActiveTeamAvailabilityNaipeTabByTeamSportKey,
-                                                              [sportCard.team_sport_key]:
-                                                                nextValue as MatchNaipe,
-                                                            }),
-                                                          )
-                                                        }
-                                                      />
-                                                    ) : null}
-                                                  </div>
+                                                  <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant={
+                                                      activeTab.all_dates_unavailable
+                                                        ? "default"
+                                                        : "secondary"
+                                                    }
+                                                    disabled={activeTab.eligible_date_count == 0}
+                                                    onClick={() =>
+                                                      updateTeamCompetitionDateAvailabilityForAllDates(
+                                                        teamAvailabilityCard.team_id,
+                                                        activeTab.competition_key,
+                                                        "UNAVAILABLE",
+                                                      )
+                                                    }
+                                                  >
+                                                    Indisponível em todos
+                                                  </Button>
                                                 </div>
 
-                                                {activeTab.visible_date_cards
-                                                  .length == 0 ? (
-                                                  <div className="rounded-xl border border-dashed border-border/40 bg-background/20 p-4 text-center text-sm text-muted-foreground">
-                                                    Nenhum dia está disponível
-                                                    para esta competição na
-                                                    etapa anterior.
-                                                  </div>
-                                                ) : (
-                                                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                                                    {activeTab.visible_date_cards.map(
-                                                      (dateCard) => {
-                                                        const scheduleDay =
-                                                          scheduleDays.find(
-                                                            (
-                                                              currentScheduleDay,
-                                                            ) =>
-                                                              currentScheduleDay.date ==
+                                                {sportCard.tabs.length > 1 ? (
+                                                  <AnimatedTabBar
+                                                    items={sportCard.tabs.map((tab) => ({
+                                                      value: tab.naipe,
+                                                      label: tab.label,
+                                                      test_id: `team-date-availability-naipe-${teamAvailabilityCard.team_id}-${sportCard.sport_id}-${tab.naipe}`,
+                                                    }))}
+                                                    value={activeTab.naipe}
+                                                    onValueChange={(nextValue) =>
+                                                      setActiveTeamAvailabilityNaipeTabByTeamSportKey(
+                                                        (
+                                                          currentActiveTeamAvailabilityNaipeTabByTeamSportKey,
+                                                        ) => ({
+                                                          ...currentActiveTeamAvailabilityNaipeTabByTeamSportKey,
+                                                          [sportCard.team_sport_key]:
+                                                            nextValue as MatchNaipe,
+                                                        }),
+                                                      )
+                                                    }
+                                                  />
+                                                ) : null}
+                                              </div>
+                                            </div>
+
+                                            {activeTab.visible_date_cards.length == 0 ? (
+                                              <div className="rounded-xl border border-dashed border-border/40 bg-background/20 p-4 text-center text-sm text-muted-foreground">
+                                                Nenhum dia está disponível para esta competição na
+                                                etapa anterior.
+                                              </div>
+                                            ) : (
+                                              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                                                {activeTab.visible_date_cards.map((dateCard) => {
+                                                  const scheduleDay =
+                                                    scheduleDays.find(
+                                                      (currentScheduleDay) =>
+                                                        currentScheduleDay.date == dateCard.date,
+                                                    ) ?? null;
+
+                                                  return (
+                                                    <div
+                                                      key={dateCard.availability_key}
+                                                      className={cn(
+                                                        "rounded-xl border p-4 transition-colors",
+                                                        dateCard.team_mode == "UNAVAILABLE"
+                                                          ? "border-border/30 bg-background/20 opacity-75"
+                                                          : "border-border/40 bg-background/40",
+                                                      )}
+                                                    >
+                                                      <div className="mb-4 space-y-2">
+                                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                                          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                                            {resolveBrazilianDateString(
                                                               dateCard.date,
-                                                          ) ?? null;
-
-                                                        return (
-                                                          <div
-                                                            key={
-                                                              dateCard.availability_key
-                                                            }
-                                                            className={cn(
-                                                              "rounded-xl border p-4 transition-colors",
-                                                              dateCard.team_mode ==
-                                                                "UNAVAILABLE"
-                                                                ? "border-border/30 bg-background/20 opacity-75"
-                                                                : "border-border/40 bg-background/40",
                                                             )}
+                                                          </p>
+
+                                                          <AppBadge
+                                                            tone={
+                                                              dateCard.competition_mode == "CUSTOM"
+                                                                ? AppBadgeTone.SKY
+                                                                : AppBadgeTone.NEUTRAL
+                                                            }
                                                           >
-                                                            <div className="mb-4 space-y-2">
-                                                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                                                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                                                                  {resolveBrazilianDateString(
-                                                                    dateCard.date,
-                                                                  )}
-                                                                </p>
+                                                            {dateCard.competition_mode == "CUSTOM"
+                                                              ? "Modalidade restrita"
+                                                              : "Modalidade livre"}
+                                                          </AppBadge>
+                                                        </div>
 
-                                                                <AppBadge
-                                                                  tone={
-                                                                    dateCard.competition_mode ==
-                                                                    "CUSTOM"
-                                                                      ? AppBadgeTone.SKY
-                                                                      : AppBadgeTone.NEUTRAL
-                                                                  }
-                                                                >
-                                                                  {dateCard.competition_mode ==
-                                                                  "CUSTOM"
-                                                                    ? "Modalidade restrita"
-                                                                    : "Modalidade livre"}
-                                                                </AppBadge>
-                                                              </div>
+                                                        {dateCard.competition_mode == "CUSTOM" ? (
+                                                          <div className="rounded-lg border border-border/30 bg-background/30 px-3 py-2">
+                                                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                              Janela da modalidade
+                                                            </p>
 
-                                                              {dateCard.competition_mode ==
-                                                              "CUSTOM" ? (
-                                                                <div className="rounded-lg border border-border/30 bg-background/30 px-3 py-2">
-                                                                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                                                    Janela da
-                                                                    modalidade
-                                                                  </p>
+                                                            <p className="mt-1 text-xs font-medium">
+                                                              {dateCard.competition_windows
+                                                                .map(
+                                                                  (window) =>
+                                                                    `${window.start_time}–${window.end_time}`,
+                                                                )
+                                                                .join(" • ")}
+                                                            </p>
+                                                          </div>
+                                                        ) : scheduleDay ? (
+                                                          <p className="text-[11px] text-muted-foreground">
+                                                            Modalidade disponível durante a agenda
+                                                            do dia: {scheduleDay.start_time} às{" "}
+                                                            {scheduleDay.end_time}.
+                                                          </p>
+                                                        ) : null}
+                                                      </div>
 
-                                                                  <p className="mt-1 text-xs font-medium">
-                                                                    {dateCard.competition_windows
-                                                                      .map(
-                                                                        (
-                                                                          window,
-                                                                        ) =>
-                                                                          `${window.start_time}–${window.end_time}`,
-                                                                      )
-                                                                      .join(
-                                                                        " • ",
-                                                                      )}
-                                                                  </p>
-                                                                </div>
-                                                              ) : scheduleDay ? (
-                                                                <p className="text-[11px] text-muted-foreground">
-                                                                  Modalidade
-                                                                  disponível
-                                                                  durante a
-                                                                  agenda do dia:{" "}
-                                                                  {
-                                                                    scheduleDay.start_time
-                                                                  }{" "}
-                                                                  às{" "}
-                                                                  {
-                                                                    scheduleDay.end_time
-                                                                  }
-                                                                  .
-                                                                </p>
-                                                              ) : null}
-                                                            </div>
+                                                      <RadioGroup
+                                                        value={dateCard.team_mode}
+                                                        className="grid gap-2"
+                                                        onValueChange={(value) =>
+                                                          updateTeamCompetitionDateAvailabilityMode(
+                                                            teamAvailabilityCard.team_id,
+                                                            activeTab.competition_key,
+                                                            dateCard.date,
+                                                            value as
+                                                              "FULL_DAY" | "UNAVAILABLE" | "CUSTOM",
+                                                          )
+                                                        }
+                                                      >
+                                                        <label
+                                                          className={cn(
+                                                            "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors",
+                                                            dateCard.team_mode == "FULL_DAY"
+                                                              ? "border-primary/30 bg-primary/5"
+                                                              : "border-border/30 bg-background/30",
+                                                          )}
+                                                        >
+                                                          <RadioGroupItem value="FULL_DAY" />
+                                                          Disponível em toda a janela
+                                                        </label>
 
-                                                            <RadioGroup
-                                                              value={
-                                                                dateCard.team_mode
-                                                              }
-                                                              className="grid gap-2"
-                                                              onValueChange={(
-                                                                value,
-                                                              ) =>
-                                                                updateTeamCompetitionDateAvailabilityMode(
+                                                        <label
+                                                          className={cn(
+                                                            "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors",
+                                                            dateCard.team_mode == "CUSTOM"
+                                                              ? "border-primary/30 bg-primary/5"
+                                                              : "border-border/30 bg-background/30",
+                                                          )}
+                                                        >
+                                                          <RadioGroupItem value="CUSTOM" />
+                                                          Horário personalizado
+                                                        </label>
+
+                                                        <label
+                                                          className={cn(
+                                                            "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors",
+                                                            dateCard.team_mode == "UNAVAILABLE"
+                                                              ? "border-primary/30 bg-primary/5"
+                                                              : "border-border/30 bg-background/30",
+                                                          )}
+                                                        >
+                                                          <RadioGroupItem value="UNAVAILABLE" />
+                                                          Indisponível
+                                                        </label>
+                                                      </RadioGroup>
+
+                                                      {dateCard.team_mode == "CUSTOM" ? (
+                                                        <div className="mt-4 space-y-3 border-t border-border/30 pt-4">
+                                                          <div className="flex items-center justify-between gap-3">
+                                                            <p className="text-xs font-semibold">
+                                                              Janelas da atlética
+                                                            </p>
+
+                                                            <Button
+                                                              type="button"
+                                                              size="sm"
+                                                              variant="secondary"
+                                                              onClick={() =>
+                                                                addTeamCompetitionDateAvailabilityWindow(
                                                                   teamAvailabilityCard.team_id,
                                                                   activeTab.competition_key,
                                                                   dateCard.date,
-                                                                  value as
-                                                                    | "FULL_DAY"
-                                                                    | "UNAVAILABLE"
-                                                                    | "CUSTOM",
                                                                 )
                                                               }
                                                             >
-                                                              <label
-                                                                className={cn(
-                                                                  "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors",
-                                                                  dateCard.team_mode ==
-                                                                    "FULL_DAY"
-                                                                    ? "border-primary/30 bg-primary/5"
-                                                                    : "border-border/30 bg-background/30",
-                                                                )}
-                                                              >
-                                                                <RadioGroupItem value="FULL_DAY" />
-                                                                Disponível em
-                                                                toda a janela
-                                                              </label>
-
-                                                              <label
-                                                                className={cn(
-                                                                  "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors",
-                                                                  dateCard.team_mode ==
-                                                                    "CUSTOM"
-                                                                    ? "border-primary/30 bg-primary/5"
-                                                                    : "border-border/30 bg-background/30",
-                                                                )}
-                                                              >
-                                                                <RadioGroupItem value="CUSTOM" />
-                                                                Horário
-                                                                personalizado
-                                                              </label>
-
-                                                              <label
-                                                                className={cn(
-                                                                  "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors",
-                                                                  dateCard.team_mode ==
-                                                                    "UNAVAILABLE"
-                                                                    ? "border-primary/30 bg-primary/5"
-                                                                    : "border-border/30 bg-background/30",
-                                                                )}
-                                                              >
-                                                                <RadioGroupItem value="UNAVAILABLE" />
-                                                                Indisponível
-                                                              </label>
-                                                            </RadioGroup>
-
-                                                            {dateCard.team_mode ==
-                                                            "CUSTOM" ? (
-                                                              <div className="mt-4 space-y-3 border-t border-border/30 pt-4">
-                                                                <div className="flex items-center justify-between gap-3">
-                                                                  <p className="text-xs font-semibold">
-                                                                    Janelas da
-                                                                    atlética
-                                                                  </p>
-
-                                                                  <Button
-                                                                    type="button"
-                                                                    size="sm"
-                                                                    variant="secondary"
-                                                                    onClick={() =>
-                                                                      addTeamCompetitionDateAvailabilityWindow(
-                                                                        teamAvailabilityCard.team_id,
-                                                                        activeTab.competition_key,
-                                                                        dateCard.date,
-                                                                      )
-                                                                    }
-                                                                  >
-                                                                    <Plus className="mr-1.5 h-3.5 w-3.5" />
-                                                                    Adicionar
-                                                                  </Button>
-                                                                </div>
-
-                                                                {dateCard
-                                                                  .team_windows
-                                                                  .length ==
-                                                                0 ? (
-                                                                  <div className="rounded-lg border border-dashed border-border/40 p-3 text-center text-xs text-muted-foreground">
-                                                                    Adicione ao
-                                                                    menos uma
-                                                                    janela de
-                                                                    horário.
-                                                                  </div>
-                                                                ) : (
-                                                                  <div className="space-y-3">
-                                                                    {dateCard.team_windows.map(
-                                                                      (
-                                                                        window,
-                                                                        windowIndex,
-                                                                      ) => (
-                                                                        <div
-                                                                          key={`${dateCard.availability_key}-window-${windowIndex}`}
-                                                                          className="rounded-lg border border-border/30 bg-background/30 p-3"
-                                                                        >
-                                                                          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] items-end gap-2">
-                                                                            <div className="space-y-1.5">
-                                                                              <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                                                                Início
-                                                                              </Label>
-
-                                                                              <TimeInput
-                                                                                value={
-                                                                                  window.start_time
-                                                                                }
-                                                                                onChange={(
-                                                                                  value,
-                                                                                ) =>
-                                                                                  updateTeamCompetitionDateAvailabilityWindow(
-                                                                                    teamAvailabilityCard.team_id,
-                                                                                    activeTab.competition_key,
-                                                                                    dateCard.date,
-                                                                                    windowIndex,
-                                                                                    "start_time",
-                                                                                    value,
-                                                                                  )
-                                                                                }
-                                                                                className="h-9"
-                                                                              />
-                                                                            </div>
-
-                                                                            <span className="pb-2 text-xs text-muted-foreground">
-                                                                              até
-                                                                            </span>
-
-                                                                            <div className="space-y-1.5">
-                                                                              <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                                                                Fim
-                                                                              </Label>
-
-                                                                              <TimeInput
-                                                                                value={
-                                                                                  window.end_time
-                                                                                }
-                                                                                onChange={(
-                                                                                  value,
-                                                                                ) =>
-                                                                                  updateTeamCompetitionDateAvailabilityWindow(
-                                                                                    teamAvailabilityCard.team_id,
-                                                                                    activeTab.competition_key,
-                                                                                    dateCard.date,
-                                                                                    windowIndex,
-                                                                                    "end_time",
-                                                                                    value,
-                                                                                  )
-                                                                                }
-                                                                                className="h-9"
-                                                                              />
-                                                                            </div>
-
-                                                                            <Button
-                                                                              type="button"
-                                                                              variant="ghost"
-                                                                              size="icon"
-                                                                              onClick={() =>
-                                                                                removeTeamCompetitionDateAvailabilityWindow(
-                                                                                  teamAvailabilityCard.team_id,
-                                                                                  activeTab.competition_key,
-                                                                                  dateCard.date,
-                                                                                  windowIndex,
-                                                                                )
-                                                                              }
-                                                                              aria-label={`Remover janela ${windowIndex + 1}`}
-                                                                              title="Remover janela"
-                                                                            >
-                                                                              <Trash2 className="h-4 w-4" />
-                                                                            </Button>
-                                                                          </div>
-                                                                        </div>
-                                                                      ),
-                                                                    )}
-                                                                  </div>
-                                                                )}
-                                                              </div>
-                                                            ) : dateCard.team_mode ==
-                                                              "FULL_DAY" ? (
-                                                              <p className="mt-3 text-[11px] text-muted-foreground">
-                                                                A atlética
-                                                                poderá jogar em
-                                                                toda a janela
-                                                                permitida pela
-                                                                modalidade neste
-                                                                dia.
-                                                              </p>
-                                                            ) : (
-                                                              <p className="mt-3 text-[11px] text-muted-foreground">
-                                                                A atlética não
-                                                                poderá disputar
-                                                                jogos desta
-                                                                competição neste
-                                                                dia.
-                                                              </p>
-                                                            )}
+                                                              <Plus className="mr-1.5 h-3.5 w-3.5" />
+                                                              Adicionar
+                                                            </Button>
                                                           </div>
-                                                        );
-                                                      },
-                                                    )}
-                                                  </div>
-                                                )}
+
+                                                          {dateCard.team_windows.length == 0 ? (
+                                                            <div className="rounded-lg border border-dashed border-border/40 p-3 text-center text-xs text-muted-foreground">
+                                                              Adicione ao menos uma janela de
+                                                              horário.
+                                                            </div>
+                                                          ) : (
+                                                            <div className="space-y-3">
+                                                              {dateCard.team_windows.map(
+                                                                (window, windowIndex) => (
+                                                                  <div
+                                                                    key={`${dateCard.availability_key}-window-${windowIndex}`}
+                                                                    className="rounded-lg border border-border/30 bg-background/30 p-3"
+                                                                  >
+                                                                    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] items-end gap-2">
+                                                                      <div className="space-y-1.5">
+                                                                        <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                                          Início
+                                                                        </Label>
+
+                                                                        <TimeInput
+                                                                          value={window.start_time}
+                                                                          onChange={(value) =>
+                                                                            updateTeamCompetitionDateAvailabilityWindow(
+                                                                              teamAvailabilityCard.team_id,
+                                                                              activeTab.competition_key,
+                                                                              dateCard.date,
+                                                                              windowIndex,
+                                                                              "start_time",
+                                                                              value,
+                                                                            )
+                                                                          }
+                                                                          className="h-9"
+                                                                        />
+                                                                      </div>
+
+                                                                      <span className="pb-2 text-xs text-muted-foreground">
+                                                                        até
+                                                                      </span>
+
+                                                                      <div className="space-y-1.5">
+                                                                        <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                                          Fim
+                                                                        </Label>
+
+                                                                        <TimeInput
+                                                                          value={window.end_time}
+                                                                          onChange={(value) =>
+                                                                            updateTeamCompetitionDateAvailabilityWindow(
+                                                                              teamAvailabilityCard.team_id,
+                                                                              activeTab.competition_key,
+                                                                              dateCard.date,
+                                                                              windowIndex,
+                                                                              "end_time",
+                                                                              value,
+                                                                            )
+                                                                          }
+                                                                          className="h-9"
+                                                                        />
+                                                                      </div>
+
+                                                                      <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        onClick={() =>
+                                                                          removeTeamCompetitionDateAvailabilityWindow(
+                                                                            teamAvailabilityCard.team_id,
+                                                                            activeTab.competition_key,
+                                                                            dateCard.date,
+                                                                            windowIndex,
+                                                                          )
+                                                                        }
+                                                                        aria-label={`Remover janela ${windowIndex + 1}`}
+                                                                        title="Remover janela"
+                                                                      >
+                                                                        <Trash2 className="h-4 w-4" />
+                                                                      </Button>
+                                                                    </div>
+                                                                  </div>
+                                                                ),
+                                                              )}
+                                                            </div>
+                                                          )}
+                                                        </div>
+                                                      ) : dateCard.team_mode == "FULL_DAY" ? (
+                                                        <p className="mt-3 text-[11px] text-muted-foreground">
+                                                          A atlética poderá jogar em toda a janela
+                                                          permitida pela modalidade neste dia.
+                                                        </p>
+                                                      ) : (
+                                                        <p className="mt-3 text-[11px] text-muted-foreground">
+                                                          A atlética não poderá disputar jogos desta
+                                                          competição neste dia.
+                                                        </p>
+                                                      )}
+                                                    </div>
+                                                  );
+                                                })}
                                               </div>
-                                            ) : null}
+                                            )}
                                           </div>
-                                        );
-                                      },
-                                    )}
-                                  </div>
-                                ) : null}
-                              </div>
-                            );
-                          },
-                        )
+                                        ) : null}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ) : null}
+                            </div>
+                          );
+                        })
                       )}
                     </div>
                   )}
@@ -13157,18 +11619,14 @@ export function AdminChampionshipBracketPage({
                       Prioridade, Reserva e Programação das Finais
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      Quando duas ou mais quadras atendem a mesma modalidade,
-                      defina a preferência de naipe
-                      {resolveUsesSeasonDivisions(seasonSettings)
-                        ? " ou divisão"
-                        : ""}{" "}
-                      de cada quadra. A preferência é flexível: a quadra aceita
-                      outros jogos quando não há jogo do tipo preferido
-                      pendente. Sessões individuais podem gerar reservas
-                      exclusivas opcionais para o recurso escolhido. Aqui você
-                      também pode programar blocos manuais de finais para
-                      reservar quadras e manter os dois naipes da modalidade em
-                      sequência.
+                      Quando duas ou mais quadras atendem a mesma modalidade, defina a preferência
+                      de naipe
+                      {resolveUsesSeasonDivisions(seasonSettings) ? " ou divisão" : ""} de cada
+                      quadra. A preferência é flexível: a quadra aceita outros jogos quando não há
+                      jogo do tipo preferido pendente. Sessões individuais podem gerar reservas
+                      exclusivas opcionais para o recurso escolhido. Aqui você também pode programar
+                      blocos manuais de finais para reservar quadras e manter os dois naipes da
+                      modalidade em sequência.
                     </p>
                   </div>
 
@@ -13176,17 +11634,15 @@ export function AdminChampionshipBracketPage({
                     <div>
                       <p className="text-sm font-bold">Numeração dos jogos</p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Defina como o número visual dos jogos será organizado
-                        durante todo o campeonato.
+                        Defina como o número visual dos jogos será organizado durante todo o
+                        campeonato.
                       </p>
                     </div>
 
                     <RadioGroup
                       value={matchNumberingMode}
                       onValueChange={(value) =>
-                        setMatchNumberingMode(
-                          value as ChampionshipBracketMatchNumberingMode,
-                        )
+                        setMatchNumberingMode(value as ChampionshipBracketMatchNumberingMode)
                       }
                       className="mt-4 grid gap-3 lg:grid-cols-3"
                     >
@@ -13208,9 +11664,8 @@ export function AdminChampionshipBracketPage({
                         <div className="min-w-0">
                           <p className="text-sm font-bold">Por quadra</p>
                           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                            Cada quadra possui sua própria sequência de jogos. A
-                            numeração continua nos dias seguintes e não reinicia
-                            a cada novo dia.
+                            Cada quadra possui sua própria sequência de jogos. A numeração continua
+                            nos dias seguintes e não reinicia a cada novo dia.
                           </p>
 
                           <p className="mt-2 text-[11px] font-medium text-muted-foreground">
@@ -13235,13 +11690,10 @@ export function AdminChampionshipBracketPage({
                         />
 
                         <div className="min-w-0">
-                          <p className="text-sm font-bold">
-                            Por modalidade e naipe
-                          </p>
+                          <p className="text-sm font-bold">Por modalidade e naipe</p>
                           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                            Cada combinação de modalidade e naipe possui sua
-                            própria sequência, mesmo quando os jogos mudam de
-                            quadra.
+                            Cada combinação de modalidade e naipe possui sua própria sequência,
+                            mesmo quando os jogos mudam de quadra.
                           </p>
 
                           <p className="mt-2 text-[11px] font-medium text-muted-foreground">
@@ -13268,9 +11720,8 @@ export function AdminChampionshipBracketPage({
                         <div className="min-w-0">
                           <p className="text-sm font-bold">Por modalidade</p>
                           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                            Cada modalidade possui uma única sequência de jogos,
-                            incluindo todos os naipes e mesmo quando os jogos
-                            mudam de quadra.
+                            Cada modalidade possui uma única sequência de jogos, incluindo todos os
+                            naipes e mesmo quando os jogos mudam de quadra.
                           </p>
 
                           <p className="mt-2 text-[11px] font-medium text-muted-foreground">
@@ -13284,21 +11735,15 @@ export function AdminChampionshipBracketPage({
                   <div className="mb-6 rounded-xl border border-border/40 bg-background/30 p-5 shadow-sm">
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
-                        <p className="text-sm font-bold">
-                          Programação manual das finais
-                        </p>
+                        <p className="text-sm font-bold">Programação manual das finais</p>
                         <p className="text-xs text-muted-foreground">
-                          Crie blocos de final por quadra, dia e horário. A
-                          exceção de compatibilidade vale apenas para essas
-                          finais programadas com reserva exclusiva do recurso.
+                          Crie blocos de final por quadra, dia e horário. A exceção de
+                          compatibilidade vale apenas para essas finais programadas com reserva
+                          exclusiva do recurso.
                         </p>
                       </div>
 
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={addKnockoutProgramBlock}
-                      >
+                      <Button type="button" variant="secondary" onClick={addKnockoutProgramBlock}>
                         <Plus className="mr-2 h-4 w-4" />
                         Adicionar bloco de final
                       </Button>
@@ -13306,627 +11751,498 @@ export function AdminChampionshipBracketPage({
 
                     {knockoutProgramBlocks.length == 0 ? (
                       <div className="mt-4 rounded-lg border border-dashed border-border/40 bg-background/20 p-4 text-center text-sm text-muted-foreground">
-                        Nenhum bloco manual configurado. Sem blocos, o mata-mata
-                        final continua na distribuição genérica.
+                        Nenhum bloco manual configurado. Sem blocos, o mata-mata final continua na
+                        distribuição genérica.
                       </div>
                     ) : (
                       <div className="mt-4 space-y-4">
-                        {knockoutProgramBlocks.map(
-                          (programBlock, programBlockIndex) => {
-                            const programBlockKey =
-                              resolveKnockoutProgramBlockKey(programBlock);
-                            const availableCompetitionOptions =
-                              collectiveCompetitionOptionsBySportId[
-                                programBlock.sport_id
-                              ] ?? [];
-                            const availableLocationOptions =
-                              scheduleLocationOptionsByDate[
-                                programBlock.date
-                              ] ?? [];
-                            const selectedScheduleDay =
-                              scheduleDayByDate.get(programBlock.date) ?? null;
-                            const availableCourtOptions =
-                              resolveKnockoutProgramCourtOptions(
-                                programBlock.date,
-                                programBlock.location_key,
-                              );
-                            const selectedCourtFixedBlocks = resourceLocks
-                              .filter(
-                                (resourceLock) =>
-                                  resourceLock.date == programBlock.date &&
-                                  resourceLock.location_key ==
-                                    programBlock.location_key &&
-                                  resourceLock.court_key ==
-                                    programBlock.court_key &&
-                                  resourceLock.start_time &&
-                                  resourceLock.end_time,
-                              )
-                              .map(
-                                (resourceLock) =>
-                                  `${resourceLock.start_time} às ${resourceLock.end_time}`,
-                              );
-                            const blockDurationMinutes =
-                              resolveTimeRangeDurationMinutes(
-                                programBlock.start_time,
-                                programBlock.end_time,
-                              );
-                            const selectedFinalCount =
-                              programBlock.naipe_sequence.length > 0
-                                ? programBlock.naipe_sequence.length
-                                : 1;
-                            const suggestedPerFinalDurationMinutes =
-                              blockDurationMinutes != null
-                                ? Math.max(
-                                    1,
-                                    Math.floor(
-                                      blockDurationMinutes / selectedFinalCount,
-                                    ),
-                                  )
-                                : null;
-                            const finalDurationHelpText =
-                              blockDurationMinutes == null
-                                ? "Informe início e fim válidos para calcular a duração total reservada."
-                                : selectedFinalCount > 1
-                                  ? `Bloco reservado: ${blockDurationMinutes} min (${resolveMinutesWithHourLabel(blockDurationMinutes)}). Com ${selectedFinalCount} finais marcadas, a sugestão inicial é ${suggestedPerFinalDurationMinutes} min por final.`
-                                  : `Bloco reservado: ${blockDurationMinutes} min (${resolveMinutesWithHourLabel(blockDurationMinutes)}). Com 1 final, este campo só precisa ser menor que o bloco se você quiser deixar sobra intencional.`;
+                        {knockoutProgramBlocks.map((programBlock, programBlockIndex) => {
+                          const programBlockKey = resolveKnockoutProgramBlockKey(programBlock);
+                          const availableCompetitionOptions =
+                            collectiveCompetitionOptionsBySportId[programBlock.sport_id] ?? [];
+                          const availableLocationOptions =
+                            scheduleLocationOptionsByDate[programBlock.date] ?? [];
+                          const selectedScheduleDay =
+                            scheduleDayByDate.get(programBlock.date) ?? null;
+                          const availableCourtOptions = resolveKnockoutProgramCourtOptions(
+                            programBlock.date,
+                            programBlock.location_key,
+                          );
+                          const selectedCourtFixedBlocks = resourceLocks
+                            .filter(
+                              (resourceLock) =>
+                                resourceLock.date == programBlock.date &&
+                                resourceLock.location_key == programBlock.location_key &&
+                                resourceLock.court_key == programBlock.court_key &&
+                                resourceLock.start_time &&
+                                resourceLock.end_time,
+                            )
+                            .map(
+                              (resourceLock) =>
+                                `${resourceLock.start_time} às ${resourceLock.end_time}`,
+                            );
+                          const blockDurationMinutes = resolveTimeRangeDurationMinutes(
+                            programBlock.start_time,
+                            programBlock.end_time,
+                          );
+                          const selectedFinalCount =
+                            programBlock.naipe_sequence.length > 0
+                              ? programBlock.naipe_sequence.length
+                              : 1;
+                          const suggestedPerFinalDurationMinutes =
+                            blockDurationMinutes != null
+                              ? Math.max(1, Math.floor(blockDurationMinutes / selectedFinalCount))
+                              : null;
+                          const finalDurationHelpText =
+                            blockDurationMinutes == null
+                              ? "Informe início e fim válidos para calcular a duração total reservada."
+                              : selectedFinalCount > 1
+                                ? `Bloco reservado: ${blockDurationMinutes} min (${resolveMinutesWithHourLabel(blockDurationMinutes)}). Com ${selectedFinalCount} finais marcadas, a sugestão inicial é ${suggestedPerFinalDurationMinutes} min por final.`
+                                : `Bloco reservado: ${blockDurationMinutes} min (${resolveMinutesWithHourLabel(blockDurationMinutes)}). Com 1 final, este campo só precisa ser menor que o bloco se você quiser deixar sobra intencional.`;
 
-                            return (
-                              <div
-                                key={`knockout-program-block-${programBlockKey}`}
-                                className="rounded-xl border border-border/30 bg-background/40 p-4 shadow-sm"
-                              >
-                                <div className="flex flex-wrap items-start justify-between gap-3">
-                                  <div>
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <p className="text-sm font-bold">
-                                        Bloco {programBlockIndex + 1}
-                                      </p>
-                                      <AppBadge tone={AppBadgeTone.NEUTRAL}>
-                                        Final
-                                      </AppBadge>
-                                    </div>
-                                    <p className="mt-1 text-xs text-muted-foreground">
-                                      As finais seguem a ordem dos naipes
-                                      configurados aqui e não sofrem
-                                      interleaving com outra modalidade dentro
-                                      do bloco.
+                          return (
+                            <div
+                              key={`knockout-program-block-${programBlockKey}`}
+                              className="rounded-xl border border-border/30 bg-background/40 p-4 shadow-sm"
+                            >
+                              <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="text-sm font-bold">
+                                      Bloco {programBlockIndex + 1}
                                     </p>
+                                    <AppBadge tone={AppBadgeTone.NEUTRAL}>Final</AppBadge>
                                   </div>
-
-                                  <div className="flex items-center gap-1">
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      disabled={programBlockIndex == 0}
-                                      onClick={() =>
-                                        moveKnockoutProgramBlock(
-                                          programBlockKey,
-                                          -1,
-                                        )
-                                      }
-                                      aria-label={`Mover bloco ${
-                                        programBlockIndex + 1
-                                      } para cima`}
-                                      title="Mover bloco para cima"
-                                    >
-                                      <ArrowUp className="h-4 w-4" />
-                                    </Button>
-
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      disabled={
-                                        programBlockIndex ==
-                                        knockoutProgramBlocks.length - 1
-                                      }
-                                      onClick={() =>
-                                        moveKnockoutProgramBlock(
-                                          programBlockKey,
-                                          1,
-                                        )
-                                      }
-                                      aria-label={`Mover bloco ${
-                                        programBlockIndex + 1
-                                      } para baixo`}
-                                      title="Mover bloco para baixo"
-                                    >
-                                      <ArrowDown className="h-4 w-4" />
-                                    </Button>
-
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() =>
-                                        duplicateKnockoutProgramBlock(
-                                          programBlockKey,
-                                        )
-                                      }
-                                      aria-label={`Duplicar bloco ${
-                                        programBlockIndex + 1
-                                      }`}
-                                      title="Duplicar bloco"
-                                    >
-                                      <Copy className="h-4 w-4" />
-                                    </Button>
-
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() =>
-                                        removeKnockoutProgramBlock(
-                                          programBlockKey,
-                                        )
-                                      }
-                                      aria-label={`Remover bloco ${
-                                        programBlockIndex + 1
-                                      } da programação das finais`}
-                                      title="Remover bloco"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </div>
+                                  <p className="mt-1 text-xs text-muted-foreground">
+                                    As finais seguem a ordem dos naipes configurados aqui e não
+                                    sofrem interleaving com outra modalidade dentro do bloco.
+                                  </p>
                                 </div>
 
-                                <div className="mt-4 grid gap-4 lg:grid-cols-7">
-                                  <div>
-                                    <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                      Dia
-                                    </p>
-                                    <Select
-                                      value={programBlock.date || "NONE"}
-                                      onValueChange={(value) => {
-                                        const nextDate =
-                                          value == "NONE" ? "" : value;
-                                        const nextLocationOption =
-                                          scheduleLocationOptionsByDate[
-                                            nextDate
-                                          ]?.find(
-                                            (locationOption) =>
-                                              locationOption.location_key ==
-                                              programBlock.location_key,
-                                          ) ??
-                                          scheduleLocationOptionsByDate[
-                                            nextDate
-                                          ]?.[0] ??
-                                          null;
-                                        const nextCourtOption =
-                                          nextLocationOption
-                                            ? (resolveKnockoutProgramCourtOptions(
-                                                nextDate,
-                                                nextLocationOption.location_key,
-                                              ).find(
-                                                (courtOption) =>
-                                                  courtOption.court_key ==
-                                                  programBlock.court_key,
-                                              ) ??
-                                              resolveKnockoutProgramCourtOptions(
-                                                nextDate,
-                                                nextLocationOption.location_key,
-                                              )[0] ??
-                                              null)
-                                            : null;
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    disabled={programBlockIndex == 0}
+                                    onClick={() => moveKnockoutProgramBlock(programBlockKey, -1)}
+                                    aria-label={`Mover bloco ${programBlockIndex + 1} para cima`}
+                                    title="Mover bloco para cima"
+                                  >
+                                    <ArrowUp className="h-4 w-4" />
+                                  </Button>
 
-                                        updateKnockoutProgramBlock(
-                                          programBlockKey,
-                                          (currentProgramBlock) => ({
-                                            ...currentProgramBlock,
-                                            date: nextDate,
-                                            start_time:
-                                              scheduleDayByDate.get(nextDate)
-                                                ?.start_time ?? "",
-                                            end_time:
-                                              scheduleDayByDate.get(nextDate)
-                                                ?.end_time ?? "",
-                                            location_key:
-                                              nextLocationOption?.location_key ??
-                                              "",
-                                            location_name:
-                                              nextLocationOption?.location_name ??
-                                              null,
-                                            court_key:
-                                              nextCourtOption?.court_key ?? "",
-                                            court_name:
-                                              nextCourtOption?.court_name ??
-                                              null,
-                                          }),
-                                        );
-                                      }}
-                                    >
-                                      <SelectTrigger className="h-10">
-                                        <SelectValue placeholder="Selecione o dia" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {scheduleDayDates.map(
-                                          (scheduleDate) => (
-                                            <SelectItem
-                                              key={scheduleDate}
-                                              value={scheduleDate}
-                                            >
-                                              {resolveBrazilianDateString(
-                                                scheduleDate,
-                                              )}
-                                            </SelectItem>
-                                          ),
-                                        )}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    disabled={programBlockIndex == knockoutProgramBlocks.length - 1}
+                                    onClick={() => moveKnockoutProgramBlock(programBlockKey, 1)}
+                                    aria-label={`Mover bloco ${programBlockIndex + 1} para baixo`}
+                                    title="Mover bloco para baixo"
+                                  >
+                                    <ArrowDown className="h-4 w-4" />
+                                  </Button>
 
-                                  <div>
-                                    <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                      Início
-                                    </p>
-                                    <TimeInput
-                                      value={programBlock.start_time}
-                                      onChange={(value) =>
-                                        updateKnockoutProgramBlock(
-                                          programBlockKey,
-                                          (currentProgramBlock) => ({
-                                            ...currentProgramBlock,
-                                            start_time: value,
-                                          }),
-                                        )
-                                      }
-                                    />
-                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => duplicateKnockoutProgramBlock(programBlockKey)}
+                                    aria-label={`Duplicar bloco ${programBlockIndex + 1}`}
+                                    title="Duplicar bloco"
+                                  >
+                                    <Copy className="h-4 w-4" />
+                                  </Button>
 
-                                  <div>
-                                    <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                      Fim
-                                    </p>
-                                    <TimeInput
-                                      value={programBlock.end_time}
-                                      onChange={(value) =>
-                                        updateKnockoutProgramBlock(
-                                          programBlockKey,
-                                          (currentProgramBlock) => ({
-                                            ...currentProgramBlock,
-                                            end_time: value,
-                                          }),
-                                        )
-                                      }
-                                    />
-                                  </div>
-
-                                  <div>
-                                    <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                      Local
-                                    </p>
-                                    <Select
-                                      value={
-                                        programBlock.location_key || "NONE"
-                                      }
-                                      onValueChange={(value) => {
-                                        const nextLocationKey =
-                                          value == "NONE" ? "" : value;
-                                        const nextLocationOption =
-                                          availableLocationOptions.find(
-                                            (locationOption) =>
-                                              locationOption.location_key ==
-                                              nextLocationKey,
-                                          ) ?? null;
-                                        const nextCourtOption =
-                                          resolveKnockoutProgramCourtOptions(
-                                            programBlock.date,
-                                            nextLocationKey,
-                                          )[0] ?? null;
-
-                                        updateKnockoutProgramBlock(
-                                          programBlockKey,
-                                          (currentProgramBlock) => ({
-                                            ...currentProgramBlock,
-                                            location_key: nextLocationKey,
-                                            location_name:
-                                              nextLocationOption?.location_name ??
-                                              null,
-                                            court_key:
-                                              nextCourtOption?.court_key ?? "",
-                                            court_name:
-                                              nextCourtOption?.court_name ??
-                                              null,
-                                          }),
-                                        );
-                                      }}
-                                    >
-                                      <SelectTrigger className="h-10">
-                                        <SelectValue placeholder="Selecione o local" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {availableLocationOptions.map(
-                                          (locationOption) => (
-                                            <SelectItem
-                                              key={locationOption.location_key}
-                                              value={
-                                                locationOption.location_key
-                                              }
-                                            >
-                                              {locationOption.location_name}
-                                            </SelectItem>
-                                          ),
-                                        )}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-
-                                  <div>
-                                    <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                      Quadra / recurso
-                                    </p>
-                                    <Select
-                                      value={programBlock.court_key || "NONE"}
-                                      onValueChange={(value) => {
-                                        const nextCourtKey =
-                                          value == "NONE" ? "" : value;
-                                        const nextCourtOption =
-                                          availableCourtOptions.find(
-                                            (courtOption) =>
-                                              courtOption.court_key ==
-                                              nextCourtKey,
-                                          ) ?? null;
-
-                                        updateKnockoutProgramBlock(
-                                          programBlockKey,
-                                          (currentProgramBlock) => ({
-                                            ...currentProgramBlock,
-                                            court_key: nextCourtKey,
-                                            court_name:
-                                              nextCourtOption?.court_name ??
-                                              null,
-                                          }),
-                                        );
-                                      }}
-                                    >
-                                      <SelectTrigger className="h-10">
-                                        <SelectValue placeholder="Selecione a quadra" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {availableCourtOptions.map(
-                                          (courtOption) => (
-                                            <SelectItem
-                                              key={courtOption.court_key}
-                                              value={courtOption.court_key}
-                                            >
-                                              {courtOption.court_name}
-                                            </SelectItem>
-                                          ),
-                                        )}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-
-                                  <div>
-                                    <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                      Modalidade da final
-                                    </p>
-                                    <Select
-                                      value={programBlock.sport_id || "NONE"}
-                                      onValueChange={(value) => {
-                                        const nextSportId =
-                                          value == "NONE" ? "" : value;
-                                        const nextCompetitionOptions =
-                                          collectiveCompetitionOptionsBySportId[
-                                            nextSportId
-                                          ] ?? [];
-                                        const nextDivisionScope =
-                                          seasonSettings.division_format ==
-                                          ChampionshipSeasonDivisionFormat.UNIFIED
-                                            ? "ALL"
-                                            : (nextCompetitionOptions[0]
-                                                ?.division ??
-                                              TeamDivision.DIVISAO_PRINCIPAL);
-                                        const nextNaipeSequence =
-                                          resolveAutomaticKnockoutProgramBlockNaipeSequence(
-                                            {
-                                              competitionOptions:
-                                                nextCompetitionOptions,
-                                              divisionScope: nextDivisionScope,
-                                              divisionFormat:
-                                                seasonSettings.division_format,
-                                            },
-                                          );
-
-                                        updateKnockoutProgramBlock(
-                                          programBlockKey,
-                                          (currentProgramBlock) => ({
-                                            ...currentProgramBlock,
-                                            sport_id: nextSportId,
-                                            division_scope: nextDivisionScope,
-                                            naipe_sequence: nextNaipeSequence,
-                                            match_duration_minutes_override:
-                                              null,
-                                          }),
-                                        );
-                                      }}
-                                    >
-                                      <SelectTrigger className="h-10">
-                                        <SelectValue placeholder="Selecione a modalidade" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {collectiveSportOptions.map(
-                                          (sportOption) => (
-                                            <SelectItem
-                                              key={sportOption.sport_id}
-                                              value={sportOption.sport_id}
-                                            >
-                                              {sportOption.sport_name}
-                                            </SelectItem>
-                                          ),
-                                        )}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-
-                                  <div>
-                                    <div className="mb-1 flex items-center gap-1.5">
-                                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                        Duração
-                                      </p>
-                                      <TooltipProvider delayDuration={100}>
-                                        <Tooltip>
-                                          <TooltipTrigger asChild>
-                                            <button
-                                              type="button"
-                                              className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
-                                              aria-label="Ajuda sobre a duração de cada final"
-                                            >
-                                              <CircleHelp className="h-3.5 w-3.5" />
-                                            </button>
-                                          </TooltipTrigger>
-
-                                          <TooltipContent className="max-w-xs text-xs leading-relaxed">
-                                            {finalDurationHelpText}
-                                          </TooltipContent>
-                                        </Tooltip>
-                                      </TooltipProvider>
-                                    </div>
-
-                                    <div className="relative">
-                                      <Input
-                                        type="number"
-                                        min={1}
-                                        step={1}
-                                        placeholder={
-                                          suggestedPerFinalDurationMinutes !=
-                                          null
-                                            ? `${suggestedPerFinalDurationMinutes}`
-                                            : "Usar duração padrão"
-                                        }
-                                        className="pr-12"
-                                        value={
-                                          programBlock.match_duration_minutes_override ??
-                                          ""
-                                        }
-                                        onChange={(event) => {
-                                          const nextValue = event.target.value;
-
-                                          updateKnockoutProgramBlock(
-                                            programBlockKey,
-                                            (currentProgramBlock) => ({
-                                              ...currentProgramBlock,
-                                              match_duration_minutes_override:
-                                                nextValue == ""
-                                                  ? null
-                                                  : Number(nextValue),
-                                            }),
-                                          );
-                                        }}
-                                      />
-
-                                      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs font-medium text-muted-foreground">
-                                        min
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  {selectedScheduleDay ? (
-                                    <p className="lg:col-start-2 lg:col-span-2 lg:-mt-2 text-center text-[11px] leading-relaxed text-muted-foreground">
-                                      Agenda: {selectedScheduleDay.start_time}{" "}
-                                      às {selectedScheduleDay.end_time}
-                                      {selectedScheduleDay.break_start_time &&
-                                      selectedScheduleDay.break_end_time
-                                        ? ` • intervalo ${selectedScheduleDay.break_start_time} às ${selectedScheduleDay.break_end_time}`
-                                        : ""}
-                                      {selectedCourtFixedBlocks.length > 0
-                                        ? ` • bloqueios da quadra ${selectedCourtFixedBlocks.join(", ")}`
-                                        : ""}
-                                      .
-                                    </p>
-                                  ) : null}
-                                </div>
-
-                                <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                                  {seasonSettings.division_format !=
-                                  ChampionshipSeasonDivisionFormat.UNIFIED ? (
-                                    <div>
-                                      <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                        Escopo da divisão
-                                      </p>
-
-                                      <Select
-                                        value={programBlock.division_scope}
-                                        onValueChange={(value) => {
-                                          const nextDivisionScope =
-                                            value == "ALL"
-                                              ? "ALL"
-                                              : (value as TeamDivision);
-                                          const nextNaipeSequence =
-                                            resolveAutomaticKnockoutProgramBlockNaipeSequence(
-                                              {
-                                                competitionOptions:
-                                                  availableCompetitionOptions,
-                                                divisionScope:
-                                                  nextDivisionScope,
-                                                divisionFormat:
-                                                  seasonSettings.division_format,
-                                              },
-                                            );
-
-                                          updateKnockoutProgramBlock(
-                                            programBlockKey,
-                                            (currentProgramBlock) => ({
-                                              ...currentProgramBlock,
-                                              division_scope: nextDivisionScope,
-                                              naipe_sequence: nextNaipeSequence,
-                                            }),
-                                          );
-                                        }}
-                                      >
-                                        <SelectTrigger className="h-10">
-                                          <SelectValue placeholder="Selecione o escopo" />
-                                        </SelectTrigger>
-
-                                        <SelectContent>
-                                          <SelectItem value="ALL">
-                                            Todas as divisões
-                                          </SelectItem>
-
-                                          {Object.values(TeamDivision).map(
-                                            (divisionOption) => (
-                                              <SelectItem
-                                                key={divisionOption}
-                                                value={divisionOption}
-                                              >
-                                                {
-                                                  TEAM_DIVISION_LABELS[
-                                                    divisionOption
-                                                  ]
-                                                }
-                                              </SelectItem>
-                                            ),
-                                          )}
-                                        </SelectContent>
-                                      </Select>
-                                    </div>
-                                  ) : null}
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => removeKnockoutProgramBlock(programBlockKey)}
+                                    aria-label={`Remover bloco ${
+                                      programBlockIndex + 1
+                                    } da programação das finais`}
+                                    title="Remover bloco"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
                                 </div>
                               </div>
-                            );
-                          },
-                        )}
+
+                              <div className="mt-4 grid gap-4 lg:grid-cols-7">
+                                <div>
+                                  <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                    Dia
+                                  </p>
+                                  <Select
+                                    value={programBlock.date || "NONE"}
+                                    onValueChange={(value) => {
+                                      const nextDate = value == "NONE" ? "" : value;
+                                      const nextLocationOption =
+                                        scheduleLocationOptionsByDate[nextDate]?.find(
+                                          (locationOption) =>
+                                            locationOption.location_key ==
+                                            programBlock.location_key,
+                                        ) ??
+                                        scheduleLocationOptionsByDate[nextDate]?.[0] ??
+                                        null;
+                                      const nextCourtOption = nextLocationOption
+                                        ? (resolveKnockoutProgramCourtOptions(
+                                            nextDate,
+                                            nextLocationOption.location_key,
+                                          ).find(
+                                            (courtOption) =>
+                                              courtOption.court_key == programBlock.court_key,
+                                          ) ??
+                                          resolveKnockoutProgramCourtOptions(
+                                            nextDate,
+                                            nextLocationOption.location_key,
+                                          )[0] ??
+                                          null)
+                                        : null;
+
+                                      updateKnockoutProgramBlock(
+                                        programBlockKey,
+                                        (currentProgramBlock) => ({
+                                          ...currentProgramBlock,
+                                          date: nextDate,
+                                          start_time:
+                                            scheduleDayByDate.get(nextDate)?.start_time ?? "",
+                                          end_time: scheduleDayByDate.get(nextDate)?.end_time ?? "",
+                                          location_key: nextLocationOption?.location_key ?? "",
+                                          location_name: nextLocationOption?.location_name ?? null,
+                                          court_key: nextCourtOption?.court_key ?? "",
+                                          court_name: nextCourtOption?.court_name ?? null,
+                                        }),
+                                      );
+                                    }}
+                                  >
+                                    <SelectTrigger className="h-10">
+                                      <SelectValue placeholder="Selecione o dia" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {scheduleDayDates.map((scheduleDate) => (
+                                        <SelectItem key={scheduleDate} value={scheduleDate}>
+                                          {resolveBrazilianDateString(scheduleDate)}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div>
+                                  <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                    Início
+                                  </p>
+                                  <TimeInput
+                                    value={programBlock.start_time}
+                                    onChange={(value) =>
+                                      updateKnockoutProgramBlock(
+                                        programBlockKey,
+                                        (currentProgramBlock) => ({
+                                          ...currentProgramBlock,
+                                          start_time: value,
+                                        }),
+                                      )
+                                    }
+                                  />
+                                </div>
+
+                                <div>
+                                  <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                    Fim
+                                  </p>
+                                  <TimeInput
+                                    value={programBlock.end_time}
+                                    onChange={(value) =>
+                                      updateKnockoutProgramBlock(
+                                        programBlockKey,
+                                        (currentProgramBlock) => ({
+                                          ...currentProgramBlock,
+                                          end_time: value,
+                                        }),
+                                      )
+                                    }
+                                  />
+                                </div>
+
+                                <div>
+                                  <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                    Local
+                                  </p>
+                                  <Select
+                                    value={programBlock.location_key || "NONE"}
+                                    onValueChange={(value) => {
+                                      const nextLocationKey = value == "NONE" ? "" : value;
+                                      const nextLocationOption =
+                                        availableLocationOptions.find(
+                                          (locationOption) =>
+                                            locationOption.location_key == nextLocationKey,
+                                        ) ?? null;
+                                      const nextCourtOption =
+                                        resolveKnockoutProgramCourtOptions(
+                                          programBlock.date,
+                                          nextLocationKey,
+                                        )[0] ?? null;
+
+                                      updateKnockoutProgramBlock(
+                                        programBlockKey,
+                                        (currentProgramBlock) => ({
+                                          ...currentProgramBlock,
+                                          location_key: nextLocationKey,
+                                          location_name: nextLocationOption?.location_name ?? null,
+                                          court_key: nextCourtOption?.court_key ?? "",
+                                          court_name: nextCourtOption?.court_name ?? null,
+                                        }),
+                                      );
+                                    }}
+                                  >
+                                    <SelectTrigger className="h-10">
+                                      <SelectValue placeholder="Selecione o local" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {availableLocationOptions.map((locationOption) => (
+                                        <SelectItem
+                                          key={locationOption.location_key}
+                                          value={locationOption.location_key}
+                                        >
+                                          {locationOption.location_name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div>
+                                  <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                    Quadra / recurso
+                                  </p>
+                                  <Select
+                                    value={programBlock.court_key || "NONE"}
+                                    onValueChange={(value) => {
+                                      const nextCourtKey = value == "NONE" ? "" : value;
+                                      const nextCourtOption =
+                                        availableCourtOptions.find(
+                                          (courtOption) => courtOption.court_key == nextCourtKey,
+                                        ) ?? null;
+
+                                      updateKnockoutProgramBlock(
+                                        programBlockKey,
+                                        (currentProgramBlock) => ({
+                                          ...currentProgramBlock,
+                                          court_key: nextCourtKey,
+                                          court_name: nextCourtOption?.court_name ?? null,
+                                        }),
+                                      );
+                                    }}
+                                  >
+                                    <SelectTrigger className="h-10">
+                                      <SelectValue placeholder="Selecione a quadra" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {availableCourtOptions.map((courtOption) => (
+                                        <SelectItem
+                                          key={courtOption.court_key}
+                                          value={courtOption.court_key}
+                                        >
+                                          {courtOption.court_name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div>
+                                  <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                    Modalidade da final
+                                  </p>
+                                  <Select
+                                    value={programBlock.sport_id || "NONE"}
+                                    onValueChange={(value) => {
+                                      const nextSportId = value == "NONE" ? "" : value;
+                                      const nextCompetitionOptions =
+                                        collectiveCompetitionOptionsBySportId[nextSportId] ?? [];
+                                      const nextDivisionScope =
+                                        seasonSettings.division_format ==
+                                        ChampionshipSeasonDivisionFormat.UNIFIED
+                                          ? "ALL"
+                                          : (nextCompetitionOptions[0]?.division ??
+                                            TeamDivision.DIVISAO_PRINCIPAL);
+                                      const nextNaipeSequence =
+                                        resolveAutomaticKnockoutProgramBlockNaipeSequence({
+                                          competitionOptions: nextCompetitionOptions,
+                                          divisionScope: nextDivisionScope,
+                                          divisionFormat: seasonSettings.division_format,
+                                        });
+
+                                      updateKnockoutProgramBlock(
+                                        programBlockKey,
+                                        (currentProgramBlock) => ({
+                                          ...currentProgramBlock,
+                                          sport_id: nextSportId,
+                                          division_scope: nextDivisionScope,
+                                          naipe_sequence: nextNaipeSequence,
+                                          match_duration_minutes_override: null,
+                                        }),
+                                      );
+                                    }}
+                                  >
+                                    <SelectTrigger className="h-10">
+                                      <SelectValue placeholder="Selecione a modalidade" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {collectiveSportOptions.map((sportOption) => (
+                                        <SelectItem
+                                          key={sportOption.sport_id}
+                                          value={sportOption.sport_id}
+                                        >
+                                          {sportOption.sport_name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div>
+                                  <div className="mb-1 flex items-center gap-1.5">
+                                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                      Duração
+                                    </p>
+                                    <TooltipProvider delayDuration={100}>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <button
+                                            type="button"
+                                            className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+                                            aria-label="Ajuda sobre a duração de cada final"
+                                          >
+                                            <CircleHelp className="h-3.5 w-3.5" />
+                                          </button>
+                                        </TooltipTrigger>
+
+                                        <TooltipContent className="max-w-xs text-xs leading-relaxed">
+                                          {finalDurationHelpText}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  </div>
+
+                                  <div className="relative">
+                                    <Input
+                                      type="number"
+                                      min={1}
+                                      step={1}
+                                      placeholder={
+                                        suggestedPerFinalDurationMinutes != null
+                                          ? `${suggestedPerFinalDurationMinutes}`
+                                          : "Usar duração padrão"
+                                      }
+                                      className="pr-12"
+                                      value={programBlock.match_duration_minutes_override ?? ""}
+                                      onChange={(event) => {
+                                        const nextValue = event.target.value;
+
+                                        updateKnockoutProgramBlock(
+                                          programBlockKey,
+                                          (currentProgramBlock) => ({
+                                            ...currentProgramBlock,
+                                            match_duration_minutes_override:
+                                              nextValue == "" ? null : Number(nextValue),
+                                          }),
+                                        );
+                                      }}
+                                    />
+
+                                    <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs font-medium text-muted-foreground">
+                                      min
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {selectedScheduleDay ? (
+                                  <p className="lg:col-start-2 lg:col-span-2 lg:-mt-2 text-center text-[11px] leading-relaxed text-muted-foreground">
+                                    Agenda: {selectedScheduleDay.start_time} às{" "}
+                                    {selectedScheduleDay.end_time}
+                                    {selectedScheduleDay.break_start_time &&
+                                    selectedScheduleDay.break_end_time
+                                      ? ` • intervalo ${selectedScheduleDay.break_start_time} às ${selectedScheduleDay.break_end_time}`
+                                      : ""}
+                                    {selectedCourtFixedBlocks.length > 0
+                                      ? ` • bloqueios da quadra ${selectedCourtFixedBlocks.join(", ")}`
+                                      : ""}
+                                    .
+                                  </p>
+                                ) : null}
+                              </div>
+
+                              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                                {seasonSettings.division_format !=
+                                ChampionshipSeasonDivisionFormat.UNIFIED ? (
+                                  <div>
+                                    <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                      Escopo da divisão
+                                    </p>
+
+                                    <Select
+                                      value={programBlock.division_scope}
+                                      onValueChange={(value) => {
+                                        const nextDivisionScope =
+                                          value == "ALL" ? "ALL" : (value as TeamDivision);
+                                        const nextNaipeSequence =
+                                          resolveAutomaticKnockoutProgramBlockNaipeSequence({
+                                            competitionOptions: availableCompetitionOptions,
+                                            divisionScope: nextDivisionScope,
+                                            divisionFormat: seasonSettings.division_format,
+                                          });
+
+                                        updateKnockoutProgramBlock(
+                                          programBlockKey,
+                                          (currentProgramBlock) => ({
+                                            ...currentProgramBlock,
+                                            division_scope: nextDivisionScope,
+                                            naipe_sequence: nextNaipeSequence,
+                                          }),
+                                        );
+                                      }}
+                                    >
+                                      <SelectTrigger className="h-10">
+                                        <SelectValue placeholder="Selecione o escopo" />
+                                      </SelectTrigger>
+
+                                      <SelectContent>
+                                        <SelectItem value="ALL">Todas as divisões</SelectItem>
+
+                                        {Object.values(TeamDivision).map((divisionOption) => (
+                                          <SelectItem key={divisionOption} value={divisionOption}>
+                                            {TEAM_DIVISION_LABELS[divisionOption]}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                ) : null}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
 
                   {courtPreferenceStepRows.length == 0 ? (
                     <div className="rounded-xl border border-dashed border-border/40 bg-background/20 p-8 text-center text-sm text-muted-foreground">
-                      Nenhuma quadra possui modalidades coletivas disponíveis
-                      para configuração.
+                      Nenhuma quadra possui modalidades coletivas disponíveis para configuração.
                     </div>
                   ) : (
                     <div className="space-y-4">
                       {courtPreferenceStepRows.map((preferenceRow) => {
                         const isCourtPreferenceDayExpanded =
-                          expandedCourtPreferenceDayByKey[preferenceRow.key] ===
-                          true;
+                          expandedCourtPreferenceDayByKey[preferenceRow.key] === true;
                         const courtPreferenceDayContentId = `court-preference-day-content-${preferenceRow.key}`;
                         const dayDiagnostics =
                           structuralReviewState.review?.diagnostics.filter(
-                            (diagnostic) =>
-                              diagnostic.date == preferenceRow.date,
+                            (diagnostic) => diagnostic.date == preferenceRow.date,
                           ) ?? [];
                         const dayStatusLabel =
                           dayDiagnostics.length == 0
@@ -13947,75 +12263,54 @@ export function AdminChampionshipBracketPage({
                               aria-expanded={isCourtPreferenceDayExpanded}
                               aria-controls={courtPreferenceDayContentId}
                               aria-label={`${
-                                isCourtPreferenceDayExpanded
-                                  ? "Recolher"
-                                  : "Expandir"
+                                isCourtPreferenceDayExpanded ? "Recolher" : "Expandir"
                               } programação de ${preferenceRow.day_label}`}
                               onClick={() => {
-                                setExpandedCourtPreferenceDayByKey(
-                                  (currentValue) => ({
-                                    ...currentValue,
-                                    [preferenceRow.key]:
-                                      !isCourtPreferenceDayExpanded,
-                                  }),
-                                );
+                                setExpandedCourtPreferenceDayByKey((currentValue) => ({
+                                  ...currentValue,
+                                  [preferenceRow.key]: !isCourtPreferenceDayExpanded,
+                                }));
                               }}
                               className={cn(
                                 "grid w-full gap-3 px-5 py-4 text-left transition-colors hover:text-foreground lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center",
-                                isCourtPreferenceDayExpanded &&
-                                  "border-b border-border/40",
+                                isCourtPreferenceDayExpanded && "border-b border-border/40",
                               )}
                             >
                               <div>
-                                <p className="text-base font-bold">
-                                  {preferenceRow.day_label}
-                                </p>
+                                <p className="text-base font-bold">{preferenceRow.day_label}</p>
 
                                 <p className="mt-1 flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground">
                                   <span>{preferenceRow.date_label}</span>
                                   {preferenceRow.schedule_time_label ? (
-                                    <span>
-                                      • {preferenceRow.schedule_time_label}
-                                    </span>
+                                    <span>• {preferenceRow.schedule_time_label}</span>
                                   ) : null}
                                   {preferenceRow.break_time_label ? (
-                                    <span>
-                                      • intervalo{" "}
-                                      {preferenceRow.break_time_label}
-                                    </span>
+                                    <span>• intervalo {preferenceRow.break_time_label}</span>
                                   ) : null}
                                 </p>
                               </div>
 
                               <div className="flex flex-wrap gap-2 lg:justify-center">
-                                {preferenceRow.court_cards.map(
-                                  (preferenceCard) => (
-                                    <span
-                                      key={`${preferenceCard.key}-header-summary`}
-                                      className="rounded-md bg-background/50 px-2.5 py-1 text-[11px] text-muted-foreground"
-                                    >
-                                      <span className="font-semibold text-foreground">
-                                        {preferenceCard.court.name ||
-                                          "Quadra sem nome"}
-                                        :
-                                      </span>{" "}
-                                      {preferenceCard.planned_sport_summaries
-                                        .length > 0
-                                        ? preferenceCard.planned_sport_summaries
-                                            .map(
-                                              (summary) =>
-                                                `${summary.sport_name}: ${summary.planned_match_count} ${
-                                                  summary.planned_match_count ==
-                                                  1
-                                                    ? "jogo"
-                                                    : "jogos"
-                                                }`,
-                                            )
-                                            .join(" • ")
-                                        : "Sem jogos definidos"}
-                                    </span>
-                                  ),
-                                )}
+                                {preferenceRow.court_cards.map((preferenceCard) => (
+                                  <span
+                                    key={`${preferenceCard.key}-header-summary`}
+                                    className="rounded-md bg-background/50 px-2.5 py-1 text-[11px] text-muted-foreground"
+                                  >
+                                    <span className="font-semibold text-foreground">
+                                      {preferenceCard.court.name || "Quadra sem nome"}:
+                                    </span>{" "}
+                                    {preferenceCard.planned_sport_summaries.length > 0
+                                      ? preferenceCard.planned_sport_summaries
+                                          .map(
+                                            (summary) =>
+                                              `${summary.sport_name}: ${summary.planned_match_count} ${
+                                                summary.planned_match_count == 1 ? "jogo" : "jogos"
+                                              }`,
+                                          )
+                                          .join(" • ")
+                                      : "Sem jogos definidos"}
+                                  </span>
+                                ))}
                               </div>
 
                               <div className="flex items-center gap-3 text-right text-xs font-medium text-muted-foreground">
@@ -14032,9 +12327,7 @@ export function AdminChampionshipBracketPage({
                                   </p>
                                   <p>
                                     {preferenceRow.court_cards.length}{" "}
-                                    {preferenceRow.court_cards.length == 1
-                                      ? "quadra"
-                                      : "quadras"}
+                                    {preferenceRow.court_cards.length == 1 ? "quadra" : "quadras"}
                                   </p>
                                 </div>
                                 {isCourtPreferenceDayExpanded ? (
@@ -14046,10 +12339,7 @@ export function AdminChampionshipBracketPage({
                             </button>
 
                             {isCourtPreferenceDayExpanded ? (
-                              <div
-                                id={courtPreferenceDayContentId}
-                                className="overflow-x-auto"
-                              >
+                              <div id={courtPreferenceDayContentId} className="overflow-x-auto">
                                 <div
                                   className="grid min-w-full gap-px bg-border/40"
                                   style={{
@@ -14059,94 +12349,135 @@ export function AdminChampionshipBracketPage({
                                     )}, minmax(280px, 1fr))`,
                                   }}
                                 >
-                                  {preferenceRow.court_cards.map(
-                                    (preferenceCard) => {
-                                      const currentPreference =
-                                        preferenceCard.court.sport_preference;
-                                      const scheduleDayDate =
-                                        scheduleDayDateById.get(
-                                          preferenceCard.schedule_day_id,
-                                        ) ?? "";
-                                      const reviewCourt =
-                                        structuralReviewCourtByStep11Key.get(
-                                          [
-                                            scheduleDayDate,
-                                            preferenceCard.location_id,
-                                            preferenceCard.court.id,
-                                          ].join("::"),
-                                        ) ?? null;
-                                      const remainingCourtMinutes = reviewCourt
-                                        ? Math.max(
-                                            0,
-                                            reviewCourt.free_minutes -
-                                              reviewCourt.planned_collective_minutes,
-                                          )
-                                        : 0;
+                                  {preferenceRow.court_cards.map((preferenceCard) => {
+                                    const currentPreference = preferenceCard.court.sport_preference;
+                                    const scheduleDayDate =
+                                      scheduleDayDateById.get(preferenceCard.schedule_day_id) ?? "";
+                                    const reviewCourt =
+                                      structuralReviewCourtByStep11Key.get(
+                                        [
+                                          scheduleDayDate,
+                                          preferenceCard.location_id,
+                                          preferenceCard.court.id,
+                                        ].join("::"),
+                                      ) ?? null;
+                                    const remainingCourtMinutes = reviewCourt
+                                      ? Math.max(
+                                          0,
+                                          reviewCourt.free_minutes -
+                                            reviewCourt.planned_collective_minutes,
+                                        )
+                                      : 0;
 
-                                      const activePlannedSportOptions =
-                                        preferenceCard.sport_options.filter(
-                                          (sportOption) => {
-                                            const currentTarget =
-                                              preferenceCard.court.sport_match_targets.find(
-                                                (target) =>
-                                                  target.sport_id ==
-                                                  sportOption.sport_id,
-                                              ) ?? null;
-                                            const recommendationLine =
-                                              sportMatchTargetRecommendationByKey.get(
-                                                [
-                                                  preferenceCard.schedule_day_id,
-                                                  preferenceCard.location_id,
-                                                  preferenceCard.court.id,
-                                                  sportOption.sport_id,
-                                                ].join("::"),
-                                              ) ?? null;
-                                            const effectiveMatchCount =
-                                              (currentTarget?.planning_mode ??
-                                                "MANUAL") == "AUTO"
-                                                ? (recommendationLine?.recommended_match_count ??
-                                                  0)
-                                                : (currentTarget?.planned_match_count ??
-                                                  0);
+                                    const activePlannedSportOptions =
+                                      preferenceCard.sport_options.filter((sportOption) => {
+                                        const currentTarget =
+                                          preferenceCard.court.sport_match_targets.find(
+                                            (target) => target.sport_id == sportOption.sport_id,
+                                          ) ?? null;
+                                        const recommendationLine =
+                                          sportMatchTargetRecommendationByKey.get(
+                                            [
+                                              preferenceCard.schedule_day_id,
+                                              preferenceCard.location_id,
+                                              preferenceCard.court.id,
+                                              sportOption.sport_id,
+                                            ].join("::"),
+                                          ) ?? null;
+                                        const effectiveMatchCount =
+                                          (currentTarget?.planning_mode ?? "MANUAL") == "AUTO"
+                                            ? (recommendationLine?.recommended_match_count ?? 0)
+                                            : (currentTarget?.planned_match_count ?? 0);
 
-                                            return (
-                                              currentTarget != null &&
-                                              ((currentTarget.planning_mode ??
-                                                "MANUAL") == "AUTO" ||
-                                                effectiveMatchCount > 0)
-                                            );
-                                          },
+                                        return (
+                                          currentTarget != null &&
+                                          ((currentTarget.planning_mode ?? "MANUAL") == "AUTO" ||
+                                            effectiveMatchCount > 0)
                                         );
+                                      });
 
-                                      const implicitPreferredSportId =
-                                        activePlannedSportOptions.length == 1
-                                          ? activePlannedSportOptions[0]!
-                                              .sport_id
+                                    const implicitPreferredSportId =
+                                      activePlannedSportOptions.length == 1
+                                        ? activePlannedSportOptions[0]!.sport_id
+                                        : null;
+
+                                    const preferredSportId =
+                                      currentPreference?.preferred_sport_id ??
+                                      implicitPreferredSportId;
+
+                                    const preferredSportOption =
+                                      preferenceCard.sport_options.find(
+                                        (sportOption) => sportOption.sport_id == preferredSportId,
+                                      ) ?? null;
+
+                                    const availableNaipeOptions =
+                                      preferredSportOption?.naipe_options ?? [];
+
+                                    const availableDivisionOptions =
+                                      preferredSportOption?.division_options ?? [];
+                                    const preferredSportCompetitionSummaries = (
+                                      preferredSportOption?.competition_keys ?? []
+                                    )
+                                      .map(
+                                        (competitionKey) =>
+                                          competitionMatchTargetSummaryByCompetitionKey.get(
+                                            competitionKey,
+                                          ) ?? null,
+                                      )
+                                      .filter(
+                                        (
+                                          competitionSummary,
+                                        ): competitionSummary is ChampionshipBracketCompetitionMatchTargetRecommendationSummary =>
+                                          competitionSummary != null,
+                                      );
+                                    const availableNaipeCountForPreferredSport = new Set(
+                                      preferredSportCompetitionSummaries.map(
+                                        (competitionSummary) => competitionSummary.naipe,
+                                      ),
+                                    ).size;
+
+                                    const currentSequenceMode: ChampionshipBracketCourtSequenceMode =
+                                      currentPreference?.sequence_mode ?? "FLEXIBLE";
+                                    const sequenceModeHelperText =
+                                      currentSequenceMode == "GROUP_NAIPE"
+                                        ? "O sistema divide os jogos do dia em blocos contínuos por naipe: primeiro usa o naipe prioritário configurado abaixo e, depois, continua com o outro naipe disponível da mesma modalidade. Se só um naipe estiver jogável nesta data, ele ocupa todo o bloco."
+                                        : currentSequenceMode == "GROUP_DIVISION"
+                                          ? "O sistema prioriza manter os jogos da mesma divisão agrupados. Se nenhum jogo dessa divisão puder ocorrer no próximo horário, outra divisão da mesma modalidade poderá utilizar o espaço."
                                           : null;
 
-                                      const preferredSportId =
-                                        currentPreference?.preferred_sport_id ??
-                                        implicitPreferredSportId;
+                                    const canGroupByNaipe =
+                                      availableNaipeCountForPreferredSport > 1;
+                                    const canAlternateNaipeAfterExclusiveKnockoutPhase =
+                                      currentSequenceMode == "GROUP_NAIPE" &&
+                                      availableNaipeCountForPreferredSport == 2;
 
-                                      const preferredSportOption =
-                                        preferenceCard.sport_options.find(
-                                          (sportOption) =>
-                                            sportOption.sport_id ==
-                                            preferredSportId,
-                                        ) ?? null;
-
-                                      const availableNaipeOptions =
-                                        preferredSportOption?.naipe_options ??
-                                        [];
-
-                                      const availableDivisionOptions =
-                                        preferredSportOption?.division_options ??
-                                        [];
-                                      const preferredSportCompetitionSummaries =
-                                        (
-                                          preferredSportOption?.competition_keys ??
-                                          []
-                                        )
+                                    const canGroupByDivision =
+                                      resolveUsesSeasonDivisions(seasonSettings) &&
+                                      availableDivisionOptions.length > 1;
+                                    const shouldShowPreferredSportField =
+                                      activePlannedSportOptions.length > 1;
+                                    const shouldShowPreferredNaipeField =
+                                      currentSequenceMode != "GROUP_DIVISION";
+                                    const shouldShowPreferredDivisionField =
+                                      resolveUsesSeasonDivisions(seasonSettings) &&
+                                      currentSequenceMode != "GROUP_NAIPE";
+                                    const preferenceFieldCount = [
+                                      shouldShowPreferredSportField,
+                                      true,
+                                      shouldShowPreferredNaipeField,
+                                      shouldShowPreferredDivisionField,
+                                    ].filter(Boolean).length;
+                                    const preferenceFieldSpanClass =
+                                      preferenceFieldCount <= 1
+                                        ? "xl:col-span-12"
+                                        : preferenceFieldCount == 2
+                                          ? "xl:col-span-6"
+                                          : preferenceFieldCount == 3
+                                            ? "xl:col-span-4"
+                                            : "xl:col-span-3";
+                                    const compactCompetitionBalanceItems =
+                                      activePlannedSportOptions.flatMap((sportOption) =>
+                                        sportOption.competition_keys
                                           .map(
                                             (competitionKey) =>
                                               competitionMatchTargetSummaryByCompetitionKey.get(
@@ -14158,687 +12489,630 @@ export function AdminChampionshipBracketPage({
                                               competitionSummary,
                                             ): competitionSummary is ChampionshipBracketCompetitionMatchTargetRecommendationSummary =>
                                               competitionSummary != null,
-                                          );
-                                      const availableNaipeCountForPreferredSport =
-                                        new Set(
-                                          preferredSportCompetitionSummaries.map(
-                                            (competitionSummary) =>
-                                              competitionSummary.naipe,
-                                          ),
-                                        ).size;
+                                          )
+                                          .flatMap((competitionSummary) => {
+                                            const balanceLabel = [
+                                              MATCH_NAIPE_LABELS[competitionSummary.naipe],
+                                              competitionSummary.division
+                                                ? TEAM_DIVISION_LABELS[competitionSummary.division]
+                                                : null,
+                                            ]
+                                              .filter(Boolean)
+                                              .join(" • ");
 
-                                      const currentSequenceMode: ChampionshipBracketCourtSequenceMode =
-                                        currentPreference?.sequence_mode ??
-                                        "FLEXIBLE";
-                                      const sequenceModeHelperText =
-                                        currentSequenceMode == "GROUP_NAIPE"
-                                          ? "O sistema divide os jogos do dia em blocos contínuos por naipe: primeiro usa o naipe prioritário configurado abaixo e, depois, continua com o outro naipe disponível da mesma modalidade. Se só um naipe estiver jogável nesta data, ele ocupa todo o bloco."
-                                          : currentSequenceMode ==
-                                              "GROUP_DIVISION"
-                                            ? "O sistema prioriza manter os jogos da mesma divisão agrupados. Se nenhum jogo dessa divisão puder ocorrer no próximo horário, outra divisão da mesma modalidade poderá utilizar o espaço."
-                                            : null;
+                                            if (competitionSummary.shortage_match_count > 0) {
+                                              return [
+                                                {
+                                                  key: `${competitionSummary.competition_key}-shortage`,
+                                                  tone: "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+                                                  text: `Faltam ${competitionSummary.shortage_match_count} ${balanceLabel}`,
+                                                },
+                                              ];
+                                            }
 
-                                      const canGroupByNaipe =
-                                        availableNaipeCountForPreferredSport >
-                                        1;
-                                      const canAlternateNaipeAfterExclusiveKnockoutPhase =
-                                        currentSequenceMode == "GROUP_NAIPE" &&
-                                        availableNaipeCountForPreferredSport ==
-                                          2;
+                                            if (competitionSummary.excess_match_count > 0) {
+                                              return [
+                                                {
+                                                  key: `${competitionSummary.competition_key}-excess`,
+                                                  tone: "border-destructive/20 bg-destructive/10 text-destructive",
+                                                  text: `Sobram ${competitionSummary.excess_match_count} ${balanceLabel}`,
+                                                },
+                                              ];
+                                            }
 
-                                      const canGroupByDivision =
-                                        resolveUsesSeasonDivisions(
-                                          seasonSettings,
-                                        ) &&
-                                        availableDivisionOptions.length > 1;
-                                      const shouldShowPreferredSportField =
-                                        activePlannedSportOptions.length > 1;
-                                      const shouldShowPreferredNaipeField =
-                                        currentSequenceMode != "GROUP_DIVISION";
-                                      const shouldShowPreferredDivisionField =
-                                        resolveUsesSeasonDivisions(
-                                          seasonSettings,
-                                        ) &&
-                                        currentSequenceMode != "GROUP_NAIPE";
-                                      const preferenceFieldCount = [
-                                        shouldShowPreferredSportField,
-                                        true,
-                                        shouldShowPreferredNaipeField,
-                                        shouldShowPreferredDivisionField,
-                                      ].filter(Boolean).length;
-                                      const preferenceFieldSpanClass =
-                                        preferenceFieldCount <= 1
-                                          ? "xl:col-span-12"
-                                          : preferenceFieldCount == 2
-                                            ? "xl:col-span-6"
-                                            : preferenceFieldCount == 3
-                                              ? "xl:col-span-4"
-                                              : "xl:col-span-3";
-                                      const compactCompetitionBalanceItems =
-                                        activePlannedSportOptions.flatMap(
-                                          (sportOption) =>
-                                            sportOption.competition_keys
-                                              .map(
-                                                (competitionKey) =>
-                                                  competitionMatchTargetSummaryByCompetitionKey.get(
-                                                    competitionKey,
-                                                  ) ?? null,
-                                              )
-                                              .filter(
-                                                (
-                                                  competitionSummary,
-                                                ): competitionSummary is ChampionshipBracketCompetitionMatchTargetRecommendationSummary =>
-                                                  competitionSummary != null,
-                                              )
-                                              .flatMap((competitionSummary) => {
-                                                const balanceLabel = [
-                                                  MATCH_NAIPE_LABELS[
-                                                    competitionSummary.naipe
-                                                  ],
-                                                  competitionSummary.division
-                                                    ? TEAM_DIVISION_LABELS[
-                                                        competitionSummary
-                                                          .division
-                                                      ]
-                                                    : null,
-                                                ]
-                                                  .filter(Boolean)
-                                                  .join(" • ");
+                                            return [];
+                                          }),
+                                      );
 
-                                                if (
-                                                  competitionSummary.shortage_match_count >
-                                                  0
-                                                ) {
-                                                  return [
-                                                    {
-                                                      key: `${competitionSummary.competition_key}-shortage`,
-                                                      tone: "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-400",
-                                                      text: `Faltam ${competitionSummary.shortage_match_count} ${balanceLabel}`,
-                                                    },
-                                                  ];
-                                                }
+                                    return (
+                                      <div
+                                        key={preferenceCard.key}
+                                        className="min-w-0 bg-background/60 p-5"
+                                      >
+                                        <div className="flex items-start justify-between gap-4 border-b border-border/30 pb-4">
+                                          <div className="min-w-0">
+                                            <p className="text-sm font-bold">
+                                              {preferenceCard.court.name || "Quadra sem nome"}
+                                            </p>
 
-                                                if (
-                                                  competitionSummary.excess_match_count >
-                                                  0
-                                                ) {
-                                                  return [
-                                                    {
-                                                      key: `${competitionSummary.competition_key}-excess`,
-                                                      tone: "border-destructive/20 bg-destructive/10 text-destructive",
-                                                      text: `Sobram ${competitionSummary.excess_match_count} ${balanceLabel}`,
-                                                    },
-                                                  ];
-                                                }
-
-                                                return [];
-                                              }),
-                                        );
-
-                                      return (
-                                        <div
-                                          key={preferenceCard.key}
-                                          className="min-w-0 bg-background/60 p-5"
-                                        >
-                                          <div className="flex items-start justify-between gap-4 border-b border-border/30 pb-4">
-                                            <div className="min-w-0">
-                                              <p className="text-sm font-bold">
-                                                {preferenceCard.court.name ||
-                                                  "Quadra sem nome"}
-                                              </p>
-
-                                              <p className="mt-1 text-xs text-muted-foreground">
-                                                {preferenceCard.location_name}
-                                              </p>
-                                            </div>
-
-                                            <div className="shrink-0 text-right">
-                                              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                                Planejado
-                                              </p>
-
-                                              <p className="mt-1 text-sm font-bold">
-                                                {preferenceCard.planned_match_count >
-                                                0
-                                                  ? `${
-                                                      preferenceCard.planned_match_count
-                                                    } ${
-                                                      preferenceCard.planned_match_count ==
-                                                      1
-                                                        ? "jogo"
-                                                        : "jogos"
-                                                    }`
-                                                  : "Nenhum"}
-                                              </p>
-                                            </div>
+                                            <p className="mt-1 text-xs text-muted-foreground">
+                                              {preferenceCard.location_name}
+                                            </p>
                                           </div>
 
-                                          <div className="mt-4 space-y-4">
-                                            {compactCompetitionBalanceItems.length >
-                                            0 ? (
-                                              <div className="rounded-lg border border-border/30 bg-muted/20 px-3 py-3">
-                                                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                                  Resumo rápido por naipe
-                                                </p>
-                                                <div className="mt-2 flex flex-wrap gap-2">
-                                                  {compactCompetitionBalanceItems.map(
-                                                    (balanceItem) => (
-                                                      <span
-                                                        key={`${preferenceCard.key}-${balanceItem.key}`}
-                                                        className={cn(
-                                                          "rounded-full border px-2 py-1 text-[10px] font-medium",
-                                                          balanceItem.tone,
-                                                        )}
-                                                      >
-                                                        {balanceItem.text}
-                                                      </span>
-                                                    ),
-                                                  )}
-                                                </div>
-                                              </div>
-                                            ) : null}
+                                          <div className="shrink-0 text-right">
+                                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                              Planejado
+                                            </p>
 
-                                            {reviewCourt ? (
-                                              <div className="grid gap-2 sm:grid-cols-3">
-                                                <div className="rounded-lg border border-border/30 bg-muted/20 px-3 py-2">
-                                                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                                    Janela livre do dia
-                                                  </p>
-                                                  <p className="mt-1 text-sm font-semibold">
-                                                    {reviewCourt.free_minutes}{" "}
-                                                    min
-                                                  </p>
-                                                  <p className="text-[11px] text-muted-foreground">
-                                                    {resolveMinutesWithHourLabel(
-                                                      reviewCourt.free_minutes,
-                                                    )}
-                                                  </p>
-                                                </div>
+                                            <p className="mt-1 text-sm font-bold">
+                                              {preferenceCard.planned_match_count > 0
+                                                ? `${preferenceCard.planned_match_count} ${
+                                                    preferenceCard.planned_match_count == 1
+                                                      ? "jogo"
+                                                      : "jogos"
+                                                  }`
+                                                : "Nenhum"}
+                                            </p>
+                                          </div>
+                                        </div>
 
-                                                <div className="rounded-lg border border-border/30 bg-muted/20 px-3 py-2">
-                                                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                                    Tempo já reservado
-                                                  </p>
-                                                  <p className="mt-1 text-sm font-semibold">
-                                                    {
-                                                      reviewCourt.planned_collective_minutes
-                                                    }{" "}
-                                                    min
-                                                  </p>
-                                                  <p className="text-[11px] text-muted-foreground">
-                                                    {resolveMinutesWithHourLabel(
-                                                      reviewCourt.planned_collective_minutes,
-                                                    )}
-                                                  </p>
-                                                </div>
-
-                                                <div className="rounded-lg border border-border/30 bg-muted/20 px-3 py-2">
-                                                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                                    Sobra após o planejado
-                                                  </p>
-                                                  <p className="mt-1 text-sm font-semibold">
-                                                    {remainingCourtMinutes} min
-                                                  </p>
-                                                  <p
-                                                    className={cn(
-                                                      "text-[11px]",
-                                                      reviewCourt.overflow_minutes >
-                                                        0
-                                                        ? "text-destructive"
-                                                        : remainingCourtMinutes >
-                                                            0
-                                                          ? "text-emerald-700 dark:text-emerald-400"
-                                                          : "text-muted-foreground",
-                                                    )}
-                                                  >
-                                                    {reviewCourt.overflow_minutes >
-                                                    0
-                                                      ? `Faltam ${reviewCourt.overflow_minutes} min para acomodar tudo`
-                                                      : remainingCourtMinutes >
-                                                          0
-                                                        ? "Ainda existe espaço neste dia"
-                                                        : "Dia preenchido exatamente"}
-                                                  </p>
-                                                </div>
-                                              </div>
-                                            ) : null}
-
-                                            <div>
-                                              <ChampionshipBracketFieldLabel
-                                                label="Jogos planejados por modalidade"
-                                                helpText={`Defina quantos jogos de cada modalidade devem ser programados nesta quadra neste dia. A lista já considera apenas modalidades e naipes com janela jogável nesta data.
-
-Campo vazio significa que essa modalidade não terá jogos automáticos nesta quadra neste dia.
-A quantidade inclui todos os naipes da modalidade. Finais programadas manualmente são tratadas separadamente.`}
-                                              />
-
-                                              <div className="space-y-2">
-                                                {preferenceCard.sport_options.map(
-                                                  (sportOption) => {
-                                                    const currentTarget =
-                                                      preferenceCard.court.sport_match_targets.find(
-                                                        (target) =>
-                                                          target.sport_id ==
-                                                          sportOption.sport_id,
-                                                      ) ?? null;
-                                                    const recommendationLine =
-                                                      sportMatchTargetRecommendationByKey.get(
-                                                        [
-                                                          preferenceCard.schedule_day_id,
-                                                          preferenceCard.location_id,
-                                                          preferenceCard.court
-                                                            .id,
-                                                          sportOption.sport_id,
-                                                        ].join("::"),
-                                                      ) ?? null;
-                                                    const sportSummary =
-                                                      sportMatchTargetSummaryBySportId.get(
-                                                        sportOption.sport_id,
-                                                      ) ?? null;
-                                                    const competitionSummaries =
-                                                      sportOption.competition_keys
-                                                        .map(
-                                                          (competitionKey) =>
-                                                            competitionMatchTargetSummaryByCompetitionKey.get(
-                                                              competitionKey,
-                                                            ) ?? null,
-                                                        )
-                                                        .filter(
-                                                          (
-                                                            competitionSummary,
-                                                          ): competitionSummary is ChampionshipBracketCompetitionMatchTargetRecommendationSummary =>
-                                                            competitionSummary !=
-                                                            null,
-                                                        );
-                                                    const lineCompetitionBreakdownByKey =
-                                                      new Map(
-                                                        (
-                                                          recommendationLine?.competition_breakdowns ??
-                                                          []
-                                                        ).map((breakdown) => [
-                                                          breakdown.competition_key,
-                                                          breakdown,
-                                                        ]),
-                                                      );
-                                                    const planningMode: ChampionshipBracketCourtSportMatchTargetPlanningMode =
-                                                      currentTarget?.planning_mode ??
-                                                      "MANUAL";
-                                                    const effectiveMatchCount =
-                                                      planningMode == "AUTO"
-                                                        ? (recommendationLine?.recommended_match_count ??
-                                                          0)
-                                                        : (currentTarget?.planned_match_count ??
-                                                          0);
-                                                    const reviewPlanningItem =
-                                                      reviewCourt?.planning_items.find(
-                                                        (planningItem) =>
-                                                          planningItem.sport_id ==
-                                                          sportOption.sport_id,
-                                                      ) ?? null;
-                                                    const lineDistributedCompetitionMatchCount =
-                                                      [
-                                                        ...lineCompetitionBreakdownByKey.values(),
-                                                      ].reduce(
-                                                        (
-                                                          total,
-                                                          competitionBreakdown,
-                                                        ) =>
-                                                          total +
-                                                          competitionBreakdown.planned_match_count,
-                                                        0,
-                                                      );
-                                                    const lineExcessAboveRequiredMatchCount =
-                                                      Math.max(
-                                                        0,
-                                                        effectiveMatchCount -
-                                                          lineDistributedCompetitionMatchCount,
-                                                      );
-
-                                                    return (
-                                                      <div
-                                                        key={`${preferenceCard.key}-target-${sportOption.sport_id}`}
-                                                        className="space-y-2 rounded-lg border border-border/30 bg-background/30 px-3 py-3"
-                                                      >
-                                                        <div className="flex items-start justify-between gap-3">
-                                                          <div className="min-w-0 flex-1">
-                                                            <p className="truncate text-xs font-bold text-foreground">
-                                                              {
-                                                                sportOption.sport_name
-                                                              }
-                                                            </p>
-
-                                                            {reviewPlanningItem ? (
-                                                              <p
-                                                                className={cn(
-                                                                  "mt-1 text-[10px] leading-relaxed",
-                                                                  reviewPlanningItem.overflow_minutes >
-                                                                    0
-                                                                    ? "text-destructive"
-                                                                    : "text-muted-foreground",
-                                                                )}
-                                                              >
-                                                                {reviewPlanningItem.overflow_minutes >
-                                                                0 ? (
-                                                                  <>
-                                                                    Faltam{" "}
-                                                                    {
-                                                                      reviewPlanningItem.overflow_minutes
-                                                                    }{" "}
-                                                                    min para
-                                                                    essa
-                                                                    quantidade
-                                                                    caber.
-                                                                  </>
-                                                                ) : (
-                                                                  <>
-                                                                    Ainda sobram{" "}
-                                                                    {
-                                                                      reviewPlanningItem.remaining_minutes
-                                                                    }{" "}
-                                                                    min; cabem
-                                                                    aprox.{" "}
-                                                                    {
-                                                                      reviewPlanningItem.additional_match_capacity
-                                                                    }{" "}
-                                                                    jogo(s)
-                                                                    extras.
-                                                                  </>
-                                                                )}
-                                                              </p>
-                                                            ) : null}
-
-                                                            {sportSummary &&
-                                                            competitionSummaries.length ==
-                                                              0 ? (
-                                                              <p
-                                                                className={cn(
-                                                                  "mt-1 text-[10px] leading-relaxed",
-                                                                  sportSummary.shortage_match_count >
-                                                                    0
-                                                                    ? "text-amber-700 dark:text-amber-400"
-                                                                    : sportSummary.excess_match_count >
-                                                                        0
-                                                                      ? "text-destructive"
-                                                                      : "text-emerald-700 dark:text-emerald-400",
-                                                                )}
-                                                              >
-                                                                {sportSummary.shortage_match_count >
-                                                                0
-                                                                  ? competitionSummaries.every(
-                                                                      (
-                                                                        competitionSummary,
-                                                                      ) =>
-                                                                        competitionSummary.shortage_match_count ==
-                                                                          0 &&
-                                                                        competitionSummary.excess_match_count ==
-                                                                          0,
-                                                                    )
-                                                                    ? `Ainda faltam ${sportSummary.shortage_match_count} jogo(s) desta modalidade em outras datas ou quadras do campeonato.`
-                                                                    : `Saldo total da modalidade: ainda faltam ${sportSummary.shortage_match_count} jogo(s) no campeonato.`
-                                                                  : sportSummary.excess_match_count >
-                                                                      0
-                                                                    ? competitionSummaries.every(
-                                                                        (
-                                                                          competitionSummary,
-                                                                        ) =>
-                                                                          competitionSummary.shortage_match_count ==
-                                                                            0 &&
-                                                                          competitionSummary.excess_match_count ==
-                                                                            0,
-                                                                      )
-                                                                      ? `Existem ${sportSummary.excess_match_count} jogo(s) desta modalidade acima do necessário em outras datas ou quadras do campeonato.`
-                                                                      : `Saldo total da modalidade: existem ${sportSummary.excess_match_count} jogo(s) planejados acima do necessário no campeonato.`
-                                                                    : "Saldo total da modalidade em equilíbrio no campeonato."}
-                                                              </p>
-                                                            ) : null}
-
-                                                            {lineExcessAboveRequiredMatchCount >
-                                                            0 ? (
-                                                              <p className="mt-1 text-[10px] leading-relaxed text-destructive">
-                                                                Desta linha,{" "}
-                                                                {
-                                                                  lineExcessAboveRequiredMatchCount
-                                                                }{" "}
-                                                                jogo(s) não
-                                                                encontraram
-                                                                encaixe válido
-                                                                entre os naipes
-                                                                e fases
-                                                                elegíveis desta
-                                                                modalidade no
-                                                                campeonato.
-                                                              </p>
-                                                            ) : null}
-                                                          </div>
-
-                                                          <div className="grid shrink-0 grid-cols-[132px_88px] gap-3 self-start">
-                                                            <Select
-                                                              value={
-                                                                planningMode
-                                                              }
-                                                              onValueChange={(
-                                                                value,
-                                                              ) =>
-                                                                updateCourtSportMatchTargetPlanningMode(
-                                                                  preferenceCard.schedule_day_id,
-                                                                  preferenceCard.location_id,
-                                                                  preferenceCard
-                                                                    .court.id,
-                                                                  sportOption.sport_id,
-                                                                  value as ChampionshipBracketCourtSportMatchTargetPlanningMode,
-                                                                )
-                                                              }
-                                                            >
-                                                              <SelectTrigger className="h-9">
-                                                                <SelectValue />
-                                                              </SelectTrigger>
-
-                                                              <SelectContent>
-                                                                <SelectItem value="MANUAL">
-                                                                  Manual
-                                                                </SelectItem>
-                                                                <SelectItem value="AUTO">
-                                                                  Automático
-                                                                </SelectItem>
-                                                              </SelectContent>
-                                                            </Select>
-
-                                                            <Input
-                                                              type="number"
-                                                              min={0}
-                                                              step={1}
-                                                              placeholder="0"
-                                                              value={
-                                                                planningMode ==
-                                                                "AUTO"
-                                                                  ? effectiveMatchCount
-                                                                  : (currentTarget?.planned_match_count ??
-                                                                    "")
-                                                              }
-                                                              readOnly={
-                                                                planningMode ==
-                                                                "AUTO"
-                                                              }
-                                                              disabled={
-                                                                planningMode ==
-                                                                "AUTO"
-                                                              }
-                                                              onChange={(
-                                                                event,
-                                                              ) => {
-                                                                const nextValue =
-                                                                  event.target
-                                                                    .value;
-
-                                                                updateCourtSportMatchTarget(
-                                                                  preferenceCard.schedule_day_id,
-                                                                  preferenceCard.location_id,
-                                                                  preferenceCard
-                                                                    .court.id,
-                                                                  sportOption.sport_id,
-                                                                  nextValue ==
-                                                                    ""
-                                                                    ? null
-                                                                    : Number(
-                                                                        nextValue,
-                                                                      ),
-                                                                );
-                                                              }}
-                                                              className="h-9 text-center"
-                                                            />
-                                                          </div>
-                                                        </div>
-
-                                                        {competitionSummaries.length >
-                                                        0 ? (
-                                                          <div className="w-full">
-                                                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                                              Saldo por naipe
-                                                              {resolveUsesSeasonDivisions(
-                                                                seasonSettings,
-                                                              )
-                                                                ? " / divisão"
-                                                                : ""}
-                                                            </p>
-                                                            <div className="mt-1.5 grid w-full gap-2 md:grid-cols-2">
-                                                              {competitionSummaries.map(
-                                                                (
-                                                                  competitionSummary,
-                                                                ) => {
-                                                                  const lineBreakdown =
-                                                                    lineCompetitionBreakdownByKey.get(
-                                                                      competitionSummary.competition_key,
-                                                                    ) ?? null;
-
-                                                                  return (
-                                                                    <div
-                                                                      key={`${preferenceCard.key}-competition-balance-${competitionSummary.competition_key}`}
-                                                                      className={cn(
-                                                                        "min-w-0 rounded-md border px-2 py-1.5 text-[10px] leading-relaxed",
-                                                                        competitionSummary.shortage_match_count >
-                                                                          0
-                                                                          ? "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-400"
-                                                                          : competitionSummary.excess_match_count >
-                                                                              0
-                                                                            ? "border-destructive/20 bg-destructive/10 text-destructive"
-                                                                            : "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
-                                                                      )}
-                                                                    >
-                                                                      <span className="block font-semibold">
-                                                                        {[
-                                                                          MATCH_NAIPE_LABELS[
-                                                                            competitionSummary
-                                                                              .naipe
-                                                                          ],
-                                                                          competitionSummary.division
-                                                                            ? TEAM_DIVISION_LABELS[
-                                                                                competitionSummary
-                                                                                  .division
-                                                                              ]
-                                                                            : null,
-                                                                        ]
-                                                                          .filter(
-                                                                            Boolean,
-                                                                          )
-                                                                          .join(
-                                                                            " • ",
-                                                                          )}
-                                                                      </span>
-                                                                      <span className="mt-0.5 block text-current/80">
-                                                                        Nesta
-                                                                        quadra/dia:{" "}
-                                                                        {lineBreakdown?.planned_match_count ??
-                                                                          0}
-                                                                      </span>
-                                                                      <span className="block text-current/80">
-                                                                        Total do
-                                                                        campeonato:{" "}
-                                                                        {
-                                                                          competitionSummary.resolved_match_count
-                                                                        }{" "}
-                                                                        de{" "}
-                                                                        {
-                                                                          competitionSummary.required_match_count
-                                                                        }
-                                                                      </span>
-                                                                      <span className="mt-0.5 block">
-                                                                        {competitionSummary.shortage_match_count >
-                                                                        0
-                                                                          ? `Ainda faltam ${competitionSummary.shortage_match_count} jogo(s) deste naipe no campeonato.`
-                                                                          : competitionSummary.excess_match_count >
-                                                                              0
-                                                                            ? `Existem ${competitionSummary.excess_match_count} jogo(s) deste naipe acima do necessário no campeonato.`
-                                                                            : "Quantidade em equilíbrio para este naipe no campeonato."}
-                                                                      </span>
-                                                                    </div>
-                                                                  );
-                                                                },
-                                                              )}
-                                                            </div>
-                                                          </div>
-                                                        ) : null}
-                                                      </div>
-                                                    );
-                                                  },
+                                        <div className="mt-4 space-y-4">
+                                          {compactCompetitionBalanceItems.length > 0 ? (
+                                            <div className="rounded-lg border border-border/30 bg-muted/20 px-3 py-3">
+                                              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                Resumo rápido por naipe
+                                              </p>
+                                              <div className="mt-2 flex flex-wrap gap-2">
+                                                {compactCompetitionBalanceItems.map(
+                                                  (balanceItem) => (
+                                                    <span
+                                                      key={`${preferenceCard.key}-${balanceItem.key}`}
+                                                      className={cn(
+                                                        "rounded-full border px-2 py-1 text-[10px] font-medium",
+                                                        balanceItem.tone,
+                                                      )}
+                                                    >
+                                                      {balanceItem.text}
+                                                    </span>
+                                                  ),
                                                 )}
                                               </div>
                                             </div>
+                                          ) : null}
 
-                                            <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-12">
-                                              {shouldShowPreferredSportField ? (
-                                                <div
+                                          {reviewCourt ? (
+                                            <div className="grid gap-2 sm:grid-cols-3">
+                                              <div className="rounded-lg border border-border/30 bg-muted/20 px-3 py-2">
+                                                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                  Janela livre do dia
+                                                </p>
+                                                <p className="mt-1 text-sm font-semibold">
+                                                  {reviewCourt.free_minutes} min
+                                                </p>
+                                                <p className="text-[11px] text-muted-foreground">
+                                                  {resolveMinutesWithHourLabel(
+                                                    reviewCourt.free_minutes,
+                                                  )}
+                                                </p>
+                                              </div>
+
+                                              <div className="rounded-lg border border-border/30 bg-muted/20 px-3 py-2">
+                                                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                  Tempo já reservado
+                                                </p>
+                                                <p className="mt-1 text-sm font-semibold">
+                                                  {reviewCourt.planned_collective_minutes} min
+                                                </p>
+                                                <p className="text-[11px] text-muted-foreground">
+                                                  {resolveMinutesWithHourLabel(
+                                                    reviewCourt.planned_collective_minutes,
+                                                  )}
+                                                </p>
+                                              </div>
+
+                                              <div className="rounded-lg border border-border/30 bg-muted/20 px-3 py-2">
+                                                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                  Sobra após o planejado
+                                                </p>
+                                                <p className="mt-1 text-sm font-semibold">
+                                                  {remainingCourtMinutes} min
+                                                </p>
+                                                <p
                                                   className={cn(
-                                                    "min-w-0 self-start",
-                                                    preferenceFieldSpanClass,
+                                                    "text-[11px]",
+                                                    reviewCourt.overflow_minutes > 0
+                                                      ? "text-destructive"
+                                                      : remainingCourtMinutes > 0
+                                                        ? "text-emerald-700 dark:text-emerald-400"
+                                                        : "text-muted-foreground",
                                                   )}
                                                 >
-                                                  <ChampionshipBracketFieldLabel label="Modalidade preferencial" />
+                                                  {reviewCourt.overflow_minutes > 0
+                                                    ? `Faltam ${reviewCourt.overflow_minutes} min para acomodar tudo`
+                                                    : remainingCourtMinutes > 0
+                                                      ? "Ainda existe espaço neste dia"
+                                                      : "Dia preenchido exatamente"}
+                                                </p>
+                                              </div>
+                                            </div>
+                                          ) : null}
 
-                                                  <Select
-                                                    value={
-                                                      preferredSportId ?? "NONE"
-                                                    }
-                                                    onValueChange={(value) =>
-                                                      updateCourtSportPreference(
-                                                        preferenceCard.schedule_day_id,
-                                                        preferenceCard.location_id,
-                                                        preferenceCard.court.id,
-                                                        value == "NONE"
-                                                          ? null
-                                                          : value,
-                                                      )
-                                                    }
+                                          <div>
+                                            <ChampionshipBracketFieldLabel
+                                              label="Jogos planejados por modalidade"
+                                              helpText={`Defina quantos jogos de cada modalidade devem ser programados nesta quadra neste dia. A lista já considera apenas modalidades e naipes com janela jogável nesta data.
+
+Campo vazio significa que essa modalidade não terá jogos automáticos nesta quadra neste dia.
+A quantidade inclui todos os naipes da modalidade. Finais programadas manualmente são tratadas separadamente.`}
+                                            />
+
+                                            <div className="space-y-2">
+                                              {preferenceCard.sport_options.map((sportOption) => {
+                                                const currentTarget =
+                                                  preferenceCard.court.sport_match_targets.find(
+                                                    (target) =>
+                                                      target.sport_id == sportOption.sport_id,
+                                                  ) ?? null;
+                                                const recommendationLine =
+                                                  sportMatchTargetRecommendationByKey.get(
+                                                    [
+                                                      preferenceCard.schedule_day_id,
+                                                      preferenceCard.location_id,
+                                                      preferenceCard.court.id,
+                                                      sportOption.sport_id,
+                                                    ].join("::"),
+                                                  ) ?? null;
+                                                const sportSummary =
+                                                  sportMatchTargetSummaryBySportId.get(
+                                                    sportOption.sport_id,
+                                                  ) ?? null;
+                                                const competitionSummaries =
+                                                  sportOption.competition_keys
+                                                    .map(
+                                                      (competitionKey) =>
+                                                        competitionMatchTargetSummaryByCompetitionKey.get(
+                                                          competitionKey,
+                                                        ) ?? null,
+                                                    )
+                                                    .filter(
+                                                      (
+                                                        competitionSummary,
+                                                      ): competitionSummary is ChampionshipBracketCompetitionMatchTargetRecommendationSummary =>
+                                                        competitionSummary != null,
+                                                    );
+                                                const lineCompetitionBreakdownByKey = new Map(
+                                                  (
+                                                    recommendationLine?.competition_breakdowns ?? []
+                                                  ).map((breakdown) => [
+                                                    breakdown.competition_key,
+                                                    breakdown,
+                                                  ]),
+                                                );
+                                                const planningMode: ChampionshipBracketCourtSportMatchTargetPlanningMode =
+                                                  currentTarget?.planning_mode ?? "MANUAL";
+                                                const effectiveMatchCount =
+                                                  planningMode == "AUTO"
+                                                    ? (recommendationLine?.recommended_match_count ??
+                                                      0)
+                                                    : (currentTarget?.planned_match_count ?? 0);
+                                                const reviewPlanningItem =
+                                                  reviewCourt?.planning_items.find(
+                                                    (planningItem) =>
+                                                      planningItem.sport_id == sportOption.sport_id,
+                                                  ) ?? null;
+                                                const lineDistributedCompetitionMatchCount = [
+                                                  ...lineCompetitionBreakdownByKey.values(),
+                                                ].reduce(
+                                                  (total, competitionBreakdown) =>
+                                                    total +
+                                                    competitionBreakdown.planned_match_count,
+                                                  0,
+                                                );
+                                                const lineExcessAboveRequiredMatchCount = Math.max(
+                                                  0,
+                                                  effectiveMatchCount -
+                                                    lineDistributedCompetitionMatchCount,
+                                                );
+
+                                                return (
+                                                  <div
+                                                    key={`${preferenceCard.key}-target-${sportOption.sport_id}`}
+                                                    className="space-y-2 rounded-lg border border-border/30 bg-background/30 px-3 py-3"
                                                   >
-                                                    <SelectTrigger className="h-10">
-                                                      <SelectValue placeholder="Sem preferência" />
-                                                    </SelectTrigger>
+                                                    <div className="flex items-start justify-between gap-3">
+                                                      <div className="min-w-0 flex-1">
+                                                        <p className="truncate text-xs font-bold text-foreground">
+                                                          {sportOption.sport_name}
+                                                        </p>
 
-                                                    <SelectContent>
-                                                      <SelectItem value="NONE">
-                                                        Sem preferência
-                                                      </SelectItem>
-
-                                                      {activePlannedSportOptions.map(
-                                                        (sportOption) => (
-                                                          <SelectItem
-                                                            key={
-                                                              sportOption.sport_id
-                                                            }
-                                                            value={
-                                                              sportOption.sport_id
-                                                            }
+                                                        {reviewPlanningItem ? (
+                                                          <p
+                                                            className={cn(
+                                                              "mt-1 text-[10px] leading-relaxed",
+                                                              reviewPlanningItem.overflow_minutes >
+                                                                0
+                                                                ? "text-destructive"
+                                                                : "text-muted-foreground",
+                                                            )}
                                                           >
-                                                            {
-                                                              sportOption.sport_name
-                                                            }
-                                                          </SelectItem>
-                                                        ),
-                                                      )}
-                                                    </SelectContent>
-                                                  </Select>
-                                                </div>
-                                              ) : null}
+                                                            {reviewPlanningItem.overflow_minutes >
+                                                            0 ? (
+                                                              <>
+                                                                Faltam{" "}
+                                                                {
+                                                                  reviewPlanningItem.overflow_minutes
+                                                                }{" "}
+                                                                min para essa quantidade caber.
+                                                              </>
+                                                            ) : (
+                                                              <>
+                                                                Ainda sobram{" "}
+                                                                {
+                                                                  reviewPlanningItem.remaining_minutes
+                                                                }{" "}
+                                                                min; cabem aprox.{" "}
+                                                                {
+                                                                  reviewPlanningItem.additional_match_capacity
+                                                                }{" "}
+                                                                jogo(s) extras.
+                                                              </>
+                                                            )}
+                                                          </p>
+                                                        ) : null}
 
+                                                        {sportSummary &&
+                                                        competitionSummaries.length == 0 ? (
+                                                          <p
+                                                            className={cn(
+                                                              "mt-1 text-[10px] leading-relaxed",
+                                                              sportSummary.shortage_match_count > 0
+                                                                ? "text-amber-700 dark:text-amber-400"
+                                                                : sportSummary.excess_match_count >
+                                                                    0
+                                                                  ? "text-destructive"
+                                                                  : "text-emerald-700 dark:text-emerald-400",
+                                                            )}
+                                                          >
+                                                            {sportSummary.shortage_match_count > 0
+                                                              ? competitionSummaries.every(
+                                                                  (competitionSummary) =>
+                                                                    competitionSummary.shortage_match_count ==
+                                                                      0 &&
+                                                                    competitionSummary.excess_match_count ==
+                                                                      0,
+                                                                )
+                                                                ? `Ainda faltam ${sportSummary.shortage_match_count} jogo(s) desta modalidade em outras datas ou quadras do campeonato.`
+                                                                : `Saldo total da modalidade: ainda faltam ${sportSummary.shortage_match_count} jogo(s) no campeonato.`
+                                                              : sportSummary.excess_match_count > 0
+                                                                ? competitionSummaries.every(
+                                                                    (competitionSummary) =>
+                                                                      competitionSummary.shortage_match_count ==
+                                                                        0 &&
+                                                                      competitionSummary.excess_match_count ==
+                                                                        0,
+                                                                  )
+                                                                  ? `Existem ${sportSummary.excess_match_count} jogo(s) desta modalidade acima do necessário em outras datas ou quadras do campeonato.`
+                                                                  : `Saldo total da modalidade: existem ${sportSummary.excess_match_count} jogo(s) planejados acima do necessário no campeonato.`
+                                                                : "Saldo total da modalidade em equilíbrio no campeonato."}
+                                                          </p>
+                                                        ) : null}
+
+                                                        {lineExcessAboveRequiredMatchCount > 0 ? (
+                                                          <p className="mt-1 text-[10px] leading-relaxed text-destructive">
+                                                            Desta linha,{" "}
+                                                            {lineExcessAboveRequiredMatchCount}{" "}
+                                                            jogo(s) não encontraram encaixe válido
+                                                            entre os naipes e fases elegíveis desta
+                                                            modalidade no campeonato.
+                                                          </p>
+                                                        ) : null}
+                                                      </div>
+
+                                                      <div className="grid shrink-0 grid-cols-[132px_88px] gap-3 self-start">
+                                                        <Select
+                                                          value={planningMode}
+                                                          onValueChange={(value) =>
+                                                            updateCourtSportMatchTargetPlanningMode(
+                                                              preferenceCard.schedule_day_id,
+                                                              preferenceCard.location_id,
+                                                              preferenceCard.court.id,
+                                                              sportOption.sport_id,
+                                                              value as ChampionshipBracketCourtSportMatchTargetPlanningMode,
+                                                            )
+                                                          }
+                                                        >
+                                                          <SelectTrigger className="h-9">
+                                                            <SelectValue />
+                                                          </SelectTrigger>
+
+                                                          <SelectContent>
+                                                            <SelectItem value="MANUAL">
+                                                              Manual
+                                                            </SelectItem>
+                                                            <SelectItem value="AUTO">
+                                                              Automático
+                                                            </SelectItem>
+                                                          </SelectContent>
+                                                        </Select>
+
+                                                        <Input
+                                                          type="number"
+                                                          min={0}
+                                                          step={1}
+                                                          placeholder="0"
+                                                          value={
+                                                            planningMode == "AUTO"
+                                                              ? effectiveMatchCount
+                                                              : (currentTarget?.planned_match_count ??
+                                                                "")
+                                                          }
+                                                          readOnly={planningMode == "AUTO"}
+                                                          disabled={planningMode == "AUTO"}
+                                                          onChange={(event) => {
+                                                            const nextValue = event.target.value;
+
+                                                            updateCourtSportMatchTarget(
+                                                              preferenceCard.schedule_day_id,
+                                                              preferenceCard.location_id,
+                                                              preferenceCard.court.id,
+                                                              sportOption.sport_id,
+                                                              nextValue == ""
+                                                                ? null
+                                                                : Number(nextValue),
+                                                            );
+                                                          }}
+                                                          className="h-9 text-center"
+                                                        />
+                                                      </div>
+                                                    </div>
+
+                                                    {competitionSummaries.length > 0 ? (
+                                                      <div className="w-full">
+                                                        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                                          Saldo por naipe
+                                                          {resolveUsesSeasonDivisions(
+                                                            seasonSettings,
+                                                          )
+                                                            ? " / divisão"
+                                                            : ""}
+                                                        </p>
+                                                        <div className="mt-1.5 grid w-full gap-2 md:grid-cols-2">
+                                                          {competitionSummaries.map(
+                                                            (competitionSummary) => {
+                                                              const lineBreakdown =
+                                                                lineCompetitionBreakdownByKey.get(
+                                                                  competitionSummary.competition_key,
+                                                                ) ?? null;
+
+                                                              return (
+                                                                <div
+                                                                  key={`${preferenceCard.key}-competition-balance-${competitionSummary.competition_key}`}
+                                                                  className={cn(
+                                                                    "min-w-0 rounded-md border px-2 py-1.5 text-[10px] leading-relaxed",
+                                                                    competitionSummary.shortage_match_count >
+                                                                      0
+                                                                      ? "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                                                                      : competitionSummary.excess_match_count >
+                                                                          0
+                                                                        ? "border-destructive/20 bg-destructive/10 text-destructive"
+                                                                        : "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+                                                                  )}
+                                                                >
+                                                                  <span className="block font-semibold">
+                                                                    {[
+                                                                      MATCH_NAIPE_LABELS[
+                                                                        competitionSummary.naipe
+                                                                      ],
+                                                                      competitionSummary.division
+                                                                        ? TEAM_DIVISION_LABELS[
+                                                                            competitionSummary
+                                                                              .division
+                                                                          ]
+                                                                        : null,
+                                                                    ]
+                                                                      .filter(Boolean)
+                                                                      .join(" • ")}
+                                                                  </span>
+                                                                  <span className="mt-0.5 block text-current/80">
+                                                                    Nesta quadra/dia:{" "}
+                                                                    {lineBreakdown?.planned_match_count ??
+                                                                      0}
+                                                                  </span>
+                                                                  <span className="block text-current/80">
+                                                                    Total do campeonato:{" "}
+                                                                    {
+                                                                      competitionSummary.resolved_match_count
+                                                                    }{" "}
+                                                                    de{" "}
+                                                                    {
+                                                                      competitionSummary.required_match_count
+                                                                    }
+                                                                  </span>
+                                                                  <span className="mt-0.5 block">
+                                                                    {competitionSummary.shortage_match_count >
+                                                                    0
+                                                                      ? `Ainda faltam ${competitionSummary.shortage_match_count} jogo(s) deste naipe no campeonato.`
+                                                                      : competitionSummary.excess_match_count >
+                                                                          0
+                                                                        ? `Existem ${competitionSummary.excess_match_count} jogo(s) deste naipe acima do necessário no campeonato.`
+                                                                        : "Quantidade em equilíbrio para este naipe no campeonato."}
+                                                                  </span>
+                                                                </div>
+                                                              );
+                                                            },
+                                                          )}
+                                                        </div>
+                                                      </div>
+                                                    ) : null}
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          </div>
+
+                                          <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-12">
+                                            {shouldShowPreferredSportField ? (
+                                              <div
+                                                className={cn(
+                                                  "min-w-0 self-start",
+                                                  preferenceFieldSpanClass,
+                                                )}
+                                              >
+                                                <ChampionshipBracketFieldLabel label="Modalidade preferencial" />
+
+                                                <Select
+                                                  value={preferredSportId ?? "NONE"}
+                                                  onValueChange={(value) =>
+                                                    updateCourtSportPreference(
+                                                      preferenceCard.schedule_day_id,
+                                                      preferenceCard.location_id,
+                                                      preferenceCard.court.id,
+                                                      value == "NONE" ? null : value,
+                                                    )
+                                                  }
+                                                >
+                                                  <SelectTrigger className="h-10">
+                                                    <SelectValue placeholder="Sem preferência" />
+                                                  </SelectTrigger>
+
+                                                  <SelectContent>
+                                                    <SelectItem value="NONE">
+                                                      Sem preferência
+                                                    </SelectItem>
+
+                                                    {activePlannedSportOptions.map(
+                                                      (sportOption) => (
+                                                        <SelectItem
+                                                          key={sportOption.sport_id}
+                                                          value={sportOption.sport_id}
+                                                        >
+                                                          {sportOption.sport_name}
+                                                        </SelectItem>
+                                                      ),
+                                                    )}
+                                                  </SelectContent>
+                                                </Select>
+                                              </div>
+                                            ) : null}
+
+                                            <div
+                                              className={cn(
+                                                "min-w-0 self-start",
+                                                preferenceFieldSpanClass,
+                                              )}
+                                            >
+                                              <ChampionshipBracketFieldLabel
+                                                label="Sequenciamento"
+                                                helpText={sequenceModeHelperText}
+                                              />
+
+                                              <Select
+                                                disabled={preferredSportId == null}
+                                                value={currentSequenceMode}
+                                                onValueChange={(value) => {
+                                                  if (!preferredSportId) {
+                                                    return;
+                                                  }
+
+                                                  const nextSequenceMode =
+                                                    value as ChampionshipBracketCourtSequenceMode;
+
+                                                  if (nextSequenceMode == "GROUP_NAIPE") {
+                                                    const nextPreferredNaipe =
+                                                      currentPreference?.preferred_naipe != null &&
+                                                      availableNaipeOptions.includes(
+                                                        currentPreference.preferred_naipe,
+                                                      )
+                                                        ? currentPreference.preferred_naipe
+                                                        : (availableNaipeOptions[0] ?? null);
+
+                                                    updateCourtSportPreference(
+                                                      preferenceCard.schedule_day_id,
+                                                      preferenceCard.location_id,
+                                                      preferenceCard.court.id,
+                                                      preferredSportId,
+                                                      {
+                                                        sequence_mode: "GROUP_NAIPE",
+
+                                                        preferred_naipe: nextPreferredNaipe,
+
+                                                        preferred_division: null,
+                                                      },
+                                                    );
+
+                                                    return;
+                                                  }
+
+                                                  if (nextSequenceMode == "GROUP_DIVISION") {
+                                                    const nextPreferredDivision =
+                                                      currentPreference?.preferred_division !=
+                                                        null &&
+                                                      availableDivisionOptions.includes(
+                                                        currentPreference.preferred_division,
+                                                      )
+                                                        ? currentPreference.preferred_division
+                                                        : (availableDivisionOptions[0] ?? null);
+
+                                                    updateCourtSportPreference(
+                                                      preferenceCard.schedule_day_id,
+                                                      preferenceCard.location_id,
+                                                      preferenceCard.court.id,
+                                                      preferredSportId,
+                                                      {
+                                                        sequence_mode: "GROUP_DIVISION",
+
+                                                        preferred_naipe: null,
+
+                                                        preferred_division: nextPreferredDivision,
+                                                      },
+                                                    );
+
+                                                    return;
+                                                  }
+
+                                                  updateCourtSportPreference(
+                                                    preferenceCard.schedule_day_id,
+                                                    preferenceCard.location_id,
+                                                    preferenceCard.court.id,
+                                                    preferredSportId,
+                                                    {
+                                                      sequence_mode: "FLEXIBLE",
+                                                    },
+                                                  );
+                                                }}
+                                              >
+                                                <SelectTrigger className="h-10">
+                                                  <SelectValue
+                                                    placeholder={
+                                                      preferredSportId
+                                                        ? "Distribuição flexível"
+                                                        : "Selecione uma modalidade"
+                                                    }
+                                                  />
+                                                </SelectTrigger>
+
+                                                <SelectContent>
+                                                  <SelectItem value="FLEXIBLE">
+                                                    Distribuição flexível
+                                                  </SelectItem>
+
+                                                  {canGroupByNaipe ? (
+                                                    <SelectItem value="GROUP_NAIPE">
+                                                      Agrupar por naipe
+                                                    </SelectItem>
+                                                  ) : null}
+
+                                                  {canGroupByDivision ? (
+                                                    <SelectItem value="GROUP_DIVISION">
+                                                      Agrupar por divisão
+                                                    </SelectItem>
+                                                  ) : null}
+                                                </SelectContent>
+                                              </Select>
+                                            </div>
+
+                                            {shouldShowPreferredNaipeField ? (
                                               <div
                                                 className={cn(
                                                   "min-w-0 self-start",
@@ -14846,89 +13120,20 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                 )}
                                               >
                                                 <ChampionshipBracketFieldLabel
-                                                  label="Sequenciamento"
-                                                  helpText={
-                                                    sequenceModeHelperText
+                                                  label={
+                                                    currentSequenceMode == "GROUP_NAIPE"
+                                                      ? "Primeiro naipe"
+                                                      : "Naipe preferencial"
                                                   }
                                                 />
 
                                                 <Select
-                                                  disabled={
-                                                    preferredSportId == null
+                                                  disabled={preferredSportId == null}
+                                                  value={
+                                                    currentPreference?.preferred_naipe ?? "NONE"
                                                   }
-                                                  value={currentSequenceMode}
                                                   onValueChange={(value) => {
                                                     if (!preferredSportId) {
-                                                      return;
-                                                    }
-
-                                                    const nextSequenceMode =
-                                                      value as ChampionshipBracketCourtSequenceMode;
-
-                                                    if (
-                                                      nextSequenceMode ==
-                                                      "GROUP_NAIPE"
-                                                    ) {
-                                                      const nextPreferredNaipe =
-                                                        currentPreference?.preferred_naipe !=
-                                                          null &&
-                                                        availableNaipeOptions.includes(
-                                                          currentPreference.preferred_naipe,
-                                                        )
-                                                          ? currentPreference.preferred_naipe
-                                                          : (availableNaipeOptions[0] ??
-                                                            null);
-
-                                                      updateCourtSportPreference(
-                                                        preferenceCard.schedule_day_id,
-                                                        preferenceCard.location_id,
-                                                        preferenceCard.court.id,
-                                                        preferredSportId,
-                                                        {
-                                                          sequence_mode:
-                                                            "GROUP_NAIPE",
-
-                                                          preferred_naipe:
-                                                            nextPreferredNaipe,
-
-                                                          preferred_division:
-                                                            null,
-                                                        },
-                                                      );
-
-                                                      return;
-                                                    }
-
-                                                    if (
-                                                      nextSequenceMode ==
-                                                      "GROUP_DIVISION"
-                                                    ) {
-                                                      const nextPreferredDivision =
-                                                        currentPreference?.preferred_division !=
-                                                          null &&
-                                                        availableDivisionOptions.includes(
-                                                          currentPreference.preferred_division,
-                                                        )
-                                                          ? currentPreference.preferred_division
-                                                          : (availableDivisionOptions[0] ??
-                                                            null);
-
-                                                      updateCourtSportPreference(
-                                                        preferenceCard.schedule_day_id,
-                                                        preferenceCard.location_id,
-                                                        preferenceCard.court.id,
-                                                        preferredSportId,
-                                                        {
-                                                          sequence_mode:
-                                                            "GROUP_DIVISION",
-
-                                                          preferred_naipe: null,
-
-                                                          preferred_division:
-                                                            nextPreferredDivision,
-                                                        },
-                                                      );
-
                                                       return;
                                                     }
 
@@ -14938,8 +13143,10 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                       preferenceCard.court.id,
                                                       preferredSportId,
                                                       {
-                                                        sequence_mode:
-                                                          "FLEXIBLE",
+                                                        preferred_naipe:
+                                                          value == "NONE"
+                                                            ? null
+                                                            : (value as MatchNaipe),
                                                       },
                                                     );
                                                   }}
@@ -14948,252 +13155,155 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                     <SelectValue
                                                       placeholder={
                                                         preferredSportId
-                                                          ? "Distribuição flexível"
+                                                          ? "Sem preferência"
                                                           : "Selecione uma modalidade"
                                                       }
                                                     />
                                                   </SelectTrigger>
 
                                                   <SelectContent>
-                                                    <SelectItem value="FLEXIBLE">
-                                                      Distribuição flexível
-                                                    </SelectItem>
-
-                                                    {canGroupByNaipe ? (
-                                                      <SelectItem value="GROUP_NAIPE">
-                                                        Agrupar por naipe
+                                                    {currentSequenceMode == "FLEXIBLE" ? (
+                                                      <SelectItem value="NONE">
+                                                        Sem preferência
                                                       </SelectItem>
                                                     ) : null}
 
-                                                    {canGroupByDivision ? (
-                                                      <SelectItem value="GROUP_DIVISION">
-                                                        Agrupar por divisão
+                                                    {availableNaipeOptions.map((naipeOption) => (
+                                                      <SelectItem
+                                                        key={naipeOption}
+                                                        value={naipeOption}
+                                                      >
+                                                        {MATCH_NAIPE_LABELS[naipeOption]}
                                                       </SelectItem>
-                                                    ) : null}
+                                                    ))}
                                                   </SelectContent>
                                                 </Select>
                                               </div>
+                                            ) : shouldShowPreferredDivisionField ? (
+                                              <div
+                                                className={cn(
+                                                  "min-w-0 self-start",
+                                                  preferenceFieldSpanClass,
+                                                )}
+                                              >
+                                                <ChampionshipBracketFieldLabel
+                                                  label={
+                                                    currentSequenceMode == "GROUP_DIVISION"
+                                                      ? "Primeira divisão"
+                                                      : "Divisão preferencial"
+                                                  }
+                                                />
 
-                                              {shouldShowPreferredNaipeField ? (
-                                                <div
-                                                  className={cn(
-                                                    "min-w-0 self-start",
-                                                    preferenceFieldSpanClass,
-                                                  )}
+                                                <Select
+                                                  disabled={preferredSportId == null}
+                                                  value={
+                                                    currentPreference?.preferred_division ?? "NONE"
+                                                  }
+                                                  onValueChange={(value) => {
+                                                    if (!preferredSportId) {
+                                                      return;
+                                                    }
+
+                                                    updateCourtSportPreference(
+                                                      preferenceCard.schedule_day_id,
+                                                      preferenceCard.location_id,
+                                                      preferenceCard.court.id,
+                                                      preferredSportId,
+                                                      {
+                                                        preferred_division:
+                                                          value == "NONE"
+                                                            ? null
+                                                            : (value as TeamDivision),
+                                                      },
+                                                    );
+                                                  }}
                                                 >
-                                                  <ChampionshipBracketFieldLabel
-                                                    label={
-                                                      currentSequenceMode ==
-                                                      "GROUP_NAIPE"
-                                                        ? "Primeiro naipe"
-                                                        : "Naipe preferencial"
-                                                    }
-                                                  />
-
-                                                  <Select
-                                                    disabled={
-                                                      preferredSportId == null
-                                                    }
-                                                    value={
-                                                      currentPreference?.preferred_naipe ??
-                                                      "NONE"
-                                                    }
-                                                    onValueChange={(value) => {
-                                                      if (!preferredSportId) {
-                                                        return;
+                                                  <SelectTrigger className="h-10">
+                                                    <SelectValue
+                                                      placeholder={
+                                                        preferredSportId
+                                                          ? "Sem preferência"
+                                                          : "Selecione uma modalidade"
                                                       }
+                                                    />
+                                                  </SelectTrigger>
 
-                                                      updateCourtSportPreference(
-                                                        preferenceCard.schedule_day_id,
-                                                        preferenceCard.location_id,
-                                                        preferenceCard.court.id,
-                                                        preferredSportId,
-                                                        {
-                                                          preferred_naipe:
-                                                            value == "NONE"
-                                                              ? null
-                                                              : (value as MatchNaipe),
-                                                        },
-                                                      );
-                                                    }}
-                                                  >
-                                                    <SelectTrigger className="h-10">
-                                                      <SelectValue
-                                                        placeholder={
-                                                          preferredSportId
-                                                            ? "Sem preferência"
-                                                            : "Selecione uma modalidade"
-                                                        }
-                                                      />
-                                                    </SelectTrigger>
-
-                                                    <SelectContent>
-                                                      {currentSequenceMode ==
-                                                      "FLEXIBLE" ? (
-                                                        <SelectItem value="NONE">
-                                                          Sem preferência
+                                                  <SelectContent>
+                                                    {availableDivisionOptions.map(
+                                                      (divisionOption) => (
+                                                        <SelectItem
+                                                          key={divisionOption}
+                                                          value={divisionOption}
+                                                        >
+                                                          {TEAM_DIVISION_LABELS[divisionOption]}
                                                         </SelectItem>
-                                                      ) : null}
+                                                      ),
+                                                    )}
+                                                  </SelectContent>
+                                                </Select>
+                                              </div>
+                                            ) : null}
 
-                                                      {availableNaipeOptions.map(
-                                                        (naipeOption) => (
-                                                          <SelectItem
-                                                            key={naipeOption}
-                                                            value={naipeOption}
-                                                          >
-                                                            {
-                                                              MATCH_NAIPE_LABELS[
-                                                                naipeOption
-                                                              ]
-                                                            }
-                                                          </SelectItem>
-                                                        ),
-                                                      )}
-                                                    </SelectContent>
-                                                  </Select>
-                                                </div>
-                                              ) : shouldShowPreferredDivisionField ? (
-                                                <div
-                                                  className={cn(
-                                                    "min-w-0 self-start",
-                                                    preferenceFieldSpanClass,
-                                                  )}
+                                            {canAlternateNaipeAfterExclusiveKnockoutPhase ? (
+                                              <div className="flex min-w-0 items-center gap-2 self-end pt-1 xl:col-span-12">
+                                                <Checkbox
+                                                  id={`alternate-naipe-after-exclusive-knockout-${preferenceCard.key}`}
+                                                  checked={
+                                                    currentPreference?.alternate_naipe_after_exclusive_knockout_phase ===
+                                                    true
+                                                  }
+                                                  onCheckedChange={(checked) => {
+                                                    if (!preferredSportId) {
+                                                      return;
+                                                    }
+
+                                                    updateCourtSportPreference(
+                                                      preferenceCard.schedule_day_id,
+                                                      preferenceCard.location_id,
+                                                      preferenceCard.court.id,
+                                                      preferredSportId,
+                                                      {
+                                                        alternate_naipe_after_exclusive_knockout_phase:
+                                                          checked === true,
+                                                      },
+                                                    );
+                                                  }}
+                                                />
+
+                                                <Label
+                                                  htmlFor={`alternate-naipe-after-exclusive-knockout-${preferenceCard.key}`}
+                                                  className="cursor-pointer text-xs font-medium leading-tight"
                                                 >
-                                                  <ChampionshipBracketFieldLabel
-                                                    label={
-                                                      currentSequenceMode ==
-                                                      "GROUP_DIVISION"
-                                                        ? "Primeira divisão"
-                                                        : "Divisão preferencial"
-                                                    }
-                                                  />
+                                                  Alternar prioridade após fase eliminatória
+                                                  exclusiva
+                                                </Label>
 
-                                                  <Select
-                                                    disabled={
-                                                      preferredSportId == null
-                                                    }
-                                                    value={
-                                                      currentPreference?.preferred_division ??
-                                                      "NONE"
-                                                    }
-                                                    onValueChange={(value) => {
-                                                      if (!preferredSportId) {
-                                                        return;
-                                                      }
+                                                <Tooltip>
+                                                  <TooltipTrigger asChild>
+                                                    <button
+                                                      type="button"
+                                                      className="text-muted-foreground transition-colors hover:text-foreground"
+                                                      aria-label="Entenda a alternância de prioridade após fase eliminatória exclusiva"
+                                                    >
+                                                      <CircleHelp className="size-3.5" />
+                                                    </button>
+                                                  </TooltipTrigger>
 
-                                                      updateCourtSportPreference(
-                                                        preferenceCard.schedule_day_id,
-                                                        preferenceCard.location_id,
-                                                        preferenceCard.court.id,
-                                                        preferredSportId,
-                                                        {
-                                                          preferred_division:
-                                                            value == "NONE"
-                                                              ? null
-                                                              : (value as TeamDivision),
-                                                        },
-                                                      );
-                                                    }}
-                                                  >
-                                                    <SelectTrigger className="h-10">
-                                                      <SelectValue
-                                                        placeholder={
-                                                          preferredSportId
-                                                            ? "Sem preferência"
-                                                            : "Selecione uma modalidade"
-                                                        }
-                                                      />
-                                                    </SelectTrigger>
-
-                                                    <SelectContent>
-                                                      {availableDivisionOptions.map(
-                                                        (divisionOption) => (
-                                                          <SelectItem
-                                                            key={divisionOption}
-                                                            value={
-                                                              divisionOption
-                                                            }
-                                                          >
-                                                            {
-                                                              TEAM_DIVISION_LABELS[
-                                                                divisionOption
-                                                              ]
-                                                            }
-                                                          </SelectItem>
-                                                        ),
-                                                      )}
-                                                    </SelectContent>
-                                                  </Select>
-                                                </div>
-                                              ) : null}
-
-                                              {canAlternateNaipeAfterExclusiveKnockoutPhase ? (
-                                                <div className="flex min-w-0 items-center gap-2 self-end pt-1 xl:col-span-12">
-                                                  <Checkbox
-                                                    id={`alternate-naipe-after-exclusive-knockout-${preferenceCard.key}`}
-                                                    checked={
-                                                      currentPreference?.alternate_naipe_after_exclusive_knockout_phase ===
-                                                      true
-                                                    }
-                                                    onCheckedChange={(
-                                                      checked,
-                                                    ) => {
-                                                      if (!preferredSportId) {
-                                                        return;
-                                                      }
-
-                                                      updateCourtSportPreference(
-                                                        preferenceCard.schedule_day_id,
-                                                        preferenceCard.location_id,
-                                                        preferenceCard.court.id,
-                                                        preferredSportId,
-                                                        {
-                                                          alternate_naipe_after_exclusive_knockout_phase:
-                                                            checked === true,
-                                                        },
-                                                      );
-                                                    }}
-                                                  />
-
-                                                  <Label
-                                                    htmlFor={`alternate-naipe-after-exclusive-knockout-${preferenceCard.key}`}
-                                                    className="cursor-pointer text-xs font-medium leading-tight"
-                                                  >
-                                                    Alternar prioridade após
-                                                    fase eliminatória exclusiva
-                                                  </Label>
-
-                                                  <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                      <button
-                                                        type="button"
-                                                        className="text-muted-foreground transition-colors hover:text-foreground"
-                                                        aria-label="Entenda a alternância de prioridade após fase eliminatória exclusiva"
-                                                      >
-                                                        <CircleHelp className="size-3.5" />
-                                                      </button>
-                                                    </TooltipTrigger>
-
-                                                    <TooltipContent className="max-w-72">
-                                                      Quando apenas um naipe
-                                                      disputar uma fase do
-                                                      mata-mata, a próxima fase
-                                                      com os dois naipes
-                                                      começará pelo outro,
-                                                      preservando um intervalo
-                                                      maior de descanso. Blocos
-                                                      manuais de final continuam
-                                                      prevalecendo.
-                                                    </TooltipContent>
-                                                  </Tooltip>
-                                                </div>
-                                              ) : null}
-                                            </div>
+                                                  <TooltipContent className="max-w-72">
+                                                    Quando apenas um naipe disputar uma fase do
+                                                    mata-mata, a próxima fase com os dois naipes
+                                                    começará pelo outro, preservando um intervalo
+                                                    maior de descanso. Blocos manuais de final
+                                                    continuam prevalecendo.
+                                                  </TooltipContent>
+                                                </Tooltip>
+                                              </div>
+                                            ) : null}
                                           </div>
                                         </div>
-                                      );
-                                    },
-                                  )}
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               </div>
                             ) : null}
@@ -15212,40 +13322,31 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                   <div className="border-b border-border/50 pb-4 mb-6">
                     <p className="text-lg font-bold">Revisão Final</p>
                     <p className="text-sm text-muted-foreground">
-                      Confira a capacidade estrutural da agenda e, após isso,
-                      rode manualmente a simulação exata antes de gerar o
-                      chaveamento definitivo.
+                      Confira a capacidade estrutural da agenda e, após isso, rode manualmente a
+                      simulação exata antes de gerar o chaveamento definitivo.
                     </p>
                   </div>
 
                   <div className="mb-6 space-y-3">
                     <div>
-                      <p className="text-sm font-bold">
-                        Pareamento do mata-mata
-                      </p>
+                      <p className="text-sm font-bold">Pareamento do mata-mata</p>
                       <p className="text-xs text-muted-foreground">
-                        Regra que será utilizada na primeira rodada eliminatória
-                        de cada competição.
+                        Regra que será utilizada na primeira rodada eliminatória de cada competição.
                       </p>
                     </div>
 
                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                       {sortedActiveCompetitionKeys.map((competitionKey) => {
-                        const competitionOption =
-                          competitionOptionsByKey.get(competitionKey);
-                        const competitionConfig =
-                          competitionConfigByKey[competitionKey];
+                        const competitionOption = competitionOptionsByKey.get(competitionKey);
+                        const competitionConfig = competitionConfigByKey[competitionKey];
 
                         if (!competitionOption || !competitionConfig) {
                           return null;
                         }
 
-                        const pairingModeOption =
-                          KNOCKOUT_PAIRING_MODE_OPTIONS.find(
-                            (option) =>
-                              option.value ==
-                              competitionConfig.knockout_pairing_mode,
-                          );
+                        const pairingModeOption = KNOCKOUT_PAIRING_MODE_OPTIONS.find(
+                          (option) => option.value == competitionConfig.knockout_pairing_mode,
+                        );
 
                         return (
                           <div
@@ -15259,11 +13360,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
 
                             {competitionOption.division ? (
                               <p className="mt-0.5 text-xs text-muted-foreground">
-                                {
-                                  TEAM_DIVISION_LABELS[
-                                    competitionOption.division
-                                  ]
-                                }
+                                {TEAM_DIVISION_LABELS[competitionOption.division]}
                               </p>
                             ) : null}
 
@@ -15286,12 +13383,8 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
 
                   {structuralReviewState.error ? (
                     <Alert className="mb-6">
-                      <AlertTitle>
-                        Não foi possível montar a revisão estrutural
-                      </AlertTitle>
-                      <AlertDescription>
-                        {structuralReviewState.error}
-                      </AlertDescription>
+                      <AlertTitle>Não foi possível montar a revisão estrutural</AlertTitle>
+                      <AlertDescription>{structuralReviewState.error}</AlertDescription>
                     </Alert>
                   ) : structuralReviewState.review ? (
                     <div className="space-y-6">
@@ -15300,44 +13393,30 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                           <div className="flex items-center justify-between gap-3 text-xs">
                             <div className="min-w-0">
                               <span className="font-semibold">
-                                {resolveExactPreviewJobStageLabel(
-                                  exactPreviewCache.stage,
-                                )}
+                                {resolveExactPreviewJobStageLabel(exactPreviewCache.stage)}
                               </span>
                               {!isExactPreviewJobRunning ? (
                                 <span className="ml-2 text-muted-foreground">
-                                  ·{" "}
-                                  {resolveExactPreviewJobStatusLabel(
-                                    exactPreviewCache.status,
-                                  )}
+                                  · {resolveExactPreviewJobStatusLabel(exactPreviewCache.status)}
                                 </span>
                               ) : null}
                             </div>
                             <span className="text-muted-foreground">
-                              {Math.round(
-                                exactPreviewCache.progress_percentage,
-                              )}
-                              %
+                              {Math.round(exactPreviewCache.progress_percentage)}%
                             </span>
                           </div>
-                          <Progress
-                            value={exactPreviewCache.progress_percentage}
-                          />
+                          <Progress value={exactPreviewCache.progress_percentage} />
                           <p className="text-[11px] text-muted-foreground">
                             Job {exactPreviewCache.job_id.slice(0, 8)} ·{" "}
-                            {exactPreviewCache.processed_slots} de{" "}
-                            {exactPreviewCache.total_slots} janela(s)
-                            processada(s)
+                            {exactPreviewCache.processed_slots} de {exactPreviewCache.total_slots}{" "}
+                            janela(s) processada(s)
                             {exactPreviewCache.current_date
-                              ? ` · ${resolveBrazilianDateString(
-                                  exactPreviewCache.current_date,
-                                )}`
+                              ? ` · ${resolveBrazilianDateString(exactPreviewCache.current_date)}`
                               : ""}
-                            . Os lotes são retomados automaticamente após falhas
-                            de rede ou recarregamento da página.
+                            . Os lotes são retomados automaticamente após falhas de rede ou
+                            recarregamento da página.
                           </p>
-                          {exactPreviewJobStartedAtLabel &&
-                          exactPreviewJobElapsedTimeLabel ? (
+                          {exactPreviewJobStartedAtLabel && exactPreviewJobElapsedTimeLabel ? (
                             <p className="text-[11px] text-muted-foreground">
                               Iniciado em {exactPreviewJobStartedAtLabel} ·{" "}
                               {exactPreviewCache.completed_at
@@ -15355,35 +13434,26 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                           {visibleExactPreviewJobEvents.length > 0 ? (
                             <details className="pt-1 text-[11px] text-muted-foreground">
                               <summary className="cursor-pointer font-medium text-foreground">
-                                Histórico do job (
-                                {visibleExactPreviewJobEvents.length}{" "}
-                                registro(s))
+                                Histórico do job ({visibleExactPreviewJobEvents.length} registro(s))
                               </summary>
                               <ol className="mt-2 max-h-64 space-y-2 overflow-y-auto border-l border-border/60 pl-3">
-                                {visibleExactPreviewJobEvents.map(
-                                  (event, index) => (
-                                    <li
-                                      key={`${event.occurred_at}-${event.event_type}-${index}`}
-                                      className="space-y-0.5"
-                                    >
-                                      <p className="font-medium text-foreground">
-                                        {resolveExactPreviewJobEventLabel(
-                                          event,
-                                        )}
-                                      </p>
-                                      <p>
-                                        {resolvePreviewGeneratedAtLabel(
-                                          event.occurred_at,
-                                        ) ?? event.occurred_at}
-                                        {resolveExactPreviewJobEventDetails(
-                                          event,
-                                        )
-                                          ? ` · ${resolveExactPreviewJobEventDetails(event)}`
-                                          : ""}
-                                      </p>
-                                    </li>
-                                  ),
-                                )}
+                                {visibleExactPreviewJobEvents.map((event, index) => (
+                                  <li
+                                    key={`${event.occurred_at}-${event.event_type}-${index}`}
+                                    className="space-y-0.5"
+                                  >
+                                    <p className="font-medium text-foreground">
+                                      {resolveExactPreviewJobEventLabel(event)}
+                                    </p>
+                                    <p>
+                                      {resolvePreviewGeneratedAtLabel(event.occurred_at) ??
+                                        event.occurred_at}
+                                      {resolveExactPreviewJobEventDetails(event)
+                                        ? ` · ${resolveExactPreviewJobEventDetails(event)}`
+                                        : ""}
+                                    </p>
+                                  </li>
+                                ))}
                               </ol>
                             </details>
                           ) : null}
@@ -15454,18 +13524,15 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
 
                           <AlertDescription className="space-y-2">
                             <p>
-                              {pendingStructuralReviewMatchEntries.length}{" "}
-                              jogo(s) planejado(s) ainda não couberam na agenda
-                              local desta simulação.
+                              {pendingStructuralReviewMatchEntries.length} jogo(s) planejado(s)
+                              ainda não couberam na agenda local desta simulação.
                             </p>
 
-                            {structuralReviewState.review.summary
-                              .overflow_minutes == 0 ? (
+                            {structuralReviewState.review.summary.overflow_minutes == 0 ? (
                               <p className="text-xs text-muted-foreground">
-                                Aqui o problema não foi falta de minutos no dia
-                                inteiro. Faltou uma janela contínua compatível
-                                depois de considerar pausas, bloqueios e a ordem
-                                local dos jogos.
+                                Aqui o problema não foi falta de minutos no dia inteiro. Faltou uma
+                                janela contínua compatível depois de considerar pausas, bloqueios e
+                                a ordem local dos jogos.
                               </p>
                             ) : null}
 
@@ -15477,8 +13544,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                     key={`top-pending-match-${pendingEntry.date}-${pendingEntry.court_name}-${pendingEntry.match_number}-${pendingEntry.sport_id}-${pendingEntry.naipe}`}
                                     className="text-xs text-muted-foreground"
                                   >
-                                    Jogo {pendingEntry.match_number}:{" "}
-                                    {pendingEntry.sport_name} •{" "}
+                                    Jogo {pendingEntry.match_number}: {pendingEntry.sport_name} •{" "}
                                     {MATCH_NAIPE_LABELS[pendingEntry.naipe]}
                                     {pendingEntry.division
                                       ? ` • ${TEAM_DIVISION_LABELS[pendingEntry.division]}`
@@ -15486,9 +13552,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                     {" • "}
                                     {pendingEntry.phase_label}
                                     {" • "}
-                                    {resolveBrazilianDateString(
-                                      pendingEntry.date,
-                                    )}
+                                    {resolveBrazilianDateString(pendingEntry.date)}
                                     {" • "}
                                     {pendingEntry.location_name}
                                     {" • "}
@@ -15502,15 +13566,12 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
 
                       {structuralReviewState.review.diagnostics.length > 0 ? (
                         <Alert>
-                          <AlertTitle>
-                            Pontos para revisar antes de gerar a programação
-                          </AlertTitle>
+                          <AlertTitle>Pontos para revisar antes de gerar a programação</AlertTitle>
 
                           <AlertDescription className="space-y-3">
                             <p>
-                              {structuralReviewState.review.diagnostics.length}{" "}
-                              ajuste(s) foi(ram) identificado(s) antes da
-                              montagem final da agenda.
+                              {structuralReviewState.review.diagnostics.length} ajuste(s) foi(ram)
+                              identificado(s) antes da montagem final da agenda.
                             </p>
 
                             <div className="space-y-2">
@@ -15520,9 +13581,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                     diagnostic.sport_name,
                                     diagnostic.team_name,
                                     diagnostic.date
-                                      ? resolveBrazilianDateString(
-                                          diagnostic.date,
-                                        )
+                                      ? resolveBrazilianDateString(diagnostic.date)
                                       : null,
                                     diagnostic.location_name,
                                     diagnostic.court_name,
@@ -15541,9 +13600,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                     >
                                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                                         <span className="text-sm font-semibold">
-                                          {resolveStructuralDiagnosticTitle(
-                                            diagnostic,
-                                          )}
+                                          {resolveStructuralDiagnosticTitle(diagnostic)}
                                         </span>
 
                                         {detailParts.length > 0 ? (
@@ -15565,17 +13622,14 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                         </Alert>
                       ) : (
                         <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300">
-                          Nenhum ajuste importante foi encontrado nesta revisão
-                          local.
+                          Nenhum ajuste importante foi encontrado nesta revisão local.
                         </div>
                       )}
 
                       <div className="space-y-6">
                         {structuralReviewState.review.days.map((reviewDay) => {
                           const isReviewDayExpanded =
-                            expandedStructuralReviewDayByDate[
-                              reviewDay.date
-                            ] === true;
+                            expandedStructuralReviewDayByDate[reviewDay.date] === true;
                           const reviewDayContentId = `structural-review-day-content-${reviewDay.date}`;
 
                           return (
@@ -15589,21 +13643,16 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                 aria-controls={reviewDayContentId}
                                 aria-label={`${
                                   isReviewDayExpanded ? "Recolher" : "Expandir"
-                                } prévia de ${resolveBrazilianDateString(
-                                  reviewDay.date,
-                                )}`}
+                                } prévia de ${resolveBrazilianDateString(reviewDay.date)}`}
                                 onClick={() => {
-                                  setExpandedStructuralReviewDayByDate(
-                                    (currentValue) => ({
-                                      ...currentValue,
-                                      [reviewDay.date]: !isReviewDayExpanded,
-                                    }),
-                                  );
+                                  setExpandedStructuralReviewDayByDate((currentValue) => ({
+                                    ...currentValue,
+                                    [reviewDay.date]: !isReviewDayExpanded,
+                                  }));
                                 }}
                                 className={cn(
                                   "flex w-full items-center justify-between gap-4 text-left transition-colors hover:text-foreground",
-                                  isReviewDayExpanded &&
-                                    "border-b border-border/40 pb-4",
+                                  isReviewDayExpanded && "border-b border-border/40 pb-4",
                                 )}
                               >
                                 <div>
@@ -15611,16 +13660,13 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                     {resolveBrazilianDateString(reviewDay.date)}
                                   </p>
                                   <p className="text-xs text-muted-foreground">
-                                    {reviewDay.start_time} até{" "}
-                                    {reviewDay.end_time}
+                                    {reviewDay.start_time} até {reviewDay.end_time}
                                   </p>
                                 </div>
 
                                 <div className="flex items-center gap-3 text-right text-xs text-muted-foreground">
                                   <div>
-                                    <p>
-                                      {reviewDay.locations.length} local(is)
-                                    </p>
+                                    <p>{reviewDay.locations.length} local(is)</p>
                                     <p>
                                       {reviewDay.locations.reduce(
                                         (totalCourts, location) =>
@@ -15639,10 +13685,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                               </button>
 
                               {isReviewDayExpanded ? (
-                                <div
-                                  id={reviewDayContentId}
-                                  className="mt-5 space-y-5"
-                                >
+                                <div id={reviewDayContentId} className="mt-5 space-y-5">
                                   {reviewDay.locations.map((location) => (
                                     <div
                                       key={`structural-review-day-${reviewDay.date}-location-${location.location_key}`}
@@ -15672,12 +13715,10 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                               reviewDay,
                                               court,
                                             );
-                                          const remainingCourtMinutes =
-                                            Math.max(
-                                              0,
-                                              court.free_minutes -
-                                                court.planned_collective_minutes,
-                                            );
+                                          const remainingCourtMinutes = Math.max(
+                                            0,
+                                            court.free_minutes - court.planned_collective_minutes,
+                                          );
 
                                           return (
                                             <div
@@ -15690,305 +13731,224 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                     {court.court_name}
                                                   </p>
                                                   <p className="text-[11px] text-muted-foreground">
-                                                    {
-                                                      court
-                                                        .estimated_match_entries
-                                                        .length
-                                                    }{" "}
-                                                    jogo(s) previstos
+                                                    {court.estimated_match_entries.length} jogo(s)
+                                                    previstos
                                                   </p>
                                                 </div>
 
                                                 <div className="text-right text-[11px] text-muted-foreground">
+                                                  <p>{court.free_minutes} min disponíveis</p>
                                                   <p>
-                                                    {court.free_minutes} min
-                                                    disponíveis
+                                                    {court.planned_collective_minutes} min
+                                                    reservados para jogos
                                                   </p>
-                                                  <p>
-                                                    {
-                                                      court.planned_collective_minutes
-                                                    }{" "}
-                                                    min reservados para jogos
-                                                  </p>
-                                                  <p>
-                                                    {remainingCourtMinutes} min
-                                                    livres ainda
-                                                  </p>
+                                                  <p>{remainingCourtMinutes} min livres ainda</p>
                                                 </div>
                                               </div>
 
                                               <div className="mt-4 space-y-3">
                                                 <div>
                                                   <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                                    Sequência cronológica da
-                                                    quadra
+                                                    Sequência cronológica da quadra
                                                   </p>
 
-                                                  {courtDisplayEntries.length ==
-                                                  0 ? (
+                                                  {courtDisplayEntries.length == 0 ? (
                                                     <div className="rounded-lg border border-dashed border-border/40 px-3 py-3 text-sm text-muted-foreground">
-                                                      Nenhum bloco pôde ser
-                                                      exibido nesta quadra neste
-                                                      dia.
+                                                      Nenhum bloco pôde ser exibido nesta quadra
+                                                      neste dia.
                                                     </div>
                                                   ) : (
                                                     <div className="space-y-2">
-                                                      {courtDisplayEntries.map(
-                                                        (displayEntry) => {
-                                                          if (
-                                                            displayEntry.kind ==
-                                                            "ESTIMATED"
-                                                          ) {
-                                                            const estimatedEntry =
-                                                              displayEntry.entry;
+                                                      {courtDisplayEntries.map((displayEntry) => {
+                                                        if (displayEntry.kind == "ESTIMATED") {
+                                                          const estimatedEntry = displayEntry.entry;
 
-                                                            return (
-                                                              <div
-                                                                key={
-                                                                  displayEntry.key
-                                                                }
-                                                                className={cn(
-                                                                  "structural-review-timeline-entry rounded-md border px-2.5 py-2",
-                                                                  resolveEstimatedMatchEntryToneClassName(
-                                                                    estimatedEntry,
-                                                                  ),
-                                                                )}
-                                                              >
-                                                                <div className="flex items-start justify-between gap-2">
-                                                                  <div className="min-w-0 flex-1">
-                                                                    <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide">
+                                                          return (
+                                                            <div
+                                                              key={displayEntry.key}
+                                                              className={cn(
+                                                                "structural-review-timeline-entry rounded-md border px-2.5 py-2",
+                                                                resolveEstimatedMatchEntryToneClassName(
+                                                                  estimatedEntry,
+                                                                ),
+                                                              )}
+                                                            >
+                                                              <div className="flex items-start justify-between gap-2">
+                                                                <div className="min-w-0 flex-1">
+                                                                  <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide">
+                                                                    <AppBadge
+                                                                      tone={AppBadgeTone.SILVER}
+                                                                      className="border-slate-300 bg-slate-100 px-1.5 py-0.5 text-[10px] leading-none text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                                                    >
+                                                                      Jogo{" "}
+                                                                      {estimatedEntry.match_number}
+                                                                    </AppBadge>
+                                                                    <AppBadge
+                                                                      tone={AppBadgeTone.AMBER}
+                                                                      className="border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[9px] leading-none text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
+                                                                    >
+                                                                      Previsão local
+                                                                    </AppBadge>
+                                                                    <AppBadge
+                                                                      tone={
+                                                                        MATCH_NAIPE_BADGE_TONES[
+                                                                          estimatedEntry.naipe
+                                                                        ]
+                                                                      }
+                                                                      className="px-1.5 py-0.5 text-[10px] leading-none"
+                                                                    >
+                                                                      {
+                                                                        MATCH_NAIPE_LABELS[
+                                                                          estimatedEntry.naipe
+                                                                        ]
+                                                                      }
+                                                                    </AppBadge>
+                                                                    <span className="rounded-full border border-border/40 bg-background/60 px-1.5 py-0.5 text-foreground/90 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
+                                                                      {estimatedEntry.phase_label}
+                                                                    </span>
+                                                                    {estimatedEntry.division ? (
                                                                       <AppBadge
                                                                         tone={
-                                                                          AppBadgeTone.SILVER
-                                                                        }
-                                                                        className="border-slate-300 bg-slate-100 px-1.5 py-0.5 text-[10px] leading-none text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                                                                      >
-                                                                        Jogo{" "}
-                                                                        {
-                                                                          estimatedEntry.match_number
-                                                                        }
-                                                                      </AppBadge>
-                                                                      <AppBadge
-                                                                        tone={
-                                                                          AppBadgeTone.AMBER
-                                                                        }
-                                                                        className="border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[9px] leading-none text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
-                                                                      >
-                                                                        Previsão
-                                                                        local
-                                                                      </AppBadge>
-                                                                      <AppBadge
-                                                                        tone={
-                                                                          MATCH_NAIPE_BADGE_TONES[
-                                                                            estimatedEntry
-                                                                              .naipe
+                                                                          TEAM_DIVISION_BADGE_TONES[
+                                                                            estimatedEntry.division
                                                                           ]
                                                                         }
                                                                         className="px-1.5 py-0.5 text-[10px] leading-none"
                                                                       >
                                                                         {
-                                                                          MATCH_NAIPE_LABELS[
-                                                                            estimatedEntry
-                                                                              .naipe
+                                                                          TEAM_DIVISION_LABELS[
+                                                                            estimatedEntry.division
                                                                           ]
                                                                         }
                                                                       </AppBadge>
-                                                                      <span className="rounded-full border border-border/40 bg-background/60 px-1.5 py-0.5 text-foreground/90 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
-                                                                        {
-                                                                          estimatedEntry.phase_label
-                                                                        }
-                                                                      </span>
-                                                                      {estimatedEntry.division ? (
-                                                                        <AppBadge
-                                                                          tone={
-                                                                            TEAM_DIVISION_BADGE_TONES[
-                                                                              estimatedEntry
-                                                                                .division
-                                                                            ]
-                                                                          }
-                                                                          className="px-1.5 py-0.5 text-[10px] leading-none"
-                                                                        >
-                                                                          {
-                                                                            TEAM_DIVISION_LABELS[
-                                                                              estimatedEntry
-                                                                                .division
-                                                                            ]
-                                                                          }
-                                                                        </AppBadge>
-                                                                      ) : null}
-                                                                    </div>
-
-                                                                    <p className="mt-1 truncate text-sm font-semibold leading-tight">
-                                                                      {
-                                                                        estimatedEntry.sport_name
-                                                                      }
-                                                                    </p>
+                                                                    ) : null}
                                                                   </div>
 
-                                                                  <div className="shrink-0 text-right">
-                                                                    <p className="text-sm font-semibold tabular-nums leading-tight">
-                                                                      {
-                                                                        estimatedEntry.start_time
-                                                                      }{" "}
-                                                                      -{" "}
-                                                                      {
-                                                                        estimatedEntry.end_time
-                                                                      }
-                                                                    </p>
-                                                                    <p className="text-[10px] text-muted-foreground">
-                                                                      {
-                                                                        estimatedEntry.duration_minutes
-                                                                      }{" "}
-                                                                      min
-                                                                    </p>
-                                                                  </div>
+                                                                  <p className="mt-1 truncate text-sm font-semibold leading-tight">
+                                                                    {estimatedEntry.sport_name}
+                                                                  </p>
+                                                                </div>
+
+                                                                <div className="shrink-0 text-right">
+                                                                  <p className="text-sm font-semibold tabular-nums leading-tight">
+                                                                    {estimatedEntry.start_time} -{" "}
+                                                                    {estimatedEntry.end_time}
+                                                                  </p>
+                                                                  <p className="text-[10px] text-muted-foreground">
+                                                                    {
+                                                                      estimatedEntry.duration_minutes
+                                                                    }{" "}
+                                                                    min
+                                                                  </p>
                                                                 </div>
                                                               </div>
-                                                            );
-                                                          }
+                                                            </div>
+                                                          );
+                                                        }
 
-                                                          const entry =
-                                                            displayEntry.entry;
-                                                          const isScheduleMarker =
-                                                            entry.type ==
-                                                              "FREE_WINDOW" ||
-                                                            entry.type ==
-                                                              "BREAK" ||
-                                                            entry.type ==
-                                                              "RESOURCE_LOCK";
-                                                          const detailParts = [
-                                                            entry.sport_name,
-                                                            entry.naipe
-                                                              ? MATCH_NAIPE_LABELS[
-                                                                  entry.naipe
-                                                                ]
-                                                              : null,
-                                                            entry.division
+                                                        const entry = displayEntry.entry;
+                                                        const isScheduleMarker =
+                                                          entry.type == "FREE_WINDOW" ||
+                                                          entry.type == "BREAK" ||
+                                                          entry.type == "RESOURCE_LOCK";
+                                                        const detailParts = [
+                                                          entry.sport_name,
+                                                          entry.naipe
+                                                            ? MATCH_NAIPE_LABELS[entry.naipe]
+                                                            : null,
+                                                          entry.division
+                                                            ? TEAM_DIVISION_LABELS[entry.division]
+                                                            : null,
+                                                          entry.division_scope == "ALL"
+                                                            ? "Todas as divisões"
+                                                            : entry.division_scope
                                                               ? TEAM_DIVISION_LABELS[
-                                                                  entry.division
+                                                                  entry.division_scope
                                                                 ]
                                                               : null,
-                                                            entry.division_scope ==
-                                                            "ALL"
-                                                              ? "Todas as divisões"
-                                                              : entry.division_scope
-                                                                ? TEAM_DIVISION_LABELS[
-                                                                    entry
-                                                                      .division_scope
-                                                                  ]
-                                                                : null,
-                                                          ].filter(Boolean);
+                                                        ].filter(Boolean);
 
-                                                          return (
-                                                            <div
-                                                              key={
-                                                                displayEntry.key
-                                                              }
-                                                              className={cn(
-                                                                "structural-review-timeline-entry rounded-lg border px-3 py-3",
-                                                                resolveStructuralReviewEntryToneClassName(
-                                                                  entry,
-                                                                ),
-                                                              )}
-                                                            >
-                                                              {isScheduleMarker ? (
-                                                                <div className="flex items-center justify-between gap-3">
+                                                        return (
+                                                          <div
+                                                            key={displayEntry.key}
+                                                            className={cn(
+                                                              "structural-review-timeline-entry rounded-lg border px-3 py-3",
+                                                              resolveStructuralReviewEntryToneClassName(
+                                                                entry,
+                                                              ),
+                                                            )}
+                                                          >
+                                                            {isScheduleMarker ? (
+                                                              <div className="flex items-center justify-between gap-3">
+                                                                <p className="text-sm font-semibold">
+                                                                  {resolveStructuralReviewEntryTypeLabel(
+                                                                    entry,
+                                                                  )}
+                                                                </p>
+                                                                <div className="text-right">
                                                                   <p className="text-sm font-semibold">
+                                                                    {entry.start_time} -{" "}
+                                                                    {entry.end_time}
+                                                                  </p>
+                                                                  <p className="text-[11px] text-muted-foreground">
+                                                                    {entry.duration_minutes} min
+                                                                  </p>
+                                                                </div>
+                                                              </div>
+                                                            ) : (
+                                                              <div className="flex items-start justify-between gap-3">
+                                                                <div>
+                                                                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                                                                     {resolveStructuralReviewEntryTypeLabel(
                                                                       entry,
                                                                     )}
                                                                   </p>
-                                                                  <div className="text-right">
-                                                                    <p className="text-sm font-semibold">
-                                                                      {
-                                                                        entry.start_time
-                                                                      }{" "}
-                                                                      -{" "}
-                                                                      {
-                                                                        entry.end_time
-                                                                      }
-                                                                    </p>
-                                                                    <p className="text-[11px] text-muted-foreground">
-                                                                      {
-                                                                        entry.duration_minutes
-                                                                      }{" "}
-                                                                      min
-                                                                    </p>
-                                                                  </div>
+                                                                  <p className="mt-1 text-sm font-semibold">
+                                                                    {entry.type == "FREE_WINDOW"
+                                                                      ? "Janela disponível"
+                                                                      : (entry.sport_name ??
+                                                                        resolveStructuralReviewEntryTypeLabel(
+                                                                          entry,
+                                                                        ))}
+                                                                  </p>
                                                                 </div>
-                                                              ) : (
-                                                                <div className="flex items-start justify-between gap-3">
-                                                                  <div>
-                                                                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                                                      {resolveStructuralReviewEntryTypeLabel(
-                                                                        entry,
-                                                                      )}
-                                                                    </p>
-                                                                    <p className="mt-1 text-sm font-semibold">
-                                                                      {entry.type ==
-                                                                      "FREE_WINDOW"
-                                                                        ? "Janela disponível"
-                                                                        : (entry.sport_name ??
-                                                                          resolveStructuralReviewEntryTypeLabel(
-                                                                            entry,
-                                                                          ))}
-                                                                    </p>
-                                                                  </div>
 
-                                                                  <div className="text-right">
-                                                                    <p className="text-sm font-semibold">
-                                                                      {
-                                                                        entry.start_time
-                                                                      }{" "}
-                                                                      -{" "}
-                                                                      {
-                                                                        entry.end_time
-                                                                      }
-                                                                    </p>
-                                                                    <p className="text-[11px] text-muted-foreground">
-                                                                      {
-                                                                        entry.duration_minutes
-                                                                      }{" "}
-                                                                      min
-                                                                    </p>
-                                                                  </div>
+                                                                <div className="text-right">
+                                                                  <p className="text-sm font-semibold">
+                                                                    {entry.start_time} -{" "}
+                                                                    {entry.end_time}
+                                                                  </p>
+                                                                  <p className="text-[11px] text-muted-foreground">
+                                                                    {entry.duration_minutes} min
+                                                                  </p>
                                                                 </div>
-                                                              )}
+                                                              </div>
+                                                            )}
 
-                                                              {detailParts.length >
-                                                              0 ? (
-                                                                <p className="mt-2 text-xs text-muted-foreground">
-                                                                  {detailParts.join(
-                                                                    " • ",
-                                                                  )}
-                                                                </p>
-                                                              ) : null}
-                                                            </div>
-                                                          );
-                                                        },
-                                                      )}
+                                                            {detailParts.length > 0 ? (
+                                                              <p className="mt-2 text-xs text-muted-foreground">
+                                                                {detailParts.join(" • ")}
+                                                              </p>
+                                                            ) : null}
+                                                          </div>
+                                                        );
+                                                      })}
                                                     </div>
                                                   )}
                                                 </div>
 
-                                                {court.unallocated_match_count >
-                                                0 ? (
+                                                {court.unallocated_match_count > 0 ? (
                                                   <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-3">
                                                     <p className="text-sm font-semibold text-destructive">
-                                                      {
-                                                        court.unallocated_match_count
-                                                      }{" "}
-                                                      jogo(s) ainda ficaram sem
-                                                      encaixe nesta previsão
+                                                      {court.unallocated_match_count} jogo(s) ainda
+                                                      ficaram sem encaixe nesta previsão
                                                     </p>
                                                     <p className="mt-1 text-xs text-muted-foreground">
-                                                      {court.overflow_minutes >
-                                                      0
+                                                      {court.overflow_minutes > 0
                                                         ? "A agenda real desta quadra não comporta toda a quantidade planejada com os blocos fixos atuais."
                                                         : "Os minutos totais até cabem, mas a quadra não possui uma janela contínua compatível para encaixar todo o restante na ordem prevista."}
                                                     </p>
-                                                    {court.pending_match_entries
-                                                      .length > 0 ? (
+                                                    {court.pending_match_entries.length > 0 ? (
                                                       <div className="mt-2 space-y-1">
                                                         {court.pending_match_entries.map(
                                                           (pendingEntry) => (
@@ -15996,30 +13956,18 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                               key={`pending-entry-${reviewDay.date}-${court.court_key}-${pendingEntry.match_number}-${pendingEntry.sport_id}-${pendingEntry.naipe}-${pendingEntry.phase_label}`}
                                                               className="text-[11px] text-destructive"
                                                             >
-                                                              Jogo{" "}
-                                                              {
-                                                                pendingEntry.match_number
-                                                              }
-                                                              :{" "}
-                                                              {
-                                                                pendingEntry.sport_name
-                                                              }{" "}
-                                                              •{" "}
+                                                              Jogo {pendingEntry.match_number}:{" "}
+                                                              {pendingEntry.sport_name} •{" "}
                                                               {
                                                                 MATCH_NAIPE_LABELS[
-                                                                  pendingEntry
-                                                                    .naipe
+                                                                  pendingEntry.naipe
                                                                 ]
                                                               }{" "}
-                                                              •{" "}
-                                                              {
-                                                                pendingEntry.phase_label
-                                                              }
+                                                              • {pendingEntry.phase_label}
                                                               {pendingEntry.division
                                                                 ? ` • ${
                                                                     TEAM_DIVISION_LABELS[
-                                                                      pendingEntry
-                                                                        .division
+                                                                      pendingEntry.division
                                                                     ]
                                                                   }`
                                                                 : ""}
@@ -16037,98 +13985,79 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
 
                                                 <div>
                                                   <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                                    Resumo por modalidade nesta
-                                                    quadra
+                                                    Resumo por modalidade nesta quadra
                                                   </p>
 
-                                                  {court.planning_items
-                                                    .length == 0 ? (
+                                                  {court.planning_items.length == 0 ? (
                                                     <div className="rounded-lg border border-dashed border-border/40 px-3 py-3 text-sm text-muted-foreground">
-                                                      Nenhuma modalidade foi
-                                                      planejada para esta quadra
-                                                      neste dia.
+                                                      Nenhuma modalidade foi planejada para esta
+                                                      quadra neste dia.
                                                     </div>
                                                   ) : (
                                                     <div className="space-y-2">
-                                                      {court.planning_items.map(
-                                                        (planningItem) => (
-                                                          <div
-                                                            key={`structural-review-day-${reviewDay.date}-court-${court.court_key}-target-summary-${planningItem.sport_id}`}
-                                                            className="rounded-lg border border-border/40 bg-background/50 px-3 py-3"
-                                                          >
-                                                            <div className="flex items-start justify-between gap-3">
-                                                              <div>
-                                                                <p className="text-sm font-semibold">
-                                                                  {
-                                                                    planningItem.sport_name
-                                                                  }
-                                                                </p>
-                                                                <p className="mt-1 text-xs text-muted-foreground">
-                                                                  {
-                                                                    planningItem.planned_match_count
-                                                                  }{" "}
-                                                                  jogo(s) •{" "}
-                                                                  {
-                                                                    planningItem.match_duration_minutes
-                                                                  }{" "}
-                                                                  min por jogo
-                                                                </p>
-                                                              </div>
-
-                                                              <div className="text-right">
-                                                                <p className="text-sm font-semibold">
-                                                                  {
-                                                                    planningItem.planned_minutes
-                                                                  }{" "}
-                                                                  min
-                                                                </p>
-                                                                <p
-                                                                  className={cn(
-                                                                    "text-[11px]",
-                                                                    planningItem.status ==
-                                                                      "OVERFLOW"
-                                                                      ? "text-destructive"
-                                                                      : "text-emerald-800 dark:text-emerald-400",
-                                                                  )}
-                                                                >
-                                                                  {planningItem.status ==
-                                                                  "OVERFLOW"
-                                                                    ? "Falta espaço na agenda"
-                                                                    : "Cabe na agenda"}
-                                                                </p>
-                                                              </div>
+                                                      {court.planning_items.map((planningItem) => (
+                                                        <div
+                                                          key={`structural-review-day-${reviewDay.date}-court-${court.court_key}-target-summary-${planningItem.sport_id}`}
+                                                          className="rounded-lg border border-border/40 bg-background/50 px-3 py-3"
+                                                        >
+                                                          <div className="flex items-start justify-between gap-3">
+                                                            <div>
+                                                              <p className="text-sm font-semibold">
+                                                                {planningItem.sport_name}
+                                                              </p>
+                                                              <p className="mt-1 text-xs text-muted-foreground">
+                                                                {planningItem.planned_match_count}{" "}
+                                                                jogo(s) •{" "}
+                                                                {
+                                                                  planningItem.match_duration_minutes
+                                                                }{" "}
+                                                                min por jogo
+                                                              </p>
                                                             </div>
 
-                                                            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-                                                              <span className="min-w-0 break-words">
-                                                                {
-                                                                  planningItem.free_minutes
-                                                                }{" "}
-                                                                min disponíveis
-                                                              </span>
-                                                              <span className="min-w-0 break-words">
-                                                                {
-                                                                  planningItem.remaining_minutes
-                                                                }{" "}
-                                                                min ainda sobram
-                                                              </span>
-                                                              <span className="min-w-0 break-words">
-                                                                Ainda cabem
-                                                                aprox.{" "}
-                                                                {
-                                                                  planningItem.additional_match_capacity
-                                                                }{" "}
-                                                                jogo(s)
-                                                              </span>
-                                                              <span className="min-w-0 break-words basis-full">
-                                                                {planningItem.has_playable_window
-                                                                  ? "Data compatível com a modalidade"
-                                                                  : "Data incompatível com a modalidade"}
-                                                              </span>
+                                                            <div className="text-right">
+                                                              <p className="text-sm font-semibold">
+                                                                {planningItem.planned_minutes} min
+                                                              </p>
+                                                              <p
+                                                                className={cn(
+                                                                  "text-[11px]",
+                                                                  planningItem.status == "OVERFLOW"
+                                                                    ? "text-destructive"
+                                                                    : "text-emerald-800 dark:text-emerald-400",
+                                                                )}
+                                                              >
+                                                                {planningItem.status == "OVERFLOW"
+                                                                  ? "Falta espaço na agenda"
+                                                                  : "Cabe na agenda"}
+                                                              </p>
                                                             </div>
                                                           </div>
-                                                        ),
-                                                      )}
+
+                                                          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                                                            <span className="min-w-0 break-words">
+                                                              {planningItem.free_minutes} min
+                                                              disponíveis
+                                                            </span>
+                                                            <span className="min-w-0 break-words">
+                                                              {planningItem.remaining_minutes} min
+                                                              ainda sobram
+                                                            </span>
+                                                            <span className="min-w-0 break-words">
+                                                              Ainda cabem aprox.{" "}
+                                                              {
+                                                                planningItem.additional_match_capacity
+                                                              }{" "}
+                                                              jogo(s)
+                                                            </span>
+                                                            <span className="min-w-0 break-words basis-full">
+                                                              {planningItem.has_playable_window
+                                                                ? "Data compatível com a modalidade"
+                                                                : "Data incompatível com a modalidade"}
+                                                            </span>
+                                                          </div>
+                                                        </div>
+                                                      ))}
                                                     </div>
                                                   )}
                                                 </div>
@@ -16189,33 +14118,26 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
 
                         {operationalPreviewError ? (
                           <Alert>
-                            <AlertTitle>
-                              Não foi possível calcular a prévia exata
-                            </AlertTitle>
-                            <AlertDescription>
-                              {operationalPreviewError}
-                            </AlertDescription>
+                            <AlertTitle>Não foi possível calcular a prévia exata</AlertTitle>
+                            <AlertDescription>{operationalPreviewError}</AlertDescription>
                           </Alert>
                         ) : null}
 
                         {operationalPreview?.diagnostics.length ? (
                           <Alert>
-                            <AlertTitle>
-                              Pendências encontradas na programação
-                            </AlertTitle>
+                            <AlertTitle>Pendências encontradas na programação</AlertTitle>
 
                             <AlertDescription className="space-y-3">
                               <p>
-                                {operationalPreview.diagnostics.length} jogo(s)
-                                ou pendência(s) precisam ser revisados.
+                                {operationalPreview.diagnostics.length} jogo(s) ou pendência(s)
+                                precisam ser revisados.
                               </p>
 
                               <div className="space-y-2">
                                 {operationalPreview.diagnostics.map(
                                   (diagnostic, diagnosticIndex) => {
                                     const hasMatchTeams =
-                                      diagnostic.home_team_name &&
-                                      diagnostic.away_team_name;
+                                      diagnostic.home_team_name && diagnostic.away_team_name;
 
                                     return (
                                       <div
@@ -16232,12 +14154,10 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                           <span className="text-sm font-semibold">
                                             {hasMatchTeams
                                               ? `${diagnostic.home_team_name} × ${diagnostic.away_team_name}`
-                                              : (diagnostic.sport_name ??
-                                                "Programação")}
+                                              : (diagnostic.sport_name ?? "Programação")}
                                           </span>
 
-                                          {hasMatchTeams &&
-                                          diagnostic.sport_name ? (
+                                          {hasMatchTeams && diagnostic.sport_name ? (
                                             <span className="text-xs text-muted-foreground">
                                               • {diagnostic.sport_name}
                                             </span>
@@ -16245,23 +14165,13 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
 
                                           {diagnostic.naipe ? (
                                             <span className="text-xs text-muted-foreground">
-                                              •{" "}
-                                              {
-                                                MATCH_NAIPE_LABELS[
-                                                  diagnostic.naipe
-                                                ]
-                                              }
+                                              • {MATCH_NAIPE_LABELS[diagnostic.naipe]}
                                             </span>
                                           ) : null}
 
                                           {diagnostic.division ? (
                                             <span className="text-xs text-muted-foreground">
-                                              •{" "}
-                                              {
-                                                TEAM_DIVISION_LABELS[
-                                                  diagnostic.division
-                                                ]
-                                              }
+                                              • {TEAM_DIVISION_LABELS[diagnostic.division]}
                                             </span>
                                           ) : null}
 
@@ -16280,8 +14190,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                             </span>
                                           ) : null}
 
-                                          {diagnostic.phase &&
-                                          diagnostic.phase != "GROUP_STAGE" ? (
+                                          {diagnostic.phase && diagnostic.phase != "GROUP_STAGE" ? (
                                             <span className="text-xs text-muted-foreground">
                                               •{" "}
                                               {resolveOperationalPreviewPhaseLabel(
@@ -16309,9 +14218,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                             {operationalPreview.message ? (
                               <Alert>
                                 <AlertTitle>Resumo da prévia</AlertTitle>
-                                <AlertDescription>
-                                  {operationalPreview.message}
-                                </AlertDescription>
+                                <AlertDescription>{operationalPreview.message}</AlertDescription>
                               </Alert>
                             ) : null}
 
@@ -16319,23 +14226,18 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                               {operationalPreview.days.map((previewDay) => {
                                 const configuredScheduleDay =
                                   structuralReviewState.payload?.schedule_days.find(
-                                    (scheduleDay) =>
-                                      scheduleDay.date == previewDay.date,
+                                    (scheduleDay) => scheduleDay.date == previewDay.date,
                                   );
                                 const previewDayHeaderLocations =
-                                  configuredScheduleDay?.locations ??
-                                  previewDay.locations;
-                                const isPreviewDayExpanded =
-                                  expandedOperationalPreviewDates.has(
-                                    previewDay.date,
-                                  );
+                                  configuredScheduleDay?.locations ?? previewDay.locations;
+                                const isPreviewDayExpanded = expandedOperationalPreviewDates.has(
+                                  previewDay.date,
+                                );
                                 const previewDayContentId = `operational-preview-day-content-${previewDay.date}`;
-                                const dayCourtCount =
-                                  previewDayHeaderLocations.reduce(
-                                    (totalCourts, location) =>
-                                      totalCourts + location.courts.length,
-                                    0,
-                                  );
+                                const dayCourtCount = previewDayHeaderLocations.reduce(
+                                  (totalCourts, location) => totalCourts + location.courts.length,
+                                  0,
+                                );
 
                                 return (
                                   <section
@@ -16346,45 +14248,34 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                       type="button"
                                       className={cn(
                                         "flex w-full items-center justify-between gap-4 text-left transition-colors hover:text-foreground",
-                                        isPreviewDayExpanded &&
-                                          "border-b border-border/40 pb-4",
+                                        isPreviewDayExpanded && "border-b border-border/40 pb-4",
                                       )}
                                       aria-expanded={isPreviewDayExpanded}
                                       aria-controls={previewDayContentId}
                                       aria-label={`${
-                                        isPreviewDayExpanded
-                                          ? "Recolher"
-                                          : "Expandir"
+                                        isPreviewDayExpanded ? "Recolher" : "Expandir"
                                       } programação de ${resolveBrazilianDateString(
                                         previewDay.date,
                                       )}`}
                                       onClick={() =>
-                                        void toggleOperationalPreviewDay(
-                                          previewDay.date,
-                                        )
+                                        void toggleOperationalPreviewDay(previewDay.date)
                                       }
                                     >
                                       <div>
                                         <p className="text-base font-bold">
-                                          {resolveBrazilianDateString(
-                                            previewDay.date,
-                                          )}
+                                          {resolveBrazilianDateString(previewDay.date)}
                                         </p>
                                         <p className="text-xs text-muted-foreground">
                                           {configuredScheduleDay?.start_time ??
                                             previewDay.start_time}{" "}
                                           até{" "}
-                                          {configuredScheduleDay?.end_time ??
-                                            previewDay.end_time}
+                                          {configuredScheduleDay?.end_time ?? previewDay.end_time}
                                         </p>
                                       </div>
 
                                       <div className="flex items-center gap-3 text-right text-xs text-muted-foreground">
                                         <div>
-                                          <p>
-                                            {previewDayHeaderLocations.length}{" "}
-                                            local(is)
-                                          </p>
+                                          <p>{previewDayHeaderLocations.length} local(is)</p>
                                           <p>{dayCourtCount} quadra(s)</p>
                                         </div>
                                         {isPreviewDayExpanded ? (
@@ -16396,48 +14287,37 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                     </button>
 
                                     {isPreviewDayExpanded ? (
-                                      <div
-                                        id={previewDayContentId}
-                                        className="mt-5 space-y-5"
-                                      >
-                                        {loadingOperationalPreviewDate ==
-                                        previewDay.date ? (
+                                      <div id={previewDayContentId} className="mt-5 space-y-5">
+                                        {loadingOperationalPreviewDate == previewDay.date ? (
                                           <div className="space-y-3 py-4">
-                                            {Array.from({ length: 4 }).map(
-                                              (_, index) => (
-                                                <div
-                                                  key={`operational-preview-day-skeleton-${previewDay.date}-${index}`}
-                                                  className="rounded-xl border border-border/40 bg-background/30 p-3"
-                                                >
-                                                  <div className="flex items-center justify-between gap-4">
-                                                    <div className="space-y-2">
-                                                      <Skeleton className="h-4 w-40" />
-                                                      <Skeleton className="h-3 w-56 max-w-full" />
-                                                    </div>
-
-                                                    <Skeleton className="h-6 w-20 rounded-full" />
+                                            {Array.from({ length: 4 }).map((_, index) => (
+                                              <div
+                                                key={`operational-preview-day-skeleton-${previewDay.date}-${index}`}
+                                                className="rounded-xl border border-border/40 bg-background/30 p-3"
+                                              >
+                                                <div className="flex items-center justify-between gap-4">
+                                                  <div className="space-y-2">
+                                                    <Skeleton className="h-4 w-40" />
+                                                    <Skeleton className="h-3 w-56 max-w-full" />
                                                   </div>
+
+                                                  <Skeleton className="h-6 w-20 rounded-full" />
                                                 </div>
-                                              ),
-                                            )}
+                                              </div>
+                                            ))}
                                           </div>
                                         ) : (
                                           <>
                                             {previewDay.breaks.length > 0 ? (
                                               <div className="flex flex-wrap gap-2">
                                                 {previewDay.breaks.map(
-                                                  (
-                                                    previewBreak,
-                                                    breakIndex,
-                                                  ) => (
+                                                  (previewBreak, breakIndex) => (
                                                     <AppBadge
                                                       key={`preview-day-${previewDay.date}-break-${breakIndex}`}
                                                       tone={AppBadgeTone.SKY}
                                                       className="px-2 py-1 text-[10px] leading-none"
                                                     >
-                                                      Intervalo{" "}
-                                                      {previewBreak.start_time}{" "}
-                                                      até{" "}
+                                                      Intervalo {previewBreak.start_time} até{" "}
                                                       {previewBreak.end_time}
                                                     </AppBadge>
                                                   ),
@@ -16446,412 +14326,336 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                             ) : null}
 
                                             <div className="space-y-5">
-                                              {previewDay.locations.map(
-                                                (location) => (
+                                              {previewDay.locations.map((location) => (
+                                                <div
+                                                  key={`preview-day-${previewDay.date}-location-${location.location_key}`}
+                                                  className="space-y-3"
+                                                >
+                                                  <div className="flex items-center justify-between">
+                                                    <p className="text-sm font-semibold">
+                                                      {location.location_name}
+                                                    </p>
+                                                    <p className="text-[11px] text-muted-foreground">
+                                                      {location.courts.length} quadra(s)
+                                                    </p>
+                                                  </div>
+
                                                   <div
-                                                    key={`preview-day-${previewDay.date}-location-${location.location_key}`}
-                                                    className="space-y-3"
+                                                    className="grid gap-4"
+                                                    style={{
+                                                      gridTemplateColumns: `repeat(${Math.max(
+                                                        location.courts.length,
+                                                        1,
+                                                      )}, minmax(0, 1fr))`,
+                                                    }}
                                                   >
-                                                    <div className="flex items-center justify-between">
-                                                      <p className="text-sm font-semibold">
-                                                        {location.location_name}
-                                                      </p>
-                                                      <p className="text-[11px] text-muted-foreground">
-                                                        {location.courts.length}{" "}
-                                                        quadra(s)
-                                                      </p>
-                                                    </div>
+                                                    {location.courts.map((court) => (
+                                                      <div
+                                                        key={`preview-day-${previewDay.date}-court-${court.court_key}`}
+                                                        className="min-w-0 overflow-hidden rounded-xl border border-border/40 bg-background/40 p-4"
+                                                      >
+                                                        <div className="flex items-start justify-between gap-3 border-b border-border/30 pb-3">
+                                                          <div>
+                                                            <p className="text-sm font-bold">
+                                                              {court.court_name}
+                                                            </p>
+                                                            <p className="text-[11px] text-muted-foreground">
+                                                              {
+                                                                court.entries.filter(
+                                                                  (entry) => entry.type == "MATCH",
+                                                                ).length
+                                                              }{" "}
+                                                              jogo(s) programados
+                                                            </p>
+                                                          </div>
 
-                                                    <div
-                                                      className="grid gap-4"
-                                                      style={{
-                                                        gridTemplateColumns: `repeat(${Math.max(
-                                                          location.courts
-                                                            .length,
-                                                          1,
-                                                        )}, minmax(0, 1fr))`,
-                                                      }}
-                                                    >
-                                                      {location.courts.map(
-                                                        (court) => (
-                                                          <div
-                                                            key={`preview-day-${previewDay.date}-court-${court.court_key}`}
-                                                            className="min-w-0 overflow-hidden rounded-xl border border-border/40 bg-background/40 p-4"
-                                                          >
-                                                            <div className="flex items-start justify-between gap-3 border-b border-border/30 pb-3">
-                                                              <div>
-                                                                <p className="text-sm font-bold">
-                                                                  {
-                                                                    court.court_name
-                                                                  }
-                                                                </p>
-                                                                <p className="text-[11px] text-muted-foreground">
-                                                                  {
-                                                                    court.entries.filter(
-                                                                      (entry) =>
-                                                                        entry.type ==
-                                                                        "MATCH",
-                                                                    ).length
-                                                                  }{" "}
-                                                                  jogo(s)
-                                                                  programados
-                                                                </p>
-                                                              </div>
+                                                          <div className="text-right text-[11px] text-muted-foreground">
+                                                            <p>
+                                                              {court.available_minutes} min
+                                                              disponíveis
+                                                            </p>
+                                                            <p>
+                                                              {court.occupied_minutes} min
+                                                              reservados para jogos
+                                                            </p>
+                                                            <p>
+                                                              {Math.max(
+                                                                0,
+                                                                court.available_minutes -
+                                                                  court.occupied_minutes,
+                                                              )}{" "}
+                                                              min livres ainda
+                                                            </p>
+                                                          </div>
+                                                        </div>
 
-                                                              <div className="text-right text-[11px] text-muted-foreground">
-                                                                <p>
-                                                                  {
-                                                                    court.available_minutes
-                                                                  }{" "}
-                                                                  min
-                                                                  disponíveis
-                                                                </p>
-                                                                <p>
-                                                                  {
-                                                                    court.occupied_minutes
-                                                                  }{" "}
-                                                                  min reservados
-                                                                  para jogos
-                                                                </p>
-                                                                <p>
-                                                                  {Math.max(
-                                                                    0,
-                                                                    court.available_minutes -
-                                                                      court.occupied_minutes,
-                                                                  )}{" "}
-                                                                  min livres
-                                                                  ainda
-                                                                </p>
-                                                              </div>
-                                                            </div>
+                                                        <div className="mt-4 space-y-3">
+                                                          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                                            Sequência cronológica da quadra
+                                                          </p>
 
-                                                            <div className="mt-4 space-y-3">
-                                                              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                                                Sequência
-                                                                cronológica da
-                                                                quadra
-                                                              </p>
+                                                          <div className="space-y-2">
+                                                            {court.entries
+                                                              .map((entry, entryIndex) => ({
+                                                                entry,
+                                                                entryIndex,
+                                                              }))
+                                                              .filter(
+                                                                ({ entry }) =>
+                                                                  entry.type != "EMPTY" ||
+                                                                  !court.entries.some(
+                                                                    (courtEntry) =>
+                                                                      courtEntry.type == "MATCH" &&
+                                                                      courtEntry.match_kind ==
+                                                                        "KNOCKOUT",
+                                                                  ),
+                                                              )
+                                                              .map(({ entry, entryIndex }) => {
+                                                                const matchDetailParts = [
+                                                                  entry.sport_name,
+                                                                  entry.naipe
+                                                                    ? MATCH_NAIPE_LABELS[
+                                                                        entry.naipe
+                                                                      ]
+                                                                    : null,
+                                                                  entry.division
+                                                                    ? TEAM_DIVISION_LABELS[
+                                                                        entry.division
+                                                                      ]
+                                                                    : null,
+                                                                  resolveOperationalPreviewPhaseLabel(
+                                                                    entry.phase,
+                                                                    entry.phase_label,
+                                                                  ),
+                                                                ].filter(Boolean);
+                                                                const displayedMatchNumber =
+                                                                  operationalPreviewMatchNumberByEntryKey.get(
+                                                                    resolveOperationalPreviewEntryKey(
+                                                                      {
+                                                                        date: previewDay.date,
+                                                                        locationKey:
+                                                                          location.location_key,
+                                                                        courtKey: court.court_key,
+                                                                        entryIndex,
+                                                                      },
+                                                                    ),
+                                                                  ) ?? entry.match_number;
 
-                                                              <div className="space-y-2">
-                                                                {court.entries
-                                                                  .map(
-                                                                    (
-                                                                      entry,
-                                                                      entryIndex,
-                                                                    ) => ({
-                                                                      entry,
-                                                                      entryIndex,
-                                                                    }),
-                                                                  )
-                                                                  .filter(
-                                                                    ({
-                                                                      entry,
-                                                                    }) =>
-                                                                      entry.type !=
-                                                                        "EMPTY" ||
-                                                                      !court.entries.some(
-                                                                        (
-                                                                          courtEntry,
-                                                                        ) =>
-                                                                          courtEntry.type ==
-                                                                            "MATCH" &&
-                                                                          courtEntry.match_kind ==
-                                                                            "KNOCKOUT",
-                                                                      ),
-                                                                  )
-                                                                  .map(
-                                                                    ({
-                                                                      entry,
-                                                                      entryIndex,
-                                                                    }) => {
-                                                                      const matchDetailParts =
-                                                                        [
-                                                                          entry.sport_name,
-                                                                          entry.naipe
-                                                                            ? MATCH_NAIPE_LABELS[
-                                                                                entry
-                                                                                  .naipe
-                                                                              ]
-                                                                            : null,
-                                                                          entry.division
-                                                                            ? TEAM_DIVISION_LABELS[
-                                                                                entry
-                                                                                  .division
-                                                                              ]
-                                                                            : null,
-                                                                          resolveOperationalPreviewPhaseLabel(
-                                                                            entry.phase,
-                                                                            entry.phase_label,
-                                                                          ),
-                                                                        ].filter(
-                                                                          Boolean,
-                                                                        );
-                                                                      const displayedMatchNumber =
-                                                                        operationalPreviewMatchNumberByEntryKey.get(
-                                                                          resolveOperationalPreviewEntryKey(
-                                                                            {
-                                                                              date: previewDay.date,
-                                                                              locationKey:
-                                                                                location.location_key,
-                                                                              courtKey:
-                                                                                court.court_key,
-                                                                              entryIndex,
-                                                                            },
-                                                                          ),
-                                                                        ) ??
-                                                                        entry.match_number;
+                                                                if (entry.type == "MATCH") {
+                                                                  const phaseLabel =
+                                                                    resolveOperationalPreviewPhaseLabel(
+                                                                      entry.phase,
+                                                                      entry.phase_label,
+                                                                    );
+                                                                  const matchTeamsLabel =
+                                                                    entry.home_team_name &&
+                                                                    entry.away_team_name
+                                                                      ? `${entry.home_team_name} × ${entry.away_team_name}`
+                                                                      : null;
 
-                                                                      if (
-                                                                        entry.type ==
-                                                                        "MATCH"
-                                                                      ) {
-                                                                        const phaseLabel =
-                                                                          resolveOperationalPreviewPhaseLabel(
-                                                                            entry.phase,
-                                                                            entry.phase_label,
-                                                                          );
-                                                                        const matchTeamsLabel =
-                                                                          entry.home_team_name &&
-                                                                          entry.away_team_name
-                                                                            ? `${entry.home_team_name} × ${entry.away_team_name}`
-                                                                            : null;
-
-                                                                        return (
-                                                                          <div
-                                                                            key={`preview-day-${previewDay.date}-court-${court.court_key}-entry-${entryIndex}`}
-                                                                            className={cn(
-                                                                              "structural-review-timeline-entry rounded-md border px-2.5 py-2",
-                                                                              resolveOperationalPreviewEntryToneClassName(
-                                                                                entry,
-                                                                              ),
-                                                                            )}
-                                                                          >
-                                                                            <div className="flex items-start justify-between gap-2">
-                                                                              <div className="min-w-0 flex-1">
-                                                                                <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide">
-                                                                                  <AppBadge
-                                                                                    tone={
-                                                                                      AppBadgeTone.SILVER
-                                                                                    }
-                                                                                    className="border-slate-300 bg-slate-100 px-1.5 py-0.5 text-[10px] leading-none text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                                                                                  >
-                                                                                    Jogo{" "}
-                                                                                    {displayedMatchNumber ??
-                                                                                      "—"}
-                                                                                  </AppBadge>
-                                                                                  <AppBadge
-                                                                                    tone={
-                                                                                      AppBadgeTone.AMBER
-                                                                                    }
-                                                                                    className="border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[9px] leading-none text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
-                                                                                  >
-                                                                                    Programação
-                                                                                    exata
-                                                                                  </AppBadge>
-                                                                                  {entry.naipe ? (
-                                                                                    <AppBadge
-                                                                                      tone={
-                                                                                        MATCH_NAIPE_BADGE_TONES[
-                                                                                          entry
-                                                                                            .naipe
-                                                                                        ]
-                                                                                      }
-                                                                                      className="px-1.5 py-0.5 text-[10px] leading-none"
-                                                                                    >
-                                                                                      {
-                                                                                        MATCH_NAIPE_LABELS[
-                                                                                          entry
-                                                                                            .naipe
-                                                                                        ]
-                                                                                      }
-                                                                                    </AppBadge>
-                                                                                  ) : null}
-                                                                                  {phaseLabel ? (
-                                                                                    <span className="inline-flex items-center whitespace-nowrap rounded-full border border-border/40 bg-background/60 px-1.5 py-0.5 text-[10px] leading-none text-foreground/90 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
-                                                                                      {
-                                                                                        phaseLabel
-                                                                                      }
-                                                                                    </span>
-                                                                                  ) : null}
-                                                                                  {entry.division ? (
-                                                                                    <AppBadge
-                                                                                      tone={
-                                                                                        TEAM_DIVISION_BADGE_TONES[
-                                                                                          entry
-                                                                                            .division
-                                                                                        ]
-                                                                                      }
-                                                                                      className="px-1.5 py-0.5 text-[10px] leading-none"
-                                                                                    >
-                                                                                      {
-                                                                                        TEAM_DIVISION_LABELS[
-                                                                                          entry
-                                                                                            .division
-                                                                                        ]
-                                                                                      }
-                                                                                    </AppBadge>
-                                                                                  ) : null}
-                                                                                </div>
-
-                                                                                <p className="mt-1 truncate text-sm font-semibold leading-tight">
-                                                                                  {matchTeamsLabel ??
-                                                                                    entry.sport_name ??
-                                                                                    "Jogo"}
-                                                                                </p>
-
-                                                                                {matchTeamsLabel &&
-                                                                                entry.sport_name ? (
-                                                                                  <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
-                                                                                    {
-                                                                                      entry.sport_name
-                                                                                    }
-                                                                                  </p>
-                                                                                ) : null}
-
-                                                                                {entry.reason ? (
-                                                                                  <p className="mt-1 text-[10px] text-muted-foreground">
-                                                                                    {resolveOperationalPreviewMatchReason(
-                                                                                      {
-                                                                                        reason:
-                                                                                          entry.reason,
-                                                                                        phase:
-                                                                                          entry.phase,
-                                                                                        phaseLabel:
-                                                                                          entry.phase_label,
-                                                                                        homeSourceMatchNumber:
-                                                                                          entry.home_source_match_number,
-                                                                                        awaySourceMatchNumber:
-                                                                                          entry.away_source_match_number,
-                                                                                      },
-                                                                                    )}
-                                                                                  </p>
-                                                                                ) : null}
-                                                                              </div>
-
-                                                                              <div className="shrink-0 text-right">
-                                                                                <p className="text-sm font-semibold tabular-nums leading-tight">
-                                                                                  {
-                                                                                    entry.start_time
-                                                                                  }{" "}
-                                                                                  -{" "}
-                                                                                  {
-                                                                                    entry.end_time
-                                                                                  }
-                                                                                </p>
-                                                                                <p className="text-[10px] text-muted-foreground">
-                                                                                  {
-                                                                                    entry.duration_minutes
-                                                                                  }{" "}
-                                                                                  min
-                                                                                </p>
-                                                                              </div>
-                                                                            </div>
-                                                                          </div>
-                                                                        );
-                                                                      }
-
-                                                                      const isScheduleMarker =
-                                                                        entry.type ==
-                                                                          "EMPTY" ||
-                                                                        entry.type ==
-                                                                          "BREAK" ||
-                                                                        entry.type ==
-                                                                          "RESERVATION";
-
-                                                                      return (
-                                                                        <div
-                                                                          key={`preview-day-${previewDay.date}-court-${court.court_key}-entry-${entryIndex}`}
-                                                                          className={cn(
-                                                                            "rounded-lg border px-3 py-3",
-                                                                            resolveOperationalPreviewEntryToneClassName(
-                                                                              entry,
-                                                                            ),
-                                                                          )}
-                                                                        >
-                                                                          <div
-                                                                            className={cn(
-                                                                              "flex gap-3",
-                                                                              isScheduleMarker
-                                                                                ? "items-center justify-between"
-                                                                                : "items-start justify-between",
-                                                                            )}
-                                                                          >
-                                                                            {isScheduleMarker ? (
-                                                                              <p className="text-sm font-semibold">
-                                                                                {entry.type ==
-                                                                                "RESERVATION"
-                                                                                  ? (entry.reason ??
-                                                                                    "Reserva")
-                                                                                  : resolveOperationalPreviewEntryTypeLabel(
-                                                                                      entry,
-                                                                                    )}
-                                                                              </p>
-                                                                            ) : (
-                                                                              <div>
-                                                                                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                                                                  {resolveOperationalPreviewEntryTypeLabel(
-                                                                                    entry,
-                                                                                  )}
-                                                                                </p>
-                                                                                <p className="mt-1 text-sm font-semibold">
-                                                                                  {entry.sport_name ??
-                                                                                    "Sessão individual"}
-                                                                                </p>
-                                                                              </div>
-                                                                            )}
-
-                                                                            <div className="text-right">
-                                                                              <p className="text-sm font-semibold">
-                                                                                {
-                                                                                  entry.start_time
-                                                                                }{" "}
-                                                                                -{" "}
-                                                                                {
-                                                                                  entry.end_time
+                                                                  return (
+                                                                    <div
+                                                                      key={`preview-day-${previewDay.date}-court-${court.court_key}-entry-${entryIndex}`}
+                                                                      className={cn(
+                                                                        "structural-review-timeline-entry rounded-md border px-2.5 py-2",
+                                                                        resolveOperationalPreviewEntryToneClassName(
+                                                                          entry,
+                                                                        ),
+                                                                      )}
+                                                                    >
+                                                                      <div className="flex items-start justify-between gap-2">
+                                                                        <div className="min-w-0 flex-1">
+                                                                          <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide">
+                                                                            <AppBadge
+                                                                              tone={
+                                                                                AppBadgeTone.SILVER
+                                                                              }
+                                                                              className="border-slate-300 bg-slate-100 px-1.5 py-0.5 text-[10px] leading-none text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                                                            >
+                                                                              Jogo{" "}
+                                                                              {displayedMatchNumber ??
+                                                                                "—"}
+                                                                            </AppBadge>
+                                                                            <AppBadge
+                                                                              tone={
+                                                                                AppBadgeTone.AMBER
+                                                                              }
+                                                                              className="border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[9px] leading-none text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
+                                                                            >
+                                                                              Programação exata
+                                                                            </AppBadge>
+                                                                            {entry.naipe ? (
+                                                                              <AppBadge
+                                                                                tone={
+                                                                                  MATCH_NAIPE_BADGE_TONES[
+                                                                                    entry.naipe
+                                                                                  ]
                                                                                 }
-                                                                              </p>
-                                                                              <p className="text-[11px] text-muted-foreground">
+                                                                                className="px-1.5 py-0.5 text-[10px] leading-none"
+                                                                              >
                                                                                 {
-                                                                                  entry.duration_minutes
-                                                                                }{" "}
-                                                                                min
-                                                                              </p>
-                                                                            </div>
+                                                                                  MATCH_NAIPE_LABELS[
+                                                                                    entry.naipe
+                                                                                  ]
+                                                                                }
+                                                                              </AppBadge>
+                                                                            ) : null}
+                                                                            {phaseLabel ? (
+                                                                              <span className="inline-flex items-center whitespace-nowrap rounded-full border border-border/40 bg-background/60 px-1.5 py-0.5 text-[10px] leading-none text-foreground/90 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
+                                                                                {phaseLabel}
+                                                                              </span>
+                                                                            ) : null}
+                                                                            {entry.division ? (
+                                                                              <AppBadge
+                                                                                tone={
+                                                                                  TEAM_DIVISION_BADGE_TONES[
+                                                                                    entry.division
+                                                                                  ]
+                                                                                }
+                                                                                className="px-1.5 py-0.5 text-[10px] leading-none"
+                                                                              >
+                                                                                {
+                                                                                  TEAM_DIVISION_LABELS[
+                                                                                    entry.division
+                                                                                  ]
+                                                                                }
+                                                                              </AppBadge>
+                                                                            ) : null}
                                                                           </div>
 
-                                                                          {!isScheduleMarker &&
-                                                                          matchDetailParts.length >
-                                                                            0 ? (
-                                                                            <p className="mt-2 text-xs text-muted-foreground">
-                                                                              {matchDetailParts.join(
-                                                                                " • ",
+                                                                          <p className="mt-1 truncate text-sm font-semibold leading-tight">
+                                                                            {matchTeamsLabel ??
+                                                                              entry.sport_name ??
+                                                                              "Jogo"}
+                                                                          </p>
+
+                                                                          {matchTeamsLabel &&
+                                                                          entry.sport_name ? (
+                                                                            <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                                                                              {entry.sport_name}
+                                                                            </p>
+                                                                          ) : null}
+
+                                                                          {entry.reason ? (
+                                                                            <p className="mt-1 text-[10px] text-muted-foreground">
+                                                                              {resolveOperationalPreviewMatchReason(
+                                                                                {
+                                                                                  reason:
+                                                                                    entry.reason,
+                                                                                  phase:
+                                                                                    entry.phase,
+                                                                                  phaseLabel:
+                                                                                    entry.phase_label,
+                                                                                  homeSourceMatchNumber:
+                                                                                    entry.home_source_match_number,
+                                                                                  awaySourceMatchNumber:
+                                                                                    entry.away_source_match_number,
+                                                                                },
                                                                               )}
                                                                             </p>
                                                                           ) : null}
-
-                                                                          {!isScheduleMarker &&
-                                                                          entry.reason &&
-                                                                          entry.type !=
-                                                                            "RESERVATION" ? (
-                                                                            <p className="mt-2 text-[11px] text-muted-foreground">
-                                                                              {
-                                                                                entry.reason
-                                                                              }
-                                                                            </p>
-                                                                          ) : null}
                                                                         </div>
-                                                                      );
-                                                                    },
-                                                                  )}
-                                                              </div>
-                                                            </div>
+
+                                                                        <div className="shrink-0 text-right">
+                                                                          <p className="text-sm font-semibold tabular-nums leading-tight">
+                                                                            {entry.start_time} -{" "}
+                                                                            {entry.end_time}
+                                                                          </p>
+                                                                          <p className="text-[10px] text-muted-foreground">
+                                                                            {entry.duration_minutes}{" "}
+                                                                            min
+                                                                          </p>
+                                                                        </div>
+                                                                      </div>
+                                                                    </div>
+                                                                  );
+                                                                }
+
+                                                                const isScheduleMarker =
+                                                                  entry.type == "EMPTY" ||
+                                                                  entry.type == "BREAK" ||
+                                                                  entry.type == "RESERVATION";
+
+                                                                return (
+                                                                  <div
+                                                                    key={`preview-day-${previewDay.date}-court-${court.court_key}-entry-${entryIndex}`}
+                                                                    className={cn(
+                                                                      "rounded-lg border px-3 py-3",
+                                                                      resolveOperationalPreviewEntryToneClassName(
+                                                                        entry,
+                                                                      ),
+                                                                    )}
+                                                                  >
+                                                                    <div
+                                                                      className={cn(
+                                                                        "flex gap-3",
+                                                                        isScheduleMarker
+                                                                          ? "items-center justify-between"
+                                                                          : "items-start justify-between",
+                                                                      )}
+                                                                    >
+                                                                      {isScheduleMarker ? (
+                                                                        <p className="text-sm font-semibold">
+                                                                          {entry.type ==
+                                                                          "RESERVATION"
+                                                                            ? (entry.reason ??
+                                                                              "Reserva")
+                                                                            : resolveOperationalPreviewEntryTypeLabel(
+                                                                                entry,
+                                                                              )}
+                                                                        </p>
+                                                                      ) : (
+                                                                        <div>
+                                                                          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                                                            {resolveOperationalPreviewEntryTypeLabel(
+                                                                              entry,
+                                                                            )}
+                                                                          </p>
+                                                                          <p className="mt-1 text-sm font-semibold">
+                                                                            {entry.sport_name ??
+                                                                              "Sessão individual"}
+                                                                          </p>
+                                                                        </div>
+                                                                      )}
+
+                                                                      <div className="text-right">
+                                                                        <p className="text-sm font-semibold">
+                                                                          {entry.start_time} -{" "}
+                                                                          {entry.end_time}
+                                                                        </p>
+                                                                        <p className="text-[11px] text-muted-foreground">
+                                                                          {entry.duration_minutes}{" "}
+                                                                          min
+                                                                        </p>
+                                                                      </div>
+                                                                    </div>
+
+                                                                    {!isScheduleMarker &&
+                                                                    matchDetailParts.length > 0 ? (
+                                                                      <p className="mt-2 text-xs text-muted-foreground">
+                                                                        {matchDetailParts.join(
+                                                                          " • ",
+                                                                        )}
+                                                                      </p>
+                                                                    ) : null}
+
+                                                                    {!isScheduleMarker &&
+                                                                    entry.reason &&
+                                                                    entry.type != "RESERVATION" ? (
+                                                                      <p className="mt-2 text-[11px] text-muted-foreground">
+                                                                        {entry.reason}
+                                                                      </p>
+                                                                    ) : null}
+                                                                  </div>
+                                                                );
+                                                              })}
                                                           </div>
-                                                        ),
-                                                      )}
-                                                    </div>
+                                                        </div>
+                                                      </div>
+                                                    ))}
                                                   </div>
-                                                ),
-                                              )}
+                                                </div>
+                                              ))}
                                             </div>
                                           </>
                                         )}
@@ -16885,8 +14689,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
           <DialogHeader>
             <DialogTitle>Adicionar local do catálogo</DialogTitle>
             <DialogDescription>
-              Reaproveite um local global já cadastrado e adicione-o ao dia
-              atual da agenda.
+              Reaproveite um local global já cadastrado e adicione-o ao dia atual da agenda.
             </DialogDescription>
           </DialogHeader>
 
@@ -16901,66 +14704,59 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
               <div className="rounded-xl border border-dashed border-border/40 bg-background/20 p-8 text-center">
                 <p className="text-sm font-bold">Nenhum local disponível</p>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Todos os locais do catálogo já foram adicionados a este dia ou
-                  ainda não existe local global cadastrado.
+                  Todos os locais do catálogo já foram adicionados a este dia ou ainda não existe
+                  local global cadastrado.
                 </p>
               </div>
             ) : (
               <div className="grid gap-3 md:grid-cols-2">
-                {availableLocationTemplatesForSelection.map(
-                  (locationTemplate) => (
-                    <div
-                      key={`location-template-selection-${locationTemplate.id}`}
-                      className="rounded-xl border border-border/40 bg-background/30 p-4 shadow-sm"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="space-y-1">
-                          <p className="text-sm font-bold">
-                            {locationTemplate.name}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {locationTemplate.courts.length}{" "}
-                            {locationTemplate.courts.length == 1
-                              ? "recurso/quadra cadastrado"
-                              : "recursos/quadras cadastrados"}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {resolveLocationCatalogSupportSummary(
-                              locationTemplate,
-                              selectedSportOptions,
-                            ) || "Sem modalidades vinculadas"}
-                          </p>
-                        </div>
-
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={() => {
-                            if (locationTemplateSelectionDayId == null) {
-                              return;
-                            }
-
-                            handleSelectLocationTemplateForDay(
-                              locationTemplateSelectionDayId,
-                              locationTemplate.id,
-                            );
-                          }}
-                        >
-                          <Plus className="mr-2 h-4 w-4" />
-                          Adicionar
-                        </Button>
+                {availableLocationTemplatesForSelection.map((locationTemplate) => (
+                  <div
+                    key={`location-template-selection-${locationTemplate.id}`}
+                    className="rounded-xl border border-border/40 bg-background/30 p-4 shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <p className="text-sm font-bold">{locationTemplate.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {locationTemplate.courts.length}{" "}
+                          {locationTemplate.courts.length == 1
+                            ? "recurso/quadra cadastrado"
+                            : "recursos/quadras cadastrados"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {resolveLocationCatalogSupportSummary(
+                            locationTemplate,
+                            selectedSportOptions,
+                          ) || "Sem modalidades vinculadas"}
+                        </p>
                       </div>
+
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => {
+                          if (locationTemplateSelectionDayId == null) {
+                            return;
+                          }
+
+                          handleSelectLocationTemplateForDay(
+                            locationTemplateSelectionDayId,
+                            locationTemplate.id,
+                          );
+                        }}
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Adicionar
+                      </Button>
                     </div>
-                  ),
-                )}
+                  </div>
+                ))}
               </div>
             )}
 
             <div className="flex items-center justify-end">
-              <Button
-                variant="outline"
-                onClick={handleCloseLocationTemplateSelectionModal}
-              >
+              <Button variant="outline" onClick={handleCloseLocationTemplateSelectionModal}>
                 Fechar
               </Button>
             </div>
@@ -16982,8 +14778,8 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
               {isEditingLocationTemplate ? "Editar local" : "Cadastrar local"}
             </DialogTitle>
             <DialogDescription>
-              Defina o local, os recursos/quadras e as modalidades suportadas
-              para reutilizar esse cadastro em próximos campeonatos.
+              Defina o local, os recursos/quadras e as modalidades suportadas para reutilizar esse
+              cadastro em próximos campeonatos.
             </DialogDescription>
           </DialogHeader>
 
@@ -16994,12 +14790,10 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                 value={locationTemplateModalFormValues.name}
                 onChange={(event) => {
                   const nextName = event.target.value;
-                  setLocationTemplateModalFormValues(
-                    (currentLocationTemplateModalFormValues) => ({
-                      ...currentLocationTemplateModalFormValues,
-                      name: nextName,
-                    }),
-                  );
+                  setLocationTemplateModalFormValues((currentLocationTemplateModalFormValues) => ({
+                    ...currentLocationTemplateModalFormValues,
+                    name: nextName,
+                  }));
                 }}
                 placeholder="Ex.: Praia de Piçarras"
                 className="app-input-field"
@@ -17008,140 +14802,113 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
 
             <div className="space-y-3">
               <div>
-                <p className="text-sm font-semibold">
-                  Recursos/quadras do local
-                </p>
+                <p className="text-sm font-semibold">Recursos/quadras do local</p>
                 <p className="text-xs text-muted-foreground">
-                  Organize os recursos em cards compactos e marque as
-                  modalidades que podem usar cada um deles.
+                  Organize os recursos em cards compactos e marque as modalidades que podem usar
+                  cada um deles.
                 </p>
               </div>
 
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {locationTemplateModalFormValues.courts.map(
-                  (court, courtIndex) => (
-                    <div
-                      key={court.id}
-                      className="relative rounded-xl border border-transparent bg-background/50 p-3 shadow-[0_8px_16px_rgba(15,23,42,0.1)] dark:border-border/70 dark:shadow-none"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-semibold">
-                          Recurso {courtIndex + 1}
-                        </p>
-                        {locationTemplateModalFormValues.courts.length > 1 ? (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8"
-                            title="Remover recurso"
-                            aria-label="Remover recurso"
-                            onClick={() =>
-                              handleRemoveLocationTemplateModalCourt(court.id)
-                            }
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        ) : null}
+                {locationTemplateModalFormValues.courts.map((court, courtIndex) => (
+                  <div
+                    key={court.id}
+                    className="relative rounded-xl border border-transparent bg-background/50 p-3 shadow-[0_8px_16px_rgba(15,23,42,0.1)] dark:border-border/70 dark:shadow-none"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold">Recurso {courtIndex + 1}</p>
+                      {locationTemplateModalFormValues.courts.length > 1 ? (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8"
+                          title="Remover recurso"
+                          aria-label="Remover recurso"
+                          onClick={() => handleRemoveLocationTemplateModalCourt(court.id)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      ) : null}
+                    </div>
+
+                    <div className="mt-3 space-y-3">
+                      <div className="space-y-1.5">
+                        <Label>Nome do recurso/quadra</Label>
+                        <Input
+                          value={court.name}
+                          onChange={(event) => {
+                            const nextCourtName = event.target.value;
+                            updateLocationTemplateModalCourt(court.id, (currentCourt) => ({
+                              ...currentCourt,
+                              name: nextCourtName,
+                            }));
+                          }}
+                          placeholder={`Recurso ${courtIndex + 1}`}
+                          className="app-input-field h-10"
+                        />
                       </div>
 
-                      <div className="mt-3 space-y-3">
-                        <div className="space-y-1.5">
-                          <Label>Nome do recurso/quadra</Label>
-                          <Input
-                            value={court.name}
-                            onChange={(event) => {
-                              const nextCourtName = event.target.value;
-                              updateLocationTemplateModalCourt(
-                                court.id,
-                                (currentCourt) => ({
-                                  ...currentCourt,
-                                  name: nextCourtName,
-                                }),
-                              );
-                            }}
-                            placeholder={`Recurso ${courtIndex + 1}`}
-                            className="app-input-field h-10"
-                          />
-                        </div>
+                      <div className="space-y-2">
+                        <Label>Modalidades disponíveis</Label>
+                        {selectedSportOptions.length == 0 ? (
+                          <p className="text-xs text-muted-foreground">
+                            Nenhuma modalidade selecionada no wizard para vincular a este
+                            recurso/quadra.
+                          </p>
+                        ) : (
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            {selectedSportOptions.map((sportOption) => {
+                              const isSelected = court.sport_ids.includes(sportOption.id);
 
-                        <div className="space-y-2">
-                          <Label>Modalidades disponíveis</Label>
-                          {selectedSportOptions.length == 0 ? (
-                            <p className="text-xs text-muted-foreground">
-                              Nenhuma modalidade selecionada no wizard para
-                              vincular a este recurso/quadra.
-                            </p>
-                          ) : (
-                            <div className="grid gap-2 sm:grid-cols-2">
-                              {selectedSportOptions.map((sportOption) => {
-                                const isSelected = court.sport_ids.includes(
-                                  sportOption.id,
-                                );
+                              return (
+                                <label
+                                  key={`${court.id}-${sportOption.id}`}
+                                  className="flex items-center gap-2 rounded-md bg-background/40 px-2 py-1.5 text-xs"
+                                >
+                                  <Checkbox
+                                    className={SQUARE_CHECKBOX_CLASS_NAME}
+                                    checked={isSelected}
+                                    onCheckedChange={(checked) => {
+                                      updateLocationTemplateModalCourt(court.id, (currentCourt) => {
+                                        if (checked == true) {
+                                          if (currentCourt.sport_ids.includes(sportOption.id)) {
+                                            return currentCourt;
+                                          }
 
-                                return (
-                                  <label
-                                    key={`${court.id}-${sportOption.id}`}
-                                    className="flex items-center gap-2 rounded-md bg-background/40 px-2 py-1.5 text-xs"
-                                  >
-                                    <Checkbox
-                                      className={SQUARE_CHECKBOX_CLASS_NAME}
-                                      checked={isSelected}
-                                      onCheckedChange={(checked) => {
-                                        updateLocationTemplateModalCourt(
-                                          court.id,
-                                          (currentCourt) => {
-                                            if (checked == true) {
-                                              if (
-                                                currentCourt.sport_ids.includes(
-                                                  sportOption.id,
-                                                )
-                                              ) {
-                                                return currentCourt;
-                                              }
+                                          return {
+                                            ...currentCourt,
+                                            sport_ids: [...currentCourt.sport_ids, sportOption.id],
+                                          };
+                                        }
 
-                                              return {
-                                                ...currentCourt,
-                                                sport_ids: [
-                                                  ...currentCourt.sport_ids,
-                                                  sportOption.id,
-                                                ],
-                                              };
-                                            }
-
-                                            const nextSportIds =
-                                              currentCourt.sport_ids.filter(
-                                                (sportId) =>
-                                                  sportId != sportOption.id,
-                                              );
-
-                                            const shouldClearSportPreference =
-                                              currentCourt.sport_preference
-                                                ?.preferred_sport_id ==
-                                              sportOption.id;
-
-                                            return {
-                                              ...currentCourt,
-                                              sport_ids: nextSportIds,
-                                              sport_preference:
-                                                shouldClearSportPreference
-                                                  ? null
-                                                  : currentCourt.sport_preference,
-                                            };
-                                          },
+                                        const nextSportIds = currentCourt.sport_ids.filter(
+                                          (sportId) => sportId != sportOption.id,
                                         );
-                                      }}
-                                    />
-                                    <span>{sportOption.name}</span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
+
+                                        const shouldClearSportPreference =
+                                          currentCourt.sport_preference?.preferred_sport_id ==
+                                          sportOption.id;
+
+                                        return {
+                                          ...currentCourt,
+                                          sport_ids: nextSportIds,
+                                          sport_preference: shouldClearSportPreference
+                                            ? null
+                                            : currentCourt.sport_preference,
+                                        };
+                                      });
+                                    }}
+                                  />
+                                  <span>{sportOption.name}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     </div>
-                  ),
-                )}
+                  </div>
+                ))}
 
                 <button
                   type="button"
@@ -17169,13 +14936,9 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
               </Button>
               <Button
                 onClick={handleSaveLocationTemplate}
-                disabled={
-                  savingLocationTemplate || selectedSportOptions.length == 0
-                }
+                disabled={savingLocationTemplate || selectedSportOptions.length == 0}
               >
-                {savingLocationTemplate ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : null}
+                {savingLocationTemplate ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Salvar local
               </Button>
             </div>
@@ -17195,8 +14958,8 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
           <DialogHeader>
             <DialogTitle>Apagar local permanentemente</DialogTitle>
             <DialogDescription>
-              Este local será removido do catálogo global e sairá de todos os
-              dias já selecionados neste wizard.
+              Este local será removido do catálogo global e sairá de todos os dias já selecionados
+              neste wizard.
             </DialogDescription>
           </DialogHeader>
 

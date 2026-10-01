@@ -1,13 +1,26 @@
 import { useEffect, useState } from "react";
+import {
+  isDedicatedSportsCoreEnabled,
+  listSportsCoreChampionships,
+} from "@/integrations/laje-api/sports-core";
 import { supabase } from "@/integrations/supabase/client";
-import type { Championship } from "@/lib/types";
 import { ChampionshipCode } from "@/lib/enums";
+import type { Championship } from "@/lib/types";
 
 const CHAMPIONSHIP_SORT_ORDER: Record<ChampionshipCode, number> = {
   [ChampionshipCode.CLV]: 0,
   [ChampionshipCode.SOCIETY]: 1,
   [ChampionshipCode.INTERLAJE]: 2,
 };
+
+function orderChampionships(championships: Championship[]): Championship[] {
+  return championships.slice().sort((firstChampionship, secondChampionship) => {
+    return (
+      CHAMPIONSHIP_SORT_ORDER[firstChampionship.code] -
+      CHAMPIONSHIP_SORT_ORDER[secondChampionship.code]
+    );
+  });
+}
 
 export function useChampionships({ realtimeEnabled = true }: { realtimeEnabled?: boolean } = {}) {
   const [championships, setChampionships] = useState<Championship[]>([]);
@@ -17,6 +30,12 @@ export function useChampionships({ realtimeEnabled = true }: { realtimeEnabled?:
     setLoading(true);
 
     try {
+      if (isDedicatedSportsCoreEnabled()) {
+        const data = await listSportsCoreChampionships();
+        setChampionships(orderChampionships(data));
+        return;
+      }
+
       const { data, error } = await supabase.from("championships").select("*");
 
       if (error) {
@@ -25,12 +44,7 @@ export function useChampionships({ realtimeEnabled = true }: { realtimeEnabled?:
         return;
       }
 
-      if (data) {
-        const ordered = (data as Championship[]).sort((firstChampionship, secondChampionship) => {
-          return CHAMPIONSHIP_SORT_ORDER[firstChampionship.code] - CHAMPIONSHIP_SORT_ORDER[secondChampionship.code];
-        });
-        setChampionships(ordered);
-      }
+      setChampionships(orderChampionships((data ?? []) as Championship[]));
     } catch (error) {
       console.error("Erro inesperado ao carregar campeonatos:", error);
       setChampionships([]);
@@ -40,16 +54,18 @@ export function useChampionships({ realtimeEnabled = true }: { realtimeEnabled?:
   };
 
   useEffect(() => {
-    fetchChampionships();
+    void fetchChampionships();
 
     if (!realtimeEnabled) {
       return;
     }
 
+    // LAJE-89 migrará o transporte realtime. Até lá, o canal Supabase é apenas
+    // um sinal de invalidação; os dados são relidos da laje-api quando configurada.
     const channel = supabase
       .channel("championships-realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "championships" }, () => {
-        fetchChampionships();
+        void fetchChampionships();
       })
       .subscribe();
 

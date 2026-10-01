@@ -29,12 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Tabs,
-  TabsContent,
-  TabsNavigationList,
-  TabsNavigationTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsNavigationList, TabsNavigationTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -48,6 +43,7 @@ import { AdminChampionshipCourtPrioritySection } from "@/components/admin/AdminC
 import { AdminChampionshipKnockoutPrioritySection } from "@/components/admin/AdminChampionshipKnockoutPrioritySection";
 import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividualEvents";
 import { useChampionshipSeasonSettings } from "@/hooks/useChampionshipSeasonSettings";
+import { useAuth } from "@/hooks/useAuth";
 import { saveChampionshipSeasonSettings } from "@/domain/championship-seasons/championshipSeason.repository";
 import {
   resolveDivisionOptionsBySportId,
@@ -141,13 +137,9 @@ function formatTime(time: string): string {
   return time.slice(0, 5);
 }
 
-function formatReconfigurationDateTime(
-  snapshot: Record<string, unknown>,
-): string {
+function formatReconfigurationDateTime(snapshot: Record<string, unknown>): string {
   const scheduledDate =
-    typeof snapshot.scheduled_date === "string"
-      ? formatDate(snapshot.scheduled_date)
-      : "Sem data";
+    typeof snapshot.scheduled_date === "string" ? formatDate(snapshot.scheduled_date) : "Sem data";
   const startTime =
     typeof snapshot.start_time === "string"
       ? new Intl.DateTimeFormat("pt-BR", {
@@ -184,16 +176,8 @@ function formatSessionPreviewDate(value: unknown): string {
   return typeof value == "string" && value ? formatDate(value) : "Sem data";
 }
 
-function formatSessionPreviewTimeRange(
-  startTime: unknown,
-  endTime: unknown,
-): string {
-  if (
-    typeof startTime != "string" ||
-    typeof endTime != "string" ||
-    !startTime ||
-    !endTime
-  ) {
+function formatSessionPreviewTimeRange(startTime: unknown, endTime: unknown): string {
+  if (typeof startTime != "string" || typeof endTime != "string" || !startTime || !endTime) {
     return "Sem horário";
   }
 
@@ -202,17 +186,12 @@ function formatSessionPreviewTimeRange(
 
 function formatReverseMatchOrderDetails(snapshot: Record<string, unknown>) {
   const sport =
-    resolveReconfigurationSnapshotText(snapshot, "sport_name") ??
-    "Modalidade não informada";
-  const naipe = formatNaipe(
-    resolveReconfigurationSnapshotText(snapshot, "naipe"),
-  );
+    resolveReconfigurationSnapshotText(snapshot, "sport_name") ?? "Modalidade não informada";
+  const naipe = formatNaipe(resolveReconfigurationSnapshotText(snapshot, "naipe"));
   const homeTeam =
-    resolveReconfigurationSnapshotText(snapshot, "home_team_name") ??
-    "Atlética a definir";
+    resolveReconfigurationSnapshotText(snapshot, "home_team_name") ?? "Atlética a definir";
   const awayTeam =
-    resolveReconfigurationSnapshotText(snapshot, "away_team_name") ??
-    "Atlética a definir";
+    resolveReconfigurationSnapshotText(snapshot, "away_team_name") ?? "Atlética a definir";
 
   return { sport, naipe, teams: `${homeTeam} × ${awayTeam}` };
 }
@@ -224,9 +203,7 @@ function resolveDayBreakSummary(day: DayScheduleDraft): string[] {
     const period = `${formatTime(brk.break_start_time)} às ${formatTime(brk.break_end_time)}`;
     if (brk.scope_type !== "COURT") return [`Geral: ${period}`];
 
-    const court = day.courts.find(
-      (currentCourt) => currentCourt.id === brk.bracket_court_id,
-    );
+    const court = day.courts.find((currentCourt) => currentCourt.id === brk.bracket_court_id);
     return [`${court?.label ?? "Quadra"}: ${period}`];
   });
 }
@@ -249,10 +226,7 @@ function validationError(day: DayScheduleDraft): string | null {
       return "Fim do intervalo deve ser maior que o início.";
     }
 
-    if (
-      brk.break_start_time < day.start_time ||
-      brk.break_end_time > day.end_time
-    ) {
+    if (brk.break_start_time < day.start_time || brk.break_end_time > day.end_time) {
       return "Intervalos devem estar dentro da janela do dia.";
     }
 
@@ -310,18 +284,13 @@ function QualificationSectionSkeleton() {
 
       <div className="space-y-3">
         {Array.from({ length: 4 }).map((_, index) => (
-          <div
-            key={`qualification-skeleton-${index}`}
-            className="glass-card overflow-hidden"
-          >
+          <div key={`qualification-skeleton-${index}`} className="glass-card overflow-hidden">
             <div className="flex items-center justify-between gap-4 p-4">
               <div className="min-w-0 flex-1 space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <Skeleton className="h-5 w-44" />
 
-                  {index == 1 ? (
-                    <Skeleton className="h-5 w-36 rounded-full" />
-                  ) : null}
+                  {index == 1 ? <Skeleton className="h-5 w-36 rounded-full" /> : null}
                 </div>
 
                 <Skeleton className="h-4 w-full max-w-md" />
@@ -348,45 +317,32 @@ export function AdminChampionshipSchedule({
   onRefetchMatches,
   onRefetchChampionshipBracket,
 }: Props) {
+  const { accessToken } = useAuth();
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState<DayScheduleDraft[]>([]);
-  const [locationGroups, setLocationGroups] = useState<LocationGroupDraft[]>(
-    [],
-  );
+  const [locationGroups, setLocationGroups] = useState<LocationGroupDraft[]>([]);
   const [expandedDayIds, setExpandedDayIds] = useState<Set<string>>(new Set());
-  const [editingLocationGroup, setEditingLocationGroup] =
-    useState<LocationGroupDraft | null>(null);
+  const [editingLocationGroup, setEditingLocationGroup] = useState<LocationGroupDraft | null>(null);
   const [editingIndividualSession, setEditingIndividualSession] =
     useState<ChampionshipIndividualSession | null>(null);
 
   const [individualSessionEditDraft, setIndividualSessionEditDraft] =
     useState<IndividualSessionEditDraft | null>(null);
   const [activeSection, setActiveSection] = useState("schedule");
-  const [yellowCardResetPhase, setYellowCardResetPhase] = useState(
-    YellowCardResetPhase.NONE,
-  );
-  const [savingYellowCardResetPhase, setSavingYellowCardResetPhase] =
-    useState(false);
+  const [yellowCardResetPhase, setYellowCardResetPhase] = useState(YellowCardResetPhase.NONE);
+  const [savingYellowCardResetPhase, setSavingYellowCardResetPhase] = useState(false);
   const [pendingReconfiguration, setPendingReconfiguration] =
     useState<ChampionshipBracketReconfigurationRequest | null>(null);
   const [reconfigurationPreview, setReconfigurationPreview] =
     useState<ChampionshipBracketReconfigurationPreview | null>(null);
-  const [loadingReconfigurationPreview, setLoadingReconfigurationPreview] =
-    useState(false);
+  const [loadingReconfigurationPreview, setLoadingReconfigurationPreview] = useState(false);
   const [applyingReconfiguration, setApplyingReconfiguration] = useState(false);
   const [reverseMatchOrderDate, setReverseMatchOrderDate] = useState("");
-  const [reverseMatchOrderCourtIds, setReverseMatchOrderCourtIds] = useState<
-    string[]
-  >([]);
+  const [reverseMatchOrderCourtIds, setReverseMatchOrderCourtIds] = useState<string[]>([]);
   const reconfigurationTriggerRef = useRef<HTMLElement | null>(null);
   const savedDaysRef = useRef<DayScheduleSnapshot[]>([]);
-  const savedLocationGroupsRef = useRef<
-    Record<string, BracketGeneratedLocationGroup>
-  >({});
-  const individualSportIds = useMemo(
-    () => resolveIndividualSportIds(sports),
-    [sports],
-  );
+  const savedLocationGroupsRef = useRef<Record<string, BracketGeneratedLocationGroup>>({});
+  const individualSportIds = useMemo(() => resolveIndividualSportIds(sports), [sports]);
   const {
     events: individualEvents,
     sessions: individualSessions,
@@ -399,17 +355,14 @@ export function AdminChampionshipSchedule({
     enabled: activeSection == "sessions",
   });
 
-  const isEditable =
-    canManageSchedule && championshipStatus === ChampionshipStatus.REVIEW;
+  const isEditable = canManageSchedule && championshipStatus === ChampionshipStatus.REVIEW;
   const { seasonSettings } = useChampionshipSeasonSettings({
     championshipId,
     seasonYear,
   });
 
   useEffect(() => {
-    setYellowCardResetPhase(
-      seasonSettings?.yellow_card_reset_phase ?? YellowCardResetPhase.NONE,
-    );
+    setYellowCardResetPhase(seasonSettings?.yellow_card_reset_phase ?? YellowCardResetPhase.NONE);
   }, [seasonSettings?.yellow_card_reset_phase]);
 
   const saveYellowCardResetPhase = async () => {
@@ -418,16 +371,19 @@ export function AdminChampionshipSchedule({
     }
 
     setSavingYellowCardResetPhase(true);
-    const { error } = await saveChampionshipSeasonSettings({
-      championship_id: championshipId,
-      season_year: seasonYear,
-      division_format: seasonSettings.division_format,
-      division_settlement_mode: seasonSettings.division_settlement_mode,
-      principal_slots_count: seasonSettings.principal_slots_count,
-      principal_relegation_count: seasonSettings.principal_relegation_count,
-      access_promotion_count: seasonSettings.access_promotion_count,
-      yellow_card_reset_phase: yellowCardResetPhase,
-    });
+    const { error } = await saveChampionshipSeasonSettings(
+      {
+        championship_id: championshipId,
+        season_year: seasonYear,
+        division_format: seasonSettings.division_format,
+        division_settlement_mode: seasonSettings.division_settlement_mode,
+        principal_slots_count: seasonSettings.principal_slots_count,
+        principal_relegation_count: seasonSettings.principal_relegation_count,
+        access_promotion_count: seasonSettings.access_promotion_count,
+        yellow_card_reset_phase: yellowCardResetPhase,
+      },
+      accessToken,
+    );
     setSavingYellowCardResetPhase(false);
 
     if (error) {
@@ -439,8 +395,7 @@ export function AdminChampionshipSchedule({
   };
 
   function openIndividualSessionEditor(session: ChampionshipIndividualSession) {
-    const sessionDay =
-      days.find((day) => day.event_date == session.scheduled_date) ?? null;
+    const sessionDay = days.find((day) => day.event_date == session.scheduled_date) ?? null;
 
     const sessionLocation =
       sessionDay?.locations.find(
@@ -451,9 +406,7 @@ export function AdminChampionshipSchedule({
 
     const sessionCourt =
       sessionLocation?.courts.find(
-        (court) =>
-          court.court_group_id == session.court_key ||
-          court.name == session.court_name,
+        (court) => court.court_group_id == session.court_key || court.name == session.court_name,
       ) ?? null;
 
     setEditingIndividualSession(session);
@@ -487,13 +440,7 @@ export function AdminChampionshipSchedule({
       exclusiveLockEnabled,
     } = individualSessionEditDraft;
 
-    if (
-      !scheduledDate ||
-      !startTime ||
-      !endTime ||
-      !locationGroupId ||
-      !courtGroupId
-    ) {
+    if (!scheduledDate || !startTime || !endTime || !locationGroupId || !courtGroupId) {
       toast.error("Preencha data, horário, local e quadra da sessão.");
       return;
     }
@@ -509,14 +456,10 @@ export function AdminChampionshipSchedule({
       ) ?? null;
 
     const selectedCourt =
-      selectedLocation?.courts.find(
-        (court) => court.court_group_id == courtGroupId,
-      ) ?? null;
+      selectedLocation?.courts.find((court) => court.court_group_id == courtGroupId) ?? null;
 
     if (!selectedLocation || !selectedCourt) {
-      toast.error(
-        "Não foi possível localizar o local ou a quadra selecionada.",
-      );
+      toast.error("Não foi possível localizar o local ou a quadra selecionada.");
       return;
     }
 
@@ -545,8 +488,7 @@ export function AdminChampionshipSchedule({
         court_group_id: courtGroupId,
         exclusive_lock_enabled: exclusiveLockEnabled,
 
-        session_sport_name:
-          editingIndividualSession.sports?.name ?? "Modalidade individual",
+        session_sport_name: editingIndividualSession.sports?.name ?? "Modalidade individual",
         session_naipe: editingIndividualSession.naipe,
 
         current_scheduled_date: editingIndividualSession.scheduled_date,
@@ -554,8 +496,7 @@ export function AdminChampionshipSchedule({
         current_end_time: editingIndividualSession.end_time,
         current_location_name: editingIndividualSession.location_name,
         current_court_name: editingIndividualSession.court_name,
-        current_exclusive_lock_enabled:
-          editingIndividualSession.exclusive_lock_enabled,
+        current_exclusive_lock_enabled: editingIndividualSession.exclusive_lock_enabled,
 
         target_location_name: selectedLocation.name,
         target_court_name: selectedCourt.name,
@@ -571,25 +512,18 @@ export function AdminChampionshipSchedule({
   }
 
   const individualSessionEditDay = individualSessionEditDraft?.scheduledDate
-    ? (days.find(
-        (day) => day.event_date == individualSessionEditDraft.scheduledDate,
+    ? (days.find((day) => day.event_date == individualSessionEditDraft.scheduledDate) ?? null)
+    : null;
+
+  const individualSessionEditLocations = individualSessionEditDay?.locations ?? [];
+
+  const individualSessionEditLocation = individualSessionEditDraft?.locationGroupId
+    ? (individualSessionEditLocations.find(
+        (location) => location.location_group_id == individualSessionEditDraft.locationGroupId,
       ) ?? null)
     : null;
 
-  const individualSessionEditLocations =
-    individualSessionEditDay?.locations ?? [];
-
-  const individualSessionEditLocation =
-    individualSessionEditDraft?.locationGroupId
-      ? (individualSessionEditLocations.find(
-          (location) =>
-            location.location_group_id ==
-            individualSessionEditDraft.locationGroupId,
-        ) ?? null)
-      : null;
-
-  const individualSessionEditCourts =
-    individualSessionEditLocation?.courts ?? [];
+  const individualSessionEditCourts = individualSessionEditLocation?.courts ?? [];
 
   const sportNameBySportId = useMemo(() => {
     return competitions.reduce<Record<string, string>>((carry, competition) => {
@@ -657,8 +591,7 @@ export function AdminChampionshipSchedule({
         location.courts.forEach((court) => {
           if (
             group.courts.some(
-              (currentCourt) =>
-                currentCourt.court_group_id === court.court_group_id,
+              (currentCourt) => currentCourt.court_group_id === court.court_group_id,
             )
           ) {
             return;
@@ -678,24 +611,21 @@ export function AdminChampionshipSchedule({
           (leftCourt, rightCourt) => leftCourt.position - rightCourt.position,
         ),
       }))
-      .sort(
-        (leftGroup, rightGroup) => leftGroup.position - rightGroup.position,
-      );
+      .sort((leftGroup, rightGroup) => leftGroup.position - rightGroup.position);
 
     const firstScheduledDate = drafts[0]?.event_date ?? "";
     setDays(drafts);
     setReverseMatchOrderDate(firstScheduledDate);
-    setReverseMatchOrderCourtIds(
-      resolveReverseMatchOrderCourtIds(drafts, firstScheduledDate),
-    );
+    setReverseMatchOrderCourtIds(resolveReverseMatchOrderCourtIds(drafts, firstScheduledDate));
     savedDaysRef.current = drafts.map(({ saving: _saving, ...rest }) => rest);
     setLocationGroups(groups.map((group) => ({ ...group, saving: false })));
-    savedLocationGroupsRef.current = groups.reduce<
-      Record<string, BracketGeneratedLocationGroup>
-    >((carry, group) => {
-      carry[group.location_group_id] = group;
-      return carry;
-    }, {});
+    savedLocationGroupsRef.current = groups.reduce<Record<string, BracketGeneratedLocationGroup>>(
+      (carry, group) => {
+        carry[group.location_group_id] = group;
+        return carry;
+      },
+      {},
+    );
     setExpandedDayIds(new Set());
 
     setLoading(false);
@@ -705,13 +635,9 @@ export function AdminChampionshipSchedule({
     loadSchedules();
   }, [loadSchedules]);
 
-  async function requestReconfiguration(
-    request: ChampionshipBracketReconfigurationRequest,
-  ) {
+  async function requestReconfiguration(request: ChampionshipBracketReconfigurationRequest) {
     reconfigurationTriggerRef.current =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setPendingReconfiguration(request);
     setReconfigurationPreview(null);
     setLoadingReconfigurationPreview(true);
@@ -723,10 +649,7 @@ export function AdminChampionshipSchedule({
     setLoadingReconfigurationPreview(false);
 
     if (error || !data) {
-      toast.error(
-        error?.message ??
-          "Não foi possível calcular o impacto da reprogramação.",
-      );
+      toast.error(error?.message ?? "Não foi possível calcular o impacto da reprogramação.");
       setPendingReconfiguration(null);
       return false;
     }
@@ -774,13 +697,13 @@ export function AdminChampionshipSchedule({
               ? reconfigurationPreview.affected_matches > 0
                 ? `Prioridades do mata-mata atualizadas e ${reconfigurationPreview.affected_matches} jogo(s) redistribuído(s).`
                 : "Prioridades do mata-mata atualizadas."
-          : appliedAction == "LOCATION_SPORT_PRIORITIES"
-            ? reconfigurationPreview.affected_matches > 0
-              ? `Prioridades atualizadas e ${reconfigurationPreview.affected_matches} jogo(s) redistribuído(s).`
-              : "Prioridades de quadra atualizadas."
-          : reconfigurationPreview.affected_matches > 0
-            ? `Reprogramação aplicada em ${reconfigurationPreview.affected_matches} jogo(s).`
-            : "Configuração atualizada sem alterar jogos.",
+              : appliedAction == "LOCATION_SPORT_PRIORITIES"
+                ? reconfigurationPreview.affected_matches > 0
+                  ? `Prioridades atualizadas e ${reconfigurationPreview.affected_matches} jogo(s) redistribuído(s).`
+                  : "Prioridades de quadra atualizadas."
+                : reconfigurationPreview.affected_matches > 0
+                  ? `Reprogramação aplicada em ${reconfigurationPreview.affected_matches} jogo(s).`
+                  : "Configuração atualizada sem alterar jogos.",
     );
     closeReconfigurationPreview();
 
@@ -795,9 +718,7 @@ export function AdminChampionshipSchedule({
   }
 
   function updateDay(dayId: string, patch: Partial<DayScheduleDraft>) {
-    setDays((prev) =>
-      prev.map((d) => (d.id === dayId ? { ...d, ...patch } : d)),
-    );
+    setDays((prev) => prev.map((d) => (d.id === dayId ? { ...d, ...patch } : d)));
   }
 
   function toggleDay(dayId: string) {
@@ -831,8 +752,7 @@ export function AdminChampionshipSchedule({
 
     return group.courts.some((court) => {
       const savedCourt = savedGroup.courts.find(
-        (savedCourtItem) =>
-          savedCourtItem.court_group_id === court.court_group_id,
+        (savedCourtItem) => savedCourtItem.court_group_id === court.court_group_id,
       );
       return !savedCourt || savedCourt.court_name !== court.court_name;
     });
@@ -844,17 +764,14 @@ export function AdminChampionshipSchedule({
       saving: true,
     }));
 
-    const { error } = await updateBracketGeneratedLocationGroup(
-      bracketEditionId,
-      {
-        location_group_id: group.location_group_id,
-        location_name: group.location_name,
-        courts: group.courts.map((court) => ({
-          court_group_id: court.court_group_id,
-          court_name: court.court_name,
-        })),
-      },
-    );
+    const { error } = await updateBracketGeneratedLocationGroup(bracketEditionId, {
+      location_group_id: group.location_group_id,
+      location_name: group.location_name,
+      courts: group.courts.map((court) => ({
+        court_group_id: court.court_group_id,
+        court_name: court.court_name,
+      })),
+    });
 
     if (error) {
       toast.error(error.message);
@@ -878,9 +795,7 @@ export function AdminChampionshipSchedule({
     });
   }
 
-  function updateEditingLocationGroup(
-    updater: (group: LocationGroupDraft) => LocationGroupDraft,
-  ) {
+  function updateEditingLocationGroup(updater: (group: LocationGroupDraft) => LocationGroupDraft) {
     setEditingLocationGroup((group) => (group ? updater(group) : group));
   }
 
@@ -900,9 +815,7 @@ export function AdminChampionshipSchedule({
       prev.map((d) => {
         if (d.id !== dayId) return d;
         const nextPosition =
-          d.breaks.length > 0
-            ? Math.max(...d.breaks.map((b) => b.position)) + 1
-            : 1;
+          d.breaks.length > 0 ? Math.max(...d.breaks.map((b) => b.position)) + 1 : 1;
         return {
           ...d,
           breaks: [
@@ -935,18 +848,12 @@ export function AdminChampionshipSchedule({
     );
   }
 
-  function updateBreak(
-    dayId: string,
-    localId: string,
-    patch: Partial<DayBreakDraft>,
-  ) {
+  function updateBreak(dayId: string, localId: string, patch: Partial<DayBreakDraft>) {
     setDays((prev) =>
       prev.map((d) => {
         if (d.id !== dayId) return d;
 
-        const updated = d.breaks.map((b) =>
-          b.localId === localId ? { ...b, ...patch } : b,
-        );
+        const updated = d.breaks.map((b) => (b.localId === localId ? { ...b, ...patch } : b));
 
         const isCompletedStartTime =
           "break_start_time" in patch &&
@@ -985,9 +892,7 @@ export function AdminChampionshipSchedule({
         if (day.id !== dayId) return day;
 
         const nextPosition =
-          day.breaks.length > 0
-            ? Math.max(...day.breaks.map((brk) => brk.position)) + 1
-            : 1;
+          day.breaks.length > 0 ? Math.max(...day.breaks.map((brk) => brk.position)) + 1 : 1;
         return {
           ...day,
           breaks: [
@@ -1045,14 +950,11 @@ export function AdminChampionshipSchedule({
   function isDayDirty(day: DayScheduleDraft): boolean {
     const saved = savedDaysRef.current.find((s) => s.id === day.id);
     if (!saved) return false;
-    if (day.start_time !== saved.start_time || day.end_time !== saved.end_time)
-      return true;
+    if (day.start_time !== saved.start_time || day.end_time !== saved.end_time) return true;
     if (day.breaks.length !== saved.breaks.length) return true;
 
     const sort = (breaks: DayBreakDraft[]) =>
-      [...breaks].sort((a, b) =>
-        a.break_start_time.localeCompare(b.break_start_time),
-      );
+      [...breaks].sort((a, b) => a.break_start_time.localeCompare(b.break_start_time));
 
     return sort(day.breaks).some((brk, idx) => {
       const s = sort(saved.breaks)[idx];
@@ -1066,43 +968,34 @@ export function AdminChampionshipSchedule({
   }
 
   const locationGroupById = useMemo(
-    () =>
-      new Map(locationGroups.map((group) => [group.location_group_id, group])),
+    () => new Map(locationGroups.map((group) => [group.location_group_id, group])),
     [locationGroups],
   );
 
   const reverseMatchOrderCourts = useMemo(() => {
-    return (
-      days.find((day) => day.event_date === reverseMatchOrderDate)?.courts ?? []
-    );
+    return days.find((day) => day.event_date === reverseMatchOrderDate)?.courts ?? [];
   }, [days, reverseMatchOrderDate]);
 
   const reverseMatchOrderChangesByCourt = useMemo(() => {
-    if (reconfigurationPreview?.action !== "REVERSE_DAY_COURT_MATCH_ORDER")
-      return [];
+    if (reconfigurationPreview?.action !== "REVERSE_DAY_COURT_MATCH_ORDER") return [];
 
     return groupReverseMatchOrderChangesByCourt(reconfigurationPreview.changes);
   }, [reconfigurationPreview]);
 
   function handleReverseMatchOrderDateChange(nextDate: string) {
     setReverseMatchOrderDate(nextDate);
-    setReverseMatchOrderCourtIds(
-      resolveReverseMatchOrderCourtIds(days, nextDate),
-    );
+    setReverseMatchOrderCourtIds(resolveReverseMatchOrderCourtIds(days, nextDate));
   }
 
   function toggleReverseMatchOrderCourt(courtId: string, checked: boolean) {
     setReverseMatchOrderCourtIds((currentCourtIds) => {
       if (checked) return [...new Set([...currentCourtIds, courtId])];
-      return currentCourtIds.filter(
-        (currentCourtId) => currentCourtId !== courtId,
-      );
+      return currentCourtIds.filter((currentCourtId) => currentCourtId !== courtId);
     });
   }
 
   function requestReverseMatchOrder() {
-    if (!reverseMatchOrderDate || reverseMatchOrderCourtIds.length === 0)
-      return;
+    if (!reverseMatchOrderDate || reverseMatchOrderCourtIds.length === 0) return;
 
     void requestReconfiguration({
       action: "REVERSE_DAY_COURT_MATCH_ORDER",
@@ -1118,41 +1011,25 @@ export function AdminChampionshipSchedule({
     <div className="space-y-6">
       {!isEditable ? (
         <div className="rounded-lg border border-amber-300/50 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700/50 dark:bg-amber-950 dark:text-amber-100">
-          Somente leitura: a reprogramação só pode ser feita com o campeonato em
-          "Em revisão".
+          Somente leitura: a reprogramação só pode ser feita com o campeonato em "Em revisão".
         </div>
       ) : null}
 
       <Tabs value={activeSection} onValueChange={setActiveSection}>
         <TabsNavigationList className="h-auto w-full justify-start">
-          <TabsNavigationTrigger
-            value="schedule"
-            className="px-3 py-2.5 sm:px-4"
-          >
+          <TabsNavigationTrigger value="schedule" className="px-3 py-2.5 sm:px-4">
             Agenda
           </TabsNavigationTrigger>
-          <TabsNavigationTrigger
-            value="sessions"
-            className="px-3 py-2.5 sm:px-4"
-          >
+          <TabsNavigationTrigger value="sessions" className="px-3 py-2.5 sm:px-4">
             Sessões individuais
           </TabsNavigationTrigger>
-          <TabsNavigationTrigger
-            value="qualification"
-            className="px-3 py-2.5 sm:px-4"
-          >
+          <TabsNavigationTrigger value="qualification" className="px-3 py-2.5 sm:px-4">
             Classificação para o mata-mata
           </TabsNavigationTrigger>
-          <TabsNavigationTrigger
-            value="court-priorities"
-            className="px-3 py-2.5 sm:px-4"
-          >
+          <TabsNavigationTrigger value="court-priorities" className="px-3 py-2.5 sm:px-4">
             Prioridades de quadra
           </TabsNavigationTrigger>
-          <TabsNavigationTrigger
-            value="knockout-priorities"
-            className="px-3 py-2.5 sm:px-4"
-          >
+          <TabsNavigationTrigger value="knockout-priorities" className="px-3 py-2.5 sm:px-4">
             Prioridades do mata-mata
           </TabsNavigationTrigger>
           <TabsNavigationTrigger value="discipline" className="px-3 py-2.5 sm:px-4">
@@ -1165,16 +1042,14 @@ export function AdminChampionshipSchedule({
             <div>
               <h3 className="font-semibold">Reset de cartões amarelos</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                A regra vale para todas as modalidades com cartões nesta temporada.
-                Se a etapa escolhida não existir, o reset será aplicado na próxima
-                fase eliminatória disponível.
+                A regra vale para todas as modalidades com cartões nesta temporada. Se a etapa
+                escolhida não existir, o reset será aplicado na próxima fase eliminatória
+                disponível.
               </p>
             </div>
             <Select
               value={yellowCardResetPhase}
-              onValueChange={(value) =>
-                setYellowCardResetPhase(value as YellowCardResetPhase)
-              }
+              onValueChange={(value) => setYellowCardResetPhase(value as YellowCardResetPhase)}
               disabled={!isEditable || savingYellowCardResetPhase}
             >
               <SelectTrigger className="app-input-field">
@@ -1182,7 +1057,9 @@ export function AdminChampionshipSchedule({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={YellowCardResetPhase.NONE}>Sem reset</SelectItem>
-                <SelectItem value={YellowCardResetPhase.QUARTERFINAL}>Reset nas quartas de final</SelectItem>
+                <SelectItem value={YellowCardResetPhase.QUARTERFINAL}>
+                  Reset nas quartas de final
+                </SelectItem>
                 <SelectItem value={YellowCardResetPhase.SEMIFINAL}>Reset na semifinal</SelectItem>
               </SelectContent>
             </Select>
@@ -1191,7 +1068,9 @@ export function AdminChampionshipSchedule({
               onClick={() => void saveYellowCardResetPhase()}
               disabled={!isEditable || savingYellowCardResetPhase || !seasonSettings}
             >
-              {savingYellowCardResetPhase ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {savingYellowCardResetPhase ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
               Salvar configuração
             </Button>
           </section>
@@ -1207,10 +1086,9 @@ export function AdminChampionshipSchedule({
                   <div className="space-y-1">
                     <p className="font-semibold">Inverter ordem dos jogos</p>
                     <p className="text-sm text-muted-foreground">
-                      Troca o primeiro jogo pelo último de cada quadra
-                      selecionada. Apenas jogos agendados são alterados;
-                      intervalos, slots vazios e sessões individuais permanecem
-                      no lugar.
+                      Troca o primeiro jogo pelo último de cada quadra selecionada. Apenas jogos
+                      agendados são alterados; intervalos, slots vazios e sessões individuais
+                      permanecem no lugar.
                     </p>
                   </div>
                 </div>
@@ -1223,10 +1101,7 @@ export function AdminChampionshipSchedule({
                       onValueChange={handleReverseMatchOrderDateChange}
                       disabled={!isEditable || loading || days.length === 0}
                     >
-                      <SelectTrigger
-                        id="reverse-match-order-date"
-                        className="app-input-field"
-                      >
+                      <SelectTrigger id="reverse-match-order-date" className="app-input-field">
                         <SelectValue placeholder="Selecione a data" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1253,14 +1128,9 @@ export function AdminChampionshipSchedule({
                             className="flex cursor-pointer items-center gap-2 text-sm"
                           >
                             <Checkbox
-                              checked={reverseMatchOrderCourtIds.includes(
-                                court.id,
-                              )}
+                              checked={reverseMatchOrderCourtIds.includes(court.id)}
                               onCheckedChange={(checked) =>
-                                toggleReverseMatchOrderCourt(
-                                  court.id,
-                                  checked === true,
-                                )
+                                toggleReverseMatchOrderCourt(court.id, checked === true)
                               }
                               disabled={!isEditable}
                             />
@@ -1273,11 +1143,7 @@ export function AdminChampionshipSchedule({
 
                   <Button
                     type="button"
-                    disabled={
-                      !isEditable ||
-                      loading ||
-                      reverseMatchOrderCourtIds.length === 0
-                    }
+                    disabled={!isEditable || loading || reverseMatchOrderCourtIds.length === 0}
                     onClick={requestReverseMatchOrder}
                   >
                     <RotateCcw className="mr-2 h-4 w-4" />
@@ -1295,8 +1161,8 @@ export function AdminChampionshipSchedule({
                   <div className="border-b border-border/50 pb-4">
                     <p className="text-lg font-bold">Dias da agenda</p>
                     <p className="text-sm text-muted-foreground">
-                      Cada dia reúne horários, intervalos, locais e quadras
-                      definidos na configuração inicial.
+                      Cada dia reúne horários, intervalos, locais e quadras definidos na
+                      configuração inicial.
                     </p>
                   </div>
 
@@ -1305,9 +1171,7 @@ export function AdminChampionshipSchedule({
                       const isExpanded = expandedDayIds.has(day.id);
                       const dayContentId = `reprogram-schedule-day-${day.id}`;
                       const breakSummary = resolveDayBreakSummary(day);
-                      const generalBreaks = day.breaks.filter(
-                        (brk) => brk.scope_type !== "COURT",
-                      );
+                      const generalBreaks = day.breaks.filter((brk) => brk.scope_type !== "COURT");
 
                       return (
                         <div
@@ -1323,12 +1187,9 @@ export function AdminChampionshipSchedule({
                             className="flex w-full items-center justify-between gap-4 border-b border-border/40 bg-background/40 px-4 py-3 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                           >
                             <span className="min-w-0">
-                              <span className="block font-semibold">
-                                Dia {index + 1}
-                              </span>
+                              <span className="block font-semibold">Dia {index + 1}</span>
                               <span className="block text-sm text-muted-foreground">
-                                {formatDate(day.event_date)} •{" "}
-                                {formatTime(day.start_time)} às{" "}
+                                {formatDate(day.event_date)} • {formatTime(day.start_time)} às{" "}
                                 {formatTime(day.end_time)}
                               </span>
                               {!isExpanded && breakSummary.length > 0 ? (
@@ -1362,9 +1223,7 @@ export function AdminChampionshipSchedule({
                                       id={`start-${day.id}`}
                                       value={formatTime(day.start_time)}
                                       disabled={!isEditable || day.saving}
-                                      onChange={(value) =>
-                                        updateDay(day.id, { start_time: value })
-                                      }
+                                      onChange={(value) => updateDay(day.id, { start_time: value })}
                                       className="h-10 border-border/40 bg-background/50"
                                     />
                                   </div>
@@ -1379,100 +1238,82 @@ export function AdminChampionshipSchedule({
                                       id={`end-${day.id}`}
                                       value={formatTime(day.end_time)}
                                       disabled={!isEditable || day.saving}
-                                      onChange={(value) =>
-                                        updateDay(day.id, { end_time: value })
-                                      }
+                                      onChange={(value) => updateDay(day.id, { end_time: value })}
                                       className="h-10 border-border/40 bg-background/50"
                                     />
                                   </div>
                                 </div>
 
                                 <div className="space-y-4 pt-5">
-                                  {(generalBreaks.length > 0
-                                    ? generalBreaks
-                                    : [null]
-                                  ).map((brk, breakIndex) => (
-                                    <div
-                                      key={
-                                        brk?.localId ??
-                                        `empty-general-break-${day.id}`
-                                      }
-                                      className="space-y-4"
-                                    >
-                                      <div className="flex items-center justify-between gap-2">
-                                        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                                          {breakIndex === 0
-                                            ? "Intervalo do dia"
-                                            : `Intervalo do dia ${breakIndex + 1}`}
-                                        </p>
-                                        {isEditable && brk ? (
-                                          <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="icon"
-                                            disabled={day.saving}
-                                            aria-label={`Remover intervalo do dia ${breakIndex + 1}`}
-                                            className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                            onClick={() =>
-                                              removeBreak(day.id, brk.localId)
-                                            }
+                                  {(generalBreaks.length > 0 ? generalBreaks : [null]).map(
+                                    (brk, breakIndex) => (
+                                      <div
+                                        key={brk?.localId ?? `empty-general-break-${day.id}`}
+                                        className="space-y-4"
+                                      >
+                                        <div className="flex items-center justify-between gap-2">
+                                          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                            {breakIndex === 0
+                                              ? "Intervalo do dia"
+                                              : `Intervalo do dia ${breakIndex + 1}`}
+                                          </p>
+                                          {isEditable && brk ? (
+                                            <Button
+                                              type="button"
+                                              variant="ghost"
+                                              size="icon"
+                                              disabled={day.saving}
+                                              aria-label={`Remover intervalo do dia ${breakIndex + 1}`}
+                                              className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                              onClick={() => removeBreak(day.id, brk.localId)}
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                          ) : null}
+                                        </div>
+                                        <div className="space-y-1.5">
+                                          <Label
+                                            htmlFor={`break-start-${brk?.localId ?? `empty-general-break-${day.id}`}`}
+                                            className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
                                           >
-                                            <Trash2 className="h-4 w-4" />
-                                          </Button>
-                                        ) : null}
-                                      </div>
-                                      <div className="space-y-1.5">
-                                        <Label
-                                          htmlFor={`break-start-${brk?.localId ?? `empty-general-break-${day.id}`}`}
-                                          className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
-                                        >
-                                          Início do intervalo
-                                        </Label>
-                                        <TimeInput
-                                          id={`break-start-${brk?.localId ?? `empty-general-break-${day.id}`}`}
-                                          value={brk?.break_start_time ?? ""}
-                                          disabled={!isEditable || day.saving}
-                                          onChange={(value) =>
-                                            updateGeneralBreak(
-                                              day.id,
-                                              brk?.localId ?? null,
-                                              {
+                                            Início do intervalo
+                                          </Label>
+                                          <TimeInput
+                                            id={`break-start-${brk?.localId ?? `empty-general-break-${day.id}`}`}
+                                            value={brk?.break_start_time ?? ""}
+                                            disabled={!isEditable || day.saving}
+                                            onChange={(value) =>
+                                              updateGeneralBreak(day.id, brk?.localId ?? null, {
                                                 break_start_time: value,
-                                                break_end_time:
-                                                  brk?.break_end_time ?? "",
-                                              },
-                                            )
-                                          }
-                                          className="h-10 border-border/40 bg-background/50"
-                                        />
-                                      </div>
-                                      <div className="space-y-1.5">
-                                        <Label
-                                          htmlFor={`break-end-${brk?.localId ?? `empty-general-break-${day.id}`}`}
-                                          className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
-                                        >
-                                          Fim do intervalo
-                                        </Label>
-                                        <TimeInput
-                                          id={`break-end-${brk?.localId ?? `empty-general-break-${day.id}`}`}
-                                          value={brk?.break_end_time ?? ""}
-                                          disabled={!isEditable || day.saving}
-                                          onChange={(value) =>
-                                            updateGeneralBreak(
-                                              day.id,
-                                              brk?.localId ?? null,
-                                              {
-                                                break_start_time:
-                                                  brk?.break_start_time ?? "",
+                                                break_end_time: brk?.break_end_time ?? "",
+                                              })
+                                            }
+                                            className="h-10 border-border/40 bg-background/50"
+                                          />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                          <Label
+                                            htmlFor={`break-end-${brk?.localId ?? `empty-general-break-${day.id}`}`}
+                                            className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
+                                          >
+                                            Fim do intervalo
+                                          </Label>
+                                          <TimeInput
+                                            id={`break-end-${brk?.localId ?? `empty-general-break-${day.id}`}`}
+                                            value={brk?.break_end_time ?? ""}
+                                            disabled={!isEditable || day.saving}
+                                            onChange={(value) =>
+                                              updateGeneralBreak(day.id, brk?.localId ?? null, {
+                                                break_start_time: brk?.break_start_time ?? "",
                                                 break_end_time: value,
-                                              },
-                                            )
-                                          }
-                                          className="h-10 border-border/40 bg-background/50"
-                                        />
+                                              })
+                                            }
+                                            className="h-10 border-border/40 bg-background/50"
+                                          />
+                                        </div>
                                       </div>
-                                    </div>
-                                  ))}
+                                    ),
+                                  )}
                                 </div>
 
                                 {isEditable ? (
@@ -1503,9 +1344,7 @@ export function AdminChampionshipSchedule({
                                   </p>
                                 </div>
                                 {day.locations.map((location) => {
-                                  const group = locationGroupById.get(
-                                    location.location_group_id,
-                                  );
+                                  const group = locationGroupById.get(location.location_group_id);
                                   if (!group) return null;
 
                                   return (
@@ -1518,9 +1357,7 @@ export function AdminChampionshipSchedule({
                                           <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                                             Nome do local
                                           </p>
-                                          <p className="font-medium">
-                                            {group.location_name}
-                                          </p>
+                                          <p className="font-medium">{group.location_name}</p>
                                         </div>
                                         {isEditable ? (
                                           <Button
@@ -1530,9 +1367,7 @@ export function AdminChampionshipSchedule({
                                             disabled={group.saving}
                                             aria-label={`Editar ${group.location_name}`}
                                             title="Editar local e quadras"
-                                            onClick={() =>
-                                              openLocationGroupEditor(group)
-                                            }
+                                            onClick={() => openLocationGroupEditor(group)}
                                           >
                                             <Pencil className="h-4 w-4" />
                                           </Button>
@@ -1550,13 +1385,11 @@ export function AdminChampionshipSchedule({
                                                 dayCourt.court_group_id,
                                             );
                                             if (!court) return null;
-                                            const courtBreaks =
-                                              day.breaks.filter(
-                                                (brk) =>
-                                                  brk.scope_type === "COURT" &&
-                                                  brk.bracket_court_id ===
-                                                    dayCourt.id,
-                                              );
+                                            const courtBreaks = day.breaks.filter(
+                                              (brk) =>
+                                                brk.scope_type === "COURT" &&
+                                                brk.bracket_court_id === dayCourt.id,
+                                            );
 
                                             return (
                                               <div
@@ -1567,9 +1400,7 @@ export function AdminChampionshipSchedule({
                                                   <p className="text-xs font-medium text-muted-foreground">
                                                     Quadra {court.position}
                                                   </p>
-                                                  <p className="font-medium">
-                                                    {court.court_name}
-                                                  </p>
+                                                  <p className="font-medium">{court.court_name}</p>
                                                 </div>
 
                                                 <div className="space-y-3 border-t border-border/30 pt-3">
@@ -1586,11 +1417,7 @@ export function AdminChampionshipSchedule({
                                                         aria-label={`Adicionar intervalo à ${court.court_name}`}
                                                         className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
                                                         onClick={() =>
-                                                          addBreak(
-                                                            day.id,
-                                                            "COURT",
-                                                            dayCourt.id,
-                                                          )
+                                                          addBreak(day.id, "COURT", dayCourt.id)
                                                         }
                                                       >
                                                         <Plus className="h-4 w-4" />
@@ -1600,108 +1427,74 @@ export function AdminChampionshipSchedule({
 
                                                   {courtBreaks.length === 0 ? (
                                                     <p className="rounded-md border border-dashed border-border/30 px-3 py-2 text-[11px] italic text-muted-foreground">
-                                                      Nenhum intervalo
-                                                      específico nesta quadra
-                                                      neste dia.
+                                                      Nenhum intervalo específico nesta quadra neste
+                                                      dia.
                                                     </p>
                                                   ) : (
-                                                    courtBreaks.map(
-                                                      (brk, breakIndex) => (
-                                                        <div
-                                                          key={brk.localId}
-                                                          className="rounded-md border border-border/20 bg-background/50 p-3"
-                                                        >
-                                                          <div className="flex items-start gap-2">
-                                                            <div className="min-w-0 flex-1 space-y-3">
-                                                              <div className="space-y-1.5">
-                                                                <Label
-                                                                  htmlFor={`court-break-start-${brk.localId}`}
-                                                                  className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
-                                                                >
-                                                                  Início do
-                                                                  intervalo
-                                                                </Label>
-                                                                <TimeInput
-                                                                  id={`court-break-start-${brk.localId}`}
-                                                                  value={
-                                                                    brk.break_start_time
-                                                                  }
-                                                                  disabled={
-                                                                    !isEditable ||
-                                                                    day.saving
-                                                                  }
-                                                                  onChange={(
-                                                                    value,
-                                                                  ) =>
-                                                                    updateBreak(
-                                                                      day.id,
-                                                                      brk.localId,
-                                                                      {
-                                                                        break_start_time:
-                                                                          value,
-                                                                      },
-                                                                    )
-                                                                  }
-                                                                  className="h-10 border-border/40 bg-background/50"
-                                                                />
-                                                              </div>
-                                                              <div className="space-y-1.5">
-                                                                <Label
-                                                                  htmlFor={`court-break-end-${brk.localId}`}
-                                                                  className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
-                                                                >
-                                                                  Fim do
-                                                                  intervalo
-                                                                </Label>
-                                                                <TimeInput
-                                                                  id={`court-break-end-${brk.localId}`}
-                                                                  value={
-                                                                    brk.break_end_time
-                                                                  }
-                                                                  disabled={
-                                                                    !isEditable ||
-                                                                    day.saving
-                                                                  }
-                                                                  onChange={(
-                                                                    value,
-                                                                  ) =>
-                                                                    updateBreak(
-                                                                      day.id,
-                                                                      brk.localId,
-                                                                      {
-                                                                        break_end_time:
-                                                                          value,
-                                                                      },
-                                                                    )
-                                                                  }
-                                                                  className="h-10 border-border/40 bg-background/50"
-                                                                />
-                                                              </div>
-                                                            </div>
-                                                            {isEditable ? (
-                                                              <Button
-                                                                type="button"
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                disabled={
-                                                                  day.saving
-                                                                }
-                                                                aria-label={`Remover intervalo ${breakIndex + 1} da ${court.court_name}`}
-                                                                className="h-9 w-9 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                                                onClick={() =>
-                                                                  removeBreak(
-                                                                    day.id,
-                                                                    brk.localId,
-                                                                  )
-                                                                }
+                                                    courtBreaks.map((brk, breakIndex) => (
+                                                      <div
+                                                        key={brk.localId}
+                                                        className="rounded-md border border-border/20 bg-background/50 p-3"
+                                                      >
+                                                        <div className="flex items-start gap-2">
+                                                          <div className="min-w-0 flex-1 space-y-3">
+                                                            <div className="space-y-1.5">
+                                                              <Label
+                                                                htmlFor={`court-break-start-${brk.localId}`}
+                                                                className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
                                                               >
-                                                                <Trash2 className="h-4 w-4" />
-                                                              </Button>
-                                                            ) : null}
+                                                                Início do intervalo
+                                                              </Label>
+                                                              <TimeInput
+                                                                id={`court-break-start-${brk.localId}`}
+                                                                value={brk.break_start_time}
+                                                                disabled={!isEditable || day.saving}
+                                                                onChange={(value) =>
+                                                                  updateBreak(day.id, brk.localId, {
+                                                                    break_start_time: value,
+                                                                  })
+                                                                }
+                                                                className="h-10 border-border/40 bg-background/50"
+                                                              />
+                                                            </div>
+                                                            <div className="space-y-1.5">
+                                                              <Label
+                                                                htmlFor={`court-break-end-${brk.localId}`}
+                                                                className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+                                                              >
+                                                                Fim do intervalo
+                                                              </Label>
+                                                              <TimeInput
+                                                                id={`court-break-end-${brk.localId}`}
+                                                                value={brk.break_end_time}
+                                                                disabled={!isEditable || day.saving}
+                                                                onChange={(value) =>
+                                                                  updateBreak(day.id, brk.localId, {
+                                                                    break_end_time: value,
+                                                                  })
+                                                                }
+                                                                className="h-10 border-border/40 bg-background/50"
+                                                              />
+                                                            </div>
                                                           </div>
+                                                          {isEditable ? (
+                                                            <Button
+                                                              type="button"
+                                                              variant="ghost"
+                                                              size="icon"
+                                                              disabled={day.saving}
+                                                              aria-label={`Remover intervalo ${breakIndex + 1} da ${court.court_name}`}
+                                                              className="h-9 w-9 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                                              onClick={() =>
+                                                                removeBreak(day.id, brk.localId)
+                                                              }
+                                                            >
+                                                              <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                          ) : null}
                                                         </div>
-                                                      ),
-                                                    )
+                                                      </div>
+                                                    ))
                                                   )}
                                                 </div>
                                               </div>
@@ -1727,10 +1520,7 @@ export function AdminChampionshipSchedule({
 
         <TabsContent value="sessions" className="mt-6">
           {individualEventsLoading ? (
-            <CardListSkeleton
-              count={6}
-              className="md:grid-cols-2 xl:grid-cols-3"
-            />
+            <CardListSkeleton count={6} className="md:grid-cols-2 xl:grid-cols-3" />
           ) : individualSessions.length > 0 ? (
             <section className="space-y-4">
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -1762,20 +1552,12 @@ export function AdminChampionshipSchedule({
                     </div>
 
                     <p className="text-sm">
-                      {session.scheduled_date
-                        ? formatDate(session.scheduled_date)
-                        : "Sem data"}
+                      {session.scheduled_date ? formatDate(session.scheduled_date) : "Sem data"}
 
                       {session.start_time && session.end_time
-                        ? ` • ${formatTime(session.start_time)} às ${formatTime(
-                            session.end_time,
-                          )}`
+                        ? ` • ${formatTime(session.start_time)} às ${formatTime(session.end_time)}`
                         : session.period
-                          ? ` • ${
-                              session.period == "MATUTINO"
-                                ? "Matutino"
-                                : "Vespertino"
-                            }`
+                          ? ` • ${session.period == "MATUTINO" ? "Matutino" : "Vespertino"}`
                           : ""}
                     </p>
 
@@ -1784,15 +1566,9 @@ export function AdminChampionshipSchedule({
                       {session.court_name ? ` • ${session.court_name}` : ""}
                     </p>
 
-                    {individualEvents.some(
-                      (event) => event.session_id == session.id,
-                    ) ? (
+                    {individualEvents.some((event) => event.session_id == session.id) ? (
                       <p className="text-[11px] text-muted-foreground">
-                        {
-                          individualEvents.filter(
-                            (event) => event.session_id == session.id,
-                          ).length
-                        }{" "}
+                        {individualEvents.filter((event) => event.session_id == session.id).length}{" "}
                         provas vinculadas
                       </p>
                     ) : null}
@@ -1866,9 +1642,7 @@ export function AdminChampionshipSchedule({
           {editingIndividualSession && individualSessionEditDraft ? (
             <div className="space-y-5">
               <div className="rounded-xl border border-border/40 bg-background/40 p-4">
-                <p className="font-semibold">
-                  {editingIndividualSession.sports?.name}
-                </p>
+                <p className="font-semibold">{editingIndividualSession.sports?.name}</p>
                 <p className="text-sm text-muted-foreground">
                   {formatNaipe(editingIndividualSession.naipe)}
                 </p>
@@ -2004,10 +1778,7 @@ export function AdminChampionshipSchedule({
 
                   <SelectContent>
                     {individualSessionEditCourts.map((court) => (
-                      <SelectItem
-                        key={court.court_group_id}
-                        value={court.court_group_id}
-                      >
+                      <SelectItem key={court.court_group_id} value={court.court_group_id}>
                         {court.name}
                       </SelectItem>
                     ))}
@@ -2031,23 +1802,17 @@ export function AdminChampionshipSchedule({
                 />
 
                 <span className="space-y-1">
-                  <span className="block text-sm font-medium">
-                    Reserva exclusiva do recurso
-                  </span>
+                  <span className="block text-sm font-medium">Reserva exclusiva do recurso</span>
 
                   <span className="block text-xs text-muted-foreground">
-                    Impede que jogos ou outras sessões utilizem este recurso
-                    durante o horário configurado.
+                    Impede que jogos ou outras sessões utilizem este recurso durante o horário
+                    configurado.
                   </span>
                 </span>
               </label>
 
               <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={closeIndividualSessionEditor}
-                >
+                <Button type="button" variant="outline" onClick={closeIndividualSessionEditor}>
                   Cancelar
                 </Button>
 
@@ -2079,8 +1844,7 @@ export function AdminChampionshipSchedule({
           <DialogHeader>
             <DialogTitle>Editar local e quadras</DialogTitle>
             <DialogDescription>
-              Os nomes atualizados serão aplicados a todos os dias desta edição
-              que usam este local.
+              Os nomes atualizados serão aplicados a todos os dias desta edição que usam este local.
             </DialogDescription>
           </DialogHeader>
           {editingLocationGroup ? (
@@ -2103,8 +1867,7 @@ export function AdminChampionshipSchedule({
                 <div>
                   <p className="text-sm font-semibold">Quadras deste local</p>
                   <p className="text-xs text-muted-foreground">
-                    Os nomes também serão replicados nos demais dias desta
-                    edição.
+                    Os nomes também serão replicados nos demais dias desta edição.
                   </p>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -2123,8 +1886,7 @@ export function AdminChampionshipSchedule({
                           updateEditingLocationGroup((group) => ({
                             ...group,
                             courts: group.courts.map((currentCourt) =>
-                              currentCourt.court_group_id ===
-                              court.court_group_id
+                              currentCourt.court_group_id === court.court_group_id
                                 ? {
                                     ...currentCourt,
                                     court_name: event.target.value,
@@ -2174,8 +1936,7 @@ export function AdminChampionshipSchedule({
           <DialogHeader>
             <DialogTitle>Confirmar reprogramação</DialogTitle>
             <DialogDescription>
-              {pendingReconfiguration?.label ??
-                "Calculando o impacto da alteração"}
+              {pendingReconfiguration?.label ?? "Calculando o impacto da alteração"}
             </DialogDescription>
           </DialogHeader>
           {loadingReconfigurationPreview ? (
@@ -2188,51 +1949,44 @@ export function AdminChampionshipSchedule({
                   ? "Calculando o impacto da classificação e do pareamento…"
                   : pendingReconfiguration?.action == "COURT_SPORT_SEQUENCE"
                     ? "Calculando o impacto do novo sequenciamento das quadras…"
-                    : pendingReconfiguration?.action ==
-                        "KNOCKOUT_COURT_PRIORITIES"
+                    : pendingReconfiguration?.action == "KNOCKOUT_COURT_PRIORITIES"
                       ? "Calculando o impacto das prioridades do mata-mata…"
-                  : pendingReconfiguration?.action ==
-                      "LOCATION_SPORT_PRIORITIES"
-                    ? "Calculando o impacto da nova prioridade de quadras…"
-                    : "Calculando os jogos afetados…"}
+                      : pendingReconfiguration?.action == "LOCATION_SPORT_PRIORITIES"
+                        ? "Calculando o impacto da nova prioridade de quadras…"
+                        : "Calculando os jogos afetados…"}
             </div>
           ) : reconfigurationPreview ? (
             <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1 text-sm">
               {reconfigurationPreview.action == "INDIVIDUAL_SESSION" ? (
                 <div className="space-y-1">
-                  <p className="font-semibold">
-                    A sessão individual será reprogramada.
-                  </p>
+                  <p className="font-semibold">A sessão individual será reprogramada.</p>
 
                   <p className="text-muted-foreground">
                     Revise abaixo a data, horário e recurso antes de confirmar.
                   </p>
                 </div>
-              ) : reconfigurationPreview.action ==
-                "REVERSE_DAY_COURT_MATCH_ORDER" ? (
+              ) : reconfigurationPreview.action == "REVERSE_DAY_COURT_MATCH_ORDER" ? (
                 <div className="space-y-1">
                   <p>
-                    <strong>{reconfigurationPreview.affected_matches}</strong>{" "}
-                    jogo(s) de{" "}
-                    <strong>{reverseMatchOrderChangesByCourt.length}</strong>{" "}
-                    quadra(s) terão posição, horário ou representação alterados.
+                    <strong>{reconfigurationPreview.affected_matches}</strong> jogo(s) de{" "}
+                    <strong>{reverseMatchOrderChangesByCourt.length}</strong> quadra(s) terão
+                    posição, horário ou representação alterados.
                   </p>
 
                   <p className="text-muted-foreground">
-                    Em cada quadra, o primeiro jogo ocupará a última vaga, o
-                    segundo ocupará a penúltima, e assim sucessivamente.
+                    Em cada quadra, o primeiro jogo ocupará a última vaga, o segundo ocupará a
+                    penúltima, e assim sucessivamente.
                   </p>
                 </div>
               ) : reconfigurationPreview.action == "COMPETITION_SETTINGS" ? (
                 <div className="space-y-1">
                   <p>
-                    <strong>{reconfigurationPreview.affected_matches}</strong>{" "}
-                    jogo(s) poderão ser redistribuídos após esta alteração.
+                    <strong>{reconfigurationPreview.affected_matches}</strong> jogo(s) poderão ser
+                    redistribuídos após esta alteração.
                   </p>
 
                   <p className="text-xs text-muted-foreground">
-                    Revise a classificação e o pareamento antes de aplicar a
-                    nova configuração.
+                    Revise a classificação e o pareamento antes de aplicar a nova configuração.
                   </p>
                 </div>
               ) : reconfigurationPreview.action == "COURT_SPORT_SEQUENCE" ? (
@@ -2240,42 +1994,37 @@ export function AdminChampionshipSchedule({
                   {reconfigurationPreview.affected_matches > 0 ? (
                     <>
                       <p>
-                        <strong>{reconfigurationPreview.affected_matches}</strong>{" "}
-                        jogo(s) terão data, horário, quadra ou posição
-                        recalculados.
+                        <strong>{reconfigurationPreview.affected_matches}</strong> jogo(s) terão
+                        data, horário, quadra ou posição recalculados.
                       </p>
 
                       <p className="text-xs text-muted-foreground">
-                        Revise abaixo o sequenciamento solicitado e os jogos
-                        afetados antes de aplicar.
+                        Revise abaixo o sequenciamento solicitado e os jogos afetados antes de
+                        aplicar.
                       </p>
                     </>
                   ) : (
                     <p className="text-muted-foreground">
-                      A configuração da quadra será atualizada sem necessidade
-                      de alterar a posição dos jogos.
+                      A configuração da quadra será atualizada sem necessidade de alterar a posição
+                      dos jogos.
                     </p>
                   )}
                 </div>
-              ) : reconfigurationPreview.action ==
-                "KNOCKOUT_COURT_PRIORITIES" ? (
+              ) : reconfigurationPreview.action == "KNOCKOUT_COURT_PRIORITIES" ? (
                 <div className="space-y-1">
                   {reconfigurationPreview.affected_matches > 0 ? (
                     <>
                       <p>
-                        <strong>{reconfigurationPreview.affected_matches}</strong>{" "}
-                        jogo(s) poderão ter data, horário, quadra ou posição
-                        recalculados.
+                        <strong>{reconfigurationPreview.affected_matches}</strong> jogo(s) poderão
+                        ter data, horário, quadra ou posição recalculados.
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Revise as prioridades solicitadas e os jogos afetados
-                        antes de aplicar.
+                        Revise as prioridades solicitadas e os jogos afetados antes de aplicar.
                       </p>
                     </>
                   ) : (
                     <p className="text-muted-foreground">
-                      As prioridades serão atualizadas sem necessidade de mover
-                      jogos.
+                      As prioridades serão atualizadas sem necessidade de mover jogos.
                     </p>
                   )}
                 </div>
@@ -2284,11 +2033,8 @@ export function AdminChampionshipSchedule({
                   {reconfigurationPreview.affected_matches > 0 ? (
                     <>
                       <p>
-                        <strong>
-                          {reconfigurationPreview.affected_matches}
-                        </strong>{" "}
-                        jogo(s) terão posição, horário ou quadra recalculados
-                        com a nova prioridade.
+                        <strong>{reconfigurationPreview.affected_matches}</strong> jogo(s) terão
+                        posição, horário ou quadra recalculados com a nova prioridade.
                       </p>
 
                       <p className="text-xs text-muted-foreground">
@@ -2297,16 +2043,14 @@ export function AdminChampionshipSchedule({
                     </>
                   ) : (
                     <p className="text-muted-foreground">
-                      A prioridade poderá ser atualizada sem necessidade de
-                      redistribuir jogos.
+                      A prioridade poderá ser atualizada sem necessidade de redistribuir jogos.
                     </p>
                   )}
                 </div>
               ) : (
                 <p>
-                  <strong>{reconfigurationPreview.affected_matches}</strong>{" "}
-                  jogo(s) terão data, horário, local, quadra ou posição
-                  alterados.
+                  <strong>{reconfigurationPreview.affected_matches}</strong> jogo(s) terão data,
+                  horário, local, quadra ou posição alterados.
                 </p>
               )}
               {reconfigurationPreview.blockers.length > 0 ? (
@@ -2316,15 +2060,11 @@ export function AdminChampionshipSchedule({
                   ))}
                 </ul>
               ) : null}
-              {reconfigurationPreview.action == "COMPETITION_SETTINGS" &&
-              pendingReconfiguration ? (
+              {reconfigurationPreview.action == "COMPETITION_SETTINGS" && pendingReconfiguration ? (
                 <div className="space-y-3">
                   <div>
                     <p className="font-semibold">
-                      {String(
-                        pendingReconfiguration.payload.competition_label ??
-                          "Competição",
-                      )}
+                      {String(pendingReconfiguration.payload.competition_label ?? "Competição")}
                     </p>
 
                     <p className="text-xs text-muted-foreground">
@@ -2340,27 +2080,23 @@ export function AdminChampionshipSchedule({
 
                       <div className="space-y-3">
                         <div>
-                          <p className="text-xs text-muted-foreground">
-                            Classificação
-                          </p>
+                          <p className="text-xs text-muted-foreground">Classificação</p>
 
                           <p className="mt-0.5 font-medium">
                             {String(
-                              pendingReconfiguration.payload
-                                .current_qualification_label ?? "Não definida",
+                              pendingReconfiguration.payload.current_qualification_label ??
+                                "Não definida",
                             )}
                           </p>
                         </div>
 
                         <div>
-                          <p className="text-xs text-muted-foreground">
-                            Pareamento
-                          </p>
+                          <p className="text-xs text-muted-foreground">Pareamento</p>
 
                           <p className="mt-0.5 font-medium">
                             {String(
-                              pendingReconfiguration.payload
-                                .current_pairing_label ?? "Não definido",
+                              pendingReconfiguration.payload.current_pairing_label ??
+                                "Não definido",
                             )}
                           </p>
                         </div>
@@ -2374,27 +2110,22 @@ export function AdminChampionshipSchedule({
 
                       <div className="space-y-3">
                         <div>
-                          <p className="text-xs text-muted-foreground">
-                            Classificação
-                          </p>
+                          <p className="text-xs text-muted-foreground">Classificação</p>
 
                           <p className="mt-0.5 font-medium">
                             {String(
-                              pendingReconfiguration.payload
-                                .target_qualification_label ?? "Não definida",
+                              pendingReconfiguration.payload.target_qualification_label ??
+                                "Não definida",
                             )}
                           </p>
                         </div>
 
                         <div>
-                          <p className="text-xs text-muted-foreground">
-                            Pareamento
-                          </p>
+                          <p className="text-xs text-muted-foreground">Pareamento</p>
 
                           <p className="mt-0.5 font-medium">
                             {String(
-                              pendingReconfiguration.payload
-                                .target_pairing_label ?? "Não definido",
+                              pendingReconfiguration.payload.target_pairing_label ?? "Não definido",
                             )}
                           </p>
                         </div>
@@ -2403,28 +2134,20 @@ export function AdminChampionshipSchedule({
                   </div>
                 </div>
               ) : null}
-              {reconfigurationPreview.action == "COURT_SPORT_SEQUENCE" &&
-              pendingReconfiguration ? (
+              {reconfigurationPreview.action == "COURT_SPORT_SEQUENCE" && pendingReconfiguration ? (
                 <div className="space-y-3">
                   <div>
                     <p className="font-semibold">
-                      {String(
-                        pendingReconfiguration.payload.sport_name ??
-                          "Modalidade",
-                      )}
+                      {String(pendingReconfiguration.payload.sport_name ?? "Modalidade")}
                     </p>
 
                     <p className="text-xs text-muted-foreground">
-                      {String(
-                        pendingReconfiguration.payload.location_name ?? "Local",
-                      )}
+                      {String(pendingReconfiguration.payload.location_name ?? "Local")}
                     </p>
                   </div>
 
                   <div className="space-y-2">
-                    {(Array.isArray(
-                      pendingReconfiguration.payload.sequence_changes,
-                    )
+                    {(Array.isArray(pendingReconfiguration.payload.sequence_changes)
                       ? pendingReconfiguration.payload.sequence_changes
                       : []
                     ).map((rawChange, index) => {
@@ -2456,9 +2179,7 @@ export function AdminChampionshipSchedule({
                               </p>
 
                               <p className="text-sm font-medium">
-                                {String(
-                                  change.current_sequence_label ?? "Flexível",
-                                )}
+                                {String(change.current_sequence_label ?? "Flexível")}
                               </p>
                             </div>
 
@@ -2468,9 +2189,7 @@ export function AdminChampionshipSchedule({
                               </p>
 
                               <p className="text-sm font-medium">
-                                {String(
-                                  change.target_sequence_label ?? "Flexível",
-                                )}
+                                {String(change.target_sequence_label ?? "Flexível")}
                               </p>
                             </div>
                           </div>
@@ -2485,19 +2204,12 @@ export function AdminChampionshipSchedule({
                 <div className="space-y-3">
                   <div>
                     <p className="font-semibold">
-                      {String(
-                        pendingReconfiguration.payload.sport_name ??
-                          "Modalidade",
-                      )}
+                      {String(pendingReconfiguration.payload.sport_name ?? "Modalidade")}
                     </p>
-                    <p className="text-xs text-muted-foreground">
-                      Prioridades do mata-mata
-                    </p>
+                    <p className="text-xs text-muted-foreground">Prioridades do mata-mata</p>
                   </div>
                   <div className="space-y-2">
-                    {(Array.isArray(
-                      pendingReconfiguration.payload.priority_changes,
-                    )
+                    {(Array.isArray(pendingReconfiguration.payload.priority_changes)
                       ? pendingReconfiguration.payload.priority_changes
                       : []
                     ).map((rawChange, index) => {
@@ -2539,24 +2251,17 @@ export function AdminChampionshipSchedule({
                   </div>
                 </div>
               ) : null}
-              {reconfigurationPreview.action ==
-                "LOCATION_SPORT_PRIORITIES" &&
+              {reconfigurationPreview.action == "LOCATION_SPORT_PRIORITIES" &&
               pendingReconfiguration ? (
                 <div className="space-y-3">
                   <div>
                     <p className="font-semibold">
-                      {String(
-                        pendingReconfiguration.payload.location_name ?? "Local",
-                      )}
+                      {String(pendingReconfiguration.payload.location_name ?? "Local")}
                       {" • "}
-                      {String(
-                        pendingReconfiguration.payload.sport_name ?? "Modalidade",
-                      )}
+                      {String(pendingReconfiguration.payload.sport_name ?? "Modalidade")}
                     </p>
 
-                    <p className="text-xs text-muted-foreground">
-                      Prioridade global das quadras
-                    </p>
+                    <p className="text-xs text-muted-foreground">Prioridade global das quadras</p>
                   </div>
 
                   <div className="grid gap-3 md:grid-cols-2">
@@ -2590,18 +2295,11 @@ export function AdminChampionshipSchedule({
                   <div className="rounded-md border bg-muted/20 p-3">
                     <div className="space-y-2 text-xs">
                       <div className="flex items-start justify-between gap-4">
-                        <span className="text-muted-foreground">
-                          Datas abrangidas
-                        </span>
+                        <span className="text-muted-foreground">Datas abrangidas</span>
 
                         <span className="text-right font-medium">
-                          {Array.isArray(
-                            pendingReconfiguration.payload.event_date_labels,
-                          )
-                            ? (
-                                pendingReconfiguration.payload
-                                  .event_date_labels as unknown[]
-                              )
+                          {Array.isArray(pendingReconfiguration.payload.event_date_labels)
+                            ? (pendingReconfiguration.payload.event_date_labels as unknown[])
                                 .map(String)
                                 .join(", ")
                             : "—"}
@@ -2609,48 +2307,36 @@ export function AdminChampionshipSchedule({
                       </div>
 
                       <div className="flex items-center justify-between gap-4">
-                        <span className="text-muted-foreground">
-                          Total de datas
-                        </span>
+                        <span className="text-muted-foreground">Total de datas</span>
 
                         <span className="font-medium">
-                          {String(
-                            pendingReconfiguration.payload.occurrence_count ?? 0,
-                          )}
+                          {String(pendingReconfiguration.payload.occurrence_count ?? 0)}
                         </span>
                       </div>
 
                       <div className="flex items-center justify-between gap-4">
-                        <span className="text-muted-foreground">
-                          Configurações protegidas
-                        </span>
+                        <span className="text-muted-foreground">Configurações protegidas</span>
 
                         <span className="font-medium">
-                          {String(
-                            pendingReconfiguration.payload.protected_court_count ??
-                              0,
-                          )}
+                          {String(pendingReconfiguration.payload.protected_court_count ?? 0)}
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  {Number(
-                    pendingReconfiguration.payload.protected_court_count ?? 0,
-                  ) > 0 ? (
+                  {Number(pendingReconfiguration.payload.protected_court_count ?? 0) > 0 ? (
                     <div className="flex items-start gap-2 rounded-md border border-primary/15 bg-primary/5 p-3 text-xs text-muted-foreground">
                       <LockKeyhole className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
 
                       <p>
-                        Quadras com sequenciamento protegido manterão a
-                        configuração definida na montagem do campeonato.
+                        Quadras com sequenciamento protegido manterão a configuração definida na
+                        montagem do campeonato.
                       </p>
                     </div>
                   ) : null}
                 </div>
               ) : null}
-              {reconfigurationPreview.action == "INDIVIDUAL_SESSION" &&
-              pendingReconfiguration ? (
+              {reconfigurationPreview.action == "INDIVIDUAL_SESSION" && pendingReconfiguration ? (
                 <div className="space-y-3">
                   <div>
                     <p className="font-semibold">
@@ -2662,8 +2348,7 @@ export function AdminChampionshipSchedule({
 
                     <p className="text-xs text-muted-foreground">
                       {formatNaipe(
-                        typeof pendingReconfiguration.payload.session_naipe ==
-                          "string"
+                        typeof pendingReconfiguration.payload.session_naipe == "string"
                           ? pendingReconfiguration.payload.session_naipe
                           : null,
                       )}
@@ -2680,15 +2365,12 @@ export function AdminChampionshipSchedule({
                         <p>
                           <span className="text-muted-foreground">Data:</span>{" "}
                           {formatSessionPreviewDate(
-                            pendingReconfiguration.payload
-                              .current_scheduled_date,
+                            pendingReconfiguration.payload.current_scheduled_date,
                           )}
                         </p>
 
                         <p>
-                          <span className="text-muted-foreground">
-                            Horário:
-                          </span>{" "}
+                          <span className="text-muted-foreground">Horário:</span>{" "}
                           {formatSessionPreviewTimeRange(
                             pendingReconfiguration.payload.current_start_time,
                             pendingReconfiguration.payload.current_end_time,
@@ -2698,27 +2380,20 @@ export function AdminChampionshipSchedule({
                         <p>
                           <span className="text-muted-foreground">Local:</span>{" "}
                           {String(
-                            pendingReconfiguration.payload
-                              .current_location_name ?? "Não definido",
+                            pendingReconfiguration.payload.current_location_name ?? "Não definido",
                           )}
                         </p>
 
                         <p>
-                          <span className="text-muted-foreground">
-                            Quadra / recurso:
-                          </span>{" "}
+                          <span className="text-muted-foreground">Quadra / recurso:</span>{" "}
                           {String(
-                            pendingReconfiguration.payload.current_court_name ??
-                              "Não definido",
+                            pendingReconfiguration.payload.current_court_name ?? "Não definido",
                           )}
                         </p>
 
                         <p>
-                          <span className="text-muted-foreground">
-                            Reserva exclusiva:
-                          </span>{" "}
-                          {pendingReconfiguration.payload
-                            .current_exclusive_lock_enabled === true
+                          <span className="text-muted-foreground">Reserva exclusiva:</span>{" "}
+                          {pendingReconfiguration.payload.current_exclusive_lock_enabled === true
                             ? "Sim"
                             : "Não"}
                         </p>
@@ -2733,15 +2408,11 @@ export function AdminChampionshipSchedule({
                       <div className="space-y-2">
                         <p>
                           <span className="text-muted-foreground">Data:</span>{" "}
-                          {formatSessionPreviewDate(
-                            pendingReconfiguration.payload.scheduled_date,
-                          )}
+                          {formatSessionPreviewDate(pendingReconfiguration.payload.scheduled_date)}
                         </p>
 
                         <p>
-                          <span className="text-muted-foreground">
-                            Horário:
-                          </span>{" "}
+                          <span className="text-muted-foreground">Horário:</span>{" "}
                           {formatSessionPreviewTimeRange(
                             pendingReconfiguration.payload.start_time,
                             pendingReconfiguration.payload.end_time,
@@ -2751,27 +2422,20 @@ export function AdminChampionshipSchedule({
                         <p>
                           <span className="text-muted-foreground">Local:</span>{" "}
                           {String(
-                            pendingReconfiguration.payload
-                              .target_location_name ?? "Não definido",
+                            pendingReconfiguration.payload.target_location_name ?? "Não definido",
                           )}
                         </p>
 
                         <p>
-                          <span className="text-muted-foreground">
-                            Quadra / recurso:
-                          </span>{" "}
+                          <span className="text-muted-foreground">Quadra / recurso:</span>{" "}
                           {String(
-                            pendingReconfiguration.payload.target_court_name ??
-                              "Não definido",
+                            pendingReconfiguration.payload.target_court_name ?? "Não definido",
                           )}
                         </p>
 
                         <p>
-                          <span className="text-muted-foreground">
-                            Reserva exclusiva:
-                          </span>{" "}
-                          {pendingReconfiguration.payload
-                            .exclusive_lock_enabled === true
+                          <span className="text-muted-foreground">Reserva exclusiva:</span>{" "}
+                          {pendingReconfiguration.payload.exclusive_lock_enabled === true
                             ? "Sim"
                             : "Não"}
                         </p>
@@ -2781,14 +2445,10 @@ export function AdminChampionshipSchedule({
                 </div>
               ) : null}
               {reconfigurationPreview.changes.length > 0 ? (
-                reconfigurationPreview.action ===
-                "REVERSE_DAY_COURT_MATCH_ORDER" ? (
+                reconfigurationPreview.action === "REVERSE_DAY_COURT_MATCH_ORDER" ? (
                   <div className="space-y-4">
                     {reverseMatchOrderChangesByCourt.map((courtGroup) => (
-                      <section
-                        key={courtGroup.key}
-                        className="overflow-hidden rounded-lg border"
-                      >
+                      <section key={courtGroup.key} className="overflow-hidden rounded-lg border">
                         <div className="flex items-center justify-between gap-3 border-b bg-muted/35 px-4 py-3">
                           <div>
                             <p className="font-semibold">{courtGroup.label}</p>
@@ -2799,19 +2459,15 @@ export function AdminChampionshipSchedule({
                         </div>
                         <div className="divide-y">
                           {courtGroup.changes.map((change, changeIndex) => {
-                            const details = formatReverseMatchOrderDetails(
-                              change.after,
+                            const details = formatReverseMatchOrderDetails(change.after);
+                            const currentCourtPosition = resolveReverseMatchOrderCourtPosition(
+                              change.before,
+                              changeIndex + 1,
                             );
-                            const currentCourtPosition =
-                              resolveReverseMatchOrderCourtPosition(
-                                change.before,
-                                changeIndex + 1,
-                              );
-                            const nextCourtPosition =
-                              resolveReverseMatchOrderCourtPosition(
-                                change.after,
-                                courtGroup.changes.length - changeIndex,
-                              );
+                            const nextCourtPosition = resolveReverseMatchOrderCourtPosition(
+                              change.after,
+                              courtGroup.changes.length - changeIndex,
+                            );
                             return (
                               <div
                                 key={change.match_id}
@@ -2824,9 +2480,7 @@ export function AdminChampionshipSchedule({
                                       : ""}
                                     {details.sport} • {details.naipe}
                                   </p>
-                                  <p className="truncate text-sm">
-                                    {details.teams}
-                                  </p>
+                                  <p className="truncate text-sm">{details.teams}</p>
                                 </div>
                                 <div className="flex min-w-0 items-center gap-3">
                                   <ArrowDownUp
@@ -2838,20 +2492,15 @@ export function AdminChampionshipSchedule({
                                       <span className="font-medium text-muted-foreground">
                                         Atual:
                                       </span>{" "}
-                                      {formatReconfigurationDateTime(
-                                        change.before,
-                                      )}{" "}
-                                      • {currentCourtPosition}ª posição da
-                                      quadra
+                                      {formatReconfigurationDateTime(change.before)} •{" "}
+                                      {currentCourtPosition}ª posição da quadra
                                     </p>
                                     <p className="mt-2 border-t pt-2">
                                       <span className="font-medium text-muted-foreground">
                                         Nova:
                                       </span>{" "}
-                                      {formatReconfigurationDateTime(
-                                        change.after,
-                                      )}{" "}
-                                      • {nextCourtPosition}ª posição da quadra
+                                      {formatReconfigurationDateTime(change.after)} •{" "}
+                                      {nextCourtPosition}ª posição da quadra
                                     </p>
                                   </div>
                                 </div>
@@ -2865,10 +2514,7 @@ export function AdminChampionshipSchedule({
                 ) : (
                   <div className="space-y-2">
                     {reconfigurationPreview.changes.map((change) => (
-                      <div
-                        key={change.match_id}
-                        className="rounded-md border p-3"
-                      >
+                      <div key={change.match_id} className="rounded-md border p-3">
                         <strong>
                           {change.match_number != null
                             ? `Jogo ${change.match_number}`
@@ -2885,31 +2531,22 @@ export function AdminChampionshipSchedule({
                 "INDIVIDUAL_SESSION" ? null : reconfigurationPreview.action ==
                 "COMPETITION_SETTINGS" ? (
                 <p className="text-muted-foreground">
-                  A configuração será atualizada sem necessidade de redistribuir
-                  jogos.
+                  A configuração será atualizada sem necessidade de redistribuir jogos.
                 </p>
-              ) : reconfigurationPreview.action ==
-                "COURT_SPORT_SEQUENCE" ? (
+              ) : reconfigurationPreview.action == "COURT_SPORT_SEQUENCE" ? (
                 <p className="text-muted-foreground">
-                  Nenhum jogo precisa ser redistribuído para aplicar este
-                  sequenciamento.
+                  Nenhum jogo precisa ser redistribuído para aplicar este sequenciamento.
                 </p>
-              ) : reconfigurationPreview.action ==
-                "KNOCKOUT_COURT_PRIORITIES" ? (
+              ) : reconfigurationPreview.action == "KNOCKOUT_COURT_PRIORITIES" ? (
                 <p className="text-muted-foreground">
-                  Nenhum jogo precisa ser redistribuído para aplicar estas
-                  prioridades.
+                  Nenhum jogo precisa ser redistribuído para aplicar estas prioridades.
                 </p>
-              ) : reconfigurationPreview.action ==
-                "LOCATION_SPORT_PRIORITIES" ? (
+              ) : reconfigurationPreview.action == "LOCATION_SPORT_PRIORITIES" ? (
                 <p className="text-muted-foreground">
-                  Nenhum jogo precisa ser redistribuído para aplicar esta
-                  prioridade.
+                  Nenhum jogo precisa ser redistribuído para aplicar esta prioridade.
                 </p>
               ) : (
-                <p className="text-muted-foreground">
-                  Nenhum jogo será movido.
-                </p>
+                <p className="text-muted-foreground">Nenhum jogo será movido.</p>
               )}
             </div>
           ) : null}
@@ -2931,28 +2568,22 @@ export function AdminChampionshipSchedule({
                 applyingReconfiguration
               }
             >
-              {applyingReconfiguration ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : null}
+              {applyingReconfiguration ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               {reconfigurationPreview?.action == "INDIVIDUAL_SESSION"
                 ? "Aplicar reprogramação da sessão"
-                : reconfigurationPreview?.action ==
-                    "REVERSE_DAY_COURT_MATCH_ORDER"
+                : reconfigurationPreview?.action == "REVERSE_DAY_COURT_MATCH_ORDER"
                   ? `Aplicar inversão de ${reconfigurationPreview.affected_matches} jogos`
                   : reconfigurationPreview?.action == "COMPETITION_SETTINGS"
                     ? "Aplicar configuração"
-                    : reconfigurationPreview?.action ==
-                        "COURT_SPORT_SEQUENCE"
+                    : reconfigurationPreview?.action == "COURT_SPORT_SEQUENCE"
                       ? "Aplicar sequenciamento"
-                    : reconfigurationPreview?.action ==
-                        "KNOCKOUT_COURT_PRIORITIES"
-                      ? "Aplicar prioridades do mata-mata"
-                    : reconfigurationPreview?.action ==
-                        "LOCATION_SPORT_PRIORITIES"
-                      ? "Aplicar prioridades de quadra"
-                    : `Aplicar e redistribuir ${
-                        reconfigurationPreview?.affected_matches ?? 0
-                      } jogos`}
+                      : reconfigurationPreview?.action == "KNOCKOUT_COURT_PRIORITIES"
+                        ? "Aplicar prioridades do mata-mata"
+                        : reconfigurationPreview?.action == "LOCATION_SPORT_PRIORITIES"
+                          ? "Aplicar prioridades de quadra"
+                          : `Aplicar e redistribuir ${
+                              reconfigurationPreview?.affected_matches ?? 0
+                            } jogos`}
             </Button>
           </DialogFooter>
         </DialogContent>
