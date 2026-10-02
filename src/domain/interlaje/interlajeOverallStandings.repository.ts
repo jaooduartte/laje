@@ -12,7 +12,10 @@ import {
 } from "@/domain/interlaje/interlajeDisqualificationNormalization";
 
 type LooseSupabase = {
-  rpc: (functionName: string, arguments_: Record<string, unknown>) => Promise<{
+  rpc: (
+    functionName: string,
+    arguments_: Record<string, unknown>,
+  ) => Promise<{
     data: unknown;
     error: Error | null;
   }>;
@@ -131,13 +134,10 @@ async function fetchCompetitionTeamDisqualifications(
   championshipId: string,
   seasonYear: number,
 ): Promise<{ data: CompetitionTeamDisqualification[]; error: Error | null }> {
-  const response = await supabaseLoose.rpc(
-    "list_championship_competition_team_disqualifications",
-    {
-      _championship_id: championshipId,
-      _season_year: seasonYear,
-    },
-  );
+  const response = await supabaseLoose.rpc("list_championship_competition_team_disqualifications", {
+    _championship_id: championshipId,
+    _season_year: seasonYear,
+  });
 
   return {
     data: (response.data as CompetitionTeamDisqualification[] | null) ?? [],
@@ -148,16 +148,13 @@ async function fetchCompetitionTeamDisqualifications(
 async function fetchRawInterlajeCompetitionStandings(
   input: InterlajeCompetitionStandingsInput,
 ): Promise<{ data: InterlajeCompetitionStanding[]; error: Error | null }> {
-  const response = await supabaseLoose.rpc(
-    "get_interlaje_regulation_competition_standings",
-    {
-      _championship_id: input.championshipId,
-      _season_year: input.seasonYear,
-      _sport_id: input.sportId,
-      _naipe: input.naipe,
-      _division: input.division,
-    },
-  );
+  const response = await supabaseLoose.rpc("get_interlaje_regulation_competition_standings", {
+    _championship_id: input.championshipId,
+    _season_year: input.seasonYear,
+    _sport_id: input.sportId,
+    _naipe: input.naipe,
+    _division: input.division,
+  });
 
   return {
     data: (response.data as InterlajeCompetitionStanding[] | null) ?? [],
@@ -179,15 +176,9 @@ export function resolveInterlajeClassificationPolicySections(
     ];
   }
 
-  const eventRankingCriteria = resolveInterlajePolicyCriteria(
-    policy?.event_ranking,
-  );
-  const eventTieBreakCriteria = resolveInterlajePolicyCriteria(
-    policy?.event_tie_break,
-  );
-  const overallRankingCriteria = resolveInterlajePolicyCriteria(
-    policy?.overall_ranking,
-  );
+  const eventRankingCriteria = resolveInterlajePolicyCriteria(policy?.event_ranking);
+  const eventTieBreakCriteria = resolveInterlajePolicyCriteria(policy?.event_tie_break);
+  const overallRankingCriteria = resolveInterlajePolicyCriteria(policy?.overall_ranking);
   const relayMultiplier = policy?.relay_multiplier;
 
   if (typeof relayMultiplier == "number" && relayMultiplier > 1) {
@@ -212,9 +203,7 @@ export function resolveInterlajeClassificationPolicySections(
   ].filter((section) => section.criteria.length > 0);
 }
 
-export function formatInterlajeClassificationPolicy(
-  policy: Record<string, unknown> | undefined,
-) {
+export function formatInterlajeClassificationPolicy(policy: Record<string, unknown> | undefined) {
   const [firstSection] = resolveInterlajeClassificationPolicySections(policy);
 
   return firstSection?.criteria.join(" → ") ?? null;
@@ -228,26 +217,21 @@ export async function fetchInterlajeOverallStandings(
     return { data: [], error: null };
   }
 
-  const [overallResponse, disqualificationsResponse, positionPointsResponse] =
-    await Promise.all([
-      supabaseLoose.rpc("get_interlaje_overall_standings", {
-        _championship_id: championshipId,
-        _season_year: seasonYear,
-      }),
-      fetchCompetitionTeamDisqualifications(championshipId, seasonYear),
-      fetchInterlajePositionPointSettings(championshipId, seasonYear),
-    ]);
+  const [overallResponse, disqualificationsResponse, positionPointsResponse] = await Promise.all([
+    supabaseLoose.rpc("get_interlaje_overall_standings", {
+      _championship_id: championshipId,
+      _season_year: seasonYear,
+    }),
+    fetchCompetitionTeamDisqualifications(championshipId, seasonYear),
+    fetchInterlajePositionPointSettings(championshipId, seasonYear),
+  ]);
 
-  const error =
-    overallResponse.error ??
-    disqualificationsResponse.error ??
-    positionPointsResponse.error;
+  const error = overallResponse.error ?? disqualificationsResponse.error ?? positionPointsResponse.error;
   if (error) {
     return { data: [], error };
   }
 
-  const baseStandings =
-    (overallResponse.data as InterlajeOverallStanding[] | null) ?? [];
+  const baseStandings = (overallResponse.data as InterlajeOverallStanding[] | null) ?? [];
   const disqualifications = disqualificationsResponse.data;
   if (disqualifications.length == 0) {
     return { data: baseStandings, error: null };
@@ -268,9 +252,8 @@ export async function fetchInterlajeOverallStandings(
     }),
   );
 
-  const contextError = contextResponses.find(
-    ({ standingsResponse }) => standingsResponse.error,
-  )?.standingsResponse.error;
+  const contextError = contextResponses.find(({ standingsResponse }) => standingsResponse.error)
+    ?.standingsResponse.error;
   if (contextError) {
     return { data: [], error: contextError };
   }
@@ -285,27 +268,20 @@ export async function fetchInterlajeOverallStandings(
         )
         .map((disqualification) => disqualification.team_id),
     );
-    const normalizedStandings =
-      normalizeInterlajeCompetitionStandingsAfterDisqualification(
-        standingsResponse.data,
-        disqualifiedTeamIds,
-        positionPointsResponse.data,
-      );
+    const normalizedStandings = normalizeInterlajeCompetitionStandingsAfterDisqualification(
+      standingsResponse.data,
+      disqualifiedTeamIds,
+      positionPointsResponse.data,
+    );
 
     mergeInterlajePlacementAdjustments(
       adjustments,
-      resolveInterlajePlacementAdjustments(
-        standingsResponse.data,
-        normalizedStandings,
-      ),
+      resolveInterlajePlacementAdjustments(standingsResponse.data, normalizedStandings),
     );
   });
 
   return {
-    data: applyInterlajePlacementAdjustmentsToOverallStandings(
-      baseStandings,
-      adjustments,
-    ),
+    data: applyInterlajePlacementAdjustmentsToOverallStandings(baseStandings, adjustments),
     error: null,
   };
 }
@@ -328,23 +304,13 @@ export async function fetchInterlajeCompetitionStandings(input: {
     naipe: input.naipe,
     division: input.division,
   };
-  const [standingsResponse, disqualificationsResponse, positionPointsResponse] =
-    await Promise.all([
-      fetchRawInterlajeCompetitionStandings(resolvedInput),
-      fetchCompetitionTeamDisqualifications(
-        resolvedInput.championshipId,
-        resolvedInput.seasonYear,
-      ),
-      fetchInterlajePositionPointSettings(
-        resolvedInput.championshipId,
-        resolvedInput.seasonYear,
-      ),
-    ]);
+  const [standingsResponse, disqualificationsResponse, positionPointsResponse] = await Promise.all([
+    fetchRawInterlajeCompetitionStandings(resolvedInput),
+    fetchCompetitionTeamDisqualifications(resolvedInput.championshipId, resolvedInput.seasonYear),
+    fetchInterlajePositionPointSettings(resolvedInput.championshipId, resolvedInput.seasonYear),
+  ]);
 
-  const error =
-    standingsResponse.error ??
-    disqualificationsResponse.error ??
-    positionPointsResponse.error;
+  const error = standingsResponse.error ?? disqualificationsResponse.error ?? positionPointsResponse.error;
   if (error) {
     return { data: [], error };
   }
