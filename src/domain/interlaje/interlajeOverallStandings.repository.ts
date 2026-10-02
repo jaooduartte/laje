@@ -194,13 +194,16 @@ export async function fetchInterlajeCompetitionStandings(input: {
     return { data: [], error: null };
   }
 
-  const response = await supabaseLoose.rpc("get_interlaje_regulation_competition_standings", {
-    _championship_id: input.championshipId,
-    _season_year: input.seasonYear,
-    _sport_id: input.sportId,
-    _naipe: input.naipe,
-    _division: input.division,
-  });
+  const response = await supabaseLoose.rpc(
+    "get_interlaje_regulation_competition_standings_effective",
+    {
+      _championship_id: input.championshipId,
+      _season_year: input.seasonYear,
+      _sport_id: input.sportId,
+      _naipe: input.naipe,
+      _division: input.division,
+    },
+  );
 
   return {
     data: (response.data as InterlajeCompetitionStanding[] | null) ?? [],
