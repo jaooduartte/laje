@@ -107,12 +107,8 @@ export function normalizeInterlajeCompetitionStandingsAfterDisqualification(
       const secondPosition = secondRow.final_position ?? Number.MAX_SAFE_INTEGER;
       return firstPosition - secondPosition || firstRow.team_id.localeCompare(secondRow.team_id);
     });
-    const eligibleRows = orderedRows.filter(
-      (row) => !disqualifiedTeamIds.has(row.team_id),
-    );
-    const disqualifiedRows = orderedRows.filter((row) =>
-      disqualifiedTeamIds.has(row.team_id),
-    );
+    const eligibleRows = orderedRows.filter((row) => !disqualifiedTeamIds.has(row.team_id));
+    const disqualifiedRows = orderedRows.filter((row) => disqualifiedTeamIds.has(row.team_id));
 
     return [...eligibleRows, ...disqualifiedRows].map((row, index) => {
       const finalPosition = index + 1;
@@ -149,8 +145,7 @@ export function resolveInterlajePlacementAdjustments(
       return;
     }
 
-    const delta =
-      Number(normalizedStanding.placement_points) - Number(standing.placement_points);
+    const delta = Number(normalizedStanding.placement_points) - Number(standing.placement_points);
     if (delta == 0) {
       return;
     }
@@ -198,9 +193,7 @@ export function applyInterlajePlacementAdjustmentsToOverallStandings(
   standings: InterlajeOverallStanding[],
   adjustments: Map<string, InterlajePlacementAdjustment>,
 ): InterlajeOverallStanding[] {
-  const originalOrder = new Map(
-    standings.map((standing, index) => [standing.team_id, index]),
-  );
+  const originalOrder = new Map(standings.map((standing, index) => [standing.team_id, index]));
 
   return standings
     .map((standing) => {
