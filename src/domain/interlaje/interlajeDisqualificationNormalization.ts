@@ -109,11 +109,19 @@ export function normalizeInterlajeCompetitionStandingsAfterDisqualification(
     });
     const eligibleRows = orderedRows.filter((row) => !disqualifiedTeamIds.has(row.team_id));
     const disqualifiedRows = orderedRows.filter((row) => disqualifiedTeamIds.has(row.team_id));
+    const lastPosition = orderedRows.reduce(
+      (maximum, row) => Math.max(maximum, Number(row.final_position) || 0),
+      orderedRows.length,
+    );
+    const trailingDisqualifiedStart = lastPosition - disqualifiedRows.length + 1;
 
-    return [...eligibleRows, ...disqualifiedRows].map((row, index) => {
-      const finalPosition = index + 1;
-      const isDisqualified = disqualifiedTeamIds.has(row.team_id);
-      const canReceivePlacementPoints = !isDisqualified && row.placement_points > 0;
+    const normalizedEligibleRows = eligibleRows.map((row) => {
+      const removedPositionsBefore = disqualifiedRows.filter(
+        (disqualifiedRow) =>
+          Number(disqualifiedRow.final_position) < Number(row.final_position),
+      ).length;
+      const finalPosition = Math.max(1, Number(row.final_position) - removedPositionsBefore);
+      const canReceivePlacementPoints = row.placement_points > 0;
 
       return {
         ...row,
@@ -127,6 +135,22 @@ export function normalizeInterlajeCompetitionStandingsAfterDisqualification(
         ),
       };
     });
+
+    const normalizedDisqualifiedRows = disqualifiedRows.map((row, index) => {
+      const finalPosition = trailingDisqualifiedStart + index;
+
+      return {
+        ...row,
+        final_position: finalPosition,
+        placement_points: 0,
+        classification_policy: withEffectivePlacementContext(
+          row.classification_policy,
+          finalPosition,
+        ),
+      };
+    });
+
+    return [...normalizedEligibleRows, ...normalizedDisqualifiedRows];
   });
 }
 
