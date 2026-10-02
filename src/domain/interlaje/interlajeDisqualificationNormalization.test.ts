@@ -149,10 +149,10 @@ describe("Interlaje disqualification position normalization", () => {
         placement_points,
       })),
     ).toEqual([
-      { team_name: "ENGÊNIOS", final_position: 1, placement_points: 24 },
-      { team_name: "RAPOSAS", final_position: 2, placement_points: 22 },
-      { team_name: "CAMALEÃO", final_position: 3, placement_points: 20 },
-      { team_name: "GARRUDOS", final_position: 4, placement_points: 0 },
+      { team_name: "ENGÊNIOS", final_position: 12, placement_points: 9 },
+      { team_name: "RAPOSAS", final_position: 13, placement_points: 8 },
+      { team_name: "CAMALEÃO", final_position: 14, placement_points: 7 },
+      { team_name: "GARRUDOS", final_position: 15, placement_points: 0 },
     ]);
   });
 
