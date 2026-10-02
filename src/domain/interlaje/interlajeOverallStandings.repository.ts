@@ -226,7 +226,8 @@ export async function fetchInterlajeOverallStandings(
     fetchInterlajePositionPointSettings(championshipId, seasonYear),
   ]);
 
-  const error = overallResponse.error ?? disqualificationsResponse.error ?? positionPointsResponse.error;
+  const error =
+    overallResponse.error ?? disqualificationsResponse.error ?? positionPointsResponse.error;
   if (error) {
     return { data: [], error };
   }
@@ -310,7 +311,8 @@ export async function fetchInterlajeCompetitionStandings(input: {
     fetchInterlajePositionPointSettings(resolvedInput.championshipId, resolvedInput.seasonYear),
   ]);
 
-  const error = standingsResponse.error ?? disqualificationsResponse.error ?? positionPointsResponse.error;
+  const error =
+    standingsResponse.error ?? disqualificationsResponse.error ?? positionPointsResponse.error;
   if (error) {
     return { data: [], error };
   }
