@@ -117,8 +117,7 @@ export function normalizeInterlajeCompetitionStandingsAfterDisqualification(
 
     const normalizedEligibleRows = eligibleRows.map((row) => {
       const removedPositionsBefore = disqualifiedRows.filter(
-        (disqualifiedRow) =>
-          Number(disqualifiedRow.final_position) < Number(row.final_position),
+        (disqualifiedRow) => Number(disqualifiedRow.final_position) < Number(row.final_position),
       ).length;
       const finalPosition = Math.max(1, Number(row.final_position) - removedPositionsBefore);
       const canReceivePlacementPoints = row.placement_points > 0;
