@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import { frontendEnvironment } from "@/config/environment";
+import type { LeagueEventReservationCreatePayload } from "@/domain/league-events/leagueEvent.types";
 import {
   createLeagueEventReservationRequestFromApi,
   fetchPendingReservationRequestCountFromApi,
@@ -8,7 +9,6 @@ import {
 } from "@/integrations/laje-api/public-content";
 import { listPendingReservationConflictsFromApi } from "@/integrations/laje-api/reservation-conflicts";
 import { supabase } from "@/integrations/supabase/client";
-import type { TablesInsert } from "@/integrations/supabase/types";
 import { LeagueEventReservationRequestStatus } from "@/lib/enums";
 import type { LeagueEvent, LeagueEventReservationRequest } from "@/lib/types";
 
@@ -61,7 +61,7 @@ export async function fetchLeagueEventReservationRequests({
 }
 
 export async function createLeagueEventReservationRequest(
-  payload: TablesInsert<"league_event_reservation_requests">,
+  payload: LeagueEventReservationCreatePayload,
 ) {
   if (shouldUseLajeApi()) {
     try {
@@ -84,7 +84,8 @@ export async function reviewLeagueEventReservationRequest({
 }: {
   requestId: string;
   decision:
-    LeagueEventReservationRequestStatus.APPROVED | LeagueEventReservationRequestStatus.REJECTED;
+    | LeagueEventReservationRequestStatus.APPROVED
+    | LeagueEventReservationRequestStatus.REJECTED;
   reviewNotes?: string;
 }): Promise<{
   data: {
@@ -178,7 +179,7 @@ export function bindLeagueEventReservationRequestPayload(formValues: {
   eventDate: Date | null;
   requesterName: string;
   requesterEmail: string;
-}): TablesInsert<"league_event_reservation_requests"> {
+}): LeagueEventReservationCreatePayload {
   const normalizedEventName = formValues.eventName.trim();
   const normalizedRequesterName = formValues.requesterName.trim();
   const normalizedRequesterEmail = formValues.requesterEmail.trim().toLowerCase();
@@ -214,7 +215,7 @@ export function bindLeagueEventReservationRequestPayload(formValues: {
   return {
     team_id: formValues.teamId,
     event_name: normalizedEventName,
-    event_type: formValues.eventType,
+    event_type: formValues.eventType as LeagueEventReservationCreatePayload["event_type"],
     event_date: format(formValues.eventDate, "yyyy-MM-dd"),
     requester_name: normalizedRequesterName,
     requester_email: normalizedRequesterEmail,
