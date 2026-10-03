@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
+import { frontendEnvironment } from "@/config/environment";
+import { getPublicAccessSettingsFromApi } from "@/integrations/laje-api/public-content";
 import { supabase } from "@/integrations/supabase/client";
 import type { PublicAccessSettings } from "@/lib/types";
 import {
@@ -46,31 +48,42 @@ async function fetchPublicAccessSettings(force = false) {
   }
 
   publicAccessSettingsRequest = (async () => {
-    const { data, error } = await supabase.rpc("get_public_access_settings");
+    try {
+      if (frontendEnvironment.apiUrl) {
+        const settings = await getPublicAccessSettingsFromApi();
+        publicAccessSettingsStoreState = {
+          loading: false,
+          publicAccessSettings: resolvePublicAccessSettings(settings),
+        };
+      } else {
+        const { data, error } = await supabase.rpc("get_public_access_settings");
 
-    if (error) {
-      console.error(
-        "Erro ao carregar configurações de acesso público:",
-        error.message,
-      );
-
-      // Keep the last known-good value during transient API/database failures.
-      // On the first load this is already the safe application default.
+        if (error) {
+          console.error(
+            "Erro ao carregar configurações de acesso público:",
+            error.message,
+          );
+          publicAccessSettingsStoreState = {
+            ...publicAccessSettingsStoreState,
+            loading: false,
+          };
+        } else {
+          publicAccessSettingsStoreState = {
+            loading: false,
+            publicAccessSettings: resolvePublicAccessSettings(
+              data as PublicAccessSettings[] | PublicAccessSettings | null,
+            ),
+          };
+        }
+      }
+    } catch (error) {
+      console.error("Erro ao carregar configurações de acesso público:", error);
       publicAccessSettingsStoreState = {
         ...publicAccessSettingsStoreState,
         loading: false,
       };
-    } else {
-      publicAccessSettingsStoreState = {
-        loading: false,
-        publicAccessSettings: resolvePublicAccessSettings(
-          data as PublicAccessSettings[] | PublicAccessSettings | null,
-        ),
-      };
     }
 
-    // Back off after both success and failure so a degraded Data API is not
-    // hammered by every mounted consumer or browser tab.
     publicAccessSettingsLastFetchedAt = Date.now();
     notifyPublicAccessSettingsSubscribers();
   })().finally(() => {
