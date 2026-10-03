@@ -25,7 +25,7 @@ export interface LeagueEventWritePayload {
   name: string;
   event_type: LeagueEventTypeValue;
   organizer_type: LeagueEventOrganizerTypeValue;
-  organizer_team_id: string | null;
+  organizer_team_id?: string | null;
   event_date: string;
 }
 
