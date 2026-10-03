@@ -1,6 +1,6 @@
 import type { AdminLoginState } from "@/domain/admin-users/adminUser.types";
 import { AdminPanelPermissionLevel, AdminPanelRole, AdminUserPasswordStatus } from "@/lib/enums";
-import { lajeApiRequest } from "./client";
+import { lajeApiRequest, setLajeApiAccessToken } from "./client";
 
 export interface DedicatedAuthPermission {
   scope: string;
@@ -35,6 +35,11 @@ interface LoginStateResponse {
   passwordStatus: AdminUserPasswordStatus;
 }
 
+function applyDedicatedAccessToken(session: DedicatedAuthSession): DedicatedAuthSession {
+  setLajeApiAccessToken(session.accessToken);
+  return session;
+}
+
 export async function resolveDedicatedLoginState(
   loginIdentifier: string,
 ): Promise<AdminLoginState> {
@@ -54,48 +59,67 @@ export async function createDedicatedSession(
   loginIdentifier: string,
   password: string,
 ): Promise<DedicatedAuthSession> {
-  const response = await lajeApiRequest<DataResponse<DedicatedAuthSession>>("/auth/sessions", {
-    method: "POST",
-    body: JSON.stringify({ loginIdentifier, password }),
-  });
+  try {
+    const response = await lajeApiRequest<DataResponse<DedicatedAuthSession>>("/auth/sessions", {
+      method: "POST",
+      body: JSON.stringify({ loginIdentifier, password }),
+    });
 
-  return response.data;
+    return applyDedicatedAccessToken(response.data);
+  } catch (error) {
+    setLajeApiAccessToken(null);
+    throw error;
+  }
 }
 
 export async function setupDedicatedPassword(
   loginIdentifier: string,
   newPassword: string,
 ): Promise<DedicatedAuthSession> {
-  const response = await lajeApiRequest<DataResponse<DedicatedAuthSession>>(
-    "/auth/password-setup",
-    {
-      method: "POST",
-      body: JSON.stringify({ loginIdentifier, newPassword }),
-    },
-  );
+  try {
+    const response = await lajeApiRequest<DataResponse<DedicatedAuthSession>>(
+      "/auth/password-setup",
+      {
+        method: "POST",
+        body: JSON.stringify({ loginIdentifier, newPassword }),
+      },
+    );
 
-  return response.data;
+    return applyDedicatedAccessToken(response.data);
+  } catch (error) {
+    setLajeApiAccessToken(null);
+    throw error;
+  }
 }
 
 export async function refreshDedicatedSession(): Promise<DedicatedAuthSession> {
-  const response = await lajeApiRequest<DataResponse<DedicatedAuthSession>>(
-    "/auth/sessions/refresh",
-    {
-      method: "POST",
-    },
-  );
+  try {
+    const response = await lajeApiRequest<DataResponse<DedicatedAuthSession>>(
+      "/auth/sessions/refresh",
+      {
+        method: "POST",
+      },
+    );
 
-  return response.data;
+    return applyDedicatedAccessToken(response.data);
+  } catch (error) {
+    setLajeApiAccessToken(null);
+    throw error;
+  }
 }
 
 export async function deleteDedicatedSession(accessToken: string): Promise<void> {
-  await lajeApiRequest<void>(
-    "/auth/sessions/current",
-    {
-      method: "DELETE",
-    },
-    accessToken,
-  );
+  try {
+    await lajeApiRequest<void>(
+      "/auth/sessions/current",
+      {
+        method: "DELETE",
+      },
+      accessToken,
+    );
+  } finally {
+    setLajeApiAccessToken(null);
+  }
 }
 
 export async function changeDedicatedPassword(
