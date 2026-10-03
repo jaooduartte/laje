@@ -6,6 +6,7 @@ import {
   listLeagueEventReservationRequestsFromApi,
   reviewLeagueEventReservationRequestFromApi,
 } from "@/integrations/laje-api/public-content";
+import { listPendingReservationConflictsFromApi } from "@/integrations/laje-api/reservation-conflicts";
 import { supabase } from "@/integrations/supabase/client";
 import type { TablesInsert } from "@/integrations/supabase/types";
 import { LeagueEventReservationRequestStatus } from "@/lib/enums";
@@ -135,10 +136,7 @@ export async function fetchPendingReservationRequestsByDate(date: string) {
   if (shouldUseLajeApi()) {
     try {
       return {
-        data: await listLeagueEventReservationRequestsFromApi({
-          date,
-          status: LeagueEventReservationRequestStatus.PENDING,
-        }),
+        data: await listPendingReservationConflictsFromApi(date),
         error: null,
       };
     } catch (error) {
