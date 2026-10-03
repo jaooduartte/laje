@@ -9,7 +9,6 @@
   "src/domain/championship-brackets/championshipBracketSchedule.utils.ts|TS2353": 1,
   "src/domain/championship-seasons/championshipSeason.repository.ts|TS2339": 1,
   "src/domain/home/homeDashboard.repository.ts|TS2352": 1,
-  "src/domain/league-events/leagueEventReservation.repository.ts|TS2322": 1,
   "src/hooks/useAuth.tsx|TS2345": 1,
   "src/hooks/useAutomaticTheme.ts|TS2339": 1,
   "src/hooks/useChampionshipSeasonYears.ts|TS2345": 1,
