@@ -9,7 +9,9 @@ interface UsePublicLinkSectionsOptions {
   includeInactive?: boolean;
 }
 
-export function usePublicLinkSections({ includeInactive = false }: UsePublicLinkSectionsOptions = {}) {
+export function usePublicLinkSections({
+  includeInactive = false,
+}: UsePublicLinkSectionsOptions = {}) {
   const [publicLinkSections, setPublicLinkSections] = useState<PublicLinkSection[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -18,7 +20,9 @@ export function usePublicLinkSections({ includeInactive = false }: UsePublicLink
 
     try {
       if (frontendEnvironment.apiUrl) {
-        setPublicLinkSections(sortPublicLinkSections(await listPublicLinkSectionsFromApi(includeInactive)));
+        setPublicLinkSections(
+          sortPublicLinkSections(await listPublicLinkSectionsFromApi(includeInactive)),
+        );
         return;
       }
 

@@ -3,10 +3,7 @@ import { frontendEnvironment } from "@/config/environment";
 import { getPublicAccessSettingsFromApi } from "@/integrations/laje-api/public-content";
 import { supabase } from "@/integrations/supabase/client";
 import type { PublicAccessSettings } from "@/lib/types";
-import {
-  DEFAULT_PUBLIC_ACCESS_SETTINGS,
-  resolvePublicAccessSettings,
-} from "@/lib/publicAccess";
+import { DEFAULT_PUBLIC_ACCESS_SETTINGS, resolvePublicAccessSettings } from "@/lib/publicAccess";
 
 interface PublicAccessSettingsStoreState {
   loading: boolean;
@@ -41,8 +38,7 @@ async function fetchPublicAccessSettings(force = false) {
   if (
     !force &&
     publicAccessSettingsLastFetchedAt != null &&
-    Date.now() - publicAccessSettingsLastFetchedAt <
-      PUBLIC_ACCESS_SETTINGS_REFRESH_INTERVAL_MS
+    Date.now() - publicAccessSettingsLastFetchedAt < PUBLIC_ACCESS_SETTINGS_REFRESH_INTERVAL_MS
   ) {
     return;
   }
@@ -59,10 +55,7 @@ async function fetchPublicAccessSettings(force = false) {
         const { data, error } = await supabase.rpc("get_public_access_settings");
 
         if (error) {
-          console.error(
-            "Erro ao carregar configurações de acesso público:",
-            error.message,
-          );
+          console.error("Erro ao carregar configurações de acesso público:", error.message);
           publicAccessSettingsStoreState = {
             ...publicAccessSettingsStoreState,
             loading: false,
@@ -109,10 +102,7 @@ function startPublicAccessSettingsPolling() {
 }
 
 function stopPublicAccessSettingsPolling() {
-  publicAccessSettingsSubscriberCount = Math.max(
-    0,
-    publicAccessSettingsSubscriberCount - 1,
-  );
+  publicAccessSettingsSubscriberCount = Math.max(0, publicAccessSettingsSubscriberCount - 1);
 
   if (publicAccessSettingsSubscriberCount != 0) {
     return;

@@ -22,7 +22,9 @@ function shouldUseLajeApi() {
 }
 
 function normalizeApiError(error: unknown): Error {
-  return error instanceof Error ? error : new Error("Não foi possível acessar as reservas do calendário.");
+  return error instanceof Error
+    ? error
+    : new Error("Não foi possível acessar as reservas do calendário.");
 }
 
 function resolveReservationRequestSelectQuery() {
@@ -81,7 +83,8 @@ export async function reviewLeagueEventReservationRequest({
   reviewNotes,
 }: {
   requestId: string;
-  decision: LeagueEventReservationRequestStatus.APPROVED | LeagueEventReservationRequestStatus.REJECTED;
+  decision:
+    LeagueEventReservationRequestStatus.APPROVED | LeagueEventReservationRequestStatus.REJECTED;
   reviewNotes?: string;
 }): Promise<{
   data: {
@@ -116,12 +119,10 @@ export async function reviewLeagueEventReservationRequest({
     };
   }
 
-  const responsePayload = response.data as
-    | {
-        request?: LeagueEventReservationRequest | null;
-        league_event?: LeagueEvent | null;
-      }
-    | null;
+  const responsePayload = response.data as {
+    request?: LeagueEventReservationRequest | null;
+    league_event?: LeagueEvent | null;
+  } | null;
 
   return {
     data: {

@@ -37,9 +37,7 @@ function toTeam(dto: ApiTeamDto): Team {
   };
 }
 
-function toReservationConflict(
-  dto: ApiReservationConflictDto,
-): LeagueEventReservationRequest {
+function toReservationConflict(dto: ApiReservationConflictDto): LeagueEventReservationRequest {
   return {
     id: dto.id,
     team_id: dto.teamId,

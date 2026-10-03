@@ -233,13 +233,17 @@ function toEventWritePayload(
   };
 }
 
-export async function listLeagueEventsFromApi(filters: { startDate?: string; endDate?: string; year?: number } = {}) {
+export async function listLeagueEventsFromApi(
+  filters: { startDate?: string; endDate?: string; year?: number } = {},
+) {
   const search = new URLSearchParams();
   if (filters.startDate) search.set("from", filters.startDate);
   if (filters.endDate) search.set("to", filters.endDate);
   if (filters.year) search.set("year", String(filters.year));
   const suffix = search.size > 0 ? `?${search.toString()}` : "";
-  const response = await lajeApiRequest<DataResponse<ApiLeagueEventDto[]>>(`/league-events${suffix}`);
+  const response = await lajeApiRequest<DataResponse<ApiLeagueEventDto[]>>(
+    `/league-events${suffix}`,
+  );
   return response.data.map(toLeagueEvent);
 }
 
@@ -259,10 +263,13 @@ export async function updateLeagueEventFromApi(
   payload: TablesUpdate<"league_events">,
   organizerTeamIds: string[],
 ) {
-  const response = await lajeApiRequest<DataResponse<ApiLeagueEventDto>>(`/league-events/${eventId}`, {
-    method: "PUT",
-    body: JSON.stringify(toEventWritePayload(payload, organizerTeamIds)),
-  });
+  const response = await lajeApiRequest<DataResponse<ApiLeagueEventDto>>(
+    `/league-events/${eventId}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(toEventWritePayload(payload, organizerTeamIds)),
+    },
+  );
   return toLeagueEvent(response.data);
 }
 
@@ -270,11 +277,13 @@ export async function deleteLeagueEventFromApi(eventId: string) {
   await lajeApiRequest<void>(`/league-events/${eventId}`, { method: "DELETE" });
 }
 
-export async function listLeagueEventReservationRequestsFromApi(filters: {
-  year?: number;
-  status?: LeagueEventReservationRequest["status"] | null;
-  date?: string;
-} = {}) {
+export async function listLeagueEventReservationRequestsFromApi(
+  filters: {
+    year?: number;
+    status?: LeagueEventReservationRequest["status"] | null;
+    date?: string;
+  } = {},
+) {
   const search = new URLSearchParams();
   if (filters.year) search.set("year", String(filters.year));
   if (filters.status) search.set("status", filters.status);
@@ -289,17 +298,20 @@ export async function listLeagueEventReservationRequestsFromApi(filters: {
 export async function createLeagueEventReservationRequestFromApi(
   payload: TablesInsert<"league_event_reservation_requests">,
 ) {
-  const response = await lajeApiRequest<DataResponse<ApiReservationDto>>("/league-events/reservation-requests", {
-    method: "POST",
-    body: JSON.stringify({
-      teamId: payload.team_id,
-      eventName: payload.event_name,
-      eventType: payload.event_type,
-      eventDate: payload.event_date,
-      requesterName: payload.requester_name,
-      requesterEmail: payload.requester_email,
-    }),
-  });
+  const response = await lajeApiRequest<DataResponse<ApiReservationDto>>(
+    "/league-events/reservation-requests",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        teamId: payload.team_id,
+        eventName: payload.event_name,
+        eventType: payload.event_type,
+        eventDate: payload.event_date,
+        requesterName: payload.requester_name,
+        requesterEmail: payload.requester_email,
+      }),
+    },
+  );
   return toReservation(response.data);
 }
 
@@ -333,26 +345,30 @@ export async function listLeagueEventYearsFromApi() {
 }
 
 export async function getPublicAccessSettingsFromApi() {
-  const response = await lajeApiRequest<DataResponse<ApiPublicAccessSettingsDto | null>>("/public/settings");
+  const response =
+    await lajeApiRequest<DataResponse<ApiPublicAccessSettingsDto | null>>("/public/settings");
   return response.data ? toPublicAccessSettings(response.data) : null;
 }
 
 export async function updatePublicAccessSettingsFromApi(settings: PublicAccessSettings) {
-  const response = await lajeApiRequest<DataResponse<ApiPublicAccessSettingsDto>>("/public/settings", {
-    method: "PUT",
-    body: JSON.stringify({
-      isPublicAccessBlocked: settings.is_public_access_blocked,
-      isLivePageBlocked: settings.is_live_page_blocked,
-      isChampionshipsPageBlocked: settings.is_championships_page_blocked,
-      isSchedulePageBlocked: settings.is_schedule_page_blocked,
-      isLeagueCalendarPageBlocked: settings.is_league_calendar_page_blocked,
-      isLinksPageBlocked: settings.is_links_page_blocked,
-      blockedMessage: settings.blocked_message,
-      announcementMessage: settings.announcement_message,
-      announcementContent: settings.announcement_content,
-      announcementType: settings.announcement_type,
-    }),
-  });
+  const response = await lajeApiRequest<DataResponse<ApiPublicAccessSettingsDto>>(
+    "/public/settings",
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        isPublicAccessBlocked: settings.is_public_access_blocked,
+        isLivePageBlocked: settings.is_live_page_blocked,
+        isChampionshipsPageBlocked: settings.is_championships_page_blocked,
+        isSchedulePageBlocked: settings.is_schedule_page_blocked,
+        isLeagueCalendarPageBlocked: settings.is_league_calendar_page_blocked,
+        isLinksPageBlocked: settings.is_links_page_blocked,
+        blockedMessage: settings.blocked_message,
+        announcementMessage: settings.announcement_message,
+        announcementContent: settings.announcement_content,
+        announcementType: settings.announcement_type,
+      }),
+    },
+  );
   return toPublicAccessSettings(response.data);
 }
 
@@ -364,14 +380,20 @@ export async function listPublicLinkSectionsFromApi(includeInactive = false) {
 }
 
 export async function createPublicLinkSectionFromApi(input: PublicLinkSectionWriteInput) {
-  const response = await lajeApiRequest<DataResponse<ApiPublicLinkSectionDto>>("/public/link-sections", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
+  const response = await lajeApiRequest<DataResponse<ApiPublicLinkSectionDto>>(
+    "/public/link-sections",
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  );
   return toPublicLinkSection(response.data);
 }
 
-export async function updatePublicLinkSectionFromApi(sectionId: string, input: PublicLinkSectionWriteInput) {
+export async function updatePublicLinkSectionFromApi(
+  sectionId: string,
+  input: PublicLinkSectionWriteInput,
+) {
   const response = await lajeApiRequest<DataResponse<ApiPublicLinkSectionDto>>(
     `/public/link-sections/${sectionId}`,
     { method: "PUT", body: JSON.stringify(input) },
@@ -392,10 +414,13 @@ export async function createPublicLinkItemFromApi(input: PublicLinkItemWriteInpu
 }
 
 export async function updatePublicLinkItemFromApi(itemId: string, input: PublicLinkItemWriteInput) {
-  const response = await lajeApiRequest<DataResponse<ApiPublicLinkItemDto>>(`/public/link-items/${itemId}`, {
-    method: "PUT",
-    body: JSON.stringify(input),
-  });
+  const response = await lajeApiRequest<DataResponse<ApiPublicLinkItemDto>>(
+    `/public/link-items/${itemId}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(input),
+    },
+  );
   return toPublicLinkItem(response.data);
 }
 

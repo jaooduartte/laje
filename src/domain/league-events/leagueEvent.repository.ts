@@ -31,7 +31,9 @@ function normalizeApiError(error: unknown): Error {
 }
 
 function resolveOrderedOrganizerTeams(organizerTeams: Team[]) {
-  return [...organizerTeams].sort((firstTeam, secondTeam) => firstTeam.name.localeCompare(secondTeam.name));
+  return [...organizerTeams].sort((firstTeam, secondTeam) =>
+    firstTeam.name.localeCompare(secondTeam.name),
+  );
 }
 
 function mapLeagueEvents(
@@ -58,22 +60,26 @@ async function fetchOrganizerTeamsByEventIds(eventIds: string[]) {
     return {};
   }
 
-  return (response.data ?? []).reduce<Record<string, Team[]>>((organizerTeamsByEventId, organizerRelation) => {
-    const leagueEventOrganizerRelation = organizerRelation as LeagueEventOrganizerTeamsRelationRow;
-    const eventId = leagueEventOrganizerRelation.event_id;
-    const organizerTeam = leagueEventOrganizerRelation.team;
+  return (response.data ?? []).reduce<Record<string, Team[]>>(
+    (organizerTeamsByEventId, organizerRelation) => {
+      const leagueEventOrganizerRelation =
+        organizerRelation as LeagueEventOrganizerTeamsRelationRow;
+      const eventId = leagueEventOrganizerRelation.event_id;
+      const organizerTeam = leagueEventOrganizerRelation.team;
 
-    if (!eventId || !organizerTeam) {
+      if (!eventId || !organizerTeam) {
+        return organizerTeamsByEventId;
+      }
+
+      if (!organizerTeamsByEventId[eventId]) {
+        organizerTeamsByEventId[eventId] = [];
+      }
+
+      organizerTeamsByEventId[eventId].push(organizerTeam);
       return organizerTeamsByEventId;
-    }
-
-    if (!organizerTeamsByEventId[eventId]) {
-      organizerTeamsByEventId[eventId] = [];
-    }
-
-    organizerTeamsByEventId[eventId].push(organizerTeam);
-    return organizerTeamsByEventId;
-  }, {});
+    },
+    {},
+  );
 }
 
 async function fetchLeagueEventById(eventId: string) {
@@ -84,7 +90,11 @@ async function fetchLeagueEventById(eventId: string) {
     .single();
 
   if (response.error) {
-    const basicResponse = await supabase.from("league_events").select("*").eq("id", eventId).single();
+    const basicResponse = await supabase
+      .from("league_events")
+      .select("*")
+      .eq("id", eventId)
+      .single();
 
     if (basicResponse.error || !basicResponse.data) {
       return {
@@ -96,7 +106,8 @@ async function fetchLeagueEventById(eventId: string) {
     const organizerTeamsByEventId = await fetchOrganizerTeamsByEventIds([eventId]);
 
     return {
-      data: mapLeagueEvents([basicResponse.data as LeagueEvent], organizerTeamsByEventId)[0] ?? null,
+      data:
+        mapLeagueEvents([basicResponse.data as LeagueEvent], organizerTeamsByEventId)[0] ?? null,
       error: null,
     };
   }
@@ -119,7 +130,10 @@ async function fetchLeagueEventById(eventId: string) {
 async function replaceLeagueEventOrganizerTeams(eventId: string, organizerTeamIds: string[]) {
   const normalizedOrganizerTeamIds = [...new Set(organizerTeamIds)];
 
-  const deleteResponse = await supabase.from("league_event_organizer_teams").delete().eq("event_id", eventId);
+  const deleteResponse = await supabase
+    .from("league_event_organizer_teams")
+    .delete()
+    .eq("event_id", eventId);
 
   if (deleteResponse.error) {
     return deleteResponse.error;
@@ -196,7 +210,10 @@ export async function fetchLeagueEventsByDateRange({ startDate, endDate }: DateR
   };
 }
 
-export async function createLeagueEvent(payload: TablesInsert<"league_events">, organizerTeamIds: string[]) {
+export async function createLeagueEvent(
+  payload: TablesInsert<"league_events">,
+  organizerTeamIds: string[],
+) {
   if (shouldUseLajeApi()) {
     try {
       return {
@@ -218,7 +235,10 @@ export async function createLeagueEvent(payload: TablesInsert<"league_events">, 
   }
 
   if (payload.organizer_type == LeagueEventOrganizerType.ATHLETIC) {
-    const syncError = await replaceLeagueEventOrganizerTeams(createResponse.data.id, organizerTeamIds);
+    const syncError = await replaceLeagueEventOrganizerTeams(
+      createResponse.data.id,
+      organizerTeamIds,
+    );
 
     if (syncError) {
       await supabase.from("league_events").delete().eq("id", createResponse.data.id);

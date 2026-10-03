@@ -4,7 +4,9 @@ import { listLeagueEventYearsFromApi } from "@/integrations/laje-api/public-cont
 import { supabase } from "@/integrations/supabase/client";
 import { LeagueEventReservationRequestStatus } from "@/lib/enums";
 
-function resolveEventYears(rows: Array<{ event_date: string | null }> | null | undefined): number[] {
+function resolveEventYears(
+  rows: Array<{ event_date: string | null }> | null | undefined,
+): number[] {
   return (rows ?? [])
     .map((row) => {
       if (!row.event_date) {
