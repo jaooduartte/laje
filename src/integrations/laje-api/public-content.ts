@@ -1,4 +1,7 @@
-import type { TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
+import type {
+  LeagueEventReservationCreatePayload,
+  LeagueEventWritePayload,
+} from "@/domain/league-events/leagueEvent.types";
 import type {
   LeagueEvent,
   LeagueEventReservationRequest,
@@ -221,10 +224,7 @@ function toPublicAccessSettings(dto: ApiPublicAccessSettingsDto): PublicAccessSe
   };
 }
 
-function toEventWritePayload(
-  payload: TablesInsert<"league_events"> | TablesUpdate<"league_events">,
-  organizerTeamIds: string[],
-) {
+function toEventWritePayload(payload: LeagueEventWritePayload, organizerTeamIds: string[]) {
   return {
     name: payload.name,
     eventType: payload.event_type,
@@ -248,7 +248,7 @@ export async function listLeagueEventsFromApi(
 }
 
 export async function createLeagueEventFromApi(
-  payload: TablesInsert<"league_events">,
+  payload: LeagueEventWritePayload,
   organizerTeamIds: string[],
 ) {
   const response = await lajeApiRequest<DataResponse<ApiLeagueEventDto>>("/league-events", {
@@ -260,7 +260,7 @@ export async function createLeagueEventFromApi(
 
 export async function updateLeagueEventFromApi(
   eventId: string,
-  payload: TablesUpdate<"league_events">,
+  payload: LeagueEventWritePayload,
   organizerTeamIds: string[],
 ) {
   const response = await lajeApiRequest<DataResponse<ApiLeagueEventDto>>(
@@ -296,7 +296,7 @@ export async function listLeagueEventReservationRequestsFromApi(
 }
 
 export async function createLeagueEventReservationRequestFromApi(
-  payload: TablesInsert<"league_event_reservation_requests">,
+  payload: LeagueEventReservationCreatePayload,
 ) {
   const response = await lajeApiRequest<DataResponse<ApiReservationDto>>(
     "/league-events/reservation-requests",
