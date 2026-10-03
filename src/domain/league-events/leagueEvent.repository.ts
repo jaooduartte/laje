@@ -1,4 +1,5 @@
 import { frontendEnvironment } from "@/config/environment";
+import type { LeagueEventWritePayload } from "@/domain/league-events/leagueEvent.types";
 import {
   createLeagueEventFromApi,
   deleteLeagueEventFromApi,
@@ -6,7 +7,6 @@ import {
   updateLeagueEventFromApi,
 } from "@/integrations/laje-api/public-content";
 import { supabase } from "@/integrations/supabase/client";
-import type { TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 import { LeagueEventOrganizerType } from "@/lib/enums";
 import type { LeagueEvent, Team } from "@/lib/types";
 
@@ -211,7 +211,7 @@ export async function fetchLeagueEventsByDateRange({ startDate, endDate }: DateR
 }
 
 export async function createLeagueEvent(
-  payload: TablesInsert<"league_events">,
+  payload: LeagueEventWritePayload,
   organizerTeamIds: string[],
 ) {
   if (shouldUseLajeApi()) {
@@ -255,7 +255,7 @@ export async function createLeagueEvent(
 
 export async function updateLeagueEvent(
   eventId: string,
-  payload: TablesUpdate<"league_events">,
+  payload: LeagueEventWritePayload,
   organizerTeamIds: string[],
 ) {
   if (shouldUseLajeApi()) {
