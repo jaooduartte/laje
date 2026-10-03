@@ -11,6 +11,10 @@ export interface LeagueEventFormValues {
   eventDate: Date | null;
 }
 
+type LeagueEventTypeValue = `${LeagueEventType}`;
+type LeagueEventOrganizerTypeValue = `${LeagueEventOrganizerType}`;
+type LeagueEventReservationRequestStatusValue = `${LeagueEventReservationRequestStatus}`;
+
 /**
  * Contrato de escrita do domínio de eventos da liga.
  *
@@ -19,8 +23,8 @@ export interface LeagueEventFormValues {
  */
 export interface LeagueEventWritePayload {
   name: string;
-  event_type: LeagueEventType;
-  organizer_type: LeagueEventOrganizerType;
+  event_type: LeagueEventTypeValue;
+  organizer_type: LeagueEventOrganizerTypeValue;
   organizer_team_id: string | null;
   event_date: string;
 }
@@ -32,9 +36,9 @@ export interface LeagueEventWritePayload {
 export interface LeagueEventReservationCreatePayload {
   team_id: string;
   event_name: string;
-  event_type: LeagueEventType;
+  event_type: LeagueEventTypeValue;
   event_date: string;
   requester_name: string;
   requester_email: string;
-  status: LeagueEventReservationRequestStatus;
+  status: LeagueEventReservationRequestStatusValue;
 }
