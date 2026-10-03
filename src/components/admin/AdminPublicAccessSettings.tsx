@@ -2,6 +2,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useEffect, useState } from "react";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
+import { frontendEnvironment } from "@/config/environment";
+import {
+  getPublicAccessSettingsFromApi,
+  updatePublicAccessSettingsFromApi,
+} from "@/integrations/laje-api/public-content";
 import { supabase } from "@/integrations/supabase/client";
 import {
   DEFAULT_PUBLIC_ACCESS_SETTINGS,
@@ -87,6 +92,16 @@ function resolvePublicAccessSettingsSavePayload(
   };
 }
 
+function applySavePayload(
+  publicAccessSettings: PublicAccessSettings,
+  payload: PublicAccessSettingsSavePayload,
+): PublicAccessSettings {
+  return {
+    ...publicAccessSettings,
+    ...payload,
+  };
+}
+
 export function AdminPublicAccessSettings({
   canManageSettings = false,
 }: Props) {
@@ -103,25 +118,42 @@ export function AdminPublicAccessSettings({
     const fetchPublicAccessSettings = async () => {
       setLoading(true);
 
-      const { data, error } = await supabase.rpc("get_public_access_settings");
+      try {
+        let normalizedSettings: PublicAccessSettings;
 
-      if (error) {
-        toast.error(error.message);
+        if (frontendEnvironment.apiUrl) {
+          normalizedSettings = resolvePublicAccessSettings(
+            await getPublicAccessSettingsFromApi(),
+          );
+        } else {
+          const { data, error } = await supabase.rpc("get_public_access_settings");
+
+          if (error) {
+            toast.error(error.message);
+            return;
+          }
+
+          normalizedSettings = resolvePublicAccessSettings(
+            data as PublicAccessSettings[] | PublicAccessSettings | null,
+          );
+        }
+
+        setPublicAccessSettings(normalizedSettings);
+        setLastSavedPayload(
+          resolvePublicAccessSettingsSavePayload(normalizedSettings),
+        );
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Não foi possível carregar as configurações públicas.",
+        );
+      } finally {
         setLoading(false);
-        return;
       }
-
-      const normalizedSettings = resolvePublicAccessSettings(
-        data as PublicAccessSettings[] | PublicAccessSettings | null,
-      );
-      setPublicAccessSettings(normalizedSettings);
-      setLastSavedPayload(
-        resolvePublicAccessSettingsSavePayload(normalizedSettings),
-      );
-      setLoading(false);
     };
 
-    fetchPublicAccessSettings();
+    void fetchPublicAccessSettings();
   }, []);
 
   const handleSaveSettings = async () => {
@@ -140,28 +172,45 @@ export function AdminPublicAccessSettings({
     setSaving(true);
 
     try {
-      const { error } = await supabase.rpc("set_public_access_settings", {
-        _is_public_access_blocked: nextPayload.is_public_access_blocked,
-        _is_live_page_blocked: nextPayload.is_live_page_blocked,
-        _is_championships_page_blocked:
-          nextPayload.is_championships_page_blocked,
-        _is_schedule_page_blocked: nextPayload.is_schedule_page_blocked,
-        _is_league_calendar_page_blocked:
-          nextPayload.is_league_calendar_page_blocked,
-        _is_links_page_blocked: nextPayload.is_links_page_blocked,
-        _blocked_message: nextPayload.blocked_message,
-        _announcement_message: nextPayload.announcement_message,
-        _announcement_content: nextPayload.announcement_content,
-        _announcement_type: nextPayload.announcement_type,
-      });
+      if (frontendEnvironment.apiUrl) {
+        const updatedSettings = await updatePublicAccessSettingsFromApi(
+          applySavePayload(publicAccessSettings, nextPayload),
+        );
+        setPublicAccessSettings(updatedSettings);
+        setLastSavedPayload(
+          resolvePublicAccessSettingsSavePayload(updatedSettings),
+        );
+      } else {
+        const { error } = await supabase.rpc("set_public_access_settings", {
+          _is_public_access_blocked: nextPayload.is_public_access_blocked,
+          _is_live_page_blocked: nextPayload.is_live_page_blocked,
+          _is_championships_page_blocked:
+            nextPayload.is_championships_page_blocked,
+          _is_schedule_page_blocked: nextPayload.is_schedule_page_blocked,
+          _is_league_calendar_page_blocked:
+            nextPayload.is_league_calendar_page_blocked,
+          _is_links_page_blocked: nextPayload.is_links_page_blocked,
+          _blocked_message: nextPayload.blocked_message,
+          _announcement_message: nextPayload.announcement_message,
+          _announcement_content: nextPayload.announcement_content,
+          _announcement_type: nextPayload.announcement_type,
+        });
 
-      if (error) {
-        toast.error(error.message);
-        return;
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
+
+        setLastSavedPayload(nextPayload);
       }
 
-      setLastSavedPayload(nextPayload);
       toast.success("Configuração pública atualizada.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível atualizar a configuração pública.",
+      );
     } finally {
       setSaving(false);
     }
