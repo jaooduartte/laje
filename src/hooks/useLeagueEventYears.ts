@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
+import { frontendEnvironment } from "@/config/environment";
+import { listLeagueEventYearsFromApi } from "@/integrations/laje-api/public-content";
 import { supabase } from "@/integrations/supabase/client";
 import { LeagueEventReservationRequestStatus } from "@/lib/enums";
 
-function resolveEventYears(rows: Array<{ event_date: string | null }> | null | undefined): number[] {
+function resolveEventYears(
+  rows: Array<{ event_date: string | null }> | null | undefined,
+): number[] {
   return (rows ?? [])
     .map((row) => {
       if (!row.event_date) {
@@ -40,29 +44,31 @@ export function useLeagueEventYears() {
     setLoading(true);
 
     try {
-      const [eventsResponse, reservationRequestsResponse] = await Promise.all([
-        supabase.from("league_events").select("event_date"),
-        supabase
-          .from("league_event_reservation_requests")
-          .select("event_date, status"),
-      ]);
-
       const nextYears = new Set<number>();
-      resolveEventYears(eventsResponse.data as Array<{ event_date: string | null }> | null | undefined).forEach(
-        (year) => nextYears.add(year),
-      );
-      resolvePendingReservationRequestYears(
-        reservationRequestsResponse.data as
-          | Array<{
-              event_date: string | null;
-              status: LeagueEventReservationRequestStatus;
-            }>
-          | null
-          | undefined,
-      ).forEach((year) => nextYears.add(year));
+
+      if (frontendEnvironment.apiUrl) {
+        (await listLeagueEventYearsFromApi()).forEach((year) => nextYears.add(year));
+      } else {
+        const [eventsResponse, reservationRequestsResponse] = await Promise.all([
+          supabase.from("league_events").select("event_date"),
+          supabase.from("league_event_reservation_requests").select("event_date, status"),
+        ]);
+
+        resolveEventYears(
+          eventsResponse.data as Array<{ event_date: string | null }> | null | undefined,
+        ).forEach((year) => nextYears.add(year));
+        resolvePendingReservationRequestYears(
+          reservationRequestsResponse.data as
+            | Array<{
+                event_date: string | null;
+                status: LeagueEventReservationRequestStatus;
+              }>
+            | null
+            | undefined,
+        ).forEach((year) => nextYears.add(year));
+      }
 
       nextYears.add(new Date().getFullYear());
-
       setYears([...nextYears].sort((firstYear, secondYear) => secondYear - firstYear));
     } catch (error) {
       console.error("Erro ao carregar anos disponíveis dos eventos:", error);

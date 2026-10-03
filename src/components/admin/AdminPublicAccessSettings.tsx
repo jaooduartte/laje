@@ -2,6 +2,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useEffect, useState } from "react";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
+import { frontendEnvironment } from "@/config/environment";
+import {
+  getPublicAccessSettingsFromApi,
+  updatePublicAccessSettingsFromApi,
+} from "@/integrations/laje-api/public-content";
 import { supabase } from "@/integrations/supabase/client";
 import {
   DEFAULT_PUBLIC_ACCESS_SETTINGS,
@@ -48,9 +53,7 @@ const announcementTypePreviewClassNames: Record<AnnouncementType, string> = {
   PROBLEM: "bg-destructive",
 };
 
-function normalizeOptionalMessage(
-  value: string | null | undefined,
-): string | null {
+function normalizeOptionalMessage(value: string | null | undefined): string | null {
   if (!value) {
     return null;
   }
@@ -70,58 +73,73 @@ function resolvePublicAccessSettingsSavePayload(
   return {
     is_public_access_blocked: publicAccessSettings.is_public_access_blocked,
     is_live_page_blocked: publicAccessSettings.is_live_page_blocked,
-    is_championships_page_blocked:
-      publicAccessSettings.is_championships_page_blocked,
+    is_championships_page_blocked: publicAccessSettings.is_championships_page_blocked,
     is_schedule_page_blocked: publicAccessSettings.is_schedule_page_blocked,
-    is_league_calendar_page_blocked:
-      publicAccessSettings.is_league_calendar_page_blocked,
+    is_league_calendar_page_blocked: publicAccessSettings.is_league_calendar_page_blocked,
     is_links_page_blocked: publicAccessSettings.is_links_page_blocked,
-    blocked_message: normalizeOptionalMessage(
-      publicAccessSettings.blocked_message,
-    ),
+    blocked_message: normalizeOptionalMessage(publicAccessSettings.blocked_message),
     announcement_message: resolveAnnouncementPlainText(announcementContent),
     announcement_content: announcementContent,
-    announcement_type: resolveAnnouncementType(
-      publicAccessSettings.announcement_type,
-    ),
+    announcement_type: resolveAnnouncementType(publicAccessSettings.announcement_type),
   };
 }
 
-export function AdminPublicAccessSettings({
-  canManageSettings = false,
-}: Props) {
+function applySavePayload(
+  publicAccessSettings: PublicAccessSettings,
+  payload: PublicAccessSettingsSavePayload,
+): PublicAccessSettings {
+  return {
+    ...publicAccessSettings,
+    ...payload,
+  };
+}
+
+export function AdminPublicAccessSettings({ canManageSettings = false }: Props) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [publicAccessSettings, setPublicAccessSettings] =
-    useState<PublicAccessSettings>(DEFAULT_PUBLIC_ACCESS_SETTINGS);
-  const [lastSavedPayload, setLastSavedPayload] =
-    useState<PublicAccessSettingsSavePayload>(
-      resolvePublicAccessSettingsSavePayload(DEFAULT_PUBLIC_ACCESS_SETTINGS),
-    );
+  const [publicAccessSettings, setPublicAccessSettings] = useState<PublicAccessSettings>(
+    DEFAULT_PUBLIC_ACCESS_SETTINGS,
+  );
+  const [lastSavedPayload, setLastSavedPayload] = useState<PublicAccessSettingsSavePayload>(
+    resolvePublicAccessSettingsSavePayload(DEFAULT_PUBLIC_ACCESS_SETTINGS),
+  );
 
   useEffect(() => {
     const fetchPublicAccessSettings = async () => {
       setLoading(true);
 
-      const { data, error } = await supabase.rpc("get_public_access_settings");
+      try {
+        let normalizedSettings: PublicAccessSettings;
 
-      if (error) {
-        toast.error(error.message);
+        if (frontendEnvironment.apiUrl) {
+          normalizedSettings = resolvePublicAccessSettings(await getPublicAccessSettingsFromApi());
+        } else {
+          const { data, error } = await supabase.rpc("get_public_access_settings");
+
+          if (error) {
+            toast.error(error.message);
+            return;
+          }
+
+          normalizedSettings = resolvePublicAccessSettings(
+            data as PublicAccessSettings[] | PublicAccessSettings | null,
+          );
+        }
+
+        setPublicAccessSettings(normalizedSettings);
+        setLastSavedPayload(resolvePublicAccessSettingsSavePayload(normalizedSettings));
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Não foi possível carregar as configurações públicas.",
+        );
+      } finally {
         setLoading(false);
-        return;
       }
-
-      const normalizedSettings = resolvePublicAccessSettings(
-        data as PublicAccessSettings[] | PublicAccessSettings | null,
-      );
-      setPublicAccessSettings(normalizedSettings);
-      setLastSavedPayload(
-        resolvePublicAccessSettingsSavePayload(normalizedSettings),
-      );
-      setLoading(false);
     };
 
-    fetchPublicAccessSettings();
+    void fetchPublicAccessSettings();
   }, []);
 
   const handleSaveSettings = async () => {
@@ -129,8 +147,7 @@ export function AdminPublicAccessSettings({
       return;
     }
 
-    const nextPayload =
-      resolvePublicAccessSettingsSavePayload(publicAccessSettings);
+    const nextPayload = resolvePublicAccessSettingsSavePayload(publicAccessSettings);
 
     if (JSON.stringify(nextPayload) == JSON.stringify(lastSavedPayload)) {
       toast.info("Nenhuma alteração para salvar.");
@@ -140,28 +157,41 @@ export function AdminPublicAccessSettings({
     setSaving(true);
 
     try {
-      const { error } = await supabase.rpc("set_public_access_settings", {
-        _is_public_access_blocked: nextPayload.is_public_access_blocked,
-        _is_live_page_blocked: nextPayload.is_live_page_blocked,
-        _is_championships_page_blocked:
-          nextPayload.is_championships_page_blocked,
-        _is_schedule_page_blocked: nextPayload.is_schedule_page_blocked,
-        _is_league_calendar_page_blocked:
-          nextPayload.is_league_calendar_page_blocked,
-        _is_links_page_blocked: nextPayload.is_links_page_blocked,
-        _blocked_message: nextPayload.blocked_message,
-        _announcement_message: nextPayload.announcement_message,
-        _announcement_content: nextPayload.announcement_content,
-        _announcement_type: nextPayload.announcement_type,
-      });
+      if (frontendEnvironment.apiUrl) {
+        const updatedSettings = await updatePublicAccessSettingsFromApi(
+          applySavePayload(publicAccessSettings, nextPayload),
+        );
+        setPublicAccessSettings(updatedSettings);
+        setLastSavedPayload(resolvePublicAccessSettingsSavePayload(updatedSettings));
+      } else {
+        const { error } = await supabase.rpc("set_public_access_settings", {
+          _is_public_access_blocked: nextPayload.is_public_access_blocked,
+          _is_live_page_blocked: nextPayload.is_live_page_blocked,
+          _is_championships_page_blocked: nextPayload.is_championships_page_blocked,
+          _is_schedule_page_blocked: nextPayload.is_schedule_page_blocked,
+          _is_league_calendar_page_blocked: nextPayload.is_league_calendar_page_blocked,
+          _is_links_page_blocked: nextPayload.is_links_page_blocked,
+          _blocked_message: nextPayload.blocked_message,
+          _announcement_message: nextPayload.announcement_message,
+          _announcement_content: nextPayload.announcement_content,
+          _announcement_type: nextPayload.announcement_type,
+        });
 
-      if (error) {
-        toast.error(error.message);
-        return;
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
+
+        setLastSavedPayload(nextPayload);
       }
 
-      setLastSavedPayload(nextPayload);
       toast.success("Configuração pública atualizada.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível atualizar a configuração pública.",
+      );
     } finally {
       setSaving(false);
     }
@@ -230,8 +260,7 @@ export function AdminPublicAccessSettings({
       <div>
         <p className="text-sm font-semibold">Acesso às telas públicas</p>
         <p className="text-xs text-muted-foreground">
-          Bloqueie o acesso por manutenção. O bloqueio afeta menu e acesso
-          direto por URL.
+          Bloqueie o acesso por manutenção. O bloqueio afeta menu e acesso direto por URL.
         </p>
       </div>
 
@@ -264,36 +293,30 @@ export function AdminPublicAccessSettings({
         </p>
 
         <div className="space-y-3">
-          {PUBLIC_PAGE_ACCESS_FIELD_ORDER.map(
-            (publicPageAccessSettingField) => (
-              <div
-                key={publicPageAccessSettingField}
-                className="flex items-center justify-between gap-3"
-              >
-                <p className="text-sm">
-                  {PUBLIC_PAGE_ACCESS_LABELS[publicPageAccessSettingField]}
-                </p>
-                <Switch
-                  checked={publicAccessSettings[publicPageAccessSettingField]}
-                  onCheckedChange={(isPageBlocked) =>
-                    setPublicAccessSettings((currentPublicAccessSettings) => ({
-                      ...currentPublicAccessSettings,
-                      [publicPageAccessSettingField]: isPageBlocked,
-                    }))
-                  }
-                  disabled={!canManageSettings}
-                  aria-label={`Bloquear tela ${PUBLIC_PAGE_ACCESS_LABELS[publicPageAccessSettingField]}`}
-                />
-              </div>
-            ),
-          )}
+          {PUBLIC_PAGE_ACCESS_FIELD_ORDER.map((publicPageAccessSettingField) => (
+            <div
+              key={publicPageAccessSettingField}
+              className="flex items-center justify-between gap-3"
+            >
+              <p className="text-sm">{PUBLIC_PAGE_ACCESS_LABELS[publicPageAccessSettingField]}</p>
+              <Switch
+                checked={publicAccessSettings[publicPageAccessSettingField]}
+                onCheckedChange={(isPageBlocked) =>
+                  setPublicAccessSettings((currentPublicAccessSettings) => ({
+                    ...currentPublicAccessSettings,
+                    [publicPageAccessSettingField]: isPageBlocked,
+                  }))
+                }
+                disabled={!canManageSettings}
+                aria-label={`Bloquear tela ${PUBLIC_PAGE_ACCESS_LABELS[publicPageAccessSettingField]}`}
+              />
+            </div>
+          ))}
         </div>
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="public-access-blocked-message">
-          Mensagem de manutenção (opcional)
-        </Label>
+        <Label htmlFor="public-access-blocked-message">Mensagem de manutenção (opcional)</Label>
         <Textarea
           id="public-access-blocked-message"
           value={publicAccessSettings.blocked_message ?? ""}
@@ -310,9 +333,7 @@ export function AdminPublicAccessSettings({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="public-access-announcement-message">
-          Aviso no app (opcional)
-        </Label>
+        <Label htmlFor="public-access-announcement-message">Aviso no app (opcional)</Label>
         <AnnouncementRichTextEditor
           id="public-access-announcement-message"
           value={resolveAnnouncementContent(
@@ -354,7 +375,9 @@ export function AdminPublicAccessSettings({
                   />
                   <span>
                     <span className="block text-sm font-medium">{option.label}</span>
-                    <span className="block text-xs text-muted-foreground">{option.description}</span>
+                    <span className="block text-xs text-muted-foreground">
+                      {option.description}
+                    </span>
                     <span
                       aria-hidden="true"
                       className={`mt-2 block h-1.5 w-full rounded-full ${announcementTypePreviewClassNames[option.value]}`}
@@ -366,7 +389,8 @@ export function AdminPublicAccessSettings({
           </RadioGroup>
         </div>
         <p className="text-xs text-muted-foreground">
-          Quando preenchido, aparece abaixo do cabeçalho em todas as telas do app. O aviso aceita negrito, itálico e sublinhado, sem quebras de linha.
+          Quando preenchido, aparece abaixo do cabeçalho em todas as telas do app. O aviso aceita
+          negrito, itálico e sublinhado, sem quebras de linha.
         </p>
       </div>
 

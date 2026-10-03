@@ -1,12 +1,30 @@
 import { format } from "date-fns";
+import { frontendEnvironment } from "@/config/environment";
+import type { LeagueEventReservationCreatePayload } from "@/domain/league-events/leagueEvent.types";
+import {
+  createLeagueEventReservationRequestFromApi,
+  fetchPendingReservationRequestCountFromApi,
+  listLeagueEventReservationRequestsFromApi,
+  reviewLeagueEventReservationRequestFromApi,
+} from "@/integrations/laje-api/public-content";
+import { listPendingReservationConflictsFromApi } from "@/integrations/laje-api/reservation-conflicts";
 import { supabase } from "@/integrations/supabase/client";
-import type { TablesInsert } from "@/integrations/supabase/types";
 import { LeagueEventReservationRequestStatus } from "@/lib/enums";
 import type { LeagueEvent, LeagueEventReservationRequest } from "@/lib/types";
 
 interface FetchLeagueEventReservationRequestsOptions {
   year: number;
   status?: LeagueEventReservationRequestStatus | null;
+}
+
+function shouldUseLajeApi() {
+  return Boolean(frontendEnvironment.apiUrl);
+}
+
+function normalizeApiError(error: unknown): Error {
+  return error instanceof Error
+    ? error
+    : new Error("Não foi possível acessar as reservas do calendário.");
 }
 
 function resolveReservationRequestSelectQuery() {
@@ -17,6 +35,17 @@ export async function fetchLeagueEventReservationRequests({
   year,
   status = null,
 }: FetchLeagueEventReservationRequestsOptions) {
+  if (shouldUseLajeApi()) {
+    try {
+      return {
+        data: await listLeagueEventReservationRequestsFromApi({ year, status }),
+        error: null,
+      };
+    } catch (error) {
+      return { data: [], error: normalizeApiError(error) };
+    }
+  }
+
   let query = supabase
     .from("league_event_reservation_requests")
     .select(resolveReservationRequestSelectQuery())
@@ -32,11 +61,20 @@ export async function fetchLeagueEventReservationRequests({
 }
 
 export async function createLeagueEventReservationRequest(
-  payload: TablesInsert<"league_event_reservation_requests">,
+  payload: LeagueEventReservationCreatePayload,
 ) {
-  return supabase
-    .from("league_event_reservation_requests")
-    .insert(payload);
+  if (shouldUseLajeApi()) {
+    try {
+      return {
+        data: await createLeagueEventReservationRequestFromApi(payload),
+        error: null,
+      };
+    } catch (error) {
+      return { data: null, error: normalizeApiError(error) };
+    }
+  }
+
+  return supabase.from("league_event_reservation_requests").insert(payload);
 }
 
 export async function reviewLeagueEventReservationRequest({
@@ -45,7 +83,9 @@ export async function reviewLeagueEventReservationRequest({
   reviewNotes,
 }: {
   requestId: string;
-  decision: LeagueEventReservationRequestStatus.APPROVED | LeagueEventReservationRequestStatus.REJECTED;
+  decision:
+    | LeagueEventReservationRequestStatus.APPROVED
+    | LeagueEventReservationRequestStatus.REJECTED;
   reviewNotes?: string;
 }): Promise<{
   data: {
@@ -54,6 +94,19 @@ export async function reviewLeagueEventReservationRequest({
   } | null;
   error: Error | null;
 }> {
+  if (shouldUseLajeApi()) {
+    try {
+      const data = await reviewLeagueEventReservationRequestFromApi({
+        requestId,
+        decision,
+        reviewNotes: reviewNotes?.trim() || undefined,
+      });
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error: normalizeApiError(error) };
+    }
+  }
+
   const response = await supabase.rpc("review_league_event_reservation_request", {
     _request_id: requestId,
     _decision: decision,
@@ -67,23 +120,32 @@ export async function reviewLeagueEventReservationRequest({
     };
   }
 
-  const payload = response.data as
-    | {
-        request?: LeagueEventReservationRequest | null;
-        league_event?: LeagueEvent | null;
-      }
-    | null;
+  const responsePayload = response.data as {
+    request?: LeagueEventReservationRequest | null;
+    league_event?: LeagueEvent | null;
+  } | null;
 
   return {
     data: {
-      request: payload?.request ?? null,
-      league_event: payload?.league_event ?? null,
+      request: responsePayload?.request ?? null,
+      league_event: responsePayload?.league_event ?? null,
     },
     error: null,
   };
 }
 
 export async function fetchPendingReservationRequestsByDate(date: string) {
+  if (shouldUseLajeApi()) {
+    try {
+      return {
+        data: await listPendingReservationConflictsFromApi(date),
+        error: null,
+      };
+    } catch (error) {
+      return { data: [], error: normalizeApiError(error) };
+    }
+  }
+
   return supabase
     .from("league_event_reservation_requests")
     .select(resolveReservationRequestSelectQuery())
@@ -92,6 +154,18 @@ export async function fetchPendingReservationRequestsByDate(date: string) {
 }
 
 export async function fetchPendingLeagueEventReservationRequestCount() {
+  if (shouldUseLajeApi()) {
+    try {
+      return {
+        count: await fetchPendingReservationRequestCountFromApi(),
+        data: null,
+        error: null,
+      };
+    } catch (error) {
+      return { count: null, data: null, error: normalizeApiError(error) };
+    }
+  }
+
   return supabase
     .from("league_event_reservation_requests")
     .select("id", { count: "exact", head: true })
@@ -105,7 +179,7 @@ export function bindLeagueEventReservationRequestPayload(formValues: {
   eventDate: Date | null;
   requesterName: string;
   requesterEmail: string;
-}): TablesInsert<"league_event_reservation_requests"> {
+}): LeagueEventReservationCreatePayload {
   const normalizedEventName = formValues.eventName.trim();
   const normalizedRequesterName = formValues.requesterName.trim();
   const normalizedRequesterEmail = formValues.requesterEmail.trim().toLowerCase();
@@ -141,7 +215,7 @@ export function bindLeagueEventReservationRequestPayload(formValues: {
   return {
     team_id: formValues.teamId,
     event_name: normalizedEventName,
-    event_type: formValues.eventType,
+    event_type: formValues.eventType as LeagueEventReservationCreatePayload["event_type"],
     event_date: format(formValues.eventDate, "yyyy-MM-dd"),
     requester_name: normalizedRequesterName,
     requester_email: normalizedRequesterEmail,

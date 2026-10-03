@@ -1,5 +1,12 @@
+import { frontendEnvironment } from "@/config/environment";
+import type { LeagueEventWritePayload } from "@/domain/league-events/leagueEvent.types";
+import {
+  createLeagueEventFromApi,
+  deleteLeagueEventFromApi,
+  listLeagueEventsFromApi,
+  updateLeagueEventFromApi,
+} from "@/integrations/laje-api/public-content";
 import { supabase } from "@/integrations/supabase/client";
-import type { TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 import { LeagueEventOrganizerType } from "@/lib/enums";
 import type { LeagueEvent, Team } from "@/lib/types";
 
@@ -15,8 +22,18 @@ interface LeagueEventOrganizerTeamsRelationRow {
 
 const LEAGUE_EVENT_SELECT_QUERY = "*, organizer_team:teams!league_events_organizer_team_id_fkey(*)";
 
+function shouldUseLajeApi() {
+  return Boolean(frontendEnvironment.apiUrl);
+}
+
+function normalizeApiError(error: unknown): Error {
+  return error instanceof Error ? error : new Error("Não foi possível acessar os eventos da liga.");
+}
+
 function resolveOrderedOrganizerTeams(organizerTeams: Team[]) {
-  return [...organizerTeams].sort((firstTeam, secondTeam) => firstTeam.name.localeCompare(secondTeam.name));
+  return [...organizerTeams].sort((firstTeam, secondTeam) =>
+    firstTeam.name.localeCompare(secondTeam.name),
+  );
 }
 
 function mapLeagueEvents(
@@ -43,22 +60,26 @@ async function fetchOrganizerTeamsByEventIds(eventIds: string[]) {
     return {};
   }
 
-  return (response.data ?? []).reduce<Record<string, Team[]>>((organizerTeamsByEventId, organizerRelation) => {
-    const leagueEventOrganizerRelation = organizerRelation as LeagueEventOrganizerTeamsRelationRow;
-    const eventId = leagueEventOrganizerRelation.event_id;
-    const organizerTeam = leagueEventOrganizerRelation.team;
+  return (response.data ?? []).reduce<Record<string, Team[]>>(
+    (organizerTeamsByEventId, organizerRelation) => {
+      const leagueEventOrganizerRelation =
+        organizerRelation as LeagueEventOrganizerTeamsRelationRow;
+      const eventId = leagueEventOrganizerRelation.event_id;
+      const organizerTeam = leagueEventOrganizerRelation.team;
 
-    if (!eventId || !organizerTeam) {
+      if (!eventId || !organizerTeam) {
+        return organizerTeamsByEventId;
+      }
+
+      if (!organizerTeamsByEventId[eventId]) {
+        organizerTeamsByEventId[eventId] = [];
+      }
+
+      organizerTeamsByEventId[eventId].push(organizerTeam);
       return organizerTeamsByEventId;
-    }
-
-    if (!organizerTeamsByEventId[eventId]) {
-      organizerTeamsByEventId[eventId] = [];
-    }
-
-    organizerTeamsByEventId[eventId].push(organizerTeam);
-    return organizerTeamsByEventId;
-  }, {});
+    },
+    {},
+  );
 }
 
 async function fetchLeagueEventById(eventId: string) {
@@ -85,7 +106,8 @@ async function fetchLeagueEventById(eventId: string) {
     const organizerTeamsByEventId = await fetchOrganizerTeamsByEventIds([eventId]);
 
     return {
-      data: mapLeagueEvents([basicResponse.data as LeagueEvent], organizerTeamsByEventId)[0] ?? null,
+      data:
+        mapLeagueEvents([basicResponse.data as LeagueEvent], organizerTeamsByEventId)[0] ?? null,
       error: null,
     };
   }
@@ -108,7 +130,10 @@ async function fetchLeagueEventById(eventId: string) {
 async function replaceLeagueEventOrganizerTeams(eventId: string, organizerTeamIds: string[]) {
   const normalizedOrganizerTeamIds = [...new Set(organizerTeamIds)];
 
-  const deleteResponse = await supabase.from("league_event_organizer_teams").delete().eq("event_id", eventId);
+  const deleteResponse = await supabase
+    .from("league_event_organizer_teams")
+    .delete()
+    .eq("event_id", eventId);
 
   if (deleteResponse.error) {
     return deleteResponse.error;
@@ -128,6 +153,17 @@ async function replaceLeagueEventOrganizerTeams(eventId: string, organizerTeamId
 }
 
 export async function fetchLeagueEventsByDateRange({ startDate, endDate }: DateRangeFilter) {
+  if (shouldUseLajeApi()) {
+    try {
+      return {
+        data: await listLeagueEventsFromApi({ startDate, endDate }),
+        error: null,
+      };
+    } catch (error) {
+      return { data: [], error: normalizeApiError(error) };
+    }
+  }
+
   const response = await supabase
     .from("league_events")
     .select(LEAGUE_EVENT_SELECT_QUERY)
@@ -174,12 +210,22 @@ export async function fetchLeagueEventsByDateRange({ startDate, endDate }: DateR
   };
 }
 
-export async function createLeagueEvent(payload: TablesInsert<"league_events">, organizerTeamIds: string[]) {
-  const createResponse = await supabase
-    .from("league_events")
-    .insert(payload)
-    .select("id")
-    .single();
+export async function createLeagueEvent(
+  payload: LeagueEventWritePayload,
+  organizerTeamIds: string[],
+) {
+  if (shouldUseLajeApi()) {
+    try {
+      return {
+        data: await createLeagueEventFromApi(payload, organizerTeamIds),
+        error: null,
+      };
+    } catch (error) {
+      return { data: null, error: normalizeApiError(error) };
+    }
+  }
+
+  const createResponse = await supabase.from("league_events").insert(payload).select("id").single();
 
   if (createResponse.error || !createResponse.data) {
     return {
@@ -189,7 +235,10 @@ export async function createLeagueEvent(payload: TablesInsert<"league_events">, 
   }
 
   if (payload.organizer_type == LeagueEventOrganizerType.ATHLETIC) {
-    const syncError = await replaceLeagueEventOrganizerTeams(createResponse.data.id, organizerTeamIds);
+    const syncError = await replaceLeagueEventOrganizerTeams(
+      createResponse.data.id,
+      organizerTeamIds,
+    );
 
     if (syncError) {
       await supabase.from("league_events").delete().eq("id", createResponse.data.id);
@@ -204,7 +253,22 @@ export async function createLeagueEvent(payload: TablesInsert<"league_events">, 
   return fetchLeagueEventById(createResponse.data.id);
 }
 
-export async function updateLeagueEvent(eventId: string, payload: TablesUpdate<"league_events">, organizerTeamIds: string[]) {
+export async function updateLeagueEvent(
+  eventId: string,
+  payload: LeagueEventWritePayload,
+  organizerTeamIds: string[],
+) {
+  if (shouldUseLajeApi()) {
+    try {
+      return {
+        data: await updateLeagueEventFromApi(eventId, payload, organizerTeamIds),
+        error: null,
+      };
+    } catch (error) {
+      return { data: null, error: normalizeApiError(error) };
+    }
+  }
+
   const updateResponse = await supabase
     .from("league_events")
     .update(payload)
@@ -236,5 +300,14 @@ export async function updateLeagueEvent(eventId: string, payload: TablesUpdate<"
 }
 
 export async function deleteLeagueEvent(eventId: string) {
+  if (shouldUseLajeApi()) {
+    try {
+      await deleteLeagueEventFromApi(eventId);
+      return { data: null, error: null };
+    } catch (error) {
+      return { data: null, error: normalizeApiError(error) };
+    }
+  }
+
   return supabase.from("league_events").delete().eq("id", eventId);
 }

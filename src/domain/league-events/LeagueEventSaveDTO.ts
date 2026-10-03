@@ -1,7 +1,9 @@
-import type { TablesInsert } from "@/integrations/supabase/types";
 import { format } from "date-fns";
 import { LeagueEventOrganizerType, LeagueEventType } from "@/lib/enums";
-import type { LeagueEventFormValues } from "@/domain/league-events/leagueEvent.types";
+import type {
+  LeagueEventFormValues,
+  LeagueEventWritePayload,
+} from "@/domain/league-events/leagueEvent.types";
 
 export class LeagueEventSaveDTO {
   private readonly formValues: LeagueEventFormValues;
@@ -15,10 +17,14 @@ export class LeagueEventSaveDTO {
   }
 
   resolveOrganizerTeamIds(): string[] {
-    return [...new Set(this.formValues.organizerTeamIds.filter((organizerTeamId) => organizerTeamId.length > 0))];
+    return [
+      ...new Set(
+        this.formValues.organizerTeamIds.filter((organizerTeamId) => organizerTeamId.length > 0),
+      ),
+    ];
   }
 
-  bindToSave(): TablesInsert<"league_events"> {
+  bindToSave(): LeagueEventWritePayload {
     const normalizedName = this.formValues.name.trim();
     const resolvedEventType = this.formValues.eventType;
 
@@ -40,9 +46,13 @@ export class LeagueEventSaveDTO {
         : LeagueEventOrganizerType.ATHLETIC;
 
     const resolvedOrganizerTeamIds =
-      resolvedOrganizerType == LeagueEventOrganizerType.ATHLETIC ? this.resolveOrganizerTeamIds() : [];
+      resolvedOrganizerType == LeagueEventOrganizerType.ATHLETIC
+        ? this.resolveOrganizerTeamIds()
+        : [];
     const resolvedOrganizerTeamId =
-      resolvedOrganizerType == LeagueEventOrganizerType.ATHLETIC ? (resolvedOrganizerTeamIds[0] ?? null) : null;
+      resolvedOrganizerType == LeagueEventOrganizerType.ATHLETIC
+        ? (resolvedOrganizerTeamIds[0] ?? null)
+        : null;
 
     if (resolvedOrganizerType == LeagueEventOrganizerType.ATHLETIC && !resolvedOrganizerTeamId) {
       throw new Error("Selecione ao menos uma atlética organizadora.");

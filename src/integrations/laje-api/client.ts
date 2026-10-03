@@ -22,6 +22,12 @@ export class LajeApiError extends Error {
   }
 }
 
+let lajeApiAccessToken: string | null = null;
+
+export function setLajeApiAccessToken(accessToken: string | null) {
+  lajeApiAccessToken = accessToken;
+}
+
 function resolveApiBaseUrl(): string {
   const apiUrl = frontendEnvironment.apiUrl?.replace(/\/+$/, "");
 
@@ -42,13 +48,14 @@ export async function lajeApiRequest<ResponseType>(
   accessToken?: string | null,
 ): Promise<ResponseType> {
   const headers = new Headers(options.headers);
+  const resolvedAccessToken = accessToken ?? lajeApiAccessToken;
 
   if (options.body != null && !headers.has("content-type")) {
     headers.set("content-type", "application/json");
   }
 
-  if (accessToken) {
-    headers.set("authorization", `Bearer ${accessToken}`);
+  if (resolvedAccessToken) {
+    headers.set("authorization", `Bearer ${resolvedAccessToken}`);
   }
 
   const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
