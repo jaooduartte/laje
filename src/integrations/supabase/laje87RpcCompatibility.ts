@@ -8,8 +8,9 @@ import {
   updatePublicLinkSectionFromApi,
   type PublicLinkFilterWriteInput,
 } from "@/integrations/laje-api/public-content";
-import type { Database } from "./types";
+import { PublicLinkFilterMode } from "@/lib/enums";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "./types";
 
 const MIGRATED_PUBLIC_LINK_RPCS = new Set([
   "upsert_public_link_section",
@@ -20,6 +21,7 @@ const MIGRATED_PUBLIC_LINK_RPCS = new Set([
 
 type LajeSupabaseClient = SupabaseClient<Database>;
 type RpcArguments = Record<string, unknown> | undefined;
+type RpcInvoker = (rpcName: string, args?: RpcArguments, options?: unknown) => unknown;
 
 function successResult<DataType>(data: DataType) {
   return {
@@ -79,6 +81,17 @@ function requireLegacyBoolean(args: RpcArguments, key: string): boolean {
   return value;
 }
 
+function requireLegacyFilterMode(args: RpcArguments): PublicLinkFilterMode {
+  const value = requireLegacyString(args, "_filter_mode");
+  if (
+    value !== PublicLinkFilterMode.GLOBAL &&
+    value !== PublicLinkFilterMode.BY_CHAMPIONSHIP_YEAR
+  ) {
+    throw new Error("Modo de filtro legado inválido.");
+  }
+  return value;
+}
+
 function parseLegacyFilters(args: RpcArguments): PublicLinkFilterWriteInput[] {
   const filters = args?._filters;
   if (!Array.isArray(filters)) return [];
@@ -122,7 +135,7 @@ async function executeMigratedPublicLinksRpc(rpcName: string, args: RpcArguments
       }
       case "upsert_public_link_item": {
         const itemId = optionalLegacyString(args, "_item_id");
-        const filterMode = requireLegacyString(args, "_filter_mode") as "GLOBAL" | "BY_CHAMPIONSHIP_YEAR";
+        const filterMode = requireLegacyFilterMode(args);
         const input = {
           sectionId: requireLegacyString(args, "_section_id"),
           displayName: requireLegacyString(args, "_display_name"),
@@ -130,7 +143,10 @@ async function executeMigratedPublicLinksRpc(rpcName: string, args: RpcArguments
           sortOrder: requireLegacyNumber(args, "_sort_order"),
           isActive: requireLegacyBoolean(args, "_is_active"),
           filterMode,
-          filters: filterMode === "BY_CHAMPIONSHIP_YEAR" ? parseLegacyFilters(args) : [],
+          filters:
+            filterMode === PublicLinkFilterMode.BY_CHAMPIONSHIP_YEAR
+              ? parseLegacyFilters(args)
+              : [],
         };
         const item = itemId
           ? await updatePublicLinkItemFromApi(itemId, input)
@@ -173,11 +189,8 @@ export function withLaje87RpcCompatibility(client: LajeSupabaseClient): LajeSupa
           return executeMigratedPublicLinksRpc(rpcName, args);
         }
 
-        return target.rpc(
-          rpcName as never,
-          args as never,
-          options as never,
-        );
+        const invokeRpc = target.rpc.bind(target) as unknown as RpcInvoker;
+        return invokeRpc(rpcName, args, options);
       };
     },
   }) as LajeSupabaseClient;
