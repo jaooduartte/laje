@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
 import type { ChampionshipSport, Sport } from "@/lib/types";
 
@@ -110,7 +111,7 @@ export function useSports({
 
     fetchSports();
 
-    if (!realtimeEnabled) {
+    if (!realtimeEnabled || !isSupabaseBackendEnabled()) {
       return;
     }
 
