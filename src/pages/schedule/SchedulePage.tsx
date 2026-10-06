@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { isAwsBackendEnabled } from "@/config/environment";
+import { listSportsCoreMatches } from "@/integrations/laje-api/sports-core";
 import { supabase } from "@/integrations/supabase/client";
 import { useMatches } from "@/hooks/useMatches";
 import { useSports } from "@/hooks/useSports";
@@ -227,6 +229,37 @@ export function SchedulePage() {
 
       if (groupFilter && groupNumber == null) {
         setFilterOptionRows([]);
+        return;
+      }
+
+      if (isAwsBackendEnabled()) {
+        try {
+          const { matches } = await listSportsCoreMatches({
+            championshipId: selectedChampionshipId,
+            seasonYear: correctedYearFilter,
+            statuses: [statusFilter],
+            sportId: sportFilter,
+            teamId: teamFilter,
+            naipe: naipeFilter,
+            division:
+              selectedChampionshipHasDivisions &&
+              divisionFilter != ALL_SCHEDULE_DIVISIONS_FILTER
+                ? (divisionFilter as TeamDivision)
+                : undefined,
+            groupNumber,
+            includePendingManualRelocation: false,
+          });
+
+          setFilterOptionRows(
+            matches.map((match) => ({
+              location: match.location,
+              court_name: match.court_name,
+            })),
+          );
+        } catch (error) {
+          console.error("Erro ao carregar filtros de local e quadra pela laje-api:", error);
+          setFilterOptionRows([]);
+        }
         return;
       }
 
