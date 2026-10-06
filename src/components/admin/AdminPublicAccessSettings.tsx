@@ -2,7 +2,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useEffect, useState } from "react";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
-import { frontendEnvironment } from "@/config/environment";
+import { isAwsBackendEnabled } from "@/config/environment";
 import {
   getPublicAccessSettingsFromApi,
   updatePublicAccessSettingsFromApi,
@@ -111,7 +111,7 @@ export function AdminPublicAccessSettings({ canManageSettings = false }: Props) 
       try {
         let normalizedSettings: PublicAccessSettings;
 
-        if (frontendEnvironment.apiUrl) {
+        if (isAwsBackendEnabled()) {
           normalizedSettings = resolvePublicAccessSettings(await getPublicAccessSettingsFromApi());
         } else {
           const { data, error } = await supabase.rpc("get_public_access_settings");
@@ -157,7 +157,7 @@ export function AdminPublicAccessSettings({ canManageSettings = false }: Props) 
     setSaving(true);
 
     try {
-      if (frontendEnvironment.apiUrl) {
+      if (isAwsBackendEnabled()) {
         const updatedSettings = await updatePublicAccessSettingsFromApi(
           applySavePayload(publicAccessSettings, nextPayload),
         );
