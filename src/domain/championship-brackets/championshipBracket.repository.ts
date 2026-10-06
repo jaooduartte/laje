@@ -1,3 +1,5 @@
+import { isAwsBackendEnabled } from "@/config/environment";
+import { getSportsCoreBracket } from "@/integrations/laje-api/sports-core";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import type {
@@ -673,6 +675,10 @@ export async function fetchChampionshipCorrectedGroupStandings(
   data: ChampionshipCorrectedGroupStanding[];
   error: Error | null;
 }> {
+  if (isAwsBackendEnabled()) {
+    return { data: [], error: null };
+  }
+
   const response = await supabase.rpc(
     "get_championship_corrected_group_standings",
     {
@@ -719,6 +725,10 @@ export async function fetchChampionshipGroupStageStandings(
   data: ChampionshipGroupStageStanding[];
   error: Error | null;
 }> {
+  if (isAwsBackendEnabled()) {
+    return { data: [], error: null };
+  }
+
   const response = await supabaseLoose.rpc("get_championship_group_stage_qualification_display_metrics", {
     _championship_id: championship_id,
     _season_year: season_year ?? null,
@@ -814,6 +824,27 @@ export async function fetchChampionshipBracketView(
   championship_id: string,
   season_year?: number | null,
 ): Promise<{ data: ChampionshipBracketView | null; error: Error | null }> {
+  if (isAwsBackendEnabled()) {
+    if (typeof season_year != "number") {
+      return {
+        data: null,
+        error: new Error("A temporada é obrigatória para consultar o chaveamento pela laje-api."),
+      };
+    }
+
+    try {
+      return {
+        data: (await getSportsCoreBracket(championship_id, season_year)) as ChampionshipBracketView,
+        error: null,
+      };
+    } catch (error) {
+      return {
+        data: null,
+        error: error instanceof Error ? error : new Error("Falha ao carregar chaveamento pela laje-api."),
+      };
+    }
+  }
+
   const response = await supabase.rpc("get_championship_bracket_view", {
     _championship_id: championship_id,
     _season_year: season_year ?? null,
