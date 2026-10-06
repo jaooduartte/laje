@@ -17,7 +17,8 @@ export async function fetchHomeDashboardMetrics(
     } catch (error) {
       return {
         data: null,
-        error: error instanceof Error ? error : new Error("Falha ao carregar métricas pela laje-api."),
+        error:
+          error instanceof Error ? error : new Error("Falha ao carregar métricas pela laje-api."),
       };
     }
   }
