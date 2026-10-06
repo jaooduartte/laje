@@ -32,9 +32,13 @@ export function usePendingLeagueEventReservationRequests() {
 
     const channel = supabase
       .channel("league-event-reservation-requests-pending-count")
-      .on("postgres_changes", { event: "*", schema: "public", table: "league_event_reservation_requests" }, () => {
-        fetchCount();
-      })
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "league_event_reservation_requests" },
+        () => {
+          fetchCount();
+        },
+      )
       .subscribe();
 
     return () => {
