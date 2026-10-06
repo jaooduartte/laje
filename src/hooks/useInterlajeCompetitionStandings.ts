@@ -28,14 +28,7 @@ export function useInterlajeCompetitionStandings({
   const [loading, setLoading] = useState(false);
 
   const refetch = useCallback(async () => {
-    if (
-      !enabled ||
-      !championshipId ||
-      !seasonYear ||
-      !sportId ||
-      !naipe ||
-      isAwsBackendEnabled()
-    ) {
+    if (!enabled || !championshipId || !seasonYear || !sportId || !naipe || isAwsBackendEnabled()) {
       setStandings([]);
       setLoading(false);
       return;
