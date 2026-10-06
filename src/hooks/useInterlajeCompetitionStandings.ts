@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import {
   fetchInterlajeCompetitionStandings,
   type InterlajeCompetitionStanding,
