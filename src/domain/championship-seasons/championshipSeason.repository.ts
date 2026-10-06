@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import {
+  getSportsCoreSeason,
   isDedicatedSportsCoreEnabled,
   updateSportsCoreSeason,
 } from "@/integrations/laje-api/sports-core";
@@ -48,18 +49,29 @@ export async function fetchChampionshipSeasonSettings(
     return cachedResult.result;
   }
 
-  const request = supabase
-    .from("championship_season_settings")
-    .select("*")
-    .eq("championship_id", championshipId)
-    .eq("season_year", seasonYear)
-    .maybeSingle()
-    .then((response) => {
-      const result: ChampionshipSeasonSettingsResult = {
-        data: (response.data as ChampionshipSeasonSettings | null) ?? null,
-        error: response.error,
-      };
-
+  const request = (
+    isDedicatedSportsCoreEnabled()
+      ? getSportsCoreSeason(championshipId, seasonYear)
+          .then((data) => ({ data, error: null }))
+          .catch((error) => ({
+            data: null,
+            error:
+              error instanceof Error
+                ? error
+                : new Error("Não foi possível carregar a temporada pela laje-api."),
+          }))
+      : supabase
+          .from("championship_season_settings")
+          .select("*")
+          .eq("championship_id", championshipId)
+          .eq("season_year", seasonYear)
+          .maybeSingle()
+          .then((response) => ({
+            data: (response.data as ChampionshipSeasonSettings | null) ?? null,
+            error: response.error,
+          }))
+  )
+    .then((result) => {
       if (!result.error) {
         championshipSeasonSettingsResultByKey.set(requestKey, {
           expiresAt: Date.now() + CHAMPIONSHIP_SEASON_SETTINGS_CACHE_TTL_MS,
