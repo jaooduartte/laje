@@ -90,21 +90,14 @@ function fetchSharedChampionshipYellowCardDiscipline(
   seasonYear: number,
   forceFresh = false,
 ) {
-  const requestKey = resolveChampionshipYellowCardDisciplineRequestKey(
-    championshipId,
-    seasonYear,
-  );
-  const currentRequest = championshipYellowCardDisciplineRequestByKey.get(
-    requestKey,
-  );
+  const requestKey = resolveChampionshipYellowCardDisciplineRequestKey(championshipId, seasonYear);
+  const currentRequest = championshipYellowCardDisciplineRequestByKey.get(requestKey);
 
   if (currentRequest) {
     return currentRequest;
   }
 
-  const cachedResult = championshipYellowCardDisciplineResultByKey.get(
-    requestKey,
-  );
+  const cachedResult = championshipYellowCardDisciplineResultByKey.get(requestKey);
 
   if (!forceFresh && cachedResult && cachedResult.expiresAt > Date.now()) {
     return Promise.resolve(cachedResult.result);
@@ -117,15 +110,13 @@ function fetchSharedChampionshipYellowCardDiscipline(
     })
     .then((response) => {
       const result = {
-        data:
-          (response.data as unknown as ChampionshipYellowCardDiscipline) ?? null,
+        data: (response.data as unknown as ChampionshipYellowCardDiscipline) ?? null,
         error: response.error,
       };
 
       if (!result.error) {
         championshipYellowCardDisciplineResultByKey.set(requestKey, {
-          expiresAt:
-            Date.now() + CHAMPIONSHIP_YELLOW_CARD_DISCIPLINE_REALTIME_DEBOUNCE_MS,
+          expiresAt: Date.now() + CHAMPIONSHIP_YELLOW_CARD_DISCIPLINE_REALTIME_DEBOUNCE_MS,
           result,
         });
       }
@@ -142,10 +133,7 @@ function fetchSharedChampionshipYellowCardDiscipline(
   return request;
 }
 
-function invalidateChampionshipYellowCardDiscipline(
-  championshipId: string,
-  seasonYear: number,
-) {
+function invalidateChampionshipYellowCardDiscipline(championshipId: string, seasonYear: number) {
   championshipYellowCardDisciplineResultByKey.delete(
     resolveChampionshipYellowCardDisciplineRequestKey(championshipId, seasonYear),
   );
@@ -162,8 +150,7 @@ export function useChampionshipYellowCardDiscipline({
   enabled?: boolean;
   realtimeEnabled?: boolean;
 }) {
-  const [discipline, setDiscipline] =
-    useState<ChampionshipYellowCardDiscipline | null>(null);
+  const [discipline, setDiscipline] = useState<ChampionshipYellowCardDiscipline | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scheduledRefetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -171,55 +158,57 @@ export function useChampionshipYellowCardDiscipline({
   const hasQueuedRefetchRef = useRef(false);
   const shouldForceFreshOnQueuedRefetchRef = useRef(false);
 
-  const fetch = useCallback(async (forceFresh = false) => {
-    if (!enabled || !championshipId || !seasonYear) {
-      setDiscipline(null);
-      setError(null);
-      setLoading(false);
-      isFetchingRef.current = false;
-      hasQueuedRefetchRef.current = false;
-      shouldForceFreshOnQueuedRefetchRef.current = false;
-      return;
-    }
+  const fetch = useCallback(
+    async (forceFresh = false) => {
+      if (!enabled || !championshipId || !seasonYear) {
+        setDiscipline(null);
+        setError(null);
+        setLoading(false);
+        isFetchingRef.current = false;
+        hasQueuedRefetchRef.current = false;
+        shouldForceFreshOnQueuedRefetchRef.current = false;
+        return;
+      }
 
-    if (isFetchingRef.current) {
-      hasQueuedRefetchRef.current = true;
-      shouldForceFreshOnQueuedRefetchRef.current =
-        shouldForceFreshOnQueuedRefetchRef.current || forceFresh;
-      return;
-    }
+      if (isFetchingRef.current) {
+        hasQueuedRefetchRef.current = true;
+        shouldForceFreshOnQueuedRefetchRef.current =
+          shouldForceFreshOnQueuedRefetchRef.current || forceFresh;
+        return;
+      }
 
-    isFetchingRef.current = true;
-    setLoading(true);
-    try {
-      const { data, error: rpcError } =
-        await fetchSharedChampionshipYellowCardDiscipline(
+      isFetchingRef.current = true;
+      setLoading(true);
+      try {
+        const { data, error: rpcError } = await fetchSharedChampionshipYellowCardDiscipline(
           championshipId,
           seasonYear,
           forceFresh,
         );
 
-      if (rpcError) {
+        if (rpcError) {
+          setError("Não foi possível carregar os cartões. Tente novamente.");
+          return;
+        }
+
+        setDiscipline((data as unknown as ChampionshipYellowCardDiscipline) ?? null);
+        setError(null);
+      } catch {
         setError("Não foi possível carregar os cartões. Tente novamente.");
-        return;
-      }
+      } finally {
+        setLoading(false);
+        isFetchingRef.current = false;
 
-      setDiscipline((data as unknown as ChampionshipYellowCardDiscipline) ?? null);
-      setError(null);
-    } catch {
-      setError("Não foi possível carregar os cartões. Tente novamente.");
-    } finally {
-      setLoading(false);
-      isFetchingRef.current = false;
-
-      if (hasQueuedRefetchRef.current) {
-        hasQueuedRefetchRef.current = false;
-        const shouldForceFresh = shouldForceFreshOnQueuedRefetchRef.current;
-        shouldForceFreshOnQueuedRefetchRef.current = false;
-        void fetch(shouldForceFresh);
+        if (hasQueuedRefetchRef.current) {
+          hasQueuedRefetchRef.current = false;
+          const shouldForceFresh = shouldForceFreshOnQueuedRefetchRef.current;
+          shouldForceFreshOnQueuedRefetchRef.current = false;
+          void fetch(shouldForceFresh);
+        }
       }
-    }
-  }, [championshipId, enabled, seasonYear]);
+    },
+    [championshipId, enabled, seasonYear],
+  );
 
   useEffect(() => {
     if (!enabled || !championshipId || !seasonYear) {
@@ -247,10 +236,36 @@ export function useChampionshipYellowCardDiscipline({
 
     const channel = supabase
       .channel(`yellow-card-discipline-${championshipId}-${seasonYear}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "match_yellow_card_players" }, scheduleFetch)
-      .on("postgres_changes", { event: "*", schema: "public", table: "match_red_card_players" }, scheduleFetch)
-      .on("postgres_changes", { event: "*", schema: "public", table: "matches", filter: `championship_id=eq.${championshipId}` }, scheduleFetch)
-      .on("postgres_changes", { event: "*", schema: "public", table: "championship_season_settings", filter: `championship_id=eq.${championshipId}` }, scheduleFetch)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "match_yellow_card_players" },
+        scheduleFetch,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "match_red_card_players" },
+        scheduleFetch,
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "matches",
+          filter: `championship_id=eq.${championshipId}`,
+        },
+        scheduleFetch,
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "championship_season_settings",
+          filter: `championship_id=eq.${championshipId}`,
+        },
+        scheduleFetch,
+      )
       .subscribe();
 
     return () => {
@@ -263,10 +278,7 @@ export function useChampionshipYellowCardDiscipline({
     };
   }, [championshipId, enabled, fetch, realtimeEnabled, seasonYear]);
 
-  const refetch = useCallback(
-    () => fetch(true),
-    [fetch],
-  );
+  const refetch = useCallback(() => fetch(true), [fetch]);
 
   return {
     discipline,
