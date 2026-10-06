@@ -82,9 +82,7 @@ export function useLiveChampionshipRealtime({
     };
 
     const channel = supabase
-      .channel(
-        `live-championship-realtime-${championshipId}-${seasonYear ?? "current"}`,
-      )
+      .channel(`live-championship-realtime-${championshipId}-${seasonYear ?? "current"}`)
       .on(
         "postgres_changes",
         {
@@ -94,17 +92,13 @@ export function useLiveChampionshipRealtime({
           filter: `championship_id=eq.${championshipId}`,
         },
         (payload) => {
-          const rows = [payload.new, payload.old].filter(
-            isLiveMatchRealtimeRow,
-          );
+          const rows = [payload.new, payload.old].filter(isLiveMatchRealtimeRow);
           const scopedRows = rows.filter((row) => {
             if (row.championship_id != championshipId) {
               return false;
             }
 
-            return (
-              typeof seasonYear != "number" || row.season_year == seasonYear
-            );
+            return typeof seasonYear != "number" || row.season_year == seasonYear;
           });
 
           if (rows.length > 0 && scopedRows.length == 0) {
@@ -122,11 +116,7 @@ export function useLiveChampionshipRealtime({
               status != MatchStatus.FINISHED,
           );
 
-          if (
-            statuses.length == 0 ||
-            hasLiveMatch ||
-            hasUnknownMatchStatus
-          ) {
+          if (statuses.length == 0 || hasLiveMatch || hasUnknownMatchStatus) {
             shouldRefreshLiveMatches = true;
           }
 
@@ -139,11 +129,7 @@ export function useLiveChampionshipRealtime({
             shouldRefreshUpcomingMatches = true;
           }
 
-          if (
-            statuses.length == 0 ||
-            hasFinishedMatch ||
-            hasUnknownMatchStatus
-          ) {
+          if (statuses.length == 0 || hasFinishedMatch || hasUnknownMatchStatus) {
             shouldRefreshBracket = true;
           }
 
