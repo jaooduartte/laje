@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
 import type { CompetitionTeamDisqualification } from "@/lib/types";
 
@@ -76,7 +77,7 @@ export function useCompetitionTeamDisqualifications({
       return;
     }
 
-    if (!realtimeEnabled) {
+    if (!realtimeEnabled || !isSupabaseBackendEnabled()) {
       return;
     }
 
