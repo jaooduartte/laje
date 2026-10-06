@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { isAwsBackendEnabled } from "@/config/environment";
+import { listSportsCoreMatches } from "@/integrations/laje-api/sports-core";
 import { supabase } from "@/integrations/supabase/client";
 import { useMatches } from "@/hooks/useMatches";
 import { useSports } from "@/hooks/useSports";
@@ -10,12 +12,7 @@ import { useChampionshipSeasonSportRemovals } from "@/hooks/useChampionshipSeaso
 import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividualEvents";
 import { useSelectedChampionship } from "@/hooks/useSelectedChampionship";
 import { useChampionshipSelection } from "@/hooks/useChampionshipSelection";
-import {
-  ChampionshipSportNaipeMode,
-  MatchNaipe,
-  MatchStatus,
-  TeamDivision,
-} from "@/lib/enums";
+import { ChampionshipSportNaipeMode, MatchNaipe, MatchStatus, TeamDivision } from "@/lib/enums";
 import { resolveIndividualSportIds } from "@/lib/individualEvents";
 import {
   EMPTY_CHAMPIONSHIP_BRACKET_VIEW,
@@ -91,7 +88,7 @@ export function SchedulePage() {
     currentSeasonYear: selectedChampionshipSeasonYear,
   });
   const [yearFilter, setYearFilter] = useState<string>(
-    selectedChampionshipSeasonYear != null ? String(selectedChampionshipSeasonYear) : "ALL_YEARS"
+    selectedChampionshipSeasonYear != null ? String(selectedChampionshipSeasonYear) : "ALL_YEARS",
   );
   const correctedYearFilter = yearFilter === "ALL_YEARS" ? null : Number(yearFilter);
 
@@ -104,13 +101,11 @@ export function SchedulePage() {
     championshipId: selectedChampionshipId,
     realtimeEnabled: false,
   });
-  const {
-    removedSportIds,
-    loading: removedSportRemovalsLoading,
-  } = useChampionshipSeasonSportRemovals({
-    championshipId: selectedChampionshipId,
-    seasonYear: correctedYearFilter,
-  });
+  const { removedSportIds, loading: removedSportRemovalsLoading } =
+    useChampionshipSeasonSportRemovals({
+      championshipId: selectedChampionshipId,
+      seasonYear: correctedYearFilter,
+    });
   const championshipSports = useMemo(() => {
     const removedSportIdsSet = new Set(removedSportIds);
     return allChampionshipSports.filter(
@@ -133,7 +128,9 @@ export function SchedulePage() {
   );
   const { teams } = useTeams({ includeInactive: true });
   const visibleChampionshipBracketView = useMemo(() => {
-    return championshipBracketView.competitions.length == 0 ? EMPTY_CHAMPIONSHIP_BRACKET_VIEW : championshipBracketView;
+    return championshipBracketView.competitions.length == 0
+      ? EMPTY_CHAMPIONSHIP_BRACKET_VIEW
+      : championshipBracketView;
   }, [championshipBracketView]);
 
   const [sportFilter, setSportFilter] = useState<string | null>(null);
@@ -146,26 +143,24 @@ export function SchedulePage() {
   const [statusFilter, setStatusFilter] = useState<MatchStatus>(MatchStatus.SCHEDULED);
   const [matchesCurrentPage, setMatchesCurrentPage] = useState(1);
   const [matchesItemsPerPage, setMatchesItemsPerPage] = useState(DEFAULT_PAGINATION_ITEMS_PER_PAGE);
-  const [filterOptionRows, setFilterOptionRows] = useState<Array<{ location: string | null; court_name: string | null }>>([]);
+  const [filterOptionRows, setFilterOptionRows] = useState<
+    Array<{ location: string | null; court_name: string | null }>
+  >([]);
 
   const availableNaipeOptions = useMemo(() => {
     const scopedChampionshipSports = sportFilter
-      ? championshipSports.filter(
-          (championshipSport) => championshipSport.sport_id == sportFilter,
-        )
+      ? championshipSports.filter((championshipSport) => championshipSport.sport_id == sportFilter)
       : championshipSports;
 
     return [
       ...(scopedChampionshipSports.some(
         (championshipSport) =>
-          championshipSport.naipe_mode ==
-          ChampionshipSportNaipeMode.MASCULINO_FEMININO,
+          championshipSport.naipe_mode == ChampionshipSportNaipeMode.MASCULINO_FEMININO,
       )
         ? [MatchNaipe.MASCULINO, MatchNaipe.FEMININO]
         : []),
       ...(scopedChampionshipSports.some(
-        (championshipSport) =>
-          championshipSport.naipe_mode == ChampionshipSportNaipeMode.MISTO,
+        (championshipSport) => championshipSport.naipe_mode == ChampionshipSportNaipeMode.MISTO,
       )
         ? [MatchNaipe.MISTO]
         : []),
@@ -181,7 +176,9 @@ export function SchedulePage() {
     setCourtFilter(null);
     setDivisionFilter(ALL_SCHEDULE_DIVISIONS_FILTER);
     setStatusFilter(MatchStatus.SCHEDULED);
-    setYearFilter(selectedChampionshipSeasonYear != null ? String(selectedChampionshipSeasonYear) : "ALL_YEARS");
+    setYearFilter(
+      selectedChampionshipSeasonYear != null ? String(selectedChampionshipSeasonYear) : "ALL_YEARS",
+    );
     setMatchesCurrentPage(1);
     setMatchesItemsPerPage(DEFAULT_PAGINATION_ITEMS_PER_PAGE);
   }, [selectedChampionshipCode, selectedChampionshipSeasonYear]);
@@ -230,6 +227,36 @@ export function SchedulePage() {
         return;
       }
 
+      if (isAwsBackendEnabled()) {
+        try {
+          const { matches } = await listSportsCoreMatches({
+            championshipId: selectedChampionshipId,
+            seasonYear: correctedYearFilter,
+            statuses: [statusFilter],
+            sportId: sportFilter,
+            teamId: teamFilter,
+            naipe: naipeFilter,
+            division:
+              selectedChampionshipHasDivisions && divisionFilter != ALL_SCHEDULE_DIVISIONS_FILTER
+                ? (divisionFilter as TeamDivision)
+                : undefined,
+            groupNumber,
+            includePendingManualRelocation: false,
+          });
+
+          setFilterOptionRows(
+            matches.map((match) => ({
+              location: match.location,
+              court_name: match.court_name,
+            })),
+          );
+        } catch (error) {
+          console.error("Erro ao carregar filtros de local e quadra pela laje-api:", error);
+          setFilterOptionRows([]);
+        }
+        return;
+      }
+
       let query = supabase
         .from("matches")
         .select("location, court_name")
@@ -269,7 +296,9 @@ export function SchedulePage() {
         return;
       }
 
-      setFilterOptionRows((data ?? []) as Array<{ location: string | null; court_name: string | null }>);
+      setFilterOptionRows(
+        (data ?? []) as Array<{ location: string | null; court_name: string | null }>,
+      );
     };
 
     void fetchFilterOptionRows();
@@ -311,8 +340,16 @@ export function SchedulePage() {
 
     return [...uniqueGroups.entries()]
       .map(([value, label]) => ({ value, label }))
-      .sort((firstGroupOption, secondGroupOption) => firstGroupOption.label.localeCompare(secondGroupOption.label));
-  }, [divisionFilter, naipeFilter, selectedChampionshipHasDivisions, sportFilter, visibleChampionshipBracketView]);
+      .sort((firstGroupOption, secondGroupOption) =>
+        firstGroupOption.label.localeCompare(secondGroupOption.label),
+      );
+  }, [
+    divisionFilter,
+    naipeFilter,
+    selectedChampionshipHasDivisions,
+    sportFilter,
+    visibleChampionshipBracketView,
+  ]);
 
   const {
     matches: visibleMatches,
@@ -337,16 +374,11 @@ export function SchedulePage() {
     location: locationFilter,
     courtName: courtFilter,
     page: statusFilter == MatchStatus.SCHEDULED ? undefined : matchesCurrentPage,
-    itemsPerPage:
-      statusFilter == MatchStatus.SCHEDULED
-        ? undefined
-        : matchesItemsPerPage,
+    itemsPerPage: statusFilter == MatchStatus.SCHEDULED ? undefined : matchesItemsPerPage,
     sortMode: statusFilter === MatchStatus.SCHEDULED ? "SCHEDULED" : "FINISHED",
     includeRealtime: false,
   });
-  const {
-    matches: storedScheduledMatchesForMatchNumbering,
-  } = useMatches({
+  const { matches: storedScheduledMatchesForMatchNumbering } = useMatches({
     championshipId: selectedChampionshipId,
     seasonYear: correctedYearFilter,
     statuses: [MatchStatus.SCHEDULED],
@@ -389,7 +421,9 @@ export function SchedulePage() {
       });
     });
 
-    return [...optionValues].sort((firstLocation, secondLocation) => firstLocation.localeCompare(secondLocation));
+    return [...optionValues].sort((firstLocation, secondLocation) =>
+      firstLocation.localeCompare(secondLocation),
+    );
   }, [filterOptionRows, visibleChampionshipBracketView]);
 
   const visibleIndividualEvents = useMemo(() => {
@@ -421,16 +455,13 @@ export function SchedulePage() {
   }, [championshipIndividualSessions, locationFilter, statusFilter]);
 
   const individualEventCountBySessionId = useMemo(() => {
-    return visibleIndividualEvents.reduce<Record<string, number>>(
-      (carry, event) => {
-        if (event.session_id) {
-          carry[event.session_id] = (carry[event.session_id] ?? 0) + 1;
-        }
+    return visibleIndividualEvents.reduce<Record<string, number>>((carry, event) => {
+      if (event.session_id) {
+        carry[event.session_id] = (carry[event.session_id] ?? 0) + 1;
+      }
 
-        return carry;
-      },
-      {},
-    );
+      return carry;
+    }, {});
   }, [visibleIndividualEvents]);
 
   const courtOptions = useMemo(() => {
@@ -462,7 +493,9 @@ export function SchedulePage() {
       });
     });
 
-    return [...uniqueCourtNames].sort((firstCourtName, secondCourtName) => firstCourtName.localeCompare(secondCourtName));
+    return [...uniqueCourtNames].sort((firstCourtName, secondCourtName) =>
+      firstCourtName.localeCompare(secondCourtName),
+    );
   }, [filterOptionRows, locationFilter, visibleChampionshipBracketView]);
 
   useEffect(() => {
@@ -482,14 +515,13 @@ export function SchedulePage() {
       return [] as ScheduledKnockoutPlaceholder[];
     }
 
-    const knockoutDisplayMatchNumberById =
-      resolveKnockoutDisplayMatchNumberById(
-        visibleChampionshipBracketView,
-        storedScheduledMatchesForMatchNumbering,
-        resolveChampionshipBracketMatchNumberingMode(
-          visibleChampionshipBracketView.edition?.payload_snapshot,
-        ),
-      );
+    const knockoutDisplayMatchNumberById = resolveKnockoutDisplayMatchNumberById(
+      visibleChampionshipBracketView,
+      storedScheduledMatchesForMatchNumbering,
+      resolveChampionshipBracketMatchNumberingMode(
+        visibleChampionshipBracketView.edition?.payload_snapshot,
+      ),
+    );
 
     return visibleChampionshipBracketView.competitions.flatMap((competition) => {
       const totalRounds = competition.knockout_matches.reduce((currentMaxRound, knockoutMatch) => {
@@ -547,8 +579,7 @@ export function SchedulePage() {
           round_number: knockoutMatch.round_number,
           slot_number: knockoutMatch.slot_number,
           is_third_place: knockoutMatch.is_third_place,
-          display_match_number:
-            knockoutDisplayMatchNumberById[knockoutMatch.id] ?? null,
+          display_match_number: knockoutDisplayMatchNumberById[knockoutMatch.id] ?? null,
           scheduled_date: knockoutMatch.scheduled_date!,
           queue_position: knockoutMatch.queue_position,
           scheduled_slot: knockoutMatch.scheduled_slot ?? null,
@@ -600,10 +631,7 @@ export function SchedulePage() {
 
   const paginatedScheduledTimelineItems = useMemo(() => {
     const rangeStart = (matchesCurrentPage - 1) * matchesItemsPerPage;
-    return scheduledTimelineItems.slice(
-      rangeStart,
-      rangeStart + matchesItemsPerPage,
-    );
+    return scheduledTimelineItems.slice(rangeStart, rangeStart + matchesItemsPerPage);
   }, [matchesCurrentPage, matchesItemsPerPage, scheduledTimelineItems]);
 
   const {
@@ -614,22 +642,11 @@ export function SchedulePage() {
     orderedDates,
   } = useMemo(() => {
     const groupedMatchesResult: Record<string, typeof visibleMatches> = {};
-    const groupedPlaceholdersResult: Record<
-      string,
-      ScheduledKnockoutPlaceholder[]
-    > = {};
-    const groupedIndividualSessionsResult: Record<
-      string,
-      typeof visibleIndividualSessions
-    > = {};
-    const groupedScheduleTimelineItemsResult: Record<
-      string,
-      PublicScheduleTimelineItem[]
-    > = {};
+    const groupedPlaceholdersResult: Record<string, ScheduledKnockoutPlaceholder[]> = {};
+    const groupedIndividualSessionsResult: Record<string, typeof visibleIndividualSessions> = {};
+    const groupedScheduleTimelineItemsResult: Record<string, PublicScheduleTimelineItem[]> = {};
     const groupedTimelineItems =
-      statusFilter == MatchStatus.SCHEDULED
-        ? paginatedScheduledTimelineItems
-        : [];
+      statusFilter == MatchStatus.SCHEDULED ? paginatedScheduledTimelineItems : [];
 
     groupedTimelineItems.forEach((item) => {
       groupedScheduleTimelineItemsResult[item.scheduledDate] = [
@@ -667,10 +684,7 @@ export function SchedulePage() {
           return;
         }
 
-        groupedMatchesResult[dateKey] = [
-          ...(groupedMatchesResult[dateKey] ?? []),
-          match,
-        ];
+        groupedMatchesResult[dateKey] = [...(groupedMatchesResult[dateKey] ?? []), match];
       });
     }
 
@@ -686,11 +700,7 @@ export function SchedulePage() {
               secondDate.localeCompare(firstDate),
             ),
     };
-  }, [
-    paginatedScheduledTimelineItems,
-    statusFilter,
-    visibleMatches,
-  ]);
+  }, [paginatedScheduledTimelineItems, statusFilter, visibleMatches]);
 
   const displayMatches =
     statusFilter == MatchStatus.SCHEDULED
@@ -707,9 +717,8 @@ export function SchedulePage() {
   const matchesTotalPages = Math.max(
     1,
     Math.ceil(
-      (statusFilter == MatchStatus.SCHEDULED
-        ? scheduledTimelineItems.length
-        : totalMatches) / matchesItemsPerPage,
+      (statusFilter == MatchStatus.SCHEDULED ? scheduledTimelineItems.length : totalMatches) /
+        matchesItemsPerPage,
     ),
   );
 

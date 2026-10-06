@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isSupabaseBackendEnabled } from "@/config/environment";
+import { isAwsBackendEnabled, isSupabaseBackendEnabled } from "@/config/environment";
+import { listAwsRemovedSportIds } from "@/integrations/laje-api/public-runtime";
 import { supabase } from "@/integrations/supabase/client";
 
 type SupabaseSeasonSportRemovalsClient = {
@@ -49,6 +50,21 @@ export function useChampionshipSeasonSportRemovals({
 
     if (!championshipId || seasonYear == null || !requestedScopeKey) {
       setState({ scopeKey: null, removedSportIds: [] });
+      return;
+    }
+
+    if (isAwsBackendEnabled()) {
+      try {
+        const removedSportIds = await listAwsRemovedSportIds(championshipId, seasonYear);
+        if (scopeKeyRef.current == requestedScopeKey) {
+          setState({ scopeKey: requestedScopeKey, removedSportIds });
+        }
+      } catch (error) {
+        console.error("Erro ao carregar modalidades removidas pela laje-api:", error);
+        if (scopeKeyRef.current == requestedScopeKey) {
+          setState({ scopeKey: requestedScopeKey, removedSportIds: [] });
+        }
+      }
       return;
     }
 

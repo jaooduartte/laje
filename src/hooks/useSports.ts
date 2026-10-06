@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { isSupabaseBackendEnabled } from "@/config/environment";
+import { isAwsBackendEnabled, isSupabaseBackendEnabled } from "@/config/environment";
+import { listAwsSports } from "@/integrations/laje-api/public-runtime";
 import { supabase } from "@/integrations/supabase/client";
 import type { ChampionshipSport, Sport } from "@/lib/types";
 
@@ -31,15 +32,20 @@ export function useSports({
       return;
     }
 
-    if (!isSupabaseBackendEnabled()) {
-      setSports([]);
-      setChampionshipSports([]);
-      setLoading(false);
-      return;
-    }
-
     setLoading(true);
     try {
+      if (isAwsBackendEnabled()) {
+        const result = await listAwsSports(championshipId);
+        setSports(result.sports);
+        setChampionshipSports(result.championshipSports);
+        return;
+      }
+
+      if (!isSupabaseBackendEnabled()) {
+        setSports([]);
+        setChampionshipSports([]);
+        return;
+      }
       if (!championshipId) {
         const { data, error } = await supabase.from("sports").select("*").order("name");
 

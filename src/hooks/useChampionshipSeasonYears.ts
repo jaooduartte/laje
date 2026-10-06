@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isSupabaseBackendEnabled } from "@/config/environment";
+import { isAwsBackendEnabled, isSupabaseBackendEnabled } from "@/config/environment";
+import { listAwsChampionshipSeasonYears } from "@/integrations/laje-api/public-runtime";
 import { supabase } from "@/integrations/supabase/client";
 
 interface UseChampionshipSeasonYearsOptions {
@@ -28,7 +29,7 @@ export function useChampionshipSeasonYears({
     const fallbackSeasonYears =
       currentSeasonYear != null && Number.isFinite(currentSeasonYear) ? [currentSeasonYear] : [];
 
-    if (!championshipId || !isSupabaseBackendEnabled()) {
+    if (!championshipId) {
       setSeasonYears(fallbackSeasonYears);
       setLoading(false);
       return;
@@ -42,17 +43,19 @@ export function useChampionshipSeasonYears({
     setLoading(true);
 
     try {
-      const response = await supabase.rpc("get_championship_available_season_years", {
-        _championship_id: championshipId,
-      });
-
-      if (response.error) {
-        throw response.error;
-      }
-
-      const years = (response.data ?? [])
-        .map((row) => Number((row as { season_year?: number | null }).season_year))
-        .filter((seasonYear) => Number.isFinite(seasonYear));
+      const years = isAwsBackendEnabled()
+        ? await listAwsChampionshipSeasonYears(championshipId)
+        : isSupabaseBackendEnabled()
+          ? (
+              (
+                await supabase.rpc("get_championship_available_season_years", {
+                  _championship_id: championshipId,
+                })
+              ).data ?? []
+            )
+              .map((row) => Number((row as { season_year?: number | null }).season_year))
+              .filter((seasonYear) => Number.isFinite(seasonYear))
+          : [];
 
       if (currentSeasonYear != null && Number.isFinite(currentSeasonYear)) {
         years.push(currentSeasonYear);
