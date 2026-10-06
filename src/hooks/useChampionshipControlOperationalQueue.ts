@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isAwsBackendEnabled } from "@/config/environment";
+import { getSportsCoreOperationalQueueState } from "@/integrations/laje-api/sports-core";
 import { supabase } from "@/integrations/supabase/client";
 
 type OperationalQueueItem = {
@@ -126,6 +128,24 @@ async function fetchOperationalQueueState(
   data: OperationalQueueStateResult | null;
   error: SupabaseLooseError | null;
 }> {
+  if (isAwsBackendEnabled()) {
+    try {
+      return {
+        data: await getSportsCoreOperationalQueueState(championshipId, seasonYear),
+        error: null,
+      };
+    } catch (error) {
+      return {
+        data: null,
+        error: {
+          message:
+            error instanceof Error
+              ? error.message
+              : "Não foi possível carregar a fila operacional pela laje-api.",
+        },
+      };
+    }
+  }
   if (operationalQueueStateRpcAvailable !== false) {
     const response = await supabaseLoose.rpc(
       "get_championship_control_operational_queue_state",
