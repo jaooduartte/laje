@@ -8,10 +8,7 @@ interface UseTeamsOptions {
   enabled?: boolean;
 }
 
-export function useTeams({
-  includeInactive = false,
-  enabled = true,
-}: UseTeamsOptions = {}) {
+export function useTeams({ includeInactive = false, enabled = true }: UseTeamsOptions = {}) {
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
 
