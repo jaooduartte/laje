@@ -1,8 +1,6 @@
 import { isAwsBackendEnabled } from "@/config/environment";
-import {
-  getSportsCoreBracket,
-  getSportsCoreChampionship,
-} from "@/integrations/laje-api/sports-core";
+import { fetchDedicatedChampionshipBracketView } from "@/integrations/laje-api/bracket";
+import { getSportsCoreChampionship } from "@/integrations/laje-api/sports-core";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import type {
@@ -769,10 +767,10 @@ export async function fetchChampionshipBracketView(
           ? season_year
           : (await getSportsCoreChampionship(championship_id)).current_season_year;
       return {
-        data: (await getSportsCoreBracket(
+        data: await fetchDedicatedChampionshipBracketView(
           championship_id,
           resolvedSeasonYear,
-        )) as ChampionshipBracketView,
+        ),
         error: null,
       };
     } catch (error) {
