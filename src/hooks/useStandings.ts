@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { isSupabaseBackendEnabled } from "@/config/environment";
 import { fetchChampionshipEffectiveStandings } from "@/domain/individual-events/championshipIndividualEvents.repository";
 import {
+  getSportsCoreChampionship,
   getSportsCoreStandings,
   isDedicatedSportsCoreEnabled,
 } from "@/integrations/laje-api/sports-core";
@@ -126,8 +127,12 @@ export function useStandings({
     setLoading(true);
 
     try {
-      if (isDedicatedSportsCoreEnabled() && championshipId && typeof seasonYear === "number") {
-        const data = await getSportsCoreStandings(championshipId, seasonYear);
+      if (isDedicatedSportsCoreEnabled() && championshipId) {
+        const resolvedSeasonYear =
+          typeof seasonYear === "number"
+            ? seasonYear
+            : (await getSportsCoreChampionship(championshipId)).current_season_year;
+        const data = await getSportsCoreStandings(championshipId, resolvedSeasonYear);
         setStandings(data.filter((standing) => matchesStandingFilters(standing, division, naipe)));
         return;
       }
