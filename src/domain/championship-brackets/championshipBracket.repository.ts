@@ -767,10 +767,7 @@ export async function fetchChampionshipBracketView(
           ? season_year
           : (await getSportsCoreChampionship(championship_id)).current_season_year;
       return {
-        data: await fetchDedicatedChampionshipBracketView(
-          championship_id,
-          resolvedSeasonYear,
-        ),
+        data: await fetchDedicatedChampionshipBracketView(championship_id, resolvedSeasonYear),
         error: null,
       };
     } catch (error) {
