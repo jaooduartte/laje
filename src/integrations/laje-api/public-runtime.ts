@@ -202,6 +202,15 @@ export async function listAwsIndividualEventEntries(eventIds: string[]): Promise
   };
 }
 
+export async function listAwsIndividualSessionParticipants(
+  sessionId: string,
+): Promise<Team[]> {
+  const response = await lajeApiRequest<DataResponse<Record<string, unknown>[]>>(
+    `/public-runtime/individual-sessions/${sessionId}/participants`,
+  );
+  return response.data.map(toTeam);
+}
+
 export async function listAwsIndividualStandings(input: {
   championshipId: string;
   seasonYear: number;
