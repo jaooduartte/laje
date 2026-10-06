@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchChampionshipBracketResolvedTieBreakOrders } from "@/domain/championship-brackets/championshipBracket.repository";
 import type { ChampionshipBracketResolvedTieBreakOrderContext } from "@/domain/championship-brackets/championshipBracket.types";
@@ -82,7 +83,7 @@ export function useChampionshipBracketResolvedTieBreakOrders({
 
     void fetchResolvedTieBreakOrders(true);
 
-    if (!realtimeEnabled) {
+    if (!realtimeEnabled || !isSupabaseBackendEnabled()) {
       return;
     }
 
