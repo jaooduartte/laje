@@ -1,4 +1,4 @@
-import { frontendEnvironment } from "@/config/environment";
+import { isAwsBackendEnabled } from "@/config/environment";
 import type { MatchSetInput } from "@/domain/championship-brackets/championshipBracket.types";
 import type { Championship, ChampionshipSeasonSettings, Match, Standing } from "@/lib/types";
 import { lajeApiRequest } from "./client";
@@ -283,7 +283,7 @@ export function toLegacyMatch(dto: ApiMatchDto): Match {
 }
 
 export function isDedicatedSportsCoreEnabled(): boolean {
-  return Boolean(frontendEnvironment.apiUrl);
+  return isAwsBackendEnabled();
 }
 
 function createMatchesSearch(
