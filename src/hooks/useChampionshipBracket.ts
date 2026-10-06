@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import { fetchChampionshipBracketView } from "@/domain/championship-brackets/championshipBracket.repository";
 import { fetchDedicatedChampionshipBracketView } from "@/integrations/laje-api/bracket";
 import { isDedicatedSportsCoreEnabled } from "@/integrations/laje-api/sports-core";
@@ -215,7 +216,7 @@ export function useChampionshipBracket({
 
     void fetchBracket(true);
 
-    if (!realtimeEnabled) {
+    if (!realtimeEnabled || !isSupabaseBackendEnabled()) {
       return;
     }
 
