@@ -696,9 +696,7 @@ export function useMatches({
 
         if (shouldUseDedicatedSportsCore) {
           const championshipSeasonKeys = [
-            ...new Set(
-              matchRows.map((match) => `${match.championship_id}:${match.season_year}`),
-            ),
+            ...new Set(matchRows.map((match) => `${match.championship_id}:${match.season_year}`)),
           ];
           const runtimeContexts = await Promise.all(
             championshipSeasonKeys.map((key) => {
@@ -710,20 +708,16 @@ export function useMatches({
           );
           const championshipSportsByKey = runtimeContexts
             .flatMap((context) => context.championshipSports)
-            .reduce<
-              Record<
-                string,
-                (typeof runtimeContexts)[number]["championshipSports"][number]
-              >
-            >((carry, championshipSport) => {
-              carry[
-                `${championshipSport.championship_id}:${championshipSport.sport_id}`
-              ] = championshipSport;
-              return carry;
-            }, {});
-          const championshipSportsForEstimatedStartTimeRows = Object.values(
-            championshipSportsByKey,
-          );
+            .reduce<Record<string, (typeof runtimeContexts)[number]["championshipSports"][number]>>(
+              (carry, championshipSport) => {
+                carry[`${championshipSport.championship_id}:${championshipSport.sport_id}`] =
+                  championshipSport;
+                return carry;
+              },
+              {},
+            );
+          const championshipSportsForEstimatedStartTimeRows =
+            Object.values(championshipSportsByKey);
           const latestChampionshipBracketEditions = runtimeContexts.flatMap((context) =>
             context.bracketEdition ? [context.bracketEdition] : [],
           );
@@ -741,20 +735,15 @@ export function useMatches({
               ...match,
               result_rule:
                 match.result_rule ??
-                championshipSportsByKey[
-                  `${match.championship_id}:${match.sport_id}`
-                ]?.result_rule ??
+                championshipSportsByKey[`${match.championship_id}:${match.sport_id}`]
+                  ?.result_rule ??
                 null,
               match_sets: match.match_sets ?? [],
             })),
           );
           setOperationalContextMatches(resolvedOperationalContextMatches);
-          setChampionshipSportsForEstimatedStartTime(
-            championshipSportsForEstimatedStartTimeRows,
-          );
-          setChampionshipBracketEditionsForEstimatedStartTime(
-            latestChampionshipBracketEditions,
-          );
+          setChampionshipSportsForEstimatedStartTime(championshipSportsForEstimatedStartTimeRows);
+          setChampionshipBracketEditionsForEstimatedStartTime(latestChampionshipBracketEditions);
           return;
         }
 
