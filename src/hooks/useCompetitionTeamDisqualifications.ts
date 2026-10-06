@@ -45,9 +45,14 @@ export function useCompetitionTeamDisqualifications({
     try {
       const responses = await Promise.all(
         resolvedSeasonYears.map((resolvedSeasonYear) => {
-          return (supabase as unknown as {
-            rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
-          }).rpc("list_championship_competition_team_disqualifications", {
+          return (
+            supabase as unknown as {
+              rpc: (
+                fn: string,
+                args: Record<string, unknown>,
+              ) => Promise<{ data: unknown; error: unknown }>;
+            }
+          ).rpc("list_championship_competition_team_disqualifications", {
             _championship_id: championshipId,
             _season_year: resolvedSeasonYear,
           });
@@ -62,7 +67,9 @@ export function useCompetitionTeamDisqualifications({
 
       setDisqualifications(
         responses.flatMap((response) => {
-          return Array.isArray(response.data) ? (response.data as CompetitionTeamDisqualification[]) : [];
+          return Array.isArray(response.data)
+            ? (response.data as CompetitionTeamDisqualification[])
+            : [];
         }),
       );
     } finally {
@@ -82,7 +89,9 @@ export function useCompetitionTeamDisqualifications({
     }
 
     const channel = supabase
-      .channel(`competition-team-disqualifications-${championshipId}-${resolvedSeasonYears.join("-")}`)
+      .channel(
+        `competition-team-disqualifications-${championshipId}-${resolvedSeasonYears.join("-")}`,
+      )
       .on(
         "postgres_changes",
         {
