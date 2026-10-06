@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
 import type { MatchNaipe, TeamDivision } from "@/lib/enums";
 
@@ -228,7 +229,7 @@ export function useChampionshipYellowCardDiscipline({
 
     void fetch();
 
-    if (!realtimeEnabled) {
+    if (!realtimeEnabled || !isSupabaseBackendEnabled()) {
       return;
     }
 
