@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
 import { MatchStatus } from "@/lib/enums";
 
@@ -17,6 +18,14 @@ export function usePendingScoreSheetReviewCount({
   const hasQueuedCountRefetchRef = useRef(false);
 
   const fetchCount = useCallback(async () => {
+    if (!isSupabaseBackendEnabled()) {
+      setCount(0);
+      setLoading(false);
+      isFetchingCountRef.current = false;
+      hasQueuedCountRefetchRef.current = false;
+      return;
+    }
+
     if (!championshipId || seasonYear == null) {
       setCount(0);
       setLoading(false);
@@ -67,7 +76,7 @@ export function usePendingScoreSheetReviewCount({
   useEffect(() => {
     void fetchCount();
 
-    if (!championshipId) {
+    if (!isSupabaseBackendEnabled() || !championshipId) {
       return;
     }
 
