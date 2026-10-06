@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
 import { MatchStatus } from "@/lib/enums";
 
@@ -42,7 +43,7 @@ export function useLiveChampionshipRealtime({
   };
 
   useEffect(() => {
-    if (!championshipId) {
+    if (!championshipId || !isSupabaseBackendEnabled()) {
       return;
     }
 
