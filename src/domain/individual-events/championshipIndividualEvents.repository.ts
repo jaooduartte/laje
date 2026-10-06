@@ -32,7 +32,10 @@ type LooseSupabase = {
     select: (columns: string) => LooseSupabaseQuery;
     delete: () => LooseSupabaseQuery;
   };
-  rpc: (fn: string, args?: Record<string, unknown>) => Promise<{ data: unknown; error: Error | null }>;
+  rpc: (
+    fn: string,
+    args?: Record<string, unknown>,
+  ) => Promise<{ data: unknown; error: Error | null }>;
 };
 
 type LooseSupabaseQuery = PromiseLike<{ data: unknown; error: Error | null }> & {
@@ -150,7 +153,8 @@ export async function fetchChampionshipIndividualEvents({
     } catch (error) {
       return {
         data: [],
-        error: error instanceof Error ? error : new Error("Falha ao carregar provas pela laje-api."),
+        error:
+          error instanceof Error ? error : new Error("Falha ao carregar provas pela laje-api."),
       };
     }
   }
@@ -231,7 +235,8 @@ export async function fetchChampionshipIndividualSessions({
     } catch (error) {
       return {
         data: [],
-        error: error instanceof Error ? error : new Error("Falha ao carregar sessões pela laje-api."),
+        error:
+          error instanceof Error ? error : new Error("Falha ao carregar sessões pela laje-api."),
       };
     }
   }
@@ -324,7 +329,8 @@ export async function fetchChampionshipIndividualEventEntries({
       return {
         data: [],
         membersByEntryId: {},
-        error: error instanceof Error ? error : new Error("Falha ao carregar inscrições pela laje-api."),
+        error:
+          error instanceof Error ? error : new Error("Falha ao carregar inscrições pela laje-api."),
       };
     }
   }
@@ -339,7 +345,9 @@ export async function fetchChampionshipIndividualEventEntries({
     return { data: [], membersByEntryId: {}, error: entriesResponse.error };
   }
 
-  const entryIds = ((entriesResponse.data ?? []) as ChampionshipIndividualEventEntry[]).map((entry) => entry.id);
+  const entryIds = ((entriesResponse.data ?? []) as ChampionshipIndividualEventEntry[]).map(
+    (entry) => entry.id,
+  );
 
   if (entryIds.length == 0) {
     return {
@@ -359,13 +367,12 @@ export async function fetchChampionshipIndividualEventEntries({
     return { data: [], membersByEntryId: {}, error: membersResponse.error };
   }
 
-  const membersByEntryId = ((membersResponse.data ?? []) as ChampionshipIndividualEventEntryMember[]).reduce<Record<string, ChampionshipIndividualEventEntryMember[]>>(
-    (carry, member) => {
-      carry[member.entry_id] = [...(carry[member.entry_id] ?? []), member];
-      return carry;
-    },
-    {},
-  );
+  const membersByEntryId = (
+    (membersResponse.data ?? []) as ChampionshipIndividualEventEntryMember[]
+  ).reduce<Record<string, ChampionshipIndividualEventEntryMember[]>>((carry, member) => {
+    carry[member.entry_id] = [...(carry[member.entry_id] ?? []), member];
+    return carry;
+  }, {});
 
   return {
     data: ((entriesResponse.data ?? []) as ChampionshipIndividualEventEntry[]).map((entry) => ({
@@ -409,7 +416,10 @@ export async function fetchChampionshipIndividualTeamStandings({
     } catch (error) {
       return {
         data: [],
-        error: error instanceof Error ? error : new Error("Falha ao carregar classificação individual pela laje-api."),
+        error:
+          error instanceof Error
+            ? error
+            : new Error("Falha ao carregar classificação individual pela laje-api."),
       };
     }
   }
@@ -497,7 +507,9 @@ export async function saveChampionshipIndividualEvent(input: SaveChampionshipInd
   });
 }
 
-export async function saveChampionshipIndividualSession(input: SaveChampionshipIndividualSessionInput) {
+export async function saveChampionshipIndividualSession(
+  input: SaveChampionshipIndividualSessionInput,
+) {
   return supabaseLoose.rpc("save_championship_individual_session", {
     _session_id: input.sessionId,
     _scheduled_date: input.scheduledDate,
@@ -511,7 +523,9 @@ export async function saveChampionshipIndividualSession(input: SaveChampionshipI
   });
 }
 
-export async function saveChampionshipIndividualEventEntry(input: SaveChampionshipIndividualEntryInput) {
+export async function saveChampionshipIndividualEventEntry(
+  input: SaveChampionshipIndividualEntryInput,
+) {
   return supabaseLoose.rpc("save_championship_individual_event_entry", {
     _event_id: input.eventId,
     _team_id: input.teamId,
@@ -550,10 +564,9 @@ export async function saveChampionshipIndividualEventLiveResults(
 export async function fetchChampionshipIndividualEventPlacementCount(
   eventId: string,
 ): Promise<{ data: number | null; error: Error | null }> {
-  const response = await supabaseLoose.rpc(
-    "get_championship_individual_event_placement_count",
-    { _event_id: eventId },
-  );
+  const response = await supabaseLoose.rpc("get_championship_individual_event_placement_count", {
+    _event_id: eventId,
+  });
 
   return {
     data: typeof response.data == "number" ? response.data : null,
@@ -593,12 +606,9 @@ export async function saveInterlajeIndividualTieBreakResolution(input: {
 export async function previewChampionshipIndividualSessionScoreboard(
   sessionId: string,
 ): Promise<{ data: ChampionshipIndividualSessionScoreboardRow[]; error: Error | null }> {
-  const response = await supabaseLoose.rpc(
-    "preview_championship_individual_session_scoreboard",
-    {
-      _session_id: sessionId,
-    },
-  );
+  const response = await supabaseLoose.rpc("preview_championship_individual_session_scoreboard", {
+    _session_id: sessionId,
+  });
 
   return {
     data: (response.data ?? []) as ChampionshipIndividualSessionScoreboardRow[],
@@ -618,15 +628,17 @@ export async function fetchChampionshipIndividualSessionParticipants(
     } catch (error) {
       return {
         data: [],
-        error: error instanceof Error ? error : new Error("Falha ao carregar participantes pela laje-api."),
+        error:
+          error instanceof Error
+            ? error
+            : new Error("Falha ao carregar participantes pela laje-api."),
       };
     }
   }
 
-  const response = await supabaseLoose.rpc(
-    "get_championship_individual_session_participants",
-    { _session_id: sessionId },
-  );
+  const response = await supabaseLoose.rpc("get_championship_individual_session_participants", {
+    _session_id: sessionId,
+  });
 
   return {
     data: ((response.data ?? []) as Array<{ teams?: Team | null }>)
@@ -666,10 +678,7 @@ export async function returnChampionshipIndividualSessionToScheduled(sessionId: 
   });
 }
 
-export async function markChampionshipIndividualEventTeamWalkover(
-  eventId: string,
-  teamId: string,
-) {
+export async function markChampionshipIndividualEventTeamWalkover(eventId: string, teamId: string) {
   return supabaseLoose.rpc("mark_championship_individual_event_team_walkover", {
     _event_id: eventId,
     _team_id: teamId,
@@ -693,11 +702,7 @@ export async function fetchChampionshipEffectiveStandings({
     _championship_id: championshipId ?? null,
     _season_year: seasonYear ?? null,
     _division_filter:
-      division === undefined
-        ? null
-        : division === null
-          ? "WITHOUT_DIVISION"
-          : division,
+      division === undefined ? null : division === null ? "WITHOUT_DIVISION" : division,
     _naipe: naipe ?? null,
     _sport_id: sportId ?? null,
   });
