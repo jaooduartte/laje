@@ -14,9 +14,7 @@ export function useChampionshipSeasonYears({
   enabled = true,
 }: UseChampionshipSeasonYearsOptions = {}) {
   const [seasonYears, setSeasonYears] = useState<number[]>(() =>
-    currentSeasonYear != null && Number.isFinite(currentSeasonYear)
-      ? [currentSeasonYear]
-      : [],
+    currentSeasonYear != null && Number.isFinite(currentSeasonYear) ? [currentSeasonYear] : [],
   );
   const [loading, setLoading] = useState(false);
   const isFetchingRef = useRef(false);
@@ -28,9 +26,7 @@ export function useChampionshipSeasonYears({
     }
 
     const fallbackSeasonYears =
-      currentSeasonYear != null && Number.isFinite(currentSeasonYear)
-        ? [currentSeasonYear]
-        : [];
+      currentSeasonYear != null && Number.isFinite(currentSeasonYear) ? [currentSeasonYear] : [];
 
     if (!championshipId || !isSupabaseBackendEnabled()) {
       setSeasonYears(fallbackSeasonYears);
@@ -55,9 +51,7 @@ export function useChampionshipSeasonYears({
       }
 
       const years = (response.data ?? [])
-        .map((row) =>
-          Number((row as { season_year?: number | null }).season_year),
-        )
+        .map((row) => Number((row as { season_year?: number | null }).season_year))
         .filter((seasonYear) => Number.isFinite(seasonYear));
 
       if (currentSeasonYear != null && Number.isFinite(currentSeasonYear)) {
@@ -90,10 +84,7 @@ export function useChampionshipSeasonYears({
   }, [championshipId, currentSeasonYear, enabled]);
 
   useEffect(() => {
-    if (
-      currentSeasonYear != null &&
-      Number.isFinite(currentSeasonYear)
-    ) {
+    if (currentSeasonYear != null && Number.isFinite(currentSeasonYear)) {
       setSeasonYears((currentYears) =>
         currentYears.includes(currentSeasonYear)
           ? currentYears
