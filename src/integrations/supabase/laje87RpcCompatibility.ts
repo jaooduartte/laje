@@ -1,4 +1,4 @@
-import { frontendEnvironment } from "@/config/environment";
+import { isAwsBackendEnabled } from "@/config/environment";
 import {
   createPublicLinkItemFromApi,
   createPublicLinkSectionFromApi,
@@ -169,12 +169,12 @@ async function executeMigratedPublicLinksRpc(rpcName: string, args: RpcArguments
  * Compatibilidade transitória da LAJE-87.
  *
  * O AdminLinks ainda usa a assinatura dos RPCs legados para preservar o contrato
- * da tela durante a migração. Quando VITE_API_URL está configurada, esses quatro
+ * da tela durante a migração. Quando VITE_BACKEND_PROVIDER=aws, esses quatro
  * RPCs são executados pela laje-api e não fazem requisição ao Supabase. Demais
  * operações continuam inalteradas até suas respectivas tarefas de migração.
  */
 export function withLaje87RpcCompatibility(client: LajeSupabaseClient): LajeSupabaseClient {
-  if (!frontendEnvironment.apiUrl) {
+  if (!isAwsBackendEnabled()) {
     return client;
   }
 
