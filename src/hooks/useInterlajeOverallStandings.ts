@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isSupabaseBackendEnabled } from "@/config/environment";
+import { isAwsBackendEnabled, isSupabaseBackendEnabled } from "@/config/environment";
 import {
   fetchInterlajeOverallStandings,
   type InterlajeOverallStanding,
@@ -34,7 +34,7 @@ export function useInterlajeOverallStandings({
   const refetchRef = useRef<() => Promise<void>>(async () => undefined);
 
   const refetch = useCallback(async () => {
-    if (!enabled || !championshipId || !seasonYear) {
+    if (!enabled || !championshipId || !seasonYear || isAwsBackendEnabled()) {
       setStandings([]);
       setLoading(false);
       setError(null);
@@ -92,7 +92,7 @@ export function useInterlajeOverallStandings({
       return;
     }
 
-    if (!realtimeEnabled || isPublicChampionshipsPage()) {
+    if (!realtimeEnabled || !isSupabaseBackendEnabled() || isPublicChampionshipsPage()) {
       return;
     }
 
