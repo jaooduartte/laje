@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { isSupabaseBackendEnabled } from "@/config/environment";
+import { isAwsBackendEnabled, isSupabaseBackendEnabled } from "@/config/environment";
+import { listAwsCompetitionDisqualifications } from "@/integrations/laje-api/public-runtime";
 import { supabase } from "@/integrations/supabase/client";
 import type { CompetitionTeamDisqualification } from "@/lib/types";
 
@@ -43,6 +44,21 @@ export function useCompetitionTeamDisqualifications({
     setLoading(true);
 
     try {
+      if (isAwsBackendEnabled()) {
+        const rows = await Promise.all(
+          resolvedSeasonYears.map((resolvedSeasonYear) =>
+            listAwsCompetitionDisqualifications(championshipId, resolvedSeasonYear),
+          ),
+        );
+        setDisqualifications(rows.flat());
+        return;
+      }
+
+      if (!isSupabaseBackendEnabled()) {
+        setDisqualifications([]);
+        return;
+      }
+
       const responses = await Promise.all(
         resolvedSeasonYears.map((resolvedSeasonYear) => {
           return (
