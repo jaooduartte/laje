@@ -1,4 +1,8 @@
-import { isSupabaseBackendEnabled } from "@/config/environment";
+import { isAwsBackendEnabled, isSupabaseBackendEnabled } from "@/config/environment";
+import {
+  ensureAwsLeagueCalendarHolidaysYear,
+  listAwsLeagueCalendarHolidays,
+} from "@/integrations/laje-api/public-runtime";
 import { supabase } from "@/integrations/supabase/client";
 import type { LeagueCalendarHoliday } from "@/lib/types";
 
@@ -8,12 +12,21 @@ interface DateRangeFilter {
 }
 
 export async function ensureLeagueCalendarHolidaysYear(year: number) {
+  if (isAwsBackendEnabled()) {
+    try {
+      return { data: await ensureAwsLeagueCalendarHolidaysYear(year), error: null };
+    } catch (error) {
+      return {
+        data: null,
+        error: error instanceof Error ? error : new Error("Falha ao gerar feriados pela laje-api."),
+      };
+    }
+  }
+
   if (!isSupabaseBackendEnabled()) {
     return {
       data: null,
-      error: new Error(
-        "Geração de feriados ainda depende do Supabase e está bloqueada no modo AWS.",
-      ),
+      error: new Error("Backend de feriados não configurado."),
     };
   }
 
@@ -24,12 +37,25 @@ export async function fetchLeagueCalendarHolidaysByDateRange({
   startDate,
   endDate,
 }: DateRangeFilter) {
+  if (isAwsBackendEnabled()) {
+    try {
+      return {
+        data: await listAwsLeagueCalendarHolidays({ startDate, endDate }),
+        error: null,
+      };
+    } catch (error) {
+      return {
+        data: [] as LeagueCalendarHoliday[],
+        error:
+          error instanceof Error ? error : new Error("Falha ao carregar feriados pela laje-api."),
+      };
+    }
+  }
+
   if (!isSupabaseBackendEnabled()) {
     return {
       data: [] as LeagueCalendarHoliday[],
-      error: new Error(
-        "Consulta de feriados ainda depende do Supabase e está bloqueada no modo AWS.",
-      ),
+      error: new Error("Backend de feriados não configurado."),
     };
   }
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isSupabaseBackendEnabled } from "@/config/environment";
+import { getAwsMatchRuntimeContext } from "@/integrations/laje-api/public-runtime";
 import {
   isDedicatedSportsCoreEnabled,
   listSportsCoreMatches,
@@ -692,6 +693,59 @@ export function useMatches({
         }
 
         setTotalCount(resolvedTotalCount);
+
+        if (shouldUseDedicatedSportsCore) {
+          const championshipSeasonKeys = [
+            ...new Set(matchRows.map((match) => `${match.championship_id}:${match.season_year}`)),
+          ];
+          const runtimeContexts = await Promise.all(
+            championshipSeasonKeys.map((key) => {
+              const separatorIndex = key.lastIndexOf(":");
+              const resolvedChampionshipId = key.slice(0, separatorIndex);
+              const resolvedSeasonYear = Number(key.slice(separatorIndex + 1));
+              return getAwsMatchRuntimeContext(resolvedChampionshipId, resolvedSeasonYear);
+            }),
+          );
+          const championshipSportsByKey = runtimeContexts
+            .flatMap((context) => context.championshipSports)
+            .reduce<Record<string, (typeof runtimeContexts)[number]["championshipSports"][number]>>(
+              (carry, championshipSport) => {
+                carry[`${championshipSport.championship_id}:${championshipSport.sport_id}`] =
+                  championshipSport;
+                return carry;
+              },
+              {},
+            );
+          const championshipSportsForEstimatedStartTimeRows =
+            Object.values(championshipSportsByKey);
+          const latestChampionshipBracketEditions = runtimeContexts.flatMap((context) =>
+            context.bracketEdition ? [context.bracketEdition] : [],
+          );
+          const orderedMatchRows =
+            sortMode == "SCHEDULED"
+              ? scheduledMatchOrdering == "INTERLEAVED_BY_COMPETITION"
+                ? resolveInterleavedScheduledMatchesByCompetition(
+                    resolveOrderedScheduledMatches(matchRows),
+                  )
+                : resolveOrderedScheduledMatches(matchRows)
+              : matchRows;
+
+          setMatches(
+            orderedMatchRows.map((match) => ({
+              ...match,
+              result_rule:
+                match.result_rule ??
+                championshipSportsByKey[`${match.championship_id}:${match.sport_id}`]
+                  ?.result_rule ??
+                null,
+              match_sets: match.match_sets ?? [],
+            })),
+          );
+          setOperationalContextMatches(resolvedOperationalContextMatches);
+          setChampionshipSportsForEstimatedStartTime(championshipSportsForEstimatedStartTimeRows);
+          setChampionshipBracketEditionsForEstimatedStartTime(latestChampionshipBracketEditions);
+          return;
+        }
 
         {
           const matchIds = matchRows.map((match) => match.id);
