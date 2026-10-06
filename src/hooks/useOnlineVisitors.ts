@@ -30,7 +30,9 @@ function resolveVisitorSessionId(): string {
   return generatedValue;
 }
 
-export function useOnlineVisitors(context: OnlineVisitorsContext = OnlineVisitorsContext.SITE_TOTAL) {
+export function useOnlineVisitors(
+  context: OnlineVisitorsContext = OnlineVisitorsContext.SITE_TOTAL,
+) {
   const { user } = useAuth();
   const [onlineVisitorsCount, setOnlineVisitorsCount] = useState(0);
   const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
@@ -157,11 +159,7 @@ export function useOnlineVisitors(context: OnlineVisitorsContext = OnlineVisitor
   // Effect secundário: quando o user?.id muda (login/logout), refaz o track
   // para atualizar o user_id no payload de presença — sem recriar o canal.
   useEffect(() => {
-    if (
-      !isSupabaseBackendEnabled() ||
-      !isChannelSubscribedRef.current ||
-      !channelRef.current
-    ) {
+    if (!isSupabaseBackendEnabled() || !isChannelSubscribedRef.current || !channelRef.current) {
       return;
     }
 
