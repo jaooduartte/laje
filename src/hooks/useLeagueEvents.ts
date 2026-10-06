@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import { endOfYear, format, startOfYear } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import type { LeagueEvent } from "@/lib/types";
@@ -81,7 +82,7 @@ export function useLeagueEvents({ monthDate, realtimeEnabled = true }: UseLeague
   useEffect(() => {
     fetchLeagueEvents();
 
-    if (!realtimeEnabled) {
+    if (!realtimeEnabled || !isSupabaseBackendEnabled()) {
       return;
     }
 
