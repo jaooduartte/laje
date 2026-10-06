@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
 import { ChampionshipAwardType, MatchNaipe, TeamDivision } from "@/lib/enums";
 
@@ -34,6 +35,15 @@ export function usePendingAwardDraws({ championshipId, seasonYear }: UsePendingA
   const hasQueuedRefetchRef = useRef(false);
 
   const fetchPendingDraws = useCallback(async (shouldShowLoading = false) => {
+    if (!isSupabaseBackendEnabled()) {
+      setPendingContexts([]);
+      setLoading(false);
+      hasLoadedRef.current = false;
+      isFetchingRef.current = false;
+      hasQueuedRefetchRef.current = false;
+      return;
+    }
+
     if (!championshipId || !seasonYear) {
       setPendingContexts([]);
       setLoading(false);
@@ -94,6 +104,10 @@ export function usePendingAwardDraws({ championshipId, seasonYear }: UsePendingA
     }
 
     void fetchPendingDraws(true);
+
+    if (!isSupabaseBackendEnabled()) {
+      return;
+    }
 
     const scheduleRefetch = () => {
       if (scheduledRefetchTimeoutRef.current) {
