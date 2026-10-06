@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchChampionshipBracketView } from "@/domain/championship-brackets/championshipBracket.repository";
 import type { ChampionshipBracketSeasonView } from "@/lib/types";
@@ -108,7 +109,7 @@ export function useChampionshipBracketHistory({
 
     void fetchBracketHistory(true);
 
-    if (!realtimeEnabled) {
+    if (!realtimeEnabled || !isSupabaseBackendEnabled()) {
       return;
     }
 
