@@ -34,66 +34,74 @@ export function usePendingAwardDraws({ championshipId, seasonYear }: UsePendingA
   const isFetchingRef = useRef(false);
   const hasQueuedRefetchRef = useRef(false);
 
-  const fetchPendingDraws = useCallback(async (shouldShowLoading = false) => {
-    if (!isSupabaseBackendEnabled()) {
-      setPendingContexts([]);
-      setLoading(false);
-      hasLoadedRef.current = false;
-      isFetchingRef.current = false;
-      hasQueuedRefetchRef.current = false;
-      return;
-    }
-
-    if (!championshipId || !seasonYear) {
-      setPendingContexts([]);
-      setLoading(false);
-      hasLoadedRef.current = false;
-      isFetchingRef.current = false;
-      hasQueuedRefetchRef.current = false;
-      return;
-    }
-
-    if (isFetchingRef.current) {
-      hasQueuedRefetchRef.current = true;
-      return;
-    }
-
-    isFetchingRef.current = true;
-
-    if (shouldShowLoading || !hasLoadedRef.current) {
-      setLoading(true);
-    }
-
-    try {
-      const { data, error } = await (supabase as unknown as {
-        rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
-      }).rpc("get_championship_award_pending_draws", {
-        _championship_id: championshipId,
-        _season_year: seasonYear,
-      });
-
-      if (error) {
-        console.error("Error fetching pending award draws:", error);
+  const fetchPendingDraws = useCallback(
+    async (shouldShowLoading = false) => {
+      if (!isSupabaseBackendEnabled()) {
         setPendingContexts([]);
+        setLoading(false);
+        hasLoadedRef.current = false;
+        isFetchingRef.current = false;
+        hasQueuedRefetchRef.current = false;
         return;
       }
 
-      const contexts = Array.isArray(data) ? (data as AwardDrawPendingContext[]) : [];
-      setPendingContexts(contexts);
-    } catch (error) {
-      console.error("Error fetching pending award draws:", error);
-      setPendingContexts([]);
-    } finally {
-      hasLoadedRef.current = true;
-      setLoading(false);
-      isFetchingRef.current = false;
-
-      if (hasQueuedRefetchRef.current) {
+      if (!championshipId || !seasonYear) {
+        setPendingContexts([]);
+        setLoading(false);
+        hasLoadedRef.current = false;
+        isFetchingRef.current = false;
         hasQueuedRefetchRef.current = false;
-        void fetchPendingDraws();
+        return;
       }
-    }
-  }, [championshipId, seasonYear]);
+
+      if (isFetchingRef.current) {
+        hasQueuedRefetchRef.current = true;
+        return;
+      }
+
+      isFetchingRef.current = true;
+
+      if (shouldShowLoading || !hasLoadedRef.current) {
+        setLoading(true);
+      }
+
+      try {
+        const { data, error } = await (
+          supabase as unknown as {
+            rpc: (
+              fn: string,
+              args: Record<string, unknown>,
+            ) => Promise<{ data: unknown; error: unknown }>;
+          }
+        ).rpc("get_championship_award_pending_draws", {
+          _championship_id: championshipId,
+          _season_year: seasonYear,
+        });
+
+        if (error) {
+          console.error("Error fetching pending award draws:", error);
+          setPendingContexts([]);
+          return;
+        }
+
+        const contexts = Array.isArray(data) ? (data as AwardDrawPendingContext[]) : [];
+        setPendingContexts(contexts);
+      } catch (error) {
+        console.error("Error fetching pending award draws:", error);
+        setPendingContexts([]);
+      } finally {
+        hasLoadedRef.current = true;
+        setLoading(false);
+        isFetchingRef.current = false;
+
+        if (hasQueuedRefetchRef.current) {
+          hasQueuedRefetchRef.current = false;
+          void fetchPendingDraws();
+        }
+      }
+    },
+    [championshipId, seasonYear],
+  );
 
   useEffect(() => {
     if (!championshipId || !seasonYear) {
