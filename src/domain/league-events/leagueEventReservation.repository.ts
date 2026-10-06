@@ -84,8 +84,7 @@ export async function reviewLeagueEventReservationRequest({
 }: {
   requestId: string;
   decision:
-    | LeagueEventReservationRequestStatus.APPROVED
-    | LeagueEventReservationRequestStatus.REJECTED;
+    LeagueEventReservationRequestStatus.APPROVED | LeagueEventReservationRequestStatus.REJECTED;
   reviewNotes?: string;
 }): Promise<{
   data: {
