@@ -1,4 +1,5 @@
-import { isSupabaseBackendEnabled } from "@/config/environment";
+import { isAwsBackendEnabled, isSupabaseBackendEnabled } from "@/config/environment";
+import { getAwsHomeDashboardMetrics } from "@/integrations/laje-api/public-runtime";
 import { supabase } from "@/integrations/supabase/client";
 import type { ChampionshipCode } from "@/lib/enums";
 import type { HomeDashboardMetrics } from "@/lib/types";
@@ -7,12 +8,24 @@ export async function fetchHomeDashboardMetrics(
   seasonYear?: number | null,
   championshipCode?: ChampionshipCode | null,
 ) {
+  if (isAwsBackendEnabled()) {
+    try {
+      return {
+        data: await getAwsHomeDashboardMetrics({ seasonYear, championshipCode }),
+        error: null,
+      };
+    } catch (error) {
+      return {
+        data: null,
+        error: error instanceof Error ? error : new Error("Falha ao carregar métricas pela laje-api."),
+      };
+    }
+  }
+
   if (!isSupabaseBackendEnabled()) {
     return {
       data: null,
-      error: new Error(
-        "Métricas do dashboard ainda não foram migradas para a laje-api; consulta Supabase bloqueada no modo AWS.",
-      ),
+      error: new Error("Backend público não configurado."),
     };
   }
 
