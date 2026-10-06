@@ -121,9 +121,7 @@ export async function listAwsSports(championshipId?: string | null): Promise<{
   };
 }
 
-export async function listAwsChampionshipSeasonYears(
-  championshipId: string,
-): Promise<number[]> {
+export async function listAwsChampionshipSeasonYears(championshipId: string): Promise<number[]> {
   const response = await lajeApiRequest<DataResponse<number[]>>(
     `/public-runtime/championships/${championshipId}/season-years`,
   );
@@ -242,9 +240,7 @@ export async function listAwsIndividualEventEntries(eventIds: string[]): Promise
   };
 }
 
-export async function listAwsIndividualSessionParticipants(
-  sessionId: string,
-): Promise<Team[]> {
+export async function listAwsIndividualSessionParticipants(sessionId: string): Promise<Team[]> {
   const response = await lajeApiRequest<DataResponse<Record<string, unknown>[]>>(
     `/public-runtime/individual-sessions/${sessionId}/participants`,
   );
@@ -297,10 +293,12 @@ export async function listAwsIndividualStandings(input: {
   }));
 }
 
-export async function getAwsHomeDashboardMetrics(input: {
-  seasonYear?: number | null;
-  championshipCode?: ChampionshipCode | null;
-} = {}): Promise<HomeDashboardMetrics> {
+export async function getAwsHomeDashboardMetrics(
+  input: {
+    seasonYear?: number | null;
+    championshipCode?: ChampionshipCode | null;
+  } = {},
+): Promise<HomeDashboardMetrics> {
   const search = new URLSearchParams();
   if (input.seasonYear) search.set("seasonYear", String(input.seasonYear));
   if (input.championshipCode) search.set("championshipCode", input.championshipCode);
