@@ -1,3 +1,11 @@
+import { isAwsBackendEnabled } from "@/config/environment";
+import {
+  listAwsIndividualEventEntries,
+  listAwsIndividualEvents,
+  listAwsIndividualSessionParticipants,
+  listAwsIndividualSessions,
+  listAwsIndividualStandings,
+} from "@/integrations/laje-api/public-runtime";
 import { supabase } from "@/integrations/supabase/client";
 import type {
   ChampionshipAthlete,
@@ -129,6 +137,24 @@ export async function fetchChampionshipIndividualEvents({
   seasonYear?: number | null;
   sportId?: string | null;
 }): Promise<{ data: ChampionshipIndividualEvent[]; error: Error | null }> {
+  if (isAwsBackendEnabled()) {
+    if (!championshipId || typeof seasonYear != "number") {
+      return { data: [], error: null };
+    }
+
+    try {
+      return {
+        data: await listAwsIndividualEvents({ championshipId, seasonYear, sportId }),
+        error: null,
+      };
+    } catch (error) {
+      return {
+        data: [],
+        error: error instanceof Error ? error : new Error("Falha ao carregar provas pela laje-api."),
+      };
+    }
+  }
+
   let query = supabaseLoose
     .from("championship_individual_events")
     .select("*, sports(*)")
@@ -180,6 +206,34 @@ export async function fetchChampionshipIndividualSessions({
 }): Promise<{ data: ChampionshipIndividualSession[]; error: Error | null }> {
   if (sessionIds != null && sessionIds.length == 0) {
     return { data: [], error: null };
+  }
+
+  if (isAwsBackendEnabled()) {
+    if (!championshipId || typeof seasonYear != "number") {
+      return { data: [], error: null };
+    }
+
+    try {
+      const sessions = await listAwsIndividualSessions({
+        championshipId,
+        seasonYear,
+        sportId,
+        status,
+      });
+
+      return {
+        data:
+          sessionIds == null
+            ? sessions
+            : sessions.filter((session) => sessionIds.includes(session.id)),
+        error: null,
+      };
+    } catch (error) {
+      return {
+        data: [],
+        error: error instanceof Error ? error : new Error("Falha ao carregar sessões pela laje-api."),
+      };
+    }
   }
 
   let query = supabaseLoose
@@ -262,6 +316,19 @@ export async function fetchChampionshipIndividualEventEntries({
     return { data: [], membersByEntryId: {}, error: null };
   }
 
+  if (isAwsBackendEnabled()) {
+    try {
+      const response = await listAwsIndividualEventEntries(eventIds);
+      return { ...response, error: null };
+    } catch (error) {
+      return {
+        data: [],
+        membersByEntryId: {},
+        error: error instanceof Error ? error : new Error("Falha ao carregar inscrições pela laje-api."),
+      };
+    }
+  }
+
   const entriesResponse = await supabaseLoose
     .from("championship_individual_event_entries")
     .select("*, teams(*)")
@@ -323,6 +390,30 @@ export async function fetchChampionshipIndividualTeamStandings({
   naipe?: MatchNaipe | null;
   division?: TeamDivision | null | undefined;
 }): Promise<{ data: ChampionshipIndividualTeamStanding[]; error: Error | null }> {
+  if (isAwsBackendEnabled()) {
+    if (!championshipId || typeof seasonYear != "number") {
+      return { data: [], error: null };
+    }
+
+    try {
+      return {
+        data: await listAwsIndividualStandings({
+          championshipId,
+          seasonYear,
+          sportId,
+          naipe,
+          division,
+        }),
+        error: null,
+      };
+    } catch (error) {
+      return {
+        data: [],
+        error: error instanceof Error ? error : new Error("Falha ao carregar classificação individual pela laje-api."),
+      };
+    }
+  }
+
   let query = supabaseLoose
     .from("championship_individual_team_standings")
     .select("*, teams(*), sports(*)")
@@ -518,6 +609,20 @@ export async function previewChampionshipIndividualSessionScoreboard(
 export async function fetchChampionshipIndividualSessionParticipants(
   sessionId: string,
 ): Promise<{ data: Team[]; error: Error | null }> {
+  if (isAwsBackendEnabled()) {
+    try {
+      return {
+        data: await listAwsIndividualSessionParticipants(sessionId),
+        error: null,
+      };
+    } catch (error) {
+      return {
+        data: [],
+        error: error instanceof Error ? error : new Error("Falha ao carregar participantes pela laje-api."),
+      };
+    }
+  }
+
   const response = await supabaseLoose.rpc(
     "get_championship_individual_session_participants",
     { _session_id: sessionId },
