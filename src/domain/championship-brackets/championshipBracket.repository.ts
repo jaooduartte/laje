@@ -1,5 +1,8 @@
 import { isAwsBackendEnabled } from "@/config/environment";
-import { getSportsCoreBracket } from "@/integrations/laje-api/sports-core";
+import {
+  getSportsCoreBracket,
+  getSportsCoreChampionship,
+} from "@/integrations/laje-api/sports-core";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import type {
@@ -760,16 +763,16 @@ export async function fetchChampionshipBracketView(
   season_year?: number | null,
 ): Promise<{ data: ChampionshipBracketView | null; error: Error | null }> {
   if (isAwsBackendEnabled()) {
-    if (typeof season_year != "number") {
-      return {
-        data: null,
-        error: new Error("A temporada é obrigatória para consultar o chaveamento pela laje-api."),
-      };
-    }
-
     try {
+      const resolvedSeasonYear =
+        typeof season_year == "number"
+          ? season_year
+          : (await getSportsCoreChampionship(championship_id)).current_season_year;
       return {
-        data: (await getSportsCoreBracket(championship_id, season_year)) as ChampionshipBracketView,
+        data: (await getSportsCoreBracket(
+          championship_id,
+          resolvedSeasonYear,
+        )) as ChampionshipBracketView,
         error: null,
       };
     } catch (error) {
