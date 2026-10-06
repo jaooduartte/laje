@@ -644,6 +644,10 @@ export async function fetchChampionshipBracketResolvedTieBreakOrders(
   data: ChampionshipBracketResolvedTieBreakOrderContext[];
   error: Error | null;
 }> {
+  if (isAwsBackendEnabled()) {
+    return { data: [], error: null };
+  }
+
   const response = await supabase.rpc(
     "get_championship_bracket_resolved_tie_break_orders",
     {
