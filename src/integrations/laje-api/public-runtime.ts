@@ -1,3 +1,7 @@
+import type {
+  MatchEstimatedStartTimeBracketEdition,
+  MatchEstimatedStartTimeChampionshipSport,
+} from "@/lib/championship";
 import type { ChampionshipCode, MatchNaipe, TeamDivision } from "@/lib/enums";
 import type {
   ChampionshipIndividualEvent,
@@ -7,6 +11,7 @@ import type {
   ChampionshipIndividualTeamStanding,
   ChampionshipSport,
   HomeDashboardMetrics,
+  LeagueCalendarHoliday,
   Sport,
   Team,
 } from "@/lib/types";
@@ -119,6 +124,93 @@ export async function listAwsSports(championshipId?: string | null): Promise<{
         (row.classificationPolicy as Record<string, unknown> | null | undefined) ?? null,
     })),
   };
+}
+
+export async function getAwsMatchRuntimeContext(
+  championshipId: string,
+  seasonYear: number,
+): Promise<{
+  championshipSports: Array<
+    MatchEstimatedStartTimeChampionshipSport & {
+      result_rule: ChampionshipSport["result_rule"];
+    }
+  >;
+  bracketEdition: MatchEstimatedStartTimeBracketEdition | null;
+}> {
+  const response = await lajeApiRequest<
+    DataResponse<{
+      championshipSports: Record<string, unknown>[];
+      bracketEdition: Record<string, unknown> | null;
+    }>
+  >(
+    `/public-runtime/championships/${championshipId}/seasons/${seasonYear}/match-context`,
+  );
+
+  const bracketEdition = response.data.bracketEdition;
+  return {
+    championshipSports: response.data.championshipSports.map((row) => ({
+      championship_id: String(row.championshipId),
+      sport_id: String(row.sportId),
+      result_rule: row.resultRule as ChampionshipSport["result_rule"],
+      default_match_duration_minutes: asNumber(row.defaultMatchDurationMinutes),
+      show_estimated_start_time_on_cards: Boolean(row.showEstimatedStartTimeOnCards),
+    })),
+    bracketEdition: bracketEdition
+      ? {
+          championship_id: String(bracketEdition.championshipId),
+          season_year: asNumber(bracketEdition.seasonYear),
+          payload_snapshot:
+            (bracketEdition.payloadSnapshot as Record<string, unknown> | null | undefined) ?? null,
+          schedule_days: Array.isArray(bracketEdition.scheduleDays)
+            ? (bracketEdition.scheduleDays as Record<string, unknown>[]).map((day) => ({
+                date: String(day.date),
+                start_time: String(day.startTime),
+                end_time: String(day.endTime),
+                breaks: Array.isArray(day.breaks)
+                  ? (day.breaks as Record<string, unknown>[]).map((item) => ({
+                      break_start_time: String(item.breakStartTime),
+                      break_end_time: String(item.breakEndTime),
+                      position: asNumber(item.position),
+                    }))
+                  : [],
+              }))
+            : [],
+        }
+      : null,
+  };
+}
+
+export async function ensureAwsLeagueCalendarHolidaysYear(year: number): Promise<number> {
+  const response = await lajeApiRequest<DataResponse<number>>(
+    "/public-runtime/league-calendar-holidays/ensure-year",
+    {
+      method: "POST",
+      body: JSON.stringify({ year }),
+    },
+  );
+  return response.data;
+}
+
+export async function listAwsLeagueCalendarHolidays(input: {
+  startDate: string;
+  endDate: string;
+}): Promise<LeagueCalendarHoliday[]> {
+  const search = new URLSearchParams({
+    startDate: input.startDate,
+    endDate: input.endDate,
+  });
+  const response = await lajeApiRequest<DataResponse<Record<string, unknown>[]>>(
+    `/public-runtime/league-calendar-holidays?${search.toString()}`,
+  );
+  return response.data.map((row) => ({
+    id: String(row.id),
+    holiday_date: String(row.holidayDate),
+    name: String(row.name),
+    scope: row.scope as LeagueCalendarHoliday["scope"],
+    day_kind: row.dayKind as LeagueCalendarHoliday["day_kind"],
+    created_at: String(row.createdAt ?? ""),
+    updated_at: String(row.updatedAt ?? ""),
+  }));
 }
 
 export async function listAwsChampionshipSeasonYears(championshipId: string): Promise<number[]> {
