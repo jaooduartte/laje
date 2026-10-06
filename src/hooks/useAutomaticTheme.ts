@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
 import { ThemeMode } from "@/lib/enums";
 import { isThemeMode, resolveEffectiveThemeMode, type ResolvedThemeMode } from "@/lib/theme";
@@ -109,6 +110,13 @@ export function useAutomaticTheme() {
   }, [preferredThemeMode, refreshThemeMode]);
 
   useEffect(() => {
+    if (!isSupabaseBackendEnabled()) {
+      themePreferenceCache = null;
+      themePreferenceRequest = null;
+      setPreferredThemeMode(ThemeMode.AUTO);
+      return;
+    }
+
     let isMounted = true;
 
     const applyCurrentUserThemeModePreference = async (userId: string | null) => {
