@@ -52,6 +52,8 @@ Por compatibilidade transitória, quando `VITE_BACKEND_PROVIDER` não está defi
 
 O projeto Vercel `laje-tcc` só deve ser criado após a validação do modo AWS-only. Recursos ainda dependentes de realtime/Edge Functions permanecem rastreados nas tarefas de migração correspondentes e não devem voltar silenciosamente ao Supabase no modo AWS.
 
+Enquanto essas migrações não forem concluídas, o modo AWS bloqueia explicitamente acessos legados ainda sem endpoint equivalente, em vez de consultar o Supabase como fallback. Nesta etapa isso inclui catálogo global de atléticas/modalidades, remoções de modalidade por temporada, métricas do dashboard, feriados do calendário e o envio de e-mail via Edge Function após pedido de reserva. O ano corrente do campeonato permanece disponível como fallback local quando a consulta histórica de temporadas ainda não está migrada.
+
 ## Quality gate
 
 Antes de abrir ou atualizar uma PR, execute:
