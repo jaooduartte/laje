@@ -18,9 +18,7 @@ const optionalStringSchema = z.preprocess(
 );
 
 const publicEnvironmentSchema = z.object({
-  VITE_BACKEND_PROVIDER: z
-    .enum([BACKEND_PROVIDER.SUPABASE, BACKEND_PROVIDER.AWS])
-    .optional(),
+  VITE_BACKEND_PROVIDER: z.enum([BACKEND_PROVIDER.SUPABASE, BACKEND_PROVIDER.AWS]).optional(),
   VITE_API_URL: optionalUrlSchema,
   VITE_SUPABASE_URL: optionalUrlSchema,
   VITE_SUPABASE_PUBLISHABLE_KEY: optionalStringSchema,
@@ -45,10 +43,7 @@ const resolvedBackendProvider: BackendProvider =
   parsedEnvironment.data.VITE_BACKEND_PROVIDER ??
   (parsedEnvironment.data.VITE_API_URL ? BACKEND_PROVIDER.AWS : BACKEND_PROVIDER.SUPABASE);
 
-if (
-  resolvedBackendProvider === BACKEND_PROVIDER.AWS &&
-  !parsedEnvironment.data.VITE_API_URL
-) {
+if (resolvedBackendProvider === BACKEND_PROVIDER.AWS && !parsedEnvironment.data.VITE_API_URL) {
   throw new Error(
     "Configuração AWS inválida. VITE_API_URL é obrigatória quando VITE_BACKEND_PROVIDER=aws.",
   );
