@@ -48,7 +48,9 @@ export function useLeagueEvents({ monthDate, realtimeEnabled = true }: UseLeague
 
   const sortLeagueEvents = useCallback((events: LeagueEvent[]) => {
     return [...events].sort((firstLeagueEvent, secondLeagueEvent) => {
-      const dateComparison = firstLeagueEvent.event_date.localeCompare(secondLeagueEvent.event_date);
+      const dateComparison = firstLeagueEvent.event_date.localeCompare(
+        secondLeagueEvent.event_date,
+      );
 
       if (dateComparison != 0) {
         return dateComparison;
@@ -58,20 +60,26 @@ export function useLeagueEvents({ monthDate, realtimeEnabled = true }: UseLeague
     });
   }, []);
 
-  const upsertLeagueEvent = useCallback((leagueEvent: LeagueEvent) => {
-    setLeagueEvents((currentLeagueEvents) => {
-      const nextLeagueEvents = currentLeagueEvents.filter((currentLeagueEvent) => currentLeagueEvent.id != leagueEvent.id);
+  const upsertLeagueEvent = useCallback(
+    (leagueEvent: LeagueEvent) => {
+      setLeagueEvents((currentLeagueEvents) => {
+        const nextLeagueEvents = currentLeagueEvents.filter(
+          (currentLeagueEvent) => currentLeagueEvent.id != leagueEvent.id,
+        );
 
-      const isInsideCurrentYear =
-        leagueEvent.event_date >= dateRange.startDate && leagueEvent.event_date <= dateRange.endDate;
+        const isInsideCurrentYear =
+          leagueEvent.event_date >= dateRange.startDate &&
+          leagueEvent.event_date <= dateRange.endDate;
 
-      if (isInsideCurrentYear) {
-        nextLeagueEvents.push(leagueEvent);
-      }
+        if (isInsideCurrentYear) {
+          nextLeagueEvents.push(leagueEvent);
+        }
 
-      return sortLeagueEvents(nextLeagueEvents);
-    });
-  }, [dateRange.endDate, dateRange.startDate, sortLeagueEvents]);
+        return sortLeagueEvents(nextLeagueEvents);
+      });
+    },
+    [dateRange.endDate, dateRange.startDate, sortLeagueEvents],
+  );
 
   const removeLeagueEvent = useCallback((leagueEventId: string) => {
     setLeagueEvents((currentLeagueEvents) => {
