@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchChampionshipBracketPendingTieBreaks } from "@/domain/championship-brackets/championshipBracket.repository";
 import type { ChampionshipBracketTieBreakPendingContext } from "@/domain/championship-brackets/championshipBracket.types";
@@ -101,6 +102,16 @@ export function usePendingTieBreaks({
 
   const fetchPendingTieBreaks = useCallback(
     async (shouldShowLoading = false, forceFresh = false) => {
+      if (!isSupabaseBackendEnabled()) {
+        setPendingContexts([]);
+        setLoading(false);
+        hasLoadedPendingTieBreaksRef.current = false;
+        isFetchingPendingTieBreaksRef.current = false;
+        hasQueuedPendingTieBreakRefetchRef.current = false;
+        shouldForceFreshOnQueuedPendingTieBreakRefetchRef.current = false;
+        return;
+      }
+
       if (!enabled || !championshipId || !bracketEditionId) {
         setPendingContexts([]);
         setLoading(false);
@@ -160,6 +171,10 @@ export function usePendingTieBreaks({
     }
 
     void fetchPendingTieBreaks(true);
+
+    if (!isSupabaseBackendEnabled()) {
+      return;
+    }
 
     const scheduleRefetch = () => {
       if (scheduledRefetchTimeoutRef.current) {
