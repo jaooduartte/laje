@@ -142,9 +142,7 @@ export async function getAwsMatchRuntimeContext(
       championshipSports: Record<string, unknown>[];
       bracketEdition: Record<string, unknown> | null;
     }>
-  >(
-    `/public-runtime/championships/${championshipId}/seasons/${seasonYear}/match-context`,
-  );
+  >(`/public-runtime/championships/${championshipId}/seasons/${seasonYear}/match-context`);
 
   const bracketEdition = response.data.bracketEdition;
   return {
