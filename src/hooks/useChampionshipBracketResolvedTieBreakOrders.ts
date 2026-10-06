@@ -19,7 +19,9 @@ export function useChampionshipBracketResolvedTieBreakOrders({
   enabled = true,
   realtimeEnabled = true,
 }: UseChampionshipBracketResolvedTieBreakOrdersOptions = {}) {
-  const [resolvedTieBreakOrders, setResolvedTieBreakOrders] = useState<ChampionshipBracketResolvedTieBreakOrderContext[]>([]);
+  const [resolvedTieBreakOrders, setResolvedTieBreakOrders] = useState<
+    ChampionshipBracketResolvedTieBreakOrderContext[]
+  >([]);
   const [loading, setLoading] = useState(() => enabled && championshipId != null);
   const hasLoadedResolvedTieBreakOrdersRef = useRef(false);
   const scheduledRefetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -27,49 +29,52 @@ export function useChampionshipBracketResolvedTieBreakOrders({
   const hasQueuedRefetchRef = useRef(false);
   const fetchRef = useRef<(shouldShowLoading?: boolean) => Promise<void>>(async () => undefined);
 
-  const fetchResolvedTieBreakOrders = useCallback(async (shouldShowLoading = false) => {
-    if (!enabled || !championshipId) {
-      setResolvedTieBreakOrders([]);
-      setLoading(false);
-      hasLoadedResolvedTieBreakOrdersRef.current = false;
-      isFetchingRef.current = false;
-      hasQueuedRefetchRef.current = false;
-      return;
-    }
-
-    if (isFetchingRef.current) {
-      hasQueuedRefetchRef.current = true;
-      return;
-    }
-
-    isFetchingRef.current = true;
-
-    if (shouldShowLoading || !hasLoadedResolvedTieBreakOrdersRef.current) {
-      setLoading(true);
-    }
-
-    try {
-      const response = await fetchChampionshipBracketResolvedTieBreakOrders(
-        championshipId,
-        seasonYear ?? null,
-      );
-
-      if (!response.error) {
-        setResolvedTieBreakOrders(response.data);
-      }
-    } catch (error) {
-      console.warn("Unable to refresh resolved tie-break orders:", error);
-    } finally {
-      hasLoadedResolvedTieBreakOrdersRef.current = true;
-      setLoading(false);
-      isFetchingRef.current = false;
-
-      if (hasQueuedRefetchRef.current) {
+  const fetchResolvedTieBreakOrders = useCallback(
+    async (shouldShowLoading = false) => {
+      if (!enabled || !championshipId) {
+        setResolvedTieBreakOrders([]);
+        setLoading(false);
+        hasLoadedResolvedTieBreakOrdersRef.current = false;
+        isFetchingRef.current = false;
         hasQueuedRefetchRef.current = false;
-        void fetchRef.current();
+        return;
       }
-    }
-  }, [championshipId, enabled, seasonYear]);
+
+      if (isFetchingRef.current) {
+        hasQueuedRefetchRef.current = true;
+        return;
+      }
+
+      isFetchingRef.current = true;
+
+      if (shouldShowLoading || !hasLoadedResolvedTieBreakOrdersRef.current) {
+        setLoading(true);
+      }
+
+      try {
+        const response = await fetchChampionshipBracketResolvedTieBreakOrders(
+          championshipId,
+          seasonYear ?? null,
+        );
+
+        if (!response.error) {
+          setResolvedTieBreakOrders(response.data);
+        }
+      } catch (error) {
+        console.warn("Unable to refresh resolved tie-break orders:", error);
+      } finally {
+        hasLoadedResolvedTieBreakOrdersRef.current = true;
+        setLoading(false);
+        isFetchingRef.current = false;
+
+        if (hasQueuedRefetchRef.current) {
+          hasQueuedRefetchRef.current = false;
+          void fetchRef.current();
+        }
+      }
+    },
+    [championshipId, enabled, seasonYear],
+  );
 
   fetchRef.current = fetchResolvedTieBreakOrders;
 
@@ -99,8 +104,14 @@ export function useChampionshipBracketResolvedTieBreakOrders({
     };
 
     const channel = supabase
-      .channel(`championship-resolved-tie-break-orders-${championshipId}-${seasonYear ?? "current"}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "championship_bracket_tie_break_resolutions" }, scheduleFetch)
+      .channel(
+        `championship-resolved-tie-break-orders-${championshipId}-${seasonYear ?? "current"}`,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "championship_bracket_tie_break_resolutions" },
+        scheduleFetch,
+      )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "championship_bracket_tie_break_resolution_teams" },
