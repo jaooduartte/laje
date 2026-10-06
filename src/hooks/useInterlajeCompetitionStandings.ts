@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { isSupabaseBackendEnabled } from "@/config/environment";
+import { isAwsBackendEnabled, isSupabaseBackendEnabled } from "@/config/environment";
 import {
   fetchInterlajeCompetitionStandings,
   type InterlajeCompetitionStanding,
@@ -28,8 +28,16 @@ export function useInterlajeCompetitionStandings({
   const [loading, setLoading] = useState(false);
 
   const refetch = useCallback(async () => {
-    if (!enabled || !championshipId || !seasonYear || !sportId || !naipe) {
+    if (
+      !enabled ||
+      !championshipId ||
+      !seasonYear ||
+      !sportId ||
+      !naipe ||
+      isAwsBackendEnabled()
+    ) {
       setStandings([]);
+      setLoading(false);
       return;
     }
 
@@ -50,7 +58,13 @@ export function useInterlajeCompetitionStandings({
   }, [refetch]);
 
   useEffect(() => {
-    if (!enabled || !championshipId || !seasonYear || !realtimeEnabled) {
+    if (
+      !enabled ||
+      !championshipId ||
+      !seasonYear ||
+      !realtimeEnabled ||
+      !isSupabaseBackendEnabled()
+    ) {
       return;
     }
 
