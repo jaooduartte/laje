@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import { addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isSameDay, startOfMonth, startOfWeek, subMonths } from "date-fns";
 import { toast } from "sonner";
 import { useLeagueEvents } from "@/hooks/useLeagueEvents";
@@ -349,17 +350,19 @@ export function LeagueCalendarPage() {
 
       const teamName = teams.find((team) => team.id === payload.team_id)?.name ?? "";
 
-      void supabase.functions.invoke("send-reservation-email", {
-        body: {
-          type: "PENDING",
-          requesterEmail: payload.requester_email,
-          requesterName: payload.requester_name,
-          teamName,
-          eventName: payload.event_name,
-          eventType: payload.event_type,
-          eventDate: payload.event_date,
-        },
-      });
+      if (isSupabaseBackendEnabled()) {
+        void supabase.functions.invoke("send-reservation-email", {
+          body: {
+            type: "PENDING",
+            requesterEmail: payload.requester_email,
+            requesterName: payload.requester_name,
+            teamName,
+            eventName: payload.event_name,
+            eventType: payload.event_type,
+            eventDate: payload.event_date,
+          },
+        });
+      }
 
       setPendingReservationRequestConflicts(null);
       setPendingQueueConflicts(null);
