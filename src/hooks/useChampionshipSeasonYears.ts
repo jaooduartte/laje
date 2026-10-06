@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
 
 interface UseChampionshipSeasonYearsOptions {
@@ -31,7 +32,7 @@ export function useChampionshipSeasonYears({
         ? [currentSeasonYear]
         : [];
 
-    if (!championshipId) {
+    if (!championshipId || !isSupabaseBackendEnabled()) {
       setSeasonYears(fallbackSeasonYears);
       setLoading(false);
       return;
