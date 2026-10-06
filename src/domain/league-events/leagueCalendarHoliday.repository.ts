@@ -18,10 +18,7 @@ export async function ensureLeagueCalendarHolidaysYear(year: number) {
     } catch (error) {
       return {
         data: null,
-        error:
-          error instanceof Error
-            ? error
-            : new Error("Falha ao gerar feriados pela laje-api."),
+        error: error instanceof Error ? error : new Error("Falha ao gerar feriados pela laje-api."),
       };
     }
   }
@@ -50,9 +47,7 @@ export async function fetchLeagueCalendarHolidaysByDateRange({
       return {
         data: [] as LeagueCalendarHoliday[],
         error:
-          error instanceof Error
-            ? error
-            : new Error("Falha ao carregar feriados pela laje-api."),
+          error instanceof Error ? error : new Error("Falha ao carregar feriados pela laje-api."),
       };
     }
   }
