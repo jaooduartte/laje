@@ -1,4 +1,4 @@
-import { frontendEnvironment } from "@/config/environment";
+import { isAwsBackendEnabled } from "@/config/environment";
 import type { LeagueEventWritePayload } from "@/domain/league-events/leagueEvent.types";
 import {
   createLeagueEventFromApi,
@@ -23,7 +23,7 @@ interface LeagueEventOrganizerTeamsRelationRow {
 const LEAGUE_EVENT_SELECT_QUERY = "*, organizer_team:teams!league_events_organizer_team_id_fkey(*)";
 
 function shouldUseLajeApi() {
-  return Boolean(frontendEnvironment.apiUrl);
+  return isAwsBackendEnabled();
 }
 
 function normalizeApiError(error: unknown): Error {
