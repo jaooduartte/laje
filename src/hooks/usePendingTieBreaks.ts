@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchChampionshipBracketPendingTieBreaks } from "@/domain/championship-brackets/championshipBracket.repository";
 import type { ChampionshipBracketTieBreakPendingContext } from "@/domain/championship-brackets/championshipBracket.types";
@@ -13,20 +14,14 @@ type PendingTieBreaksFetchResult = Awaited<
   ReturnType<typeof fetchChampionshipBracketPendingTieBreaks>
 >;
 
-const pendingTieBreaksRequestByKey = new Map<
-  string,
-  Promise<PendingTieBreaksFetchResult>
->();
+const pendingTieBreaksRequestByKey = new Map<string, Promise<PendingTieBreaksFetchResult>>();
 const pendingTieBreaksResultByKey = new Map<
   string,
   { expiresAt: number; result: PendingTieBreaksFetchResult }
 >();
 const PENDING_TIE_BREAKS_REALTIME_DEBOUNCE_MS = 1000;
 
-function resolvePendingTieBreaksRequestKey(
-  championshipId: string,
-  bracketEditionId: string,
-) {
+function resolvePendingTieBreaksRequestKey(championshipId: string, bracketEditionId: string) {
   return `${championshipId}-${bracketEditionId}`;
 }
 
@@ -35,10 +30,7 @@ function fetchSharedPendingTieBreaks(
   bracketEditionId: string,
   forceFresh = false,
 ) {
-  const requestKey = resolvePendingTieBreaksRequestKey(
-    championshipId,
-    bracketEditionId,
-  );
+  const requestKey = resolvePendingTieBreaksRequestKey(championshipId, bracketEditionId);
   const currentRequest = pendingTieBreaksRequestByKey.get(requestKey);
 
   if (currentRequest) {
@@ -51,10 +43,7 @@ function fetchSharedPendingTieBreaks(
     return Promise.resolve(cachedResult.result);
   }
 
-  const request = fetchChampionshipBracketPendingTieBreaks(
-    championshipId,
-    bracketEditionId,
-  )
+  const request = fetchChampionshipBracketPendingTieBreaks(championshipId, bracketEditionId)
     .then((result) => {
       if (!result.error) {
         pendingTieBreaksResultByKey.set(requestKey, {
@@ -75,10 +64,7 @@ function fetchSharedPendingTieBreaks(
   return request;
 }
 
-function invalidatePendingTieBreaks(
-  championshipId: string,
-  bracketEditionId: string,
-) {
+function invalidatePendingTieBreaks(championshipId: string, bracketEditionId: string) {
   pendingTieBreaksResultByKey.delete(
     resolvePendingTieBreaksRequestKey(championshipId, bracketEditionId),
   );
@@ -101,6 +87,16 @@ export function usePendingTieBreaks({
 
   const fetchPendingTieBreaks = useCallback(
     async (shouldShowLoading = false, forceFresh = false) => {
+      if (!isSupabaseBackendEnabled()) {
+        setPendingContexts([]);
+        setLoading(false);
+        hasLoadedPendingTieBreaksRef.current = false;
+        isFetchingPendingTieBreaksRef.current = false;
+        hasQueuedPendingTieBreakRefetchRef.current = false;
+        shouldForceFreshOnQueuedPendingTieBreakRefetchRef.current = false;
+        return;
+      }
+
       if (!enabled || !championshipId || !bracketEditionId) {
         setPendingContexts([]);
         setLoading(false);
@@ -141,8 +137,7 @@ export function usePendingTieBreaks({
 
         if (hasQueuedPendingTieBreakRefetchRef.current) {
           hasQueuedPendingTieBreakRefetchRef.current = false;
-          const shouldForceFresh =
-            shouldForceFreshOnQueuedPendingTieBreakRefetchRef.current;
+          const shouldForceFresh = shouldForceFreshOnQueuedPendingTieBreakRefetchRef.current;
           shouldForceFreshOnQueuedPendingTieBreakRefetchRef.current = false;
           void fetchPendingTieBreaks(false, shouldForceFresh);
         }
@@ -160,6 +155,10 @@ export function usePendingTieBreaks({
     }
 
     void fetchPendingTieBreaks(true);
+
+    if (!isSupabaseBackendEnabled()) {
+      return;
+    }
 
     const scheduleRefetch = () => {
       if (scheduledRefetchTimeoutRef.current) {
@@ -237,10 +236,7 @@ export function usePendingTieBreaks({
     };
   }, [bracketEditionId, championshipId, enabled, fetchPendingTieBreaks]);
 
-  const refetch = useCallback(
-    () => fetchPendingTieBreaks(true, true),
-    [fetchPendingTieBreaks],
-  );
+  const refetch = useCallback(() => fetchPendingTieBreaks(true, true), [fetchPendingTieBreaks]);
 
   return {
     pendingContexts,

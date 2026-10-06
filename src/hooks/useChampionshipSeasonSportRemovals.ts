@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
 
 type SupabaseSeasonSportRemovalsClient = {
   from: (table: string) => {
     select: (columns: string) => {
-      eq: (column: string, value: unknown) => {
-        eq: (column: string, value: unknown) => Promise<{
+      eq: (
+        column: string,
+        value: unknown,
+      ) => {
+        eq: (
+          column: string,
+          value: unknown,
+        ) => Promise<{
           data: Array<{ sport_id: string }> | null;
           error: { message: string } | null;
         }>;
@@ -19,8 +26,7 @@ type SeasonSportRemovalsState = {
   removedSportIds: string[];
 };
 
-const supabaseSeasonSportRemovalsClient =
-  supabase as unknown as SupabaseSeasonSportRemovalsClient;
+const supabaseSeasonSportRemovalsClient = supabase as unknown as SupabaseSeasonSportRemovalsClient;
 
 export function useChampionshipSeasonSportRemovals({
   championshipId,
@@ -29,10 +35,7 @@ export function useChampionshipSeasonSportRemovals({
   championshipId?: string | null;
   seasonYear?: number | null;
 }) {
-  const scopeKey =
-    championshipId && seasonYear != null
-      ? `${championshipId}:${seasonYear}`
-      : null;
+  const scopeKey = championshipId && seasonYear != null ? `${championshipId}:${seasonYear}` : null;
   const scopeKeyRef = useRef(scopeKey);
   scopeKeyRef.current = scopeKey;
 
@@ -49,6 +52,11 @@ export function useChampionshipSeasonSportRemovals({
       return;
     }
 
+    if (!isSupabaseBackendEnabled()) {
+      setState({ scopeKey: requestedScopeKey, removedSportIds: [] });
+      return;
+    }
+
     const { data, error } = await supabaseSeasonSportRemovalsClient
       .from("championship_season_sport_removals")
       .select("sport_id")
@@ -60,10 +68,7 @@ export function useChampionshipSeasonSportRemovals({
     }
 
     if (error) {
-      console.error(
-        "Erro ao carregar modalidades removidas da temporada:",
-        error.message,
-      );
+      console.error("Erro ao carregar modalidades removidas da temporada:", error.message);
       setState({ scopeKey: requestedScopeKey, removedSportIds: [] });
       return;
     }

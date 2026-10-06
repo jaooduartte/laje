@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
 import type { ChampionshipSport, Sport } from "@/lib/types";
 
@@ -14,9 +15,7 @@ export function useSports({
   realtimeEnabled = true,
 }: UseSportsOptions = {}) {
   const [sports, setSports] = useState<Sport[]>([]);
-  const [championshipSports, setChampionshipSports] = useState<
-    ChampionshipSport[]
-  >([]);
+  const [championshipSports, setChampionshipSports] = useState<ChampionshipSport[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchSports = useCallback(async () => {
@@ -32,13 +31,17 @@ export function useSports({
       return;
     }
 
+    if (!isSupabaseBackendEnabled()) {
+      setSports([]);
+      setChampionshipSports([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       if (!championshipId) {
-        const { data, error } = await supabase
-          .from("sports")
-          .select("*")
-          .order("name");
+        const { data, error } = await supabase.from("sports").select("*").order("name");
 
         if (error) {
           console.error("Erro ao carregar modalidades:", error.message);
@@ -62,10 +65,7 @@ export function useSports({
         .order("created_at", { ascending: true });
 
       if (error) {
-        console.error(
-          "Erro ao carregar modalidades do campeonato:",
-          error.message,
-        );
+        console.error("Erro ao carregar modalidades do campeonato:", error.message);
         setSports([]);
         setChampionshipSports([]);
         return;
@@ -110,19 +110,15 @@ export function useSports({
 
     fetchSports();
 
-    if (!realtimeEnabled) {
+    if (!realtimeEnabled || !isSupabaseBackendEnabled()) {
       return;
     }
 
     const channel = supabase
       .channel(`sports-realtime-${championshipId ?? "all"}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "sports" },
-        () => {
-          fetchSports();
-        },
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "sports" }, () => {
+        fetchSports();
+      })
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "championship_sports" },

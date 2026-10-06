@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { frontendEnvironment } from "@/config/environment";
+import { isAwsBackendEnabled } from "@/config/environment";
 import { getPublicAccessSettingsFromApi } from "@/integrations/laje-api/public-content";
 import { supabase } from "@/integrations/supabase/client";
 import type { PublicAccessSettings } from "@/lib/types";
@@ -45,7 +45,7 @@ async function fetchPublicAccessSettings(force = false) {
 
   publicAccessSettingsRequest = (async () => {
     try {
-      if (frontendEnvironment.apiUrl) {
+      if (isAwsBackendEnabled()) {
         const settings = await getPublicAccessSettingsFromApi();
         publicAccessSettingsStoreState = {
           loading: false,

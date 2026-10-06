@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { frontendEnvironment } from "@/config/environment";
+import { isAwsBackendEnabled } from "@/config/environment";
 import { AdminLoginStateDTO } from "@/domain/admin-users/AdminUserDTO";
 import type { AdminLoginState } from "@/domain/admin-users/adminUser.types";
 import {
@@ -266,7 +266,7 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const usesDedicatedApi = Boolean(frontendEnvironment.apiUrl);
+  const usesDedicatedApi = isAwsBackendEnabled();
   const [user, setUser] = useState<AuthenticatedAdminUser | null>(null);
   const [role, setRole] = useState<AdminPanelRole | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);

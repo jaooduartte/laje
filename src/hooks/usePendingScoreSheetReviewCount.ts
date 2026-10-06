@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
 import { MatchStatus } from "@/lib/enums";
 
@@ -17,6 +18,14 @@ export function usePendingScoreSheetReviewCount({
   const hasQueuedCountRefetchRef = useRef(false);
 
   const fetchCount = useCallback(async () => {
+    if (!isSupabaseBackendEnabled()) {
+      setCount(0);
+      setLoading(false);
+      isFetchingCountRef.current = false;
+      hasQueuedCountRefetchRef.current = false;
+      return;
+    }
+
     if (!championshipId || seasonYear == null) {
       setCount(0);
       setLoading(false);
@@ -44,10 +53,7 @@ export function usePendingScoreSheetReviewCount({
         .or("is_score_sheet_reviewed.eq.false,is_score_sheet_reviewed.is.null");
 
       if (error) {
-        console.error(
-          "Erro ao carregar pendências da conferência de súmula:",
-          error.message,
-        );
+        console.error("Erro ao carregar pendências da conferência de súmula:", error.message);
         setCount(0);
         return;
       }
@@ -67,14 +73,12 @@ export function usePendingScoreSheetReviewCount({
   useEffect(() => {
     void fetchCount();
 
-    if (!championshipId) {
+    if (!isSupabaseBackendEnabled() || !championshipId) {
       return;
     }
 
     const channel = supabase
-      .channel(
-        `pending-score-sheet-review-count-${championshipId}-${seasonYear ?? "all"}`,
-      )
+      .channel(`pending-score-sheet-review-count-${championshipId}-${seasonYear ?? "all"}`)
       .on(
         "postgres_changes",
         {

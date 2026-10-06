@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { frontendEnvironment } from "@/config/environment";
+import { isAwsBackendEnabled } from "@/config/environment";
 import { listLeagueEventYearsFromApi } from "@/integrations/laje-api/public-content";
 import { supabase } from "@/integrations/supabase/client";
 import { LeagueEventReservationRequestStatus } from "@/lib/enums";
@@ -46,7 +46,7 @@ export function useLeagueEventYears() {
     try {
       const nextYears = new Set<number>();
 
-      if (frontendEnvironment.apiUrl) {
+      if (isAwsBackendEnabled()) {
         (await listLeagueEventYearsFromApi()).forEach((year) => nextYears.add(year));
       } else {
         const [eventsResponse, reservationRequestsResponse] = await Promise.all([

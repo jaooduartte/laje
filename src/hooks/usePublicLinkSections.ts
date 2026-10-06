@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { frontendEnvironment } from "@/config/environment";
+import { isAwsBackendEnabled } from "@/config/environment";
 import { listPublicLinkSectionsFromApi } from "@/integrations/laje-api/public-content";
 import { supabase } from "@/integrations/supabase/client";
 import { sortPublicLinkSections } from "@/lib/publicLinks";
@@ -19,7 +19,7 @@ export function usePublicLinkSections({
     setLoading(true);
 
     try {
-      if (frontendEnvironment.apiUrl) {
+      if (isAwsBackendEnabled()) {
         setPublicLinkSections(
           sortPublicLinkSections(await listPublicLinkSectionsFromApi(includeInactive)),
         );

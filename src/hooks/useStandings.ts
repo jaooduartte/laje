@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import { fetchChampionshipEffectiveStandings } from "@/domain/individual-events/championshipIndividualEvents.repository";
 import {
   getSportsCoreStandings,
@@ -172,7 +173,7 @@ export function useStandings({
 
     void fetchStandings();
 
-    if (!realtimeEnabled) {
+    if (!realtimeEnabled || !isSupabaseBackendEnabled()) {
       return;
     }
 

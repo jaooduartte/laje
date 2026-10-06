@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import {
   fetchInterlajeOverallStandings,
   type InterlajeOverallStanding,
@@ -8,10 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 const INTERLAJE_OVERALL_REALTIME_DEBOUNCE_MS = 1000;
 
 function isPublicChampionshipsPage() {
-  return (
-    typeof window != "undefined" &&
-    window.location.pathname.startsWith("/campeonatos")
-  );
+  return typeof window != "undefined" && window.location.pathname.startsWith("/campeonatos");
 }
 
 export function useInterlajeOverallStandings({
@@ -119,10 +117,7 @@ export function useInterlajeOverallStandings({
 
       if (
         rows.length == 0 ||
-        rows.some(
-          (row) =>
-            row.championship_id == championshipId && row.season_year == seasonYear,
-        )
+        rows.some((row) => row.championship_id == championshipId && row.season_year == seasonYear)
       ) {
         scheduleRefetch();
       }

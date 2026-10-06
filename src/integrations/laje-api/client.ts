@@ -1,4 +1,4 @@
-import { frontendEnvironment } from "@/config/environment";
+import { frontendEnvironment, isAwsBackendEnabled } from "@/config/environment";
 
 interface ApiErrorPayload {
   error?: {
@@ -29,6 +29,14 @@ export function setLajeApiAccessToken(accessToken: string | null) {
 }
 
 function resolveApiBaseUrl(): string {
+  if (!isAwsBackendEnabled()) {
+    throw new LajeApiError(
+      503,
+      "LAJE_API_BACKEND_DISABLED",
+      "A laje-api está desabilitada neste deployment. Configure VITE_BACKEND_PROVIDER=aws para usar a API dedicada.",
+    );
+  }
+
   const apiUrl = frontendEnvironment.apiUrl?.replace(/\/+$/, "");
 
   if (!apiUrl) {

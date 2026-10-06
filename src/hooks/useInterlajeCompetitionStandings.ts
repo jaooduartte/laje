@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import {
   fetchInterlajeCompetitionStandings,
   type InterlajeCompetitionStanding,
@@ -63,10 +64,7 @@ export function useInterlajeCompetitionStandings({
 
       if (
         rows.length == 0 ||
-        rows.some(
-          (row) =>
-            row.championship_id == championshipId && row.season_year == seasonYear,
-        )
+        rows.some((row) => row.championship_id == championshipId && row.season_year == seasonYear)
       ) {
         void refetch();
       }

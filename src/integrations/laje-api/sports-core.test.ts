@@ -2,8 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/config/environment", () => ({
   frontendEnvironment: {
+    backendProvider: "aws",
     apiUrl: "https://api.example.com/api/v1",
   },
+  isAwsBackendEnabled: () => true,
+  isSupabaseBackendEnabled: () => false,
 }));
 
 import {

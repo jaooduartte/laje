@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchChampionshipCorrectedGroupStandings } from "@/domain/championship-brackets/championshipBracket.repository";
 import type { ChampionshipCorrectedGroupStanding } from "@/domain/championship-brackets/championshipBracket.types";
@@ -18,7 +19,9 @@ export function useChampionshipCorrectedGroupStandings({
   enabled = true,
   realtimeEnabled = true,
 }: UseChampionshipCorrectedGroupStandingsOptions = {}) {
-  const [correctedGroupStandings, setCorrectedGroupStandings] = useState<ChampionshipCorrectedGroupStanding[]>([]);
+  const [correctedGroupStandings, setCorrectedGroupStandings] = useState<
+    ChampionshipCorrectedGroupStanding[]
+  >([]);
   const [loading, setLoading] = useState(() => enabled && championshipId != null);
   const hasLoadedCorrectedStandingsRef = useRef(false);
   const scheduledRefetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -28,44 +31,50 @@ export function useChampionshipCorrectedGroupStandings({
     async () => undefined,
   );
 
-  const fetchCorrectedGroupStandings = useCallback(async (shouldShowLoading = false) => {
-    if (!enabled || !championshipId) {
-      setCorrectedGroupStandings([]);
-      setLoading(false);
-      hasLoadedCorrectedStandingsRef.current = false;
-      return;
-    }
-
-    if (isFetchingRef.current) {
-      hasQueuedRefetchRef.current = true;
-      return;
-    }
-
-    isFetchingRef.current = true;
-
-    if (shouldShowLoading || !hasLoadedCorrectedStandingsRef.current) {
-      setLoading(true);
-    }
-
-    try {
-      const response = await fetchChampionshipCorrectedGroupStandings(championshipId, seasonYear ?? null);
-
-      if (response.error) {
+  const fetchCorrectedGroupStandings = useCallback(
+    async (shouldShowLoading = false) => {
+      if (!enabled || !championshipId) {
+        setCorrectedGroupStandings([]);
+        setLoading(false);
+        hasLoadedCorrectedStandingsRef.current = false;
         return;
       }
 
-      setCorrectedGroupStandings(response.data);
-    } finally {
-      setLoading(false);
-      hasLoadedCorrectedStandingsRef.current = true;
-      isFetchingRef.current = false;
-
-      if (hasQueuedRefetchRef.current) {
-        hasQueuedRefetchRef.current = false;
-        void fetchCorrectedGroupStandingsRef.current();
+      if (isFetchingRef.current) {
+        hasQueuedRefetchRef.current = true;
+        return;
       }
-    }
-  }, [championshipId, enabled, seasonYear]);
+
+      isFetchingRef.current = true;
+
+      if (shouldShowLoading || !hasLoadedCorrectedStandingsRef.current) {
+        setLoading(true);
+      }
+
+      try {
+        const response = await fetchChampionshipCorrectedGroupStandings(
+          championshipId,
+          seasonYear ?? null,
+        );
+
+        if (response.error) {
+          return;
+        }
+
+        setCorrectedGroupStandings(response.data);
+      } finally {
+        setLoading(false);
+        hasLoadedCorrectedStandingsRef.current = true;
+        isFetchingRef.current = false;
+
+        if (hasQueuedRefetchRef.current) {
+          hasQueuedRefetchRef.current = false;
+          void fetchCorrectedGroupStandingsRef.current();
+        }
+      }
+    },
+    [championshipId, enabled, seasonYear],
+  );
 
   fetchCorrectedGroupStandingsRef.current = fetchCorrectedGroupStandings;
 
@@ -79,7 +88,7 @@ export function useChampionshipCorrectedGroupStandings({
 
     void fetchCorrectedGroupStandings(true);
 
-    if (!realtimeEnabled) {
+    if (!realtimeEnabled || !isSupabaseBackendEnabled()) {
       return;
     }
 
@@ -97,14 +106,32 @@ export function useChampionshipCorrectedGroupStandings({
     const standingsFilter = [
       `championship_id=eq.${championshipId}`,
       typeof seasonYear == "number" ? `season_year=eq.${seasonYear}` : null,
-    ].filter((value): value is string => value != null).join(",");
+    ]
+      .filter((value): value is string => value != null)
+      .join(",");
 
     const channel = supabase
       .channel(`championship-corrected-standings-${championshipId}-${seasonYear ?? "current"}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "standings", filter: standingsFilter }, scheduleFetch)
-      .on("postgres_changes", { event: "*", schema: "public", table: "championship_bracket_groups" }, scheduleFetch)
-      .on("postgres_changes", { event: "*", schema: "public", table: "championship_bracket_group_teams" }, scheduleFetch)
-      .on("postgres_changes", { event: "*", schema: "public", table: "championship_bracket_competitions" }, scheduleFetch)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "standings", filter: standingsFilter },
+        scheduleFetch,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "championship_bracket_groups" },
+        scheduleFetch,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "championship_bracket_group_teams" },
+        scheduleFetch,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "championship_bracket_competitions" },
+        scheduleFetch,
+      )
       .subscribe();
 
     return () => {

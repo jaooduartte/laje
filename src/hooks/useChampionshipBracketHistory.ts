@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchChampionshipBracketView } from "@/domain/championship-brackets/championshipBracket.repository";
 import type { ChampionshipBracketSeasonView } from "@/lib/types";
@@ -18,7 +19,9 @@ export function useChampionshipBracketHistory({
   enabled = true,
   realtimeEnabled = true,
 }: UseChampionshipBracketHistoryOptions = {}) {
-  const [championshipBracketSeasonViews, setChampionshipBracketSeasonViews] = useState<ChampionshipBracketSeasonView[]>([]);
+  const [championshipBracketSeasonViews, setChampionshipBracketSeasonViews] = useState<
+    ChampionshipBracketSeasonView[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const hasLoadedBracketHistoryRef = useRef(false);
   const scheduledRefetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -28,73 +31,75 @@ export function useChampionshipBracketHistory({
     async () => undefined,
   );
   const normalizedSeasonYears = useMemo(() => {
-    return [...new Set(seasonYears)].sort((firstSeasonYear, secondSeasonYear) => secondSeasonYear - firstSeasonYear);
+    return [...new Set(seasonYears)].sort(
+      (firstSeasonYear, secondSeasonYear) => secondSeasonYear - firstSeasonYear,
+    );
   }, [seasonYears]);
 
-  const fetchBracketHistory = useCallback(async (shouldShowLoading = false) => {
-    if (!enabled || !championshipId || normalizedSeasonYears.length == 0) {
-      setChampionshipBracketSeasonViews([]);
-      setLoading(false);
-      hasLoadedBracketHistoryRef.current = false;
-      isFetchingRef.current = false;
-      hasQueuedRefetchRef.current = false;
-      return;
-    }
+  const fetchBracketHistory = useCallback(
+    async (shouldShowLoading = false) => {
+      if (!enabled || !championshipId || normalizedSeasonYears.length == 0) {
+        setChampionshipBracketSeasonViews([]);
+        setLoading(false);
+        hasLoadedBracketHistoryRef.current = false;
+        isFetchingRef.current = false;
+        hasQueuedRefetchRef.current = false;
+        return;
+      }
 
-    if (isFetchingRef.current) {
-      hasQueuedRefetchRef.current = true;
-      return;
-    }
+      if (isFetchingRef.current) {
+        hasQueuedRefetchRef.current = true;
+        return;
+      }
 
-    isFetchingRef.current = true;
+      isFetchingRef.current = true;
 
-    if (shouldShowLoading || !hasLoadedBracketHistoryRef.current) {
-      setLoading(true);
-    }
+      if (shouldShowLoading || !hasLoadedBracketHistoryRef.current) {
+        setLoading(true);
+      }
 
-    try {
-      const seasonViewResponses: ChampionshipBracketSeasonView[] = [];
-      let completedRequests = 0;
+      try {
+        const seasonViewResponses: ChampionshipBracketSeasonView[] = [];
+        let completedRequests = 0;
 
-      for (const seasonYear of normalizedSeasonYears) {
-        try {
-          const { data, error } = await fetchChampionshipBracketView(
-            championshipId,
-            seasonYear,
-          );
-          completedRequests += 1;
+        for (const seasonYear of normalizedSeasonYears) {
+          try {
+            const { data, error } = await fetchChampionshipBracketView(championshipId, seasonYear);
+            completedRequests += 1;
 
-          if (!error && data) {
-            seasonViewResponses.push({
-              season_year: seasonYear,
-              championship_bracket_view: data,
-            });
+            if (!error && data) {
+              seasonViewResponses.push({
+                season_year: seasonYear,
+                championship_bracket_view: data,
+              });
+            }
+          } catch (error) {
+            console.warn(
+              `Erro ao carregar chaveamento do campeonato ${championshipId}, temporada ${seasonYear}:`,
+              error,
+            );
           }
-        } catch (error) {
-          console.warn(
-            `Erro ao carregar chaveamento do campeonato ${championshipId}, temporada ${seasonYear}:`,
-            error,
-          );
+        }
+
+        if (seasonViewResponses.length > 0 || !hasLoadedBracketHistoryRef.current) {
+          setChampionshipBracketSeasonViews(seasonViewResponses);
+        }
+
+        if (completedRequests > 0 || !hasLoadedBracketHistoryRef.current) {
+          hasLoadedBracketHistoryRef.current = true;
+        }
+      } finally {
+        setLoading(false);
+        isFetchingRef.current = false;
+
+        if (hasQueuedRefetchRef.current) {
+          hasQueuedRefetchRef.current = false;
+          void fetchBracketHistoryRef.current();
         }
       }
-
-      if (seasonViewResponses.length > 0 || !hasLoadedBracketHistoryRef.current) {
-        setChampionshipBracketSeasonViews(seasonViewResponses);
-      }
-
-      if (completedRequests > 0 || !hasLoadedBracketHistoryRef.current) {
-        hasLoadedBracketHistoryRef.current = true;
-      }
-    } finally {
-      setLoading(false);
-      isFetchingRef.current = false;
-
-      if (hasQueuedRefetchRef.current) {
-        hasQueuedRefetchRef.current = false;
-        void fetchBracketHistoryRef.current();
-      }
-    }
-  }, [championshipId, enabled, normalizedSeasonYears]);
+    },
+    [championshipId, enabled, normalizedSeasonYears],
+  );
 
   fetchBracketHistoryRef.current = fetchBracketHistory;
 
@@ -108,7 +113,7 @@ export function useChampionshipBracketHistory({
 
     void fetchBracketHistory(true);
 
-    if (!realtimeEnabled) {
+    if (!realtimeEnabled || !isSupabaseBackendEnabled()) {
       return;
     }
 
@@ -135,9 +140,21 @@ export function useChampionshipBracketHistory({
         },
         scheduleFetch,
       )
-      .on("postgres_changes", { event: "*", schema: "public", table: "championship_bracket_matches" }, scheduleFetch)
-      .on("postgres_changes", { event: "*", schema: "public", table: "championship_bracket_groups" }, scheduleFetch)
-      .on("postgres_changes", { event: "*", schema: "public", table: "championship_bracket_competitions" }, scheduleFetch)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "championship_bracket_matches" },
+        scheduleFetch,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "championship_bracket_groups" },
+        scheduleFetch,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "championship_bracket_competitions" },
+        scheduleFetch,
+      )
       .on(
         "postgres_changes",
         {

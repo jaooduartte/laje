@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
 import type { Team } from "@/lib/types";
 
@@ -7,16 +8,19 @@ interface UseTeamsOptions {
   enabled?: boolean;
 }
 
-export function useTeams({
-  includeInactive = false,
-  enabled = true,
-}: UseTeamsOptions = {}) {
+export function useTeams({ includeInactive = false, enabled = true }: UseTeamsOptions = {}) {
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchTeams = useCallback(async () => {
     if (!enabled) {
       setLoading(true);
+      return;
+    }
+
+    if (!isSupabaseBackendEnabled()) {
+      setTeams([]);
+      setLoading(false);
       return;
     }
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
 import type { ChampionshipAwardType, MatchNaipe, TeamDivision } from "@/lib/enums";
 
@@ -59,15 +60,18 @@ export function compareAwardsRankingGoalScorers(
     return goalsDifference;
   }
 
-  const teamAdvancementDifference = secondScorer.team_advancement_rank - firstScorer.team_advancement_rank;
+  const teamAdvancementDifference =
+    secondScorer.team_advancement_rank - firstScorer.team_advancement_rank;
 
   if (teamAdvancementDifference != 0) {
     return teamAdvancementDifference;
   }
 
   const drawWinnerPlayerId = options?.drawWinnerPlayerId ?? null;
-  const firstScorerWonDraw = drawWinnerPlayerId != null && firstScorer.player_id == drawWinnerPlayerId;
-  const secondScorerWonDraw = drawWinnerPlayerId != null && secondScorer.player_id == drawWinnerPlayerId;
+  const firstScorerWonDraw =
+    drawWinnerPlayerId != null && firstScorer.player_id == drawWinnerPlayerId;
+  const secondScorerWonDraw =
+    drawWinnerPlayerId != null && secondScorer.player_id == drawWinnerPlayerId;
 
   if (firstScorerWonDraw && !secondScorerWonDraw) {
     return -1;
@@ -91,7 +95,12 @@ interface UseChampionshipAwardsRankingsOptions {
 
 const AWARDS_RANKINGS_REALTIME_DEBOUNCE_MS = 1000;
 
-export function useChampionshipAwardsRankings({ championshipId, seasonYear, enabled = true, realtimeEnabled = true }: UseChampionshipAwardsRankingsOptions) {
+export function useChampionshipAwardsRankings({
+  championshipId,
+  seasonYear,
+  enabled = true,
+  realtimeEnabled = true,
+}: UseChampionshipAwardsRankingsOptions) {
   const [rankings, setRankings] = useState<ChampionshipAwardsRankings | null>(null);
   const [loading, setLoading] = useState(false);
   const scheduledRefetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -113,9 +122,14 @@ export function useChampionshipAwardsRankings({ championshipId, seasonYear, enab
     isFetchingRef.current = true;
     setLoading(true);
     try {
-      const { data, error } = await (supabase as unknown as {
-        rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
-      }).rpc("get_championship_score_sheet_awards_rankings", {
+      const { data, error } = await (
+        supabase as unknown as {
+          rpc: (
+            fn: string,
+            args: Record<string, unknown>,
+          ) => Promise<{ data: unknown; error: unknown }>;
+        }
+      ).rpc("get_championship_score_sheet_awards_rankings", {
         _championship_id: championshipId,
         _season_year: seasonYear,
       });
@@ -161,8 +175,21 @@ export function useChampionshipAwardsRankings({ championshipId, seasonYear, enab
 
     const channel = supabase
       .channel(`awards-rankings-${championshipId}-${seasonYear}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "match_award_goal_scorers" }, scheduleFetch)
-      .on("postgres_changes", { event: "*", schema: "public", table: "championship_award_draw_results", filter: championshipSeasonFilter }, scheduleFetch)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "match_award_goal_scorers" },
+        scheduleFetch,
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "championship_award_draw_results",
+          filter: championshipSeasonFilter,
+        },
+        scheduleFetch,
+      )
       .on(
         "postgres_changes",
         {

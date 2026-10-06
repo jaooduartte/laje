@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { OnlineVisitorsContext, RealtimePresenceChannel } from "@/lib/enums";
@@ -29,7 +30,9 @@ function resolveVisitorSessionId(): string {
   return generatedValue;
 }
 
-export function useOnlineVisitors(context: OnlineVisitorsContext = OnlineVisitorsContext.SITE_TOTAL) {
+export function useOnlineVisitors(
+  context: OnlineVisitorsContext = OnlineVisitorsContext.SITE_TOTAL,
+) {
   const { user } = useAuth();
   const [onlineVisitorsCount, setOnlineVisitorsCount] = useState(0);
   const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
@@ -59,6 +62,14 @@ export function useOnlineVisitors(context: OnlineVisitorsContext = OnlineVisitor
   // toda vez que a sessão é resolvida (undefined → UUID), o que gerava estado
   // permanentemente 0 por conflito de nomes de canal no Supabase JS.
   useEffect(() => {
+    if (!isSupabaseBackendEnabled()) {
+      setOnlineVisitorsCount(0);
+      setOnlineUserIds([]);
+      channelRef.current = null;
+      isChannelSubscribedRef.current = false;
+      return;
+    }
+
     const visitorSessionId = resolveOrCreateVisitorSessionId();
     const presenceChannel = PRESENCE_CHANNEL_BY_CONTEXT[context];
 
@@ -148,7 +159,7 @@ export function useOnlineVisitors(context: OnlineVisitorsContext = OnlineVisitor
   // Effect secundário: quando o user?.id muda (login/logout), refaz o track
   // para atualizar o user_id no payload de presença — sem recriar o canal.
   useEffect(() => {
-    if (!isChannelSubscribedRef.current || !channelRef.current) {
+    if (!isSupabaseBackendEnabled() || !isChannelSubscribedRef.current || !channelRef.current) {
       return;
     }
 

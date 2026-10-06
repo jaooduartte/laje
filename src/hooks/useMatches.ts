@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import {
   isDedicatedSportsCoreEnabled,
   listSportsCoreMatches,
@@ -982,7 +983,7 @@ export function useMatches({
       showFetching: hasLoadedMatchesRef.current,
     });
 
-    if (!includeRealtime) {
+    if (!includeRealtime || !isSupabaseBackendEnabled()) {
       return;
     }
 
