@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import {
   isDedicatedSportsCoreEnabled,
   listSportsCoreChampionships,
@@ -56,7 +57,7 @@ export function useChampionships({ realtimeEnabled = true }: { realtimeEnabled?:
   useEffect(() => {
     void fetchChampionships();
 
-    if (!realtimeEnabled) {
+    if (!realtimeEnabled || !isSupabaseBackendEnabled()) {
       return;
     }
 
