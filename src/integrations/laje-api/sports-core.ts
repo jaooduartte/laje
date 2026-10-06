@@ -143,6 +143,12 @@ export interface SportsCoreScoreboardPatch {
   }>;
 }
 
+export interface SportsCoreOperationalQueueState {
+  matchIds: string[];
+  individualSessionIds: string[];
+  fullQueueItemsCount: number;
+}
+
 export interface SportsCoreFinishMatchInput extends SportsCoreScoreboardPatch {
   isWalkover?: boolean;
   isDoubleWalkover?: boolean;
@@ -364,6 +370,20 @@ export async function listSportsCoreMatches(
   }
 
   return { matches: filteredMatches, total: filteredMatches.length };
+}
+
+export async function getSportsCoreOperationalQueueState(
+  championshipId: string,
+  seasonYear: number,
+): Promise<SportsCoreOperationalQueueState> {
+  const search = new URLSearchParams({
+    championshipId,
+    seasonYear: String(seasonYear),
+  });
+  const response = await lajeApiRequest<DataResponse<SportsCoreOperationalQueueState>>(
+    `/matches/operational-queue-state?${search.toString()}`,
+  );
+  return response.data;
 }
 
 export async function getSportsCoreMatch(matchId: string): Promise<Match> {
