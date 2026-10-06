@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
 import type { ChampionshipAwardType, MatchNaipe, TeamDivision } from "@/lib/enums";
 
