@@ -24,10 +24,7 @@ function resolveCurrentThemeMode(preferredThemeMode: ThemeMode): ResolvedThemeMo
 }
 
 function fetchCurrentUserThemePreference(userId: string) {
-  if (
-    themePreferenceCache?.userId == userId &&
-    themePreferenceCache.expiresAt > Date.now()
-  ) {
+  if (themePreferenceCache?.userId == userId && themePreferenceCache.expiresAt > Date.now()) {
     return Promise.resolve(themePreferenceCache.result);
   }
 
@@ -65,7 +62,9 @@ function fetchCurrentUserThemePreference(userId: string) {
 
 export function useAutomaticTheme() {
   const [preferredThemeMode, setPreferredThemeModeState] = useState<ThemeMode>(ThemeMode.AUTO);
-  const [themeMode, setThemeMode] = useState<ResolvedThemeMode>(() => resolveCurrentThemeMode(ThemeMode.AUTO));
+  const [themeMode, setThemeMode] = useState<ResolvedThemeMode>(() =>
+    resolveCurrentThemeMode(ThemeMode.AUTO),
+  );
 
   const setPreferredThemeMode = useCallback((nextThemeMode: ThemeMode) => {
     setPreferredThemeModeState(nextThemeMode);
