@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isSupabaseBackendEnabled } from "@/config/environment";
+import { isAwsBackendEnabled, isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
 import type { ChampionshipAwardType, MatchNaipe, TeamDivision } from "@/lib/enums";
 
@@ -109,8 +109,9 @@ export function useChampionshipAwardsRankings({
   const fetchRef = useRef<() => Promise<void>>(async () => undefined);
 
   const fetch = useCallback(async () => {
-    if (!enabled || !championshipId || !seasonYear) {
+    if (!enabled || !championshipId || !seasonYear || isAwsBackendEnabled()) {
       setRankings(null);
+      setLoading(false);
       return;
     }
 
@@ -158,7 +159,7 @@ export function useChampionshipAwardsRankings({
 
     if (!enabled || !championshipId || !seasonYear) return;
 
-    if (!realtimeEnabled) return;
+    if (!realtimeEnabled || !isSupabaseBackendEnabled()) return;
 
     const scheduleFetch = () => {
       if (scheduledRefetchTimeoutRef.current) {
