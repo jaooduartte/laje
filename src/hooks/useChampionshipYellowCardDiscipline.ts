@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isSupabaseBackendEnabled } from "@/config/environment";
+import { isAwsBackendEnabled, isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
 import type { MatchNaipe, TeamDivision } from "@/lib/enums";
 
@@ -160,7 +160,7 @@ export function useChampionshipYellowCardDiscipline({
 
   const fetch = useCallback(
     async (forceFresh = false) => {
-      if (!enabled || !championshipId || !seasonYear) {
+      if (!enabled || !championshipId || !seasonYear || isAwsBackendEnabled()) {
         setDiscipline(null);
         setError(null);
         setLoading(false);
