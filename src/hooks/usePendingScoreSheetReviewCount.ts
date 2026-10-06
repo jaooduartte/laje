@@ -53,10 +53,7 @@ export function usePendingScoreSheetReviewCount({
         .or("is_score_sheet_reviewed.eq.false,is_score_sheet_reviewed.is.null");
 
       if (error) {
-        console.error(
-          "Erro ao carregar pendências da conferência de súmula:",
-          error.message,
-        );
+        console.error("Erro ao carregar pendências da conferência de súmula:", error.message);
         setCount(0);
         return;
       }
@@ -81,9 +78,7 @@ export function usePendingScoreSheetReviewCount({
     }
 
     const channel = supabase
-      .channel(
-        `pending-score-sheet-review-count-${championshipId}-${seasonYear ?? "all"}`,
-      )
+      .channel(`pending-score-sheet-review-count-${championshipId}-${seasonYear ?? "all"}`)
       .on(
         "postgres_changes",
         {
