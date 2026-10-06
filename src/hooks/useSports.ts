@@ -31,6 +31,13 @@ export function useSports({
       return;
     }
 
+    if (!isSupabaseBackendEnabled()) {
+      setSports([]);
+      setChampionshipSports([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       if (!championshipId) {
