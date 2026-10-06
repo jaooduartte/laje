@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { isSupabaseBackendEnabled } from "@/config/environment";
+import { isAwsBackendEnabled, isSupabaseBackendEnabled } from "@/config/environment";
+import { listAwsTeams } from "@/integrations/laje-api/public-runtime";
 import { supabase } from "@/integrations/supabase/client";
 import type { Team } from "@/lib/types";
 
@@ -18,15 +19,18 @@ export function useTeams({ includeInactive = false, enabled = true }: UseTeamsOp
       return;
     }
 
-    if (!isSupabaseBackendEnabled()) {
-      setTeams([]);
-      setLoading(false);
-      return;
-    }
-
     setLoading(true);
 
     try {
+      if (isAwsBackendEnabled()) {
+        setTeams(await listAwsTeams(includeInactive));
+        return;
+      }
+
+      if (!isSupabaseBackendEnabled()) {
+        setTeams([]);
+        return;
+      }
       let query = supabase.from("teams").select("*").order("name");
 
       if (!includeInactive) {
