@@ -121,6 +121,46 @@ export async function listAwsSports(championshipId?: string | null): Promise<{
   };
 }
 
+export async function listAwsChampionshipSeasonYears(
+  championshipId: string,
+): Promise<number[]> {
+  const response = await lajeApiRequest<DataResponse<number[]>>(
+    `/public-runtime/championships/${championshipId}/season-years`,
+  );
+  return response.data;
+}
+
+export async function listAwsRemovedSportIds(
+  championshipId: string,
+  seasonYear: number,
+): Promise<string[]> {
+  const response = await lajeApiRequest<DataResponse<Array<{ sportId: string }>>>(
+    `/public-runtime/championships/${championshipId}/seasons/${seasonYear}/removed-sports`,
+  );
+  return response.data.map((row) => row.sportId);
+}
+
+export async function listAwsCompetitionDisqualifications(
+  championshipId: string,
+  seasonYear: number,
+): Promise<import("@/lib/types").CompetitionTeamDisqualification[]> {
+  const response = await lajeApiRequest<DataResponse<Record<string, unknown>[]>>(
+    `/public-runtime/championships/${championshipId}/seasons/${seasonYear}/disqualifications`,
+  );
+
+  return response.data.map((row) => ({
+    id: String(row.id),
+    championship_id: String(row.championshipId),
+    season_year: asNumber(row.seasonYear),
+    sport_id: String(row.sportId),
+    naipe: row.naipe as import("@/lib/enums").MatchNaipe,
+    division: (row.division ?? null) as import("@/lib/enums").TeamDivision | null,
+    team_id: String(row.teamId),
+    created_at: String(row.createdAt ?? ""),
+    created_by: row.createdBy == null ? null : String(row.createdBy),
+  }));
+}
+
 export async function listAwsIndividualEvents(input: {
   championshipId: string;
   seasonYear: number;
