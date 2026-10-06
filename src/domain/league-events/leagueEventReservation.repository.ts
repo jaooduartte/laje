@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { frontendEnvironment } from "@/config/environment";
+import { isAwsBackendEnabled } from "@/config/environment";
 import type { LeagueEventReservationCreatePayload } from "@/domain/league-events/leagueEvent.types";
 import {
   createLeagueEventReservationRequestFromApi,
@@ -18,7 +18,7 @@ interface FetchLeagueEventReservationRequestsOptions {
 }
 
 function shouldUseLajeApi() {
-  return Boolean(frontendEnvironment.apiUrl);
+  return isAwsBackendEnabled();
 }
 
 function normalizeApiError(error: unknown): Error {
