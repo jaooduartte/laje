@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchChampionshipCorrectedGroupStandings } from "@/domain/championship-brackets/championshipBracket.repository";
 import type { ChampionshipCorrectedGroupStanding } from "@/domain/championship-brackets/championshipBracket.types";
@@ -79,7 +80,7 @@ export function useChampionshipCorrectedGroupStandings({
 
     void fetchCorrectedGroupStandings(true);
 
-    if (!realtimeEnabled) {
+    if (!realtimeEnabled || !isSupabaseBackendEnabled()) {
       return;
     }
 
