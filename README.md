@@ -41,7 +41,16 @@ cp .env.example .env.local
 npm run dev
 ```
 
-As variáveis `VITE_*` são públicas no bundle do navegador e não devem receber segredos. Durante a migração, o frontend ainda usa Supabase em fluxos existentes e pode receber `VITE_API_URL` para integração progressiva com a `laje-api`.
+As variáveis `VITE_*` são públicas no bundle do navegador e não devem receber segredos.
+
+O mesmo repositório suporta dois modos de execução por deployment:
+
+- `VITE_BACKEND_PROVIDER=supabase`: mantém o projeto Vercel atual `laje` no backend Supabase. Nesse modo, `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` são obrigatórias.
+- `VITE_BACKEND_PROVIDER=aws`: usa a `laje-api` como backend. Nesse modo, `VITE_API_URL` é obrigatória e o cliente Supabase não é inicializado.
+
+Por compatibilidade transitória, quando `VITE_BACKEND_PROVIDER` não está definido, a presença de `VITE_API_URL` ainda seleciona o modo AWS; sem `VITE_API_URL`, o modo legado Supabase é mantido. Novos deployments devem sempre declarar o provider explicitamente.
+
+O projeto Vercel `laje-tcc` só deve ser criado após a validação do modo AWS-only. Recursos ainda dependentes de realtime/Edge Functions permanecem rastreados nas tarefas de migração correspondentes e não devem voltar silenciosamente ao Supabase no modo AWS.
 
 ## Quality gate
 
