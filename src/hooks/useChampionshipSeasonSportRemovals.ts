@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
 
 type SupabaseSeasonSportRemovalsClient = {
@@ -46,6 +47,11 @@ export function useChampionshipSeasonSportRemovals({
 
     if (!championshipId || seasonYear == null || !requestedScopeKey) {
       setState({ scopeKey: null, removedSportIds: [] });
+      return;
+    }
+
+    if (!isSupabaseBackendEnabled()) {
+      setState({ scopeKey: requestedScopeKey, removedSportIds: [] });
       return;
     }
 
