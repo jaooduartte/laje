@@ -20,7 +20,10 @@ export async function ensureLeagueCalendarHolidaysYear(year: number) {
   return supabase.rpc("ensure_league_calendar_holidays_year", { _year: year });
 }
 
-export async function fetchLeagueCalendarHolidaysByDateRange({ startDate, endDate }: DateRangeFilter) {
+export async function fetchLeagueCalendarHolidaysByDateRange({
+  startDate,
+  endDate,
+}: DateRangeFilter) {
   if (!isSupabaseBackendEnabled()) {
     return {
       data: [] as LeagueCalendarHoliday[],
