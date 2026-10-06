@@ -17,8 +17,13 @@ const optionalStringSchema = z.preprocess(
   z.string().min(1).optional(),
 );
 
+const optionalBackendProviderSchema = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+  z.enum([BACKEND_PROVIDER.SUPABASE, BACKEND_PROVIDER.AWS]).optional(),
+);
+
 const publicEnvironmentSchema = z.object({
-  VITE_BACKEND_PROVIDER: z.enum([BACKEND_PROVIDER.SUPABASE, BACKEND_PROVIDER.AWS]).optional(),
+  VITE_BACKEND_PROVIDER: optionalBackendProviderSchema,
   VITE_API_URL: optionalUrlSchema,
   VITE_SUPABASE_URL: optionalUrlSchema,
   VITE_SUPABASE_PUBLISHABLE_KEY: optionalStringSchema,
