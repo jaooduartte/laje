@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import {
   fetchInterlajeOverallStandings,
   type InterlajeOverallStanding,
