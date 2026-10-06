@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchPendingLeagueEventReservationRequestCount } from "@/domain/league-events/leagueEventReservation.repository";
 
@@ -24,6 +25,10 @@ export function usePendingLeagueEventReservationRequests() {
 
   useEffect(() => {
     fetchCount();
+
+    if (!isSupabaseBackendEnabled()) {
+      return;
+    }
 
     const channel = supabase
       .channel("league-event-reservation-requests-pending-count")
