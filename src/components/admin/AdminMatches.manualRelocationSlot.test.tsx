@@ -22,10 +22,11 @@ describe("AdminMatches manual relocation slot flow", () => {
   });
 
   it("identifies displaced planned slots in both relocation previews", () => {
-    expect(componentSource).toContain(
+    const normalizedComponentSource = componentSource.replace(/\s+/g, " ");
+    expect(normalizedComponentSource).toContain(
       "slots planejados posteriores podem ser reposicionados",
     );
-    expect(componentSource).toContain(
+    expect(normalizedComponentSource).toContain(
       "A prévia também mostra os slots planejados que serão",
     );
     expect(componentSource).toContain("Slot planejado reposicionado");
