@@ -9806,7 +9806,7 @@ export function AdminChampionshipBracketPage({
                                                       setAutoOpenCompetitionGroupSlotKey(null);
                                                     }
                                                   }}
-                                                  value={slot.team_id ?? undefined}
+                                                  value={slot.team_id ?? ""}
                                                   onValueChange={(value) =>
                                                     handleSelectCompetitionGroupTeam(
                                                       competitionKey,

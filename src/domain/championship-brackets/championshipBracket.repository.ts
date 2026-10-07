@@ -1,5 +1,9 @@
 import { isAwsBackendEnabled } from "@/config/environment";
 import { fetchDedicatedChampionshipBracketView } from "@/integrations/laje-api/bracket";
+import {
+  getAwsBracketDayScheduleSource,
+  listAwsBracketLocationTemplates,
+} from "@/integrations/laje-api/public-runtime";
 import { getSportsCoreChampionship } from "@/integrations/laje-api/sports-core";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
@@ -405,6 +409,22 @@ export async function fetchChampionshipBracketLocationTemplates(): Promise<{
   data: ChampionshipBracketLocationTemplate[];
   error: Error | null;
 }> {
+  if (isAwsBackendEnabled()) {
+    try {
+      return {
+        data: await listAwsBracketLocationTemplates(),
+        error: null,
+      };
+    } catch (error) {
+      return {
+        data: [],
+        error:
+          error instanceof Error
+            ? error
+            : new Error("Não foi possível carregar os modelos de locais pela laje-api."),
+      };
+    }
+  }
   const templatesResponse = await supabase
     .from("championship_bracket_location_templates")
     .select("id, name, created_at, updated_at")
@@ -879,6 +899,23 @@ export async function swapChampionshipKnockoutBracketTeams(
 export async function getBracketDaySchedules(
   bracketEditionId: string,
 ): Promise<{ data: BracketDaySchedule[]; error: Error | null }> {
+  if (isAwsBackendEnabled()) {
+    try {
+      const source = await getAwsBracketDayScheduleSource(bracketEditionId);
+      return {
+        data: resolveBracketDaySchedules(source.days, source.payloadSnapshot),
+        error: null,
+      };
+    } catch (error) {
+      return {
+        data: [],
+        error:
+          error instanceof Error
+            ? error
+            : new Error("Não foi possível carregar a agenda pela laje-api."),
+      };
+    }
+  }
   const [scheduleResponse, editionResponse] = await Promise.all([
     supabase
       .from("championship_bracket_days")

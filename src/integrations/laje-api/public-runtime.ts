@@ -3,6 +3,7 @@ import type {
   MatchEstimatedStartTimeChampionshipSport,
 } from "@/lib/championship";
 import type { ChampionshipCode, MatchNaipe, TeamDivision } from "@/lib/enums";
+import type { ChampionshipBracketLocationTemplate } from "@/domain/championship-brackets/championshipBracket.types";
 import type {
   ChampionshipIndividualEvent,
   ChampionshipIndividualEventEntry,
@@ -209,6 +210,53 @@ export async function listAwsLeagueCalendarHolidays(input: {
     created_at: String(row.createdAt ?? ""),
     updated_at: String(row.updatedAt ?? ""),
   }));
+}
+
+export async function listAwsBracketLocationTemplates(): Promise<
+  ChampionshipBracketLocationTemplate[]
+> {
+  const response = await lajeApiRequest<
+    DataResponse<
+      Array<{
+        id: string;
+        name: string;
+        createdAt: string;
+        updatedAt: string;
+        courts: Array<{
+          id: string;
+          name: string;
+          position: number;
+          sportIds: string[];
+        }>;
+      }>
+    >
+  >("/public-runtime/bracket-location-templates");
+
+  return response.data.map((template) => ({
+    id: template.id,
+    name: template.name,
+    created_at: template.createdAt,
+    updated_at: template.updatedAt,
+    courts: template.courts.map((court) => ({
+      id: court.id,
+      name: court.name,
+      position: court.position,
+      sport_ids: court.sportIds,
+    })),
+  }));
+}
+
+export async function getAwsBracketDayScheduleSource(
+  bracketEditionId: string,
+): Promise<{ days: unknown[]; payloadSnapshot: unknown }> {
+  const response = await lajeApiRequest<
+    DataResponse<{
+      days: unknown[];
+      payloadSnapshot: unknown;
+    }>
+  >(`/public-runtime/bracket-editions/${bracketEditionId}/day-schedules`);
+
+  return response.data;
 }
 
 export async function listAwsChampionshipSeasonYears(championshipId: string): Promise<number[]> {
