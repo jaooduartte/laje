@@ -3,7 +3,11 @@ import type {
   MatchEstimatedStartTimeChampionshipSport,
 } from "@/lib/championship";
 import type { ChampionshipCode, MatchNaipe, TeamDivision } from "@/lib/enums";
-import type {\n  BracketDayCourtSports,\n  ChampionshipBracketCourtSequenceMode,\n  ChampionshipBracketLocationTemplate,\n} from "@/domain/championship-brackets/championshipBracket.types";
+import type {
+  BracketDayCourtSports,
+  ChampionshipBracketCourtSequenceMode,
+  ChampionshipBracketLocationTemplate,
+} from "@/domain/championship-brackets/championshipBracket.types";
 import type {
   ChampionshipIndividualEvent,
   ChampionshipIndividualEventEntry,
