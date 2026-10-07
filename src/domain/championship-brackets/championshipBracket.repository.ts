@@ -1,6 +1,12 @@
 import { isAwsBackendEnabled } from "@/config/environment";
 import { fetchDedicatedChampionshipBracketView } from "@/integrations/laje-api/bracket";
 import {
+  cancelAwsBracketPreviewJob,
+  getAwsBracketPreviewJob,
+  getAwsBracketPreviewJobDay,
+  startAwsBracketPreviewJob,
+} from "@/integrations/laje-api/bracket-preview";
+import {
   getAwsBracketDayScheduleSource,
   listAwsBracketCourtSports,
   listAwsBracketLocationTemplates,
@@ -351,6 +357,20 @@ export async function startChampionshipBracketPreviewJob(
   data: ChampionshipBracketPreviewJob | null;
   error: Error | null;
 }> {
+  if (isAwsBackendEnabled()) {
+    try {
+      return {
+        data: await startAwsBracketPreviewJob(championship_id, payload),
+        error: null,
+      };
+    } catch (error) {
+      return {
+        data: null,
+        error: error instanceof Error ? error : new Error("Não foi possível iniciar a prévia pela laje-api."),
+      };
+    }
+  }
+
   const response = await supabase.rpc("start_championship_bracket_preview_job", {
     _championship_id: championship_id,
     _payload: toSupabaseJson(payload),
@@ -370,6 +390,17 @@ export async function startChampionshipBracketPreviewJob(
 }
 
 export async function fetchChampionshipBracketPreviewJobStatus(job_id: string) {
+  if (isAwsBackendEnabled()) {
+    try {
+      return { data: await getAwsBracketPreviewJob(job_id), error: null };
+    } catch (error) {
+      return {
+        data: null,
+        error: error instanceof Error ? error : new Error("Não foi possível consultar a prévia pela laje-api."),
+      };
+    }
+  }
+
   const response = await supabase.rpc("get_championship_bracket_preview_job_status", {
     _job_id: job_id,
   });
@@ -386,6 +417,17 @@ export async function fetchChampionshipBracketPreviewJobDay(
   data: ChampionshipBracketPreviewDay | null;
   error: Error | null;
 }> {
+  if (isAwsBackendEnabled()) {
+    try {
+      return { data: await getAwsBracketPreviewJobDay(job_id, date), error: null };
+    } catch (error) {
+      return {
+        data: null,
+        error: error instanceof Error ? error : new Error("Não foi possível carregar o dia da prévia pela laje-api."),
+      };
+    }
+  }
+
   const response = await supabase.rpc("get_championship_bracket_preview_job_day", {
     _job_id: job_id,
     _date: date,
@@ -397,6 +439,17 @@ export async function fetchChampionshipBracketPreviewJobDay(
 }
 
 export async function cancelChampionshipBracketPreviewJob(job_id: string) {
+  if (isAwsBackendEnabled()) {
+    try {
+      return { data: await cancelAwsBracketPreviewJob(job_id), error: null };
+    } catch (error) {
+      return {
+        data: null,
+        error: error instanceof Error ? error : new Error("Não foi possível cancelar a prévia pela laje-api."),
+      };
+    }
+  }
+
   const response = await supabase.rpc("cancel_championship_bracket_preview_job", {
     _job_id: job_id,
   });
