@@ -2612,6 +2612,13 @@ describe("AdminMatches score sheet review", () => {
 
     fireEvent.click(await screen.findByLabelText("Mostrar jogos revisados também"));
 
+    // A mudança deste filtro dispara uma leitura imediata e uma confirmação
+    // após 400 ms. Aguarda esse ciclo terminar para que a asserção abaixo
+    // meça somente o refetch provocado pela atualização do W.O.
+    await waitFor(() => {
+      expect(onRefetch).toHaveBeenCalledTimes(2);
+    });
+
     fireEvent.pointerDown(await screen.findByLabelText("Ações do jogo W.O. CASA x W.O. VISITANTE"));
     const matchCardContainer = getMatchCardContainerByTeamName("W.O. CASA");
     clickFirstMenuItemInMatchCard(matchCardContainer, "Editar");

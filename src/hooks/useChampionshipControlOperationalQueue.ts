@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isAwsBackendEnabled } from "@/config/environment";
+import { getSportsCoreOperationalQueueState } from "@/integrations/laje-api/sports-core";
 import { supabase } from "@/integrations/supabase/client";
 
 type OperationalQueueItem = {
@@ -31,10 +33,7 @@ type SupabaseLooseClient = {
     argumentsValue: Record<string, unknown>,
   ) => Promise<{ data: unknown; error: SupabaseLooseError | null }>;
   from: (table: string) => {
-    select: (
-      columns: string,
-      options: { count: "exact"; head: true },
-    ) => SupabaseCountQuery;
+    select: (columns: string, options: { count: "exact"; head: true }) => SupabaseCountQuery;
   };
 };
 
@@ -70,8 +69,8 @@ async function fetchLegacyOperationalQueueState(
   data: OperationalQueueStateResult | null;
   error: SupabaseLooseError | null;
 }> {
-  const [operationalQueueResponse, matchesCountResponse, sessionsCountResponse] =
-    await Promise.all([
+  const [operationalQueueResponse, matchesCountResponse, sessionsCountResponse] = await Promise.all(
+    [
       supabaseLoose.rpc("get_championship_control_operational_queue", {
         _championship_id: championshipId,
         _season_year: seasonYear,
@@ -89,7 +88,8 @@ async function fetchLegacyOperationalQueueState(
         .eq("championship_id", championshipId)
         .eq("season_year", seasonYear)
         .in("status", ["DRAFT", "SCHEDULED", "LIVE", "FINISHED"]),
-    ]);
+    ],
+  );
 
   if (operationalQueueResponse.error) {
     return { data: null, error: operationalQueueResponse.error };
@@ -106,14 +106,11 @@ async function fetchLegacyOperationalQueueState(
 
   return {
     data: {
-      matchIds: queueItems
-        .filter((item) => item.item_type == "MATCH")
-        .map((item) => item.item_id),
+      matchIds: queueItems.filter((item) => item.item_type == "MATCH").map((item) => item.item_id),
       individualSessionIds: queueItems
         .filter((item) => item.item_type == "INDIVIDUAL_SESSION")
         .map((item) => item.item_id),
-      fullQueueItemsCount:
-        (matchesCountResponse.count ?? 0) + (sessionsCountResponse.count ?? 0),
+      fullQueueItemsCount: (matchesCountResponse.count ?? 0) + (sessionsCountResponse.count ?? 0),
     },
     error: null,
   };
@@ -126,14 +123,29 @@ async function fetchOperationalQueueState(
   data: OperationalQueueStateResult | null;
   error: SupabaseLooseError | null;
 }> {
+  if (isAwsBackendEnabled()) {
+    try {
+      return {
+        data: await getSportsCoreOperationalQueueState(championshipId, seasonYear),
+        error: null,
+      };
+    } catch (error) {
+      return {
+        data: null,
+        error: {
+          message:
+            error instanceof Error
+              ? error.message
+              : "Não foi possível carregar a fila operacional pela laje-api.",
+        },
+      };
+    }
+  }
   if (operationalQueueStateRpcAvailable !== false) {
-    const response = await supabaseLoose.rpc(
-      "get_championship_control_operational_queue_state",
-      {
-        _championship_id: championshipId,
-        _season_year: seasonYear,
-      },
-    );
+    const response = await supabaseLoose.rpc("get_championship_control_operational_queue_state", {
+      _championship_id: championshipId,
+      _season_year: seasonYear,
+    });
 
     if (!response.error) {
       operationalQueueStateRpcAvailable = true;
@@ -172,12 +184,8 @@ export function useChampionshipControlOperationalQueue({
   enabled?: boolean;
 }) {
   const [matchIds, setMatchIds] = useState<string[]>([]);
-  const [individualSessionIds, setIndividualSessionIds] = useState<string[]>(
-    [],
-  );
-  const [fullQueueItemsCount, setFullQueueItemsCount] = useState<
-    number | null
-  >(null);
+  const [individualSessionIds, setIndividualSessionIds] = useState<string[]>([]);
+  const [fullQueueItemsCount, setFullQueueItemsCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
   const hasLoadedQueueRef = useRef(false);
@@ -202,8 +210,7 @@ export function useChampionshipControlOperationalQueue({
 
       if (isFetchingQueueRef.current) {
         hasQueuedRefetchRef.current = true;
-        queuedShowFetchingRef.current =
-          queuedShowFetchingRef.current || showFetching;
+        queuedShowFetchingRef.current = queuedShowFetchingRef.current || showFetching;
         return;
       }
 
@@ -216,10 +223,7 @@ export function useChampionshipControlOperationalQueue({
       }
 
       try {
-        const { data, error } = await fetchOperationalQueueState(
-          championshipId,
-          seasonYear,
-        );
+        const { data, error } = await fetchOperationalQueueState(championshipId, seasonYear);
 
         if (error || !data) {
           console.error(
@@ -229,9 +233,7 @@ export function useChampionshipControlOperationalQueue({
           return;
         }
 
-        setMatchIds((currentIds) =>
-          preserveEqualIds(currentIds, data.matchIds),
-        );
+        setMatchIds((currentIds) => preserveEqualIds(currentIds, data.matchIds));
         setIndividualSessionIds((currentIds) =>
           preserveEqualIds(currentIds, data.individualSessionIds),
         );
