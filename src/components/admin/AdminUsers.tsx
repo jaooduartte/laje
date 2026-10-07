@@ -13,6 +13,8 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { isAwsBackendEnabled } from "@/config/environment";
+import { fetchAdminDirectoryFromApi } from "@/integrations/laje-api/admin-runtime";
 import { supabase } from "@/integrations/supabase/client";
 import { useOnlineVisitorsProviderContext } from "@/components/online-visitors/OnlineVisitorsProvider";
 import { useAuth } from "@/hooks/useAuth";
@@ -37,11 +39,7 @@ import {
   resolveDefaultPermissions,
   resolveNormalizedPermissions,
 } from "@/components/admin/adminUsersPermissions.utils";
-import type {
-  AdminProfile,
-  AdminTabPermissionByTab,
-  AdminUser,
-} from "@/lib/types";
+import type { AdminProfile, AdminTabPermissionByTab, AdminUser } from "@/lib/types";
 import {
   resolveAdminUserPasswordStatusBadgeTone,
   resolveAdminUserPasswordStatusLabel,
@@ -80,12 +78,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Tabs,
-  TabsContent,
-  TabsNavigationList,
-  TabsNavigationTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsNavigationList, TabsNavigationTrigger } from "@/components/ui/tabs";
 
 const ALL_PROFILES_FILTER = "ALL_PROFILES";
 const DEFAULT_PROFILE_NAME = "Novo perfil";
@@ -112,12 +105,11 @@ const ADMIN_TAB_LABELS: Record<AdminPanelTab, string> = {
   [AdminPanelTab.OPENING_CEREMONY_BONUS]: "Ajustes da classificação geral",
 };
 
-const ADMIN_PERMISSION_LEVEL_LABELS: Record<AdminPanelPermissionLevel, string> =
-  {
-    [AdminPanelPermissionLevel.NONE]: "Sem acesso",
-    [AdminPanelPermissionLevel.VIEW]: "Visualização",
-    [AdminPanelPermissionLevel.EDIT]: "Visualização e edição",
-  };
+const ADMIN_PERMISSION_LEVEL_LABELS: Record<AdminPanelPermissionLevel, string> = {
+  [AdminPanelPermissionLevel.NONE]: "Sem acesso",
+  [AdminPanelPermissionLevel.VIEW]: "Visualização",
+  [AdminPanelPermissionLevel.EDIT]: "Visualização e edição",
+};
 
 const ADMIN_PANEL_TAB_ORDER: AdminPanelTab[] = [
   AdminPanelTab.BRACKET_SETUP,
@@ -139,10 +131,7 @@ const ADMIN_PANEL_TAB_ORDER: AdminPanelTab[] = [
   AdminPanelTab.SETTINGS,
 ];
 
-const ADMIN_PANEL_PERMISSION_LEVEL_SORT_WEIGHTS: Record<
-  AdminPanelPermissionLevel,
-  number
-> = {
+const ADMIN_PANEL_PERMISSION_LEVEL_SORT_WEIGHTS: Record<AdminPanelPermissionLevel, number> = {
   [AdminPanelPermissionLevel.NONE]: 0,
   [AdminPanelPermissionLevel.VIEW]: 1,
   [AdminPanelPermissionLevel.EDIT]: 2,
@@ -198,9 +187,7 @@ interface PendingUsersActionConfirmation {
   targetUserIds: string[];
 }
 
-function isAdminPanelPermissionLevel(
-  value: string | null,
-): value is AdminPanelPermissionLevel {
+function isAdminPanelPermissionLevel(value: string | null): value is AdminPanelPermissionLevel {
   return (
     value == AdminPanelPermissionLevel.NONE ||
     value == AdminPanelPermissionLevel.VIEW ||
@@ -230,9 +217,7 @@ function resolveUserAccessValue(user: AdminUser): string {
   return "";
 }
 
-function resolveUserAccessSelection(
-  accessValue: string,
-): UserAccessSelection | null {
+function resolveUserAccessSelection(accessValue: string): UserAccessSelection | null {
   const profileId = accessValue.trim();
 
   if (profileId.length > 0) {
@@ -280,17 +265,13 @@ function resolveIsSameProfileDraft(
     return false;
   }
 
-  if (
-    firstProfileDraft.profileName.trim() !=
-    secondProfileDraft.profileName.trim()
-  ) {
+  if (firstProfileDraft.profileName.trim() != secondProfileDraft.profileName.trim()) {
     return false;
   }
 
   return ADMIN_PANEL_TAB_ORDER.every((adminPanelTab) => {
     return (
-      firstProfileDraft.permissions[adminPanelTab] ==
-      secondProfileDraft.permissions[adminPanelTab]
+      firstProfileDraft.permissions[adminPanelTab] == secondProfileDraft.permissions[adminPanelTab]
     );
   });
 }
@@ -301,8 +282,7 @@ function resolveIsProtectedAdminProfile(profile: AdminProfile | null): boolean {
   }
 
   return (
-    profile.is_system &&
-    profile.profile_name.trim().toLowerCase() == ADMIN_SYSTEM_PROFILE_NAME
+    profile.is_system && profile.profile_name.trim().toLowerCase() == ADMIN_SYSTEM_PROFILE_NAME
   );
 }
 
@@ -310,13 +290,10 @@ function resolveIsCheckboxChecked(checked: CheckedState): boolean {
   return checked == true;
 }
 
-function resolveAdminProfilePermissionsSortScore(
-  permissions: AdminTabPermissionByTab,
-): number {
+function resolveAdminProfilePermissionsSortScore(permissions: AdminTabPermissionByTab): number {
   return ADMIN_PANEL_TAB_ORDER.reduce((permissionsSortScore, adminPanelTab) => {
     return (
-      permissionsSortScore +
-      ADMIN_PANEL_PERMISSION_LEVEL_SORT_WEIGHTS[permissions[adminPanelTab]]
+      permissionsSortScore + ADMIN_PANEL_PERMISSION_LEVEL_SORT_WEIGHTS[permissions[adminPanelTab]]
     );
   }, 0);
 }
@@ -341,10 +318,7 @@ function resolveAdminUserLastAccessSortValue(
   return new Date(user.last_sign_in_at).getTime();
 }
 
-function resolveAdminUserLastAccessDate(
-  user: AdminUser,
-  isUserOnline: boolean,
-): Date | null {
+function resolveAdminUserLastAccessDate(user: AdminUser, isUserOnline: boolean): Date | null {
   if (isUserOnline) {
     return new Date();
   }
@@ -360,15 +334,11 @@ function resolveAdminUserOnlineSortValue(isUserOnline: boolean): number {
   return isUserOnline ? 1 : 0;
 }
 
-function resolveAdminUserActiveStatusSortValue(
-  status: AdminUserPasswordStatus,
-): number {
+function resolveAdminUserActiveStatusSortValue(status: AdminUserPasswordStatus): number {
   return status == AdminUserPasswordStatus.ACTIVE ? 1 : 0;
 }
 
-function resolveNormalizedAdminUserProfileLabel(
-  profileLabel: string | null,
-): string {
+function resolveNormalizedAdminUserProfileLabel(profileLabel: string | null): string {
   return (profileLabel ?? "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -379,9 +349,7 @@ function resolveNormalizedAdminUserProfileLabel(
 }
 
 function resolveAdminUserProfileSortWeight(user: AdminUser): number {
-  const normalizedProfileLabel = resolveNormalizedAdminUserProfileLabel(
-    user.profile_name,
-  );
+  const normalizedProfileLabel = resolveNormalizedAdminUserProfileLabel(user.profile_name);
 
   if (normalizedProfileLabel in ADMIN_USER_PROFILE_SORT_WEIGHTS) {
     return ADMIN_USER_PROFILE_SORT_WEIGHTS[normalizedProfileLabel];
@@ -401,45 +369,30 @@ export function AdminUsers({ canManageUsers = true }: Props) {
   const [profiles, setProfiles] = useState<AdminProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [accessFilter, setAccessFilter] = useState(ALL_PROFILES_FILTER);
-  const [sortOption, setSortOption] = useState<AdminUserSortOption | null>(
-    null,
-  );
+  const [sortOption, setSortOption] = useState<AdminUserSortOption>(AdminUserSortOption.NAME_ASC);
   const [userSearch, setUserSearch] = useState("");
   const [nameByUserId, setNameByUserId] = useState<Record<string, string>>({});
-  const [accessValueByUserId, setAccessValueByUserId] = useState<
-    Record<string, string>
-  >({});
-  const [loginIdentifierByUserId, setLoginIdentifierByUserId] = useState<
-    Record<string, string>
-  >({});
-  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
-  const [savingEditedUserId, setSavingEditedUserId] = useState<string | null>(
-    null,
+  const [accessValueByUserId, setAccessValueByUserId] = useState<Record<string, string>>({});
+  const [loginIdentifierByUserId, setLoginIdentifierByUserId] = useState<Record<string, string>>(
+    {},
   );
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [savingEditedUserId, setSavingEditedUserId] = useState<string | null>(null);
   const [resettingUserId, setResettingUserId] = useState<string | null>(null);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
-  const [bulkProcessingAction, setBulkProcessingAction] = useState<
-    "RESET" | "DELETE" | null
-  >(null);
+  const [bulkProcessingAction, setBulkProcessingAction] = useState<"RESET" | "DELETE" | null>(null);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [activeUsersTab, setActiveUsersTab] = useState<"USERS" | "PROFILES">(
-    "USERS",
-  );
+  const [activeUsersTab, setActiveUsersTab] = useState<"USERS" | "PROFILES">("USERS");
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
-  const [profileDraft, setProfileDraft] = useState<ProfileDraft>(
-    resolveUnselectedProfileDraft(),
-  );
-  const [savedProfileDraft, setSavedProfileDraft] =
-    useState<ProfileDraft | null>(null);
+  const [profileDraft, setProfileDraft] = useState<ProfileDraft>(resolveUnselectedProfileDraft());
+  const [savedProfileDraft, setSavedProfileDraft] = useState<ProfileDraft | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
   const [creatingUser, setCreatingUser] = useState(false);
   const [newUserName, setNewUserName] = useState("");
   const [newUserLoginIdentifier, setNewUserLoginIdentifier] = useState("");
   const [newUserAccessValue, setNewUserAccessValue] = useState("");
-  const [newPasswordByUserId, setNewPasswordByUserId] = useState<
-    Record<string, string>
-  >({});
+  const [newPasswordByUserId, setNewPasswordByUserId] = useState<Record<string, string>>({});
   const [pendingUsersActionConfirmation, setPendingUsersActionConfirmation] =
     useState<PendingUsersActionConfirmation | null>(null);
 
@@ -454,10 +407,28 @@ export function AdminUsers({ canManageUsers = true }: Props) {
     return [...profileAccessOptions];
   }, [profileAccessOptions]);
 
-  const fetchAdminData = useCallback(async (): Promise<
-    AdminProfile[] | null
-  > => {
+  const fetchAdminData = useCallback(async (): Promise<AdminProfile[] | null> => {
     setLoading(true);
+
+    if (isAwsBackendEnabled()) {
+      try {
+        const { users: apiUsers, profiles: apiProfiles } = await fetchAdminDirectoryFromApi();
+        setUsers(apiUsers);
+        setProfiles(apiProfiles);
+        setLoading(false);
+        return apiProfiles;
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Não foi possível carregar os usuários administrativos.",
+        );
+        setUsers([]);
+        setProfiles([]);
+        setLoading(false);
+        return null;
+      }
+    }
 
     const [usersResponse, profilesResponse] = await Promise.all([
       supabase.rpc("list_admin_users"),
@@ -508,9 +479,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
           return permissionsSortScoreDifference;
         }
 
-        return firstProfile.profile_name.localeCompare(
-          secondProfile.profile_name,
-        );
+        return firstProfile.profile_name.localeCompare(secondProfile.profile_name);
       });
 
     setUsers(normalizedUsers);
@@ -524,21 +493,15 @@ export function AdminUsers({ canManageUsers = true }: Props) {
   }, [fetchAdminData]);
 
   useEffect(() => {
-    const nextNameByUserId = users.reduce<Record<string, string>>(
-      (nameMap, user) => {
-        nameMap[user.user_id] = user.name;
-        return nameMap;
-      },
-      {},
-    );
+    const nextNameByUserId = users.reduce<Record<string, string>>((nameMap, user) => {
+      nameMap[user.user_id] = user.name;
+      return nameMap;
+    }, {});
 
-    const nextAccessValueByUserId = users.reduce<Record<string, string>>(
-      (accessByUserId, user) => {
-        accessByUserId[user.user_id] = resolveUserAccessValue(user);
-        return accessByUserId;
-      },
-      {},
-    );
+    const nextAccessValueByUserId = users.reduce<Record<string, string>>((accessByUserId, user) => {
+      accessByUserId[user.user_id] = resolveUserAccessValue(user);
+      return accessByUserId;
+    }, {});
 
     const nextLoginIdentifierByUserId = users.reduce<Record<string, string>>(
       (loginIdentifierMap, user) => {
@@ -597,10 +560,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
     const normalizedUserSearch = userSearch.trim().toLowerCase();
 
     return users.filter((user) => {
-      if (
-        accessFilter != ALL_PROFILES_FILTER &&
-        user.profile_id != accessFilter
-      ) {
+      if (accessFilter != ALL_PROFILES_FILTER && user.profile_id != accessFilter) {
         return false;
       }
 
@@ -608,11 +568,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
         return true;
       }
 
-      const resolvedSearchBase = [
-        user.name,
-        user.login_identifier,
-        user.email ?? "",
-      ]
+      const resolvedSearchBase = [user.name, user.login_identifier, user.email ?? ""]
         .join(" ")
         .toLowerCase();
 
@@ -625,9 +581,9 @@ export function AdminUsers({ canManageUsers = true }: Props) {
     const currentTimestamp = Date.now();
 
     const sortedUsers = [...filteredUsers].sort((firstUser, secondUser) => {
-      const nameComparison = resolveAdminUserNameSortValue(
-        firstUser,
-      ).localeCompare(resolveAdminUserNameSortValue(secondUser));
+      const nameComparison = resolveAdminUserNameSortValue(firstUser).localeCompare(
+        resolveAdminUserNameSortValue(secondUser),
+      );
 
       if (resolvedSortOption == AdminUserSortOption.NAME_ASC) {
         return nameComparison;
@@ -670,12 +626,13 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       }
 
       if (resolvedSortOption == AdminUserSortOption.ACTIVE_STATUS_DESC) {
-        const firstUserActiveStatusValue =
-          resolveAdminUserActiveStatusSortValue(firstUser.password_status);
-        const secondUserActiveStatusValue =
-          resolveAdminUserActiveStatusSortValue(secondUser.password_status);
-        const difference =
-          secondUserActiveStatusValue - firstUserActiveStatusValue;
+        const firstUserActiveStatusValue = resolveAdminUserActiveStatusSortValue(
+          firstUser.password_status,
+        );
+        const secondUserActiveStatusValue = resolveAdminUserActiveStatusSortValue(
+          secondUser.password_status,
+        );
+        const difference = secondUserActiveStatusValue - firstUserActiveStatusValue;
 
         if (difference != 0) {
           return difference;
@@ -684,20 +641,17 @@ export function AdminUsers({ canManageUsers = true }: Props) {
         return nameComparison;
       }
 
-      const firstUserProfileWeight =
-        resolveAdminUserProfileSortWeight(firstUser);
-      const secondUserProfileWeight =
-        resolveAdminUserProfileSortWeight(secondUser);
-      const profileWeightDifference =
-        firstUserProfileWeight - secondUserProfileWeight;
+      const firstUserProfileWeight = resolveAdminUserProfileSortWeight(firstUser);
+      const secondUserProfileWeight = resolveAdminUserProfileSortWeight(secondUser);
+      const profileWeightDifference = firstUserProfileWeight - secondUserProfileWeight;
 
       if (profileWeightDifference != 0) {
         return profileWeightDifference;
       }
 
-      const profileComparison = resolveAdminUserProfileSortLabel(
-        firstUser,
-      ).localeCompare(resolveAdminUserProfileSortLabel(secondUser));
+      const profileComparison = resolveAdminUserProfileSortLabel(firstUser).localeCompare(
+        resolveAdminUserProfileSortLabel(secondUser),
+      );
 
       if (profileComparison != 0) {
         return profileComparison;
@@ -710,9 +664,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
   }, [filteredUsers, onlineUserIdsSet, sortOption]);
 
   const selectableFilteredUsers = useMemo(() => {
-    return orderedFilteredUsers.filter(
-      (user) => user.user_id != currentUser?.id,
-    );
+    return orderedFilteredUsers.filter((user) => user.user_id != currentUser?.id);
   }, [currentUser?.id, orderedFilteredUsers]);
 
   const selectAllFilteredUsersChecked = useMemo(() => {
@@ -720,9 +672,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       return false;
     }
 
-    return selectableFilteredUsers.every((user) =>
-      selectedUserIds.includes(user.user_id),
-    );
+    return selectableFilteredUsers.every((user) => selectedUserIds.includes(user.user_id));
   }, [selectableFilteredUsers, selectedUserIds]);
 
   const selectedProfile = useMemo(() => {
@@ -730,11 +680,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       return null;
     }
 
-    return (
-      profiles.find(
-        (profile) => profile.profile_id == profileDraft.profileId,
-      ) ?? null
-    );
+    return profiles.find((profile) => profile.profile_id == profileDraft.profileId) ?? null;
   }, [profileDraft.profileId, profiles]);
 
   const isProtectedAdminProfile = useMemo(() => {
@@ -760,20 +706,14 @@ export function AdminUsers({ canManageUsers = true }: Props) {
 
     return users.find((user) => user.user_id == editingUserId) ?? null;
   }, [editingUserId, users]);
-  const editedUserName = editingUser
-    ? (nameByUserId[editingUser.user_id] ?? editingUser.name)
-    : "";
+  const editedUserName = editingUser ? (nameByUserId[editingUser.user_id] ?? editingUser.name) : "";
   const editedUserLoginIdentifier = editingUser
-    ? (loginIdentifierByUserId[editingUser.user_id] ??
-      editingUser.login_identifier)
+    ? (loginIdentifierByUserId[editingUser.user_id] ?? editingUser.login_identifier)
     : "";
   const editedUserAccessValue = editingUser
-    ? (accessValueByUserId[editingUser.user_id] ??
-      resolveUserAccessValue(editingUser))
+    ? (accessValueByUserId[editingUser.user_id] ?? resolveUserAccessValue(editingUser))
     : "";
-  const editedUserPassword = editingUser
-    ? (newPasswordByUserId[editingUser.user_id] ?? "")
-    : "";
+  const editedUserPassword = editingUser ? (newPasswordByUserId[editingUser.user_id] ?? "") : "";
   const hasEditedUserPendingChanges = editingUser
     ? editedUserName.trim() != editingUser.name ||
       editedUserLoginIdentifier.trim().toLowerCase() !=
@@ -781,9 +721,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       editedUserAccessValue != resolveUserAccessValue(editingUser) ||
       editedUserPassword.trim().length > 0
     : false;
-  const isEditingUserOnline = editingUser
-    ? onlineUserIdsSet.has(editingUser.user_id)
-    : false;
+  const isEditingUserOnline = editingUser ? onlineUserIdsSet.has(editingUser.user_id) : false;
   const editingUserLastAccessDate = editingUser
     ? resolveAdminUserLastAccessDate(editingUser, isEditingUserOnline)
     : null;
@@ -799,9 +737,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       if (!shouldSelectAll) {
         return currentSelectedUserIds.filter(
           (selectedUserId) =>
-            !selectableFilteredUsers.some(
-              (user) => user.user_id == selectedUserId,
-            ),
+            !selectableFilteredUsers.some((user) => user.user_id == selectedUserId),
         );
       }
 
@@ -826,9 +762,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
         return [...new Set([...currentSelectedUserIds, userId])];
       }
 
-      return currentSelectedUserIds.filter(
-        (selectedUserId) => selectedUserId != userId,
-      );
+      return currentSelectedUserIds.filter((selectedUserId) => selectedUserId != userId);
     });
   };
 
@@ -843,24 +777,16 @@ export function AdminUsers({ canManageUsers = true }: Props) {
 
     try {
       const nextName = nameByUserId[user.user_id] ?? user.name;
-      const nextLoginIdentifier =
-        loginIdentifierByUserId[user.user_id] ?? user.login_identifier;
-      const nextAccessValue =
-        accessValueByUserId[user.user_id] ?? resolveUserAccessValue(user);
+      const nextLoginIdentifier = loginIdentifierByUserId[user.user_id] ?? user.login_identifier;
+      const nextAccessValue = accessValueByUserId[user.user_id] ?? resolveUserAccessValue(user);
       const nextPassword = newPasswordByUserId[user.user_id] ?? "";
       const hasNameChanged = nextName.trim() != user.name;
       const hasLoginIdentifierChanged =
-        nextLoginIdentifier.trim().toLowerCase() !=
-        user.login_identifier.trim().toLowerCase();
+        nextLoginIdentifier.trim().toLowerCase() != user.login_identifier.trim().toLowerCase();
       const hasAccessChanged = nextAccessValue != resolveUserAccessValue(user);
       const hasNewPassword = nextPassword.trim().length > 0;
 
-      if (
-        !hasNameChanged &&
-        !hasLoginIdentifierChanged &&
-        !hasAccessChanged &&
-        !hasNewPassword
-      ) {
+      if (!hasNameChanged && !hasLoginIdentifierChanged && !hasAccessChanged && !hasNewPassword) {
         return;
       }
 
@@ -893,10 +819,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       setSavingEditedUserId(user.user_id);
 
       if (namePayload) {
-        const { error } = await supabase.rpc(
-          "admin_update_user_name",
-          namePayload,
-        );
+        const { error } = await supabase.rpc("admin_update_user_name", namePayload);
 
         if (error) {
           setSavingEditedUserId(null);
@@ -936,10 +859,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       }
 
       if (passwordPayload) {
-        const { error } = await supabase.rpc(
-          "admin_update_user_password",
-          passwordPayload,
-        );
+        const { error } = await supabase.rpc("admin_update_user_password", passwordPayload);
 
         if (error) {
           setSavingEditedUserId(null);
@@ -970,12 +890,9 @@ export function AdminUsers({ canManageUsers = true }: Props) {
     setBulkProcessingAction(targetUserIds.length > 1 ? "RESET" : null);
     setResettingUserId(targetUserIds.length == 1 ? targetUserIds[0] : null);
 
-    const { data, error } = await supabase.rpc(
-      "admin_reset_users_password_setup",
-      {
-        _target_user_ids: targetUserIds,
-      },
-    );
+    const { data, error } = await supabase.rpc("admin_reset_users_password_setup", {
+      _target_user_ids: targetUserIds,
+    });
 
     setBulkProcessingAction(null);
     setResettingUserId(null);
@@ -992,9 +909,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
     );
 
     setSelectedUserIds((currentSelectedUserIds) =>
-      currentSelectedUserIds.filter(
-        (selectedUserId) => !targetUserIds.includes(selectedUserId),
-      ),
+      currentSelectedUserIds.filter((selectedUserId) => !targetUserIds.includes(selectedUserId)),
     );
 
     fetchAdminData();
@@ -1027,17 +942,13 @@ export function AdminUsers({ canManageUsers = true }: Props) {
     );
 
     setSelectedUserIds((currentSelectedUserIds) =>
-      currentSelectedUserIds.filter(
-        (selectedUserId) => !targetUserIds.includes(selectedUserId),
-      ),
+      currentSelectedUserIds.filter((selectedUserId) => !targetUserIds.includes(selectedUserId)),
     );
 
     fetchAdminData();
   };
 
-  const handleOpenResetUsersPasswordSetupConfirmation = (
-    targetUserIds: string[],
-  ) => {
+  const handleOpenResetUsersPasswordSetupConfirmation = (targetUserIds: string[]) => {
     if (!canManageUsers || targetUserIds.length == 0) {
       return;
     }
@@ -1060,8 +971,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
   };
 
   const handleConfirmPendingUsersAction = async () => {
-    const currentPendingUsersActionConfirmation =
-      pendingUsersActionConfirmation;
+    const currentPendingUsersActionConfirmation = pendingUsersActionConfirmation;
 
     if (!currentPendingUsersActionConfirmation) {
       return;
@@ -1070,15 +980,11 @@ export function AdminUsers({ canManageUsers = true }: Props) {
     setPendingUsersActionConfirmation(null);
 
     if (currentPendingUsersActionConfirmation.action == "RESET") {
-      await executeResetUsersPasswordSetup(
-        currentPendingUsersActionConfirmation.targetUserIds,
-      );
+      await executeResetUsersPasswordSetup(currentPendingUsersActionConfirmation.targetUserIds);
       return;
     }
 
-    await executeDeleteUsers(
-      currentPendingUsersActionConfirmation.targetUserIds,
-    );
+    await executeDeleteUsers(currentPendingUsersActionConfirmation.targetUserIds);
   };
 
   const pendingUsersActionConfirmationTitle = useMemo(() => {
@@ -1137,10 +1043,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
 
       setCreatingUser(true);
 
-      const { error } = await supabase.rpc(
-        "create_admin_user_with_access",
-        createUserPayload,
-      );
+      const { error } = await supabase.rpc("create_admin_user_with_access", createUserPayload);
 
       setCreatingUser(false);
 
@@ -1159,11 +1062,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       fetchAdminData();
     } catch (error) {
       setCreatingUser(false);
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Não foi possível criar o usuário.",
-      );
+      toast.error(error instanceof Error ? error.message : "Não foi possível criar o usuário.");
     }
   };
 
@@ -1218,12 +1117,13 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       return;
     }
 
-    const permissionsPayload = ADMIN_PANEL_TAB_ORDER.reduce<
-      Record<string, string>
-    >((permissionsByTab, adminPanelTab) => {
-      permissionsByTab[adminPanelTab] = profileDraft.permissions[adminPanelTab];
-      return permissionsByTab;
-    }, {});
+    const permissionsPayload = ADMIN_PANEL_TAB_ORDER.reduce<Record<string, string>>(
+      (permissionsByTab, adminPanelTab) => {
+        permissionsByTab[adminPanelTab] = profileDraft.permissions[adminPanelTab];
+        return permissionsByTab;
+      },
+      {},
+    );
 
     setSavingProfile(true);
 
@@ -1242,23 +1142,16 @@ export function AdminUsers({ canManageUsers = true }: Props) {
 
     toast.success("Perfil salvo com sucesso.");
     const refreshedProfiles = await fetchAdminData();
-    const normalizedProfileNameForMatch = profileDraft.profileName
-      .trim()
-      .toLowerCase();
+    const normalizedProfileNameForMatch = profileDraft.profileName.trim().toLowerCase();
     const matchedProfile =
+      refreshedProfiles?.find((profile) => profile.profile_id == profileDraft.profileId) ??
       refreshedProfiles?.find(
-        (profile) => profile.profile_id == profileDraft.profileId,
-      ) ??
-      refreshedProfiles?.find(
-        (profile) =>
-          profile.profile_name.trim().toLowerCase() ==
-          normalizedProfileNameForMatch,
+        (profile) => profile.profile_name.trim().toLowerCase() == normalizedProfileNameForMatch,
       ) ??
       null;
 
     if (matchedProfile) {
-      const matchedProfileDraft =
-        resolveProfileDraftFromProfile(matchedProfile);
+      const matchedProfileDraft = resolveProfileDraftFromProfile(matchedProfile);
       setProfileDraft(matchedProfileDraft);
       setSavedProfileDraft(matchedProfileDraft);
       return;
@@ -1282,12 +1175,8 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       >
         {canManageUsers ? (
           <TabsNavigationList className="grid w-full grid-cols-2">
-            <TabsNavigationTrigger value="USERS">
-              Usuários
-            </TabsNavigationTrigger>
-            <TabsNavigationTrigger value="PROFILES">
-              Perfis
-            </TabsNavigationTrigger>
+            <TabsNavigationTrigger value="USERS">Usuários</TabsNavigationTrigger>
+            <TabsNavigationTrigger value="PROFILES">Perfis</TabsNavigationTrigger>
           </TabsNavigationList>
         ) : null}
 
@@ -1311,14 +1200,9 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                 <SelectValue placeholder="Filtrar por perfil" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={ALL_PROFILES_FILTER}>
-                  Todos os perfis
-                </SelectItem>
+                <SelectItem value={ALL_PROFILES_FILTER}>Todos os perfis</SelectItem>
                 {profiles.map((profile) => (
-                  <SelectItem
-                    key={profile.profile_id}
-                    value={profile.profile_id}
-                  >
+                  <SelectItem key={profile.profile_id} value={profile.profile_id}>
                     {profile.profile_name}
                   </SelectItem>
                 ))}
@@ -1326,7 +1210,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
             </Select>
 
             <Select
-              value={sortOption ?? undefined}
+              value={sortOption}
               onValueChange={(value) => {
                 if (isAdminUserSortOption(value)) {
                   setSortOption(value);
@@ -1338,10 +1222,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
               </SelectTrigger>
               <SelectContent>
                 {ADMIN_USER_SORT_OPTION_ORDER.map((adminUserSortOption) => (
-                  <SelectItem
-                    key={adminUserSortOption}
-                    value={adminUserSortOption}
-                  >
+                  <SelectItem key={adminUserSortOption} value={adminUserSortOption}>
                     {ADMIN_USER_SORT_OPTION_LABELS[adminUserSortOption]}
                   </SelectItem>
                 ))}
@@ -1378,11 +1259,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                       type="button"
                       variant="outline"
                       className="bg-background/70"
-                      onClick={() =>
-                        handleOpenResetUsersPasswordSetupConfirmation(
-                          selectedUserIds,
-                        )
-                      }
+                      onClick={() => handleOpenResetUsersPasswordSetupConfirmation(selectedUserIds)}
                       disabled={bulkProcessingAction != null}
                     >
                       {bulkProcessingAction == "RESET" ? (
@@ -1399,9 +1276,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                       type="button"
                       variant="outline"
                       className="bg-background/70"
-                      onClick={() =>
-                        handleOpenDeleteUsersConfirmation(selectedUserIds)
-                      }
+                      onClick={() => handleOpenDeleteUsersConfirmation(selectedUserIds)}
                       disabled={bulkProcessingAction != null}
                     >
                       {bulkProcessingAction == "DELETE" ? (
@@ -1421,8 +1296,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
             ) : null
           ) : (
             <p className="text-sm text-muted-foreground">
-              Perfil em visualização: sem permissão para criar ou editar
-              usuários.
+              Perfil em visualização: sem permissão para criar ou editar usuários.
             </p>
           )}
 
@@ -1437,13 +1311,14 @@ export function AdminUsers({ canManageUsers = true }: Props) {
               {orderedFilteredUsers.map((user) => {
                 const isCurrentUser = user.user_id == currentUser?.id;
                 const isUserOnline = onlineUserIdsSet.has(user.user_id);
-                const resolvedUserLastAccessDate =
-                  resolveAdminUserLastAccessDate(user, isUserOnline);
-                const shouldDisplayUserEmail =
-                  resolveShouldDisplayInternalAdminUserEmail(
-                    user.email,
-                    user.login_identifier,
-                  );
+                const resolvedUserLastAccessDate = resolveAdminUserLastAccessDate(
+                  user,
+                  isUserOnline,
+                );
+                const shouldDisplayUserEmail = resolveShouldDisplayInternalAdminUserEmail(
+                  user.email,
+                  user.login_identifier,
+                );
 
                 return (
                   <div
@@ -1477,29 +1352,19 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                                   : "Usuário offline na plataforma"
                               }
                             />
-                            <p className="truncate text-sm font-medium">
-                              {user.name}
-                            </p>
+                            <p className="truncate text-sm font-medium">{user.name}</p>
                             <AppBadge
-                              tone={resolveAdminUserPasswordStatusBadgeTone(
-                                user.password_status,
-                              )}
+                              tone={resolveAdminUserPasswordStatusBadgeTone(user.password_status)}
                             >
-                              {resolveAdminUserPasswordStatusLabel(
-                                user.password_status,
-                              )}
+                              {resolveAdminUserPasswordStatusLabel(user.password_status)}
                             </AppBadge>
                             {isCurrentUser ? (
-                              <AppBadge tone={AppBadgeTone.PRIMARY}>
-                                você
-                              </AppBadge>
+                              <AppBadge tone={AppBadgeTone.PRIMARY}>você</AppBadge>
                             ) : null}
                           </div>
 
                           <div className="space-y-1 text-xs text-muted-foreground">
-                            <p className="truncate">
-                              Login: {user.login_identifier}
-                            </p>
+                            <p className="truncate">Login: {user.login_identifier}</p>
                             {shouldDisplayUserEmail ? (
                               <p className="truncate">E-mail: {user.email}</p>
                             ) : null}
@@ -1528,18 +1393,14 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="w-52">
                                 <DropdownMenuItem
-                                  onSelect={() =>
-                                    handleOpenEditUserModal(user.user_id)
-                                  }
+                                  onSelect={() => handleOpenEditUserModal(user.user_id)}
                                 >
                                   <PencilLine className="mr-2 h-4 w-4" />
                                   Editar
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onSelect={() =>
-                                    handleOpenResetUsersPasswordSetupConfirmation(
-                                      [user.user_id],
-                                    )
+                                    handleOpenResetUsersPasswordSetupConfirmation([user.user_id])
                                   }
                                   disabled={
                                     isCurrentUser ||
@@ -1552,11 +1413,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   className="text-destructive focus:text-destructive"
-                                  onSelect={() =>
-                                    handleOpenDeleteUsersConfirmation([
-                                      user.user_id,
-                                    ])
-                                  }
+                                  onSelect={() => handleOpenDeleteUsersConfirmation([user.user_id])}
                                   disabled={
                                     isCurrentUser ||
                                     deletingUserId == user.user_id ||
@@ -1577,9 +1434,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                       <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">
                         Perfil
                       </p>
-                      <p className="truncate text-sm text-foreground">
-                        {user.profile_name}
-                      </p>
+                      <p className="truncate text-sm text-foreground">{user.profile_name}</p>
                     </div>
 
                     <div className="space-y-1 text-xs text-muted-foreground">
@@ -1597,10 +1452,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                       </p>
                       <p className="text-sm text-foreground">
                         {resolvedUserLastAccessDate
-                          ? format(
-                              resolvedUserLastAccessDate,
-                              "dd/MM/yyyy HH:mm",
-                            )
+                          ? format(resolvedUserLastAccessDate, "dd/MM/yyyy HH:mm")
                           : "Sem acesso"}
                       </p>
                     </div>
@@ -1617,8 +1469,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                               aria-label={`Ações do usuário ${user.name}`}
                               disabled={bulkProcessingAction != null}
                             >
-                              {resettingUserId == user.user_id ||
-                              deletingUserId == user.user_id ? (
+                              {resettingUserId == user.user_id || deletingUserId == user.user_id ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (
                                 <MoreVertical className="h-4 w-4 text-muted-foreground" />
@@ -1627,18 +1478,14 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-52">
                             <DropdownMenuItem
-                              onSelect={() =>
-                                handleOpenEditUserModal(user.user_id)
-                              }
+                              onSelect={() => handleOpenEditUserModal(user.user_id)}
                             >
                               <PencilLine className="mr-2 h-4 w-4" />
                               Editar
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onSelect={() =>
-                                handleOpenResetUsersPasswordSetupConfirmation([
-                                  user.user_id,
-                                ])
+                                handleOpenResetUsersPasswordSetupConfirmation([user.user_id])
                               }
                               disabled={
                                 isCurrentUser ||
@@ -1651,11 +1498,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               className="text-destructive focus:text-destructive"
-                              onSelect={() =>
-                                handleOpenDeleteUsersConfirmation([
-                                  user.user_id,
-                                ])
-                              }
+                              onSelect={() => handleOpenDeleteUsersConfirmation([user.user_id])}
                               disabled={
                                 isCurrentUser ||
                                 deletingUserId == user.user_id ||
@@ -1709,15 +1552,9 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                       }`}
                       onClick={() => handleEditProfile(profile)}
                     >
-                      <p className="truncate text-sm font-medium">
-                        {profile.profile_name}
-                      </p>
+                      <p className="truncate text-sm font-medium">{profile.profile_name}</p>
                       <p className="text-xs text-muted-foreground">
-                        Atualizado em{" "}
-                        {format(
-                          new Date(profile.updated_at),
-                          "dd/MM/yyyy HH:mm",
-                        )}
+                        Atualizado em {format(new Date(profile.updated_at), "dd/MM/yyyy HH:mm")}
                       </p>
                     </button>
                   ))
@@ -1748,8 +1585,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
 
                   {isProtectedAdminProfile ? (
                     <p className="text-xs text-muted-foreground">
-                      O perfil Admin é protegido. É possível visualizar, mas não
-                      editar este perfil.
+                      O perfil Admin é protegido. É possível visualizar, mas não editar este perfil.
                     </p>
                   ) : null}
 
@@ -1757,16 +1593,13 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                     <p className="text-sm font-medium">Permissões por aba</p>
                     <div className="space-y-2">
                       {ADMIN_PANEL_TAB_ORDER.filter(
-                        (adminPanelTab) =>
-                          adminPanelTab != AdminPanelTab.INDIVIDUAL_EVENTS,
+                        (adminPanelTab) => adminPanelTab != AdminPanelTab.INDIVIDUAL_EVENTS,
                       ).map((adminPanelTab) => (
                         <div
                           key={adminPanelTab}
                           className="grid gap-2 rounded-xl app-card-muted p-2 sm:grid-cols-[170px_minmax(0,1fr)] sm:items-center"
                         >
-                          <p className="text-sm font-medium">
-                            {ADMIN_TAB_LABELS[adminPanelTab]}
-                          </p>
+                          <p className="text-sm font-medium">{ADMIN_TAB_LABELS[adminPanelTab]}</p>
                           <Select
                             value={profileDraft.permissions[adminPanelTab]}
                             disabled={isProtectedAdminProfile}
@@ -1787,32 +1620,14 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem
-                                value={AdminPanelPermissionLevel.NONE}
-                              >
-                                {
-                                  ADMIN_PERMISSION_LEVEL_LABELS[
-                                    AdminPanelPermissionLevel.NONE
-                                  ]
-                                }
+                              <SelectItem value={AdminPanelPermissionLevel.NONE}>
+                                {ADMIN_PERMISSION_LEVEL_LABELS[AdminPanelPermissionLevel.NONE]}
                               </SelectItem>
-                              <SelectItem
-                                value={AdminPanelPermissionLevel.VIEW}
-                              >
-                                {
-                                  ADMIN_PERMISSION_LEVEL_LABELS[
-                                    AdminPanelPermissionLevel.VIEW
-                                  ]
-                                }
+                              <SelectItem value={AdminPanelPermissionLevel.VIEW}>
+                                {ADMIN_PERMISSION_LEVEL_LABELS[AdminPanelPermissionLevel.VIEW]}
                               </SelectItem>
-                              <SelectItem
-                                value={AdminPanelPermissionLevel.EDIT}
-                              >
-                                {
-                                  ADMIN_PERMISSION_LEVEL_LABELS[
-                                    AdminPanelPermissionLevel.EDIT
-                                  ]
-                                }
+                              <SelectItem value={AdminPanelPermissionLevel.EDIT}>
+                                {ADMIN_PERMISSION_LEVEL_LABELS[AdminPanelPermissionLevel.EDIT]}
                               </SelectItem>
                             </SelectContent>
                           </Select>
@@ -1867,8 +1682,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
           <DialogHeader>
             <DialogTitle>Criar usuário</DialogTitle>
             <DialogDescription>
-              Defina o nome, o login e o perfil de acesso do usuário
-              administrativo.
+              Defina o nome, o login e o perfil de acesso do usuário administrativo.
             </DialogDescription>
           </DialogHeader>
 
@@ -1887,9 +1701,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
               type="text"
               name="admin_new_user_login_identifier_input"
               value={newUserLoginIdentifier}
-              onChange={(event) =>
-                setNewUserLoginIdentifier(event.target.value)
-              }
+              onChange={(event) => setNewUserLoginIdentifier(event.target.value)}
               placeholder="Login do novo usuário"
               className="app-input-field"
               autoComplete="off"
@@ -1898,19 +1710,13 @@ export function AdminUsers({ canManageUsers = true }: Props) {
               spellCheck={false}
             />
 
-            <Select
-              value={newUserAccessValue}
-              onValueChange={setNewUserAccessValue}
-            >
+            <Select value={newUserAccessValue} onValueChange={setNewUserAccessValue}>
               <SelectTrigger className="app-input-field">
                 <SelectValue placeholder="Perfil de acesso" />
               </SelectTrigger>
               <SelectContent>
                 {profileAccessOptions.map((profileAccessOption) => (
-                  <SelectItem
-                    key={profileAccessOption.value}
-                    value={profileAccessOption.value}
-                  >
+                  <SelectItem key={profileAccessOption.value} value={profileAccessOption.value}>
                     {profileAccessOption.label}
                   </SelectItem>
                 ))}
@@ -1919,11 +1725,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
           </div>
 
           <DialogFooter className="gap-3 pt-2 sm:gap-2 sm:pt-0">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setShowCreateUserModal(false)}
-            >
+            <Button type="button" variant="outline" onClick={() => setShowCreateUserModal(false)}>
               Cancelar
             </Button>
             <Button
@@ -1955,8 +1757,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
             <DialogHeader className="shrink-0">
               <DialogTitle>Editar usuário</DialogTitle>
               <DialogDescription>
-                Atualize nome, login, perfil, senha e ações do usuário
-                administrativo.
+                Atualize nome, login, perfil, senha e ações do usuário administrativo.
               </DialogDescription>
             </DialogHeader>
 
@@ -1979,13 +1780,9 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                     />
                     <p className="text-sm font-semibold">{editingUser.name}</p>
                     <AppBadge
-                      tone={resolveAdminUserPasswordStatusBadgeTone(
-                        editingUser.password_status,
-                      )}
+                      tone={resolveAdminUserPasswordStatusBadgeTone(editingUser.password_status)}
                     >
-                      {resolveAdminUserPasswordStatusLabel(
-                        editingUser.password_status,
-                      )}
+                      {resolveAdminUserPasswordStatusLabel(editingUser.password_status)}
                     </AppBadge>
                     {editingUser.user_id == currentUser?.id ? (
                       <AppBadge tone={AppBadgeTone.PRIMARY}>você</AppBadge>
@@ -1993,25 +1790,15 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                   </div>
 
                   <div className="mt-3 grid gap-x-4 gap-y-1 text-xs text-muted-foreground md:grid-cols-2">
-                    <p className="truncate">
-                      Login atual: {editingUser.login_identifier}
-                    </p>
-                    <p className="truncate">
-                      Perfil atual: {editingUser.profile_name}
-                    </p>
+                    <p className="truncate">Login atual: {editingUser.login_identifier}</p>
+                    <p className="truncate">Perfil atual: {editingUser.profile_name}</p>
                     {resolveShouldDisplayInternalAdminUserEmail(
                       editingUser.email,
                       editingUser.login_identifier,
                     ) ? (
                       <p className="truncate">E-mail: {editingUser.email}</p>
                     ) : null}
-                    <p>
-                      Criado em{" "}
-                      {format(
-                        new Date(editingUser.created_at),
-                        "dd/MM/yyyy HH:mm",
-                      )}
-                    </p>
+                    <p>Criado em {format(new Date(editingUser.created_at), "dd/MM/yyyy HH:mm")}</p>
                     <p>
                       Último acesso:{" "}
                       {editingUserLastAccessDate
@@ -2024,11 +1811,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                 {canManageUsers ? (
                   <div className="grid gap-4 lg:grid-cols-2">
                     <div className="space-y-2 rounded-2xl app-card-muted p-4">
-                      <Label
-                        htmlFor={`admin-user-name-modal-${editingUser.user_id}`}
-                      >
-                        Nome
-                      </Label>
+                      <Label htmlFor={`admin-user-name-modal-${editingUser.user_id}`}>Nome</Label>
                       <Input
                         id={`admin-user-name-modal-${editingUser.user_id}`}
                         type="text"
@@ -2045,22 +1828,16 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                     </div>
 
                     <div className="space-y-2 rounded-2xl app-card-muted p-4">
-                      <Label
-                        htmlFor={`admin-user-login-modal-${editingUser.user_id}`}
-                      >
-                        Login
-                      </Label>
+                      <Label htmlFor={`admin-user-login-modal-${editingUser.user_id}`}>Login</Label>
                       <Input
                         id={`admin-user-login-modal-${editingUser.user_id}`}
                         type="text"
                         value={editedUserLoginIdentifier}
                         onChange={(event) =>
-                          setLoginIdentifierByUserId(
-                            (currentLoginIdentifierByUserId) => ({
-                              ...currentLoginIdentifierByUserId,
-                              [editingUser.user_id]: event.target.value,
-                            }),
-                          )
+                          setLoginIdentifierByUserId((currentLoginIdentifierByUserId) => ({
+                            ...currentLoginIdentifierByUserId,
+                            [editingUser.user_id]: event.target.value,
+                          }))
                         }
                         className="app-input-field"
                         autoComplete="off"
@@ -2071,9 +1848,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                     </div>
 
                     <div className="space-y-2 rounded-2xl app-card-muted p-4">
-                      <Label
-                        htmlFor={`admin-user-access-modal-${editingUser.user_id}`}
-                      >
+                      <Label htmlFor={`admin-user-access-modal-${editingUser.user_id}`}>
                         Perfil de acesso
                       </Label>
                       <Select
@@ -2093,10 +1868,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                         </SelectTrigger>
                         <SelectContent>
                           {accessOptions.map((accessOption) => (
-                            <SelectItem
-                              key={accessOption.value}
-                              value={accessOption.value}
-                            >
+                            <SelectItem key={accessOption.value} value={accessOption.value}>
                               {accessOption.label}
                             </SelectItem>
                           ))}
@@ -2105,9 +1877,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                     </div>
 
                     <div className="space-y-2 rounded-2xl app-card-muted p-4">
-                      <Label
-                        htmlFor={`admin-user-password-modal-${editingUser.user_id}`}
-                      >
+                      <Label htmlFor={`admin-user-password-modal-${editingUser.user_id}`}>
                         Nova senha
                       </Label>
                       <Input
@@ -2115,12 +1885,10 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                         type="password"
                         value={editedUserPassword}
                         onChange={(event) =>
-                          setNewPasswordByUserId(
-                            (currentNewPasswordByUserId) => ({
-                              ...currentNewPasswordByUserId,
-                              [editingUser.user_id]: event.target.value,
-                            }),
-                          )
+                          setNewPasswordByUserId((currentNewPasswordByUserId) => ({
+                            ...currentNewPasswordByUserId,
+                            [editingUser.user_id]: event.target.value,
+                          }))
                         }
                         className="app-input-field"
                         autoComplete="new-password"
@@ -2138,8 +1906,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                       type="button"
                       className="w-full sm:w-auto"
                       disabled={
-                        !hasEditedUserPendingChanges ||
-                        savingEditedUserId == editingUser.user_id
+                        !hasEditedUserPendingChanges || savingEditedUserId == editingUser.user_id
                       }
                       onClick={() => handleSaveEditedUser(editingUser)}
                     >
@@ -2168,9 +1935,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {pendingUsersActionConfirmationTitle}
-            </AlertDialogTitle>
+            <AlertDialogTitle>{pendingUsersActionConfirmationTitle}</AlertDialogTitle>
             <AlertDialogDescription>
               {pendingUsersActionConfirmationDescription}
             </AlertDialogDescription>

@@ -23,7 +23,10 @@ export function useCompetitionTeamDisqualifications({
   const [loading, setLoading] = useState(false);
 
   const seasonYearsKey = [...(seasonYears ?? [seasonYear ?? null])]
-    .filter((value): value is number => value != null && Number.isFinite(value))
+    .filter(
+      (value): value is number =>
+        value != null && Number.isFinite(value) && value >= 2000 && value <= 2100,
+    )
     .sort((firstYear, secondYear) => firstYear - secondYear)
     .join("-");
 
