@@ -4,6 +4,7 @@ import type {
 } from "@/lib/championship";
 import type { ChampionshipCode, MatchNaipe, TeamDivision } from "@/lib/enums";
 import type {
+  ChampionshipBracketLocationTemplate,
   ChampionshipIndividualEvent,
   ChampionshipIndividualEventEntry,
   ChampionshipIndividualEventEntryMember,
