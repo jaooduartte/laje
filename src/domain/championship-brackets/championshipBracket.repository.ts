@@ -366,7 +366,10 @@ export async function startChampionshipBracketPreviewJob(
     } catch (error) {
       return {
         data: null,
-        error: error instanceof Error ? error : new Error("Não foi possível iniciar a prévia pela laje-api."),
+        error:
+          error instanceof Error
+            ? error
+            : new Error("Não foi possível iniciar a prévia pela laje-api."),
       };
     }
   }
@@ -396,7 +399,10 @@ export async function fetchChampionshipBracketPreviewJobStatus(job_id: string) {
     } catch (error) {
       return {
         data: null,
-        error: error instanceof Error ? error : new Error("Não foi possível consultar a prévia pela laje-api."),
+        error:
+          error instanceof Error
+            ? error
+            : new Error("Não foi possível consultar a prévia pela laje-api."),
       };
     }
   }
@@ -423,7 +429,10 @@ export async function fetchChampionshipBracketPreviewJobDay(
     } catch (error) {
       return {
         data: null,
-        error: error instanceof Error ? error : new Error("Não foi possível carregar o dia da prévia pela laje-api."),
+        error:
+          error instanceof Error
+            ? error
+            : new Error("Não foi possível carregar o dia da prévia pela laje-api."),
       };
     }
   }
@@ -445,7 +454,10 @@ export async function cancelChampionshipBracketPreviewJob(job_id: string) {
     } catch (error) {
       return {
         data: null,
-        error: error instanceof Error ? error : new Error("Não foi possível cancelar a prévia pela laje-api."),
+        error:
+          error instanceof Error
+            ? error
+            : new Error("Não foi possível cancelar a prévia pela laje-api."),
       };
     }
   }
