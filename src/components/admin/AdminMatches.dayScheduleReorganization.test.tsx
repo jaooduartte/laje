@@ -49,7 +49,7 @@ describe("AdminMatches day schedule reorganization", () => {
   it("uses the optional time only to anticipate the day start", () => {
     expect(componentSource).toContain("Novo horário de início do dia");
     expect(componentSource).toContain("day_start_time");
-    expect(componentSource).toContain("não define o horário do jogo selecionado");
+    expect(componentSource.replace(/\\s+/g, " ")).toContain(\n      "não define o horário do jogo selecionado",\n    );
     expect(componentSource).toContain("Ajuda sobre novo horário de início do dia");
     expect(componentSource).toContain("Ajuda sobre intervalo da programação");
     expect(componentSource).toContain("<TooltipContent className=\"max-w-xs text-xs leading-relaxed\">");
@@ -91,8 +91,8 @@ describe("AdminMatches day schedule reorganization", () => {
     expect(componentSource).toContain('type: "PENDING"');
     expect(componentSource).toContain('type: "TIMELINE"');
     expect(componentSource).toContain("manual_court_item_order");
-    expect(componentSource).toContain(
-      "draggable={canReorderManualItem && !loadingDayScheduleReorganizationPreview}",
+    expect(componentSource).toMatch(
+      /draggable=\{\s*canReorderManualItem\s*&&\s*!loadingDayScheduleReorganizationPreview\s*\}/,
     );
     expect(componentSource).toContain("onDrop={(event)");
     expect(componentSource).toContain("restConflicts.length > 0");
