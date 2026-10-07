@@ -17,6 +17,7 @@ import {
 import { toast } from "sonner";
 import type { TablesInsert } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
+import { isAwsBackendEnabled } from "@/config/environment";
 import { AppBadge } from "@/components/ui/app-badge";
 import {
   AlertDialog,
@@ -668,20 +669,22 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
         });
       });
 
-      void supabase.functions.invoke("send-reservation-email", {
-        body: {
-          type: decision,
-          requesterEmail: updatedRequest.requester_email,
-          requesterName: updatedRequest.requester_name,
-          teamName: originalRequest?.team?.name ?? updatedRequest.team?.name ?? "",
-          eventName: updatedRequest.event_name,
-          eventType: updatedRequest.event_type,
-          eventDate: updatedRequest.event_date,
-          ...(decision === LeagueEventReservationRequestStatus.REJECTED && reviewNotes
-            ? { reviewNotes }
-            : {}),
-        },
-      });
+      if (!isAwsBackendEnabled()) {
+        void supabase.functions.invoke("send-reservation-email", {
+          body: {
+            type: decision,
+            requesterEmail: updatedRequest.requester_email,
+            requesterName: updatedRequest.requester_name,
+            teamName: originalRequest?.team?.name ?? updatedRequest.team?.name ?? "",
+            eventName: updatedRequest.event_name,
+            eventType: updatedRequest.event_type,
+            eventDate: updatedRequest.event_date,
+            ...(decision === LeagueEventReservationRequestStatus.REJECTED && reviewNotes
+              ? { reviewNotes }
+              : {}),
+          },
+        });
+      }
     }
 
     if (decision == LeagueEventReservationRequestStatus.APPROVED && data?.league_event) {
