@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isSupabaseBackendEnabled } from "@/config/environment";
+import { isAwsBackendEnabled, isSupabaseBackendEnabled } from "@/config/environment";
+import { listSportsCoreMatches } from "@/integrations/laje-api/sports-core";
 import { supabase } from "@/integrations/supabase/client";
 import { MatchStatus } from "@/lib/enums";
 
@@ -18,14 +19,6 @@ export function usePendingScoreSheetReviewCount({
   const hasQueuedCountRefetchRef = useRef(false);
 
   const fetchCount = useCallback(async () => {
-    if (!isSupabaseBackendEnabled()) {
-      setCount(0);
-      setLoading(false);
-      isFetchingCountRef.current = false;
-      hasQueuedCountRefetchRef.current = false;
-      return;
-    }
-
     if (!championshipId || seasonYear == null) {
       setCount(0);
       setLoading(false);
@@ -44,6 +37,21 @@ export function usePendingScoreSheetReviewCount({
     setLoading(true);
 
     try {
+      if (isAwsBackendEnabled()) {
+        const { matches } = await listSportsCoreMatches({
+          championshipId,
+          seasonYear,
+          statuses: [MatchStatus.FINISHED],
+        });
+        setCount(matches.filter((match) => match.is_score_sheet_reviewed !== true).length);
+        return;
+      }
+
+      if (!isSupabaseBackendEnabled()) {
+        setCount(0);
+        return;
+      }
+
       const { count: nextCount, error } = await supabase
         .from("matches")
         .select("id", { count: "exact", head: true })
@@ -59,6 +67,9 @@ export function usePendingScoreSheetReviewCount({
       }
 
       setCount(nextCount ?? 0);
+    } catch (error) {
+      console.error("Erro ao carregar pendências da conferência de súmula:", error);
+      setCount(0);
     } finally {
       setLoading(false);
       isFetchingCountRef.current = false;
