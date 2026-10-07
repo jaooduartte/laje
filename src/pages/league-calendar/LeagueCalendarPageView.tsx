@@ -952,7 +952,7 @@ export function LeagueCalendarPageView({
                   </Select>
 
                   <Select
-                    value={reservationFormValues.eventType ?? undefined}
+                    value={reservationFormValues.eventType ?? ""}
                     onValueChange={(value) => {
                       if (
                         value == LeagueEventType.HH ||
