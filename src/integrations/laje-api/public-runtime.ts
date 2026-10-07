@@ -285,12 +285,10 @@ export async function listAwsBracketCourtSports(
         id: String(court.id),
         name: String(court.name ?? ""),
         position: asNumber(court.position),
-        court_group_id:
-          court.court_group_id == null ? undefined : String(court.court_group_id),
+        court_group_id: court.court_group_id == null ? undefined : String(court.court_group_id),
         sports: (
-          (court.championship_bracket_court_sports as
-            | Array<Record<string, unknown>>
-            | undefined) ?? []
+          (court.championship_bracket_court_sports as Array<Record<string, unknown>> | undefined) ??
+          []
         ).map((courtSport) => ({
           sport_id: String(courtSport.sport_id),
           preferred_naipe: (courtSport.preferred_naipe ?? null) as MatchNaipe | null,
