@@ -36,6 +36,12 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  getSportsCoreScoreSheetAwardsContext,
+  isDedicatedSportsCoreEnabled,
+  saveSportsCoreScoreSheetAwards,
+  updateSportsCoreScoreSheetReviewState,
+} from "@/integrations/laje-api/sports-core";
 import { shouldRenderIndividualSessions } from "@/components/admin/adminMatchesPagination.utils";
 import {
   fetchChampionshipBracketLocationTemplates,
@@ -6613,18 +6619,32 @@ export function AdminMatches({
       );
     });
 
-    const reviewStateUpdateQuery =
-      matchIds.length == 1
-        ? supabase
-            .from("matches")
-            .update({ is_score_sheet_reviewed: reviewed })
-            .eq("id", matchIds[0])
-        : supabase
-            .from("matches")
-            .update({ is_score_sheet_reviewed: reviewed })
-            .in("id", matchIds);
+    let error: Error | null = null;
 
-    const { error } = await reviewStateUpdateQuery;
+    if (isDedicatedSportsCoreEnabled()) {
+      try {
+        await updateSportsCoreScoreSheetReviewState(matchIds, reviewed);
+      } catch (requestError) {
+        error =
+          requestError instanceof Error
+            ? requestError
+            : new Error("Não foi possível atualizar a conferência de súmula.");
+      }
+    } else {
+      const reviewStateUpdateQuery =
+        matchIds.length == 1
+          ? supabase
+              .from("matches")
+              .update({ is_score_sheet_reviewed: reviewed })
+              .eq("id", matchIds[0])
+          : supabase
+              .from("matches")
+              .update({ is_score_sheet_reviewed: reviewed })
+              .in("id", matchIds);
+
+      const response = await reviewStateUpdateQuery;
+      error = response.error;
+    }
 
     setSavingReviewStateByMatchId((currentSavingReviewStateByMatchId) => {
       const nextSavingReviewStateByMatchId = {
@@ -6658,12 +6678,28 @@ export function AdminMatches({
         [matchId]: true,
       }));
 
-      const { data, error } = await supabaseLoose.rpc(
-        "get_match_score_sheet_awards_context",
-        {
-          _match_id: matchId,
-        },
-      );
+      let data: unknown = null;
+      let error: Error | null = null;
+
+      if (isDedicatedSportsCoreEnabled()) {
+        try {
+          data = await getSportsCoreScoreSheetAwardsContext(matchId);
+        } catch (requestError) {
+          error =
+            requestError instanceof Error
+              ? requestError
+              : new Error("Não foi possível carregar os dados da súmula.");
+        }
+      } else {
+        const response = await supabaseLoose.rpc(
+          "get_match_score_sheet_awards_context",
+          {
+            _match_id: matchId,
+          },
+        );
+        data = response.data;
+        error = response.error ? new Error(response.error.message) : null;
+      }
 
       setLoadingScoreSheetAwardsByMatchId((currentLoadingState) => ({
         ...currentLoadingState,
@@ -7017,21 +7053,49 @@ export function AdminMatches({
           activeScoreSheetAwardsDraft.awayPlayerOptions,
         ),
       );
-    const { error } = await supabaseLoose.rpc("save_match_score_sheet_awards", {
-      _match_id: activeScoreSheetReviewMatch.id,
-      _home_goal_scorers: homeGoalScorersPayload,
-      _away_goal_scorers: awayGoalScorersPayload,
-      _home_goalkeepers: [],
-      _away_goalkeepers: [],
-      _home_yellow_card_players: homeYellowCardPlayersPayload,
-      _away_yellow_card_players: awayYellowCardPlayersPayload,
-      _home_red_card_players: homeRedCardPlayersPayload,
-      _away_red_card_players: awayRedCardPlayersPayload,
-      _home_blue_card_players: homeBlueCardPlayersPayload,
-      _away_blue_card_players: awayBlueCardPlayersPayload,
-      _home_two_minute_penalty_players: [],
-      _away_two_minute_penalty_players: [],
+const toApiSelection = (selection: ScoreSheetAwardSelectionOption) => ({
+      ...(selection.player_id ? { playerId: selection.player_id } : {}),
+      ...(selection.player_name ? { playerName: selection.player_name } : {}),
     });
+
+    let error: Error | null = null;
+
+    if (isDedicatedSportsCoreEnabled()) {
+      try {
+        await saveSportsCoreScoreSheetAwards(activeScoreSheetReviewMatch.id, {
+          homeGoalScorers: homeGoalScorersPayload.map(toApiSelection),
+          awayGoalScorers: awayGoalScorersPayload.map(toApiSelection),
+          homeYellowCardPlayers: homeYellowCardPlayersPayload.map(toApiSelection),
+          awayYellowCardPlayers: awayYellowCardPlayersPayload.map(toApiSelection),
+          homeRedCardPlayers: homeRedCardPlayersPayload.map(toApiSelection),
+          awayRedCardPlayers: awayRedCardPlayersPayload.map(toApiSelection),
+          homeBlueCardPlayers: homeBlueCardPlayersPayload.map(toApiSelection),
+          awayBlueCardPlayers: awayBlueCardPlayersPayload.map(toApiSelection),
+        });
+      } catch (requestError) {
+        error =
+          requestError instanceof Error
+            ? requestError
+            : new Error("Não foi possível salvar a revisão de súmula.");
+      }
+    } else {
+      const response = await supabaseLoose.rpc("save_match_score_sheet_awards", {
+        _match_id: activeScoreSheetReviewMatch.id,
+        _home_goal_scorers: homeGoalScorersPayload,
+        _away_goal_scorers: awayGoalScorersPayload,
+        _home_goalkeepers: [],
+        _away_goalkeepers: [],
+        _home_yellow_card_players: homeYellowCardPlayersPayload,
+        _away_yellow_card_players: awayYellowCardPlayersPayload,
+        _home_red_card_players: homeRedCardPlayersPayload,
+        _away_red_card_players: awayRedCardPlayersPayload,
+        _home_blue_card_players: homeBlueCardPlayersPayload,
+        _away_blue_card_players: awayBlueCardPlayersPayload,
+        _home_two_minute_penalty_players: [],
+        _away_two_minute_penalty_players: [],
+      });
+      error = response.error ? new Error(response.error.message) : null;
+    }
 
     setSavingScoreSheetAwardsByMatchId((currentSavingState) => ({
       ...currentSavingState,
