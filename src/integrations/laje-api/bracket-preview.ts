@@ -42,6 +42,21 @@ export async function getAwsBracketPreviewJobDay(
   return response.data;
 }
 
+export async function createAwsBracketFromPreviewJob(
+  championshipId: string,
+  jobId: string,
+  payload: ChampionshipBracketSetupFormValues,
+): Promise<string> {
+  const response = await lajeApiRequest<DataResponse<{ editionId: string }>>(
+    `/championships/${championshipId}/bracket/preview-jobs/${jobId}/create`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+  return response.data.editionId;
+}
+
 export async function cancelAwsBracketPreviewJob(
   jobId: string,
 ): Promise<ChampionshipBracketPreviewJob> {
