@@ -3,7 +3,7 @@ import type {
   MatchEstimatedStartTimeChampionshipSport,
 } from "@/lib/championship";
 import type { ChampionshipCode, MatchNaipe, TeamDivision } from "@/lib/enums";
-import type { ChampionshipBracketLocationTemplate } from "@/domain/championship-brackets/championshipBracket.types";
+import type {\n  BracketDayCourtSports,\n  ChampionshipBracketCourtSequenceMode,\n  ChampionshipBracketLocationTemplate,\n} from "@/domain/championship-brackets/championshipBracket.types";
 import type {
   ChampionshipIndividualEvent,
   ChampionshipIndividualEventEntry,
@@ -257,6 +257,49 @@ export async function getAwsBracketDayScheduleSource(
   >(`/public-runtime/bracket-editions/${bracketEditionId}/day-schedules`);
 
   return response.data;
+}
+
+export async function listAwsBracketCourtSports(
+  bracketEditionId: string,
+): Promise<BracketDayCourtSports[]> {
+  const { days } = await getAwsBracketDayScheduleSource(bracketEditionId);
+
+  return (days as Array<Record<string, unknown>>).map((day) => ({
+    bracket_day_id: String(day.id),
+    event_date: String(day.event_date ?? ""),
+    locations: (
+      (day.championship_bracket_locations as Array<Record<string, unknown>> | undefined) ?? []
+    ).map((location) => ({
+      id: String(location.id),
+      name: String(location.name ?? ""),
+      position: asNumber(location.position),
+      location_group_id:
+        location.location_group_id == null ? undefined : String(location.location_group_id),
+      courts: (
+        (location.championship_bracket_courts as Array<Record<string, unknown>> | undefined) ?? []
+      ).map((court) => ({
+        id: String(court.id),
+        name: String(court.name ?? ""),
+        position: asNumber(court.position),
+        court_group_id:
+          court.court_group_id == null ? undefined : String(court.court_group_id),
+        sports: (
+          (court.championship_bracket_court_sports as
+            | Array<Record<string, unknown>>
+            | undefined) ?? []
+        ).map((courtSport) => ({
+          sport_id: String(courtSport.sport_id),
+          preferred_naipe: (courtSport.preferred_naipe ?? null) as MatchNaipe | null,
+          preferred_division: (courtSport.preferred_division ?? null) as TeamDivision | null,
+          sequence_mode: String(
+            courtSport.sequence_mode ?? "FLEXIBLE",
+          ) as ChampionshipBracketCourtSequenceMode,
+          alternate_naipe_after_exclusive_knockout_phase:
+            courtSport.alternate_naipe_after_exclusive_knockout_phase === true,
+        })),
+      })),
+    })),
+  }));
 }
 
 export async function listAwsChampionshipSeasonYears(championshipId: string): Promise<number[]> {
