@@ -2,6 +2,7 @@ import { isAwsBackendEnabled } from "@/config/environment";
 import { fetchDedicatedChampionshipBracketView } from "@/integrations/laje-api/bracket";
 import {
   cancelAwsBracketPreviewJob,
+  createAwsBracketFromPreviewJob,
   getAwsBracketPreviewJob,
   getAwsBracketPreviewJobDay,
   startAwsBracketPreviewJob,
@@ -342,12 +343,33 @@ export async function createChampionshipBracketFromPreviewJob(
   championship_id: string,
   payload: ChampionshipBracketSetupFormValues,
   job_id: string,
-) {
-  return supabase.rpc("create_championship_bracket_from_preview_job", {
+): Promise<{ data: string | null; error: Error | null }> {
+  if (isAwsBackendEnabled()) {
+    try {
+      return {
+        data: await createAwsBracketFromPreviewJob(championship_id, job_id, payload),
+        error: null,
+      };
+    } catch (error) {
+      return {
+        data: null,
+        error:
+          error instanceof Error
+            ? error
+            : new Error("Não foi possível criar o chaveamento pela laje-api."),
+      };
+    }
+  }
+
+  const response = await supabase.rpc("create_championship_bracket_from_preview_job", {
     _job_id: job_id,
     _championship_id: championship_id,
     _payload: toSupabaseJson(payload),
   });
+  return {
+    data: (response.data as string | null) ?? null,
+    error: response.error,
+  };
 }
 
 export async function startChampionshipBracketPreviewJob(
