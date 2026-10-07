@@ -13,6 +13,8 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { isAwsBackendEnabled } from "@/config/environment";
+import { fetchAdminDirectoryFromApi } from "@/integrations/laje-api/admin-runtime";
 import { supabase } from "@/integrations/supabase/client";
 import { useOnlineVisitorsProviderContext } from "@/components/online-visitors/OnlineVisitorsProvider";
 import { useAuth } from "@/hooks/useAuth";
@@ -401,8 +403,8 @@ export function AdminUsers({ canManageUsers = true }: Props) {
   const [profiles, setProfiles] = useState<AdminProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [accessFilter, setAccessFilter] = useState(ALL_PROFILES_FILTER);
-  const [sortOption, setSortOption] = useState<AdminUserSortOption | null>(
-    null,
+  const [sortOption, setSortOption] = useState<AdminUserSortOption>(
+    AdminUserSortOption.NAME_ASC,
   );
   const [userSearch, setUserSearch] = useState("");
   const [nameByUserId, setNameByUserId] = useState<Record<string, string>>({});
@@ -458,6 +460,27 @@ export function AdminUsers({ canManageUsers = true }: Props) {
     AdminProfile[] | null
   > => {
     setLoading(true);
+
+    if (isAwsBackendEnabled()) {
+      try {
+        const { users: apiUsers, profiles: apiProfiles } =
+          await fetchAdminDirectoryFromApi();
+        setUsers(apiUsers);
+        setProfiles(apiProfiles);
+        setLoading(false);
+        return apiProfiles;
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Não foi possível carregar os usuários administrativos.",
+        );
+        setUsers([]);
+        setProfiles([]);
+        setLoading(false);
+        return null;
+      }
+    }
 
     const [usersResponse, profilesResponse] = await Promise.all([
       supabase.rpc("list_admin_users"),
@@ -1326,7 +1349,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
             </Select>
 
             <Select
-              value={sortOption ?? undefined}
+              value={sortOption}
               onValueChange={(value) => {
                 if (isAdminUserSortOption(value)) {
                   setSortOption(value);
