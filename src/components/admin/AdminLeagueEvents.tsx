@@ -1334,7 +1334,7 @@ export function AdminLeagueEvents({
             />
 
             <Select
-              value={createFormValues.eventType ?? undefined}
+              value={createFormValues.eventType ?? ""}
               onValueChange={(value) => {
                 if (isLeagueEventType(value)) {
                   handleChangeCreateField("eventType", value);
