@@ -49,7 +49,9 @@ describe("AdminMatches day schedule reorganization", () => {
   it("uses the optional time only to anticipate the day start", () => {
     expect(componentSource).toContain("Novo horário de início do dia");
     expect(componentSource).toContain("day_start_time");
-    expect(componentSource.replace(/\\s+/g, " ")).toContain(\n      "não define o horário do jogo selecionado",\n    );
+    expect(componentSource.replace(/\s+/g, " ")).toContain(
+      "não define o horário do jogo selecionado",
+    );
     expect(componentSource).toContain("Ajuda sobre novo horário de início do dia");
     expect(componentSource).toContain("Ajuda sobre intervalo da programação");
     expect(componentSource).toContain("<TooltipContent className=\"max-w-xs text-xs leading-relaxed\">");
