@@ -855,7 +855,7 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
 
       <div className="enter-section flex w-full flex-col gap-2 glass-card px-4 py-3 sm:flex-row sm:items-center sm:justify-end">
         <Select
-          value={availableEventYears.length > 0 ? String(selectedYear) : undefined}
+          value={availableEventYears.length > 0 ? String(selectedYear) : ""}
           onValueChange={handleYearChange}
           disabled={areEventYearsLoading || availableEventYears.length == 0}
         >
@@ -1289,7 +1289,7 @@ export function AdminLeagueEvents({ teams, canManageLeagueEvents = true }: Props
               />
 
               <Select
-                value={editingFormValues.eventType ?? undefined}
+                value={editingFormValues.eventType ?? ""}
                 onValueChange={(value) => {
                   if (isLeagueEventType(value)) {
                     handleChangeEditField("eventType", value);

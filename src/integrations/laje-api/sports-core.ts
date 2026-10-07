@@ -149,6 +149,22 @@ export interface SportsCoreOperationalQueueState {
   fullQueueItemsCount: number;
 }
 
+export interface SportsCoreScoreSheetSelectionInput {
+  playerId?: string;
+  playerName?: string;
+}
+
+export interface SportsCoreScoreSheetAwardsSaveInput {
+  homeGoalScorers: SportsCoreScoreSheetSelectionInput[];
+  awayGoalScorers: SportsCoreScoreSheetSelectionInput[];
+  homeYellowCardPlayers: SportsCoreScoreSheetSelectionInput[];
+  awayYellowCardPlayers: SportsCoreScoreSheetSelectionInput[];
+  homeRedCardPlayers: SportsCoreScoreSheetSelectionInput[];
+  awayRedCardPlayers: SportsCoreScoreSheetSelectionInput[];
+  homeBlueCardPlayers: SportsCoreScoreSheetSelectionInput[];
+  awayBlueCardPlayers: SportsCoreScoreSheetSelectionInput[];
+}
+
 export interface SportsCoreFinishMatchInput extends SportsCoreScoreboardPatch {
   isWalkover?: boolean;
   isDoubleWalkover?: boolean;
@@ -290,6 +306,41 @@ export function toLegacyMatch(dto: ApiMatchDto): Match {
 
 export function isDedicatedSportsCoreEnabled(): boolean {
   return isAwsBackendEnabled();
+}
+
+export async function getSportsCoreScoreSheetAwardsContext(
+  matchId: string,
+): Promise<Record<string, unknown>> {
+  const response = await lajeApiRequest<DataResponse<Record<string, unknown>>>(
+    `/matches/${matchId}/score-sheet-awards`,
+  );
+  return response.data;
+}
+
+export async function saveSportsCoreScoreSheetAwards(
+  matchId: string,
+  payload: SportsCoreScoreSheetAwardsSaveInput,
+): Promise<void> {
+  await lajeApiRequest<DataResponse<Record<string, unknown>>>(
+    `/matches/${matchId}/score-sheet-awards`,
+    {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function updateSportsCoreScoreSheetReviewState(
+  matchIds: string[],
+  reviewed: boolean,
+): Promise<void> {
+  await lajeApiRequest<DataResponse<{ updatedMatchIds: string[]; reviewed: boolean }>>(
+    "/matches/score-sheet-review-state",
+    {
+      method: "PATCH",
+      body: JSON.stringify({ matchIds, reviewed }),
+    },
+  );
 }
 
 function createMatchesSearch(
