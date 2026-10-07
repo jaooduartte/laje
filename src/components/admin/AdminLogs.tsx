@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { TableSkeleton } from "@/components/skeletons/TableSkeleton";
 import { toast } from "sonner";
+import { isAwsBackendEnabled } from "@/config/environment";
+import { fetchAdminDirectoryFromApi, fetchAdminLogsFromApi } from "@/integrations/laje-api/admin-runtime";
+import { listAwsTeams } from "@/integrations/laje-api/public-runtime";
 import { supabase } from "@/integrations/supabase/client";
 import {
   AdminActionType,
@@ -1089,14 +1092,37 @@ export function AdminLogs() {
 
   useEffect(() => {
     const fetchTeamsAndUsers = async () => {
-      const [{ data: teamsData }, { data: adminUsersData }] = await Promise.all(
-        [
+      let teamsData: Array<{ id: string; name: string }> = [];
+      let adminUsersData: Array<{ user_id: string; name: string }> = [];
+
+      if (isAwsBackendEnabled()) {
+        try {
+          const [teams, directory] = await Promise.all([
+            listAwsTeams(true),
+            fetchAdminDirectoryFromApi(),
+          ]);
+          teamsData = teams.map((team) => ({ id: team.id, name: team.name }));
+          adminUsersData = directory.users.map((user) => ({
+            user_id: user.user_id,
+            name: user.name,
+          }));
+        } catch (error) {
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : "Não foi possível carregar os filtros dos logs.",
+          );
+        }
+      } else {
+        const [teamsResponse, usersResponse] = await Promise.all([
           supabase.from("teams").select("id, name"),
           supabase.rpc("list_admin_users"),
-        ],
-      );
+        ]);
+        teamsData = teamsResponse.data ?? [];
+        adminUsersData = usersResponse.data ?? [];
+      }
 
-      const nextTeamNameById = (teamsData ?? []).reduce<TeamNameById>(
+      const nextTeamNameById = teamsData.reduce<TeamNameById>(
         (teamMap, team) => {
           if (!team.id || !team.name) {
             return teamMap;
@@ -1133,6 +1159,41 @@ export function AdminLogs() {
   useEffect(() => {
     const fetchLogs = async () => {
       setLoading(true);
+
+      if (isAwsBackendEnabled()) {
+        try {
+          const response = await fetchAdminLogsFromApi({
+            page: currentPage,
+            pageSize: itemsPerPage,
+            userId: selectedUserId == ALL_USERS_FILTER ? null : selectedUserId,
+            actionType: selectedActionType == ALL_ACTIONS_FILTER ? null : selectedActionType,
+            search: resourceSearch,
+          });
+          const normalizedLogs = response.logs.map((log) => ({
+            ...log,
+            actor_role:
+              log.actor_role && isAdminPanelRole(log.actor_role)
+                ? log.actor_role
+                : null,
+            action_type: isAdminActionType(log.action_type)
+              ? log.action_type
+              : AdminActionType.UPDATE,
+            old_data: resolveRecordValue(log.old_data),
+            new_data: resolveRecordValue(log.new_data),
+          })) as AdminActionLog[];
+          setLogs(normalizedLogs);
+          setTotalCount(response.totalCount);
+        } catch (error) {
+          toast.error(
+            error instanceof Error ? error.message : "Não foi possível carregar os logs.",
+          );
+          setLogs([]);
+          setTotalCount(0);
+        } finally {
+          setLoading(false);
+        }
+        return;
+      }
 
       const rangeStart = (currentPage - 1) * itemsPerPage;
       const rangeEnd = rangeStart + itemsPerPage - 1;
