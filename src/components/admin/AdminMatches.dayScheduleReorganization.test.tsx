@@ -25,7 +25,7 @@ describe("AdminMatches day schedule reorganization", () => {
 
   it("mounts one drag-and-drop timeline instead of choosing a strategy", () => {
     expect(componentSource).toContain("previewDayScheduleReorganization");
-    expect(componentSource).toContain('buildDayScheduleReorganizationInput([], {})');
+    expect(componentSource).toContain("buildDayScheduleReorganizationInput([], {})");
     expect(componentSource).toContain("Montar cronograma");
     expect(componentSource).not.toContain("Posição de encaixe");
     expect(componentSource).not.toContain("Selecionar jogos para encaixar");
@@ -54,7 +54,9 @@ describe("AdminMatches day schedule reorganization", () => {
     );
     expect(componentSource).toContain("Ajuda sobre novo horário de início do dia");
     expect(componentSource).toContain("Ajuda sobre intervalo da programação");
-    expect(componentSource).toContain("<TooltipContent className=\"max-w-xs text-xs leading-relaxed\">");
+    expect(componentSource).toContain(
+      '<TooltipContent className="max-w-xs text-xs leading-relaxed">',
+    );
     expect(componentSource).toContain("[&::-webkit-calendar-picker-indicator]:hidden");
   });
 
@@ -100,12 +102,8 @@ describe("AdminMatches day schedule reorganization", () => {
     expect(componentSource).toContain("restConflicts.length > 0");
     expect(componentSource).toContain("restConflicts.join");
     expect(componentSource).toContain("border-2 border-destructive/90 bg-destructive/20");
-    expect(componentSource).toContain(
-      "canPlacePendingMatch || canReorderManualItem",
-    );
-    expect(componentSource).toContain(
-      "A prévia mantém as demais quadras até que você reordene",
-    );
+    expect(componentSource).toContain("canPlacePendingMatch || canReorderManualItem");
+    expect(componentSource).toContain("A prévia mantém as demais quadras até que você reordene");
   });
 
   it("keeps the tray as the only selected-match summary after mounting and scrolls while dragging", () => {
