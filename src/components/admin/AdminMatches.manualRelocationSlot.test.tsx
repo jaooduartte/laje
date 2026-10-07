@@ -9,7 +9,7 @@ const componentSource = readFileSync(
 
 describe("AdminMatches manual relocation slot flow", () => {
   it("offers the individual action only to scheduled matches", () => {
-    expect(componentSource).toContain('match.status === MatchStatus.SCHEDULED');
+    expect(componentSource).toContain("match.status === MatchStatus.SCHEDULED");
     expect(componentSource).toContain("Encaixar em horário livre");
     expect(componentSource).toContain("handleOpenManualRelocationSlotDialog(match)");
   });
