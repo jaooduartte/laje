@@ -2,6 +2,7 @@ import { isAwsBackendEnabled } from "@/config/environment";
 import { fetchDedicatedChampionshipBracketView } from "@/integrations/laje-api/bracket";
 import {
   getAwsBracketDayScheduleSource,
+  listAwsBracketCourtSports,
   listAwsBracketLocationTemplates,
 } from "@/integrations/laje-api/public-runtime";
 import { getSportsCoreChampionship } from "@/integrations/laje-api/sports-core";
@@ -1045,6 +1046,23 @@ export async function updateScheduledMatchLogistics(
 export async function getBracketCourtSports(
   bracketEditionId: string,
 ): Promise<{ data: BracketDayCourtSports[]; error: Error | null }> {
+  if (isAwsBackendEnabled()) {
+    try {
+      return {
+        data: await listAwsBracketCourtSports(bracketEditionId),
+        error: null,
+      };
+    } catch (error) {
+      return {
+        data: [],
+        error:
+          error instanceof Error
+            ? error
+            : new Error("Não foi possível carregar as preferências de quadra pela laje-api."),
+      };
+    }
+  }
+
   const response = await supabase
     .from("championship_bracket_days")
     .select(
