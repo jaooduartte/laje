@@ -1243,12 +1243,41 @@ export function resolveMatchDisplayStatusLabel(
   return resolveMatchStatusLabel(match.status);
 }
 
+function resolveValidDateOnlyValue(value: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value.trim());
+
+  if (!match) {
+    return null;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const resolvedDate = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    resolvedDate.getUTCFullYear() != year ||
+    resolvedDate.getUTCMonth() != month - 1 ||
+    resolvedDate.getUTCDate() != day
+  ) {
+    return null;
+  }
+
+  return `${match[1]}-${match[2]}-${match[3]}`;
+}
+
 export function resolveMatchScheduledDateValue(match: {
   scheduled_date: string | null;
   start_time: string | null;
 }): string | null {
-  if (match.scheduled_date) {
-    return match.scheduled_date.slice(0, 10);
+  const scheduledDate = resolveValidDateOnlyValue(match.scheduled_date);
+
+  if (scheduledDate) {
+    return scheduledDate;
   }
 
   if (match.start_time) {
