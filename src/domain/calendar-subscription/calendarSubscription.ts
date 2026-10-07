@@ -135,7 +135,8 @@ export function resolveCalendarSubscriptionUrls(
   explicitBaseUrl?: string | null,
 ): CalendarSubscriptionUrls | null {
   const useAwsApi = explicitBaseUrl == null && isAwsBackendEnabled();
-  const baseUrl = explicitBaseUrl ?? (useAwsApi ? frontendEnvironment.apiUrl : frontendEnvironment.supabaseUrl);
+  const baseUrl =
+    explicitBaseUrl ?? (useAwsApi ? frontendEnvironment.apiUrl : frontendEnvironment.supabaseUrl);
 
   if (!baseUrl) {
     return null;
