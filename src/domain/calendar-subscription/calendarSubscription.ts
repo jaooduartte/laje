@@ -1,4 +1,4 @@
-import { frontendEnvironment } from "@/config/environment";
+import { frontendEnvironment, isAwsBackendEnabled } from "@/config/environment";
 import type { ChampionshipIndividualSession, Match, Team } from "@/lib/types";
 
 export type CalendarSubscriptionScope =
@@ -132,13 +132,20 @@ export function canSubscribeToCalendar(startTime: string | null): boolean {
 
 export function resolveCalendarSubscriptionUrls(
   option: CalendarSubscriptionOption,
-  supabaseUrl = frontendEnvironment.supabaseUrl,
+  explicitBaseUrl?: string | null,
 ): CalendarSubscriptionUrls | null {
-  if (!supabaseUrl) {
+  const useAwsApi = explicitBaseUrl == null && isAwsBackendEnabled();
+  const baseUrl =
+    explicitBaseUrl ?? (useAwsApi ? frontendEnvironment.apiUrl : frontendEnvironment.supabaseUrl);
+
+  if (!baseUrl) {
     return null;
   }
 
-  const feedUrl = new URL("/functions/v1/calendar-subscription-feed", supabaseUrl);
+  const feedUrl = new URL(
+    useAwsApi ? "/api/v1/calendar-subscription-feed" : "/functions/v1/calendar-subscription-feed",
+    baseUrl,
+  );
   feedUrl.searchParams.set("scope", option.scope);
   feedUrl.searchParams.set("championship_id", option.championshipId);
   feedUrl.searchParams.set("season_year", String(option.seasonYear));
