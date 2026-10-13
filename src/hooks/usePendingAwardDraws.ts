@@ -1,5 +1,7 @@
+import { fetchAwsRealtimeSnapshot } from "@/integrations/laje-api/realtime-snapshots";
+import { useAwsRealtimePolling } from "@/hooks/useAwsRealtimePolling";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isSupabaseBackendEnabled } from "@/config/environment";
+import { isAwsBackendEnabled, isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
 import { ChampionshipAwardType, MatchNaipe, TeamDivision } from "@/lib/enums";
 
@@ -36,7 +38,7 @@ export function usePendingAwardDraws({ championshipId, seasonYear }: UsePendingA
 
   const fetchPendingDraws = useCallback(
     async (shouldShowLoading = false) => {
-      if (!isSupabaseBackendEnabled()) {
+      if (!isSupabaseBackendEnabled() && !isAwsBackendEnabled()) {
         setPendingContexts([]);
         setLoading(false);
         hasLoadedRef.current = false;
@@ -66,17 +68,26 @@ export function usePendingAwardDraws({ championshipId, seasonYear }: UsePendingA
       }
 
       try {
-        const { data, error } = await (
-          supabase as unknown as {
-            rpc: (
-              fn: string,
-              args: Record<string, unknown>,
-            ) => Promise<{ data: unknown; error: unknown }>;
-          }
-        ).rpc("get_championship_award_pending_draws", {
-          _championship_id: championshipId,
-          _season_year: seasonYear,
-        });
+        const { data, error } = isAwsBackendEnabled()
+          ? {
+              data: await fetchAwsRealtimeSnapshot<AwardDrawPendingContext[]>(
+                championshipId,
+                "pending-award-draws",
+                { seasonYear },
+              ),
+              error: null,
+            }
+          : await (
+              supabase as unknown as {
+                rpc: (
+                  fn: string,
+                  args: Record<string, unknown>,
+                ) => Promise<{ data: unknown; error: unknown }>;
+              }
+            ).rpc("get_championship_award_pending_draws", {
+              _championship_id: championshipId,
+              _season_year: seasonYear,
+            });
 
         if (error) {
           console.error("Error fetching pending award draws:", error);
@@ -102,6 +113,12 @@ export function usePendingAwardDraws({ championshipId, seasonYear }: UsePendingA
     },
     [championshipId, seasonYear],
   );
+
+  useAwsRealtimePolling({
+    enabled: Boolean(championshipId && seasonYear),
+    intervalMs: 60_000,
+    onRefresh: () => fetchPendingDraws(),
+  });
 
   useEffect(() => {
     if (!championshipId || !seasonYear) {

@@ -1,3 +1,5 @@
+import { fetchAwsRealtimeSnapshot } from "@/integrations/laje-api/realtime-snapshots";
+import { useAwsRealtimePolling } from "@/hooks/useAwsRealtimePolling";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isAwsBackendEnabled, isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
@@ -109,7 +111,7 @@ export function useChampionshipAwardsRankings({
   const fetchRef = useRef<() => Promise<void>>(async () => undefined);
 
   const fetch = useCallback(async () => {
-    if (!enabled || !championshipId || !seasonYear || isAwsBackendEnabled()) {
+    if (!enabled || !championshipId || !seasonYear) {
       setRankings(null);
       setLoading(false);
       return;
@@ -123,17 +125,26 @@ export function useChampionshipAwardsRankings({
     isFetchingRef.current = true;
     setLoading(true);
     try {
-      const { data, error } = await (
-        supabase as unknown as {
-          rpc: (
-            fn: string,
-            args: Record<string, unknown>,
-          ) => Promise<{ data: unknown; error: unknown }>;
-        }
-      ).rpc("get_championship_score_sheet_awards_rankings", {
-        _championship_id: championshipId,
-        _season_year: seasonYear,
-      });
+      const { data, error } = isAwsBackendEnabled()
+        ? {
+            data: await fetchAwsRealtimeSnapshot<ChampionshipAwardsRankings>(
+              championshipId,
+              "awards-rankings",
+              { seasonYear },
+            ),
+            error: null,
+          }
+        : await (
+            supabase as unknown as {
+              rpc: (
+                fn: string,
+                args: Record<string, unknown>,
+              ) => Promise<{ data: unknown; error: unknown }>;
+            }
+          ).rpc("get_championship_score_sheet_awards_rankings", {
+            _championship_id: championshipId,
+            _season_year: seasonYear,
+          });
 
       if (error) {
         setRankings(null);
@@ -153,6 +164,12 @@ export function useChampionshipAwardsRankings({
   }, [championshipId, enabled, seasonYear]);
 
   fetchRef.current = fetch;
+
+  useAwsRealtimePolling({
+    enabled: enabled && realtimeEnabled && Boolean(championshipId && seasonYear),
+    intervalMs: 120_000,
+    onRefresh: fetch,
+  });
 
   useEffect(() => {
     void fetch();

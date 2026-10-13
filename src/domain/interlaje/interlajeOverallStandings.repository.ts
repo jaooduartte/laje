@@ -1,3 +1,8 @@
+import { isAwsBackendEnabled } from "@/config/environment";
+import {
+  fetchAwsRealtimeSnapshot,
+  type AwsRealtimeSnapshot,
+} from "@/integrations/laje-api/realtime-snapshots";
 import { supabase } from "@/integrations/supabase/client";
 import type { MatchNaipe, TeamDivision } from "@/lib/enums";
 import type { CompetitionTeamDisqualification } from "@/lib/types";
@@ -22,6 +27,38 @@ type LooseSupabase = {
 };
 
 const supabaseLoose = supabase as unknown as LooseSupabase;
+
+const INTERLAJE_READ_SNAPSHOTS = {
+  get_interlaje_overall_standings: "interlaje-overall-standings",
+  get_interlaje_regulation_competition_standings: "interlaje-competition-standings",
+  list_championship_competition_team_disqualifications: "competition-disqualifications",
+  get_interlaje_position_point_settings: "interlaje-position-points",
+} as const satisfies Record<string, AwsRealtimeSnapshot>;
+
+async function readInterlajeRpc(
+  functionName: keyof typeof INTERLAJE_READ_SNAPSHOTS,
+  parameters: Record<string, unknown>,
+): Promise<{ data: unknown; error: Error | null }> {
+  if (!isAwsBackendEnabled()) {
+    return supabaseLoose.rpc(functionName, parameters);
+  }
+
+  try {
+    const data = await fetchAwsRealtimeSnapshot<unknown>(
+      String(parameters._championship_id),
+      INTERLAJE_READ_SNAPSHOTS[functionName],
+      {
+        seasonYear: Number(parameters._season_year),
+        sportId: typeof parameters._sport_id === "string" ? parameters._sport_id : undefined,
+        naipe: typeof parameters._naipe === "string" ? parameters._naipe : undefined,
+        division: typeof parameters._division === "string" ? parameters._division : null,
+      },
+    );
+    return { data, error: null };
+  } catch (error) {
+    return { data: [], error: error instanceof Error ? error : new Error(String(error)) };
+  }
+}
 
 export interface InterlajeOverallStanding {
   team_id: string;
@@ -134,7 +171,7 @@ async function fetchCompetitionTeamDisqualifications(
   championshipId: string,
   seasonYear: number,
 ): Promise<{ data: CompetitionTeamDisqualification[]; error: Error | null }> {
-  const response = await supabaseLoose.rpc("list_championship_competition_team_disqualifications", {
+  const response = await readInterlajeRpc("list_championship_competition_team_disqualifications", {
     _championship_id: championshipId,
     _season_year: seasonYear,
   });
@@ -148,7 +185,7 @@ async function fetchCompetitionTeamDisqualifications(
 async function fetchRawInterlajeCompetitionStandings(
   input: InterlajeCompetitionStandingsInput,
 ): Promise<{ data: InterlajeCompetitionStanding[]; error: Error | null }> {
-  const response = await supabaseLoose.rpc("get_interlaje_regulation_competition_standings", {
+  const response = await readInterlajeRpc("get_interlaje_regulation_competition_standings", {
     _championship_id: input.championshipId,
     _season_year: input.seasonYear,
     _sport_id: input.sportId,
@@ -218,7 +255,7 @@ export async function fetchInterlajeOverallStandings(
   }
 
   const [overallResponse, disqualificationsResponse, positionPointsResponse] = await Promise.all([
-    supabaseLoose.rpc("get_interlaje_overall_standings", {
+    readInterlajeRpc("get_interlaje_overall_standings", {
       _championship_id: championshipId,
       _season_year: seasonYear,
     }),
@@ -348,7 +385,7 @@ export async function fetchInterlajePositionPointSettings(
     return { data: [], error: null };
   }
 
-  const response = await supabaseLoose.rpc("get_interlaje_position_point_settings", {
+  const response = await readInterlajeRpc("get_interlaje_position_point_settings", {
     _championship_id: championshipId,
     _season_year: seasonYear,
   });

@@ -1,3 +1,4 @@
+import { useAwsRealtimePolling } from "@/hooks/useAwsRealtimePolling";
 import { useEffect, useState } from "react";
 import { isSupabaseBackendEnabled } from "@/config/environment";
 import {
@@ -53,6 +54,12 @@ export function useChampionships({ realtimeEnabled = true }: { realtimeEnabled?:
       setLoading(false);
     }
   };
+
+  useAwsRealtimePolling({
+    enabled: realtimeEnabled,
+    intervalMs: 180_000,
+    onRefresh: fetchChampionships,
+  });
 
   useEffect(() => {
     void fetchChampionships();

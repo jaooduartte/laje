@@ -1,3 +1,4 @@
+import { useAwsRealtimePolling } from "@/hooks/useAwsRealtimePolling";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
@@ -77,6 +78,12 @@ export function useChampionshipBracketResolvedTieBreakOrders({
   );
 
   fetchRef.current = fetchResolvedTieBreakOrders;
+
+  useAwsRealtimePolling({
+    enabled: enabled && realtimeEnabled && Boolean(championshipId),
+    intervalMs: 120_000,
+    onRefresh: () => fetchResolvedTieBreakOrders(),
+  });
 
   useEffect(() => {
     if (!enabled || !championshipId) {

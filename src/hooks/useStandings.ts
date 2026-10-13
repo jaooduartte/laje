@@ -1,3 +1,4 @@
+import { useAwsRealtimePolling } from "@/hooks/useAwsRealtimePolling";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isSupabaseBackendEnabled } from "@/config/environment";
 import { fetchChampionshipEffectiveStandings } from "@/domain/individual-events/championshipIndividualEvents.repository";
@@ -166,6 +167,12 @@ export function useStandings({
       }
     }
   }, [championshipId, division, enabled, naipe, seasonYear]);
+
+  useAwsRealtimePolling({
+    enabled: enabled && realtimeEnabled && championshipId !== null,
+    intervalMs: 90_000,
+    onRefresh: fetchStandings,
+  });
 
   fetchStandingsRef.current = fetchStandings;
 

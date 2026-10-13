@@ -1,3 +1,4 @@
+import { useAwsRealtimePolling } from "@/hooks/useAwsRealtimePolling";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
@@ -102,6 +103,13 @@ export function useChampionshipBracketHistory({
   );
 
   fetchBracketHistoryRef.current = fetchBracketHistory;
+
+  useAwsRealtimePolling({
+    enabled:
+      enabled && realtimeEnabled && Boolean(championshipId) && normalizedSeasonYears.length > 0,
+    intervalMs: 180_000,
+    onRefresh: () => fetchBracketHistory(),
+  });
 
   useEffect(() => {
     if (!enabled || !championshipId || normalizedSeasonYears.length == 0) {

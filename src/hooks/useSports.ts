@@ -1,3 +1,4 @@
+import { useAwsRealtimePolling } from "@/hooks/useAwsRealtimePolling";
 import { useCallback, useEffect, useState } from "react";
 import { isAwsBackendEnabled, isSupabaseBackendEnabled } from "@/config/environment";
 import { listAwsSports } from "@/integrations/laje-api/public-runtime";
@@ -100,6 +101,12 @@ export function useSports({
       setLoading(false);
     }
   }, [championshipId, enabled]);
+
+  useAwsRealtimePolling({
+    enabled: enabled && realtimeEnabled && championshipId !== null,
+    intervalMs: 180_000,
+    onRefresh: fetchSports,
+  });
 
   useEffect(() => {
     if (!enabled) {
