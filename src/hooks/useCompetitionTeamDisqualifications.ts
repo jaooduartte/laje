@@ -1,3 +1,4 @@
+import { useAwsRealtimePolling } from "@/hooks/useAwsRealtimePolling";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { isAwsBackendEnabled, isSupabaseBackendEnabled } from "@/config/environment";
 import { listAwsCompetitionDisqualifications } from "@/integrations/laje-api/public-runtime";
@@ -95,6 +96,12 @@ export function useCompetitionTeamDisqualifications({
       setLoading(false);
     }
   }, [championshipId, enabled, resolvedSeasonYears]);
+
+  useAwsRealtimePolling({
+    enabled: enabled && realtimeEnabled && Boolean(championshipId) && resolvedSeasonYears.length > 0,
+    intervalMs: 120_000,
+    onRefresh: fetch,
+  });
 
   useEffect(() => {
     void fetch();

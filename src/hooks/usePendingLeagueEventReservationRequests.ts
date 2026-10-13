@@ -1,3 +1,4 @@
+import { useAwsRealtimePolling } from "@/hooks/useAwsRealtimePolling";
 import { useCallback, useEffect, useState } from "react";
 import { isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,6 +23,12 @@ export function usePendingLeagueEventReservationRequests() {
     setCount(nextCount ?? 0);
     setLoading(false);
   }, []);
+
+  useAwsRealtimePolling({
+    enabled: true,
+    intervalMs: 60_000,
+    onRefresh: fetchCount,
+  });
 
   useEffect(() => {
     fetchCount();

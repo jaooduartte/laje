@@ -1,3 +1,4 @@
+import { useAwsRealtimePolling } from "@/hooks/useAwsRealtimePolling";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isAwsBackendEnabled, isSupabaseBackendEnabled } from "@/config/environment";
 import { listSportsCoreMatches } from "@/integrations/laje-api/sports-core";
@@ -80,6 +81,12 @@ export function usePendingScoreSheetReviewCount({
       }
     }
   }, [championshipId, seasonYear]);
+
+  useAwsRealtimePolling({
+    enabled: Boolean(championshipId && seasonYear != null),
+    intervalMs: 60_000,
+    onRefresh: fetchCount,
+  });
 
   useEffect(() => {
     void fetchCount();

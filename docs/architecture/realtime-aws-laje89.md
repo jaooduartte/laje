@@ -15,20 +15,51 @@ Avaliamos:
 
 Em vez de acrescentar serviços pagos, `useAwsRealtimePolling` utiliza um único timer por aba, agenda refetch de hooks AWS com intervalo mínimo de 15 segundos e para de fazer consultas quando `document.visibilityState=hidden` ou `navigator.onLine=false`. Quando a aba volta a ficar visível ou a rede reconecta, solicita atualização somente se houver decorrido ao menos 10 segundos desde a última consulta daquele assinante. Requisições em andamento não são duplicadas; erros não desativam novas tentativas. A escolha AWS é avaliada no hook de configuração, não em serviços novos.
 
-## Hooks migrados nesta PR
+## Branch compartilhada e isolamento das duas publicações Vercel
 
-| Fluxo                             | Hook                          | Atualização no modo AWS                                                          |
-| --------------------------------- | ----------------------------- | -------------------------------------------------------------------------------- |
-| Página ao vivo, partidas e chaves | `useLiveChampionshipRealtime` | 30 segundos, callbacks agrupados                                                 |
-| Listas de jogos/placares          | `useMatches`                  | 30 segundos quando há partida ao vivo, caso contrário 90 segundos                |
-| Classificação                     | `useStandings`                | 90 segundos                                                                      |
-| Chaveamento                       | `useChampionshipBracket`      | 90 segundos                                                                      |
-| Eventos públicos                  | `useLeagueEvents`             | 180 segundos                                                                     |
-| Visitantes online                 | `OnlineVisitorsBadge`         | **Oculta** em AWS, sem fingir que ausência de Presence significa zero visitantes |
+**Não criar uma segunda branch principal.** Os projetos Vercel `laje` e `laje-tcc` compilam a mesma `main` do repositório `jaooduartte/laje`, mas em projetos isolados e com variáveis independentes:
 
-Os hooks já chamam a API AWS para obter dados. O polling somente repete as leituras e nunca escreve no RDS. O backend Supabase mantém seus canais originais intactos durante a migração. Em AWS não há chamadas à `supabase.channel()` nestes cinco fluxos.
+- `laje` preserva `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` e usa `BACKEND_PROVIDER=supabase` (padrão quando não existe `VITE_API_URL`). Todos os canais Supabase Realtime e Presence continuam funcionando como antes.
+- `laje-tcc` define `VITE_BACKEND_PROVIDER=aws` e `VITE_API_URL`, portanto usa as leituras de `laje-api` e **não inicializa os canais Realtime** nos hooks migrados. Não depende de chaves Supabase.
+- O merge na `main` pode disparar **dois deploys Vercel**. Essa é a preferência expressa para manter código único; cada build recebe suas próprias variáveis de ambiente. Não alterar as envs do projeto `laje`.
+- Os dois bundles passam por CI em builds separados. Um build aprovado **não** substitui os testes funcionais de duas sessões em `laje-tcc`.
 
-**Presença online:** o sistema legado utiliza `supabase.channel(...presence)`. Como o backend AWS ainda não fornece presença real, esconder o contador é mais correto que exibir zero. Antes de restabelecer esse recurso no produto final, decidir se o painel realmente exige essa métrica e, se sim, implementar presença com TTL e identidade de sessão (sem expor PII), com orçamento e teste para múltiplas tasks. Não criar uma simulação que exiba contagem inverídica.
+## Hooks com atualização automática AWS
+
+| Fluxo | Hook | Intervalo enquanto visível |
+| --- | --- | --- |
+| Página ao vivo e callbacks de jogos/chaves | `useLiveChampionshipRealtime` | 30 segundos |
+| Jogos, placar e partidas | `useMatches` | 30s com jogo LIVE; 90s sem LIVE |
+| Classificação por modalidade | `useStandings` | 90 segundos |
+| Chaveamento atual | `useChampionshipBracket` | 90 segundos |
+| Eventos públicos | `useLeagueEvents` | 180 segundos |
+| Campeonatos e seleção | `useChampionships` | 180 segundos |
+| Modalidades | `useSports` | 180 segundos |
+| Reservas pendentes (painel) | `usePendingLeagueEventReservationRequests` | 60 segundos |
+| Revisões de súmulas pendentes | `usePendingScoreSheetReviewCount` | 60 segundos |
+| Desclassificações por equipe | `useCompetitionTeamDisqualifications` | 120 segundos |
+| Histórico de chaveamento | `useChampionshipBracketHistory` | 180 segundos |
+
+Os hooks já possuem leitura pela API AWS, e o polling apenas refaz essas leituras. Nada escreve no banco. Cada assinatura só existe quando o respectivo componente está montado e com `enabled/realtimeEnabled`. O agendador é compartilhado por aba, pausa quando oculta/offline e evita refresh sobreposto. **Não cria recursos AWS.**
+
+## Hooks com dados não implementados na API AWS
+
+Os seguintes hooks ainda possuem funções Supabase/RPC que, no modo AWS, retornam explicitamente listas vazias ou não possuem rota equivalente. Eles **não** devem receber polling cego, pois isso só criaria requisições inúteis e mascararia ausência funcional:
+
+- `usePendingAwardDraws` — sorteios pendentes de premiação.
+- `usePendingTieBreaks` — desempates ainda pendentes de configuração.
+- `useInterlajeCompetitionStandings` — pontuação por competição do Interlaje.
+- `useInterlajeOverallStandings` — ranking geral do Interlaje.
+- `useChampionshipAwardsRankings` — rankings para premiações.
+- `useChampionshipCorrectedGroupStandings` — classificação corrigida por grupo.
+- `useChampionshipBracketResolvedTieBreakOrders` — ordens resolvidas de desempate.
+- `useChampionshipYellowCardDiscipline` — disciplinar/cartões amarelos.
+
+**Esses são gaps de dados/API, não simplesmente de transporte Realtime.** Para habilitá-los no AWS será necessário migrar sua lógica de consulta/RPC para endpoints próprios da `laje-api`, com auth, testes e paridade. A LAJE-89 permanece aberta até validar impacto dessas funcionalidades e implementar os endpoints necessários, sem custos fixos adicionais. Hooks dependentes de APIs ainda ausentes não consultam a origem Supabase na compilação AWS.
+
+## Presença online
+
+No backend Supabase, `useOnlineVisitors` mantém os canais Presence normalmente. No AWS não há um mecanismo de presença confiável: `OnlineVisitorsBadge` e os indicadores online/offline de `AdminUsers` ficam **ocultos**, em vez de mostrar zero ou classificar todos como offline. O recurso de presença pode ser explicitamente não suportado em `laje-tcc` até uma decisão do produto; não implementar ping ou armazenamento permanente sem orçamento aprovado.
 
 ## Orçamento / proteção até dezembro de 2026
 
@@ -43,7 +74,7 @@ Os hooks já chamam a API AWS para obter dados. O polling somente repete as leit
 
 Testes unitários exercitam timer compartilhado, pausa oculta/offline, retomada/reconexão, prevenção de requests sobrepostos, cleanup e isolamento Supabase/AWS. É necessária validação posterior em `laje-tcc` com **duas sessões**: atualizar placar pelo admin, confirmar atualização da página ao vivo em até uma janela de polling, verificar chaves e classificação e observar traces API e custo. O código não sincroniza presença ainda.
 
-Existem outros hooks com canais Supabase (premiações, administração, desempates, disciplina, calendários, inscrições). Antes de marcar a LAJE-89 como concluída, inventariar e migrar fluxos ainda exigidos pela arquitetura final, incluindo autenticação e permissões adequadas no AWS, validar o comportamento de eventos e os requisitos de Presence. Não declarar equivalência total apenas com a fase 1.
+O inventário acima separa hooks com API AWS existente de hooks com RPC ainda ausente. O critério de aceite precisa comprovar placar, classificações públicas, refresh após retomada, compatibilidade Supabase legado e decisão documentada sobre Presence; para as funcionalidades de classificação/disciplinar ainda vazias no AWS, implementar os endpoints antes do cutover LAJE-139.
 
 A implementação em duas fases está alinhada aos requisitos de evidência, testes/CI, revisão por pares e deploy da documentação de Portfólio; a Vercel é mantida como exceção autorizada pelo professor, sem interferir nos serviços AWS.
 

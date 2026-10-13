@@ -1339,19 +1339,21 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                       <div className="flex min-w-0 flex-1 items-start justify-between gap-2">
                         <div className="min-w-0 flex-1 space-y-2">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span
-                              className={`h-2.5 w-2.5 shrink-0 rounded-full ${isUserOnline ? "bg-emerald-500" : "bg-red-500"}`}
-                              title={
-                                isUserOnline
-                                  ? "Usuário online na plataforma"
-                                  : "Usuário offline na plataforma"
-                              }
-                              aria-label={
-                                isUserOnline
-                                  ? "Usuário online na plataforma"
-                                  : "Usuário offline na plataforma"
-                              }
-                            />
+                            {!isAwsBackendEnabled() && (
+                              <span
+                                className={`h-2.5 w-2.5 shrink-0 rounded-full ${isUserOnline ? "bg-emerald-500" : "bg-red-500"}`}
+                                title={
+                                  isUserOnline
+                                    ? "Usuário online na plataforma"
+                                    : "Usuário offline na plataforma"
+                                }
+                                aria-label={
+                                  isUserOnline
+                                    ? "Usuário online na plataforma"
+                                    : "Usuário offline na plataforma"
+                                }
+                              />
+                            )}
                             <p className="truncate text-sm font-medium">{user.name}</p>
                             <AppBadge
                               tone={resolveAdminUserPasswordStatusBadgeTone(user.password_status)}
@@ -1765,19 +1767,21 @@ export function AdminUsers({ canManageUsers = true }: Props) {
               <div className="space-y-4">
                 <div className="rounded-2xl app-card-muted p-4">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className={`h-2.5 w-2.5 shrink-0 rounded-full ${isEditingUserOnline ? "bg-emerald-500" : "bg-red-500"}`}
-                      title={
-                        isEditingUserOnline
-                          ? "Usuário online na plataforma"
-                          : "Usuário offline na plataforma"
-                      }
-                      aria-label={
-                        isEditingUserOnline
-                          ? "Usuário online na plataforma"
-                          : "Usuário offline na plataforma"
-                      }
-                    />
+                    {!isAwsBackendEnabled() && (
+                      <span
+                        className={`h-2.5 w-2.5 shrink-0 rounded-full ${isEditingUserOnline ? "bg-emerald-500" : "bg-red-500"}`}
+                        title={
+                          isEditingUserOnline
+                            ? "Usuário online na plataforma"
+                            : "Usuário offline na plataforma"
+                        }
+                        aria-label={
+                          isEditingUserOnline
+                            ? "Usuário online na plataforma"
+                            : "Usuário offline na plataforma"
+                        }
+                      />
+                    )}
                     <p className="text-sm font-semibold">{editingUser.name}</p>
                     <AppBadge
                       tone={resolveAdminUserPasswordStatusBadgeTone(editingUser.password_status)}
