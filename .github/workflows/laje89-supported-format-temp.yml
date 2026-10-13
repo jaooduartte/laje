@@ -1,0 +1,43 @@
+name: Format LAJE-89 supported hooks (temporary)
+
+on:
+  push:
+    branches:
+      - LAJE-89
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: LAJE-89
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply project Prettier
+        run: |
+          npx --yes prettier@3.9.9 --write --ignore-path .prettierignore \
+            src/hooks/useChampionships.ts \
+            src/hooks/useSports.ts \
+            src/hooks/usePendingLeagueEventReservationRequests.ts \
+            src/hooks/usePendingScoreSheetReviewCount.ts \
+            src/hooks/useCompetitionTeamDisqualifications.ts \
+            src/hooks/useChampionshipBracketHistory.ts \
+            src/components/admin/AdminUsers.tsx \
+            docs/architecture/realtime-aws-laje89.md
+      - name: Commit formatting only
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/hooks/useChampionships.ts src/hooks/useSports.ts src/hooks/usePendingLeagueEventReservationRequests.ts src/hooks/usePendingScoreSheetReviewCount.ts src/hooks/useCompetitionTeamDisqualifications.ts src/hooks/useChampionshipBracketHistory.ts src/components/admin/AdminUsers.tsx docs/architecture/realtime-aws-laje89.md
+          if ! git diff --cached --quiet; then
+            git commit -m "style(LAJE-89): format supported AWS realtime hooks"
+            git push origin HEAD:LAJE-89
+          fi
