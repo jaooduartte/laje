@@ -136,7 +136,10 @@ export function useChampionshipAwardsRankings({
           }
         : await (
             supabase as unknown as {
-              rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
+              rpc: (
+                fn: string,
+                args: Record<string, unknown>,
+              ) => Promise<{ data: unknown; error: unknown }>;
             }
           ).rpc("get_championship_score_sheet_awards_rankings", {
             _championship_id: championshipId,

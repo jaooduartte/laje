@@ -79,7 +79,10 @@ export function usePendingAwardDraws({ championshipId, seasonYear }: UsePendingA
             }
           : await (
               supabase as unknown as {
-                rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
+                rpc: (
+                  fn: string,
+                  args: Record<string, unknown>,
+                ) => Promise<{ data: unknown; error: unknown }>;
               }
             ).rpc("get_championship_award_pending_draws", {
               _championship_id: championshipId,

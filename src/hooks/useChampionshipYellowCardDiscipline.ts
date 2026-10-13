@@ -105,16 +105,18 @@ function fetchSharedChampionshipYellowCardDiscipline(
     return Promise.resolve(cachedResult.result);
   }
 
-  const request = (isAwsBackendEnabled()
-    ? fetchAwsRealtimeSnapshot<ChampionshipYellowCardDiscipline>(
-        championshipId,
-        "yellow-card-discipline",
-        { seasonYear },
-      ).then((data) => ({ data, error: null }))
-    : supabase.rpc("get_championship_yellow_card_discipline", {
-        _championship_id: championshipId,
-        _season_year: seasonYear,
-      }))
+  const request = (
+    isAwsBackendEnabled()
+      ? fetchAwsRealtimeSnapshot<ChampionshipYellowCardDiscipline>(
+          championshipId,
+          "yellow-card-discipline",
+          { seasonYear },
+        ).then((data) => ({ data, error: null }))
+      : supabase.rpc("get_championship_yellow_card_discipline", {
+          _championship_id: championshipId,
+          _season_year: seasonYear,
+        })
+  )
     .then((response) => {
       const result = {
         data: (response.data as unknown as ChampionshipYellowCardDiscipline) ?? null,

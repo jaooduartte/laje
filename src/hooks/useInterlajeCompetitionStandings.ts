@@ -48,7 +48,8 @@ export function useInterlajeCompetitionStandings({
   }, [championshipId, division, enabled, naipe, seasonYear, sportId]);
 
   useAwsRealtimePolling({
-    enabled: enabled && realtimeEnabled && Boolean(championshipId && seasonYear && sportId && naipe),
+    enabled:
+      enabled && realtimeEnabled && Boolean(championshipId && seasonYear && sportId && naipe),
     intervalMs: 90_000,
     onRefresh: refetch,
   });

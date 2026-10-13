@@ -1,5 +1,8 @@
 import { isAwsBackendEnabled } from "@/config/environment";
-import { fetchAwsRealtimeSnapshot, type AwsRealtimeSnapshot } from "@/integrations/laje-api/realtime-snapshots";
+import {
+  fetchAwsRealtimeSnapshot,
+  type AwsRealtimeSnapshot,
+} from "@/integrations/laje-api/realtime-snapshots";
 import { supabase } from "@/integrations/supabase/client";
 import type { MatchNaipe, TeamDivision } from "@/lib/enums";
 import type { CompetitionTeamDisqualification } from "@/lib/types";
@@ -56,7 +59,6 @@ async function readInterlajeRpc(
     return { data: [], error: error instanceof Error ? error : new Error(String(error)) };
   }
 }
-
 
 export interface InterlajeOverallStanding {
   team_id: string;
