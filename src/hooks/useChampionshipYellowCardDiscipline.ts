@@ -1,3 +1,5 @@
+import { fetchAwsRealtimeSnapshot } from "@/integrations/laje-api/realtime-snapshots";
+import { useAwsRealtimePolling } from "@/hooks/useAwsRealtimePolling";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isAwsBackendEnabled, isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
@@ -103,11 +105,16 @@ function fetchSharedChampionshipYellowCardDiscipline(
     return Promise.resolve(cachedResult.result);
   }
 
-  const request = supabase
-    .rpc("get_championship_yellow_card_discipline", {
-      _championship_id: championshipId,
-      _season_year: seasonYear,
-    })
+  const request = (isAwsBackendEnabled()
+    ? fetchAwsRealtimeSnapshot<ChampionshipYellowCardDiscipline>(
+        championshipId,
+        "yellow-card-discipline",
+        { seasonYear },
+      ).then((data) => ({ data, error: null }))
+    : supabase.rpc("get_championship_yellow_card_discipline", {
+        _championship_id: championshipId,
+        _season_year: seasonYear,
+      }))
     .then((response) => {
       const result = {
         data: (response.data as unknown as ChampionshipYellowCardDiscipline) ?? null,
@@ -160,7 +167,7 @@ export function useChampionshipYellowCardDiscipline({
 
   const fetch = useCallback(
     async (forceFresh = false) => {
-      if (!enabled || !championshipId || !seasonYear || isAwsBackendEnabled()) {
+      if (!enabled || !championshipId || !seasonYear) {
         setDiscipline(null);
         setError(null);
         setLoading(false);
@@ -209,6 +216,12 @@ export function useChampionshipYellowCardDiscipline({
     },
     [championshipId, enabled, seasonYear],
   );
+
+  useAwsRealtimePolling({
+    enabled: enabled && realtimeEnabled && Boolean(championshipId && seasonYear),
+    intervalMs: 120_000,
+    onRefresh: () => fetch(true),
+  });
 
   useEffect(() => {
     if (!enabled || !championshipId || !seasonYear) {

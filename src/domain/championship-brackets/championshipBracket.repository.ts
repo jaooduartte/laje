@@ -1,3 +1,4 @@
+import { fetchAwsRealtimeSnapshot } from "@/integrations/laje-api/realtime-snapshots";
 import { isAwsBackendEnabled } from "@/config/environment";
 import { fetchDedicatedChampionshipBracketView } from "@/integrations/laje-api/bracket";
 import {
@@ -676,6 +677,21 @@ export async function fetchChampionshipBracketPendingTieBreaks(
   data: ChampionshipBracketTieBreakPendingContext[];
   error: Error | null;
 }> {
+  if (isAwsBackendEnabled()) {
+    try {
+      return {
+        data: await fetchAwsRealtimeSnapshot<ChampionshipBracketTieBreakPendingContext[]>(
+          championship_id,
+          "pending-tie-breaks",
+          { bracketEditionId: bracket_edition_id },
+        ),
+        error: null,
+      };
+    } catch (error) {
+      return { data: [], error: error instanceof Error ? error : new Error(String(error)) };
+    }
+  }
+
   const response = await supabase.rpc("get_championship_bracket_pending_tie_breaks", {
     _championship_id: championship_id,
     _bracket_edition_id: bracket_edition_id ?? null,
@@ -702,7 +718,18 @@ export async function fetchChampionshipBracketResolvedTieBreakOrders(
   error: Error | null;
 }> {
   if (isAwsBackendEnabled()) {
-    return { data: [], error: null };
+    try {
+      return {
+        data: await fetchAwsRealtimeSnapshot<ChampionshipBracketResolvedTieBreakOrderContext[]>(
+          championship_id,
+          "resolved-tie-break-orders",
+          { seasonYear: season_year },
+        ),
+        error: null,
+      };
+    } catch (error) {
+      return { data: [], error: error instanceof Error ? error : new Error(String(error)) };
+    }
   }
 
   const response = await supabase.rpc("get_championship_bracket_resolved_tie_break_orders", {
@@ -732,7 +759,18 @@ export async function fetchChampionshipCorrectedGroupStandings(
   error: Error | null;
 }> {
   if (isAwsBackendEnabled()) {
-    return { data: [], error: null };
+    try {
+      return {
+        data: await fetchAwsRealtimeSnapshot<ChampionshipCorrectedGroupStanding[]>(
+          championship_id,
+          "corrected-group-standings",
+          { seasonYear: season_year },
+        ),
+        error: null,
+      };
+    } catch (error) {
+      return { data: [], error: error instanceof Error ? error : new Error(String(error)) };
+    }
   }
 
   const response = await supabase.rpc("get_championship_corrected_group_standings", {

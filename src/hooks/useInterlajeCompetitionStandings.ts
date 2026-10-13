@@ -1,5 +1,6 @@
+import { useAwsRealtimePolling } from "@/hooks/useAwsRealtimePolling";
 import { useCallback, useEffect, useState } from "react";
-import { isAwsBackendEnabled, isSupabaseBackendEnabled } from "@/config/environment";
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import {
   fetchInterlajeCompetitionStandings,
   type InterlajeCompetitionStanding,
@@ -28,7 +29,7 @@ export function useInterlajeCompetitionStandings({
   const [loading, setLoading] = useState(false);
 
   const refetch = useCallback(async () => {
-    if (!enabled || !championshipId || !seasonYear || !sportId || !naipe || isAwsBackendEnabled()) {
+    if (!enabled || !championshipId || !seasonYear || !sportId || !naipe) {
       setStandings([]);
       setLoading(false);
       return;
@@ -45,6 +46,12 @@ export function useInterlajeCompetitionStandings({
     setStandings(response.data);
     setLoading(false);
   }, [championshipId, division, enabled, naipe, seasonYear, sportId]);
+
+  useAwsRealtimePolling({
+    enabled: enabled && realtimeEnabled && Boolean(championshipId && seasonYear && sportId && naipe),
+    intervalMs: 90_000,
+    onRefresh: refetch,
+  });
 
   useEffect(() => {
     void refetch();

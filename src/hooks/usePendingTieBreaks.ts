@@ -1,5 +1,6 @@
+import { useAwsRealtimePolling } from "@/hooks/useAwsRealtimePolling";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isSupabaseBackendEnabled } from "@/config/environment";
+import { isAwsBackendEnabled, isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchChampionshipBracketPendingTieBreaks } from "@/domain/championship-brackets/championshipBracket.repository";
 import type { ChampionshipBracketTieBreakPendingContext } from "@/domain/championship-brackets/championshipBracket.types";
@@ -87,7 +88,7 @@ export function usePendingTieBreaks({
 
   const fetchPendingTieBreaks = useCallback(
     async (shouldShowLoading = false, forceFresh = false) => {
-      if (!isSupabaseBackendEnabled()) {
+      if (!isSupabaseBackendEnabled() && !isAwsBackendEnabled()) {
         setPendingContexts([]);
         setLoading(false);
         hasLoadedPendingTieBreaksRef.current = false;
@@ -145,6 +146,12 @@ export function usePendingTieBreaks({
     },
     [bracketEditionId, championshipId, enabled],
   );
+
+  useAwsRealtimePolling({
+    enabled: enabled && Boolean(championshipId && bracketEditionId),
+    intervalMs: 60_000,
+    onRefresh: () => fetchPendingTieBreaks(false, true),
+  });
 
   useEffect(() => {
     if (!enabled || !championshipId || !bracketEditionId) {
