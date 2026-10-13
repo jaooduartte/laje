@@ -1,0 +1,44 @@
+name: LAJE-89 one-off formatting
+
+on:
+  push:
+    branches:
+      - LAJE-89
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: LAJE-89
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply Prettier 3.9.9 formatting
+        run: |
+          npx --yes prettier@3.9.9 --write --ignore-path .prettierignore \
+            src/hooks/useAwsRealtimePolling.ts \
+            src/hooks/useAwsRealtimePolling.test.tsx \
+            src/hooks/useLiveChampionshipRealtime.ts \
+            src/hooks/useMatches.ts \
+            src/hooks/useStandings.ts \
+            src/hooks/useChampionshipBracket.ts \
+            src/hooks/useLeagueEvents.ts \
+            src/components/OnlineVisitorsBadge.tsx \
+            docs/architecture/realtime-aws-laje89.md
+      - name: Commit formatted code
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/hooks/useAwsRealtimePolling.ts src/hooks/useAwsRealtimePolling.test.tsx src/hooks/useLiveChampionshipRealtime.ts src/hooks/useMatches.ts src/hooks/useStandings.ts src/hooks/useChampionshipBracket.ts src/hooks/useLeagueEvents.ts src/components/OnlineVisitorsBadge.tsx docs/architecture/realtime-aws-laje89.md
+          if ! git diff --cached --quiet; then
+            git commit -m "style(LAJE-89): apply repository formatting"
+            git push origin HEAD:LAJE-89
+          fi
