@@ -1221,7 +1221,9 @@ export function AdminUsers({ canManageUsers = true }: Props) {
                 <SelectValue placeholder="Ordenar listagem" />
               </SelectTrigger>
               <SelectContent>
-                {ADMIN_USER_SORT_OPTION_ORDER.map((adminUserSortOption) => (
+                {ADMIN_USER_SORT_OPTION_ORDER.filter(
+                  (option) => !isAwsBackendEnabled() || option !== AdminUserSortOption.ONLINE_DESC,
+                ).map((adminUserSortOption) => (
                   <SelectItem key={adminUserSortOption} value={adminUserSortOption}>
                     {ADMIN_USER_SORT_OPTION_LABELS[adminUserSortOption]}
                   </SelectItem>
