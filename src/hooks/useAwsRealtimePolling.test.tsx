@@ -60,7 +60,12 @@ describe("useAwsRealtimePolling", () => {
 
   it("avoids overlapping requests and coalesces focus events", async () => {
     let release: (() => void) | undefined;
-    const refresh = vi.fn(() => new Promise<void>((resolve) => { release = resolve; }));
+    const refresh = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+    );
     const { unmount } = renderHook(() =>
       useAwsRealtimePolling({ enabled: true, intervalMs: 15_000, onRefresh: refresh }),
     );

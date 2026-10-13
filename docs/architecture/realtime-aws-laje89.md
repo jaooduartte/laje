@@ -6,25 +6,25 @@ A LAJE deve funcionar sem Supabase Realtime no backend AWS. O frontend `laje` j�
 
 Avaliamos:
 
-| Tecnologia | Vantagem | Limitação/custo neste projeto | Decisão |
-| --- | --- | --- | --- |
-| Supabase Realtime | Push já em operação na produção legada | Nova arquitetura permaneceria dependente do fornecedor | Continuar **somente** no deploy legado Supabase |
-| WebSocket/API Gateway WebSocket | Baixa latência, presença | Serviço novo, cobrança por mensagens/conexões, auth/reconexão e coordenação entre tasks | **Não** provisionar agora |
-| SSE/streaming HTTP | Push unidirecional | Exige gateway/timeout/infra com suporte real a long-lived streams, mais conexões abertas | Não usar no staging atual |
-| Polling inteligente sobre GETs existentes | Sem recursos AWS novos, restaura funcionalidade, comportamento previsível | Latência de dezenas de segundos e custo por request / consultas RDS | **Fase 1 aprovada para implementação** |
+| Tecnologia                                | Vantagem                                                                  | Limitação/custo neste projeto                                                            | Decisão                                         |
+| ----------------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| Supabase Realtime                         | Push já em operação na produção legada                                    | Nova arquitetura permaneceria dependente do fornecedor                                   | Continuar **somente** no deploy legado Supabase |
+| WebSocket/API Gateway WebSocket           | Baixa latência, presença                                                  | Serviço novo, cobrança por mensagens/conexões, auth/reconexão e coordenação entre tasks  | **Não** provisionar agora                       |
+| SSE/streaming HTTP                        | Push unidirecional                                                        | Exige gateway/timeout/infra com suporte real a long-lived streams, mais conexões abertas | Não usar no staging atual                       |
+| Polling inteligente sobre GETs existentes | Sem recursos AWS novos, restaura funcionalidade, comportamento previsível | Latência de dezenas de segundos e custo por request / consultas RDS                      | **Fase 1 aprovada para implementação**          |
 
 Em vez de acrescentar serviços pagos, `useAwsRealtimePolling` utiliza um único timer por aba, agenda refetch de hooks AWS com intervalo mínimo de 15 segundos e para de fazer consultas quando `document.visibilityState=hidden` ou `navigator.onLine=false`. Quando a aba volta a ficar visível ou a rede reconecta, solicita atualização somente se houver decorrido ao menos 10 segundos desde a última consulta daquele assinante. Requisições em andamento não são duplicadas; erros não desativam novas tentativas. A escolha AWS é avaliada no hook de configuração, não em serviços novos.
 
 ## Hooks migrados nesta PR
 
-| Fluxo | Hook | Atualização no modo AWS |
-| --- | --- | --- |
-| Página ao vivo, partidas e chaves | `useLiveChampionshipRealtime` | 30 segundos, callbacks agrupados |
-| Listas de jogos/placares | `useMatches` | 30 segundos quando há partida ao vivo, caso contrário 90 segundos |
-| Classificação | `useStandings` | 90 segundos |
-| Chaveamento | `useChampionshipBracket` | 90 segundos |
-| Eventos públicos | `useLeagueEvents` | 180 segundos |
-| Visitantes online | `OnlineVisitorsBadge` | **Oculta** em AWS, sem fingir que ausência de Presence significa zero visitantes |
+| Fluxo                             | Hook                          | Atualização no modo AWS                                                          |
+| --------------------------------- | ----------------------------- | -------------------------------------------------------------------------------- |
+| Página ao vivo, partidas e chaves | `useLiveChampionshipRealtime` | 30 segundos, callbacks agrupados                                                 |
+| Listas de jogos/placares          | `useMatches`                  | 30 segundos quando há partida ao vivo, caso contrário 90 segundos                |
+| Classificação                     | `useStandings`                | 90 segundos                                                                      |
+| Chaveamento                       | `useChampionshipBracket`      | 90 segundos                                                                      |
+| Eventos públicos                  | `useLeagueEvents`             | 180 segundos                                                                     |
+| Visitantes online                 | `OnlineVisitorsBadge`         | **Oculta** em AWS, sem fingir que ausência de Presence significa zero visitantes |
 
 Os hooks já chamam a API AWS para obter dados. O polling somente repete as leituras e nunca escreve no RDS. O backend Supabase mantém seus canais originais intactos durante a migração. Em AWS não há chamadas à `supabase.channel()` nestes cinco fluxos.
 
@@ -33,7 +33,7 @@ Os hooks já chamam a API AWS para obter dados. O polling somente repete as leit
 ## Orçamento / proteção até dezembro de 2026
 
 - **Custo fixo adicional da fase 1: zero.** Nenhum novo WebSocket API, ELB, banco, Lambda, DynamoDB, Redis, NAT Gateway ou serviço cron.
-- A AWS ainda cobra por **requisições e tráfego existentes**, conforme plano/conta e região; **não** prometer custo total zero. O volume de requisições cresce com o número de abas abertas e espectadores; sob 100 espectadores *ativos e contínuos* em uma tela ao vivo de três leituras a cada 30 segundos, o limite teórico daquele fluxo é aproximadamente 10 requisições/s (sem contar outros hooks). Essa é uma hipótese de dimensionamento, **não** tráfego medido.
+- A AWS ainda cobra por **requisições e tráfego existentes**, conforme plano/conta e região; **não** prometer custo total zero. O volume de requisições cresce com o número de abas abertas e espectadores; sob 100 espectadores _ativos e contínuos_ em uma tela ao vivo de três leituras a cada 30 segundos, o limite teórico daquele fluxo é aproximadamente 10 requisições/s (sem contar outros hooks). Essa é uma hipótese de dimensionamento, **não** tráfego medido.
 - Intervalos maiores em classificação, chaveamento e eventos diminuem o tráfego. O componente de partidas muda de 90 para 30 segundos quando há jogos `LIVE`.
 - Não executar polling em background, não manter contadores de presença que exigem ping contínuo, não ativar servidor WebSocket separado.
 - Após publicar **somente em staging**, usar métricas CloudWatch/API Gateway `Count`, p95 latência, 4xx/5xx, ALB, CPU/RDS e Cost Explorer por serviço/tag para verificar se o custo projetado cabe até 31/12/2026. Reduzir frequências se necessário; otimizar mais tarde com uma revisão/ETag barata caso audiência cresça.
