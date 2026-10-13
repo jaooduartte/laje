@@ -42,20 +42,24 @@ Em vez de acrescentar serviços pagos, `useAwsRealtimePolling` utiliza um único
 
 Os hooks já possuem leitura pela API AWS, e o polling apenas refaz essas leituras. Nada escreve no banco. Cada assinatura só existe quando o respectivo componente está montado e com `enabled/realtimeEnabled`. O agendador é compartilhado por aba, pausa quando oculta/offline e evita refresh sobreposto. **Não cria recursos AWS.**
 
-## Hooks com dados não implementados na API AWS
+## RPCs migradas para leitura da API AWS (segunda fase)
 
-Os seguintes hooks ainda possuem funções Supabase/RPC que, no modo AWS, retornam explicitamente listas vazias ou não possuem rota equivalente. Eles **não** devem receber polling cego, pois isso só criaria requisições inúteis e mascararia ausência funcional:
+A [PR backend #39](https://github.com/jaooduartte/laje-api/pull/39) implementa um catálogo **fechado** de endpoints em `/api/v1/realtime-read/:championshipId/:snapshot`, reutilizando as funções SQL PostgreSQL já existentes. A PR frontend #65 adapta os oito hooks abaixo, preservando as chamadas originais ao Supabase na configuração legada:
 
-- `usePendingAwardDraws` — sorteios pendentes de premiação.
-- `usePendingTieBreaks` — desempates ainda pendentes de configuração.
+- `usePendingAwardDraws` — premiações pendentes (**autenticação AWS obrigatória**).
+- `usePendingTieBreaks` — desempates pendentes (**autenticação AWS obrigatória**).
 - `useInterlajeCompetitionStandings` — pontuação por competição do Interlaje.
-- `useInterlajeOverallStandings` — ranking geral do Interlaje.
+- `useInterlajeOverallStandings` — ranking geral com normalização de desclassificações.
 - `useChampionshipAwardsRankings` — rankings para premiações.
 - `useChampionshipCorrectedGroupStandings` — classificação corrigida por grupo.
 - `useChampionshipBracketResolvedTieBreakOrders` — ordens resolvidas de desempate.
-- `useChampionshipYellowCardDiscipline` — disciplinar/cartões amarelos.
+- `useChampionshipYellowCardDiscipline` — disciplina/cartões amarelos.
 
-**Esses são gaps de dados/API, não simplesmente de transporte Realtime.** Para habilitá-los no AWS será necessário migrar sua lógica de consulta/RPC para endpoints próprios da `laje-api`, com auth, testes e paridade. A LAJE-89 permanece aberta até validar impacto dessas funcionalidades e implementar os endpoints necessários, sem custos fixos adicionais. Hooks dependentes de APIs ainda ausentes não consultam a origem Supabase na compilação AWS.
+A API também expõe os snapshots auxiliares `interlaje-position-points` e `competition-disqualifications`, usados pelo algoritmo existente de normalização do Interlaje no frontend. Os retornos das funções tabulares são agregados no PostgreSQL em JSONB para preservar valores numéricos na serialização, e as consultas recebem parâmetros validados.
+
+**Ordem mandatória:** mesclar/implantar primeiro a PR backend #39 no staging, confirmar as funções do RDS e o status HTTP, e **somente depois** mesclar a PR frontend #65 na `main` única que compila `laje` (Supabase) e `laje-tcc` (AWS) com variáveis de ambiente distintas. Até ocorrer esse deploy, a integração está **implementada no código, mas não validada em staging**.
+
+Os snapshots não criam serviços AWS novos. As operações administrativas exigem token de usuário AWS. A equivalência de conteúdo com as RPCs Supabase deve ser comprovada em ensaios de duas sessões e dados de staging antes do encerramento da LAJE-89; CI por si só não comprova a existência efetiva das funções no RDS ou a paridade semântica. Não executar merge nem alterar produção sem revisão por pares.
 
 ## Presença online
 
@@ -74,7 +78,7 @@ No backend Supabase, `useOnlineVisitors` mantém os canais Presence normalmente.
 
 Testes unitários exercitam timer compartilhado, pausa oculta/offline, retomada/reconexão, prevenção de requests sobrepostos, cleanup e isolamento Supabase/AWS. É necessária validação posterior em `laje-tcc` com **duas sessões**: atualizar placar pelo admin, confirmar atualização da página ao vivo em até uma janela de polling, verificar chaves e classificação e observar traces API e custo. O código não sincroniza presença ainda.
 
-O inventário acima separa hooks com API AWS existente de hooks com RPC ainda ausente. O critério de aceite precisa comprovar placar, classificações públicas, refresh após retomada, compatibilidade Supabase legado e decisão documentada sobre Presence; para as funcionalidades de classificação/disciplinar ainda vazias no AWS, implementar os endpoints antes do cutover LAJE-139.
+A PR backend #39 adiciona os endpoints ausentes e a PR frontend #65 realiza a integração, mas o critério de aceite ainda depende de deploy AWS, verificação da existência das funções no RDS, paridade de dados, testes de presença/atualização, compatibilidade Supabase legado e revisão por pares antes da LAJE-139.
 
 A implementação em duas fases está alinhada aos requisitos de evidência, testes/CI, revisão por pares e deploy da documentação de Portfólio; a Vercel é mantida como exceção autorizada pelo professor, sem interferir nos serviços AWS.
 
