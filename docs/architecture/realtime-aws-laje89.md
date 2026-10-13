@@ -26,19 +26,19 @@ Em vez de acrescentar serviços pagos, `useAwsRealtimePolling` utiliza um único
 
 ## Hooks com atualização automática AWS
 
-| Fluxo | Hook | Intervalo enquanto visível |
-| --- | --- | --- |
-| Página ao vivo e callbacks de jogos/chaves | `useLiveChampionshipRealtime` | 30 segundos |
-| Jogos, placar e partidas | `useMatches` | 30s com jogo LIVE; 90s sem LIVE |
-| Classificação por modalidade | `useStandings` | 90 segundos |
-| Chaveamento atual | `useChampionshipBracket` | 90 segundos |
-| Eventos públicos | `useLeagueEvents` | 180 segundos |
-| Campeonatos e seleção | `useChampionships` | 180 segundos |
-| Modalidades | `useSports` | 180 segundos |
-| Reservas pendentes (painel) | `usePendingLeagueEventReservationRequests` | 60 segundos |
-| Revisões de súmulas pendentes | `usePendingScoreSheetReviewCount` | 60 segundos |
-| Desclassificações por equipe | `useCompetitionTeamDisqualifications` | 120 segundos |
-| Histórico de chaveamento | `useChampionshipBracketHistory` | 180 segundos |
+| Fluxo                                      | Hook                                       | Intervalo enquanto visível      |
+| ------------------------------------------ | ------------------------------------------ | ------------------------------- |
+| Página ao vivo e callbacks de jogos/chaves | `useLiveChampionshipRealtime`              | 30 segundos                     |
+| Jogos, placar e partidas                   | `useMatches`                               | 30s com jogo LIVE; 90s sem LIVE |
+| Classificação por modalidade               | `useStandings`                             | 90 segundos                     |
+| Chaveamento atual                          | `useChampionshipBracket`                   | 90 segundos                     |
+| Eventos públicos                           | `useLeagueEvents`                          | 180 segundos                    |
+| Campeonatos e seleção                      | `useChampionships`                         | 180 segundos                    |
+| Modalidades                                | `useSports`                                | 180 segundos                    |
+| Reservas pendentes (painel)                | `usePendingLeagueEventReservationRequests` | 60 segundos                     |
+| Revisões de súmulas pendentes              | `usePendingScoreSheetReviewCount`          | 60 segundos                     |
+| Desclassificações por equipe               | `useCompetitionTeamDisqualifications`      | 120 segundos                    |
+| Histórico de chaveamento                   | `useChampionshipBracketHistory`            | 180 segundos                    |
 
 Os hooks já possuem leitura pela API AWS, e o polling apenas refaz essas leituras. Nada escreve no banco. Cada assinatura só existe quando o respectivo componente está montado e com `enabled/realtimeEnabled`. O agendador é compartilhado por aba, pausa quando oculta/offline e evita refresh sobreposto. **Não cria recursos AWS.**
 

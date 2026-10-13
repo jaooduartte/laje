@@ -98,7 +98,8 @@ export function useCompetitionTeamDisqualifications({
   }, [championshipId, enabled, resolvedSeasonYears]);
 
   useAwsRealtimePolling({
-    enabled: enabled && realtimeEnabled && Boolean(championshipId) && resolvedSeasonYears.length > 0,
+    enabled:
+      enabled && realtimeEnabled && Boolean(championshipId) && resolvedSeasonYears.length > 0,
     intervalMs: 120_000,
     onRefresh: fetch,
   });

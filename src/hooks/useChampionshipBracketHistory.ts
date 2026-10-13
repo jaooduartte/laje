@@ -105,7 +105,8 @@ export function useChampionshipBracketHistory({
   fetchBracketHistoryRef.current = fetchBracketHistory;
 
   useAwsRealtimePolling({
-    enabled: enabled && realtimeEnabled && Boolean(championshipId) && normalizedSeasonYears.length > 0,
+    enabled:
+      enabled && realtimeEnabled && Boolean(championshipId) && normalizedSeasonYears.length > 0,
     intervalMs: 180_000,
     onRefresh: () => fetchBracketHistory(),
   });
