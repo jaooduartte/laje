@@ -1,3 +1,4 @@
+import { useAwsRealtimePolling } from "@/hooks/useAwsRealtimePolling";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { isSupabaseBackendEnabled } from "@/config/environment";
 import { endOfYear, format, startOfYear } from "date-fns";
@@ -86,6 +87,12 @@ export function useLeagueEvents({ monthDate, realtimeEnabled = true }: UseLeague
       return currentLeagueEvents.filter((leagueEvent) => leagueEvent.id != leagueEventId);
     });
   }, []);
+
+  useAwsRealtimePolling({
+    enabled: realtimeEnabled,
+    intervalMs: 180_000,
+    onRefresh: fetchLeagueEvents,
+  });
 
   useEffect(() => {
     fetchLeagueEvents();

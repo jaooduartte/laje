@@ -1,3 +1,4 @@
+import { isSupabaseBackendEnabled } from "@/config/environment";
 import { Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +15,10 @@ export function OnlineVisitorsBadge({
   accessibleLabel = "Visitantes online",
   className,
 }: OnlineVisitorsBadgeProps) {
+  // The AWS backend intentionally does not report Presence yet. Never display
+  // a misleading "0 online" count as though it were a measured value.
+  if (!isSupabaseBackendEnabled()) return null;
+
   return (
     <div
       className={cn(

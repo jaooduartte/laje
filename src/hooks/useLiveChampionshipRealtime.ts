@@ -1,3 +1,4 @@
+import { useAwsRealtimePolling } from "@/hooks/useAwsRealtimePolling";
 import { useEffect, useRef } from "react";
 import { isSupabaseBackendEnabled } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,6 +42,17 @@ export function useLiveChampionshipRealtime({
     onUpcomingMatchesChange,
     onBracketChange,
   };
+
+  // LAJE-89: a aba AWS consulta a própria API, sem assinar canais Supabase.
+  useAwsRealtimePolling({
+    enabled: Boolean(championshipId),
+    intervalMs: 30_000,
+    onRefresh: () => {
+      callbacksRef.current.onLiveMatchesChange();
+      callbacksRef.current.onUpcomingMatchesChange();
+      callbacksRef.current.onBracketChange();
+    },
+  });
 
   useEffect(() => {
     if (!championshipId || !isSupabaseBackendEnabled()) {

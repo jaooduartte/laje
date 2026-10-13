@@ -1,3 +1,4 @@
+import { useAwsRealtimePolling } from "@/hooks/useAwsRealtimePolling";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isSupabaseBackendEnabled } from "@/config/environment";
 import { fetchChampionshipBracketView } from "@/domain/championship-brackets/championshipBracket.repository";
@@ -199,6 +200,12 @@ export function useChampionshipBracket({
     },
     [championshipId, enabled, seasonYear],
   );
+
+  useAwsRealtimePolling({
+    enabled: enabled && realtimeEnabled && Boolean(championshipId),
+    intervalMs: 90_000,
+    onRefresh: () => fetchBracket(false, true),
+  });
 
   useEffect(() => {
     if (!enabled) {

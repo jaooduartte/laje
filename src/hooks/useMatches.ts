@@ -1,3 +1,4 @@
+import { useAwsRealtimePolling } from "@/hooks/useAwsRealtimePolling";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isSupabaseBackendEnabled } from "@/config/environment";
 import { getAwsMatchRuntimeContext } from "@/integrations/laje-api/public-runtime";
@@ -1002,6 +1003,12 @@ export function useMatches({
       teamId,
     ],
   );
+
+  useAwsRealtimePolling({
+    enabled: enabled && includeRealtime && championshipId !== null,
+    intervalMs: matches.some((match) => match.status === MatchStatus.LIVE) ? 30_000 : 90_000,
+    onRefresh: () => fetchMatches({ refreshOperationalContext: false }),
+  });
 
   useEffect(() => {
     latestFetchMatchesRef.current = fetchMatches;
