@@ -76,7 +76,7 @@ O repositório possui dívida TypeScript anterior à adoção deste quality gate
 
 A formatação também é incremental nesta etapa: o Prettier valida os arquivos modificados pela branch/PR sem exigir a reformatação massiva do código legado em uma única entrega.
 
-O GitHub Actions executa o mesmo quality gate automaticamente em `push` e `pull_request`.
+O GitHub Actions valida pull requests para `main`, pushes na `main` e execução manual, com builds separados para Supabase e AWS-only. A Vercel publica somente commits da `main` e não cria previews automáticos de branches, conforme `vercel.json`. Consulte [CI/CD e ambientes Vercel](docs/quality/ci.md) para os controles de publicação.
 
 ## Observação
 
