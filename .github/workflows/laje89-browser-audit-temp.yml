@@ -1,0 +1,81 @@
+name: LAJE-89 read-only dual Vercel browser smoke
+on:
+  push:
+    branches:
+      - LAJE-89-readonly-browser-audit
+permissions:
+  contents: read
+jobs:
+  browser-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright (ephemeral runner only)
+        run: |
+          npm install --no-save --no-package-lock --ignore-scripts playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Read-only browser smoke for both LIVE Vercel sites
+        shell: bash
+        run: |
+          node --input-type=module <<'JS'
+          import { chromium } from "playwright";
+          const websites = [
+            { name: "LAJE legacy Supabase", url: "https://ligadasatleticas.vercel.app", provider: "supabase" },
+            { name: "LAJE TCC AWS", url: "https://laje-tcc.vercel.app", provider: "aws" },
+          ];
+          const paths = ["/", "/ao-vivo", "/agenda", "/campeonatos"];
+          const browser = await chromium.launch({ headless: true });
+          let failures = [];
+          for (const site of websites) {
+            const context = await browser.newContext();
+            const sessions = await Promise.all([context.newPage(), context.newPage()]);
+            let totals = { aws: 0, supabase: 0, page: 0, http500: 0 };
+            for (const page of sessions) {
+              page.on("request", (request) => {
+                let hostname = "";
+                try { hostname = new URL(request.url()).hostname; } catch {}
+                if (hostname.endsWith(".supabase.co")) totals.supabase++;
+                if (hostname.includes("execute-api.") || hostname.includes(".amazonaws.com")) totals.aws++;
+              });
+              page.on("response", (response) => {
+                if (response.status() >= 500 && response.url().startsWith(site.url)) totals.http500++;
+              });
+              page.on("pageerror", (error) => {
+                totals.page++;
+                console.log(site.name + " frontend exception: " + error.message.slice(0, 190));
+              });
+            }
+            for (const target of paths) {
+              try {
+                await Promise.all(sessions.map(async (page) => {
+                  const response = await page.goto(site.url + target, { waitUntil: "domcontentloaded", timeout: 45000 });
+                  await page.waitForTimeout(4500);
+                  const visible = ((await page.locator("#root").innerText().catch(() => "")) || "").trim();
+                  const actual = response?.status() || -1;
+                  console.log(site.name + " " + target + " http=" + actual + " visibleChars=" + visible.length);
+                  if (actual !== 200 || visible.length < 30) failures.push(site.name + " " + target + " blank/non200");
+                }));
+              } catch (error) {
+                failures.push(site.name + " " + target + " navigation error " + String(error).slice(0,130));
+              }
+            }
+            console.log(site.name + " totals " + JSON.stringify(totals));
+            if (site.provider === "aws" && totals.supabase > 0) failures.push("AWS site called Supabase: " + totals.supabase);
+            if (site.provider === "aws" && totals.aws === 0) failures.push("AWS site did not issue AWS request");
+            if (site.provider === "supabase" && totals.aws > 0) failures.push("Legacy site unexpectedly called AWS: " + totals.aws);
+            if (site.provider === "supabase" && totals.supabase === 0) failures.push("Legacy site did not issue Supabase request");
+            if (totals.http500 > 0) failures.push(site.name + " deployed frontend returned HTTP 5xx");
+            await context.close();
+          }
+          await browser.close();
+          if (failures.length) {
+            console.error("READ-ONLY BROWSER AUDIT FINDINGS:", failures);
+            process.exitCode = 1;
+          } else {
+            console.log("LAJE-89: BOTH DEPLOYED VERCEL SITES PASSED BROWSER NAVIGATION & BACKEND ISOLATION.");
+          }
+          JS
