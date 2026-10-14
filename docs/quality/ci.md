@@ -19,18 +19,18 @@ O CI não precisa de credenciais de produção: os valores públicos usados no b
 
 O mesmo repositório GitHub alimenta dois projetos Vercel distintos:
 
-- `laje`: produção atual com `VITE_BACKEND_PROVIDER=supabase`, preservada durante a migração.
-- `laje-tcc`: integração AWS-only com `VITE_BACKEND_PROVIDER=aws` e `VITE_API_URL` configurada para a API AWS com o sufixo `/api/v1`.
+- `laje`: produção operacional permanente com Supabase (`VITE_BACKEND_PROVIDER=supabase`). **Não será migrada para AWS.**
+- `laje-tcc`: frontend exclusivo da entrega do TCC em arquitetura AWS-only, com `VITE_BACKEND_PROVIDER=aws` e `VITE_API_URL` apontando à API AWS (`/api/v1`). O staging AWS valida a arquitetura antes do release final.
 
 O `vercel.json` permite deployment Git apenas para `main`, desabilitando previews automáticos de branches intermediárias. A integração Git da Vercel publica a `main`; o GitHub Actions desta pasta **valida**, mas não executa deploy nem garante que a publicação Vercel aguarde o CI pós-merge.
 
-Antes de fazer merge, confirme o resultado verde do CI da PR e a revisão por pares. As políticas de branch protection não são aplicadas por este workflow. Reconfigurar ou promover o frontend produtivo para AWS está fora do escopo desta PR e requer os gates de cutover da LAJE-139.
+Antes de fazer merge, confirme o resultado verde do CI da PR e a revisão por pares. As políticas de branch protection não são aplicadas por este workflow. O projeto `laje` **não será promovido** para AWS. A LAJE-139 trata apenas do release definitivo do ambiente `laje-tcc`/backend AWS/RDS, sem alterar a produção independente no Supabase.
 
 ## Evidências e rollback
 
 - Referencie na PR o workflow de CI aprovado, o commit e a revisão.
 - Verifique na Vercel qual projeto e commit estão em produção e quais variáveis públicas estão configuradas, sem incluir segredos em logs.
-- Em falha após publicação, utilize o histórico de deployments da Vercel para restaurar uma versão anteriormente saudável, mantendo o projeto `laje` no modo Supabase até autorização do cutover.
+- Em falha após publicação, utilize o histórico de deployments da Vercel para restaurar uma versão anteriormente saudável, mantendo o projeto `laje` no modo Supabase permanentemente. A recuperação da instalação `laje-tcc` é separada.
 - Para a API AWS, use o runbook do repositório `laje-api` em `docs/deployment.md`.
 
 A meta de cobertura e os checks de segurança são acompanhados separadamente em LAJE-38 e LAJE-39. Consulte a Wiki para a documentação oficial de entrega.

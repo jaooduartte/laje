@@ -50,7 +50,7 @@ O mesmo repositório suporta dois modos de execução por deployment:
 
 Por compatibilidade transitória, quando `VITE_BACKEND_PROVIDER` não está definido, a presença de `VITE_API_URL` ainda seleciona o modo AWS; sem `VITE_API_URL`, o modo legado Supabase é mantido. Novos deployments devem sempre declarar o provider explicitamente.
 
-O projeto Vercel `laje-tcc` já foi criado para a validação AWS-only em ambiente isolado, sem substituir a produção atual. Recursos ainda dependentes de realtime/Edge Functions permanecem rastreados nas tarefas de migração correspondentes e não devem voltar silenciosamente ao Supabase no modo AWS.
+O projeto Vercel `laje-tcc` é a aplicação AWS-only apresentada como **entrega do TCC**. O projeto Vercel `laje` continuará usando Supabase **de forma permanente**, como produção operacional independente; não está previsto migrá-lo nem alterar suas variáveis para AWS. Recursos ainda dependentes de realtime/Edge Functions permanecem rastreados nas tarefas de migração correspondentes e não devem voltar silenciosamente ao Supabase no modo AWS.
 
 Enquanto essas migrações não forem concluídas, o modo AWS bloqueia explicitamente acessos legados ainda sem endpoint equivalente, em vez de consultar o Supabase como fallback. Nesta etapa isso inclui catálogo global de atléticas/modalidades, remoções de modalidade por temporada, métricas do dashboard, feriados do calendário e o envio de e-mail via Edge Function após pedido de reserva. O ano corrente do campeonato permanece disponível como fallback local quando a consulta histórica de temporadas ainda não está migrada.
 
