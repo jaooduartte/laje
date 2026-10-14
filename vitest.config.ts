@@ -13,6 +13,19 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    coverage: {
+      provider: "v8",
+      reportsDirectory: "./coverage/frontend",
+      reporter: ["text", "json-summary", "lcov", "html"],
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: [
+        "src/**/*.{test,spec}.{ts,tsx}",
+        "src/**/*.d.ts",
+        "src/test/**",
+        "src/integrations/supabase/types.ts",
+      ],
+      thresholds: { lines: 25 },
+    },
   },
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },

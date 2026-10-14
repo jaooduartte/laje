@@ -46,8 +46,20 @@ jobs:
       - name: Check formatting
         run: npm run format:check
 
-      - name: Run tests
-        run: npm test
+      - name: Smoke tests for three business flows
+        run: npm run test:smoke
+
+      - name: Measure frontend coverage (25% line threshold)
+        run: npm run test:coverage
+
+      - name: Upload frontend coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: laje-frontend-coverage
+          path: coverage/frontend/
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: Build legacy/Supabase-compatible bundle
         run: npm run build
