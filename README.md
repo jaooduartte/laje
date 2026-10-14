@@ -50,7 +50,7 @@ O mesmo repositório suporta dois modos de execução por deployment:
 
 Por compatibilidade transitória, quando `VITE_BACKEND_PROVIDER` não está definido, a presença de `VITE_API_URL` ainda seleciona o modo AWS; sem `VITE_API_URL`, o modo legado Supabase é mantido. Novos deployments devem sempre declarar o provider explicitamente.
 
-O projeto Vercel `laje-tcc` só deve ser criado após a validação do modo AWS-only. Recursos ainda dependentes de realtime/Edge Functions permanecem rastreados nas tarefas de migração correspondentes e não devem voltar silenciosamente ao Supabase no modo AWS.
+O projeto Vercel `laje-tcc` já foi criado para a validação AWS-only em ambiente isolado, sem substituir a produção atual. Recursos ainda dependentes de realtime/Edge Functions permanecem rastreados nas tarefas de migração correspondentes e não devem voltar silenciosamente ao Supabase no modo AWS.
 
 Enquanto essas migrações não forem concluídas, o modo AWS bloqueia explicitamente acessos legados ainda sem endpoint equivalente, em vez de consultar o Supabase como fallback. Nesta etapa isso inclui catálogo global de atléticas/modalidades, remoções de modalidade por temporada, métricas do dashboard, feriados do calendário e o envio de e-mail via Edge Function após pedido de reserva. O ano corrente do campeonato permanece disponível como fallback local quando a consulta histórica de temporadas ainda não está migrada.
 
@@ -76,7 +76,7 @@ O repositório possui dívida TypeScript anterior à adoção deste quality gate
 
 A formatação também é incremental nesta etapa: o Prettier valida os arquivos modificados pela branch/PR sem exigir a reformatação massiva do código legado em uma única entrega.
 
-O GitHub Actions executa o mesmo quality gate automaticamente em `push` e `pull_request`.
+O GitHub Actions valida pull requests para `main`, pushes na `main` e execução manual, com builds separados para Supabase e AWS-only. A Vercel publica somente commits da `main` e não cria previews automáticos de branches, conforme `vercel.json`. Consulte [CI/CD e ambientes Vercel](docs/quality/ci.md) para os controles de publicação.
 
 ## Observação
 
