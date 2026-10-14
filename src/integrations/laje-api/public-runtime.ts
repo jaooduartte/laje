@@ -104,10 +104,17 @@ export async function listAwsSports(championshipId?: string | null): Promise<{
     }>
   >(`/public-runtime/sports?${search.toString()}`);
 
+  // Match the nested Supabase relation used by the admin match editor.
+  // Without `championshipSports[].sports`, the sport selector is empty in AWS
+  // even though /public-runtime/sports returns the configured modalities.
+  const sports = response.data.sports.map(toSport);
+  const sportsById = new Map(sports.map((sport) => [sport.id, sport]));
+
   return {
-    sports: response.data.sports.map(toSport),
+    sports,
     championshipSports: response.data.championshipSports.map((row) => ({
       id: String(row.id),
+      sports: sportsById.get(String(row.sportId)),
       championship_id: String(row.championshipId),
       sport_id: String(row.sportId),
       naipe_mode: row.naipeMode as ChampionshipSport["naipe_mode"],
