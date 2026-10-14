@@ -17,11 +17,11 @@ O Vitest com `@vitest/coverage-v8@3.2.4` gera `coverage/frontend/coverage-summar
 
 ## Matriz automatizada dos três fluxos
 
-| Fluxo | Teste de smoke (mocks, sem dados reais) | Evidência complementar necessária |
-| --- | --- | --- |
-| Autenticação administrativa | `src/components/guards/AdminRouteGuard.test.tsx` | Sessão e permissões HTTP na `laje-api`, além de validação de login integrado. |
-| Operação de jogos ao vivo | `src/components/admin/AdminMatchControl.test.tsx` | Comandos de iniciar/placar/finalizar pela API e demonstração em staging. |
-| Consulta pública de campeonatos, classificação e calendário | `src/components/TeamStandingsTable.test.tsx` e `src/domain/calendar-subscription/calendarSubscription.test.ts` | Consultas REST à API e navegação pública completa em staging. |
+| Fluxo                                                       | Teste de smoke (mocks, sem dados reais)                                                                        | Evidência complementar necessária                                             |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Autenticação administrativa                                 | `src/components/guards/AdminRouteGuard.test.tsx`                                                               | Sessão e permissões HTTP na `laje-api`, além de validação de login integrado. |
+| Operação de jogos ao vivo                                   | `src/components/admin/AdminMatchControl.test.tsx`                                                              | Comandos de iniciar/placar/finalizar pela API e demonstração em staging.      |
+| Consulta pública de campeonatos, classificação e calendário | `src/components/TeamStandingsTable.test.tsx` e `src/domain/calendar-subscription/calendarSubscription.test.ts` | Consultas REST à API e navegação pública completa em staging.                 |
 
 `npm run test:smoke` exercita os testes acima sem acessar produção. Esses testes validam cenários críticos, mas **não substituem a demonstração dos três fluxos completos de ponta a ponta**.
 
