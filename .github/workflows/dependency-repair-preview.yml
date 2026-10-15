@@ -32,7 +32,7 @@ jobs:
       - name: Propose only semver-compatible lockfile fixes
         shell: bash
         run: |
-          npm install --package-lock-only --ignore-scripts --save-dev --save-exact vitest@5.0.4 @vitest/coverage-v8@5.0.4
+          npm install --package-lock-only --ignore-scripts --save-dev --save-exact vitest@5.0.4 @vitest/coverage-v8@5.0.4 vite@8.3.4 @vitejs/plugin-react-swc@latest
           npm ci --ignore-scripts
           set +e
           npm audit fix --package-lock-only --ignore-scripts
