@@ -1,0 +1,77 @@
+name: LAJE-145 Locked Dependency Repair Preview
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/dependency-repair-preview.yml"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    name: Preview safe semver dependency remediation
+    if: github.event_name == 'pull_request' && github.head_ref == 'LAJE-145' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout candidate branch
+        uses: actions/checkout@v7
+      - name: Use Node.js 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - name: Snapshot root dependencies
+        run: cp package.json /tmp/laje145-package-before.json
+      - name: Propose only semver-compatible lockfile fixes
+        shell: bash
+        run: |
+          npm ci --ignore-scripts
+          set +e
+          npm audit fix --package-lock-only --ignore-scripts
+          result=$?
+          set -e
+          echo "npm audit fix exit status: $result"
+          git diff --stat
+          if ! cmp -s package.json /tmp/laje145-package-before.json; then
+            echo "::warning::Root package.json changed; review compatibility before applying."
+          fi
+      - name: Evaluate repaired dependency tree
+        shell: bash
+        run: |
+          set +e
+          npm ci --ignore-scripts
+          echo "npm ci exit=$?"
+          npm audit --audit-level=high --json > /tmp/laje145-audit-after.json
+          echo "npm audit exit=$?"
+          set -e
+          node -e 'const x=require("/tmp/laje145-audit-after.json");console.log("AFTER_AUDIT_VULNERABILITIES="+JSON.stringify(x.metadata?.vulnerabilities||x.error||{}))'
+      - name: Publish lockfile and root manifest safely for review
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          for (const [key, path] of [["LOCKFILE", "package-lock.json"], ["PACKAGE", "package.json"]]) {
+            const b64 = readFileSync(path).toString("base64");
+            console.log(`LAJE145_${key}_BEGIN bytes=${b64.length}`);
+            for (let i = 0; i < b64.length; i += 2048) {
+              console.log(`LAJE145_${key}_PART_${i / 2048}=${b64.slice(i, i + 2048)}`);
+            }
+            console.log(`LAJE145_${key}_END`);
+          }
+          NODE
+      - name: Upload repaired candidate for audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: laje145-lockfile-repair-candidate
+          path: |
+            package.json
+            package-lock.json
+            /tmp/laje145-audit-after.json
+          retention-days: 7
