@@ -40,3 +40,10 @@ Com os checks obrigatórios, High/Critical ou regressão do CI bloqueiam merge. 
 CodeQL identifica padrões de risco, não substitui pentest, validação de autenticação/permissões nem revisão manual. Achados devem receber issue no Jira com severidade, arquivo/regra, impacto e mitigação; correções são tratadas em PRs próprias. Não desligar o gate, adicionar exceção silenciosa, alterar thresholds ou omitir dependências para obter um check verde. Dados e credenciais de produção não são lidos nem modificados por estes workflows.
 
 **Observação arquitetural:** o frontend operacional `laje` permanece Vercel/Supabase; a instância de TCC `laje-tcc` usa a API AWS/RDS conforme o plano. Este trabalho modifica apenas o CI e a documentação, sem mudanças no banco ou deploy.
+
+## Resultado do primeiro ciclo — 14/10/2026
+
+- O CodeQL da PR #70 executou com sucesso, sem findings High/Critical no frontend.
+- A auditoria `npm audit` revelou **3 entradas Critical e 32 High** já existentes no lockfile, incluindo tooling dev e dependências runtime; o gate reprovou corretamente. A remediação está registrada na [LAJE-145](https://joaoduartte.atlassian.net/browse/LAJE-145), sem ocultar o risco no CI.
+- `Dependency Review` falhou porque **Dependency graph está desabilitado no repositório**. É necessário habilitá-lo com acesso admin. Os passos, inclusive branch protection, estão na [LAJE-147](https://joaoduartte.atlassian.net/browse/LAJE-147). Este impedimento não é vulnerabilidade do código nem deve ser contornado desabilitando o job.
+- Até resolver essas pendências, a PR de implantação segue em rascunho e **não deve ser mesclada**. Check verde de lint/testes não representa aprovação do gate de segurança.
