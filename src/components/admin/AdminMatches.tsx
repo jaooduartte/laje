@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import {
   getSportsCoreScoreSheetAwardsContext,
   isDedicatedSportsCoreEnabled,
@@ -7176,7 +7177,7 @@ export function AdminMatches({
     if (Object.keys(matchUpdatePayload).length > 0) {
       const { error } = await supabase
         .from("matches")
-        .update(matchUpdatePayload)
+        .update(matchUpdatePayload as Database["public"]["Tables"]["matches"]["Update"])
         .eq("id", editingMatchId);
 
       if (error) {
