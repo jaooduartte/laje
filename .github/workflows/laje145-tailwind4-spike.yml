@@ -58,6 +58,19 @@ jobs:
           set -e
           node -e 'const x=require("/tmp/laje145-audit-tailwind4.json"); console.log("TAILWIND4_AUDIT="+JSON.stringify(x.metadata?.vulnerabilities||x.error)); for(const [name,v] of Object.entries(x.vulnerabilities||{})){if(["high","critical"].includes(v.severity))console.log("TAILWIND4_SEVERE="+name+" "+v.severity)}'
           echo "audit_exit=$status"
+      - name: Record generated package manifest and lockfile for reviewed commit
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          for (const [label, path] of [["PACKAGE", "package.json"], ["LOCKFILE", "package-lock.json"]]) {
+            const text=readFileSync(path).toString("base64");
+            console.log(`TW4_${label}_BEGIN bytes=${text.length}`);
+            for (let i=0; i<text.length; i+=2048)
+              console.log(`TW4_${label}_PART_${i/2048}=${text.slice(i, i+2048)}`);
+            console.log(`TW4_${label}_END`);
+          }
+          NODE
       - name: Validate scripts, component classes and CSS output
         shell: bash
         run: |
