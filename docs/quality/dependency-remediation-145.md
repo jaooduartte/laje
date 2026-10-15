@@ -6,12 +6,12 @@ A LAJE-39 identificou no `laje` originalmente **3 entradas Critical, 32 High, 6 
 
 O manifesto e o `package-lock.json` foram atualizados de maneira controlada, sem `npm audit fix --force`, e passaram pela instalação com `npm ci`.
 
-| Dependência principal | Versão aplicada |
-| --- | --- |
-| `vite` | 8.3.4 |
-| `vitest` | 5.0.4 |
-| `@vitest/coverage-v8` | 5.0.4 |
-| `@vitejs/plugin-react-swc` | 4.3.3 |
+| Dependência principal      | Versão aplicada |
+| -------------------------- | --------------- |
+| `vite`                     | 8.3.4           |
+| `vitest`                   | 5.0.4           |
+| `@vitest/coverage-v8`      | 5.0.4           |
+| `@vitejs/plugin-react-swc` | 4.3.3           |
 
 As atualizações da tipagem foram limitadas à compatibilidade do cliente Supabase tipado, ao filtro `group_number`, e ao uso de arrays sem `Array.at` no target ES2020. O baseline TypeScript **não foi ampliado**: um erro obsoleto que desapareceu na nova compilação foi removido do baseline. Uma diretiva ESLint não mais necessária foi removida.
 

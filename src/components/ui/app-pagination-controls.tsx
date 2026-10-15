@@ -1,5 +1,11 @@
 import { ChevronsLeft, ChevronsRight, ChevronLeft, ChevronRight } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const VISIBLE_PAGE_BUTTONS = 5;
 
@@ -99,7 +105,8 @@ export function AppPaginationControls({
   itemsPerPageOptions = PAGINATION_ITEMS_PER_PAGE_OPTIONS,
 }: AppPaginationControlsProps) {
   const visiblePages = resolveVisiblePages(currentPage, totalPages);
-  const shouldShowItemsPerPageControl = typeof itemsPerPage == "number" && onItemsPerPageChange != undefined;
+  const shouldShowItemsPerPageControl =
+    typeof itemsPerPage == "number" && onItemsPerPageChange != undefined;
 
   return (
     <div className="enter-section">
@@ -143,7 +150,10 @@ export function AppPaginationControls({
             </button>
           ) : null}
 
-          <span aria-current="page" className="app-pill-option inline-flex h-8 min-w-8 items-center justify-center rounded-xl px-2 text-xs font-bold app-pill-active-indicator text-primary-foreground md:hidden">
+          <span
+            aria-current="page"
+            className="app-pill-option inline-flex h-8 min-w-8 items-center justify-center rounded-xl px-2 text-xs font-bold app-pill-active-indicator text-primary-foreground md:hidden"
+          >
             {currentPage}
           </span>
 
