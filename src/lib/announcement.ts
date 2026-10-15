@@ -70,9 +70,7 @@ function hasSameMarks(
   );
 }
 
-export function normalizeAnnouncementContent(
-  value: unknown,
-): AnnouncementContent | null {
+export function normalizeAnnouncementContent(value: unknown): AnnouncementContent | null {
   if (!value || typeof value != "object" || Array.isArray(value)) {
     return null;
   }
@@ -91,7 +89,7 @@ export function normalizeAnnouncementContent(
         return normalizedSegments;
       }
 
-      const previousSegment = normalizedSegments.at(-1);
+      const previousSegment = normalizedSegments[normalizedSegments.length - 1];
 
       if (previousSegment && hasSameMarks(previousSegment, segment)) {
         previousSegment.text += segment.text;
@@ -104,7 +102,10 @@ export function normalizeAnnouncementContent(
     [],
   );
 
-  const plainText = segments.map((segment) => segment.text).join("").trim();
+  const plainText = segments
+    .map((segment) => segment.text)
+    .join("")
+    .trim();
 
   while (segments.length > 0 && segments[0].text.trimStart().length == 0) {
     segments.shift();
@@ -114,7 +115,7 @@ export function normalizeAnnouncementContent(
     segments[0].text = segments[0].text.trimStart();
   }
 
-  while (segments.length > 0 && segments.at(-1)?.text.trimEnd().length == 0) {
+  while (segments.length > 0 && segments[segments.length - 1]?.text.trimEnd().length == 0) {
     segments.pop();
   }
 
@@ -122,9 +123,7 @@ export function normalizeAnnouncementContent(
     segments[segments.length - 1].text = segments[segments.length - 1].text.trimEnd();
   }
 
-  return plainText.length > 0
-    ? { version: 1, segments }
-    : null;
+  return plainText.length > 0 ? { version: 1, segments } : null;
 }
 
 export function createAnnouncementContent(
@@ -132,9 +131,7 @@ export function createAnnouncementContent(
 ): AnnouncementContent | null {
   const text = normalizeAnnouncementText(message ?? "").trim();
 
-  return text.length > 0
-    ? { version: 1, segments: [{ text }] }
-    : null;
+  return text.length > 0 ? { version: 1, segments: [{ text }] } : null;
 }
 
 export function resolveAnnouncementContent(
@@ -144,10 +141,11 @@ export function resolveAnnouncementContent(
   return normalizeAnnouncementContent(content) ?? createAnnouncementContent(message);
 }
 
-export function resolveAnnouncementPlainText(
-  content: AnnouncementContent | null,
-): string | null {
-  const text = content?.segments.map((segment) => segment.text).join("").trim();
+export function resolveAnnouncementPlainText(content: AnnouncementContent | null): string | null {
+  const text = content?.segments
+    .map((segment) => segment.text)
+    .join("")
+    .trim();
   return text && text.length > 0 ? text : null;
 }
 

@@ -285,7 +285,7 @@ export function SchedulePage() {
       }
 
       if (groupNumber != null) {
-        query = query.eq("group_number", groupNumber);
+        query = query.filter("group_number", "eq", groupNumber);
       }
 
       const { data, error } = await query;

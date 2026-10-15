@@ -20,6 +20,5 @@
   "src/lib/modalidadeConfig.ts|TS2345": 2,
   "src/lib/standings.ts|TS2345": 1,
   "src/pages/league-calendar/LeagueCalendarPage.tsx|TS2322": 1,
-  "src/pages/schedule/SchedulePage.tsx|TS2345": 1,
-  "src/pages/schedule/SchedulePage.tsx|TS2589": 1
+  "src/pages/schedule/SchedulePage.tsx|TS2345": 1
 }
