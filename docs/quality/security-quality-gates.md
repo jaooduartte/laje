@@ -22,18 +22,13 @@ Este documento refere-se ao repositório **`jaooduartte/laje`**; o outro reposit
 
 Para reproduzir a auditoria das dependências localmente: `npm ci --ignore-scripts && npm audit --audit-level=high`. O CodeQL roda no workflow com a suite `security-extended` e os resultados são analisados pelo script `scripts/ci/codeql-severity-gate.mjs`.
 
-## Regras de bloqueio de merge (configuração do repositório)
+## Proteção da branch `main` (recomendação opcional)
 
-**Falha de workflow não impede um merge enquanto os status checks não forem obrigatórios na proteção de `main`.** Um mantenedor com permissão de administração precisa configurar Settings → Rules → Rulesets (ou Branch protection), alvo `main`, exigindo PR antes do merge e status checks:
+As diretrizes do Portfólio Web Apps exigem pipeline CI/CD, análise estática, segurança e cobertura mínima de testes, mas **não exigem explicitamente branch protection ou GitHub rulesets**. Por decisão registrada na [LAJE-147](https://joaoduartte.atlassian.net/browse/LAJE-147), a proteção obrigatória da `main` foi **adiada** e não bloqueia a LAJE-39.
 
-- `Quality Gate` (CI existente; inclui cobertura frontend quando aplicável);
-- `CodeQL SAST (High/Critical gate)`;
-- `Dependency Review (new High/Critical)`;
-- `Dependency Audit (High/Critical gate)`;
-- Confirmação de `npm run test:coverage` no job `Quality Gate` (CI frontend, 25%).
+Os workflows de CI e segurança continuam reprovando verificações quando encontram erros de tipagem, lint, formatação, cobertura insuficiente ou vulnerabilidades High/Critical. **Sem checks exigidos por branch protection, esses erros não impedem tecnicamente o merge**. A equipe deve conferir os resultados e não aprovar merges com checks reprovados.
 
-Usar os nomes de checks apresentados efetivamente na PR; confirmar que o ruleset está **ativo e aplicado**, não somente em modo de avaliação. Não tornar jobs condicionais de integração/Docker obrigatórios quando estes forem legitimamente pulados.
-Com os checks obrigatórios, High/Critical ou regressão do CI bloqueiam merge. **A integração utilizada para implementar esta tarefa não possui permissão de administração para ativar/verificar rulesets**; essa ativação é uma etapa manual verificável pelo responsável e não deve ser dada como concluída sem evidência.
+Como melhoria futura opcional, um administrador poderá exigir PR, `Quality Gate`, `CodeQL SAST (High/Critical gate)`, `Dependency Review (new High/Critical)` e `Dependency Audit (High/Critical gate)`. Não aplicar alteração de ruleset sem autorização.
 
 ## Limites e tratamento de achados
 
@@ -47,3 +42,10 @@ CodeQL identifica padrões de risco, não substitui pentest, validação de aute
 - A auditoria `npm audit` revelou **3 entradas Critical e 32 High** já existentes no lockfile, incluindo tooling dev e dependências runtime; o gate reprovou corretamente. A remediação está registrada na [LAJE-145](https://joaoduartte.atlassian.net/browse/LAJE-145), sem ocultar o risco no CI.
 - `Dependency Review` falhou porque **Dependency graph está desabilitado no repositório**. É necessário habilitá-lo com acesso admin. Os passos, inclusive branch protection, estão na [LAJE-147](https://joaoduartte.atlassian.net/browse/LAJE-147). Este impedimento não é vulnerabilidade do código nem deve ser contornado desabilitando o job.
 - Até resolver essas pendências, a PR de implantação segue em rascunho e **não deve ser mesclada**. Check verde de lint/testes não representa aprovação do gate de segurança.
+
+## Validação de integração — 15/10/2026
+
+- A correção das dependências foi incorporada à `main` do frontend na [PR #71](https://github.com/jaooduartte/laje/pull/71): auditoria com **0 Critical e 0 High**, CI aprovada com 1.092 testes, 48,75% de cobertura e builds; as duas aplicações Vercel tiveram deployment `READY` do commit `babc87ff28a8d9ec422bf09622fbf5d244efbd06`.
+- A atualização de rate limiting da API foi incorporada à `main` na [PR #45](https://github.com/jaooduartte/laje-api/pull/45); testes/CI e CodeQL foram aprovados, mas **não confundir merge com deploy**. O backend ECS de staging continuava numa imagem de 13/10/2026, antes da migration LAJE-146.
+- `Dependency Graph` foi habilitado pelo responsável, e o `Dependency Review` passou nos dois repositórios.
+- O resultado do primeiro ciclo, documentado acima, é histórico; a validação final da LAJE-39 deve ser feita nos workflows após estes merges e antes de concluir o Jira.
