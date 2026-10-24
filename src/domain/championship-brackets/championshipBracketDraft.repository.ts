@@ -134,7 +134,8 @@ export async function fetchChampionshipBracketWizardDraft(
   const remoteResponse = await fetchRemoteBracketDraft(championship_id);
 
   if (!remoteResponse.error) {
-    const remoteRow = ((remoteResponse.data as ChampionshipBracketDraftRpcRow[] | null) ?? [])[0] ?? null;
+    const remoteRow =
+    ((remoteResponse.data as ChampionshipBracketDraftRpcRow[] | null) ?? [])[0] ?? null;
     if (remoteRow?.payload_snapshot) {
       const remoteDto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
         JSON.stringify(remoteRow.payload_snapshot),
@@ -160,10 +161,7 @@ export async function fetchChampionshipBracketWizardDraft(
     };
   }
 
-  const promotionResponse = await saveChampionshipBracketWizardDraft(
-    championship_id,
-    localDraft,
-  );
+  const promotionResponse = await saveChampionshipBracketWizardDraft(championship_id, localDraft);
 
   if (!promotionResponse.error) {
     clearChampionshipBracketWizardDraftFromLocalStorage(championship_id);
@@ -197,7 +195,8 @@ export async function saveChampionshipBracketWizardDraft(
     };
   }
 
-  const remoteRow = ((remoteResponse.data as ChampionshipBracketDraftRpcRow[] | null) ?? [])[0] ?? null;
+  const remoteRow =
+      ((remoteResponse.data as ChampionshipBracketDraftRpcRow[] | null) ?? [])[0] ?? null;
   return {
     metadata: resolveRemoteDraftMetadata(remoteRow),
     error: null,
