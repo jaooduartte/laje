@@ -84,16 +84,15 @@ async function invokeAwsBracketOperation<T>(
   payload: Record<string, unknown>,
 ): Promise<{ data: T | null; error: Error | null }> {
   try {
-    const response = await lajeApiRequest<{ data: T }>(
-      "/bracket-operations/" + action,
-      { method: "POST", body: JSON.stringify(payload) },
-    );
+    const response = await lajeApiRequest<{ data: T }>("/bracket-operations/" + action, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
     return { data: response.data ?? null, error: null };
   } catch (error) {
     return { data: null, error: error instanceof Error ? error : new Error(String(error)) };
   }
 }
-
 
 function toSupabaseJson(value: unknown): Json {
   return value as Json;
@@ -160,7 +159,10 @@ export async function previewManualMatchRelocation(
   input: ManualMatchRelocationInput,
 ): Promise<{ data: ManualMatchRelocationPreview | null; error: Error | null }> {
   if (isAwsBackendEnabled()) {
-    return invokeAwsBracketOperation<ManualMatchRelocationPreview>("manual-relocation-preview", { editionId: bracketEditionId, input });
+    return invokeAwsBracketOperation<ManualMatchRelocationPreview>("manual-relocation-preview", {
+      editionId: bracketEditionId,
+      input,
+    });
   }
 
   const response = await supabase.rpc("preview_manual_match_relocation", {
@@ -180,7 +182,11 @@ export async function applyManualMatchRelocation(
   expectedRevision: number,
 ): Promise<{ error: Error | null }> {
   if (isAwsBackendEnabled()) {
-    return invokeAwsBracketOperation<unknown>("manual-relocation-apply", { editionId: bracketEditionId, input, expectedRevision });
+    return invokeAwsBracketOperation<unknown>("manual-relocation-apply", {
+      editionId: bracketEditionId,
+      input,
+      expectedRevision,
+    });
   }
 
   const response = await supabase.rpc("apply_manual_match_relocation", {
@@ -200,7 +206,10 @@ export async function previewManualMatchRelocationSlot(
   error: Error | null;
 }> {
   if (isAwsBackendEnabled()) {
-    return invokeAwsBracketOperation<ManualMatchRelocationSlotPreview>("manual-relocation-slot-preview", { editionId: bracketEditionId, input });
+    return invokeAwsBracketOperation<ManualMatchRelocationSlotPreview>(
+      "manual-relocation-slot-preview",
+      { editionId: bracketEditionId, input },
+    );
   }
 
   const response = await supabase.rpc("preview_manual_match_relocation_slot", {
@@ -220,7 +229,11 @@ export async function applyManualMatchRelocationSlot(
   expectedRevision: number,
 ): Promise<{ error: Error | null }> {
   if (isAwsBackendEnabled()) {
-    return invokeAwsBracketOperation<unknown>("manual-relocation-slot-apply", { editionId: bracketEditionId, input, expectedRevision });
+    return invokeAwsBracketOperation<unknown>("manual-relocation-slot-apply", {
+      editionId: bracketEditionId,
+      input,
+      expectedRevision,
+    });
   }
 
   const response = await supabase.rpc("apply_manual_match_relocation_slot", {
@@ -237,7 +250,10 @@ export async function holdMatchesForManualRelocation(
   input: HoldMatchesForManualRelocationInput,
 ): Promise<{ error: Error | null }> {
   if (isAwsBackendEnabled()) {
-    return invokeAwsBracketOperation<unknown>("manual-relocation-hold", { editionId: bracketEditionId, input });
+    return invokeAwsBracketOperation<unknown>("manual-relocation-hold", {
+      editionId: bracketEditionId,
+      input,
+    });
   }
 
   const response = await supabase.rpc("hold_matches_for_manual_relocation", {
@@ -256,7 +272,10 @@ export async function previewDayScheduleReorganization(
   error: Error | null;
 }> {
   if (isAwsBackendEnabled()) {
-    return invokeAwsBracketOperation<DayScheduleReorganizationPreview>("day-reorganization-preview", { editionId: bracketEditionId, input });
+    return invokeAwsBracketOperation<DayScheduleReorganizationPreview>(
+      "day-reorganization-preview",
+      { editionId: bracketEditionId, input },
+    );
   }
 
   const response = await supabase.rpc("preview_day_schedule_reorganization", {
@@ -276,7 +295,11 @@ export async function applyDayScheduleReorganization(
   expectedRevision: number,
 ): Promise<{ error: Error | null }> {
   if (isAwsBackendEnabled()) {
-    return invokeAwsBracketOperation<unknown>("day-reorganization-apply", { editionId: bracketEditionId, input, expectedRevision });
+    return invokeAwsBracketOperation<unknown>("day-reorganization-apply", {
+      editionId: bracketEditionId,
+      input,
+      expectedRevision,
+    });
   }
 
   const response = await supabase.rpc("apply_day_schedule_reorganization", {
@@ -296,7 +319,10 @@ export async function previewOperationalScheduleInterval(
   error: Error | null;
 }> {
   if (isAwsBackendEnabled()) {
-    return invokeAwsBracketOperation<OperationalScheduleIntervalPreview>("interval-preview", { editionId: bracketEditionId, input });
+    return invokeAwsBracketOperation<OperationalScheduleIntervalPreview>("interval-preview", {
+      editionId: bracketEditionId,
+      input,
+    });
   }
 
   const response = await supabase.rpc("preview_operational_schedule_interval", {
@@ -316,7 +342,11 @@ export async function applyOperationalScheduleInterval(
   expectedRevision: number,
 ): Promise<{ error: Error | null }> {
   if (isAwsBackendEnabled()) {
-    return invokeAwsBracketOperation<unknown>("interval-apply", { editionId: bracketEditionId, input, expectedRevision });
+    return invokeAwsBracketOperation<unknown>("interval-apply", {
+      editionId: bracketEditionId,
+      input,
+      expectedRevision,
+    });
   }
 
   const response = await supabase.rpc("apply_operational_schedule_interval", {
@@ -335,7 +365,10 @@ export async function listOperationalKnockoutScheduleAdjustmentCandidates(
   error: Error | null;
 }> {
   if (isAwsBackendEnabled()) {
-    return invokeAwsBracketOperation<OperationalKnockoutScheduleAdjustmentCandidates>("knockout-adjustment-candidates", { sourceBracketMatchId });
+    return invokeAwsBracketOperation<OperationalKnockoutScheduleAdjustmentCandidates>(
+      "knockout-adjustment-candidates",
+      { sourceBracketMatchId },
+    );
   }
 
   const response = await supabase.rpc("list_operational_knockout_schedule_adjustment_candidates", {
@@ -357,7 +390,10 @@ export async function previewOperationalKnockoutScheduleAdjustment(
   error: Error | null;
 }> {
   if (isAwsBackendEnabled()) {
-    return invokeAwsBracketOperation<OperationalKnockoutScheduleAdjustmentPreview>("knockout-adjustment-preview", { editionId: bracketEditionId, input });
+    return invokeAwsBracketOperation<OperationalKnockoutScheduleAdjustmentPreview>(
+      "knockout-adjustment-preview",
+      { editionId: bracketEditionId, input },
+    );
   }
 
   const response = await supabase.rpc("preview_operational_knockout_schedule_adjustment", {
@@ -377,7 +413,11 @@ export async function applyOperationalKnockoutScheduleAdjustment(
   expectedRevision: number,
 ): Promise<{ error: Error | null }> {
   if (isAwsBackendEnabled()) {
-    return invokeAwsBracketOperation<unknown>("knockout-adjustment-apply", { editionId: bracketEditionId, input, expectedRevision });
+    return invokeAwsBracketOperation<unknown>("knockout-adjustment-apply", {
+      editionId: bracketEditionId,
+      input,
+      expectedRevision,
+    });
   }
 
   const response = await supabase.rpc("apply_operational_knockout_schedule_adjustment", {
@@ -886,7 +926,10 @@ export async function fetchChampionshipGroupStageStandings(
     const championship = await getSportsCoreChampionship(championship_id);
     const result = await invokeAwsBracketOperation<ChampionshipGroupStageStanding[]>(
       "group-stage-standings",
-      { championshipId: championship_id, seasonYear: season_year ?? championship.current_season_year },
+      {
+        championshipId: championship_id,
+        seasonYear: season_year ?? championship.current_season_year,
+      },
     );
     return { data: result.data ?? [], error: result.error };
   }
@@ -950,7 +993,16 @@ export async function saveChampionshipBracketTieBreakResolution(
   payload: ChampionshipBracketTieBreakResolutionSaveInput,
 ): Promise<{ data: string | null; error: Error | null }> {
   if (isAwsBackendEnabled()) {
-    return invokeAwsBracketOperation<string>("tie-break-save", { input: { context_key: payload.context_key, competition_id: payload.competition_id, context_type: payload.context_type, group_id: payload.group_id ?? null, qualification_rank: payload.qualification_rank ?? null, team_ids: payload.team_ids } });
+    return invokeAwsBracketOperation<string>("tie-break-save", {
+      input: {
+        context_key: payload.context_key,
+        competition_id: payload.competition_id,
+        context_type: payload.context_type,
+        group_id: payload.group_id ?? null,
+        qualification_rank: payload.qualification_rank ?? null,
+        team_ids: payload.team_ids,
+      },
+    });
   }
 
   const response = await supabase.rpc("save_championship_bracket_tie_break_resolution", {
@@ -1090,7 +1142,10 @@ export async function swapChampionshipKnockoutBracketTeams(
   team_b_id: string,
 ): Promise<{ error: Error | null }> {
   if (isAwsBackendEnabled()) {
-    return invokeAwsBracketOperation<unknown>("knockout-teams-swap", { competitionId: competition_id, input: { teamAId: team_a_id, teamBId: team_b_id } });
+    return invokeAwsBracketOperation<unknown>("knockout-teams-swap", {
+      competitionId: competition_id,
+      input: { teamAId: team_a_id, teamBId: team_b_id },
+    });
   }
 
   const response = await supabase.rpc("swap_championship_knockout_bracket_teams", {
@@ -1182,7 +1237,10 @@ export async function updateBracketDaySchedule(
   updates: BracketDayScheduleUpdate[],
 ): Promise<{ error: Error | null }> {
   if (isAwsBackendEnabled()) {
-    return invokeAwsBracketOperation<unknown>("bracket-day-update", { editionId: bracketEditionId, input: updates });
+    return invokeAwsBracketOperation<unknown>("bracket-day-update", {
+      editionId: bracketEditionId,
+      input: updates,
+    });
   }
 
   const response = await supabase.rpc("update_bracket_day_schedule", {
@@ -1199,7 +1257,14 @@ export async function updateBracketCompetitionSettings(
   knockoutPairingMode: ChampionshipKnockoutPairingMode,
 ): Promise<{ error: Error | null }> {
   if (isAwsBackendEnabled()) {
-    return invokeAwsBracketOperation<unknown>("competition-settings-update", { competitionId, input: { qualifiersPerGroup, shouldCompleteKnockoutWithBestSecondPlacedTeams, knockoutPairingMode } });
+    return invokeAwsBracketOperation<unknown>("competition-settings-update", {
+      competitionId,
+      input: {
+        qualifiersPerGroup,
+        shouldCompleteKnockoutWithBestSecondPlacedTeams,
+        knockoutPairingMode,
+      },
+    });
   }
 
   const response = await supabase.rpc("update_bracket_competition_settings", {
@@ -1216,7 +1281,10 @@ export async function listEditableMatchScheduleSlots(
   input: EditableMatchScheduleSlotQueryInput,
 ): Promise<{ data: EditableMatchScheduleSlot[]; error: Error | null }> {
   if (isAwsBackendEnabled()) {
-    const result = await invokeAwsBracketOperation<EditableMatchScheduleSlot[]>("editable-schedule-slots", { input });
+    const result = await invokeAwsBracketOperation<EditableMatchScheduleSlot[]>(
+      "editable-schedule-slots",
+      { input },
+    );
     return { data: result.data ?? [], error: result.error };
   }
 
@@ -1950,7 +2018,10 @@ export async function updateBracketKnockoutCourtPriorities(
   items: BracketKnockoutCourtPriorityUpdate[],
 ): Promise<{ error: Error | null }> {
   if (isAwsBackendEnabled()) {
-    return invokeAwsBracketOperation<unknown>("knockout-court-priorities-update", { editionId: bracketEditionId, input: items });
+    return invokeAwsBracketOperation<unknown>("knockout-court-priorities-update", {
+      editionId: bracketEditionId,
+      input: items,
+    });
   }
 
   const response = await supabase.rpc("update_bracket_knockout_court_priorities", {
@@ -2060,7 +2131,10 @@ export async function updateBracketGeneratedLocationGroup(
   payload: BracketGeneratedLocationGroupUpdate,
 ): Promise<{ error: Error | null }> {
   if (isAwsBackendEnabled()) {
-    return invokeAwsBracketOperation<unknown>("generated-location-update", { editionId: bracketEditionId, input: payload });
+    return invokeAwsBracketOperation<unknown>("generated-location-update", {
+      editionId: bracketEditionId,
+      input: payload,
+    });
   }
 
   const response = await supabase.rpc("update_bracket_generated_location_group", {
