@@ -1446,6 +1446,13 @@ export async function updateBracketCourtPriorities(
   bracketEditionId: string,
   items: BracketCourtPriorityUpdate[],
 ): Promise<{ error: Error | null }> {
+  if (isAwsBackendEnabled()) {
+    return invokeAwsBracketOperation<unknown>("court-priorities-update", {
+      editionId: bracketEditionId,
+      input: items,
+    });
+  }
+
   const response = await supabase.rpc("update_bracket_court_priorities", {
     _bracket_edition_id: bracketEditionId,
     _court_priorities: toSupabaseJson(items),
@@ -1689,6 +1696,13 @@ export async function updateBracketLocationSportPriorities(
   bracketEditionId: string,
   items: BracketLocationSportPriorityUpdate[],
 ): Promise<{ error: Error | null }> {
+  if (isAwsBackendEnabled()) {
+    return invokeAwsBracketOperation<unknown>("location-sport-priorities-update", {
+      editionId: bracketEditionId,
+      input: items,
+    });
+  }
+
   const response = await supabase.rpc("update_bracket_location_sport_priorities", {
     _bracket_edition_id: bracketEditionId,
     _priority_updates: toSupabaseJson(items),
