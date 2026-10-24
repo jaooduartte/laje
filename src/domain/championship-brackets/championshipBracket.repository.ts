@@ -1456,54 +1456,23 @@ export async function updateBracketCourtPriorities(
 export async function getBracketLocationSportPriorities(
   bracketEditionId: string,
 ): Promise<{ data: BracketLocationSportPriorityGroup[]; error: Error | null }> {
-  const [daysResponse, prioritiesResponse, bracketMatchesResponse] = await Promise.all([
-    supabase
-      .from("championship_bracket_days")
-      .select(
-        `
-        id,
-        event_date,
-        championship_bracket_locations (
-          id,
-          name,
-          position,
-          location_group_id,
-          championship_bracket_courts (
-            id,
-            name,
-            position,
-            court_group_id,
-            preferred_sport_id,
-            championship_bracket_court_sports (
-              sport_id,
-              preferred_naipe,
-              preferred_division,
-              sequence_mode
-            )
-          )
-        )
-      `,
-      )
-      .eq("bracket_edition_id", bracketEditionId)
-      .order("event_date", { ascending: true }),
-    supabase
-      .from("championship_bracket_location_sport_priorities")
-      .select("location_group_id, sport_id, priority_mode")
-      .eq("bracket_edition_id", bracketEditionId),
-    supabase
-      .from("championship_bracket_matches")
-      .select(
-        `
-        match_id,
-        matches!championship_bracket_matches_match_id_fkey (
-          scheduled_date,
-          sport_id
-        )
-      `,
-      )
-      .eq("bracket_edition_id", bracketEditionId)
-      .not("match_id", "is", null),
-  ]);
+  let daysResponse: { data: unknown; error: Error | null };
+  let prioritiesResponse: { data: unknown; error: Error | null };
+  let bracketMatchesResponse: { data: unknown; error: Error | null };
+  if (isAwsBackendEnabled()) {
+    const aws = await invokeAwsBracketOperation<{ days: unknown[]; priorities: unknown[]; bracketMatches: unknown[] }>(
+      "location-sport-source",
+      { editionId: bracketEditionId },
+    );
+    if (aws.error) return { data: [], error: aws.error };
+    daysResponse = { data: aws.data?.days ?? [], error: null };
+    prioritiesResponse = { data: aws.data?.priorities ?? [], error: null };
+    bracketMatchesResponse = { data: aws.data?.bracketMatches ?? [], error: null };
+  } else {
+    const [days, priorities, bracketMatches] = await Promise.all([      supabase        .from("championship_bracket_days")        .select(          `          id,          event_date,          championship_bracket_locations (            id,            name,            position,            location_group_id,            championship_bracket_courts (              id,              name,              position,              court_group_id,              preferred_sport_id,              championship_bracket_court_sports (                sport_id,                preferred_naipe,                preferred_division,                sequence_mode              )            )          )        `,        )        .eq("bracket_edition_id", bracketEditionId)        .order("event_date", { ascending: true }),      supabase        .from("championship_bracket_location_sport_priorities")        .select("location_group_id, sport_id, priority_mode")        .eq("bracket_edition_id", bracketEditionId),      supabase        .from("championship_bracket_matches")        .select(          `          match_id,          matches!championship_bracket_matches_match_id_fkey (            scheduled_date,            sport_id          )        `,        )        .eq("bracket_edition_id", bracketEditionId)        .not("match_id", "is", null),    ]);    daysResponse = { data: days.data, error: days.error };
+    prioritiesResponse = { data: priorities.data, error: priorities.error };
+    bracketMatchesResponse = { data: bracketMatches.data, error: bracketMatches.error };
+  }
 
   if (daysResponse.error) {
     return { data: [], error: daysResponse.error };
@@ -1731,42 +1700,26 @@ export async function updateBracketLocationSportPriorities(
 export async function getBracketKnockoutCourtPriorities(
   bracketEditionId: string,
 ): Promise<{ data: BracketKnockoutCourtPriorityGroup[]; error: Error | null }> {
-  const [daysResponse, competitionsResponse, prioritiesResponse, finalProgramResponse] =
-    await Promise.all([
-      supabase
-        .from("championship_bracket_days")
-        .select(
-          `
-        championship_bracket_locations (
-          id,
-          name,
-          position,
-          location_group_id,
-          championship_bracket_courts (
-            id,
-            name,
-            position,
-            court_group_id,
-            championship_bracket_court_sports (
-              sport_id
-            )
-          )
-        )
-      `,
-        )
-        .eq("bracket_edition_id", bracketEditionId),
-      supabase
-        .from("championship_bracket_competitions")
-        .select("sport_id, division")
-        .eq("bracket_edition_id", bracketEditionId),
-      supabase
-        .from("championship_bracket_knockout_court_priorities")
-        .select("sport_id, phase, division_scope, location_group_id, court_group_id")
-        .eq("bracket_edition_id", bracketEditionId),
-      supabase.rpc("get_admin_championship_knockout_final_program_schedule", {
-        _bracket_edition_id: bracketEditionId,
-      }),
-    ]);
+  let daysResponse: { data: unknown; error: Error | null };
+  let competitionsResponse: { data: unknown; error: Error | null };
+  let prioritiesResponse: { data: unknown; error: Error | null };
+  let finalProgramResponse: { data: unknown; error: Error | null };
+  if (isAwsBackendEnabled()) {
+    const aws = await invokeAwsBracketOperation<{ days: unknown[]; competitions: unknown[]; priorities: unknown[]; finalProgram: unknown[] }>(
+      "knockout-court-source",
+      { editionId: bracketEditionId },
+    );
+    if (aws.error) return { data: [], error: aws.error };
+    daysResponse = { data: aws.data?.days ?? [], error: null };
+    competitionsResponse = { data: aws.data?.competitions ?? [], error: null };
+    prioritiesResponse = { data: aws.data?.priorities ?? [], error: null };
+    finalProgramResponse = { data: aws.data?.finalProgram ?? [], error: null };
+  } else {
+    const [days, competitions, priorities, finalProgram] =      await Promise.all([        supabase          .from("championship_bracket_days")          .select(            `          championship_bracket_locations (            id,            name,            position,            location_group_id,            championship_bracket_courts (              id,              name,              position,              court_group_id,              championship_bracket_court_sports (                sport_id              )            )          )        `,          )          .eq("bracket_edition_id", bracketEditionId),        supabase          .from("championship_bracket_competitions")          .select("sport_id, division")          .eq("bracket_edition_id", bracketEditionId),        supabase          .from("championship_bracket_knockout_court_priorities")          .select("sport_id, phase, division_scope, location_group_id, court_group_id")          .eq("bracket_edition_id", bracketEditionId),        supabase.rpc("get_admin_championship_knockout_final_program_schedule", {          _bracket_edition_id: bracketEditionId,        }),      ]);    daysResponse = { data: days.data, error: days.error };
+    competitionsResponse = { data: competitions.data, error: competitions.error };
+    prioritiesResponse = { data: priorities.data, error: priorities.error };
+    finalProgramResponse = { data: finalProgram.data, error: finalProgram.error };
+  }
 
   if (daysResponse.error) {
     return { data: [], error: daysResponse.error };
@@ -1860,7 +1813,7 @@ export async function getBracketKnockoutCourtPriorities(
   });
 
   const orderedSportIds = [
-    ...new Set((competitionsResponse.data ?? []).map((competition) => competition.sport_id)),
+    ...new Set(((competitionsResponse.data as Array<{ sport_id: string }> | null) ?? []).map((competition) => competition.sport_id)),
   ]
     .filter((sportId) => (courtOptionsBySportId.get(sportId)?.length ?? 0) > 0)
     .sort((leftSportId, rightSportId) => leftSportId.localeCompare(rightSportId));
