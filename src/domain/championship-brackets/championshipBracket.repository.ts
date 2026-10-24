@@ -2035,6 +2035,14 @@ export async function updateBracketKnockoutCourtPriorities(
 export async function getBracketGeneratedLocationGroups(
   bracketEditionId: string,
 ): Promise<{ data: BracketGeneratedLocationGroup[]; error: Error | null }> {
+  if (isAwsBackendEnabled()) {
+    const result = await invokeAwsBracketOperation<BracketGeneratedLocationGroup[]>(
+      "generated-location-groups",
+      { editionId: bracketEditionId },
+    );
+    return { data: result.data ?? [], error: result.error };
+  }
+
   const response = await supabase
     .from("championship_bracket_days")
     .select(
