@@ -135,7 +135,7 @@ export async function fetchChampionshipBracketWizardDraft(
 
   if (!remoteResponse.error) {
     const remoteRow =
-    ((remoteResponse.data as ChampionshipBracketDraftRpcRow[] | null) ?? [])[0] ?? null;
+      ((remoteResponse.data as ChampionshipBracketDraftRpcRow[] | null) ?? [])[0] ?? null;
     if (remoteRow?.payload_snapshot) {
       const remoteDto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
         JSON.stringify(remoteRow.payload_snapshot),
@@ -196,7 +196,7 @@ export async function saveChampionshipBracketWizardDraft(
   }
 
   const remoteRow =
-      ((remoteResponse.data as ChampionshipBracketDraftRpcRow[] | null) ?? [])[0] ?? null;
+    ((remoteResponse.data as ChampionshipBracketDraftRpcRow[] | null) ?? [])[0] ?? null;
   return {
     metadata: resolveRemoteDraftMetadata(remoteRow),
     error: null,
