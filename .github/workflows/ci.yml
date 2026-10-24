@@ -43,6 +43,11 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: LAJE-150 inspect formatting
+        run: |
+          npx prettier src/domain/championship-brackets/championshipBracket.repository.ts --write
+          git diff -- src/domain/championship-brackets/championshipBracket.repository.ts
+
       - name: Check formatting
         run: npm run format:check
 
