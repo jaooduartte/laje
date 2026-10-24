@@ -1090,7 +1090,7 @@ export async function swapChampionshipKnockoutBracketTeams(
   team_b_id: string,
 ): Promise<{ error: Error | null }> {
   if (isAwsBackendEnabled()) {
-    return invokeAwsBracketOperation<unknown>("knockout-teams-swap", { competitionId, input: { teamAId, teamBId } });
+    return invokeAwsBracketOperation<unknown>("knockout-teams-swap", { competitionId: competition_id, input: { teamAId: team_a_id, teamBId: team_b_id } });
   }
 
   const response = await supabase.rpc("swap_championship_knockout_bracket_teams", {
@@ -1950,7 +1950,7 @@ export async function updateBracketKnockoutCourtPriorities(
   items: BracketKnockoutCourtPriorityUpdate[],
 ): Promise<{ error: Error | null }> {
   if (isAwsBackendEnabled()) {
-    return invokeAwsBracketOperation<unknown>("knockout-court-priorities-update", { editionId: bracketEditionId, input: updates });
+    return invokeAwsBracketOperation<unknown>("knockout-court-priorities-update", { editionId: bracketEditionId, input: items });
   }
 
   const response = await supabase.rpc("update_bracket_knockout_court_priorities", {
@@ -2060,7 +2060,7 @@ export async function updateBracketGeneratedLocationGroup(
   payload: BracketGeneratedLocationGroupUpdate,
 ): Promise<{ error: Error | null }> {
   if (isAwsBackendEnabled()) {
-    return invokeAwsBracketOperation<unknown>("generated-location-update", { editionId: bracketEditionId, input });
+    return invokeAwsBracketOperation<unknown>("generated-location-update", { editionId: bracketEditionId, input: payload });
   }
 
   const response = await supabase.rpc("update_bracket_generated_location_group", {
