@@ -1,3 +1,5 @@
+import { isAwsBackendEnabled } from "@/config/environment";
+import { lajeApiRequest } from "@/integrations/laje-api/client";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { ChampionshipBracketWizardDraftDTO } from "@/domain/championship-brackets/ChampionshipBracketWizardDraftDTO";
@@ -16,6 +18,59 @@ interface ChampionshipBracketDraftRpcRow {
   updated_at: string;
   updated_by: string | null;
   updated_by_name: string | null;
+}
+
+interface DraftRpcResult {
+  data: ChampionshipBracketDraftRpcRow[] | null;
+  error: Error | null;
+}
+
+async function fetchRemoteBracketDraft(championshipId: string): Promise<DraftRpcResult> {
+  if (isAwsBackendEnabled()) {
+    try {
+      const response = await lajeApiRequest<{ data: ChampionshipBracketDraftRpcRow | null }>(
+        "/championships/" + championshipId + "/bracket/draft",
+      );
+      return { data: response.data ? [response.data] : [], error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  const response = await supabase.rpc("get_championship_bracket_draft", {
+    _championship_id: championshipId,
+    _season_year: null,
+  });
+  return {
+    data: response.data as unknown as ChampionshipBracketDraftRpcRow[] | null,
+    error: response.error,
+  };
+}
+
+async function persistRemoteBracketDraft(
+  championshipId: string,
+  dto: ChampionshipBracketWizardDraftDTO,
+): Promise<DraftRpcResult> {
+  if (isAwsBackendEnabled()) {
+    try {
+      const response = await lajeApiRequest<{ data: ChampionshipBracketDraftRpcRow }>(
+        "/championships/" + championshipId + "/bracket/draft",
+        { method: "PUT", body: JSON.stringify({ payloadSnapshot: dto.bindToSave() }) },
+      );
+      return { data: [response.data], error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  const response = await supabase.rpc("save_championship_bracket_draft", {
+    _championship_id: championshipId,
+    _payload: dto.bindToSave() as unknown as Json,
+  });
+  return {
+    data: response.data as unknown as ChampionshipBracketDraftRpcRow[] | null,
+    error: response.error,
+  };
 }
 
 function resolveChampionshipBracketWizardDraftStorageKey(championship_id: string): string {
@@ -76,10 +131,7 @@ function resolveRemoteDraftMetadata(
 export async function fetchChampionshipBracketWizardDraft(
   championship_id: string,
 ): Promise<ChampionshipBracketWizardDraftFetchResult> {
-  const remoteResponse = await supabase.rpc("get_championship_bracket_draft", {
-    _championship_id: championship_id,
-    _season_year: null,
-  });
+  const remoteResponse = await fetchRemoteBracketDraft(championship_id);
 
   if (!remoteResponse.error) {
     const remoteRow = ((remoteResponse.data as ChampionshipBracketDraftRpcRow[] | null) ?? [])[0] ?? null;
@@ -136,10 +188,7 @@ export async function saveChampionshipBracketWizardDraft(
   saveChampionshipBracketWizardDraftInLocalStorage(championship_id, draft_form_values);
 
   const dto = ChampionshipBracketWizardDraftDTO.fromFormValues(draft_form_values);
-  const remoteResponse = await supabase.rpc("save_championship_bracket_draft", {
-    _championship_id: championship_id,
-    _payload: dto.bindToSave() as unknown as Json,
-  });
+  const remoteResponse = await persistRemoteBracketDraft(championship_id, dto);
 
   if (remoteResponse.error) {
     return {
