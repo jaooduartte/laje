@@ -126,6 +126,13 @@ export async function previewChampionshipBracketReconfiguration(
   data: ChampionshipBracketReconfigurationPreview | null;
   error: Error | null;
 }> {
+  if (isAwsBackendEnabled()) {
+    return invokeAwsBracketOperation<ChampionshipBracketReconfigurationPreview>(
+      "reconfiguration-preview",
+      { editionId: bracketEditionId, action, input: payload },
+    );
+  }
+
   const response = await supabase.rpc("preview_championship_bracket_reconfiguration", {
     _bracket_edition_id: bracketEditionId,
     _action: action,
@@ -144,6 +151,16 @@ export async function applyChampionshipBracketReconfiguration(
   payload: Record<string, unknown>,
   expectedRevision: number,
 ): Promise<{ error: Error | null }> {
+  if (isAwsBackendEnabled()) {
+    const result = await invokeAwsBracketOperation<unknown>("reconfiguration-apply", {
+      editionId: bracketEditionId,
+      action,
+      input: payload,
+      expectedRevision,
+    });
+    return { error: result.error };
+  }
+
   const response = await supabase.rpc("apply_championship_bracket_reconfiguration", {
     _bracket_edition_id: bracketEditionId,
     _action: action,
